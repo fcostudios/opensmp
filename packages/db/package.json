@@ -11,8 +11,10 @@
     "./testing/pglite": "./src/testing/pglite.ts"
   },
   "scripts": {
+    "db:migrate": "node scripts/apply-migrations.mjs",
     "db:push": "drizzle-kit push",
-    "verify": "node scripts/verify-schema.mjs",
+    "db:verify": "node scripts/verify-schema.mjs",
+    "db:parity": "node scripts/check-migration-parity.mjs",
     "type-check": "tsc --noEmit",
     "lint": "echo 'no lint'",
     "build": "tsc",
@@ -25,11 +27,14 @@
     "dotenv": "^16.4.7"
   },
   "devDependencies": {
+    "@testcontainers/postgresql": "^12.0.4",
+    "@types/node": "^22.10.0",
     "drizzle-kit": "^0.30.1",
     "@types/pg": "^8.11.10",
     "typescript": "^5.7.0",
     "vitest": "^4.1.0",
     "@vitest/coverage-v8": "^4.1.0",
-    "@electric-sql/pglite": "^0.5.4"
+    "@electric-sql/pglite": "^0.5.4",
+    "yaml": "^2.8.1"
   }
 }

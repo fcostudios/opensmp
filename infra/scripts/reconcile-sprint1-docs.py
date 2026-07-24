@@ -26,6 +26,46 @@ COMPLETE_CHANGE_NOTES = (
 )
 
 REPLACEMENTS = {
+    "docs/dev-guide/DEFINITION_OF_DONE.md": (
+        (
+            """5. **Schema applies on a fresh database (and is verified):**
+   - **Prerequisite:** `DATABASE_URL` must be set to a reachable Postgres before this
+     step — copy `.env.example` → `.env` and set it (or run `task setup`). The bare
+     `push` below silently no-ops against an unset/unreachable URL.
+   ```bash
+   cd packages/db && pnpm drizzle-kit push && node scripts/verify-schema.mjs
+   ```
+   - `drizzle-kit push` exits **0 even on an unreachable `DATABASE_URL`** (a silent
+     no-op: 0 tables). `verify-schema.mjs` counts the applied tables and exits
+     non-zero on 0 — so "schema applies cleanly" can no longer be a false pass.
+   - The DB client auto-selects its driver by `DATABASE_URL` (`pg` for a local/
+     standard Postgres URL, `neon-http` for a Neon URL), so `push` applies locally.
+   - Migrations live in `packages/db/src/migrations/` as `V<timestamp>__<slug>.sql`.
+   - Once applied, a migration file is immutable — add a new one; never edit it.
+   - Every Drizzle column has a corresponding migration column.
+   - The release path applies committed migrations using the `ledger_owner`
+     connection. It then starts the application using the lower-privilege
+     `ledger_app` connection; application runtime must not use the owner role.""",
+            """5. **Committed migrations apply on a fresh database (and parity is verified):**
+   - **Prerequisite:** `DATABASE_ADMIN_URL` connects as `ledger_owner` and has
+     permission to create the two disposable parity databases. `DATABASE_URL`
+     connects as the lower-privilege `ledger_app` for runtime grant checks.
+   ```bash
+   pnpm --filter @smp/db db:migrate
+   pnpm --filter @smp/db db:verify
+   pnpm --filter @smp/db db:parity
+   ```
+   - `db:migrate` applies only sorted, committed `V<timestamp>__<slug>.sql` files,
+     under the migration advisory lock, and rejects changed checksums.
+   - `db:verify` verifies the migration ledger and the committed integrity objects.
+   - `db:parity` compares committed migrations with a fresh `drizzle-kit push`
+     across tables, columns, normalized types, nullability, and foreign keys.
+   - Once applied, a migration file is immutable — add a new one; never edit it.
+   - The release path applies committed migrations using the `ledger_owner`
+     connection. It then starts the application using the lower-privilege
+     `ledger_app` connection; application runtime must not use the owner role.""",
+        ),
+    ),
     "docs/dev-guide/TESTING.md": (
         (
             "every path that touches tenant-scoped data (filtered by `org_id`).",

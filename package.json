@@ -10,7 +10,7 @@
     "dev": "turbo run dev",
     "type-check": "turbo run type-check",
     "lint": "python3 infra/scripts/reconcile-sprint1-docs.py . --check && turbo run lint",
-    "test": "pnpm run test:enforcement && pnpm run test:feedback-order && pnpm run test:feedback-order:fixtures && pnpm run test:infra && turbo run test",
+    "test": "pnpm run test:enforcement && pnpm run test:feedback-order && pnpm run test:feedback-order:fixtures && pnpm run test:infra && pnpm --filter @smp/db test && turbo run test --filter='!@smp/db' --concurrency=1",
     "test:enforcement": "node scripts/test-token-enforcement.mjs",
     "test:feedback-order": "node scripts/check-nous-feedback-order.mjs .",
     "test:feedback-order:fixtures": "node scripts/test-feedback-order.mjs",
