@@ -92,17 +92,8 @@ jobs:
       - name: Apply committed migrations as ledger_owner
         run: pnpm --filter @smp/db db:migrate
 
-      - name: Verify migrated schema and runtime grant state
+      - name: Verify exact migrated integrity and zero-grant runtime state
         run: pnpm --filter @smp/db db:verify
-
-      - name: Verify current ledger_app grant baseline using ledger_app
-        env:
-          PGPASSWORD: ${{ env.LEDGER_APP_PASSWORD }}
-        run: |
-          grant_state="$(psql --host=127.0.0.1 --username=ledger_app --dbname=ledger_ci \
-            --no-align --tuples-only --set=ON_ERROR_STOP=1 \
-            --command="SELECT current_user = 'ledger_app' AND NOT has_table_privilege(current_user, 'public.company', 'SELECT')")"
-          test "${grant_state//[[:space:]]/}" = "t"
 
       - name: Compare committed migrations with drizzle-kit push
         run: pnpm --filter @smp/db db:parity

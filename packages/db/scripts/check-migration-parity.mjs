@@ -153,11 +153,17 @@ async function dropDisposableDatabase(admin, databaseName) {
 
 export async function checkMigrationParity({
   databaseAdminUrl = process.env.DATABASE_ADMIN_URL,
+  applicationUrl = process.env.DATABASE_URL,
   beforeCompare,
 } = {}) {
   if (!databaseAdminUrl) {
     throw new Error(
       "DATABASE_ADMIN_URL is required to provision parity databases",
+    );
+  }
+  if (!applicationUrl) {
+    throw new Error(
+      "DATABASE_URL is required to verify ledger_app integrity during parity",
     );
   }
 
@@ -166,25 +172,32 @@ export async function checkMigrationParity({
   const pushDatabase = `ledger_parity_push_${suffix}`;
   const migrationUrl = databaseUrl(databaseAdminUrl, migrationDatabase);
   const pushUrl = databaseUrl(databaseAdminUrl, pushDatabase);
+  const migrationApplicationUrl = databaseUrl(
+    applicationUrl,
+    migrationDatabase,
+  );
   const admin = new pg.Client({
     connectionString: databaseAdminUrl,
     application_name: "ledger-parity-provisioner",
   });
   await admin.connect();
   let primaryError;
+  let result;
   try {
     await admin.query(`CREATE DATABASE ${quotedIdentifier(migrationDatabase)}`);
     await admin.query(`CREATE DATABASE ${quotedIdentifier(pushDatabase)}`);
     await applyMigrations({ databaseAdminUrl: migrationUrl });
     await runDrizzlePush(pushUrl);
-    await verifyMigratedSchema({ databaseAdminUrl: migrationUrl });
+    await verifyMigratedSchema({
+      databaseAdminUrl: migrationUrl,
+      applicationUrl: migrationApplicationUrl,
+    });
     if (beforeCompare) {
       await beforeCompare({ migrationUrl, pushUrl });
     }
-    return await compareDatabaseStructures(migrationUrl, pushUrl);
+    result = await compareDatabaseStructures(migrationUrl, pushUrl);
   } catch (error) {
     primaryError = error;
-    throw error;
   } finally {
     const cleanupErrors = [];
     for (const databaseName of [migrationDatabase, pushDatabase]) {
@@ -195,13 +208,17 @@ export async function checkMigrationParity({
       }
     }
     await admin.end().catch((error) => cleanupErrors.push(error));
-    if (!primaryError && cleanupErrors.length > 0) {
+    if (cleanupErrors.length > 0) {
       throw new AggregateError(
-        cleanupErrors,
-        "failed to clean parity databases exactly",
+        primaryError ? [primaryError, ...cleanupErrors] : cleanupErrors,
+        primaryError
+          ? "migration parity and cleanup both failed"
+          : "failed to clean parity databases exactly",
       );
     }
   }
+  if (primaryError) throw primaryError;
+  return result;
 }
 
 async function main() {

@@ -4,12 +4,32 @@ import { config } from "dotenv";
 import pg from "pg";
 import { committedMigrations } from "./apply-migrations.mjs";
 
+const explicitEnvironment = {
+  DATABASE_ADMIN_URL: process.env.DATABASE_ADMIN_URL,
+  DATABASE_URL: process.env.DATABASE_URL,
+  MIGRATIONS_DIR: process.env.MIGRATIONS_DIR,
+};
 config({ path: ".env" });
 config({ path: ".env.local", override: true });
+for (const [key, value] of Object.entries(explicitEnvironment)) {
+  if (value !== undefined) process.env[key] = value;
+}
 
 const expectedAppendOnlyTriggers = [
-  ["audit_log", "audit_log_no_mutate"],
-  ["request_transition", "request_transition_no_mutate"],
+  {
+    tableName: "audit_log",
+    triggerName: "audit_log_no_mutate",
+    functionName: "audit_log_append_only",
+    functionSource:
+      "BEGIN RAISE EXCEPTION 'append_only: % is forbidden on audit_log', TG_OP; END;",
+  },
+  {
+    tableName: "request_transition",
+    triggerName: "request_transition_no_mutate",
+    functionName: "request_transition_append_only",
+    functionSource:
+      "BEGIN RAISE EXCEPTION 'append_only: % is forbidden on request_transition', TG_OP; END;",
+  },
 ];
 
 export async function verifyMigratedSchema({
@@ -20,6 +40,11 @@ export async function verifyMigratedSchema({
   if (!databaseAdminUrl) {
     throw new Error(
       "DATABASE_ADMIN_URL is required to verify committed migrations as ledger_owner",
+    );
+  }
+  if (!applicationUrl) {
+    throw new Error(
+      "DATABASE_URL is required to verify ledger_app runtime grants",
     );
   }
 
@@ -34,6 +59,11 @@ export async function verifyMigratedSchema({
   try {
     const identity = await owner.query("SELECT current_user");
     ownerName = identity.rows[0]?.current_user;
+    if (ownerName !== "ledger_owner") {
+      throw new Error(
+        `DATABASE_ADMIN_URL must connect as ledger_owner, connected as ${ownerName}`,
+      );
+    }
     const tables = await owner.query(`
       SELECT count(*)::int AS count
       FROM pg_class AS relation
@@ -64,23 +94,53 @@ export async function verifyMigratedSchema({
     migrationCount = expected.length;
 
     const triggers = await owner.query(`
-      SELECT event_object_table AS table_name, trigger_name
-      FROM information_schema.triggers
-      WHERE trigger_schema = 'public'
-      GROUP BY event_object_table, trigger_name
-      ORDER BY event_object_table, trigger_name
-    `);
-    const appendOnlyTriggers = triggers.rows
-      .map(({ table_name, trigger_name }) => [table_name, trigger_name])
-      .filter(([tableName, triggerName]) =>
-        expectedAppendOnlyTriggers.some(
-          ([expectedTable, expectedTrigger]) =>
-            tableName === expectedTable && triggerName === expectedTrigger,
-        ),
-      );
+      SELECT
+        relation.relname AS table_name,
+        trigger_row.tgname AS trigger_name,
+        trigger_row.tgenabled AS enabled,
+        trigger_row.tgtype::int AS trigger_type,
+        function_namespace.nspname AS function_schema,
+        function_row.proname AS function_name,
+        language_row.lanname AS function_language,
+        function_row.prorettype = 'trigger'::regtype AS returns_trigger,
+        function_row.prosrc AS function_source
+      FROM pg_trigger AS trigger_row
+      JOIN pg_class AS relation ON relation.oid = trigger_row.tgrelid
+      JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+      JOIN pg_proc AS function_row ON function_row.oid = trigger_row.tgfoid
+      JOIN pg_namespace AS function_namespace
+        ON function_namespace.oid = function_row.pronamespace
+      JOIN pg_language AS language_row ON language_row.oid = function_row.prolang
+      WHERE namespace.nspname = 'public'
+        AND NOT trigger_row.tgisinternal
+        AND trigger_row.tgname = ANY($1::text[])
+      ORDER BY relation.relname, trigger_row.tgname
+    `, [expectedAppendOnlyTriggers.map(({ triggerName }) => triggerName)]);
+    const appendOnlyTriggers = triggers.rows.map((row) => ({
+      tableName: row.table_name,
+      triggerName: row.trigger_name,
+      enabled: row.enabled,
+      triggerType: row.trigger_type,
+      functionSchema: row.function_schema,
+      functionName: row.function_name,
+      functionLanguage: row.function_language,
+      returnsTrigger: row.returns_trigger,
+      functionSource: row.function_source.replace(/\s+/g, " ").trim(),
+    }));
+    const expectedTriggerState = expectedAppendOnlyTriggers.map((expected) => ({
+      tableName: expected.tableName,
+      triggerName: expected.triggerName,
+      enabled: "O",
+      triggerType: 27,
+      functionSchema: "public",
+      functionName: expected.functionName,
+      functionLanguage: "plpgsql",
+      returnsTrigger: true,
+      functionSource: expected.functionSource,
+    }));
     if (
       JSON.stringify(appendOnlyTriggers) !==
-      JSON.stringify(expectedAppendOnlyTriggers)
+      JSON.stringify(expectedTriggerState)
     ) {
       throw new Error(
         `append-only trigger integrity mismatch: ${JSON.stringify(appendOnlyTriggers)}`,
@@ -90,46 +150,57 @@ export async function verifyMigratedSchema({
     await owner.end();
   }
 
-  let applicationIntegrity = null;
-  if (applicationUrl) {
-    const application = new pg.Client({
-      connectionString: applicationUrl,
-      application_name: "ledger-runtime-grant-verifier",
-    });
-    await application.connect();
-    try {
-      const result = await application.query(`
-        SELECT
-          current_user,
-          count(*) FILTER (
-            WHERE has_table_privilege(
-              current_user,
-              quote_ident(namespace.nspname) || '.' || quote_ident(relation.relname),
-              'SELECT,INSERT,UPDATE,DELETE'
-            )
-          )::int AS granted_tables,
-          count(*)::int AS total_tables
+  const application = new pg.Client({
+    connectionString: applicationUrl,
+    application_name: "ledger-runtime-grant-verifier",
+  });
+  await application.connect();
+  let applicationIntegrity;
+  try {
+    const identity = await application.query("SELECT current_user");
+    const role = identity.rows[0]?.current_user;
+    if (role !== "ledger_app") {
+      throw new Error(
+        `DATABASE_URL must connect as ledger_app, connected as ${role}`,
+      );
+    }
+    const grants = await application.query(`
+      WITH application_tables AS (
+        SELECT relation.relname AS table_name
         FROM pg_class AS relation
         JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
         WHERE namespace.nspname = 'public'
           AND relation.relkind IN ('r', 'p')
           AND relation.relname <> 'ledger_schema_migrations'
-        GROUP BY current_user
-      `);
-      const row = result.rows[0];
-      applicationIntegrity = {
-        role: row?.current_user,
-        grantedTables: Number(row?.granted_tables ?? 0),
-        totalTables: Number(row?.total_tables ?? 0),
-      };
-      if (applicationIntegrity.role !== "ledger_app") {
-        throw new Error(
-          `DATABASE_URL must connect as ledger_app, connected as ${applicationIntegrity.role}`,
-        );
-      }
-    } finally {
-      await application.end();
+      ),
+      dml_privileges(privilege) AS (
+        VALUES ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')
+      )
+      SELECT table_name, privilege
+      FROM application_tables
+      CROSS JOIN dml_privileges
+      WHERE has_table_privilege(
+        current_user,
+        quote_ident('public') || '.' || quote_ident(table_name),
+        privilege
+      )
+      ORDER BY table_name, privilege
+    `);
+    if (grants.rows.length > 0) {
+      throw new Error(
+        "unexpected ledger_app DML grants: " +
+          grants.rows
+            .map(({ table_name, privilege }) => `${table_name}:${privilege}`)
+            .join(", "),
+      );
     }
+    applicationIntegrity = {
+      role,
+      unexpectedGrants: [],
+      totalTables: tableCount,
+    };
+  } finally {
+    await application.end();
   }
 
   return {
@@ -149,17 +220,10 @@ async function main() {
   );
   console.log(`✓ ${result.appendOnlyTriggerCount} append-only trigger(s) verified`);
   if (result.applicationIntegrity) {
-    if (result.applicationIntegrity.grantedTables === 0) {
-      console.log(
-        "ℹ ledger_app has no table grants in the committed migrations " +
-          "(truthful current integrity state)",
-      );
-    } else {
-      console.log(
-        `✓ ledger_app has DML grants on ` +
-          `${result.applicationIntegrity.grantedTables}/${result.applicationIntegrity.totalTables} table(s)`,
-      );
-    }
+    console.log(
+      "✓ ledger_app has no table grants in the committed migrations " +
+        "(truthful current integrity state)",
+    );
   }
 }
 

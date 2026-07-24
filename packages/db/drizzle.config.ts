@@ -5,8 +5,15 @@
 import { config } from "dotenv";
 import { defineConfig } from "drizzle-kit";
 
+const explicitEnvironment = {
+  DATABASE_URL: process.env.DATABASE_URL,
+  DB_DRIVER: process.env.DB_DRIVER,
+};
 config({ path: ".env" });
 config({ path: ".env.local", override: true });
+for (const [key, value] of Object.entries(explicitEnvironment)) {
+  if (value !== undefined) process.env[key] = value;
+}
 
 export default defineConfig({
   schema: "./src/schema.ts",
