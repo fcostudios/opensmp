@@ -3,10 +3,74 @@
 // EXCLUDED — review #4) outside the token layer + the status-pill atom are
 // violations (use tokens / tailwind classes). Catches #hex, #RGB shorthand,
 // rgb()/rgba() and hsl()/hsla() (review #6); comments/strings skipped.
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
-const root = resolve(process.argv[2] || ".");
+// Token ownership contract:
+// - packages/design-system/tokens.json is the only editable token data.
+// - this script deterministically derives both CSS artifacts from it.
+// - `--write-tokens` refreshes those artifacts; normal lint mode verifies parity.
+const writeTokens = process.argv.includes("--write-tokens");
+const rootArg = process.argv.slice(2).find((arg) => !arg.startsWith("--"));
+const root = resolve(rootArg || ".");
 const HEXES = ["#166534", "#16A34A", "#92400E", "#991B1B", "#C96F12", "#D97706", "#DC2626", "#DCFCE7", "#E7851A", "#FEF3C7"];
+
+function tokenName(name) {
+  return name.replaceAll("_", "-");
+}
+
+function tokenDeclarations(tokens) {
+  const declarations = [];
+  for (const [name, value] of Object.entries(tokens.color || {})) {
+    if (name === "semantic") continue;
+    declarations.push([`--color-${tokenName(name)}`, value]);
+  }
+  for (const [name, value] of Object.entries(tokens.color?.semantic || {})) {
+    declarations.push([`--color-${tokenName(name)}`, value]);
+  }
+  const fonts = tokens.typography?.fontFamily || {};
+  const fontFallbacks = {
+    base: "ui-sans-serif, system-ui, sans-serif",
+    display: "ui-serif, Georgia, serif",
+    mono: "ui-monospace, monospace",
+  };
+  const fontNames = { base: "sans", display: "display", mono: "mono" };
+  for (const key of ["base", "display", "mono"]) {
+    if (fonts[key]) declarations.push([`--font-${fontNames[key]}`, `\"${fonts[key]}\", ${fontFallbacks[key]}`]);
+  }
+  return declarations;
+}
+
+function renderTokens(selector, declarations) {
+  return [
+    "/* Generated from packages/design-system/tokens.json by scripts/check-hardcoded-color.mjs --write-tokens — DO NOT hand-edit */",
+    `${selector} {`,
+    ...declarations.map(([name, value]) => `  ${name}: ${value};`),
+    "}",
+    "",
+  ].join("\n");
+}
+
+function syncTokenArtifacts(root) {
+  const tokenPath = join(root, "packages", "design-system", "tokens.json");
+  const tokens = JSON.parse(readFileSync(tokenPath, "utf8"));
+  const declarations = tokenDeclarations(tokens);
+  const artifacts = [
+    [join(root, "packages", "design-system", "tokens.css"), renderTokens(":root", declarations)],
+    [join(root, "apps", "web", "src", "styles", "tokens.css"), renderTokens("@theme", declarations)],
+  ];
+  let stale = false;
+  for (const [path, expected] of artifacts) {
+    const actual = readFileSync(path, "utf8");
+    if (actual !== expected) {
+      if (writeTokens) writeFileSync(path, expected);
+      else {
+        console.error(`[token-parity] ${path} differs from packages/design-system/tokens.json; run: node scripts/check-hardcoded-color.mjs --write-tokens`);
+        stale = true;
+      }
+    }
+  }
+  return stale;
+}
 function loadIgnore(root, key) {
   try {
     const j = JSON.parse(readFileSync(join(root, ".design-system-lint-ignore.json"), "utf8"));
@@ -103,6 +167,7 @@ const EXTS = [".ts", ".tsx", ".css", ".js", ".jsx"];
 const NEEDLE = new Map();   // "R,G,B" -> original hex
 for (const hex of HEXES) { for (const c of normColors(hex)) NEEDLE.set(c, hex); }
 let failed = false;
+if (syncTokenArtifacts(root)) failed = true;
 for (const f of walkRoots(root, ROOTS, EXTS)) {
   if (ignored(f, root, IGNORE)) continue;   // token-definition layers exempt
   const colors = normColors(stripComments(readFileSync(f, "utf8")));  // skip comments, keep string-literal hexes

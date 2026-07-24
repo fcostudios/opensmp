@@ -116,6 +116,48 @@ const SEM_RGB = new Map();   // "R,G,B" -> original hex
 for (const hex of SEM) { for (const c of normColors(hex)) SEM_RGB.set(c, hex); }
 
 let failed = false;
+const statusPillPath = join(root, "packages", "ui", "src", "atoms", "status-pill.css");
+const statusPillCss = readFileSync(statusPillPath, "utf8");
+const statusPillRules = [
+  ["success", "--color-success", "--color-success-bg", "--color-success-dot"],
+  ["pending", "--color-pending-text", "--color-pending-bg", "--color-pending-dot"],
+  ["attention", "--color-error-text", "--color-error-bg", "--color-error-dot"],
+  ["neutral", "--color-neutral-text", "--color-neutral-bg", "--color-neutral-dot"],
+];
+function statusRule(selector) {
+  return new RegExp(`\\.${selector}\\s*\\{([^}]*)\\}`, "m").exec(statusPillCss)?.[1] || "";
+}
+function statusHasDeclaration(rule, property, value) {
+  return new RegExp(`${property}\\s*:\\s*${value.replace(/[()]/g, "\\$&")}\\s*;`).test(rule);
+}
+const baseDotRule = statusRule("status-pill::before");
+if (!statusHasDeclaration(baseDotRule, "content", "\"\"") || !statusHasDeclaration(baseDotRule, "width", "0.5rem") || !statusHasDeclaration(baseDotRule, "height", "0.5rem")) {
+  console.error("[status-pill contract] .status-pill::before must render a visible dot");
+  failed = true;
+}
+for (const [variant, color, background, dot] of statusPillRules) {
+  const rule = statusRule(`status-pill--${variant}`);
+  const dotRule = statusRule(`status-pill--${variant}::before`);
+  if (!statusHasDeclaration(rule, "color", `var(${color})`) || !statusHasDeclaration(rule, "background", `var(${background})`)) {
+    console.error(`[status-pill contract] .status-pill--${variant} must use color: var(${color}) and background: var(${background})`);
+    failed = true;
+  }
+  if (!statusHasDeclaration(dotRule, "background", `var(${dot})`)) {
+    console.error(`[status-pill contract] .status-pill--${variant}::before must render var(${dot})`);
+    failed = true;
+  }
+}
+const allowedVariants = new Set(statusPillRules.map(([variant]) => variant));
+for (const match of statusPillCss.matchAll(/\.status-pill--([a-z-]+)/g)) {
+  if (!allowedVariants.has(match[1])) {
+    console.error(`[status-pill contract] unsupported status-pill variant: ${match[1]}`);
+    failed = true;
+  }
+}
+if (normColors(stripComments(statusPillCss)).size > 0) {
+  console.error("[status-pill contract] status-pill.css must reference semantic tokens, not color literals");
+  failed = true;
+}
 for (const f of walkRoots(root, ROOTS, EXTS)) {
   if (ignored(f, root, IGNORE)) continue;   // token layers + the SSOT atom are exempt
   const colors = normColors(stripComments(readFileSync(f, "utf8")));  // skip comments, keep string-literal hexes

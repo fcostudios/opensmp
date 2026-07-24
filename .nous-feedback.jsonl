@@ -3,3 +3,5 @@
 {"story":"US-001","event":"ac_verify","ac":2,"method":"rtk pnpm check","pass":true,"notes":"Exact command `rtk pnpm check` exited 0 after the final workspace baseline: it ran type-check, Next 16.2.11 flat-config lint, test including identity.test.ts, and next build --webpack."}
 {"story":"US-001","event":"build_pass","notes":"Exact command `rtk pnpm check` exited 0: rtk pnpm type-check, rtk pnpm lint, rtk pnpm test (including the identity-only auth test), and rtk pnpm build via next build --webpack all passed."}
 {"story":"US-001","event":"deviation","notes":"AC3 and done are withdrawn from this baseline: Tailwind 4 token-layer verification belongs to Task 3. US-001 remains in progress with only the valid workspace-baseline evidence retained."}
+{"story":"US-001","event":"ac_verify","ac":3,"method":"rtk pnpm --filter smp-web lint:ds","pass":true,"notes":"Exact command `rtk pnpm --filter smp-web lint:ds` exited 0; status-pill SSOT, hardcoded-color, hardcoded-string, and Lucide allowlist checks all passed."}
+{"story":"US-001","event":"done"}

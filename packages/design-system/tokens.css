@@ -1,4 +1,4 @@
-/* Generated from tokens.json — DO NOT hand-edit */
+/* Generated from packages/design-system/tokens.json by scripts/check-hardcoded-color.mjs --write-tokens — DO NOT hand-edit */
 :root {
   --color-background: #f2f2f2;
   --color-border: #e3e2e2;
@@ -28,4 +28,7 @@
   --color-success: #166534;
   --color-success-bg: #dcfce7;
   --color-success-dot: #16a34a;
+  --font-sans: "Barlow", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Barlow Condensed", ui-serif, Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 }
