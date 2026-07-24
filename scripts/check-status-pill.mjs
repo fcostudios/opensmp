@@ -181,7 +181,7 @@ function validateAllowedProperties(selector, rule) {
   }
 }
 for (const selector of parsedRules.keys()) {
-  if (selector.includes(".status-pill--") && !canonicalSelectors.has(selector)) {
+  if (selector.includes(".status-pill") && !canonicalSelectors.has(selector)) {
     console.error(`[status-pill contract] noncanonical status-pill selector: ${selector}`);
     failed = true;
   }

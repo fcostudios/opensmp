@@ -89,6 +89,12 @@ withFixture("status hover override", (root) => {
   expectRejected("status hover override", root, "check-status-pill.mjs", "noncanonical status-pill selector");
 });
 
+withFixture("base status hover override", (root) => {
+  const path = join(root, "packages", "ui", "src", "atoms", "status-pill.css");
+  writeFileSync(path, `${readFileSync(path, "utf8")}\n.status-pill:hover { gap: var(--spacing-1); }\n`);
+  expectRejected("base status hover override", root, "check-status-pill.mjs", "noncanonical status-pill selector");
+});
+
 withFixture("extra canonical background alias", (root) => {
   const path = join(root, "packages", "ui", "src", "atoms", "status-pill.css");
   writeFileSync(path, readFileSync(path, "utf8").replace("color: var(--color-success); background: var(--color-success-bg);", "color: var(--color-success); background: var(--color-success-bg); background-color: var(--color-error-bg);"));

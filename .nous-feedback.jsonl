@@ -5,9 +5,9 @@
 {"story":"US-001","event":"deviation","notes":"AC3 and done are withdrawn from this baseline: Tailwind 4 token-layer verification belongs to Task 3. US-001 remains in progress with only the valid workspace-baseline evidence retained."}
 {"story":"US-001","event":"ac_verify","ac":3,"method":"rtk pnpm --filter smp-web lint:ds","pass":true,"notes":"Exact command `rtk pnpm --filter smp-web lint:ds` exited 0; status-pill SSOT, hardcoded-color, hardcoded-string, and Lucide allowlist checks all passed."}
 {"story":"US-001","event":"done"}
-{"story":"US-001","event":"ac_verify","ac":3,"method":"rtk pnpm --filter smp-web lint:ds","pass":true,"notes":"Final residual-fix exact command `rtk pnpm --filter smp-web lint:ds` exited 0; selector and declaration allowlists, token parity, hardcoded-color/string, and Lucide checks all passed."}
-{"story":"US-001","event":"build_pass","notes":"Final residual-fix commands exited 0: `rtk pnpm type-check`, `rtk pnpm lint`, `rtk pnpm test` (including selector/declaration mutation tests), and `rtk pnpm build` (Next webpack); diff and token parity checks passed."}
-{"story":"US-001","event":"done"}
 {"story":"US-001","event":"ac_verify","ac":3,"method":"rtk pnpm --filter smp-web lint:ds","pass":true,"notes":"Final post-review exact command `rtk pnpm --filter smp-web lint:ds` exited 0; parsed StatusPill contract, token parity, hardcoded-color/string, and Lucide checks all passed."}
 {"story":"US-001","event":"build_pass","notes":"Final post-review commands exited 0: `rtk pnpm type-check`, `rtk pnpm lint`, `rtk pnpm test` (including token-enforcement mutation tests), and `rtk pnpm build` (Next webpack). Token generation was idempotent and parity/diff checks passed."}
+{"story":"US-001","event":"done"}
+{"story":"US-001","event":"ac_verify","ac":3,"method":"rtk pnpm --filter smp-web lint:ds","pass":true,"notes":"Final residual-fix exact command `rtk pnpm --filter smp-web lint:ds` exited 0; selector and declaration allowlists, token parity, hardcoded-color/string, and Lucide checks all passed."}
+{"story":"US-001","event":"build_pass","notes":"Final residual-fix commands exited 0: `rtk pnpm type-check`, `rtk pnpm lint`, `rtk pnpm test` (including selector/declaration mutation tests), and `rtk pnpm build` (Next webpack); diff and token parity checks passed."}
 {"story":"US-001","event":"done"}
