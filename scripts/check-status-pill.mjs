@@ -58,6 +58,8 @@ function ignored(file, globs) {
 }
 const skipDirectories = new Set(["node_modules", ".next", "dist", "build", ".git", "coverage"]);
 const reportedStatFailures = new Set();
+let failed = false;
+function fail(message) { console.error(`[status-pill contract] ${message}`); failed = true; }
 function walk(directory, extensions) {
   let files = [];
   let entries;
@@ -83,8 +85,6 @@ function walk(directory, extensions) {
 const sourceRoots = [join(root, "apps", "web", "src"), join(root, "packages")];
 const cssFiles = sourceRoots.flatMap((directory) => walk(directory, [".css"]));
 const sourceFiles = sourceRoots.flatMap((directory) => walk(directory, [".ts", ".tsx", ".css", ".js", ".jsx"]));
-let failed = false;
-function fail(message) { console.error(`[status-pill contract] ${message}`); failed = true; }
 
 const canonicalRules = new Map();
 const stylesheets = new Map();

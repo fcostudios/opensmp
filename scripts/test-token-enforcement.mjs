@@ -138,6 +138,14 @@ withFixture("external semantic alpha mismatch", (root) => {
   expect(result.status === 0, `external semantic alpha mismatch: expected checker acceptance, got exit ${result.status}: ${result.stderr}`);
 });
 
+for (const [format, literal] of [["RGB", "rgb(22, 101, 52)"], ["HSL", "hsl(47, 98%, 89%)"]]) {
+  withFixture(`canonical StatusPill CSS ${format} literal`, (root) => {
+    const path = join(root, "packages", "ui", "src", "atoms", "status-pill.css");
+    writeFileSync(path, `${readFileSync(path, "utf8")}\n.status-pill { outline-color: ${literal}; }\n`);
+    expectRejected(`canonical StatusPill CSS ${format} literal`, root, "check-hardcoded-color.mjs", "[no-hardcoded-color]");
+  });
+}
+
 withFixture("background-color substring", (root) => {
   const path = join(root, "packages", "ui", "src", "atoms", "status-pill.css");
   writeFileSync(path, readFileSync(path, "utf8").replace("color: var(--color-success);", "background-color: var(--color-success);"));
@@ -205,7 +213,10 @@ withFixture("status-pillow is not a StatusPill selector", (root) => {
 
 withFixture("broken CSS symlink has a deterministic diagnostic", (root) => {
   symlinkSync("missing-status-pill.css", join(root, "packages", "ui", "src", "broken-status-pill.css"));
-  expectRejected("broken CSS symlink has a deterministic diagnostic", root, "check-status-pill.mjs", "cannot stat");
+  const result = run("check-status-pill.mjs", root);
+  expect(result.status !== 0, `broken CSS symlink has a deterministic diagnostic: expected a nonzero exit, got ${result.status}`);
+  expect(result.stderr.includes("cannot stat"), "broken CSS symlink has a deterministic diagnostic: expected cannot stat diagnostic");
+  expect(!/ReferenceError|^\s+at\s/m.test(result.stderr), `broken CSS symlink has a deterministic diagnostic: expected controlled diagnostic, got ${result.stderr}`);
 });
 
 withFixture("extra canonical background alias", (root) => {

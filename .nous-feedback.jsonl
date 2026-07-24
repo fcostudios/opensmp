@@ -26,3 +26,6 @@
 {"story":"US-001","event":"ac_verify","ac":3,"method":"rtk pnpm --filter smp-web lint:ds","pass":true,"notes":"Final enforcement-quality command exited 0; StatusPill CSS/TypeScript ownership, shared alpha-aware hex parsing, and literal/comment checks passed."}
 {"story":"US-001","event":"build_pass","notes":"Final enforcement-quality commands exited 0: `rtk pnpm type-check`, `rtk pnpm lint`, `rtk pnpm test` (direct StatusPill, parser/filesystem, and canonical feedback lifecycle fixtures), and `rtk pnpm build` (Next webpack); parity and diff checks passed."}
 {"story":"US-001","event":"done"}
+{"story":"US-001","event":"ac_verify","ac":3,"method":"rtk pnpm --filter smp-web lint:ds","pass":true,"notes":"Final canonical-StatusPill-literal command exited 0; raw RGB/HSL mutation checks and controlled broken-symlink diagnostics passed."}
+{"story":"US-001","event":"build_pass","notes":"Final canonical-StatusPill-literal commands exited 0: `rtk pnpm type-check`, `rtk pnpm lint`, `rtk pnpm test`, and `rtk pnpm build` (Next webpack); parity and diff checks passed."}
+{"story":"US-001","event":"done"}
