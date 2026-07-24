@@ -126,6 +126,19 @@ const statusPillRules = [
   ["attention", "--color-error-text", "--color-error-bg", "--color-error-dot"],
   ["neutral", "--color-neutral-text", "--color-neutral-bg", "--color-neutral-dot"],
 ];
+const canonicalSelectors = new Set([
+  ".status-pill",
+  ".status-pill::before",
+  ...statusPillRules.flatMap(([variant]) => [`.status-pill--${variant}`, `.status-pill--${variant}::before`]),
+]);
+const allowedProperties = new Map([
+  [".status-pill", new Set(["align-items", "display", "gap"])],
+  [".status-pill::before", new Set(["border-radius", "content", "flex", "height", "width"])],
+  ...statusPillRules.flatMap(([variant]) => [
+    [`.status-pill--${variant}`, new Set(["color", "background"])],
+    [`.status-pill--${variant}::before`, new Set(["background"])],
+  ]),
+]);
 function parseCssRules(css) {
   const rules = new Map();
   const text = stripComments(css);
@@ -158,7 +171,25 @@ function statusHasDeclaration(rule, property, value) {
   const matches = rule.filter((declaration) => declaration.property === property);
   return matches.length === 1 && matches[0].value === value;
 }
+function validateAllowedProperties(selector, rule) {
+  const allowed = allowedProperties.get(`.${selector}`);
+  for (const declaration of rule) {
+    if (!allowed?.has(declaration.property)) {
+      console.error(`[status-pill contract] unexpected declaration ${declaration.property} in .${selector}`);
+      failed = true;
+    }
+  }
+}
+for (const selector of parsedRules.keys()) {
+  if (selector.includes(".status-pill--") && !canonicalSelectors.has(selector)) {
+    console.error(`[status-pill contract] noncanonical status-pill selector: ${selector}`);
+    failed = true;
+  }
+}
+const baseRule = requiredRule("status-pill");
+validateAllowedProperties("status-pill", baseRule);
 const baseDotRule = requiredRule("status-pill::before");
+validateAllowedProperties("status-pill::before", baseDotRule);
 if (!statusHasDeclaration(baseDotRule, "content", "\"\"") || !statusHasDeclaration(baseDotRule, "width", "var(--spacing-1)") || !statusHasDeclaration(baseDotRule, "height", "var(--spacing-1)") || !statusHasDeclaration(baseDotRule, "border-radius", "var(--radius-full)")) {
   console.error("[status-pill contract] .status-pill::before must render a visible dot");
   failed = true;
@@ -166,6 +197,8 @@ if (!statusHasDeclaration(baseDotRule, "content", "\"\"") || !statusHasDeclarati
 for (const [variant, color, background, dot] of statusPillRules) {
   const rule = requiredRule(`status-pill--${variant}`);
   const dotRule = requiredRule(`status-pill--${variant}::before`);
+  validateAllowedProperties(`status-pill--${variant}`, rule);
+  validateAllowedProperties(`status-pill--${variant}::before`, dotRule);
   if (!statusHasDeclaration(rule, "color", `var(${color})`) || !statusHasDeclaration(rule, "background", `var(${background})`)) {
     console.error(`[status-pill contract] .status-pill--${variant} must use color: var(${color}) and background: var(${background})`);
     failed = true;

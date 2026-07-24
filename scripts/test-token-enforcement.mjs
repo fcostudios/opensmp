@@ -83,6 +83,18 @@ withFixture("duplicate status selector", (root) => {
   expectRejected("duplicate status selector", root, "check-status-pill.mjs", "duplicate required selector");
 });
 
+withFixture("status hover override", (root) => {
+  const path = join(root, "packages", "ui", "src", "atoms", "status-pill.css");
+  writeFileSync(path, `${readFileSync(path, "utf8")}\n.status-pill--success:hover { background: var(--color-error-bg); }\n`);
+  expectRejected("status hover override", root, "check-status-pill.mjs", "noncanonical status-pill selector");
+});
+
+withFixture("extra canonical background alias", (root) => {
+  const path = join(root, "packages", "ui", "src", "atoms", "status-pill.css");
+  writeFileSync(path, readFileSync(path, "utf8").replace("color: var(--color-success); background: var(--color-success-bg);", "color: var(--color-success); background: var(--color-success-bg); background-color: var(--color-error-bg);"));
+  expectRejected("extra canonical background alias", root, "check-status-pill.mjs", "unexpected declaration background-color");
+});
+
 withFixture("extra StatusKind union member", (root) => {
   const path = join(root, "packages", "ui", "src", "atoms", "status-pill.tsx");
   writeFileSync(path, readFileSync(path, "utf8").replace('"neutral";', '"neutral" | "legacy";'));
