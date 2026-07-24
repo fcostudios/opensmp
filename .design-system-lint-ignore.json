@@ -4,8 +4,7 @@
     "apps/web/src/app/globals.css",
     "apps/web/src/styles/tokens.css",
     "packages/design-system/",
-    "packages/ui/src/atoms/status-pill.css",
-    "packages/ui/src/atoms/status-pill.tsx"
+    "packages/ui/src/atoms/status-pill.css"
   ],
   "string": [
     "apps/web/src/app/layout.tsx",

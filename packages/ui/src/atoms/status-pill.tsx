@@ -11,7 +11,7 @@ export interface StatusPillProps {
 
 export function StatusPill({ kind, label }: StatusPillProps) {
   return (
-    <span className={`status-pill status-pill--${kind.replace(/_/g, "-")}`}>
+    <span className={`status-pill status-pill--${kind}`}>
       {label}
     </span>
   );

@@ -14,29 +14,90 @@ const rootArg = process.argv.slice(2).find((arg) => !arg.startsWith("--"));
 const root = resolve(rootArg || ".");
 const HEXES = ["#166534", "#16A34A", "#92400E", "#991B1B", "#C96F12", "#D97706", "#DC2626", "#DCFCE7", "#E7851A", "#FEF3C7"];
 
-function tokenName(name) {
-  return name.replaceAll("_", "-");
+function schemaError(path, message) {
+  throw new Error(`[token-schema] ${path}: ${message}`);
+}
+
+function objectAt(value, path) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) schemaError(path, "must be an object");
+  return value;
+}
+
+function exactKeys(value, path, keys) {
+  const object = objectAt(value, path);
+  for (const key of Object.keys(object)) if (!keys.includes(key)) schemaError(`${path}.${key}`, "is not a supported canonical token");
+  for (const key of keys) if (!(key in object)) schemaError(`${path}.${key}`, "is required");
+  return object;
+}
+
+function stringAt(value, path) {
+  if (typeof value !== "string" || !value.trim()) schemaError(path, "must be a non-empty CSS token string");
+  return value;
+}
+
+function positiveNumberAt(value, path) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) schemaError(path, "must be a finite non-negative number");
+  return value;
+}
+
+// Canonical JSON maps to CSS in this fixed order: color, semantic color,
+// fonts, spacing, text/size metrics, radii, shadows, breakpoints, motion.
+// JSON keys become CSS-safe kebab-case (for example `spacing[\"0.5\"]` ->
+// `--spacing-0-5`). A normalized-name collision is a schema error, never an
+// alias. This is intentionally one-way and lossless.
+function cssName(name, path) {
+  if (!/^[A-Za-z0-9_.-]+$/.test(name)) schemaError(path, "contains characters that cannot normalize to a CSS token name");
+  return String(name)
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replaceAll("_", "-")
+    .replaceAll(".", "-")
+    .toLowerCase();
+}
+
+function orderedEntries(object) {
+  return Object.entries(object).sort(([left], [right]) => left.localeCompare(right));
 }
 
 function tokenDeclarations(tokens) {
+  const root = exactKeys(tokens, "tokens", ["color", "spacing", "typography", "radii", "shadow", "breakpoints", "motion"]);
   const declarations = [];
-  for (const [name, value] of Object.entries(tokens.color || {})) {
-    if (name === "semantic") continue;
-    declarations.push([`--color-${tokenName(name)}`, value]);
-  }
-  for (const [name, value] of Object.entries(tokens.color?.semantic || {})) {
-    declarations.push([`--color-${tokenName(name)}`, value]);
-  }
-  const fonts = tokens.typography?.fontFamily || {};
-  const fontFallbacks = {
-    base: "ui-sans-serif, system-ui, sans-serif",
-    display: "ui-serif, Georgia, serif",
-    mono: "ui-monospace, monospace",
+  const declarationPaths = new Map();
+  const add = (name, value, path) => {
+    const prior = declarationPaths.get(name);
+    if (prior) schemaError(path, `normalizes to ${name}, already defined by ${prior}`);
+    declarationPaths.set(name, path);
+    declarations.push([name, value]);
   };
-  const fontNames = { base: "sans", display: "display", mono: "mono" };
-  for (const key of ["base", "display", "mono"]) {
-    if (fonts[key]) declarations.push([`--font-${fontNames[key]}`, `\"${fonts[key]}\", ${fontFallbacks[key]}`]);
+  const color = objectAt(root.color, "tokens.color");
+  for (const [name, value] of orderedEntries(color)) {
+    if (name === "semantic") continue;
+    add(`--color-${cssName(name, `tokens.color.${name}`)}`, stringAt(value, `tokens.color.${name}`), `tokens.color.${name}`);
   }
+  const semantic = objectAt(color.semantic, "tokens.color.semantic");
+  for (const [name, value] of orderedEntries(semantic)) add(`--color-${cssName(name, `tokens.color.semantic.${name}`)}`, stringAt(value, `tokens.color.semantic.${name}`), `tokens.color.semantic.${name}`);
+
+  const typography = exactKeys(root.typography, "tokens.typography", ["fontFamily", "bodyDefaultPx", "bodyMinPx", "tapTargetMinPx"]);
+  const fonts = exactKeys(typography.fontFamily, "tokens.typography.fontFamily", ["base", "mono", "display"]);
+  const fontFallbacks = { base: "ui-sans-serif, system-ui, sans-serif", display: "ui-serif, Georgia, serif", mono: "ui-monospace, monospace" };
+  const fontNames = { base: "sans", display: "display", mono: "mono" };
+  for (const key of ["base", "display", "mono"]) add(`--font-${fontNames[key]}`, `\"${stringAt(fonts[key], `tokens.typography.fontFamily.${key}`)}\", ${fontFallbacks[key]}`, `tokens.typography.fontFamily.${key}`);
+
+  const spacing = objectAt(root.spacing, "tokens.spacing");
+  for (const [name, value] of orderedEntries(spacing)) add(`--spacing-${cssName(name, `tokens.spacing.${name}`)}`, stringAt(value, `tokens.spacing.${name}`), `tokens.spacing.${name}`);
+  add("--text-body-default", `${positiveNumberAt(typography.bodyDefaultPx, "tokens.typography.bodyDefaultPx")}px`, "tokens.typography.bodyDefaultPx");
+  add("--text-body-min", `${positiveNumberAt(typography.bodyMinPx, "tokens.typography.bodyMinPx")}px`, "tokens.typography.bodyMinPx");
+  add("--size-tap-target-min", `${positiveNumberAt(typography.tapTargetMinPx, "tokens.typography.tapTargetMinPx")}px`, "tokens.typography.tapTargetMinPx");
+
+  for (const [name, value] of orderedEntries(objectAt(root.radii, "tokens.radii"))) add(`--radius-${cssName(name, `tokens.radii.${name}`)}`, stringAt(value, `tokens.radii.${name}`), `tokens.radii.${name}`);
+  for (const [name, value] of orderedEntries(objectAt(root.shadow, "tokens.shadow"))) add(`--shadow-${cssName(name, `tokens.shadow.${name}`)}`, stringAt(value, `tokens.shadow.${name}`), `tokens.shadow.${name}`);
+  for (const [name, value] of orderedEntries(objectAt(root.breakpoints, "tokens.breakpoints"))) add(`--breakpoint-${cssName(name, `tokens.breakpoints.${name}`)}`, stringAt(value, `tokens.breakpoints.${name}`), `tokens.breakpoints.${name}`);
+
+  const motion = exactKeys(root.motion, "tokens.motion", ["base", "fast", "max_motion_ms", "no_parallax_no_carousels"]);
+  add("--duration-base", `${positiveNumberAt(motion.base, "tokens.motion.base")}ms`, "tokens.motion.base");
+  add("--duration-fast", `${positiveNumberAt(motion.fast, "tokens.motion.fast")}ms`, "tokens.motion.fast");
+  add("--motion-max-motion", `${positiveNumberAt(motion.max_motion_ms, "tokens.motion.max_motion_ms")}ms`, "tokens.motion.max_motion_ms");
+  if (typeof motion.no_parallax_no_carousels !== "boolean") schemaError("tokens.motion.no_parallax_no_carousels", "must be a boolean");
+  add("--motion-no-parallax-no-carousels", String(motion.no_parallax_no_carousels), "tokens.motion.no_parallax_no_carousels");
   return declarations;
 }
 

@@ -117,27 +117,55 @@ for (const hex of SEM) { for (const c of normColors(hex)) SEM_RGB.set(c, hex); }
 
 let failed = false;
 const statusPillPath = join(root, "packages", "ui", "src", "atoms", "status-pill.css");
+const statusPillTsxPath = join(root, "packages", "ui", "src", "atoms", "status-pill.tsx");
 const statusPillCss = readFileSync(statusPillPath, "utf8");
+const statusPillTsx = readFileSync(statusPillTsxPath, "utf8");
 const statusPillRules = [
   ["success", "--color-success", "--color-success-bg", "--color-success-dot"],
   ["pending", "--color-pending-text", "--color-pending-bg", "--color-pending-dot"],
   ["attention", "--color-error-text", "--color-error-bg", "--color-error-dot"],
   ["neutral", "--color-neutral-text", "--color-neutral-bg", "--color-neutral-dot"],
 ];
-function statusRule(selector) {
-  return new RegExp(`\\.${selector}\\s*\\{([^}]*)\\}`, "m").exec(statusPillCss)?.[1] || "";
+function parseCssRules(css) {
+  const rules = new Map();
+  const text = stripComments(css);
+  for (const match of text.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const selector = match[1].trim();
+    const declarations = [];
+    for (const statement of match[2].split(";")) {
+      const colon = statement.indexOf(":");
+      if (colon < 1) continue;
+      declarations.push({ property: statement.slice(0, colon).trim(), value: statement.slice(colon + 1).trim() });
+    }
+    const entries = rules.get(selector) || [];
+    entries.push(declarations);
+    rules.set(selector, entries);
+  }
+  return rules;
+}
+
+const parsedRules = parseCssRules(statusPillCss);
+function requiredRule(selector) {
+  const matches = parsedRules.get(`.${selector}`) || [];
+  if (matches.length !== 1) {
+    console.error(`[status-pill contract] ${matches.length > 1 ? "duplicate required selector" : "missing required selector"}: .${selector}`);
+    failed = true;
+    return [];
+  }
+  return matches[0];
 }
 function statusHasDeclaration(rule, property, value) {
-  return new RegExp(`${property}\\s*:\\s*${value.replace(/[()]/g, "\\$&")}\\s*;`).test(rule);
+  const matches = rule.filter((declaration) => declaration.property === property);
+  return matches.length === 1 && matches[0].value === value;
 }
-const baseDotRule = statusRule("status-pill::before");
-if (!statusHasDeclaration(baseDotRule, "content", "\"\"") || !statusHasDeclaration(baseDotRule, "width", "0.5rem") || !statusHasDeclaration(baseDotRule, "height", "0.5rem")) {
+const baseDotRule = requiredRule("status-pill::before");
+if (!statusHasDeclaration(baseDotRule, "content", "\"\"") || !statusHasDeclaration(baseDotRule, "width", "var(--spacing-1)") || !statusHasDeclaration(baseDotRule, "height", "var(--spacing-1)") || !statusHasDeclaration(baseDotRule, "border-radius", "var(--radius-full)")) {
   console.error("[status-pill contract] .status-pill::before must render a visible dot");
   failed = true;
 }
 for (const [variant, color, background, dot] of statusPillRules) {
-  const rule = statusRule(`status-pill--${variant}`);
-  const dotRule = statusRule(`status-pill--${variant}::before`);
+  const rule = requiredRule(`status-pill--${variant}`);
+  const dotRule = requiredRule(`status-pill--${variant}::before`);
   if (!statusHasDeclaration(rule, "color", `var(${color})`) || !statusHasDeclaration(rule, "background", `var(${background})`)) {
     console.error(`[status-pill contract] .status-pill--${variant} must use color: var(${color}) and background: var(${background})`);
     failed = true;
@@ -148,11 +176,22 @@ for (const [variant, color, background, dot] of statusPillRules) {
   }
 }
 const allowedVariants = new Set(statusPillRules.map(([variant]) => variant));
-for (const match of statusPillCss.matchAll(/\.status-pill--([a-z-]+)/g)) {
-  if (!allowedVariants.has(match[1])) {
+for (const selector of parsedRules.keys()) {
+  const match = /^\.status-pill--([a-z-]+)(::before)?$/.exec(selector);
+  if (match && !allowedVariants.has(match[1])) {
     console.error(`[status-pill contract] unsupported status-pill variant: ${match[1]}`);
     failed = true;
   }
+}
+const expectedStatusKind = statusPillRules.map(([variant]) => `"${variant}"`).join(" | ");
+const statusKind = /export\s+type\s+StatusKind\s*=\s*([^;]+);/.exec(statusPillTsx)?.[1]?.replace(/\s+/g, " ").trim();
+if (statusKind !== expectedStatusKind) {
+  console.error(`[status-pill contract] StatusKind must be exactly ${expectedStatusKind}`);
+  failed = true;
+}
+if (!/className=\{`status-pill status-pill--\$\{kind\}`\}/.test(statusPillTsx)) {
+  console.error("[status-pill contract] StatusPill must compose its class directly from the checked StatusKind");
+  failed = true;
 }
 if (normColors(stripComments(statusPillCss)).size > 0) {
   console.error("[status-pill contract] status-pill.css must reference semantic tokens, not color literals");

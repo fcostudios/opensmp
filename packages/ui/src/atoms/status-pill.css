@@ -1,16 +1,17 @@
-/* StatusPill consumes semantic tokens; tokens.json owns their literal values. */
+/* StatusPill consumes semantic tokens; tokens.json owns their literal values.
+   --spacing-1 is the canonical 8px dot diameter; --spacing-0-5 is its gap. */
 .status-pill {
   align-items: center;
   display: inline-flex;
-  gap: 0.375rem;
+  gap: var(--spacing-0-5);
 }
 
 .status-pill::before {
-  border-radius: 9999px;
+  border-radius: var(--radius-full);
   content: "";
   flex: none;
-  height: 0.5rem;
-  width: 0.5rem;
+  height: var(--spacing-1);
+  width: var(--spacing-1);
 }
 
 .status-pill--success { color: var(--color-success); background: var(--color-success-bg); }
