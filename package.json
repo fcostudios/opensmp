@@ -6,9 +6,11 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "type-check": "turbo run type-check",
-    "lint": "turbo run lint",
-    "test": "turbo run test",
+    "lint": "python3 infra/scripts/reconcile-sprint1-docs.py . --check && turbo run lint",
+    "test": "pnpm run test:infra && turbo run test",
+    "test:infra": "python3 -B -m unittest discover -s infra/scripts/tests -p 'test_*.py' -v",
     "test:mutation": "stryker run",
+    "check:generated-guidance": "python3 infra/scripts/reconcile-sprint1-docs.py . --check",
     "lint:tests": "node scripts/check-test-mocks.mjs . && node scripts/check-test-oracles.mjs ."
   },
   "devDependencies": {

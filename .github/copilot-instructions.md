@@ -1,4 +1,3 @@
-<!-- agent-sync: 00b50969fbfa | source: CLAUDE.md | DO NOT EDIT — this file is auto-generated from CLAUDE.md. Edit CLAUDE.md then run: python3 nous_agent_sync.py -->
 # CLAUDE.md — Ledger
 
 > Project intelligence file for AI-assisted development.
@@ -56,10 +55,29 @@ from the nav map. Never edit it. After any nav map change, run
 - **Organization:** Organization
 - **Owner:** Owner
 - **Architecture:** Single self-hosted Next.js app (App Router + route handlers)
-- **Frontend:** nextjs  / react / TypeScript
+- **Frontend:** nextjs / react / TypeScript
 - **Data:** drizzle ORM on postgres  (timestamp-slug migrations)
 - **Auth:** Auth.js with Keycloak (OIDC / sessions)
 - **Hosting:** self-hosted (Docker Compose on a VPS)
+
+## Sprint 1 Execution Contract (DEC-SMP-017 / CHG-001)
+
+- `Company` is the Ledger application-tenant boundary. Every company-scoped
+  query filters the real `company_id` column declared by its table.
+- `VendorAccount` is a vendor organization/account, not a Ledger application
+  tenant or authorization boundary.
+- Auth.js obtains identity from Keycloak. Ledger obtains authorization from
+  `UserAccount` and `CompanyRoleAssignment` in its own database.
+- Keycloak renders and verifies OIDC passwords and TOTP challenges. Ledger
+  redirects to Keycloak and never renders or collects those credentials.
+- Retained, operator-queryable Keycloak security events are US-004 evidence for
+  password/TOTP failures. Ledger `AuditLog` records successful OIDC/session
+  linking plus callback and authorization failures that Ledger observes.
+- US-004 establishes and tests the Keycloak admin-service seam required for
+  admin-group synchronization. The complete user-management UI remains US-011.
+- Releases apply committed migrations as `ledger_owner`; the application runs
+  as `ledger_app`.
+- Docker Compose on a VPS is the R1 deployment target.
 
 ## Quick Start
 
@@ -77,7 +95,7 @@ Or `task dev` from the repo root.
 
 ```
 apps/
-  web/            # nextjs  — App Router, route handlers, Drizzle, Auth.js/Keycloak
+  web/            # nextjs — App Router, route handlers, Drizzle, Auth.js/Keycloak
 packages/
   db/             # @smp/db — Drizzle schema + client (drizzle-kit runs here)
   contracts/      # @smp/contracts — Zod schemas shared client/server
@@ -95,7 +113,7 @@ docs/
   specs/          # ER model, screens, navigation map, architecture
   screens/        # TOON JSON screen specifications (source of truth for UI)
   decisions/      # Product decisions
-  dev-guide/      # Security, testing, standards reference (serverless)
+  dev-guide/      # Security, testing, standards reference
 ```
 
 ## App & API Rules
@@ -118,8 +136,7 @@ Full frontend reference: [`docs/dev-guide/FRONTEND.md`](docs/dev-guide/FRONTEND.
 These rules are derived from the exact framework versions in this project.
 Violating them causes compile/test failures. **Read before writing any code.**
 
-### nextjs 
-
+### nextjs
 
 
 ## Shared Contracts & Entity Conventions
@@ -143,7 +160,9 @@ Full example: [`docs/dev-guide/STANDARDS.md`](docs/dev-guide/STANDARDS.md)
 
 - Derive row types from the schema: `type Member = typeof member.$inferSelect`. Never hand-write a divergent interface.
 - All reads/writes go through the shared `db` client (import from `@smp/db`) — never a second connection.
-- **Tenant isolation:** every company-scoped query filters by the real `company_id` column. `VendorAccount` references do not define Ledger tenant scope.
+- **Tenant isolation:** every company-scoped query filters by the real
+  `company_id` column. Confirm the column in `packages/db/src/schema.ts`;
+  `VendorAccount` references do not define Ledger tenant scope.
 - **Soft delete is per-table, not universal:** only filter a soft-delete column (e.g. `deleted_at`) on tables that actually declare one in `schema.ts`. Most generated tables hard-delete; do NOT add an `is_deleted` filter to a table that has no such column (it will not type-check).
 
 ### Database Migrations (HR-25 — MANDATORY)
@@ -171,7 +190,7 @@ surface is under `apps/web/src/app/(authenticated)/` — one route group per scr
 
 | ID | Decision | Impact |
 |----|----------|--------|
-| — | — | — |
+| DEC-SMP-017 | Sprint 1 execution contract | `company_id` isolation; Keycloak/Auth.js identity; Ledger DB authorization; Keycloak-retained auth-failure evidence; least-privilege DB roles; Docker Compose/VPS R1 |
 
 See `docs/decisions/` for full decision history.
 
@@ -232,9 +251,12 @@ A story is NOT done until the build passes — self-reported "tests pass" is not
 Before marking any story `done`:
 - `pnpm type-check` passes (`tsc --noEmit`, zero errors).
 - `pnpm lint` passes (Next.js lint + the design-system token lints).
-- `pnpm build` succeeds — runs `next build --webpack` (the serverless/PWA bundler).
+- `pnpm build` succeeds — runs `next build --webpack` (the production/PWA bundler).
 - `pnpm test` passes — Vitest across the workspace. Tests must meet the effectiveness bar in [`docs/dev-guide/TESTING.md`](docs/dev-guide/TESTING.md) §4 (real-DB seam tests via the pglite fixture, strongest available oracle; coverage is a diagnostic, never a completion target — TE-1 / R1).
-- `cd packages/db && pnpm drizzle-kit push && node scripts/verify-schema.mjs` applies the Drizzle schema to a fresh database AND verifies it landed (push exits 0 on an unreachable URL — the verifier fails loud on a silent no-op); no duplicate timestamp migrations under `packages/db/src/migrations/`.
+- Committed migrations apply to a fresh database as `ledger_owner`, then
+  `node packages/db/scripts/verify-schema.mjs` verifies the result. Application
+  runtime checks use `ledger_app`; no duplicate timestamp migrations exist
+  under `packages/db/src/migrations/`.
 - Report evidence: `{"story":"US-XXX","event":"build_pass",...}` then `{"event":"done",...}`.
 
 Full gate (commands, rejection criteria, troubleshooting):
@@ -277,7 +299,7 @@ Build gate + rejection criteria: [`docs/dev-guide/DEFINITION_OF_DONE.md`](docs/d
 
 ## Skills Required
 
-- **Frontend:** TypeScript, react, nextjs  App Router, tailwindcss, Zustand, zod
+- **Frontend:** TypeScript, react, nextjs App Router, tailwindcss, Zustand, zod
 - **Data:** drizzle ORM, postgres 
 - **Auth:** Auth.js + Keycloak (OIDC / sessions)
 - **Tooling:** pnpm, drizzle-kit, Docker Compose
