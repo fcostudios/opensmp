@@ -28,7 +28,10 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD in .env}
       KC_HEALTH_ENABLED: "true"
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail --silent http://localhost:9000/health/ready"]
+      test:
+        - CMD-SHELL
+        - >-
+          bash -c "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3; timeout 5 cat <&3 | grep -q '\"status\": \"UP\"'"
       interval: 10s
       timeout: 5s
       retries: 12

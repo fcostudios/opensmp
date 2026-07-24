@@ -1,14 +1,17 @@
-import { open } from "node:fs/promises";
+import { rename, rm, utimes, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 
 export const HEARTBEAT_PATH = "/tmp/ledger-worker-heartbeat";
 export const HEARTBEAT_INTERVAL_MS = 60_000;
 
 export async function touchHeartbeat(path: string, now: Date): Promise<void> {
-  const file = await open(path, "a");
+  const temporaryPath = `${path}.${randomUUID()}.tmp`;
   try {
-    await file.utimes(now, now);
+    await writeFile(temporaryPath, "", { flag: "wx" });
+    await utimes(temporaryPath, now, now);
+    await rename(temporaryPath, path);
   } finally {
-    await file.close();
+    await rm(temporaryPath, { force: true });
   }
 }
 

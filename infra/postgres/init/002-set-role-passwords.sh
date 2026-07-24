@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-set -eu
+set -euo pipefail
 
 : "${LEDGER_OWNER_PASSWORD:?LEDGER_OWNER_PASSWORD is required}"
 : "${LEDGER_APP_PASSWORD:?LEDGER_APP_PASSWORD is required}"

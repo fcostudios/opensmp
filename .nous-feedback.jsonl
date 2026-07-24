@@ -31,4 +31,6 @@
 {"story":"US-001","event":"done"}
 {"story":"US-002","event":"started","agent":"codex"}
 {"story":"US-002","event":"ac_pass","ac":5,"notes":"Focused route and worker heartbeat/shutdown tests pass; health response is exact and database failures return 503 without error details."}
-{"story":"US-002","event":"blocked","reason":"Docker image acquisition for axllent/mailpit is unavailable in this environment; isolated Compose up created no containers.","needs":"Docker registry access to complete runtime curl verification."}
+{"story":"US-002","event":"blocked","reason":"Isolated Compose runtime could not be started in this session: docker compose -p ledger-us002 up stalled while pulling axllent/mailpit:v1.21.8 and created zero project containers.","needs":"Retry after the image pull completes to perform runtime curl verification."}
+{"story":"US-002","event":"ac_pass","ac":5,"notes":"Keycloak readiness now uses the image-supported Bash/TCP endpoint probe; worker heartbeat replacement is atomic via temp-file rename."}
+{"story":"US-002","event":"ac_verify","ac":5,"method":"PostgreSQL Testcontainer","pass":true,"notes":"The actual health route returns the exact reachable body against PostgreSQL and returns 503 after that real container stops. Ryuk is disabled only because its startup handshake timed out locally; the test always stops its exact database container in afterAll."}
