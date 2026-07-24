@@ -14,3 +14,6 @@
 {"story":"US-001","event":"ac_verify","ac":3,"method":"rtk pnpm --filter smp-web lint:ds","pass":true,"notes":"Final quality-fix exact command `rtk pnpm --filter smp-web lint:ds` exited 0; PostCSS StatusPill ownership/selector checks, TypeScript AST checks, token parity, hardcoded-color/string, and Lucide checks all passed."}
 {"story":"US-001","event":"build_pass","notes":"Final quality-fix commands exited 0: `rtk pnpm type-check`, `rtk pnpm lint`, `rtk pnpm test` (PostCSS/AST/token and generic feedback lifecycle fixtures), and `rtk pnpm build` (Next webpack); token generation idempotency, parity, and diff checks passed."}
 {"story":"US-001","event":"done"}
+{"story":"US-001","event":"ac_verify","ac":3,"method":"rtk pnpm --filter smp-web lint:ds","pass":true,"notes":"Final hex-validation exact command `rtk pnpm --filter smp-web lint:ds` exited 0; 3/4/6/8-digit canonical hex validation, StatusPill checks, token parity, hardcoded-color/string, and Lucide checks all passed."}
+{"story":"US-001","event":"build_pass","notes":"Final hex-validation commands exited 0: `rtk pnpm type-check`, `rtk pnpm lint`, `rtk pnpm test` (including 5/7-digit generator and semantic-loader mutation fixtures), and `rtk pnpm build` (Next webpack); parity and diff checks passed."}
+{"story":"US-001","event":"done"}

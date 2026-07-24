@@ -38,7 +38,7 @@ function cssTextAt(value, path) {
 
 function colorAt(value, path) {
   const color = cssTextAt(value, path);
-  if (!/^#[0-9a-fA-F]{3,8}$/.test(color)) schemaError(path, "must be a hex color");
+  if (!/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(color)) schemaError(path, "must be a 3, 4, 6, or 8-digit hex color");
   return color;
 }
 

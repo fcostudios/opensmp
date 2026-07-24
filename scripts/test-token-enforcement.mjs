@@ -91,6 +91,23 @@ withFixture("invalid spacing length", (root) => {
   expectRejected("invalid spacing length", root, "check-hardcoded-color.mjs", "tokens.spacing.1");
 });
 
+for (const [digits, value] of [[5, "#12345"], [7, "#1234567"]]) {
+  withFixture(`invalid ${digits}-digit generator color`, (root) => {
+    const path = join(root, "packages", "design-system", "tokens.json");
+    const tokens = JSON.parse(readFileSync(path, "utf8"));
+    tokens.color.primary = value;
+    writeFileSync(path, `${JSON.stringify(tokens, null, 2)}\n`);
+    expectRejected(`invalid ${digits}-digit generator color`, root, "check-hardcoded-color.mjs", "tokens.color.primary");
+  });
+  withFixture(`invalid ${digits}-digit semantic color`, (root) => {
+    const path = join(root, "packages", "design-system", "tokens.json");
+    const tokens = JSON.parse(readFileSync(path, "utf8"));
+    tokens.color.semantic.success = value;
+    writeFileSync(path, `${JSON.stringify(tokens, null, 2)}\n`);
+    expectRejected(`invalid ${digits}-digit semantic color`, root, "check-status-pill.mjs", "cannot load canonical semantic tokens");
+  });
+}
+
 withFixture("background-color substring", (root) => {
   const path = join(root, "packages", "ui", "src", "atoms", "status-pill.css");
   writeFileSync(path, readFileSync(path, "utf8").replace("color: var(--color-success);", "background-color: var(--color-success);"));
