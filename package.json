@@ -2,6 +2,9 @@
   "name": "smp",
   "private": true,
   "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
@@ -12,6 +15,9 @@
     "test:infra:integration": "python3 -B -m unittest infra.scripts.tests.test_sync_from_nous_integration -v",
     "test:mutation:infra": "python3 -B infra/scripts/tests/run_reconcile_mutation_evidence.py",
     "test:mutation": "stryker run",
+    "check": "pnpm type-check && pnpm lint && pnpm test && pnpm build",
+    "validate:routes": "./infra/scripts/validate-routes.sh",
+    "validate:sidebar": "./infra/scripts/regenerate-sidebar.py --check",
     "check:generated-guidance": "python3 infra/scripts/reconcile-sprint1-docs.py . --check",
     "lint:tests": "node scripts/check-test-mocks.mjs . && node scripts/check-test-oracles.mjs ."
   },

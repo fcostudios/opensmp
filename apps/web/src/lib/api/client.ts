@@ -16,7 +16,7 @@ export class ApiError extends Error {
 
 async function getAuthHeaders(): Promise<HeadersInit> {
   const session = await getSession();
-  const token = (session as any)?.accessToken;
+  const token = session?.accessToken;
   return {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),

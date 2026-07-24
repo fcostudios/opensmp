@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint . && pnpm lint:ds",
     "type-check": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "lint:ds": "node ../../scripts/check-status-pill.mjs ../.. && node ../../scripts/check-hardcoded-color.mjs ../.. && node ../../scripts/check-hardcoded-string.mjs ../.. && node ../../scripts/check-lucide-allowlist.mjs ../..",
     "lint:a11y": "node ../../scripts/check-a11y.mjs ../.."
   },

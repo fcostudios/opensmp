@@ -9,6 +9,8 @@ node_modules/
 out/
 .turbo/
 apps/web/.next/
+dist/
+*.tsbuildinfo
 
 # Drizzle
 apps/web/drizzle/meta/_journal.json.bak
