@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import inspect
+import os
+import stat
 import subprocess
 import sys
 import tempfile
 import unittest
+import uuid
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
@@ -82,6 +85,81 @@ class IntegrationConfigurationTests(unittest.TestCase):
                 timeout_seconds=0.05,
                 capture_output=True,
             )
+
+    def test_postgres_cli_credentials_never_expose_password_and_are_removed(
+        self,
+    ) -> None:
+        credentials = getattr(integration, "postgres_cli_credentials", None)
+        self.assertIsNotNone(
+            credentials,
+            "temporary PostgreSQL CLI credentials are required",
+        )
+        sentinel = f"sentinel-{uuid.uuid4().hex}"
+        password = sentinel + r":\suffix"
+        source_url = (
+            f"postgresql://tester:{password}@localhost:5432/nous"
+            f"?sslmode=disable&password={sentinel}"
+        )
+        isolated_url = source_url.replace("/nous?", "/isolated?")
+
+        with tempfile.TemporaryDirectory() as directory:
+            credential_directory = Path(directory)
+            with credentials(
+                (source_url, isolated_url),
+                directory=credential_directory,
+            ) as auth:
+                credential_path = auth.credential_path
+                self.assertEqual(
+                    stat.S_IMODE(credential_path.stat().st_mode),
+                    0o600,
+                )
+                self.assertIn(sentinel, credential_path.read_text(encoding="utf-8"))
+                self.assertEqual(
+                    auth.environment,
+                    {"PGPASSFILE": str(credential_path)},
+                )
+                self.assertNotIn(sentinel, repr(auth.database_urls))
+                self.assertNotIn(sentinel, repr(auth.environment))
+
+                command = [
+                    sys.executable,
+                    "-c",
+                    (
+                        "import sys; "
+                        "sys.stderr.write('safe failure'); "
+                        "raise SystemExit(7)"
+                    ),
+                    *auth.database_urls,
+                ]
+                environment = os.environ.copy()
+                environment.update(auth.environment)
+                with self.assertRaises(subprocess.CalledProcessError) as raised:
+                    integration.run_bounded(
+                        command,
+                        timeout_seconds=2,
+                        env=environment,
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                    )
+                error = raised.exception
+                exposed = "\n".join(
+                    (
+                        repr(error.cmd),
+                        str(error),
+                        error.stdout or "",
+                        error.stderr or "",
+                    )
+                )
+                self.assertNotIn(sentinel, exposed)
+
+            self.assertFalse(credential_path.exists())
+            persisted = [
+                path
+                for path in credential_directory.rglob("*")
+                if path.is_file()
+            ]
+            self.assertEqual(persisted, [])
 
 
 if __name__ == "__main__":

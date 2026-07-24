@@ -13,7 +13,8 @@ PostgreSQL state, and permission to create and drop isolated test databases:
 python3 -m pip install -r infra/scripts/tests/requirements-integration.txt
 
 export NOUS_SYSTEM=/path/to/nous/Nous/System
-export NOUS_DB_URL=postgresql://user:password@host:5432/nous
+read -rsp "NOUS database URL: " NOUS_DB_URL && echo
+export NOUS_DB_URL
 export PG_DUMP=/path/to/server-compatible/pg_dump
 export PG_RESTORE=/path/to/server-compatible/pg_restore
 
@@ -27,6 +28,13 @@ be able to read the source and create/drop databases on the test PostgreSQL
 server. The test creates only UUID-named `nous_ledger_sync_test_*` databases,
 loads them through bounded `pg_dump`/`pg_restore`, and drops the exact generated
 name in cleanup. It never writes rows to the source database.
+
+Do not place a password-bearing `NOUS_DB_URL` directly in command arguments or
+echo it in logs. Supplying it through the environment is supported. The test
+extracts the credential in-process, writes a uniquely named temporary
+`PGPASSFILE` with mode `0600`, and gives `pg_dump`/`pg_restore` only sanitized
+password-free URLs plus the credential-file path in their environment. The
+credential file is removed on both success and failure.
 
 Optional bounds:
 

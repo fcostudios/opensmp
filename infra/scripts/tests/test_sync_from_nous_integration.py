@@ -13,7 +13,14 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import (
+    parse_qsl,
+    quote,
+    unquote,
+    urlencode,
+    urlsplit,
+    urlunsplit,
+)
 
 
 PROJECT_ROOT = Path(__file__).parents[3]
@@ -32,6 +39,13 @@ class IntegrationConfig:
     pg_restore: str
     command_timeout_seconds: float
     connect_timeout_seconds: int
+
+
+@dataclass(frozen=True)
+class PostgresCliCredentials:
+    database_urls: tuple[str, ...]
+    environment: dict[str, str]
+    credential_path: Path
 
 
 def positive_number(environment: Mapping[str, str], name: str, default: str) -> float:
@@ -127,6 +141,95 @@ def run_bounded(
     return subprocess.run(command, timeout=timeout_seconds, **kwargs)
 
 
+def pgpass_escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace(":", "\\:")
+
+
+def sanitized_postgres_url(database_url: str) -> str:
+    parsed = urlsplit(database_url)
+    username = unquote(parsed.username or "")
+    host = parsed.hostname or ""
+    if not username or not host:
+        raise IntegrationConfigurationError(
+            "PostgreSQL CLI URLs require an explicit username and host"
+        )
+    display_host = f"[{host}]" if ":" in host else host
+    if parsed.port:
+        display_host = f"{display_host}:{parsed.port}"
+    netloc = f"{quote(username, safe='')}@{display_host}"
+    sensitive_options = {"password", "passfile", "servicefile", "sslpassword"}
+    query = [
+        (name, value)
+        for name, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if name.lower() not in sensitive_options
+    ]
+    return urlunsplit(
+        (
+            parsed.scheme,
+            netloc,
+            parsed.path,
+            urlencode(query),
+            parsed.fragment,
+        )
+    )
+
+
+@contextmanager
+def postgres_cli_credentials(
+    database_urls: Sequence[str],
+    *,
+    directory: Path | None = None,
+):
+    entries: list[str] = []
+    sanitized_urls: list[str] = []
+    for database_url in database_urls:
+        parsed = urlsplit(database_url)
+        host = parsed.hostname or ""
+        username = unquote(parsed.username or "")
+        password = unquote(parsed.password or "")
+        database = unquote(parsed.path.lstrip("/"))
+        if not host or not username or not database:
+            raise IntegrationConfigurationError(
+                "PostgreSQL CLI URLs require host, username, and database"
+            )
+        entries.append(
+            ":".join(
+                pgpass_escape(value)
+                for value in (
+                    host,
+                    str(parsed.port or 5432),
+                    database,
+                    username,
+                    password,
+                )
+            )
+        )
+        sanitized_urls.append(sanitized_postgres_url(database_url))
+
+    descriptor, credential_name = tempfile.mkstemp(
+        prefix=".ledger-pgpass-",
+        dir=directory,
+    )
+    credential_path = Path(credential_name)
+    try:
+        os.fchmod(descriptor, 0o600)
+        credential_file = os.fdopen(descriptor, "w", encoding="utf-8")
+        descriptor = -1
+        with credential_file:
+            credential_file.write("\n".join(entries) + "\n")
+            credential_file.flush()
+            os.fsync(credential_file.fileno())
+        yield PostgresCliCredentials(
+            database_urls=tuple(sanitized_urls),
+            environment={"PGPASSFILE": str(credential_path)},
+            credential_path=credential_path,
+        )
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        credential_path.unlink(missing_ok=True)
+
+
 def set_statement_timeout(
     connection: Any,
     timeout_seconds: float,
@@ -175,7 +278,15 @@ def isolated_nous_database(config: IntegrationConfig):
         created = True
 
     try:
-        with tempfile.NamedTemporaryFile(suffix=".dump") as dump:
+        with (
+            tempfile.NamedTemporaryFile(suffix=".dump") as dump,
+            postgres_cli_credentials((source_url, isolated_url)) as cli_auth,
+        ):
+            cli_environment = os.environ.copy()
+            cli_environment.update(cli_auth.environment)
+            cli_environment["PGCONNECTTIMEOUT"] = str(
+                config.connect_timeout_seconds
+            )
             run_bounded(
                 [
                     config.pg_dump,
@@ -184,9 +295,10 @@ def isolated_nous_database(config: IntegrationConfig):
                     "--no-privileges",
                     "--file",
                     dump.name,
-                    source_url,
+                    cli_auth.database_urls[0],
                 ],
                 timeout_seconds=config.command_timeout_seconds,
+                env=cli_environment,
                 check=True,
                 capture_output=True,
             )
@@ -197,10 +309,11 @@ def isolated_nous_database(config: IntegrationConfig):
                     "--no-owner",
                     "--no-privileges",
                     "--dbname",
-                    isolated_url,
+                    cli_auth.database_urls[1],
                     dump.name,
                 ],
                 timeout_seconds=config.command_timeout_seconds,
+                env=cli_environment,
                 check=True,
                 capture_output=True,
             )
