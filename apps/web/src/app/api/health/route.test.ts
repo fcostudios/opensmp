@@ -1,9 +1,9 @@
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-let databaseUrl = "";
 let stopDatabase: (() => Promise<void>) | undefined;
-let originalDatabaseUrl: string | undefined;
+const pgEnvironmentKeys = ["DATABASE_URL", "DB_DRIVER", "PGHOST", "PGPORT", "PGUSER", "PGPASSWORD", "PGDATABASE"] as const;
+const originalEnvironment = new Map<string, string | undefined>();
 
 async function invokeHealthRoute() {
   vi.resetModules();
@@ -18,21 +18,27 @@ async function invokeHealthRoute() {
 
 describe("GET /api/health", () => {
   beforeAll(async () => {
-    originalDatabaseUrl = process.env.DATABASE_URL;
+    for (const key of pgEnvironmentKeys) originalEnvironment.set(key, process.env[key]);
     const database = await new PostgreSqlContainer("postgres:16-alpine").start();
-    databaseUrl = `${database.getConnectionUri()}?connect_timeout=1`;
     stopDatabase = async () => {
       await database.stop();
     };
-    process.env.DATABASE_URL = databaseUrl;
+    delete process.env.DATABASE_URL;
     process.env.DB_DRIVER = "pg";
+    process.env.PGHOST = database.getHost();
+    process.env.PGPORT = String(database.getPort());
+    process.env.PGUSER = database.getUsername();
+    process.env.PGPASSWORD = database.getPassword();
+    process.env.PGDATABASE = database.getDatabase();
   }, 15_000);
 
   afterAll(async () => {
     if (stopDatabase) await stopDatabase();
-    if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
-    else process.env.DATABASE_URL = originalDatabaseUrl;
-    delete process.env.DB_DRIVER;
+    for (const key of pgEnvironmentKeys) {
+      const originalValue = originalEnvironment.get(key);
+      if (originalValue === undefined) delete process.env[key];
+      else process.env[key] = originalValue;
+    }
   });
 
   it("returns the exact non-secret reachable response against PostgreSQL", async () => {

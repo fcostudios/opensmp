@@ -14,4 +14,4 @@ const useNeon =
 
 export const db = useNeon
   ? drizzleNeon({ client: neon(url), schema })
-  : drizzlePg({ client: new Pool({ connectionString: url }), schema });
+  : drizzlePg({ client: url ? new Pool({ connectionString: url }) : new Pool(), schema });

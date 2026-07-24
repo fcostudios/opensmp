@@ -17,6 +17,8 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
+      # Init scripts run only for a new volume. Rotate existing role passwords
+      # with an explicit coordinated ALTER ROLE and application rollout.
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
 
@@ -39,6 +41,9 @@ services:
     ports:
       - "8180:8080"
     volumes:
+      # Local/CI bootstrap persistence; production proxy and Keycloak hardening
+      # are established by later deployment work.
+      - keycloak_data:/opt/keycloak/data
       - ./keycloak/realm-corporativo.json:/opt/keycloak/data/import/realm-corporativo.json:ro
 
   app:
@@ -46,8 +51,12 @@ services:
       context: ..
       dockerfile: apps/web/Dockerfile
     environment:
-      DATABASE_URL: postgresql://ledger_app:${LEDGER_APP_PASSWORD:?set LEDGER_APP_PASSWORD in .env}@postgres:5432/ledger
       DB_DRIVER: pg
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ledger_app
+      PGPASSWORD: ${LEDGER_APP_PASSWORD:?set LEDGER_APP_PASSWORD in .env}
+      PGDATABASE: ledger
       KEYCLOAK_ISSUER: http://keycloak:8080/realms/corporativo
       NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: smp-web
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?set NEXTAUTH_SECRET in .env}
@@ -71,10 +80,15 @@ services:
       context: ..
       dockerfile: apps/worker/Dockerfile
     environment:
-      DATABASE_URL: postgresql://ledger_app:${LEDGER_APP_PASSWORD:?set LEDGER_APP_PASSWORD in .env}@postgres:5432/ledger
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ledger_app
+      PGPASSWORD: ${LEDGER_APP_PASSWORD:?set LEDGER_APP_PASSWORD in .env}
+      PGDATABASE: ledger
     depends_on:
       postgres:
         condition: service_healthy
+    restart: on-failure
     healthcheck:
       test: ["CMD-SHELL", "kill -0 1 && test -f /tmp/ledger-worker-heartbeat && test $$(( $$(date +%s) - $$(stat -c %Y /tmp/ledger-worker-heartbeat) )) -le 60"]
       interval: 15s
@@ -92,3 +106,4 @@ services:
 
 volumes:
   postgres_data:
+  keycloak_data:

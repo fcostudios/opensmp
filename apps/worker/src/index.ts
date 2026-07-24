@@ -9,9 +9,14 @@ type WorkerLifecycleDependencies = {
   clearHeartbeat: (timer: Timer) => void;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
+  onHeartbeatFailure?: (error: unknown) => Promise<void>;
   scheduleHeartbeat: (heartbeat: () => void | Promise<void>, intervalMs: number) => Timer;
   touchHeartbeat: () => Promise<void>;
 };
+
+export function createWorkerClient(connectionString = process.env.DATABASE_URL): Client {
+  return connectionString ? new Client({ connectionString }) : new Client();
+}
 
 export function createWorkerLifecycle(dependencies: WorkerLifecycleDependencies) {
   let timer: Timer | undefined;
@@ -22,7 +27,13 @@ export function createWorkerLifecycle(dependencies: WorkerLifecycleDependencies)
       await dependencies.connect();
       await dependencies.touchHeartbeat();
       timer = dependencies.scheduleHeartbeat(
-        () => dependencies.touchHeartbeat(),
+        async () => {
+          try {
+            await dependencies.touchHeartbeat();
+          } catch (error) {
+            await dependencies.onHeartbeatFailure?.(error);
+          }
+        },
         HEARTBEAT_INTERVAL_MS,
       );
     },
@@ -36,16 +47,19 @@ export function createWorkerLifecycle(dependencies: WorkerLifecycleDependencies)
 }
 
 async function main(): Promise<void> {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) throw new Error("DATABASE_URL is required");
-
-  const client = new Client({ connectionString });
-  const lifecycle = createWorkerLifecycle({
+  const client = createWorkerClient();
+  let lifecycle: ReturnType<typeof createWorkerLifecycle>;
+  lifecycle = createWorkerLifecycle({
     clearHeartbeat: clearInterval,
     connect: async () => {
       await client.connect();
     },
     disconnect: () => client.end(),
+    onHeartbeatFailure: async (error) => {
+      console.error(error);
+      await lifecycle.stop();
+      process.exitCode = 1;
+    },
     scheduleHeartbeat: (heartbeat, intervalMs) =>
       setInterval(() => {
         void heartbeat();
