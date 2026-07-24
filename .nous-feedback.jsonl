@@ -29,3 +29,6 @@
 {"story":"US-001","event":"ac_verify","ac":3,"method":"rtk pnpm --filter smp-web lint:ds","pass":true,"notes":"Final canonical-StatusPill-literal command exited 0; raw RGB/HSL mutation checks and controlled broken-symlink diagnostics passed."}
 {"story":"US-001","event":"build_pass","notes":"Final canonical-StatusPill-literal commands exited 0: `rtk pnpm type-check`, `rtk pnpm lint`, `rtk pnpm test`, and `rtk pnpm build` (Next webpack); parity and diff checks passed."}
 {"story":"US-001","event":"done"}
+{"story":"US-002","event":"started","agent":"codex"}
+{"story":"US-002","event":"ac_pass","ac":5,"notes":"Focused route and worker heartbeat/shutdown tests pass; health response is exact and database failures return 503 without error details."}
+{"story":"US-002","event":"blocked","reason":"Docker image acquisition for axllent/mailpit is unavailable in this environment; isolated Compose up created no containers.","needs":"Docker registry access to complete runtime curl verification."}

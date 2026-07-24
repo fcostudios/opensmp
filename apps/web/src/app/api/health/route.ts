@@ -1,10 +1,10 @@
-// IMP-238 — serverless API route (Next.js App Router route handler).
-// In the next-serverless stack, route handlers + server actions ARE
-// the backend (no separate apps/api service).
-import { NextResponse } from "next/server";
+import { sql } from "drizzle-orm";
+
+import { db } from "@smp/db";
+import { createHealthResponse } from "./health";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  return NextResponse.json({ status: "ok" });
+  return createHealthResponse(() => db.execute(sql`SELECT 1`));
 }
