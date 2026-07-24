@@ -20,3 +20,6 @@
 {"story":"US-001","event":"ac_verify","ac":3,"method":"rtk pnpm --filter smp-web lint:ds","pass":true,"notes":"Final shared-hex exact command `rtk pnpm --filter smp-web lint:ds` exited 0; unified 3/4/6/8-digit color, semantic, and shadow validation plus token/status checks passed."}
 {"story":"US-001","event":"build_pass","notes":"Final shared-hex commands exited 0: `rtk pnpm type-check`, `rtk pnpm lint`, `rtk pnpm test` (including 5/7-digit shadow mutation fixtures), and `rtk pnpm build` (Next webpack); parity and diff checks passed."}
 {"story":"US-001","event":"done"}
+{"story":"US-001","event":"ac_verify","ac":3,"method":"rtk pnpm --filter smp-web lint:ds","pass":true,"notes":"Final alpha-aware hex-normalization command `rtk pnpm --filter smp-web lint:ds` exited 0; shared exact 3/4/6/8 normalization and token/status checks passed."}
+{"story":"US-001","event":"build_pass","notes":"Final alpha-aware hex-normalization commands exited 0: `rtk pnpm type-check`, `rtk pnpm lint`, `rtk pnpm test` (including external canonical 4/8-digit semantic CSS rejection and alpha-isolation fixtures), and `rtk pnpm build` (Next webpack); parity and diff checks passed."}
+{"story":"US-001","event":"done"}

@@ -5,7 +5,7 @@
 // rgb()/rgba() and hsl()/hsla() (review #6); comments/strings skipped.
 import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
-import { EXACT_HEX_FRAGMENT, isExactHex } from "./token-validation.mjs";
+import { EXACT_HEX_FRAGMENT, isExactHex, normalizeExactHex } from "./token-validation.mjs";
 // Token ownership contract:
 // - packages/design-system/tokens.json is the only editable token data.
 // - this script deterministically derives both CSS artifacts from it.
@@ -218,20 +218,18 @@ function stripCode(text) {
 }
 function normColors(text) {
   const set = new Set();
-  const push = (r, g, b) => set.add(r + "," + g + "," + b);
+  const push = (r, g, b, alpha = 255) => set.add(r + "," + g + "," + b + "," + alpha);
   let m;
-  const hexRe = /#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})\b/g;
+  const hexRe = new RegExp(`${EXACT_HEX_FRAGMENT}(?![0-9a-zA-Z])`, "g");
   while ((m = hexRe.exec(text)) !== null) {
-    let h = m[1];
-    if (h.length === 3) h = h.split("").map((c) => c + c).join("");
-    push(parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16));
+    set.add(normalizeExactHex(m[0]));
   }
-  const rgbRe = /rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/g;
-  while ((m = rgbRe.exec(text)) !== null) push(+m[1], +m[2], +m[3]);
-  const hslRe = /hsla?\(\s*(\d{1,3})\s*,\s*(\d{1,3})%\s*,\s*(\d{1,3})%/g;
+  const rgbRe = /rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(0|1|0?\.\d+))?/g;
+  while ((m = rgbRe.exec(text)) !== null) push(+m[1], +m[2], +m[3], m[4] === undefined ? 255 : Math.round(+m[4] * 255));
+  const hslRe = /hsla?\(\s*(\d{1,3})\s*,\s*(\d{1,3})%\s*,\s*(\d{1,3})%(?:\s*,\s*(0|1|0?\.\d+))?/g;
   while ((m = hslRe.exec(text)) !== null) {
     const [r,g,b] = hslToRgb(+m[1], +m[2], +m[3]);
-    push(r, g, b);
+    push(r, g, b, m[4] === undefined ? 255 : Math.round(+m[4] * 255));
   }
   return set;
 }
@@ -253,10 +251,11 @@ function hslToRgb(h, s, l) {
 const IGNORE = loadIgnore(root, "color");
 const ROOTS = ["apps/web/src", "packages"];
 const EXTS = [".ts", ".tsx", ".css", ".js", ".jsx"];
-const NEEDLE = new Map();   // "R,G,B" -> original hex
-for (const hex of HEXES) { for (const c of normColors(hex)) NEEDLE.set(c, hex); }
+const NEEDLE = new Map();   // "R,G,B,A" -> original canonical hex
 let failed = false;
 if (syncTokenArtifacts(root)) failed = true;
+const semantic = JSON.parse(readFileSync(join(root, "packages", "design-system", "tokens.json"), "utf8")).color.semantic;
+for (const hex of [...HEXES, ...Object.values(semantic)]) { for (const c of normColors(hex)) NEEDLE.set(c, hex); }
 for (const f of walkRoots(root, ROOTS, EXTS)) {
   if (ignored(f, root, IGNORE)) continue;   // token-definition layers exempt
   const colors = normColors(stripComments(readFileSync(f, "utf8")));  // skip comments, keep string-literal hexes

@@ -115,6 +115,29 @@ for (const [digits, value] of [[5, "#12345"], [7, "#1234567"]]) {
   });
 }
 
+for (const [digits, value] of [[4, "#1a2f"], [8, "#1a2b3cff"]]) {
+  withFixture(`external canonical ${digits}-digit semantic CSS literal`, (root) => {
+    const tokenPath = join(root, "packages", "design-system", "tokens.json");
+    const tokens = JSON.parse(readFileSync(tokenPath, "utf8"));
+    tokens.color.semantic.success = value;
+    writeFileSync(tokenPath, `${JSON.stringify(tokens, null, 2)}\n`);
+    writeFileSync(join(root, "packages", "ui", "src", "external-semantic-literal.css"), `.fixture { color: ${value}; }\n`);
+    const result = run("check-hardcoded-color.mjs", root, ["--write-tokens"]);
+    expect(result.status === 1, `external canonical ${digits}-digit semantic CSS literal: expected checker rejection, got exit ${result.status}`);
+    expect(result.stderr.includes("[no-hardcoded-color]"), `external canonical ${digits}-digit semantic CSS literal: expected hardcoded-color diagnostic`);
+  });
+}
+
+withFixture("external semantic alpha mismatch", (root) => {
+  const tokenPath = join(root, "packages", "design-system", "tokens.json");
+  const tokens = JSON.parse(readFileSync(tokenPath, "utf8"));
+  tokens.color.semantic.success = "#1a2f";
+  writeFileSync(tokenPath, `${JSON.stringify(tokens, null, 2)}\n`);
+  writeFileSync(join(root, "packages", "ui", "src", "external-semantic-alpha.css"), ".fixture { color: rgba(17, 170, 34, 0); }\n");
+  const result = run("check-hardcoded-color.mjs", root, ["--write-tokens"]);
+  expect(result.status === 0, `external semantic alpha mismatch: expected checker acceptance, got exit ${result.status}: ${result.stderr}`);
+});
+
 withFixture("background-color substring", (root) => {
   const path = join(root, "packages", "ui", "src", "atoms", "status-pill.css");
   writeFileSync(path, readFileSync(path, "utf8").replace("color: var(--color-success);", "background-color: var(--color-success);"));
