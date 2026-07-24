@@ -4,7 +4,24 @@ import { resolve } from "node:path";
 
 const root = resolve(process.argv[2] || ".");
 const path = `${root}/.nous-feedback.jsonl`;
-const events = new Set(["started", "done", "verified", "done_with_deferral", "done_with_external_deferral", "ac_pass", "ac_verify", "blocked", "blocker", "deviation", "ac_fail", "ac_unverifiable", "test_report", "feedback", "nav_gap", "decision", "build_pass"]);
+function loadFeedbackSchema() {
+  const schemaPath = new URL("../docs/dev-guide/FEEDBACK.md", import.meta.url);
+  const source = readFileSync(schemaPath, "utf8");
+  const canonical = source.slice(source.indexOf("## Canonical Event Vocabulary (authoritative)"));
+  const categories = new Map();
+  for (const match of canonical.matchAll(/^- \*\*([^*]+):\*\* (.+)$/gm)) {
+    const events = [...match[2].matchAll(/`([^`]+)`/g)].map((event) => event[1]);
+    if (events.length) categories.set(match[1], events);
+  }
+  const lifecycle = [...categories.entries()].find(([category]) => category.startsWith("Lifecycle"))?.[1];
+  const deferrals = [...categories.entries()].find(([category]) => category.startsWith("Terminal-with-deferral"))?.[1];
+  if (!lifecycle || !deferrals) throw new Error(`cannot load canonical feedback vocabulary from ${schemaPath.pathname}`);
+  return {
+    events: new Set([...categories.values()].flat()),
+    terminalEvents: new Set([...lifecycle.filter((event) => event !== "started"), ...deferrals]),
+  };
+}
+const { events, terminalEvents } = loadFeedbackSchema();
 const records = [];
 let failed = false;
 
@@ -52,8 +69,8 @@ for (const [index, record] of records.entries()) {
     fail(line, `story ${record.story} event ${record.event} occurs before started`);
   } else if (record.event === "build_pass") {
     state.buildPassed = true;
-  } else if (record.event === "done" && !state.buildPassed) {
-    fail(line, `story ${record.story} done occurs before build_pass`);
+  } else if (terminalEvents.has(record.event) && !state.buildPassed) {
+    fail(line, `story ${record.story} ${record.event} occurs before build_pass`);
   }
   stories.set(record.story, state);
 }

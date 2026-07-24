@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -168,6 +168,46 @@ withFixture("external status-pill selector", (root) => {
   expectRejected("external status-pill selector", root, "check-status-pill.mjs", "outside packages/ui/src/atoms/status-pill.css");
 });
 
+for (const [digits, value] of [[4, "#1a2f"], [8, "#1a2b3cff"]]) {
+  withFixture(`StatusPill rejects external canonical ${digits}-digit semantic literal`, (root) => {
+    const tokenPath = join(root, "packages", "design-system", "tokens.json");
+    const tokens = JSON.parse(readFileSync(tokenPath, "utf8"));
+    tokens.color.semantic.success = value;
+    writeFileSync(tokenPath, `${JSON.stringify(tokens, null, 2)}\n`);
+    writeFileSync(join(root, "packages", "ui", "src", "external-semantic-literal.css"), `.fixture { color: ${value}; }\n`);
+    expectRejected(`StatusPill rejects external canonical ${digits}-digit semantic literal`, root, "check-status-pill.mjs", "semantic hex");
+  });
+}
+
+withFixture("StatusPill preserves semantic alpha", (root) => {
+  const tokenPath = join(root, "packages", "design-system", "tokens.json");
+  const tokens = JSON.parse(readFileSync(tokenPath, "utf8"));
+  tokens.color.semantic.success = "#1a2f";
+  writeFileSync(tokenPath, `${JSON.stringify(tokens, null, 2)}\n`);
+  writeFileSync(join(root, "packages", "ui", "src", "external-semantic-alpha.css"), ".fixture { color: #1a20; }\n");
+  expectAccepted("StatusPill preserves semantic alpha", root, "check-status-pill.mjs");
+});
+
+withFixture("unrelated component may consume a semantic variable", (root) => {
+  writeFileSync(join(root, "packages", "ui", "src", "unrelated-component.css"), ".summary { background: var(--color-success-bg); }\n");
+  expectAccepted("unrelated component may consume a semantic variable", root, "check-status-pill.mjs");
+});
+
+withFixture("semantic literal comment is not rendered", (root) => {
+  writeFileSync(join(root, "packages", "ui", "src", "comment-only.css"), "/* color: #166534; */\n.summary { display: block; }\n");
+  expectAccepted("semantic literal comment is not rendered", root, "check-status-pill.mjs");
+});
+
+withFixture("status-pillow is not a StatusPill selector", (root) => {
+  writeFileSync(join(root, "packages", "ui", "src", "status-pillow.css"), ".status-pillow { display: block; }\n");
+  expectAccepted("status-pillow is not a StatusPill selector", root, "check-status-pill.mjs");
+});
+
+withFixture("broken CSS symlink has a deterministic diagnostic", (root) => {
+  symlinkSync("missing-status-pill.css", join(root, "packages", "ui", "src", "broken-status-pill.css"));
+  expectRejected("broken CSS symlink has a deterministic diagnostic", root, "check-status-pill.mjs", "cannot stat");
+});
+
 withFixture("extra canonical background alias", (root) => {
   const path = join(root, "packages", "ui", "src", "atoms", "status-pill.css");
   writeFileSync(path, readFileSync(path, "utf8").replace("color: var(--color-success); background: var(--color-success-bg);", "color: var(--color-success); background: var(--color-success-bg); background-color: var(--color-error-bg);"));
@@ -178,6 +218,26 @@ withFixture("extra StatusKind union member", (root) => {
   const path = join(root, "packages", "ui", "src", "atoms", "status-pill.tsx");
   writeFileSync(path, readFileSync(path, "utf8").replace('"neutral"] as const;', '"neutral", "legacy"] as const;'));
   expectRejected("extra StatusKind union member", root, "check-status-pill.mjs", "STATUS_KINDS");
+});
+
+withFixture("STATUS_KINDS requires as const", (root) => {
+  const path = join(root, "packages", "ui", "src", "atoms", "status-pill.tsx");
+  writeFileSync(path, readFileSync(path, "utf8").replace("as const;", "as string[];"));
+  expectRejected("STATUS_KINDS requires as const", root, "check-status-pill.mjs", "STATUS_KINDS");
+});
+
+withFixture("nested STATUS_KINDS declaration is not live", (root) => {
+  const path = join(root, "packages", "ui", "src", "atoms", "status-pill.tsx");
+  const source = readFileSync(path, "utf8").replace('export const STATUS_KINDS = ["success", "pending", "attention", "neutral"] as const;', 'function decoy() { const STATUS_KINDS = ["success", "pending", "attention", "neutral"] as const; }');
+  writeFileSync(path, source);
+  expectRejected("nested STATUS_KINDS declaration is not live", root, "check-status-pill.mjs", "STATUS_KINDS");
+});
+
+withFixture("unrelated JSX class mapping is not StatusPill", (root) => {
+  const path = join(root, "packages", "ui", "src", "atoms", "status-pill.tsx");
+  const source = `${readFileSync(path, "utf8").replace('className={`status-pill status-pill--${kind}`}', 'className="status-pill"')}\nexport function Decoy({ kind }: StatusPillProps) { return <span className={\`status-pill status-pill--\${kind}\`} />; }\n`;
+  writeFileSync(path, source);
+  expectRejected("unrelated JSX class mapping is not StatusPill", root, "check-status-pill.mjs", "StatusPill must compose");
 });
 
 withFixture("StatusKind comment spoof", (root) => {
