@@ -1,14 +1,11 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const compat = new FlatCompat({ baseDirectory: __dirname });
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
+import nextTypeScript from "eslint-config-next/typescript";
 
 const eslintConfig = [
   // Generated / build artifacts — not hand-authored, never lint them.
   { ignores: [".next/**", "node_modules/**", "public/**", "src/db/migrations/**", "scripts/**"] },
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  ...nextCoreWebVitals,
+  ...nextTypeScript,
   {
     rules: {
       // Intentionally-unused stub args/vars use a leading underscore.
