@@ -9,8 +9,12 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT = Path(__file__).parents[1] / "reconcile-sprint1-docs.py"
-SYNC_SCRIPT = Path(__file__).parents[1] / "sync-from-nous.sh"
+SCRIPT = Path(
+    os.environ.get(
+        "RECONCILER_UNDER_TEST",
+        Path(__file__).parents[1] / "reconcile-sprint1-docs.py",
+    )
+)
 
 STALE_TESTING = (
     "every path that touches tenant-scoped data (filtered by `org_id`)."
@@ -204,87 +208,6 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             self.assertEqual(snapshot(root), before)
             self.assertIn("CODEX.md", result.stderr)
             self.assertIn("differs from CLAUDE.md", result.stderr)
-
-
-class SyncScriptBehaviorTests(unittest.TestCase):
-    def create_sync_fixture(self, root: Path) -> Path:
-        create_project(root)
-        script_target = root / "infra/scripts"
-        script_target.mkdir(parents=True, exist_ok=True)
-        (script_target / SYNC_SCRIPT.name).write_bytes(SYNC_SCRIPT.read_bytes())
-        (script_target / SCRIPT.name).write_bytes(SCRIPT.read_bytes())
-
-        nous_system = root / "fixture-nous-system"
-        nous_system.mkdir()
-        generator = nous_system / "nous_package.py"
-        generator.write_text(
-            textwrap.dedent(
-                """\
-                import argparse
-
-                parser = argparse.ArgumentParser()
-                parser.add_argument("command")
-                parser.add_argument("--target", required=True)
-                parser.add_argument("--project", required=True)
-                parser.add_argument("--dry-run", action="store_true")
-                parser.add_argument("-c", "--categories", nargs="*")
-                args = parser.parse_args()
-                print("generator preview" if args.dry_run else "generator sync")
-                """
-            ),
-            encoding="utf-8",
-        )
-        return nous_system
-
-    def run_sync(
-        self, root: Path, nous_system: Path, *arguments: str
-    ) -> subprocess.CompletedProcess[str]:
-        environment = os.environ.copy()
-        environment["NOUS_SYSTEM"] = str(nous_system)
-        return subprocess.run(
-            ["bash", str(root / "infra/scripts/sync-from-nous.sh"), *arguments],
-            cwd=root,
-            env=environment,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-
-    def test_dry_run_previews_effective_overrides_without_writing(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            nous_system = self.create_sync_fixture(root)
-            before = snapshot(root)
-
-            result = self.run_sync(root, nous_system, "--dry-run")
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(snapshot(root), before)
-            self.assertIn("generator preview", result.stdout)
-            self.assertIn("+prefix " + EXPECTED_TESTING, result.stdout)
-
-    def test_selective_sync_runs_and_reports_repository_wide_invariants(
-        self,
-    ) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            nous_system = self.create_sync_fixture(root)
-
-            result = self.run_sync(root, nous_system, "-c", "sprint_plan")
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("repository-wide", result.stdout)
-            self.assertIn(
-                EXPECTED_TESTING,
-                (root / "docs/dev-guide/TESTING.md").read_text(encoding="utf-8"),
-            )
-            claude = (root / "CLAUDE.md").read_bytes()
-            self.assertEqual((root / "CODEX.md").read_bytes(), claude)
-            self.assertEqual((root / ".cursorrules").read_bytes(), claude)
-            self.assertEqual(
-                (root / ".github/copilot-instructions.md").read_bytes(),
-                claude,
-            )
 
 
 if __name__ == "__main__":

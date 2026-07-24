@@ -36,44 +36,20 @@ for argument in "$@"; do
 done
 
 if [[ "$DRY_RUN" == "true" ]]; then
+    echo "=== Nous native no-write preview ==="
     python3 "$NOUS_SYSTEM/nous_package.py" sync \
         --target "$TARGET" \
         --project fcostudios__smp \
         --dry-run \
         "${SYNC_ARGUMENTS[@]:1}"
 
-    PREVIEW_DIRECTORY="$(mktemp -d)"
-    PREVIEW_TARGET="$PREVIEW_DIRECTORY/project"
-    trap 'rm -rf "$PREVIEW_DIRECTORY"' EXIT
-    mkdir -p "$PREVIEW_TARGET"
-    cp -R "$TARGET/." "$PREVIEW_TARGET/"
-    # Never let tools invoked in the preview resolve the real worktree metadata.
-    rm -rf "$PREVIEW_TARGET/.git"
-
-    python3 "$NOUS_SYSTEM/nous_package.py" sync \
-        --target "$PREVIEW_TARGET" \
-        --project fcostudios__smp \
-        "${SYNC_ARGUMENTS[@]:1}" \
-        >/dev/null
-    python3 "$PREVIEW_TARGET/infra/scripts/reconcile-sprint1-docs.py" \
-        "$PREVIEW_TARGET" \
-        >/dev/null
-
     echo ""
-    echo "=== Combined effective preview (Nous + repository-wide Ledger invariants) ==="
-    set +e
-    diff -ruN \
-        --exclude='.git' \
-        --exclude='node_modules' \
-        --exclude='dist' \
-        --exclude='*.tsbuildinfo' \
+    echo "=== Ledger invariant preview against the current worktree ==="
+    echo "Nous does not expose materialized dry-run output, so this second preview"
+    echo "is intentionally evaluated against current files, not proposed Nous output."
+    python3 "$TARGET/infra/scripts/reconcile-sprint1-docs.py" \
         "$TARGET" \
-        "$PREVIEW_TARGET"
-    DIFF_STATUS=$?
-    set -e
-    if [[ "$DIFF_STATUS" -gt 1 ]]; then
-        exit "$DIFF_STATUS"
-    fi
+        --preview
     echo ""
     echo "=== Sync preview complete; working tree unchanged ==="
     exit 0

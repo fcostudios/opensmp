@@ -9,6 +9,7 @@
     "lint": "python3 infra/scripts/reconcile-sprint1-docs.py . --check && turbo run lint",
     "test": "pnpm run test:infra && turbo run test",
     "test:infra": "python3 -B -m unittest discover -s infra/scripts/tests -p 'test_*.py' -v",
+    "test:mutation:infra": "python3 -B infra/scripts/tests/run_reconcile_mutation_evidence.py",
     "test:mutation": "stryker run",
     "check:generated-guidance": "python3 infra/scripts/reconcile-sprint1-docs.py . --check",
     "lint:tests": "node scripts/check-test-mocks.mjs . && node scripts/check-test-oracles.mjs ."
