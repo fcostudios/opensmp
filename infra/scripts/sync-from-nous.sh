@@ -26,5 +26,19 @@ python3 "$NOUS_SYSTEM/nous_package.py" sync \
     --project fcostudios__smp \
     "$@"
 
+for argument in "$@"; do
+    if [[ "$argument" == "--dry-run" ]]; then
+        echo ""
+        echo "=== Skipping Ledger overrides during dry run ==="
+        echo ""
+        echo "=== Sync complete ==="
+        exit 0
+    fi
+done
+
+echo ""
+echo "=== Applying Ledger CHG-001 documentation overrides ==="
+python3 "$TARGET/infra/scripts/reconcile-sprint1-docs.py" "$TARGET"
+
 echo ""
 echo "=== Sync complete ==="

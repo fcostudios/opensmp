@@ -24,7 +24,7 @@ finished primitive from a seam you are meant to fill.
 
 ## Your first delivery
 
-_No worked slice was emitted for this project (no salient entity with a db table + `org_id` and both a read-list and a mutation screen). Follow the decision rule below and the `@smp/db` / `@smp/contracts` patterns in the dev-guide._
+_No worked slice was emitted for this project (no salient entity with a db table + `company_id` and both a read-list and a mutation screen). Follow the decision rule below and the `@smp/db` / `@smp/contracts` patterns in the dev-guide._
 
 ## Which primitive for a screen? (the decision rule)
 
@@ -36,7 +36,7 @@ rule the slice follows:
   data (it almost always does — `auth()` is request-time). See FRONTEND.md.
 - **A mutation** (every screen that declares a `server_action:<name>` target) → a
   **server action** (`"use server"`). Validate the input with the `@smp/contracts`
-  insert schema; take the tenant from the session, never the client.
+  insert schema; load authorized company scope from Ledger DB after verifying the session; never take it from the client.
 - **A cron job or external webhook** → a **route handler**
   (`apps/web/src/app/api/<resource>/route.ts`).
 
