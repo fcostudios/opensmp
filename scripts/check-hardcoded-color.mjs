@@ -30,9 +30,36 @@ function exactKeys(value, path, keys) {
   return object;
 }
 
-function stringAt(value, path) {
+function cssTextAt(value, path) {
   if (typeof value !== "string" || !value.trim()) schemaError(path, "must be a non-empty CSS token string");
+  if (/[\u0000-\u001F\u007F;{}@]|\/\*|\*\//.test(value)) schemaError(path, "contains a control character or CSS injection delimiter");
   return value;
+}
+
+function colorAt(value, path) {
+  const color = cssTextAt(value, path);
+  if (!/^#[0-9a-fA-F]{3,8}$/.test(color)) schemaError(path, "must be a hex color");
+  return color;
+}
+
+function lengthAt(value, path, units = "px|rem|em|%") {
+  const length = cssTextAt(value, path);
+  if (!new RegExp(`^(?:0|(?:0|[1-9]\\d*)(?:\\.\\d+)?)(?:${units})$`).test(length)) schemaError(path, `must be a CSS length using ${units}`);
+  return length;
+}
+
+function fontAt(value, path) {
+  const font = cssTextAt(value, path);
+  if (!/^[\p{L}\p{N} ._-]+$/u.test(font)) schemaError(path, "must contain only safe font-family characters");
+  return font.replace(/\\/g, "\\\\").replace(/\"/g, '\\"');
+}
+
+function shadowAt(value, path) {
+  const shadow = cssTextAt(value, path);
+  const length = "-?(?:0|(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:px|rem|em))";
+  const color = "(?:transparent|#[0-9a-fA-F]{3,8}|rgba?\\(\\d{1,3},\\d{1,3},\\d{1,3}(?:,(?:0|1|0?\\.\\d+))?\\))";
+  if (!new RegExp(`^(?:${length}\\s+){1,3}${color}$`).test(shadow)) schemaError(path, "must be a safe offset/blur shadow");
+  return shadow;
 }
 
 function positiveNumberAt(value, path) {
@@ -55,7 +82,7 @@ function cssName(name, path) {
 }
 
 function orderedEntries(object) {
-  return Object.entries(object).sort(([left], [right]) => left.localeCompare(right));
+  return Object.entries(object).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
 }
 
 function tokenDeclarations(tokens) {
@@ -71,26 +98,26 @@ function tokenDeclarations(tokens) {
   const color = objectAt(root.color, "tokens.color");
   for (const [name, value] of orderedEntries(color)) {
     if (name === "semantic") continue;
-    add(`--color-${cssName(name, `tokens.color.${name}`)}`, stringAt(value, `tokens.color.${name}`), `tokens.color.${name}`);
+    add(`--color-${cssName(name, `tokens.color.${name}`)}`, colorAt(value, `tokens.color.${name}`), `tokens.color.${name}`);
   }
   const semantic = objectAt(color.semantic, "tokens.color.semantic");
-  for (const [name, value] of orderedEntries(semantic)) add(`--color-${cssName(name, `tokens.color.semantic.${name}`)}`, stringAt(value, `tokens.color.semantic.${name}`), `tokens.color.semantic.${name}`);
+  for (const [name, value] of orderedEntries(semantic)) add(`--color-${cssName(name, `tokens.color.semantic.${name}`)}`, colorAt(value, `tokens.color.semantic.${name}`), `tokens.color.semantic.${name}`);
 
   const typography = exactKeys(root.typography, "tokens.typography", ["fontFamily", "bodyDefaultPx", "bodyMinPx", "tapTargetMinPx"]);
   const fonts = exactKeys(typography.fontFamily, "tokens.typography.fontFamily", ["base", "mono", "display"]);
   const fontFallbacks = { base: "ui-sans-serif, system-ui, sans-serif", display: "ui-serif, Georgia, serif", mono: "ui-monospace, monospace" };
   const fontNames = { base: "sans", display: "display", mono: "mono" };
-  for (const key of ["base", "display", "mono"]) add(`--font-${fontNames[key]}`, `\"${stringAt(fonts[key], `tokens.typography.fontFamily.${key}`)}\", ${fontFallbacks[key]}`, `tokens.typography.fontFamily.${key}`);
+  for (const key of ["base", "display", "mono"]) add(`--font-${fontNames[key]}`, `\"${fontAt(fonts[key], `tokens.typography.fontFamily.${key}`)}\", ${fontFallbacks[key]}`, `tokens.typography.fontFamily.${key}`);
 
   const spacing = objectAt(root.spacing, "tokens.spacing");
-  for (const [name, value] of orderedEntries(spacing)) add(`--spacing-${cssName(name, `tokens.spacing.${name}`)}`, stringAt(value, `tokens.spacing.${name}`), `tokens.spacing.${name}`);
+  for (const [name, value] of orderedEntries(spacing)) add(`--spacing-${cssName(name, `tokens.spacing.${name}`)}`, lengthAt(value, `tokens.spacing.${name}`), `tokens.spacing.${name}`);
   add("--text-body-default", `${positiveNumberAt(typography.bodyDefaultPx, "tokens.typography.bodyDefaultPx")}px`, "tokens.typography.bodyDefaultPx");
   add("--text-body-min", `${positiveNumberAt(typography.bodyMinPx, "tokens.typography.bodyMinPx")}px`, "tokens.typography.bodyMinPx");
   add("--size-tap-target-min", `${positiveNumberAt(typography.tapTargetMinPx, "tokens.typography.tapTargetMinPx")}px`, "tokens.typography.tapTargetMinPx");
 
-  for (const [name, value] of orderedEntries(objectAt(root.radii, "tokens.radii"))) add(`--radius-${cssName(name, `tokens.radii.${name}`)}`, stringAt(value, `tokens.radii.${name}`), `tokens.radii.${name}`);
-  for (const [name, value] of orderedEntries(objectAt(root.shadow, "tokens.shadow"))) add(`--shadow-${cssName(name, `tokens.shadow.${name}`)}`, stringAt(value, `tokens.shadow.${name}`), `tokens.shadow.${name}`);
-  for (const [name, value] of orderedEntries(objectAt(root.breakpoints, "tokens.breakpoints"))) add(`--breakpoint-${cssName(name, `tokens.breakpoints.${name}`)}`, stringAt(value, `tokens.breakpoints.${name}`), `tokens.breakpoints.${name}`);
+  for (const [name, value] of orderedEntries(objectAt(root.radii, "tokens.radii"))) add(`--radius-${cssName(name, `tokens.radii.${name}`)}`, lengthAt(value, `tokens.radii.${name}`), `tokens.radii.${name}`);
+  for (const [name, value] of orderedEntries(objectAt(root.shadow, "tokens.shadow"))) add(`--shadow-${cssName(name, `tokens.shadow.${name}`)}`, shadowAt(value, `tokens.shadow.${name}`), `tokens.shadow.${name}`);
+  for (const [name, value] of orderedEntries(objectAt(root.breakpoints, "tokens.breakpoints"))) add(`--breakpoint-${cssName(name, `tokens.breakpoints.${name}`)}`, lengthAt(value, `tokens.breakpoints.${name}`, "px|rem|em"), `tokens.breakpoints.${name}`);
 
   const motion = exactKeys(root.motion, "tokens.motion", ["base", "fast", "max_motion_ms", "no_parallax_no_carousels"]);
   add("--duration-base", `${positiveNumberAt(motion.base, "tokens.motion.base")}ms`, "tokens.motion.base");

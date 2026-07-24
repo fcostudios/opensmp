@@ -40,6 +40,10 @@ function expectRejected(name, root, script, expectedMessage) {
   expect(result.status === 1, `${name}: expected ${script} to reject the mutant, got exit ${result.status}`);
   expect(result.stderr.includes(expectedMessage), `${name}: expected diagnostic ${expectedMessage}`);
 }
+function expectAccepted(name, root, script) {
+  const result = run(script, root);
+  expect(result.status === 0, `${name}: expected ${script} to accept the semantic refactor, got exit ${result.status}: ${result.stderr}`);
+}
 
 withFixture("lossless token output", (root) => {
   const result = run("check-hardcoded-color.mjs", root, ["--write-tokens"]);
@@ -71,6 +75,22 @@ withFixture("normalized token collision", (root) => {
   expectRejected("normalized token collision", root, "check-hardcoded-color.mjs", "normalizes to --spacing-0-5");
 });
 
+withFixture("semicolon token injection", (root) => {
+  const path = join(root, "packages", "design-system", "tokens.json");
+  const tokens = JSON.parse(readFileSync(path, "utf8"));
+  tokens.spacing["0.5"] = "4px; --color-success-bg: transparent";
+  writeFileSync(path, `${JSON.stringify(tokens, null, 2)}\n`);
+  expectRejected("semicolon token injection", root, "check-hardcoded-color.mjs", "tokens.spacing.0.5");
+});
+
+withFixture("invalid spacing length", (root) => {
+  const path = join(root, "packages", "design-system", "tokens.json");
+  const tokens = JSON.parse(readFileSync(path, "utf8"));
+  tokens.spacing["1"] = "eight";
+  writeFileSync(path, `${JSON.stringify(tokens, null, 2)}\n`);
+  expectRejected("invalid spacing length", root, "check-hardcoded-color.mjs", "tokens.spacing.1");
+});
+
 withFixture("background-color substring", (root) => {
   const path = join(root, "packages", "ui", "src", "atoms", "status-pill.css");
   writeFileSync(path, readFileSync(path, "utf8").replace("color: var(--color-success);", "background-color: var(--color-success);"));
@@ -95,6 +115,12 @@ withFixture("base status hover override", (root) => {
   expectRejected("base status hover override", root, "check-status-pill.mjs", "noncanonical status-pill selector");
 });
 
+withFixture("external status-pill selector", (root) => {
+  const path = join(root, "packages", "ui", "src", "atoms", "status-pill-override.css");
+  writeFileSync(path, ".status-pill--success { background: var(--color-error-bg); }\n");
+  expectRejected("external status-pill selector", root, "check-status-pill.mjs", "outside packages/ui/src/atoms/status-pill.css");
+});
+
 withFixture("extra canonical background alias", (root) => {
   const path = join(root, "packages", "ui", "src", "atoms", "status-pill.css");
   writeFileSync(path, readFileSync(path, "utf8").replace("color: var(--color-success); background: var(--color-success-bg);", "color: var(--color-success); background: var(--color-success-bg); background-color: var(--color-error-bg);"));
@@ -103,8 +129,22 @@ withFixture("extra canonical background alias", (root) => {
 
 withFixture("extra StatusKind union member", (root) => {
   const path = join(root, "packages", "ui", "src", "atoms", "status-pill.tsx");
-  writeFileSync(path, readFileSync(path, "utf8").replace('"neutral";', '"neutral" | "legacy";'));
-  expectRejected("extra StatusKind union member", root, "check-status-pill.mjs", "StatusKind must be exactly");
+  writeFileSync(path, readFileSync(path, "utf8").replace('"neutral"] as const;', '"neutral", "legacy"] as const;'));
+  expectRejected("extra StatusKind union member", root, "check-status-pill.mjs", "STATUS_KINDS");
+});
+
+withFixture("StatusKind comment spoof", (root) => {
+  const path = join(root, "packages", "ui", "src", "atoms", "status-pill.tsx");
+  const source = readFileSync(path, "utf8").replace('export const STATUS_KINDS = ["success", "pending", "attention", "neutral"] as const;', '// export const STATUS_KINDS = ["success", "pending", "attention", "neutral"] as const;\nexport const STATUS_KINDS = ["success", "pending", "attention", "legacy"] as const;');
+  writeFileSync(path, source);
+  expectRejected("StatusKind comment spoof", root, "check-status-pill.mjs", "STATUS_KINDS");
+});
+
+withFixture("StatusPill semantic formatting refactor", (root) => {
+  const path = join(root, "packages", "ui", "src", "atoms", "status-pill.tsx");
+  const source = readFileSync(path, "utf8").replace('className={`status-pill status-pill--${kind}`}', 'className={\n        `status-pill status-pill--${kind}`\n      }');
+  writeFileSync(path, source);
+  expectAccepted("StatusPill semantic formatting refactor", root, "check-status-pill.mjs");
 });
 
 withFixture("missing visible dot", (root) => {
