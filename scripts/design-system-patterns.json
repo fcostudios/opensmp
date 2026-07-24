@@ -1,0 +1,55 @@
+{
+  "_note": "Step-6 patterns_to_enforce. Mechanizable ones map to a lint hook; the rest are a review checklist — TODO: mechanize as the extract gains per-pattern selectors.",
+  "patterns": [
+    {
+      "id": "pattern.callout_amber_left_border_with_right_actions (quiet secondary + orange primary)",
+      "mechanizable": false,
+      "enforcement": "review-checklist (not yet mechanizable)"
+    },
+    {
+      "id": "pattern.drilldown_never_new_tab (drawer/expander)",
+      "mechanizable": false,
+      "enforcement": "review-checklist (not yet mechanizable)"
+    },
+    {
+      "id": "pattern.freshness_label_on_all_synced_figures (stale >48h switches to attention + alert)",
+      "mechanizable": false,
+      "enforcement": "review-checklist (not yet mechanizable)"
+    },
+    {
+      "id": "pattern.mandatory_comment_on_reject_and_override",
+      "mechanizable": false,
+      "enforcement": "review-checklist (not yet mechanizable)"
+    },
+    {
+      "id": "pattern.money_mono_right_aligned (es-EC USD 27,10 / en-US $27.10; never orange)",
+      "mechanizable": false,
+      "enforcement": "review-checklist (not yet mechanizable)"
+    },
+    {
+      "id": "pattern.no_emoji_no_gradients",
+      "mechanizable": false,
+      "enforcement": "review-checklist (not yet mechanizable)"
+    },
+    {
+      "id": "pattern.no_optimistic_ui_for_vendor_actions (states advance on confirmed transitions only)",
+      "mechanizable": false,
+      "enforcement": "review-checklist (not yet mechanizable)"
+    },
+    {
+      "id": "pattern.orange_never_status_color",
+      "mechanizable": false,
+      "enforcement": "review-checklist (not yet mechanizable)"
+    },
+    {
+      "id": "pattern.single_orange_per_region (primary CTA XOR active rail item XOR live alert)",
+      "mechanizable": false,
+      "enforcement": "review-checklist (not yet mechanizable)"
+    },
+    {
+      "id": "pattern.tabs_with_counts_orange_underline",
+      "mechanizable": false,
+      "enforcement": "review-checklist (not yet mechanizable)"
+    }
+  ]
+}

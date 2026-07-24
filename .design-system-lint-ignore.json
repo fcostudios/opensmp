@@ -1,0 +1,15 @@
+{
+  "_note": "Globs the design-system enforcement scripts treat as generator-owned (token-definition layers + app-shell scaffold). Dev-team feature code is NOT here.",
+  "color": [
+    "apps/web/src/app/globals.css",
+    "apps/web/src/components/atoms/status-pill.css",
+    "apps/web/src/components/atoms/status-pill.tsx",
+    "apps/web/src/styles/tokens.css",
+    "packages/design-system/"
+  ],
+  "string": [
+    "apps/web/src/app/layout.tsx",
+    "apps/web/src/components/layout/",
+    "apps/web/src/components/shell/"
+  ]
+}

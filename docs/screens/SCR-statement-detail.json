@@ -1,0 +1,312 @@
+{
+  "id": "SCR-statement-detail",
+  "title": "Estado de cuenta — detalle",
+  "description": "Workspace record for one Statement (Module E, J3). Display title pattern: ESTADO DE CUENTA · {Company.name} · {Statement.period}. Stat tiles (total USD, licencias-día, altas, bajas), status banner when draft/reconciled, export actions (CSV/PDF in Company.statement_language), and the StatementLine table with kind badge and a RegisterDrilldown row expander showing the backing LicenseAssignment rows. Template tpl.workspace-record.",
+  "route": "/estados-de-cuenta/:statementId",
+  "roles": [
+    "company_finance",
+    "central_finance",
+    "group_admin"
+  ],
+  "i18n": {
+    "es-EC": {
+      "title": "Estado de cuenta — detalle",
+      "subtitle": "Cada línea abre su evidencia: asignaciones, fechas y tarifa aplicada"
+    }
+  },
+  "breadcrumbs": [
+    {
+      "label": "Estados de cuenta",
+      "route": "/estados-de-cuenta"
+    },
+    {
+      "label": "Kickoff · julio 2026"
+    }
+  ],
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1"
+  },
+  "accessibility": {
+    "lang": "es-EC",
+    "ariaLandmarks": true
+  },
+  "data": {
+    "paramsFromRoute": [
+      "statementId"
+    ]
+  },
+  "layout": {
+    "kind": "page",
+    "titleBar": {
+      "subtitle": "Kickoff (KCK) · julio 2026 · apertura 12 licencias · generado 01/08/2026 · idioma del documento: es"
+    },
+    "sections": [
+      {
+        "id": "status_banner",
+        "type": "info-banner",
+        "kind": "warning",
+        "icon": "file-clock",
+        "title": "Borrador — el cierre de julio aún no está final",
+        "content": "Este estado de cuenta es un borrador: las cifras pueden cambiar hasta que el cierre mensual quede final. Cuando la conciliación termine verás aquí la marca de conciliado. Nada se pierde en silencio: cada ajuste queda como una línea con su nota.",
+        "visibleWhen": "statement.status != 'final'",
+        "gridSpan": {
+          "xs": 12
+        }
+      },
+      {
+        "id": "statement_tiles",
+        "type": "metric-cards",
+        "title": "Resumen del período",
+        "description": "Total del período, licencias-día facturadas y altas/bajas del registro. Prorrateo diario actual/actual.",
+        "gridSpan": {
+          "xs": 12
+        },
+        "metricCards": {
+          "cards": [
+            {
+              "id": "tile_total",
+              "label": "Total del período",
+              "valueExpr": "USD 1.847,25",
+              "caption": "Suma de licencias, uso y ajustes"
+            },
+            {
+              "id": "tile_license_days",
+              "label": "Licencias-día",
+              "valueExpr": "864",
+              "caption": "Apertura del período: 12 licencias"
+            },
+            {
+              "id": "tile_joiners",
+              "label": "Altas",
+              "valueExpr": "2",
+              "caption": "Asignaciones iniciadas en julio"
+            },
+            {
+              "id": "tile_leavers",
+              "label": "Bajas",
+              "valueExpr": "1",
+              "caption": "Asignaciones terminadas en julio"
+            }
+          ],
+          "columns": {
+            "xs": 2,
+            "md": 4
+          },
+          "dataFreshness": {
+            "label": "Datos al 19-jul"
+          }
+        }
+      },
+      {
+        "id": "statement_actions",
+        "type": "action-bar",
+        "title": "Exportar",
+        "description": "Los documentos se generan en el idioma configurado para la compañía (Company.statement_language).",
+        "gridSpan": {
+          "xs": 12
+        },
+        "actions": [
+          {
+            "id": "btn_export_csv",
+            "label": "Exportar CSV",
+            "variant": "secondary",
+            "icon": "table",
+            "trigger": "server_action:exportStatementCsv",
+            "onSuccess": {
+              "toast": "Listo: el CSV se descargó con todas las líneas del período."
+            }
+          },
+          {
+            "id": "btn_export_pdf",
+            "label": "Exportar PDF",
+            "variant": "primary",
+            "icon": "file-down",
+            "trigger": "server_action:exportStatementPdf",
+            "onSuccess": {
+              "toast": "Listo: el PDF se generó en el idioma del documento (es)."
+            }
+          },
+          {
+            "id": "btn_finalize_statement",
+            "label": "Marcar final",
+            "variant": "secondary",
+            "trigger": "server_action:finalizeStatement",
+            "visibleWhen": "statement.status == 'draft'",
+            "roles": [
+              "central_finance",
+              "group_admin"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "statement_lines",
+        "type": "data-table",
+        "title": "Líneas del estado de cuenta",
+        "description": "Cada línea muestra qué se cobra y por qué. Expande una fila para ver la evidencia: la asignación de licencia con sus fechas. Evidencia según el tipo de línea: kind=licencia → filas del registro (LicenseAssignment con fechas); kind=uso → tabla de CostRecord (cost_date, importe mono, synced_at con etiqueta de frescura, \"importes revisables ~30 días por el proveedor\"); kind=ajuste → nota obligatoria de la línea.",
+        "gridSpan": {
+          "xs": 12
+        },
+        "table": {
+          "rowKey": "id",
+          "columns": [
+            {
+              "id": "kind",
+              "header": "Tipo de línea",
+              "type": "badge"
+            },
+            {
+              "id": "persona",
+              "header": "Persona"
+            },
+            {
+              "id": "org",
+              "header": "Organización"
+            },
+            {
+              "id": "license_type",
+              "header": "Tipo de licencia"
+            },
+            {
+              "id": "periodo",
+              "header": "Período"
+            },
+            {
+              "id": "license_days",
+              "header": "Licencias-día",
+              "align": "right",
+              "type": "number"
+            },
+            {
+              "id": "rate_usd",
+              "header": "Tarifa",
+              "align": "right",
+              "type": "money"
+            },
+            {
+              "id": "amount_usd",
+              "header": "Importe",
+              "align": "right",
+              "type": "money"
+            },
+            {
+              "id": "note",
+              "label": "Nota",
+              "type": "text"
+            }
+          ],
+          "rows": [
+            {
+              "id": "line-1",
+              "kind": "Licencia",
+              "persona": "Andrea Salazar",
+              "org": "Org central Claude Enterprise",
+              "license_type": "Claude Enterprise — licencia estándar",
+              "periodo": "01/07/2026 – 31/07/2026",
+              "license_days": 31,
+              "rate_usd": "USD 60,00",
+              "amount_usd": "USD 60,00"
+            },
+            {
+              "id": "line-2",
+              "kind": "Licencia",
+              "persona": "Diego Cevallos",
+              "org": "Org central Claude Enterprise",
+              "license_type": "Claude Enterprise — licencia estándar",
+              "periodo": "15/07/2026 – 31/07/2026",
+              "license_days": 17,
+              "rate_usd": "USD 60,00",
+              "amount_usd": "USD 32,90"
+            },
+            {
+              "id": "line-3",
+              "kind": "Uso",
+              "persona": "Gabriela Torres",
+              "org": "Org central Claude Enterprise",
+              "license_type": "—",
+              "periodo": "01/07/2026 – 31/07/2026",
+              "license_days": "—",
+              "rate_usd": "—",
+              "amount_usd": "USD 18,73"
+            },
+            {
+              "id": "line-4",
+              "kind": "Ajuste",
+              "persona": "—",
+              "org": "Org central Claude Enterprise",
+              "license_type": "—",
+              "periodo": "01/07/2026 – 31/07/2026",
+              "license_days": "—",
+              "rate_usd": "—",
+              "amount_usd": "USD -12,45"
+            }
+          ],
+          "expandable": {
+            "detailSection": {
+              "id": "register_drilldown",
+              "type": "data-table",
+              "title": "Evidencia del registro",
+              "description": "Asignaciones de licencia que respaldan esta línea, con sus fechas de inicio y fin. Los días de licencia salen de estas fechas (prorrateo diario actual/actual).",
+              "actions": [
+                {
+                  "id": "btn_view_register",
+                  "label": "Ver evidencia en el registro",
+                  "variant": "secondary",
+                  "icon": "book-open",
+                  "navigate_to": "SCR-register",
+                  "trigger": "view_register_evidence",
+                  "roles": [
+                    "central_finance",
+                    "group_admin"
+                  ]
+                }
+              ],
+              "table": {
+                "columns": [
+                  {
+                    "id": "persona",
+                    "header": "Persona"
+                  },
+                  {
+                    "id": "started_on",
+                    "header": "Inicio"
+                  },
+                  {
+                    "id": "ended_on",
+                    "header": "Fin"
+                  },
+                  {
+                    "id": "source_kind",
+                    "header": "Origen"
+                  },
+                  {
+                    "id": "estado",
+                    "header": "Estado",
+                    "type": "status"
+                  }
+                ],
+                "rows": [
+                  {
+                    "persona": "Andrea Salazar",
+                    "started_on": "03/02/2026",
+                    "ended_on": "—",
+                    "source_kind": "Solicitud",
+                    "estado": "Activa"
+                  },
+                  {
+                    "persona": "Gabriela Torres",
+                    "started_on": "01/03/2026",
+                    "ended_on": "08/07/2026",
+                    "source_kind": "Importación",
+                    "estado": "Retirada"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

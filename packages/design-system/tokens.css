@@ -1,0 +1,31 @@
+/* Generated from tokens.json — DO NOT hand-edit */
+:root {
+  --color-background: #f2f2f2;
+  --color-border: #e3e2e2;
+  --color-chrome-active: #e7851a;
+  --color-chrome-bg: #2b2a29;
+  --color-chrome-border: #454341;
+  --color-chrome-fg: #f2f2f2;
+  --color-chrome-fg-muted: #c0bfc0;
+  --color-primary: #e7851a;
+  --color-primary-hover: #c96f12;
+  --color-primary-soft: #fdf1e3;
+  --color-surface: #FFFFFF;
+  --color-surface-muted: #f2f2f2;
+  --color-text-muted: #787474;
+  --color-text-on-primary: #FFFFFF;
+  --color-text-primary: #3d3d3d;
+  --color-text-secondary: #595756;
+  --color-error-bg: #fee2e2;
+  --color-error-dot: #dc2626;
+  --color-error-text: #991b1b;
+  --color-neutral-bg: #f2f2f2;
+  --color-neutral-dot: #949394;
+  --color-neutral-text: #595756;
+  --color-pending-bg: #fef3c7;
+  --color-pending-dot: #d97706;
+  --color-pending-text: #92400e;
+  --color-success: #166534;
+  --color-success-bg: #dcfce7;
+  --color-success-dot: #16a34a;
+}

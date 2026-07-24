@@ -1,0 +1,356 @@
+{
+  "accessibility": {
+    "ariaLandmarks": true,
+    "lang": "es-EC"
+  },
+  "description": "Invoice reconciliation workbench (tpl.close-workbench, J3): per-VendorAccount cards compare the register rollup (Reconciliation.rollup_amount_usd, sourced from Statement totals) against the vendor invoice (invoice_amount_usd input); variance auto-computed and colored by the 0.5% tolerance; status chip open/reconciled/overridden. Variance table lists per-line contributors (mid-cycle proration, invite-consumed, timing). Override modal records a mandatory note and overridden_by — rendered for central_finance + group_admin until OQ-SMP-11 is decided.",
+  "i18n": {
+    "es-EC": {
+      "title": "Conciliación por organización",
+      "subtitle": "Compara el total del registro con la factura de cada organización y resuelve las diferencias del período"
+    }
+  },
+  "id": "SCR-reconciliation",
+  "layout": {
+    "kind": "page",
+    "titleBar": {
+      "subtitle": "Compara el total del registro con la factura de cada organización y resuelve las diferencias del período"
+    },
+    "dataFreshness": {
+      "label": "Totales del registro generados el 03/07/2026 (cierre de junio 2026)"
+    },
+    "sections": [
+      {
+        "id": "recon_actions",
+        "type": "action-bar",
+        "actions": [
+          {
+            "id": "btn_back_to_close",
+            "label": "Volver al cierre",
+            "variant": "secondary",
+            "navigate_to": "SCR-close"
+          },
+          {
+            "id": "btn_review_rates",
+            "label": "Revisar tarifas",
+            "variant": "secondary",
+            "navigate_to": "SCR-rates"
+          }
+        ]
+      },
+      {
+        "id": "recon_tiles",
+        "type": "metric-cards",
+        "metricCards": {
+          "cards": [
+            {
+              "id": "tile_period",
+              "label": "Período",
+              "valueExpr": "Junio 2026"
+            },
+            {
+              "id": "tile_reconciled",
+              "label": "Organizaciones conciliadas",
+              "valueExpr": "1/3"
+            },
+            {
+              "id": "tile_total_variance",
+              "label": "Variación total",
+              "valueExpr": "USD 5,53",
+              "caption": "mono, nunca naranja"
+            },
+            {
+              "id": "tile_tolerance",
+              "label": "Tolerancia",
+              "valueExpr": "0,5 %",
+              "caption": "sobre el total del registro por organización"
+            }
+          ],
+          "columns": {
+            "xs": 2,
+            "md": 4
+          },
+          "dataFreshness": {
+            "label": "datos al 03/07/2026"
+          }
+        }
+      },
+      {
+        "id": "tolerance_note",
+        "type": "info-banner",
+        "kind": "info",
+        "title": "Cómo funciona la conciliación",
+        "content": "Ingresa el monto de la factura de cada organización. La variación se calcula automáticamente contra el total del registro. Si la diferencia supera el 0,5 % de tolerancia, revisa las líneas contribuyentes abajo; para aceptarla necesitas registrar una excepción con nota obligatoria — quedará registrado quién la aprobó."
+      },
+      {
+        "id": "recon_cards",
+        "type": "cards-grid",
+        "title": "Conciliación por organización",
+        "description": "Una tarjeta por organización: total del registro (mono), entrada de factura, variación coloreada por la tolerancia del 0,5 % y chip de estado (abierta / conciliada / excepción aprobada).",
+        "cardsGrid": {
+          "columns": {
+            "xs": 1,
+            "lg": 3
+          }
+        },
+        "cards": [
+          {
+            "id": "recon_claude",
+            "title": "Org central Claude Enterprise",
+            "period": "Junio 2026",
+            "rollup_amount_usd": "USD 912,37",
+            "invoice_amount_usd": "USD 917,90",
+            "variance_usd": "USD 5,53",
+            "variance_pct": "0,61 %",
+            "variance_state": "attention",
+            "variance_note": "Fuera de la tolerancia del 0,5 %: revisa las líneas contribuyentes o registra una excepción con nota.",
+            "status_chip": "Abierta",
+            "invoice_input": {
+              "id": "invoice_amount_usd",
+              "label": "Monto de la factura (USD)",
+              "component": "money",
+              "required": true,
+              "help": "Ingresa el total facturado por el proveedor para junio 2026."
+            },
+            "actions": [
+              {
+                "id": "btn_save_invoice_claude",
+                "label": "Guardar factura",
+                "variant": "primary",
+                "action": "server_action:saveInvoiceAmount"
+              },
+              {
+                "id": "btn_override_claude",
+                "label": "Registrar excepción",
+                "variant": "secondary",
+                "roles": [
+                  "central_finance",
+                  "group_admin"
+                ],
+                "opens_modal": "modal_override"
+              }
+            ]
+          },
+          {
+            "id": "recon_gws",
+            "title": "Claude Enterprise — Kickoff (org propia) corporativo.",
+            "period": "Junio 2026",
+            "rollup_amount_usd": "USD 1.176,00",
+            "invoice_amount_usd": "USD 1.176,00",
+            "variance_usd": "USD 0,00",
+            "variance_pct": "0,00 %",
+            "variance_state": "success",
+            "status_chip": "Conciliada",
+            "invoice_input": {
+              "id": "invoice_amount_usd",
+              "label": "Monto de la factura (USD)",
+              "component": "money",
+              "readonly": true,
+              "help": "Conciliada el 05/07/2026. Dentro de la tolerancia."
+            },
+            "actions": []
+          },
+          {
+            "id": "recon_figma",
+            "title": "Claude Enterprise — Opina (org propia)",
+            "period": "Junio 2026",
+            "rollup_amount_usd": "USD 540,00",
+            "invoice_amount_usd": null,
+            "variance_usd": "—",
+            "variance_pct": "—",
+            "variance_state": "neutral",
+            "variance_note": "Aún no registras la factura de esta organización.",
+            "status_chip": "Abierta",
+            "invoice_input": {
+              "id": "invoice_amount_usd",
+              "label": "Monto de la factura (USD)",
+              "component": "money",
+              "required": true,
+              "placeholder": "USD 0,00",
+              "help": "Ingresa el total facturado por el proveedor para junio 2026."
+            },
+            "actions": [
+              {
+                "id": "btn_save_invoice_figma",
+                "label": "Guardar factura",
+                "variant": "primary",
+                "action": "server_action:saveInvoiceAmount"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "variance_table",
+        "type": "data-table",
+        "title": "Líneas contribuyentes a la variación",
+        "description": "Desglose de las diferencias entre el registro y la factura de Org central Claude Enterprise (junio 2026). Cada línea abre el estado de cuenta de origen para ver la evidencia. Fuente de datos: ReconciliationVarianceLine (causa, detalle, montos registro/factura, diferencia, evidencia statement_line_id).",
+        "table": {
+          "columns": [
+            {
+              "id": "vendor_account",
+              "header": "Organización"
+            },
+            {
+              "id": "cause",
+              "header": "Causa",
+              "type": "badge"
+            },
+            {
+              "id": "detail",
+              "header": "Detalle"
+            },
+            {
+              "id": "register_amount",
+              "header": "Registro",
+              "align": "right",
+              "type": "money"
+            },
+            {
+              "id": "invoice_amount",
+              "header": "Factura",
+              "align": "right",
+              "type": "money"
+            },
+            {
+              "id": "difference",
+              "header": "Diferencia",
+              "align": "right",
+              "type": "money"
+            }
+          ],
+          "row_on_click": {
+            "navigate_to": "SCR-statement-detail"
+          }
+        },
+        "rows": [
+          {
+            "vendor_account": "Org central Claude Enterprise",
+            "cause": "Prorrateo a mitad de ciclo",
+            "detail": "Alta de Daniela Espinosa (Opina) el 15/06/2026 — 16 días de licencia (prorrateo actual/actual)",
+            "register_amount": "USD 14,45",
+            "invoice_amount": "USD 18,07",
+            "difference": "USD 3,62"
+          },
+          {
+            "vendor_account": "Org central Claude Enterprise",
+            "cause": "Invitación consumida",
+            "detail": "Carlos Andrade (Kickoff) en \"Invitación enviada\" desde el 28/06/2026: el proveedor cobra la licencia reservada aunque la invitación no se aceptó",
+            "register_amount": "USD 0,00",
+            "invoice_amount": "USD 1,81",
+            "difference": "USD 1,81"
+          },
+          {
+            "vendor_account": "Org central Claude Enterprise",
+            "cause": "Corte de ciclo (timing)",
+            "detail": "Baja de María Fernanda Játiva (Right Angle Media) el 30/06/2026, aplicada por el proveedor el 01/07/2026",
+            "register_amount": "USD 0,90",
+            "invoice_amount": "USD 1,00",
+            "difference": "USD 0,10"
+          }
+        ]
+      },
+      {
+        "id": "modal_override",
+        "type": "modal",
+        "title": "Registrar excepción de conciliación",
+        "description": "Acepta la diferencia fuera de tolerancia con una nota obligatoria. La conciliación pasará a \"Excepción aprobada\" y quedará registrado tu usuario como responsable.",
+        "roles": [
+          "central_finance",
+          "group_admin"
+        ],
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "vendor_account_id",
+            "label": "Organización",
+            "component": "text",
+            "readonly": true,
+            "valueExpr": "Org central Claude Enterprise"
+          },
+          {
+            "id": "period",
+            "label": "Período",
+            "component": "text",
+            "readonly": true,
+            "valueExpr": "Junio 2026"
+          },
+          {
+            "id": "variance_usd",
+            "label": "Variación a aceptar",
+            "component": "text",
+            "readonly": true,
+            "valueExpr": "USD 5,53 (0,61 %)"
+          },
+          {
+            "id": "override_note",
+            "label": "Nota de la excepción",
+            "component": "textarea",
+            "required": true,
+            "placeholder": "Ej.: el proveedor cobra la invitación reservada de Carlos Andrade; se acepta la diferencia de junio y se retira la invitación en julio.",
+            "help": "Obligatoria. Explica por qué aceptas la diferencia; sin nota no puedes aprobar la excepción.",
+            "validation": [
+              {
+                "type": "required",
+                "message": "Escribe la nota de la excepción antes de aprobar."
+              }
+            ]
+          },
+          {
+            "id": "overridden_by",
+            "label": "Responsable",
+            "component": "text",
+            "readonly": true,
+            "valueExpr": "Se registrará tu usuario (overridden_by) al aprobar.",
+            "help": "Rol autorizado: finanzas centrales y administración del grupo (OQ-SMP-11, hasta decidirse)."
+          }
+        ],
+        "submit": {
+          "id": "btn_confirm_override",
+          "label": "Aprobar excepción",
+          "action": "server_action:overrideReconciliation",
+          "client_request_id": true
+        }
+      }
+    ]
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1"
+  },
+  "roles": [
+    "central_finance",
+    "group_admin"
+  ],
+  "route": "/conciliacion",
+  "title": "Conciliación por organización"
+}

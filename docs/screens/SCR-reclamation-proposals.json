@@ -1,0 +1,329 @@
+{
+  "accessibility": {
+    "ariaLandmarks": true,
+    "lang": "es-EC",
+    "skipToContent": true
+  },
+  "description": "Approver consent queue for license reclamation (J2). Cards list flagged-inactive assignments in the approver's company scope: person, company, last-active date, 30/60/90 inactivity badge, license type/org and monthly cost. Consent is explicit — 'Liberar licencia' opens a confirm modal (never silent removal, per PRD) and 'Mantener' dismisses with a mandatory note. Analytics figures carry a FreshnessLabel (~3-day vendor delay).",
+  "i18n": {
+    "es-EC": {
+      "title": "Propuestas de reclamación",
+      "subtitle": "Licencias sin uso que esperan tu decisión"
+    }
+  },
+  "id": "SCR-reclamation-proposals",
+  "layout": {
+    "kind": "page",
+    "template": "tpl.queue",
+    "titleBar": {
+      "subtitle": "Licencias sin uso que esperan tu decisión"
+    },
+    "dataFreshness": {
+      "label": "Datos de uso al 19-jul (retraso ~3 días del proveedor)",
+      "icon": "clock"
+    },
+    "sections": [
+      {
+        "id": "freshness_note",
+        "type": "info-banner",
+        "kind": "info",
+        "icon": "clock",
+        "title": "Frescura de los datos",
+        "content": "La última actividad viene de la analítica del proveedor con un retraso de ~3 días. Datos al 19-jul. Ninguna licencia se retira sin tu aprobación."
+      },
+      {
+        "id": "proposal_cards",
+        "type": "cards-grid",
+        "title": "Propuestas pendientes",
+        "columns": 2,
+        "cards": [
+          {
+            "id": "prop_ma_andrade",
+            "person": "María José Andrade",
+            "person_email": "mandrade@kickoff.ec",
+            "company": "Kickoff",
+            "last_active": "18/04/2026",
+            "inactive_days": 95,
+            "inactivity_badge": "90+",
+            "license_type": "Claude Enterprise",
+            "vendor_account": "Org central Claude Enterprise",
+            "assignment_started_on": "03/11/2025",
+            "monthly_cost": "USD 63,25",
+            "status": "Marcada inactiva",
+            "freshness_label": "al 19-jul",
+            "on_click": {
+              "navigate_to": "SCR-request-detail"
+            },
+            "actions": [
+              {
+                "id": "btn_liberar_prop_ma_andrade",
+                "label": "Liberar licencia",
+                "variant": "primary",
+                "opens_modal": "modal_liberar"
+              },
+              {
+                "id": "btn_mantener_prop_ma_andrade",
+                "label": "Mantener",
+                "variant": "secondary",
+                "opens_modal": "modal_mantener"
+              }
+            ]
+          },
+          {
+            "id": "prop_d_salvador",
+            "person": "Diego Salvador",
+            "person_email": "dsalvador@opina.ec",
+            "company": "Opina",
+            "last_active": "19/05/2026",
+            "inactive_days": 64,
+            "inactivity_badge": "60",
+            "license_type": "Claude Enterprise — Opina (org propia)",
+            "vendor_account": "Claude Enterprise — Opina (org propia)",
+            "assignment_started_on": "12/01/2026",
+            "monthly_cost": "USD 27,10",
+            "status": "Marcada inactiva",
+            "freshness_label": "al 19-jul",
+            "on_click": {
+              "navigate_to": "SCR-request-detail"
+            },
+            "actions": [
+              {
+                "id": "btn_liberar_prop_d_salvador",
+                "label": "Liberar licencia",
+                "variant": "primary",
+                "opens_modal": "modal_liberar"
+              },
+              {
+                "id": "btn_mantener_prop_d_salvador",
+                "label": "Mantener",
+                "variant": "secondary",
+                "opens_modal": "modal_mantener"
+              }
+            ]
+          },
+          {
+            "id": "prop_c_cevallos",
+            "person": "Carla Cevallos",
+            "person_email": "ccevallos@rightangle.ec",
+            "company": "Right Angle Media",
+            "last_active": "17/06/2026",
+            "inactive_days": 35,
+            "inactivity_badge": "30",
+            "license_type": "Claude Enterprise",
+            "vendor_account": "Org central Claude Enterprise",
+            "assignment_started_on": "02/03/2026",
+            "monthly_cost": "USD 63,25",
+            "status": "Marcada inactiva",
+            "freshness_label": "al 19-jul",
+            "on_click": {
+              "navigate_to": "SCR-request-detail"
+            },
+            "actions": [
+              {
+                "id": "btn_liberar_prop_c_cevallos",
+                "label": "Liberar licencia",
+                "variant": "primary",
+                "opens_modal": "modal_liberar"
+              },
+              {
+                "id": "btn_mantener_prop_c_cevallos",
+                "label": "Mantener",
+                "variant": "secondary",
+                "opens_modal": "modal_mantener"
+              }
+            ]
+          },
+          {
+            "id": "prop_a_jativa",
+            "person": "Andrés Játiva",
+            "person_email": "ajativa@ppm.ec",
+            "company": "PPM",
+            "last_active": "14/06/2026",
+            "inactive_days": 38,
+            "inactivity_badge": "30",
+            "license_type": "Claude Enterprise — Kickoff (org propia)",
+            "vendor_account": "Claude Enterprise — Kickoff (org propia)",
+            "assignment_started_on": "21/10/2025",
+            "monthly_cost": "USD 54,99",
+            "status": "Marcada inactiva",
+            "freshness_label": "al 19-jul",
+            "on_click": {
+              "navigate_to": "SCR-request-detail"
+            },
+            "actions": [
+              {
+                "id": "btn_liberar_prop_a_jativa",
+                "label": "Liberar licencia",
+                "variant": "primary",
+                "opens_modal": "modal_liberar"
+              },
+              {
+                "id": "btn_mantener_prop_a_jativa",
+                "label": "Mantener",
+                "variant": "secondary",
+                "opens_modal": "modal_mantener"
+              }
+            ]
+          }
+        ],
+        "emptyState": {
+          "icon": "check-circle",
+          "title": "No hay propuestas pendientes",
+          "description": "Te avisaremos por correo cuando detectemos licencias sin uso en tu compañía."
+        }
+      },
+      {
+        "id": "modal_liberar",
+        "type": "modal",
+        "title": "Liberar licencia",
+        "description": "Confirmación de reclamación con consentimiento explícito: nunca se retira una licencia en silencio.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "content": "{persona} no usa su licencia desde el {fecha} ({n} días). ¿Quieres liberarla para el cupo del grupo? No se retirará sin tu aprobación.",
+        "fields": [
+          {
+            "id": "release_note",
+            "label": "Nota (opcional)",
+            "component": "textarea",
+            "placeholder": "Ej.: confirmado con la persona, ya no usa la herramienta",
+            "required": false
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_confirm_liberar",
+            "label": "Sí, liberar licencia",
+            "variant": "primary",
+            "intent": "server_action:approveReclamation",
+            "onSuccess": {
+              "toast": "Listo. La licencia entra en retiro y volverá al cupo del grupo.",
+              "close": true,
+              "refresh": true
+            },
+            "onError": {
+              "toast": "No pudimos registrar la liberación. Intenta de nuevo."
+            }
+          },
+          {
+            "id": "btn_cancel_liberar",
+            "label": "Cancelar",
+            "variant": "secondary",
+            "intent": "close_modal"
+          }
+        ]
+      },
+      {
+        "id": "modal_mantener",
+        "type": "modal",
+        "title": "Mantener licencia",
+        "description": "Descarta la propuesta con una nota obligatoria; la decisión queda en el registro de auditoría.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "content": "Vas a mantener esta licencia aunque aparece sin uso. Cuéntanos por qué — la nota queda registrada.",
+        "fields": [
+          {
+            "id": "keep_note",
+            "label": "¿Por qué la mantienes?",
+            "component": "textarea",
+            "placeholder": "Ej.: la persona vuelve de licencia médica el próximo mes",
+            "required": true,
+            "validation": [
+              {
+                "type": "required",
+                "message": "Necesitamos una nota para mantener la licencia."
+              }
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_confirm_mantener",
+            "label": "Mantener licencia",
+            "variant": "primary",
+            "intent": "server_action:dismissReclamation",
+            "onSuccess": {
+              "toast": "Propuesta descartada. La nota quedó en el registro.",
+              "close": true,
+              "refresh": true
+            },
+            "onError": {
+              "toast": "No pudimos guardar la nota. Intenta de nuevo."
+            }
+          },
+          {
+            "id": "btn_cancel_mantener",
+            "label": "Cancelar",
+            "variant": "secondary",
+            "intent": "close_modal"
+          }
+        ]
+      }
+    ]
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1"
+  },
+  "roles": [
+    "approver",
+    "group_admin"
+  ],
+  "route": "/reclamaciones",
+  "title": "Propuestas de reclamación"
+}

@@ -1,0 +1,164 @@
+{
+  "accessibility": {
+    "ariaLandmarks": true,
+    "focusOnMount": "email",
+    "lang": "es-EC",
+    "skipToContent": true
+  },
+  "description": "Public sign-in for Ledger (tpl.auth). Building photo hero with dark veil and corporativo. logo, credentials form (email + password + TOTP when required), and the 2FA notice for administrative roles. On success the server action routes each role to its landing screen per SEC02.",
+  "i18n": {
+    "es-EC": {
+      "subtitle": "Entra con tu correo corporativo",
+      "title": "Iniciar sesión"
+    }
+  },
+  "id": "SCR-login",
+  "layout": {
+    "kind": "page",
+    "sections": [
+      {
+        "id": "hero_login",
+        "type": "hero",
+        "title": "EL REGISTRO DE LICENCIAS DEL GRUPO",
+        "description": "Fotografía del edificio corporativo con velo de protección #1d1d1d; logotipo corporativo. en blanco sobre el velo; titular display en Barlow Condensed 900 mayúsculas.",
+        "media": {
+          "kind": "photo",
+          "subject": "corporativo. building photography",
+          "veil": "#1d1d1d",
+          "logo": "corporativo. lockup blanco"
+        },
+        "gridSpan": {
+          "xs": 12
+        }
+      },
+      {
+        "id": "form_login",
+        "type": "form",
+        "title": "Iniciar sesión",
+        "description": "Formulario de credenciales en una columna; el campo de código TOTP aparece cuando la cuenta lo requiere.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "email",
+            "label": "Correo corporativo",
+            "component": "input-email",
+            "placeholder": "maria.paredes@corporativo.ec",
+            "required": true,
+            "validation": [
+              {
+                "type": "required",
+                "message": "Escribe tu correo corporativo."
+              },
+              {
+                "type": "email",
+                "message": "Ese correo no parece válido. Revisa e intenta de nuevo."
+              }
+            ]
+          },
+          {
+            "id": "password",
+            "label": "Contraseña",
+            "component": "input-password",
+            "required": true,
+            "validation": [
+              {
+                "type": "required",
+                "message": "Escribe tu contraseña."
+              }
+            ]
+          },
+          {
+            "id": "totp_code",
+            "label": "Código de verificación (2FA)",
+            "component": "input-otp",
+            "placeholder": "000000",
+            "mask": "999999",
+            "required": true,
+            "visibleWhen": "totp_required",
+            "help": "Ábrelo en tu app de autenticación. Es obligatorio para roles administrativos."
+          }
+        ],
+        "submit": {
+          "id": "btn_login",
+          "label": "Entrar",
+          "variant": "primary",
+          "action": "server_action:login",
+          "trigger": "server_action:login",
+          "navigate_to": "SCR-my-requests",
+          "onError": {
+            "toast": {
+              "message": "Correo o contraseña incorrectos. Revisa e intenta de nuevo.",
+              "variant": "error"
+            }
+          }
+        },
+        "role_landing": {
+          "note": "server_action:login resolves the post-login destination by role (SEC02). navigate_to declares the default (employee) landing; the other roles route per this map.",
+          "employee": "SCR-my-requests",
+          "approver": "SCR-approval-queue",
+          "company_finance": "SCR-statements",
+          "central_finance": "SCR-close",
+          "group_admin": "SCR-admin-dashboard"
+        },
+        "gridSpan": {
+          "xs": 12,
+          "md": 5
+        }
+      },
+      {
+        "id": "banner_2fa",
+        "type": "info-banner",
+        "kind": "info",
+        "icon": "shield-check",
+        "title": "Verificación en dos pasos",
+        "content": "El 2FA es obligatorio para roles administrativos (administración del grupo y finanzas centrales). Si administras licencias o cierres, ten a mano tu código de verificación antes de entrar.",
+        "gridSpan": {
+          "xs": 12,
+          "md": 5
+        }
+      }
+    ],
+    "titleBar": {
+      "subtitle": "Entra con tu correo corporativo"
+    }
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1",
+    "template": "tpl.auth"
+  },
+  "roles": [
+    "public"
+  ],
+  "route": "/login",
+  "title": "Iniciar sesión"
+}

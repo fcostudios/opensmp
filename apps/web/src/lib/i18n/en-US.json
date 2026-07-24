@@ -1,0 +1,113 @@
+{
+  "_locale": "en-US",
+  "_label": "en-US",
+  "app_name": "Ledger",
+  "nav": {
+    "alertas": "Alerts",
+    "aprobaciones": "Approvals",
+    "auditoria": "Audit",
+    "cierre": "Monthly close",
+    "companias": "Companies",
+    "conciliacion": "Reconciliation",
+    "configuracion": "Settings",
+    "credenciales": "Credentials",
+    "cupos": "Pools",
+    "estados_de_cuenta": "Statements",
+    "excepciones": "Exceptions",
+    "organizaciones": "Vendor accounts",
+    "panel": "Dashboard",
+    "personas": "People",
+    "reclamaciones": "Reclamations",
+    "registro": "Register",
+    "solicitudes": "My requests",
+    "tarifas": "Rates",
+    "uso": "Usage",
+    "usuarios": "Users & roles"
+  },
+  "pages": {
+    "acceso-denegado": {
+      "title": "Acceso denegado"
+    },
+    "alertas": {
+      "title": "Alertas"
+    },
+    "aprobaciones": {
+      "title": "Aprobaciones"
+    },
+    "auditoria": {
+      "title": "Auditoría"
+    },
+    "cierre": {
+      "title": "Cierre mensual"
+    },
+    "companias": {
+      "title": "Compañías"
+    },
+    "companias/[companyId]": {
+      "title": "Detalle de compañía"
+    },
+    "conciliacion": {
+      "title": "Conciliación"
+    },
+    "configuracion": {
+      "title": "Configuración"
+    },
+    "credenciales": {
+      "title": "Credenciales"
+    },
+    "cupos": {
+      "title": "Cupos"
+    },
+    "estados-de-cuenta": {
+      "title": "Estados de cuenta"
+    },
+    "estados-de-cuenta/[statementId]": {
+      "title": "Detalle de estado de cuenta"
+    },
+    "excepciones": {
+      "title": "Excepciones"
+    },
+    "login": {
+      "title": "Ingresar"
+    },
+    "organizaciones": {
+      "title": "Organizaciones"
+    },
+    "organizaciones/[vendorAccountId]": {
+      "title": "Detalle de organización"
+    },
+    "panel": {
+      "title": "Panel general"
+    },
+    "personas": {
+      "title": "Personas"
+    },
+    "personas/[personId]": {
+      "title": "Detalle de persona"
+    },
+    "reclamaciones": {
+      "title": "Reclamaciones"
+    },
+    "registro": {
+      "title": "Registro"
+    },
+    "solicitudes": {
+      "title": "Mis solicitudes"
+    },
+    "solicitudes/[requestId]": {
+      "title": "Detalle de solicitud"
+    },
+    "solicitudes/nueva": {
+      "title": "Nueva solicitud"
+    },
+    "tarifas": {
+      "title": "Tarifas"
+    },
+    "uso": {
+      "title": "Actividad y uso"
+    },
+    "usuarios": {
+      "title": "Usuarios y roles"
+    }
+  }
+}

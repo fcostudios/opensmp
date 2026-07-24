@@ -1,0 +1,237 @@
+{
+  "accessibility": {
+    "ariaLandmarks": true,
+    "lang": "es-EC"
+  },
+  "description": "People directory (Module A): every person in the group with company, status, current license chip and last-activity freshness. Single-add via modal (CSV bulk import is R2 per backlog); row drills into SCR-person-detail. Template tpl.workspace-list on the data-workspace shell.",
+  "i18n": {
+    "es-EC": {
+      "subtitle": "Todas las personas del grupo y su licencia actual",
+      "title": "Personas"
+    }
+  },
+  "id": "SCR-people",
+  "layout": {
+    "kind": "page",
+    "template": "tpl.workspace-list",
+    "titleBar": {
+      "subtitle": "Todas las personas del grupo y su licencia actual"
+    },
+    "dataFreshness": {
+      "label": "Datos de uso al 19/07/2026 (retraso ~3 días del proveedor)",
+      "icon": "refresh-cw"
+    },
+    "sections": [
+      {
+        "id": "people_actions",
+        "type": "action-bar",
+        "actions": [
+          {
+            "id": "btn_new_person",
+            "label": "Nueva persona",
+            "variant": "primary",
+            "icon": "user-plus",
+            "opens_modal": "modal_new_person"
+          }
+        ]
+      },
+      {
+        "id": "people_filters",
+        "type": "filters",
+        "filters": [
+          {
+            "id": "filter_company",
+            "label": "Compañía",
+            "component": "select",
+            "options": [
+              "Todas",
+              "Kickoff",
+              "Opina",
+              "Right Angle Media",
+              "PPM",
+              "Focus"
+            ],
+            "default": "Todas"
+          },
+          {
+            "id": "filter_status",
+            "label": "Estado",
+            "component": "select",
+            "options": [
+              "Todos",
+              "Activa",
+              "Salió del grupo"
+            ],
+            "default": "Todos"
+          },
+          {
+            "id": "filter_license",
+            "label": "Licencia",
+            "component": "select",
+            "options": [
+              "Todas",
+              "Con licencia",
+              "Sin licencia"
+            ],
+            "default": "Todas"
+          }
+        ]
+      },
+      {
+        "id": "people_table",
+        "type": "data-table",
+        "title": "Personas del grupo",
+        "columns": [
+          {
+            "id": "full_name",
+            "label": "Nombre"
+          },
+          {
+            "id": "email",
+            "label": "Correo"
+          },
+          {
+            "id": "company",
+            "label": "Compañía"
+          },
+          {
+            "id": "status",
+            "label": "Estado",
+            "type": "badge"
+          },
+          {
+            "id": "current_license",
+            "label": "Licencia actual",
+            "type": "badge"
+          },
+          {
+            "id": "last_active",
+            "label": "Última actividad"
+          }
+        ],
+        "row_on_click": {
+          "navigate_to": "SCR-person-detail"
+        },
+        "rows": [
+          {
+            "full_name": "María José Andrade",
+            "email": "mandrade@kickoff.ec",
+            "company": "Kickoff",
+            "status": "Activa",
+            "current_license": "Activa",
+            "last_active": "18/07/2026"
+          },
+          {
+            "full_name": "Carlos Vinueza",
+            "email": "cvinueza@opina.ec",
+            "company": "Opina",
+            "status": "Activa",
+            "current_license": "Marcada inactiva",
+            "last_active": "02/06/2026"
+          },
+          {
+            "full_name": "Gabriela Ponce",
+            "email": "gponce@rightangle.ec",
+            "company": "Right Angle Media",
+            "status": "Activa",
+            "current_license": "—",
+            "last_active": "—"
+          },
+          {
+            "full_name": "Diego Salazar",
+            "email": "dsalazar@ppm.ec",
+            "company": "PPM",
+            "status": "Salió del grupo",
+            "current_license": "—",
+            "last_active": "20/05/2026"
+          }
+        ],
+        "emptyState": {
+          "title": "Todavía no hay personas registradas",
+          "description": "Agrega la primera persona del grupo con \"Nueva persona\"."
+        }
+      },
+      {
+        "id": "modal_new_person",
+        "type": "modal",
+        "title": "Nueva persona",
+        "description": "Agrega una persona al directorio del grupo. La importación masiva por CSV llega en una versión posterior.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "full_name",
+            "label": "Nombre completo",
+            "component": "text",
+            "required": true,
+            "placeholder": "Ej.: Andrea Cevallos"
+          },
+          {
+            "id": "email",
+            "label": "Correo corporativo",
+            "component": "email",
+            "required": true,
+            "placeholder": "nombre@compania.ec",
+            "help": "Usa el correo del dominio de su compañía; te avisamos si el dominio no calza."
+          },
+          {
+            "id": "company_id",
+            "label": "Compañía",
+            "component": "select",
+            "required": true,
+            "options": [
+              "Kickoff",
+              "Opina",
+              "Right Angle Media",
+              "PPM",
+              "Focus"
+            ]
+          }
+        ],
+        "submit": {
+          "id": "btn_save_person",
+          "label": "Guardar persona",
+          "action": "server_action:createPerson",
+          "client_request_id": true
+        }
+      }
+    ]
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1"
+  },
+  "roles": [
+    "group_admin"
+  ],
+  "route": "/personas",
+  "title": "Personas"
+}

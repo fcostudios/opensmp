@@ -1,0 +1,181 @@
+{
+  "id": "SCR-statements",
+  "title": "Estados de cuenta",
+  "description": "Monthly statements list (Module E, J3): one Statement per company per period. Filters by period, company (central_finance/group_admin only) and status (draft/final/reconciled); table shows periodo, compañía (code), estado StatusPill, apertura (opening_seats), total (mono) and generado. Row navigates to SCR-statement-detail. company_finance sees own company only. Data: Statement(*), Company(code, statement_language).",
+  "route": "/estados-de-cuenta",
+  "roles": [
+    "company_finance",
+    "central_finance",
+    "group_admin"
+  ],
+  "template": "tpl.workspace-list",
+  "i18n": {
+    "es-EC": {
+      "title": "Estados de cuenta",
+      "subtitle": "Lo que cada compañía debe pagar por sus licencias, mes a mes"
+    }
+  },
+  "accessibility": {
+    "lang": "es-EC",
+    "ariaLandmarks": true
+  },
+  "layout": {
+    "kind": "page",
+    "titleBar": {
+      "subtitle": "Lo que cada compañía debe pagar por sus licencias, mes a mes"
+    },
+    "sections": [
+      {
+        "id": "statements_filters",
+        "type": "filters",
+        "title": "Filtrar",
+        "fields": [
+          {
+            "id": "filter_period",
+            "label": "Período",
+            "component": "select",
+            "options": [
+              "Todos",
+              "junio 2026",
+              "mayo 2026",
+              "abril 2026"
+            ],
+            "default": "junio 2026"
+          },
+          {
+            "id": "filter_company",
+            "label": "Compañía",
+            "component": "select",
+            "options": [
+              "Todas",
+              "KCK · Kickoff",
+              "OPN · Opina",
+              "RAM · Right Angle Media",
+              "PPM · PPM",
+              "FOC · Focus"
+            ],
+            "default": "Todas",
+            "visibleWhen": "role in ['central_finance','group_admin']",
+            "help": "Solo finanzas centrales y administración ven todas las compañías."
+          },
+          {
+            "id": "filter_status",
+            "label": "Estado",
+            "component": "select",
+            "options": [
+              "Todos",
+              "Borrador",
+              "Final",
+              "Conciliado"
+            ],
+            "default": "Todos"
+          }
+        ]
+      },
+      {
+        "id": "statements_table",
+        "type": "data-table",
+        "title": "Estados de cuenta por compañía",
+        "description": "Toca una fila para ver el detalle: líneas por persona, tarifas, licencias-día y exportes.",
+        "columns": [
+          {
+            "id": "period",
+            "label": "Período"
+          },
+          {
+            "id": "company_code",
+            "label": "Compañía",
+            "type": "mono"
+          },
+          {
+            "id": "company_name",
+            "label": "Nombre"
+          },
+          {
+            "id": "status",
+            "label": "Estado",
+            "type": "status"
+          },
+          {
+            "id": "opening_seats",
+            "label": "Apertura (licencias)",
+            "align": "right"
+          },
+          {
+            "id": "total_usd",
+            "label": "Total",
+            "type": "mono",
+            "align": "right"
+          },
+          {
+            "id": "generated_at",
+            "label": "Generado"
+          }
+        ],
+        "rows": [
+          {
+            "period": "junio 2026",
+            "company_code": "KCK",
+            "company_name": "Kickoff",
+            "status": "Final",
+            "opening_seats": "14",
+            "total_usd": "USD 1.234,56",
+            "generated_at": "03/07/2026"
+          },
+          {
+            "period": "junio 2026",
+            "company_code": "OPN",
+            "company_name": "Opina",
+            "status": "Conciliado",
+            "opening_seats": "8",
+            "total_usd": "USD 612,40",
+            "generated_at": "03/07/2026"
+          },
+          {
+            "period": "junio 2026",
+            "company_code": "RAM",
+            "company_name": "Right Angle Media",
+            "status": "Borrador",
+            "opening_seats": "21",
+            "total_usd": "USD 2.087,15",
+            "generated_at": "03/07/2026"
+          },
+          {
+            "period": "mayo 2026",
+            "company_code": "PPM",
+            "company_name": "PPM",
+            "status": "Conciliado",
+            "opening_seats": "6",
+            "total_usd": "USD 486,00",
+            "generated_at": "03/06/2026"
+          }
+        ],
+        "table": {
+          "rowKey": "company_code",
+          "initialSort": {
+            "columnId": "period",
+            "direction": "desc"
+          },
+          "row_on_click": {
+            "navigate_to": "SCR-statement-detail"
+          }
+        },
+        "row_on_click": {
+          "navigate_to": "SCR-statement-detail"
+        }
+      },
+      {
+        "id": "scope_note",
+        "type": "info-banner",
+        "kind": "info",
+        "icon": "info",
+        "title": "Qué significa cada estado",
+        "content": "Borrador: el cierre aún no se ejecuta o está en curso; las cifras pueden cambiar. Final: el cierre del período ya corrió y el total es definitivo. Conciliado: además, el total ya cuadró contra la factura del proveedor. Si eres finanzas de compañía, ves solo los estados de cuenta de tu compañía."
+      }
+    ]
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1"
+  }
+}

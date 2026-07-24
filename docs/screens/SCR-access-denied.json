@@ -1,0 +1,80 @@
+{
+  "accessibility": {
+    "ariaLandmarks": true,
+    "focusOnMount": "banner_access_denied",
+    "lang": "es-EC",
+    "skipToContent": true
+  },
+  "description": "Public access-denied screen (template: info). Shown when a user reaches a route their role cannot see. A single info-banner explains the situation in es-EC tu voice and an action-bar routes the user back to their role landing (default employee landing SCR-my-requests; server resolves per-role destinations per SEC02) or back to sign-in. No data bindings — this screen renders no entity fields.",
+  "i18n": {
+    "es-EC": {
+      "subtitle": "Esta sección no está disponible para tu rol",
+      "title": "Acceso denegado"
+    }
+  },
+  "id": "SCR-access-denied",
+  "layout": {
+    "kind": "page",
+    "sections": [
+      {
+        "id": "banner_access_denied",
+        "type": "info-banner",
+        "kind": "attention",
+        "icon": "shield-off",
+        "title": "No tienes acceso a esta sección",
+        "content": "Tu rol no tiene permiso para ver esta página. Si crees que deberías tener acceso, escríbele al administrador del grupo. Mientras tanto, puedes volver a tu espacio de trabajo.",
+        "gridSpan": {
+          "xs": 12,
+          "md": 6
+        }
+      },
+      {
+        "id": "actions_access_denied",
+        "type": "action-bar",
+        "actions": [
+          {
+            "id": "btn_go_home",
+            "label": "Ir a mi espacio",
+            "variant": "primary",
+            "icon": "home",
+            "navigate_to": "SCR-my-requests",
+            "trigger": "nav:role_landing"
+          },
+          {
+            "id": "btn_go_login",
+            "label": "Volver a iniciar sesión",
+            "variant": "secondary",
+            "icon": "log-in",
+            "navigate_to": "SCR-login",
+            "trigger": "nav:login"
+          }
+        ],
+        "role_landing": {
+          "note": "The 'Ir a mi espacio' action resolves the destination by the authenticated role (SEC02): employee/approver default below; unauthenticated users fall through to SCR-login. navigate_to declares the default (employee) landing.",
+          "employee": "SCR-my-requests",
+          "approver": "SCR-approval-queue",
+          "company_finance": "SCR-statements",
+          "central_finance": "SCR-close",
+          "group_admin": "SCR-admin-dashboard"
+        },
+        "gridSpan": {
+          "xs": 12,
+          "md": 6
+        }
+      }
+    ],
+    "titleBar": {
+      "subtitle": "Esta sección no está disponible para tu rol"
+    }
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1",
+    "template": "info"
+  },
+  "roles": [
+    "public"
+  ],
+  "route": "/acceso-denegado",
+  "title": "Acceso denegado"
+}

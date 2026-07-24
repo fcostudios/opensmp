@@ -1,0 +1,43 @@
+{
+  "name": "smp-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint && pnpm lint:ds",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "lint:ds": "node ../../scripts/check-status-pill.mjs ../.. && node ../../scripts/check-hardcoded-color.mjs ../.. && node ../../scripts/check-hardcoded-string.mjs ../.. && node ../../scripts/check-lucide-allowlist.mjs ../..",
+    "lint:a11y": "node ../../scripts/check-a11y.mjs ../.."
+  },
+  "dependencies": {
+    "next": "^16.1.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "next-auth": "^5.0.0-beta.25",
+    "lucide-react": "^0.468.0",
+    "zod": "^3.23.8",
+    "zustand": "^5.0.2",
+    "drizzle-orm": "^0.38.3",
+    "@neondatabase/serverless": "^0.10.4",
+    "pg": "^8.13.1",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/node": "^22.10.0",
+    "tailwindcss": "^4.0.0",
+    "@tailwindcss/postcss": "^4.0.0",
+    "postcss": "^8.4.49",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^15.1.0",
+    "@types/pg": "^8.11.10",
+    "drizzle-kit": "^0.30.1",
+    "vitest": "^4.1.0",
+    "@vitest/coverage-v8": "^4.1.0"
+  }
+}

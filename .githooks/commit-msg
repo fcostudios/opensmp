@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# commit-msg — enforce traceability to a user story or change request.
+#
+# Every commit on this repo MUST reference at least one of:
+#   - US-NNN  (user story)
+#   - CHG-NNN (change request)
+#
+# This closes the workflow hole discovered by `nous_package.py drift`
+# after Sprint 4-10, where several routes shipped with no US in the commit
+# message and became orphans in the pipeline.
+#
+# Exempt commit types (skipped):
+#   - Merge commits       (Merge branch ..., Merge pull request ...)
+#   - Revert commits      (Revert "...")
+#   - Fixup/squash        (fixup! ..., squash! ...)
+#   - Release tags        (chore(release): ...)
+#
+# Escape hatch:
+#   Set COMMIT_MSG_NO_US=1 before committing to bypass (for emergencies only —
+#   will show up in drift detector with no owner and trigger a pipeline review).
+#
+# Install:
+#   git config core.hooksPath .githooks
+#   chmod +x .githooks/commit-msg
+#
+# Or run once:
+#   ./infra/scripts/install-git-hooks.sh
+
+set -euo pipefail
+
+COMMIT_MSG_FILE="${1:-}"
+if [ -z "$COMMIT_MSG_FILE" ] || [ ! -f "$COMMIT_MSG_FILE" ]; then
+  # Called without arg (direct invocation); nothing to check
+  exit 0
+fi
+
+MSG="$(cat "$COMMIT_MSG_FILE")"
+
+# Emergency bypass (leaves an audit trail via env var usage)
+if [ "${COMMIT_MSG_NO_US:-0}" = "1" ]; then
+  echo "commit-msg: bypassed via COMMIT_MSG_NO_US=1 — expect drift detector flag" >&2
+  exit 0
+fi
+
+# Trim leading empty lines / whitespace
+FIRST_LINE="$(echo "$MSG" | sed -E '/^\s*$/d' | head -n 1)"
+
+# Skip exempt commit types
+case "$FIRST_LINE" in
+  "Merge "*|"Merge pull"*) exit 0 ;;
+  "Revert "*|"revert: "*) exit 0 ;;
+  "fixup! "*|"squash! "*|"amend! "*) exit 0 ;;
+  "chore(release):"*|"release: "*) exit 0 ;;
+esac
+
+# Require at least one US-NNN or CHG-NNN anywhere in the commit message
+# Case-insensitive so both `feat(chg-021):` (Conventional Commits scope) and
+# `... CHG-021 ...` in the body are accepted.
+if echo "$MSG" | grep -qiE '\b(US|CHG)-[0-9]{2,}\b'; then
+  exit 0
+fi
+
+# Reject
+cat >&2 <<'EOF'
+✗ commit rejected: no US-NNN or CHG-NNN reference in commit message.
+
+Every commit must trace back to a user story or change request so the
+Nous pipeline can relate work to specs. Add a reference to the
+subject or body:
+
+  feat(sales): add activity log (US-013)
+  fix(api): correct funnel stage order (CHG-012)
+
+Exempt commit types: Merge, Revert, fixup!/squash!, chore(release).
+
+Emergency bypass (leaves audit trail — will appear in drift detector):
+  COMMIT_MSG_NO_US=1 git commit ...
+
+Discover open stories:  cat docs/stories/SPRINT_PLAN.md
+                        grep -l "backlog\|in_development" docs/stories/sprint-*/*.md
+EOF
+exit 1

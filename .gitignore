@@ -1,0 +1,35 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Java / Gradle
+apps/api/.gradle/
+apps/api/build/
+apps/api/out/
+*.class
+*.jar
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.turbo/
+apps/web/.next/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+pgdata/
+redisdata/
+
+# Logs
+*.log

@@ -1,0 +1,367 @@
+{
+  "id": "SCR-person-detail",
+  "title": "Detalle de persona",
+  "description": "tpl.workspace-record over one Person (Module A/D). Title is the person's full_name with a gray metadata line (email, company, status). Stat tiles show current license, last use (with FreshnessLabel) and derived inactive days; a register timeline lists the person's LicenseAssignment history (license, org, company, started/ended, end_reason); a data-table shows recent ActivityRecord rows. Actions: request a license for this person (prefilled SCR-new-request) and start offboarding (confirm modal, same-business-day SLA).",
+  "route": "/personas/:personId",
+  "roles": [
+    "group_admin"
+  ],
+  "breadcrumbs": [
+    {
+      "label": "Personas",
+      "route": "/personas"
+    },
+    {
+      "label": "María Fernanda Cevallos"
+    }
+  ],
+  "i18n": {
+    "es-EC": {
+      "title": "PERSONA · MARÍA FERNANDA CEVALLOS",
+      "subtitle": "maria.cevallos@kickoff.ec · Kickoff · Activa"
+    }
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1"
+  },
+  "accessibility": {
+    "lang": "es-EC",
+    "ariaLandmarks": true
+  },
+  "data": {
+    "paramsFromRoute": [
+      "personId"
+    ]
+  },
+  "layout": {
+    "kind": "page",
+    "titleBar": {
+      "subtitle": "maria.cevallos@kickoff.ec · Kickoff · Activa"
+    },
+    "sections": [
+      {
+        "id": "person_tiles",
+        "type": "metric-cards",
+        "title": "Resumen",
+        "gridSpan": {
+          "xs": 12
+        },
+        "metricCards": {
+          "columns": {
+            "xs": 1,
+            "md": 3
+          },
+          "cards": [
+            {
+              "id": "tile_current_license",
+              "label": "Licencia actual",
+              "valueExpr": "Claude Enterprise",
+              "caption": "Org central Claude Enterprise · Activa desde 03/02/2026"
+            },
+            {
+              "id": "tile_last_use",
+              "label": "Último uso",
+              "valueExpr": "19/07/2026",
+              "caption": "datos al 19/07/2026 (retraso ~3 días del proveedor)"
+            },
+            {
+              "id": "tile_inactive_days",
+              "label": "Días inactiva",
+              "valueExpr": "3",
+              "caption": "Sobre la ventana de 30 días"
+            }
+          ],
+          "dataFreshness": {
+            "label": "datos al 19/07/2026 (retraso ~3 días del proveedor)"
+          }
+        }
+      },
+      {
+        "id": "assignment_history",
+        "type": "timeline",
+        "title": "Historial de licencias (registro)",
+        "description": "Filas del registro de esta persona: licencia, organización, compañía, inicio/fin y motivo de fin. Cada fila abre su evidencia en el registro.",
+        "timeline": {
+          "entity": "LicenseAssignment",
+          "events": [
+            {
+              "ts": "2026-02-03T09:15:00-05:00",
+              "actor": "Ledger",
+              "action": "Alta — Claude Enterprise · Org central Claude Enterprise · Kickoff · desde 03/02/2026 · Activa · origen: solicitud",
+              "links": [
+                {
+                  "label": "Ver en el registro",
+                  "route": "/registro"
+                },
+                {
+                  "label": "Ver solicitud de origen",
+                  "route": "/solicitudes/req-2026-0142"
+                }
+              ]
+            },
+            {
+              "ts": "2026-01-20T16:40:00-05:00",
+              "actor": "Andrés Salazar (Group Admin)",
+              "action": "Baja — Claude Team · Org central Claude Enterprise · Kickoff · 15/08/2025 – 20/01/2026 · Retirada · motivo: inactividad",
+              "links": [
+                {
+                  "label": "Ver en el registro",
+                  "route": "/registro"
+                }
+              ]
+            },
+            {
+              "ts": "2025-08-15T10:05:00-05:00",
+              "actor": "Ledger",
+              "action": "Alta — Claude Team · Org central Claude Enterprise · Kickoff · desde 15/08/2025 · origen: importación",
+              "links": [
+                {
+                  "label": "Ver en el registro",
+                  "route": "/registro"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "activity_table",
+        "type": "data-table",
+        "title": "Actividad reciente",
+        "description": "Registros de actividad sincronizados desde el proveedor. Freshness: retraso ~3 días.",
+        "table": {
+          "rowKey": "id",
+          "columns": [
+            {
+              "id": "activity_date",
+              "header": "Fecha",
+              "type": "date"
+            },
+            {
+              "id": "counters",
+              "header": "Resumen de actividad"
+            },
+            {
+              "id": "synced_at",
+              "header": "Sincronizado",
+              "type": "date"
+            }
+          ],
+          "initialSort": {
+            "columnId": "activity_date",
+            "direction": "desc"
+          }
+        },
+        "rows": [
+          {
+            "activity_date": "19/07/2026",
+            "counters": "42 mensajes · 3 proyectos activos",
+            "synced_at": "20/07/2026"
+          },
+          {
+            "activity_date": "18/07/2026",
+            "counters": "17 mensajes · 2 proyectos activos",
+            "synced_at": "19/07/2026"
+          },
+          {
+            "activity_date": "16/07/2026",
+            "counters": "8 mensajes · 1 proyecto activo",
+            "synced_at": "17/07/2026"
+          }
+        ]
+      },
+      {
+        "id": "person_actions",
+        "type": "action-bar",
+        "actions": [
+          {
+            "id": "btn_request_license",
+            "label": "Solicitar licencia para esta persona",
+            "variant": "primary",
+            "navigate_to": "SCR-new-request",
+            "payload": {
+              "prefill": {
+                "person_id": ":personId"
+              }
+            }
+          },
+          {
+            "id": "btn_start_offboarding",
+            "label": "Iniciar retiro",
+            "variant": "secondary",
+            "opens_modal": "modal_offboarding"
+          },
+          {
+            "id": "btn_editar_persona",
+            "label": "Editar persona",
+            "variant": "secondary",
+            "opens_modal": "modal_editar_persona"
+          }
+        ]
+      },
+      {
+        "id": "modal_offboarding",
+        "type": "modal",
+        "title": "Iniciar retiro de licencias",
+        "description": "Confirma el retiro de la licencia activa de esta persona. Si es una salida de la compañía, el retiro se ejecuta el mismo día hábil (SLA de offboarding).",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "end_reason",
+            "label": "Motivo del retiro",
+            "component": "select",
+            "required": true,
+            "options": [
+              {
+                "value": "left_company",
+                "label": "Salida de la compañía"
+              },
+              {
+                "value": "inactive",
+                "label": "Inactividad"
+              },
+              {
+                "value": "reallocated",
+                "label": "Reasignación de la licencia"
+              }
+            ]
+          },
+          {
+            "id": "offboarding_note",
+            "label": "Nota (obligatoria)",
+            "component": "textarea",
+            "required": true,
+            "placeholder": "Cuéntanos por qué inicias el retiro; queda en el registro de auditoría."
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_confirm_offboarding",
+            "label": "Confirmar retiro",
+            "variant": "primary",
+            "intent": "server_action:startOffboarding",
+            "confirm": {
+              "title": "¿Iniciar el retiro?",
+              "body": "La licencia pasará a estado En retiro y luego a Retirada cuando el proveedor confirme. Nada se retira en silencio: la acción queda registrada con tu nombre."
+            },
+            "onSuccess": {
+              "toast": "Retiro iniciado. Te avisaremos cuando el proveedor confirme.",
+              "close": true,
+              "refresh": true
+            },
+            "onError": {
+              "toast": "No pudimos iniciar el retiro. Revisa el detalle e inténtalo de nuevo."
+            }
+          },
+          {
+            "id": "btn_cancel_offboarding",
+            "label": "Cancelar",
+            "variant": "quiet"
+          }
+        ]
+      },
+      {
+        "id": "modal_editar_persona",
+        "type": "modal",
+        "title": "Editar persona",
+        "fields": [
+          {
+            "id": "full_name",
+            "label": "Nombre completo",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "email",
+            "label": "Correo corporativo",
+            "type": "text",
+            "required": true,
+            "help": "Es la clave de identidad ante el proveedor; corrige con cuidado."
+          },
+          {
+            "id": "company_id",
+            "label": "Compañía",
+            "type": "select",
+            "required": true,
+            "help": "Cambiar de compañía cierra las filas abiertas del registro en la compañía anterior y requiere una solicitud fast-track en la nueva (PRD §10)."
+          },
+          {
+            "id": "status",
+            "label": "Estado",
+            "type": "select",
+            "required": true,
+            "options": [
+              "Activa",
+              "Salió del grupo"
+            ]
+          }
+        ],
+        "submit": {
+          "id": "btn_guardar_persona",
+          "label": "Guardar",
+          "action": "server_action:updatePerson"
+        },
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

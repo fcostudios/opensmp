@@ -1,0 +1,610 @@
+{
+  "accessibility": {
+    "ariaLandmarks": true,
+    "skipToContent": true
+  },
+  "description": "User accounts and company-scoped role assignments (Module H). Tab Usuarios manages UserAccount rows (global role, linked person, 2FA state, status, last login) with account lifecycle actions; tab Roles por compania manages CompanyRoleAssignment grants (approver/finance/viewer with validity window). Delegation-window fields are marked pending (R2).",
+  "i18n": {
+    "es-EC": {
+      "title": "Usuarios y roles",
+      "subtitle": "Cuentas de acceso y roles por compañía del grupo"
+    }
+  },
+  "id": "SCR-users-roles",
+  "layout": {
+    "kind": "page",
+    "titleBar": {
+      "subtitle": "Cuentas de acceso y roles por compañía del grupo"
+    },
+    "sections": [
+      {
+        "id": "users_roles_action_bar",
+        "type": "action-bar",
+        "actions": [
+          {
+            "id": "btn_new_account",
+            "label": "Nueva cuenta",
+            "variant": "primary",
+            "opens_modal": "modal_new_account"
+          }
+        ]
+      },
+      {
+        "id": "tabs_users_roles",
+        "type": "tabs",
+        "title": "Usuarios y roles por compañía",
+        "tabs": [
+          {
+            "id": "tab_usuarios",
+            "label": "Usuarios",
+            "count": 4,
+            "sections": [
+              {
+                "id": "users_table",
+                "type": "data-table",
+                "title": "Cuentas de usuario",
+                "description": "El estado 2FA se deriva de la configuración TOTP de la cuenta. 2FA es obligatorio para roles administrativos.",
+                "columns": [
+                  {
+                    "id": "email",
+                    "label": "Correo"
+                  },
+                  {
+                    "id": "global_role",
+                    "label": "Rol global",
+                    "type": "badge"
+                  },
+                  {
+                    "id": "linked_person",
+                    "label": "Persona vinculada"
+                  },
+                  {
+                    "id": "twofa_status",
+                    "label": "2FA",
+                    "type": "badge"
+                  },
+                  {
+                    "id": "status",
+                    "label": "Estado",
+                    "type": "status"
+                  },
+                  {
+                    "id": "last_login_at",
+                    "label": "Último ingreso"
+                  }
+                ],
+                "rows": [
+                  {
+                    "email": "dandrade@corporativo.ec",
+                    "global_role": "Administrador del grupo",
+                    "linked_person": "Diego Andrade",
+                    "twofa_status": "Configurada",
+                    "status": "Activa",
+                    "last_login_at": "21/07/2026 08:15"
+                  },
+                  {
+                    "email": "psalazar@corporativo.ec",
+                    "global_role": "Finanzas centrales",
+                    "linked_person": "Paulina Salazar",
+                    "twofa_status": "Configurada",
+                    "status": "Activa",
+                    "last_login_at": "20/07/2026 17:03"
+                  },
+                  {
+                    "email": "mgutierrez@kickoff.ec",
+                    "global_role": "—",
+                    "linked_person": "María Gutiérrez (Kickoff)",
+                    "twofa_status": "Configurada",
+                    "status": "Activa",
+                    "last_login_at": "18/07/2026 09:42"
+                  },
+                  {
+                    "email": "jvillacis@opina.ec",
+                    "global_role": "—",
+                    "linked_person": "Jorge Villacís (Opina)",
+                    "twofa_status": "Pendiente",
+                    "status": "Desactivada",
+                    "last_login_at": "30/06/2026 11:20"
+                  }
+                ],
+                "rowActions": [
+                  {
+                    "id": "btn_view_person",
+                    "label": "Ver persona",
+                    "variant": "quiet",
+                    "navigate_to": "SCR-person-detail"
+                  },
+                  {
+                    "id": "btn_reset_2fa",
+                    "label": "Restablecer 2FA",
+                    "variant": "quiet",
+                    "opens_modal": "modal_reset_2fa"
+                  },
+                  {
+                    "id": "btn_disable_account",
+                    "label": "Desactivar",
+                    "variant": "quiet",
+                    "intent": "danger",
+                    "opens_modal": "modal_disable_account"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "tab_roles",
+            "label": "Roles por compañía",
+            "count": 3,
+            "sections": [
+              {
+                "id": "roles_table",
+                "type": "data-table",
+                "title": "Roles por compañía",
+                "description": "Cada rol se otorga por compañía con una ventana de vigencia opcional. Los campos de ventana de delegación están pendientes (R2).",
+                "actions": [
+                  {
+                    "id": "btn_add_role",
+                    "label": "Agregar rol",
+                    "variant": "secondary",
+                    "opens_modal": "modal_add_role"
+                  }
+                ],
+                "columns": [
+                  {
+                    "id": "user_email",
+                    "label": "Usuario"
+                  },
+                  {
+                    "id": "company",
+                    "label": "Compañía"
+                  },
+                  {
+                    "id": "role",
+                    "label": "Rol",
+                    "type": "badge"
+                  },
+                  {
+                    "id": "valid_from",
+                    "label": "Vigente desde"
+                  },
+                  {
+                    "id": "valid_to",
+                    "label": "Vigente hasta"
+                  }
+                ],
+                "rows": [
+                  {
+                    "user_email": "mgutierrez@kickoff.ec",
+                    "company": "Kickoff",
+                    "role": "Aprobador/a",
+                    "valid_from": "01/03/2026",
+                    "valid_to": "—"
+                  },
+                  {
+                    "user_email": "rcevallos@rightangle.ec",
+                    "company": "Right Angle Media",
+                    "role": "Finanzas",
+                    "valid_from": "15/01/2026",
+                    "valid_to": "—"
+                  },
+                  {
+                    "user_email": "jvillacis@opina.ec",
+                    "company": "Opina",
+                    "role": "Aprobador/a",
+                    "valid_from": "01/02/2026",
+                    "valid_to": "30/06/2026"
+                  }
+                ],
+                "rowActions": [
+                  {
+                    "id": "btn_remove_role",
+                    "label": "Quitar rol",
+                    "variant": "quiet",
+                    "intent": "danger",
+                    "opens_modal": "modal_remove_role"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "modal_new_account",
+        "type": "modal",
+        "title": "Nueva cuenta",
+        "description": "Crea una cuenta de acceso y vincúlala a una persona del directorio. La persona recibirá un correo para configurar su contraseña y su 2FA.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "email",
+            "label": "Correo",
+            "component": "input-email",
+            "required": true,
+            "placeholder": "nombre@compania.ec"
+          },
+          {
+            "id": "person_id",
+            "label": "Persona vinculada",
+            "component": "select-search",
+            "required": false,
+            "help": "Busca por nombre o correo en el directorio de personas."
+          },
+          {
+            "id": "global_role",
+            "label": "Rol global (opcional)",
+            "component": "select",
+            "required": false,
+            "options": [
+              {
+                "value": "group_admin",
+                "label": "Administrador del grupo"
+              },
+              {
+                "value": "central_finance",
+                "label": "Finanzas centrales"
+              }
+            ],
+            "help": "Déjalo vacío si la cuenta solo tendrá roles por compañía."
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_create_account",
+            "label": "Crear cuenta",
+            "variant": "primary",
+            "trigger": "server_action:createUserAccount",
+            "onSuccess": {
+              "toast": "Cuenta creada. Enviamos el correo de activación.",
+              "close": true,
+              "refresh": true
+            }
+          },
+          {
+            "id": "btn_cancel_new_account",
+            "label": "Cancelar",
+            "variant": "quiet"
+          }
+        ]
+      },
+      {
+        "id": "modal_reset_2fa",
+        "type": "modal",
+        "title": "Restablecer 2FA",
+        "description": "Se invalidará el TOTP actual de la cuenta y la persona deberá configurarlo de nuevo en su próximo ingreso.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "reset_note",
+            "label": "Motivo (obligatorio)",
+            "component": "textarea",
+            "required": true,
+            "placeholder": "Ej.: cambió de teléfono y perdió el autenticador"
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_confirm_reset_2fa",
+            "label": "Restablecer 2FA",
+            "variant": "primary",
+            "trigger": "server_action:resetTwoFactor",
+            "onSuccess": {
+              "toast": "2FA restablecido. Queda registrado en auditoría.",
+              "close": true,
+              "refresh": true
+            }
+          },
+          {
+            "id": "btn_cancel_reset_2fa",
+            "label": "Cancelar",
+            "variant": "quiet"
+          }
+        ]
+      },
+      {
+        "id": "modal_disable_account",
+        "type": "modal",
+        "title": "Desactivar cuenta",
+        "description": "La cuenta no podrá ingresar y sus roles por compañía dejan de aplicar. Las licencias de la persona no se tocan: si corresponde, inicia el retiro desde la ficha de la persona.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "disable_note",
+            "label": "Motivo (obligatorio)",
+            "component": "textarea",
+            "required": true,
+            "placeholder": "Ej.: salida de la compañía el 30/06/2026"
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_confirm_disable",
+            "label": "Desactivar cuenta",
+            "variant": "primary",
+            "intent": "danger",
+            "trigger": "server_action:disableUserAccount",
+            "onSuccess": {
+              "toast": "Cuenta desactivada. Queda registrado en auditoría.",
+              "close": true,
+              "refresh": true
+            }
+          },
+          {
+            "id": "btn_cancel_disable",
+            "label": "Cancelar",
+            "variant": "quiet"
+          }
+        ]
+      },
+      {
+        "id": "modal_add_role",
+        "type": "modal",
+        "title": "Agregar rol por compañía",
+        "description": "Otorga un rol de aprobación, finanzas o lectura sobre una compañía. La ventana de vigencia es opcional.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "user_account_id",
+            "label": "Usuario",
+            "component": "select-search",
+            "required": true,
+            "help": "Busca por correo de la cuenta."
+          },
+          {
+            "id": "company_id",
+            "label": "Compañía",
+            "component": "select",
+            "required": true,
+            "options": [
+              "Kickoff",
+              "Opina",
+              "Right Angle Media",
+              "PPM",
+              "Focus"
+            ]
+          },
+          {
+            "id": "role",
+            "label": "Rol",
+            "component": "select",
+            "required": true,
+            "options": [
+              {
+                "value": "approver",
+                "label": "Aprobador/a"
+              },
+              {
+                "value": "finance",
+                "label": "Finanzas"
+              },
+              {
+                "value": "viewer",
+                "label": "Lectura"
+              }
+            ]
+          },
+          {
+            "id": "valid_from",
+            "label": "Vigente desde (opcional)",
+            "component": "date",
+            "required": false
+          },
+          {
+            "id": "valid_to",
+            "label": "Vigente hasta (opcional)",
+            "component": "date",
+            "required": false,
+            "help": "Ventana de delegación temporal: pendiente (R2). Por ahora define solo la vigencia del rol."
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_confirm_add_role",
+            "label": "Agregar rol",
+            "variant": "primary",
+            "trigger": "server_action:addCompanyRole",
+            "onSuccess": {
+              "toast": "Rol agregado.",
+              "close": true,
+              "refresh": true
+            }
+          },
+          {
+            "id": "btn_cancel_add_role",
+            "label": "Cancelar",
+            "variant": "quiet"
+          }
+        ]
+      },
+      {
+        "id": "modal_remove_role",
+        "type": "modal",
+        "title": "Quitar rol",
+        "description": "El usuario dejará de ver y operar esa compañía con este rol. La acción queda registrada en auditoría.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "remove_note",
+            "label": "Motivo (obligatorio)",
+            "component": "textarea",
+            "required": true,
+            "placeholder": "Ej.: fin del encargo de aprobación en Opina"
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_confirm_remove_role",
+            "label": "Quitar rol",
+            "variant": "primary",
+            "intent": "danger",
+            "trigger": "server_action:removeCompanyRole",
+            "onSuccess": {
+              "toast": "Rol quitado.",
+              "close": true,
+              "refresh": true
+            }
+          },
+          {
+            "id": "btn_cancel_remove_role",
+            "label": "Cancelar",
+            "variant": "quiet"
+          }
+        ]
+      }
+    ]
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1"
+  },
+  "roles": [
+    "group_admin"
+  ],
+  "route": "/usuarios",
+  "title": "Usuarios y roles"
+}

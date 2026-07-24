@@ -1,0 +1,307 @@
+{
+  "id": "SCR-close",
+  "title": "Cierre mensual",
+  "description": "Close workbench (tpl.close-workbench, J3): run the monthly close for the current period, watch per-company statement generation (draft/final), and drill into each statement. The close computes register x tarifas + costos de uso; target is business day 3 (bd-3), runtime NFR < 5 min.",
+  "route": "/cierre",
+  "roles": [
+    "central_finance",
+    "group_admin"
+  ],
+  "i18n": {
+    "es-EC": {
+      "title": "Cierre mensual",
+      "subtitle": "Ejecuta el cierre del período y revisa los estados de cuenta generados"
+    }
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1",
+    "template": "tpl.close-workbench"
+  },
+  "accessibility": {
+    "lang": "es-EC",
+    "ariaLandmarks": true
+  },
+  "layout": {
+    "kind": "page",
+    "titleBar": {
+      "subtitle": "Período julio 2026 · última corrida 03/07/2026 09:12 · duración 3 min 41 s"
+    },
+    "dataFreshness": {
+      "label": "Cifras del registro sincronizadas hace 2 h"
+    },
+    "sections": [
+      {
+        "id": "close_tiles",
+        "type": "metric-cards",
+        "title": "Estado del cierre",
+        "metricCards": {
+          "cards": [
+            {
+              "id": "tile_current_period",
+              "label": "Período actual",
+              "valueExpr": "julio 2026",
+              "caption": "Objetivo de cierre: día hábil 3 (bd-3)"
+            },
+            {
+              "id": "tile_statements_generated",
+              "label": "Estados de cuenta generados",
+              "valueExpr": "27/30",
+              "caption": "Compañías del grupo con estado de cuenta",
+              "on_click": {
+                "navigate_to": "SCR-statements"
+              }
+            },
+            {
+              "id": "tile_drafts",
+              "label": "Borradores",
+              "valueExpr": "24",
+              "caption": "Pendientes de pasar a final"
+            },
+            {
+              "id": "tile_finals",
+              "label": "Finales",
+              "valueExpr": "3",
+              "caption": "Listos para conciliación"
+            },
+            {
+              "id": "tile_group_total",
+              "label": "Total del período (grupo)",
+              "valueExpr": "USD 4.339,30",
+              "caption": "Suma de los estados de cuenta de las 30 compañías (SUM Statement.total_usd)"
+            }
+          ],
+          "columns": {
+            "xs": 1,
+            "md": 2,
+            "lg": 4
+          },
+          "dataFreshness": {
+            "label": "Sincronizado hace 2 h"
+          }
+        }
+      },
+      {
+        "id": "close_action_bar",
+        "type": "action-bar",
+        "title": "Ejecutar el cierre",
+        "description": "Última corrida: 03/07/2026 09:12 por Verónica Salgado · duración 3 min 41 s (objetivo < 5 min). Si el período ya está en final, el botón se deshabilita con el motivo.",
+        "actions": [
+          {
+            "id": "btn_run_close",
+            "label": "Ejecutar cierre julio 2026",
+            "variant": "primary",
+            "opens_modal": "modal_confirm_close",
+            "enabledWhen": {
+              "op": "neq",
+              "left": "period.status",
+              "right": "final"
+            },
+            "disabledReason": "El cierre de julio 2026 ya está en final. Para recalcular, contacta a administración."
+          },
+          {
+            "id": "btn_finalize_statements",
+            "label": "Pasar a final",
+            "variant": "secondary",
+            "trigger": "server_action:finalizeStatements",
+            "enabledWhen": "period.draft_count > 0",
+            "confirm": {
+              "title": "¿Pasar los borradores a final?",
+              "body": "Los estados de cuenta del período quedan inmutables; los ajustes posteriores serán líneas nuevas en el siguiente borrador."
+            }
+          },
+          {
+            "id": "btn_view_statements",
+            "label": "Ver estados de cuenta",
+            "variant": "secondary",
+            "navigate_to": "SCR-statements"
+          },
+          {
+            "id": "btn_export_rollup_csv",
+            "label": "Exportar consolidado CSV",
+            "variant": "secondary",
+            "trigger": "server_action:exportRollupCsv"
+          },
+          {
+            "id": "btn_export_rollup_pdf",
+            "label": "Exportar consolidado PDF",
+            "variant": "secondary",
+            "trigger": "server_action:exportRollupPdf"
+          }
+        ]
+      },
+      {
+        "id": "close_progress_note",
+        "type": "info-banner",
+        "kind": "info",
+        "icon": "info",
+        "title": "Qué calcula el cierre",
+        "content": "El cierre toma el registro de licencias del período y lo multiplica por las tarifas vigentes (registro x tarifas), y suma los costos de uso reportados. Genera un estado de cuenta en borrador por cada compañía activa. Objetivo: cerrar antes del tercer día hábil (bd-3). La corrida completa tarda menos de 5 minutos."
+      },
+      {
+        "id": "statements_by_company",
+        "type": "data-table",
+        "title": "Estados de cuenta por compañía",
+        "table": {
+          "columns": [
+            {
+              "id": "company_code",
+              "header": "Código"
+            },
+            {
+              "id": "company_name",
+              "header": "Compañía"
+            },
+            {
+              "id": "period",
+              "header": "Período"
+            },
+            {
+              "id": "status",
+              "header": "Estado",
+              "type": "status"
+            },
+            {
+              "id": "opening_seats",
+              "header": "Apertura",
+              "align": "right"
+            },
+            {
+              "id": "total_usd",
+              "header": "Total",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "generated_at",
+              "header": "Generado"
+            }
+          ],
+          "row_on_click": {
+            "navigate_to": "SCR-statement-detail",
+            "exclude_targets": [
+              "A",
+              "BUTTON"
+            ]
+          },
+          "rowKey": "id",
+          "initialSort": {
+            "columnId": "company_code",
+            "direction": "asc"
+          }
+        },
+        "rows": [
+          {
+            "company_code": "KCK",
+            "company_name": "Kickoff",
+            "period": "julio 2026",
+            "status": "Borrador",
+            "opening_seats": 18,
+            "total_usd": "USD 1.234,56",
+            "generated_at": "03/07/2026"
+          },
+          {
+            "company_code": "OPN",
+            "company_name": "Opina",
+            "period": "julio 2026",
+            "status": "Final",
+            "opening_seats": 9,
+            "total_usd": "USD 612,30",
+            "generated_at": "03/07/2026"
+          },
+          {
+            "company_code": "RAM",
+            "company_name": "Right Angle Media",
+            "period": "julio 2026",
+            "status": "Borrador",
+            "opening_seats": 24,
+            "total_usd": "USD 2.087,44",
+            "generated_at": "03/07/2026"
+          },
+          {
+            "company_code": "PPM",
+            "company_name": "PPM",
+            "period": "julio 2026",
+            "status": "Final",
+            "opening_seats": 6,
+            "total_usd": "USD 405,00",
+            "generated_at": "03/07/2026"
+          }
+        ]
+      },
+      {
+        "id": "modal_confirm_close",
+        "type": "modal",
+        "title": "Confirmar cierre de julio 2026",
+        "description": "Vas a ejecutar el cierre mensual: se calculará registro x tarifas + costos de uso y se generará un estado de cuenta en borrador por cada compañía activa. Los borradores existentes del período se recalcularán.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "confirm_period",
+            "label": "Período a cerrar",
+            "component": "text",
+            "readonly": true,
+            "valueExpr": "julio 2026"
+          },
+          {
+            "id": "confirm_note",
+            "label": "Nota (opcional)",
+            "component": "textarea",
+            "required": false,
+            "placeholder": "Deja una nota si esta corrida corrige algo del período"
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_confirm_run_close",
+            "label": "Ejecutar cierre",
+            "variant": "primary",
+            "action": "server_action:runClose",
+            "onSuccess": {
+              "toast": "Cierre en marcha. Te avisaremos cuando los borradores estén listos (menos de 5 minutos).",
+              "refresh": true,
+              "close": true
+            },
+            "onError": {
+              "toast": "El cierre no pudo iniciarse. Revisa el detalle e inténtalo de nuevo."
+            }
+          },
+          {
+            "id": "btn_cancel_run_close",
+            "label": "Cancelar",
+            "variant": "secondary"
+          }
+        ]
+      }
+    ]
+  }
+}

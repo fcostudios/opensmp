@@ -1,0 +1,618 @@
+{
+  "id": "SCR-request-detail",
+  "title": "SOLICITUD · {person} · {license_type}",
+  "description": "Workspace record for a single LicenseRequest: state tiles, conditional blocked/failed callouts, RequestTransition timeline, and tabs for provisioning actions, assignment and audit slice. Covers J1 S1-S4 status visibility and the J2 offboarding execution trail.",
+  "route": "/solicitudes/:requestId",
+  "roles": [
+    "employee",
+    "approver",
+    "group_admin"
+  ],
+  "template": "tpl.workspace-record",
+  "i18n": {
+    "es-EC": {
+      "title": "SOLICITUD · {person} · {license_type}",
+      "subtitle": "Kickoff (KCK) · Org central Claude Enterprise · pedida por Andrés Salazar · 14/07/2026"
+    }
+  },
+  "breadcrumbs": [
+    {
+      "label": "Mis solicitudes",
+      "route": "/solicitudes"
+    },
+    {
+      "label": "Solicitud de María Fernanda Cevallos"
+    }
+  ],
+  "accessibility": {
+    "lang": "es-EC",
+    "ariaLandmarks": true,
+    "reducedMotion": true
+  },
+  "layout": {
+    "kind": "page",
+    "titleBar": {
+      "subtitle": "Kickoff (KCK) · Org central Claude Enterprise · pedida por Andrés Salazar · 14/07/2026",
+      "status_pill": {
+        "component": "atom.status-pill",
+        "state": "blocked_no_seat",
+        "label": "Bloqueada: sin licencia disponible"
+      }
+    },
+    "sections": [
+      {
+        "id": "request_tiles",
+        "type": "metric-cards",
+        "metricCards": {
+          "cards": [
+            {
+              "id": "tile_estado",
+              "label": "Estado",
+              "valueExpr": "LicenseRequest.state",
+              "value": "Bloqueada: sin licencia disponible",
+              "caption": "Actualizado 16/07/2026"
+            },
+            {
+              "id": "tile_dias_en_estado",
+              "label": "Días en este estado",
+              "valueExpr": "derived: hoy - RequestTransition.occurred_at (última transición)",
+              "value": "2"
+            },
+            {
+              "id": "tile_needed_by",
+              "label": "La necesita para",
+              "valueExpr": "LicenseRequest.needed_by",
+              "value": "28/07/2026"
+            },
+            {
+              "id": "tile_compania",
+              "label": "Compañía",
+              "valueExpr": "Company.name",
+              "value": "Kickoff",
+              "caption": "Código KCK"
+            }
+          ],
+          "columns": {
+            "xs": 2,
+            "md": 4
+          }
+        }
+      },
+      {
+        "id": "banner_blocked",
+        "type": "info-banner",
+        "kind": "attention",
+        "visibleWhen": "LicenseRequest.state == 'blocked_no_seat'",
+        "title": "Sin licencias disponibles",
+        "content": "Tu solicitud está aprobada, pero no hay licencias disponibles en este momento. El administrador ya fue notificado; te avisaremos apenas se libere o compre una.",
+        "actions": [
+          {
+            "id": "btn_ver_cupos",
+            "label": "Ver cupos",
+            "variant": "primary",
+            "roles": [
+              "group_admin"
+            ],
+            "navigate_to": "SCR-pools"
+          }
+        ]
+      },
+      {
+        "id": "banner_failed",
+        "type": "info-banner",
+        "kind": "attention",
+        "visibleWhen": "LicenseRequest.state == 'failed'",
+        "title": "El aprovisionamiento falló",
+        "content": "El último intento con el proveedor no se completó. Revisa el detalle en la pestaña Acciones y vuelve a intentarlo; el estado avanzará solo cuando el proveedor confirme.",
+        "actions": [
+          {
+            "id": "btn_reintentar",
+            "label": "Reintentar",
+            "variant": "primary",
+            "roles": [
+              "group_admin"
+            ],
+            "trigger": "server_action:retryProvisioning"
+          }
+        ]
+      },
+      {
+        "id": "approver_actions",
+        "type": "action-bar",
+        "visibleWhen": "LicenseRequest.state == 'pending_approval'",
+        "description": "Decisión inline para aprobador/a; el rechazo siempre exige comentario (pattern.mandatory_comment_on_reject_and_override).",
+        "actions": [
+          {
+            "id": "btn_aprobar",
+            "label": "Aprobar",
+            "variant": "primary",
+            "roles": [
+              "approver",
+              "group_admin"
+            ],
+            "trigger": "server_action:decideRequest",
+            "confirm": {
+              "title": "¿Apruebas esta solicitud?",
+              "body": "Al aprobar, la solicitud pasa a aprovisionamiento si hay licencias disponibles en el cupo."
+            }
+          },
+          {
+            "id": "btn_rechazar",
+            "label": "Rechazar",
+            "variant": "secondary",
+            "roles": [
+              "approver",
+              "group_admin"
+            ],
+            "opens_modal": "modal_rechazo"
+          }
+        ]
+      },
+      {
+        "id": "justificacion_card",
+        "type": "info-card",
+        "title": "Justificación",
+        "content": "Necesito acceso a Claude Enterprise para preparar los guiones de la campaña de agosto; hoy comparto cuenta con otra persona del equipo y perdemos el historial.",
+        "fields": [
+          {
+            "id": "justification",
+            "label": "Justificación",
+            "valueExpr": "LicenseRequest.justification",
+            "readonly": true
+          },
+          {
+            "id": "decision_comment",
+            "label": "Comentario de la decisión",
+            "valueExpr": "LicenseRequest.decision_comment",
+            "readonly": true,
+            "visibleWhen": "LicenseRequest.decided_at != null"
+          }
+        ]
+      },
+      {
+        "id": "checklist_pending",
+        "type": "info-card",
+        "title": "Lista de pasos pendiente (modo orquestación)",
+        "visibleWhen": "provisioning_action.mode == 'orchestration' && provisioning_action.status in ['pending','sent']",
+        "roles": [
+          "group_admin"
+        ],
+        "description": "La organización opera en modo orquestación: ejecuta estos pasos exactos en la consola del proveedor y confirma. La sincronización posterior verifica el cambio; si la consola no coincide, la acción queda en 'Verificación fallida' (DEC-SMP-007). Pasos renderizados desde ProvisioningAction.raw_request.",
+        "content": {
+          "steps_from": "provisioning_action.raw_request.checklist_steps"
+        },
+        "actions": [
+          {
+            "id": "btn_confirm_checklist",
+            "label": "Confirmar ejecución",
+            "variant": "primary",
+            "trigger": "server_action:confirmChecklistDone",
+            "confirm": {
+              "title": "¿Confirmas que ejecutaste todos los pasos?",
+              "body": "La sincronización verificará el cambio en la consola; si no coincide, la acción quedará en Verificación fallida."
+            }
+          },
+          {
+            "id": "btn_checklist_not_done",
+            "label": "Marcar no completada",
+            "variant": "secondary",
+            "trigger": "server_action:markChecklistNotDone"
+          }
+        ],
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ]
+      },
+      {
+        "id": "state_timeline",
+        "type": "timeline",
+        "title": "Historial de estados",
+        "component": "organism.state-timeline",
+        "timeline": {
+          "entity": "RequestTransition",
+          "events": [
+            {
+              "ts": "2026-07-14T09:12:00-05:00",
+              "date_label": "14/07/2026 09:12",
+              "actor": "María Fernanda Cevallos",
+              "action": "Enviada → Pendiente de aprobación",
+              "from_state": "submitted",
+              "to_state": "pending_approval",
+              "note": "Solicitud enviada desde el formulario."
+            },
+            {
+              "ts": "2026-07-15T16:40:00-05:00",
+              "date_label": "15/07/2026 16:40",
+              "actor": "Verónica Andrade (aprobadora, Kickoff)",
+              "action": "Pendiente de aprobación → Aprobada",
+              "from_state": "pending_approval",
+              "to_state": "approved",
+              "note": "Aprobada: el equipo de contenidos la necesita para la campaña de agosto."
+            },
+            {
+              "ts": "2026-07-15T16:41:00-05:00",
+              "date_label": "15/07/2026 16:41",
+              "actor": "Sistema",
+              "action": "Aprobada → Bloqueada: sin licencia disponible",
+              "from_state": "approved",
+              "to_state": "blocked_no_seat",
+              "note": "No hay licencias libres en Org central Claude Enterprise; se notificó al administrador del grupo."
+            }
+          ]
+        }
+      },
+      {
+        "id": "record_tabs",
+        "type": "tabs",
+        "description": "Tabs con contadores, subrayado naranja en la activa (pattern.tabs_with_counts_orange_underline).",
+        "tabs": [
+          {
+            "id": "tab_acciones",
+            "label": "Acciones",
+            "badge": "3"
+          },
+          {
+            "id": "tab_asignacion",
+            "label": "Asignación",
+            "badge": "1"
+          },
+          {
+            "id": "tab_auditoria",
+            "label": "Auditoría",
+            "badge": "4",
+            "visibleWhen": "role == 'group_admin'"
+          }
+        ],
+        "children": [
+          {
+            "id": "acciones_table",
+            "type": "data-table",
+            "title": "Acciones de aprovisionamiento",
+            "tab": "tab_acciones",
+            "table": {
+              "columns": [
+                {
+                  "id": "kind",
+                  "header": "Acción"
+                },
+                {
+                  "id": "mode",
+                  "header": "Modo"
+                },
+                {
+                  "id": "status",
+                  "header": "Estado",
+                  "type": "status"
+                },
+                {
+                  "id": "vendor_ref",
+                  "header": "Referencia del proveedor"
+                },
+                {
+                  "id": "sent_at",
+                  "header": "Enviada"
+                },
+                {
+                  "id": "resolved_at",
+                  "header": "Resuelta"
+                }
+              ],
+              "row_on_click": {
+                "opens_modal": "modal_payload",
+                "trigger": "open_raw_payload_drawer"
+              },
+              "rows": [
+                {
+                  "kind": "Invitación",
+                  "mode": "Automatizado",
+                  "status": "Fallida",
+                  "vendor_ref": "inv_9f2c1a",
+                  "sent_at": "15/07/2026 16:45",
+                  "resolved_at": "15/07/2026 16:47"
+                },
+                {
+                  "kind": "Invitación",
+                  "mode": "Automatizado",
+                  "status": "Pendiente",
+                  "vendor_ref": "inv_a41b77",
+                  "sent_at": "16/07/2026 08:03",
+                  "resolved_at": "—"
+                },
+                {
+                  "kind": "Verificación",
+                  "mode": "Orquestación",
+                  "status": "Confirmada",
+                  "vendor_ref": "chk_5d20e9",
+                  "sent_at": "16/07/2026 08:10",
+                  "resolved_at": "16/07/2026 08:12"
+                }
+              ]
+            }
+          },
+          {
+            "id": "asignacion_panel",
+            "type": "data-table",
+            "title": "Asignación resultante",
+            "tab": "tab_asignacion",
+            "description": "Aparece cuando la solicitud produce una asignación activa en el registro.",
+            "visibleWhen": "LicenseAssignment != null",
+            "table": {
+              "columns": [
+                {
+                  "id": "started_on",
+                  "header": "Activa desde"
+                },
+                {
+                  "id": "ended_on",
+                  "header": "Terminó"
+                },
+                {
+                  "id": "estado",
+                  "header": "Estado",
+                  "type": "status"
+                }
+              ],
+              "rows": [
+                {
+                  "started_on": "01/06/2026",
+                  "ended_on": "—",
+                  "estado": "Activa"
+                }
+              ]
+            },
+            "actions": [
+              {
+                "id": "btn_ver_registro",
+                "label": "Ver en el registro",
+                "variant": "secondary",
+                "navigate_to": "SCR-register"
+              }
+            ]
+          },
+          {
+            "id": "auditoria_table",
+            "type": "data-table",
+            "title": "Registro de auditoría (extracto)",
+            "tab": "tab_auditoria",
+            "visibleWhen": "role == 'group_admin'",
+            "table": {
+              "columns": [
+                {
+                  "id": "occurred_at",
+                  "header": "Fecha"
+                },
+                {
+                  "id": "actor",
+                  "header": "Quién"
+                },
+                {
+                  "id": "action",
+                  "header": "Acción"
+                },
+                {
+                  "id": "entity_type",
+                  "header": "Entidad"
+                }
+              ],
+              "rows": [
+                {
+                  "occurred_at": "14/07/2026 09:12",
+                  "actor": "María Fernanda Cevallos",
+                  "action": "request.submitted",
+                  "entity_type": "LicenseRequest"
+                },
+                {
+                  "occurred_at": "15/07/2026 16:40",
+                  "actor": "Verónica Andrade",
+                  "action": "request.approved",
+                  "entity_type": "LicenseRequest"
+                },
+                {
+                  "occurred_at": "15/07/2026 16:41",
+                  "actor": "Sistema",
+                  "action": "request.blocked_no_seat",
+                  "entity_type": "LicenseRequest"
+                },
+                {
+                  "occurred_at": "16/07/2026 08:03",
+                  "actor": "Sistema",
+                  "action": "provisioning.invite_sent",
+                  "entity_type": "ProvisioningAction"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "modal_rechazo",
+        "type": "modal",
+        "title": "Rechazar la solicitud",
+        "description": "El comentario es obligatorio: la persona solicitante lo verá tal cual (calm forms, honest errors).",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "decision_comment",
+            "label": "Cuéntale por qué la rechazas",
+            "component": "textarea",
+            "required": true,
+            "placeholder": "Ej.: El equipo ya tiene una licencia compartida asignada para este trimestre.",
+            "validation": [
+              {
+                "type": "required",
+                "message": "Necesitas escribir un comentario para rechazar."
+              }
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_confirmar_rechazo",
+            "label": "Rechazar solicitud",
+            "variant": "primary",
+            "trigger": "server_action:decideRequest",
+            "onSuccess": {
+              "toast": "Solicitud rechazada. Le avisamos a la persona por correo.",
+              "refresh": true,
+              "close": true
+            }
+          },
+          {
+            "id": "btn_cancelar_rechazo",
+            "label": "Cancelar",
+            "variant": "secondary"
+          }
+        ]
+      },
+      {
+        "id": "modal_payload",
+        "type": "modal",
+        "title": "Detalle técnico de la acción",
+        "description": "Drawer con el payload crudo enviado y recibido del proveedor; solo group_admin (drilldown, nunca nueva pestaña).",
+        "roles": [
+          "group_admin"
+        ],
+        "fields": [
+          {
+            "id": "raw_request",
+            "label": "Solicitud enviada (raw_request)",
+            "component": "code-block",
+            "readonly": true,
+            "valueExpr": "ProvisioningAction.raw_request"
+          },
+          {
+            "id": "raw_response",
+            "label": "Respuesta del proveedor (raw_response)",
+            "component": "code-block",
+            "readonly": true,
+            "valueExpr": "ProvisioningAction.raw_response"
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_cerrar_payload",
+            "label": "Cerrar",
+            "variant": "secondary"
+          }
+        ]
+      }
+    ]
+  },
+  "data": {
+    "paramsFromRoute": [
+      "requestId"
+    ],
+    "entities": {
+      "LicenseRequest": [
+        "state",
+        "justification",
+        "needed_by",
+        "requested_by",
+        "decided_at",
+        "decision_comment",
+        "created_at"
+      ],
+      "RequestTransition": [
+        "from_state",
+        "to_state",
+        "actor_user_id",
+        "note",
+        "occurred_at"
+      ],
+      "ProvisioningAction": [
+        "kind",
+        "mode",
+        "status",
+        "vendor_ref",
+        "sent_at",
+        "resolved_at",
+        "raw_request",
+        "raw_response"
+      ],
+      "LicenseAssignment": [
+        "started_on",
+        "ended_on"
+      ],
+      "Person": [
+        "full_name",
+        "email"
+      ],
+      "Company": [
+        "name",
+        "code"
+      ],
+      "VendorAccount": [
+        "name"
+      ],
+      "LicenseType": [
+        "name"
+      ],
+      "AuditLog": [
+        "occurred_at",
+        "actor_user_id",
+        "action",
+        "entity_type"
+      ]
+    }
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1"
+  }
+}

@@ -1,0 +1,343 @@
+{
+  "id": "SCR-companies",
+  "title": "Compañías",
+  "description": "Registry of the group's companies (Module A): code, name, type, status, approvers, finance contact, monthly budget and statement language. Rows navigate to SCR-company-detail; 'Nueva compañía' and CSV import (30-company seed) open modals. Data: Company(*), CompanyRoleAssignment(role=approver) resolved to names via UserAccount.person_id -> Person.full_name.",
+  "route": "/companias",
+  "roles": [
+    "group_admin"
+  ],
+  "template": "tpl.workspace-list",
+  "i18n": {
+    "es-EC": {
+      "title": "Compañías",
+      "subtitle": "Las compañías del grupo: quién aprueba y quién paga sus licencias"
+    }
+  },
+  "accessibility": {
+    "lang": "es-EC",
+    "ariaLandmarks": true
+  },
+  "layout": {
+    "kind": "page",
+    "titleBar": {
+      "subtitle": "Las compañías del grupo: quién aprueba y quién paga sus licencias"
+    },
+    "sections": [
+      {
+        "id": "companies_actions",
+        "type": "action-bar",
+        "actions": [
+          {
+            "id": "btn_new_company",
+            "label": "Nueva compañía",
+            "variant": "primary",
+            "icon": "plus",
+            "opens_modal": "modal_new_company"
+          },
+          {
+            "id": "btn_import_csv",
+            "label": "Importar CSV",
+            "variant": "secondary",
+            "icon": "upload",
+            "opens_modal": "modal_csv_import"
+          }
+        ]
+      },
+      {
+        "id": "companies_table",
+        "type": "data-table",
+        "title": "Compañías del grupo",
+        "description": "Toca una fila para ver el detalle de la compañía: personas, roles, licencias y estados de cuenta.",
+        "columns": [
+          {
+            "id": "code",
+            "label": "Código",
+            "type": "mono"
+          },
+          {
+            "id": "name",
+            "label": "Compañía"
+          },
+          {
+            "id": "type",
+            "label": "Tipo"
+          },
+          {
+            "id": "status",
+            "label": "Estado",
+            "type": "status"
+          },
+          {
+            "id": "approvers",
+            "label": "Aprobadores"
+          },
+          {
+            "id": "finance_contact_email",
+            "label": "Contacto financiero"
+          },
+          {
+            "id": "budget_monthly_usd",
+            "label": "Presupuesto mensual",
+            "type": "mono",
+            "align": "right"
+          },
+          {
+            "id": "statement_language",
+            "label": "Idioma del estado de cuenta"
+          }
+        ],
+        "rows": [
+          {
+            "code": "KCK",
+            "name": "Kickoff",
+            "type": "Interna",
+            "status": "Activa",
+            "approvers": "María José Andrade",
+            "finance_contact_email": "finanzas@kickoff.ec",
+            "budget_monthly_usd": "USD 1.850,00",
+            "statement_language": "es"
+          },
+          {
+            "code": "OPN",
+            "name": "Opina",
+            "type": "Interna",
+            "status": "Activa",
+            "approvers": "Carlos Vinueza",
+            "finance_contact_email": "cvinueza@opina.ec",
+            "budget_monthly_usd": "USD 940,50",
+            "statement_language": "es"
+          },
+          {
+            "code": "RAM",
+            "name": "Right Angle Media",
+            "type": "Externa",
+            "status": "Activa",
+            "approvers": "Gabriela Espinoza · Andrés Cueva",
+            "finance_contact_email": "gespinoza@rightangle.media",
+            "budget_monthly_usd": "USD 2.310,75",
+            "statement_language": "en"
+          },
+          {
+            "code": "PPM",
+            "name": "PPM",
+            "type": "Interna",
+            "status": "Activa",
+            "approvers": "Diego Salvador",
+            "finance_contact_email": "dsalvador@ppm.ec",
+            "budget_monthly_usd": "USD 620,00",
+            "statement_language": "es"
+          }
+        ],
+        "table": {
+          "rowKey": "code",
+          "initialSort": {
+            "columnId": "name",
+            "direction": "asc"
+          },
+          "row_on_click": {
+            "navigate_to": "SCR-company-detail"
+          }
+        },
+        "row_on_click": {
+          "navigate_to": "SCR-company-detail"
+        }
+      },
+      {
+        "id": "approvers_note",
+        "type": "info-banner",
+        "kind": "info",
+        "icon": "info",
+        "title": "De dónde salen los aprobadores",
+        "content": "Los nombres de esta columna vienen de los roles por compañía (rol aprobador). Si necesitas cambiar quién aprueba, hazlo desde el detalle de la compañía, pestaña Roles."
+      },
+      {
+        "id": "modal_new_company",
+        "type": "modal",
+        "title": "Nueva compañía",
+        "description": "Crea una compañía del grupo. El código es único y aparece en estados de cuenta y en el registro.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "name",
+            "label": "Nombre",
+            "component": "text",
+            "required": true,
+            "placeholder": "Ej. Kickoff"
+          },
+          {
+            "id": "code",
+            "label": "Código",
+            "component": "text",
+            "required": true,
+            "placeholder": "Ej. KCK",
+            "help": "Único en el grupo; se usa en estados de cuenta y reportes."
+          },
+          {
+            "id": "type",
+            "label": "Tipo",
+            "component": "select",
+            "required": true,
+            "options": [
+              {
+                "value": "internal",
+                "label": "Interna"
+              },
+              {
+                "value": "external",
+                "label": "Externa"
+              }
+            ]
+          },
+          {
+            "id": "budget_monthly_usd",
+            "label": "Presupuesto mensual (USD)",
+            "component": "money",
+            "placeholder": "USD 0,00"
+          },
+          {
+            "id": "finance_contact_email",
+            "label": "Correo del contacto financiero",
+            "component": "email",
+            "placeholder": "finanzas@compania.ec"
+          },
+          {
+            "id": "statement_language",
+            "label": "Idioma del estado de cuenta",
+            "component": "select",
+            "default": "es",
+            "options": [
+              {
+                "value": "es",
+                "label": "Español"
+              },
+              {
+                "value": "en",
+                "label": "Inglés"
+              }
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_create_company",
+            "label": "Crear compañía",
+            "variant": "primary",
+            "intent": "server_action:createCompany",
+            "onSuccess": {
+              "toast": "Compañía creada. Ya puedes asignarle personas y roles.",
+              "close": true,
+              "refresh": true
+            },
+            "onError": {
+              "toast": "No se pudo crear la compañía. Revisa el código: debe ser único en el grupo."
+            }
+          },
+          {
+            "id": "btn_cancel_new_company",
+            "label": "Cancelar",
+            "variant": "secondary"
+          }
+        ]
+      },
+      {
+        "id": "modal_csv_import",
+        "type": "modal",
+        "title": "Importar compañías desde CSV",
+        "description": "Carga inicial de las 30 compañías del grupo. Columnas esperadas: code, name, type (internal/external), budget_monthly_usd, finance_contact_email, statement_language (es/en).",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "csv_file",
+            "label": "Archivo CSV",
+            "component": "file",
+            "required": true,
+            "help": "Máximo 1 archivo .csv. Las filas con código repetido se omiten y se reportan."
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_run_import",
+            "label": "Importar",
+            "variant": "primary",
+            "intent": "server_action:importCompaniesCsv",
+            "onSuccess": {
+              "toast": "Importación completada. Revisa el resumen de filas creadas y omitidas.",
+              "close": true,
+              "refresh": true
+            },
+            "onError": {
+              "toast": "La importación falló. El archivo no se aplicó; corrige los errores y vuelve a intentarlo."
+            }
+          },
+          {
+            "id": "btn_cancel_import",
+            "label": "Cancelar",
+            "variant": "secondary"
+          }
+        ]
+      }
+    ]
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1"
+  }
+}

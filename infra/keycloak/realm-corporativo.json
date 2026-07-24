@@ -1,0 +1,380 @@
+{
+  "id": "corporativo",
+  "realm": "corporativo",
+  "displayName": "Ledger",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "offlineSessionIdleTimeout": 2592000,
+  "roles": {
+    "realm": [
+      {
+        "name": "seller",
+        "description": "Sales representative"
+      },
+      {
+        "name": "manager",
+        "description": "Sales manager"
+      },
+      {
+        "name": "director",
+        "description": "Sales director"
+      },
+      {
+        "name": "admin",
+        "description": "System administrator"
+      },
+      {
+        "name": "default-roles-corporativo",
+        "description": "Default realm roles",
+        "composite": true,
+        "composites": {
+          "realm": [
+            "seller"
+          ]
+        }
+      }
+    ],
+    "client": {
+      "app-api": [
+        {
+          "name": "seller",
+          "description": "API seller role"
+        },
+        {
+          "name": "manager",
+          "description": "API manager role"
+        },
+        {
+          "name": "director",
+          "description": "API director role"
+        },
+        {
+          "name": "admin",
+          "description": "API admin role"
+        }
+      ]
+    }
+  },
+  "clients": [
+    {
+      "clientId": "app-api",
+      "name": "Corporativo API",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "app-api-secret-change-me",
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "defaultClientScopes": [
+        "openid",
+        "profile",
+        "email",
+        "roles"
+      ],
+      "optionalClientScopes": [
+        "offline_access"
+      ],
+      "attributes": {
+        "access.token.lifespan": "300"
+      }
+    },
+    {
+      "clientId": "app-web",
+      "name": "Corporativo Web",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "rootUrl": "http://localhost:3000",
+      "baseUrl": "/",
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "https://app.example.com/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "https://app.example.com"
+      ],
+      "defaultClientScopes": [
+        "openid",
+        "profile",
+        "email",
+        "roles"
+      ],
+      "optionalClientScopes": [
+        "offline_access"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*",
+        "access.token.lifespan": "300"
+      }
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "roles",
+      "description": "Corporativo roles scope",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "client roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-client-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "claim.name": "resource_access.${client_id}.roles",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "profile",
+      "description": "OpenID Connect profile scope",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "consent.screen.text": ""
+      },
+      "protocolMappers": [
+        {
+          "name": "given name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "firstName",
+            "claim.name": "given_name",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "family name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "lastName",
+            "claim.name": "family_name",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "full name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-full-name-mapper",
+          "consentRequired": false,
+          "config": {
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "preferred_username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "username",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "email",
+      "description": "OpenID Connect email scope",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "email",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "email",
+            "claim.name": "email",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "id": "b6e15ec6-d8aa-546c-ac7d-5ed77445b45d",
+      "username": "seller",
+      "email": "seller@nous.com",
+      "firstName": "Ana",
+      "lastName": "Seller",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-corporativo",
+        "seller"
+      ],
+      "clientRoles": {
+        "app-api": [
+          "seller"
+        ]
+      }
+    },
+    {
+      "id": "80ad31ba-41e4-551b-8f8d-09d179d00bad",
+      "username": "manager",
+      "email": "manager@nous.com",
+      "firstName": "Carlos",
+      "lastName": "Manager",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-corporativo",
+        "manager"
+      ],
+      "clientRoles": {
+        "app-api": [
+          "manager"
+        ]
+      }
+    },
+    {
+      "id": "e8ceecc8-039f-5331-a785-87c6893fc874",
+      "username": "director",
+      "email": "director@nous.com",
+      "firstName": "Maria",
+      "lastName": "Director",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-corporativo",
+        "director"
+      ],
+      "clientRoles": {
+        "app-api": [
+          "director"
+        ]
+      }
+    },
+    {
+      "id": "868cc05d-c1f8-5bf5-a766-4675d9a49e7d",
+      "username": "admin",
+      "email": "admin@nous.com",
+      "firstName": "System",
+      "lastName": "Admin",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-corporativo",
+        "admin"
+      ],
+      "clientRoles": {
+        "app-api": [
+          "admin"
+        ]
+      }
+    }
+  ],
+  "browserSecurityHeaders": {
+    "contentSecurityPolicyReportOnly": "",
+    "xContentTypeOptions": "nosniff",
+    "xRobotsTag": "none",
+    "xFrameOptions": "SAMEORIGIN",
+    "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
+    "xXSSProtection": "1; mode=block",
+    "strictTransportSecurity": "max-age=31536000; includeSubDomains"
+  },
+  "smtpServer": {},
+  "internationalizationEnabled": true,
+  "supportedLocales": [
+    "en",
+    "es"
+  ],
+  "defaultLocale": "es"
+}

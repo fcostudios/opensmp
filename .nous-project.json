@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "project_id": "fcostudios__smp",
+  "organization": "org_fcostudios",
+  "nous_namespace": "fcostudios/smp",
+  "generated_at": "2026-07-23T03:43:56Z",
+  "substrate_commit": "033631a",
+  "checksum": "82f3e0de92a5834b"
+}

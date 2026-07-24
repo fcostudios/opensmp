@@ -1,0 +1,241 @@
+{
+  "id": "SCR-audit",
+  "title": "Registro de auditoría",
+  "description": "Immutable audit trail viewer (Module H, tpl.workspace-list). Filters over AuditLog (entity_type, action, actor, date range) feed one data-table: occurred_at, actor (— sistema when actor_user_id is null), action, entidad (entity_type + entity_id link to its detail screen), compañía. Clicking a row opens the read-only before/after JSON diff viewer (organism.audit-trail-viewer, rendered as a drilldown per pattern.drilldown_never_new_tab). Info-banner states the append-only guarantee: no UPDATE/DELETE grants at the DB level. Data: AuditLog(*) joined to UserAccount(email) and Company(name, code).",
+  "route": "/auditoria",
+  "roles": [
+    "group_admin"
+  ],
+  "i18n": {
+    "es-EC": {
+      "title": "Registro de auditoría",
+      "subtitle": "Todo lo que pasó en Ledger, quién lo hizo y qué cambió: revísalo aquí, nada se puede editar ni borrar"
+    }
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1"
+  },
+  "accessibility": {
+    "lang": "es-EC",
+    "ariaLandmarks": true
+  },
+  "layout": {
+    "kind": "page",
+    "template": "tpl.workspace-list",
+    "titleBar": {
+      "subtitle": "Todo lo que pasó en Ledger, quién lo hizo y qué cambió: revísalo aquí, nada se puede editar ni borrar"
+    },
+    "sections": [
+      {
+        "id": "audit_filters",
+        "type": "filters",
+        "title": "Filtrar",
+        "fields": [
+          {
+            "id": "filter_entity_type",
+            "label": "Tipo de entidad",
+            "component": "select",
+            "options": [
+              "Todas",
+              "LicenseRequest",
+              "LicenseAssignment",
+              "IntegrationCredential",
+              "RateCard",
+              "Statement",
+              "Reconciliation",
+              "Company",
+              "Person",
+              "UserAccount",
+              "VendorAccount",
+              "AlertRule"
+            ],
+            "default": "Todas"
+          },
+          {
+            "id": "filter_action",
+            "label": "Acción",
+            "component": "select",
+            "options": [
+              "Todas",
+              "created",
+              "updated",
+              "approved",
+              "rejected",
+              "provisioned",
+              "deprovisioned",
+              "rotated",
+              "verified",
+              "overridden",
+              "closed"
+            ],
+            "default": "Todas"
+          },
+          {
+            "id": "filter_actor",
+            "label": "Actor",
+            "component": "select",
+            "options": [
+              "Todos",
+              "— sistema",
+              "vherrera@corporativo.ec",
+              "mgomez@corporativo.ec",
+              "psalazar@corporativo.ec"
+            ],
+            "default": "Todos"
+          },
+          {
+            "id": "filter_fecha",
+            "label": "Rango de fechas",
+            "component": "date-range",
+            "placeholder": "dd/mm/aaaa – dd/mm/aaaa"
+          }
+        ]
+      },
+      {
+        "id": "table_audit",
+        "type": "data-table",
+        "title": "Eventos de auditoría",
+        "description": "AuditLog rows, newest first. actor renders UserAccount.email via actor_user_id, or '— sistema' for job-originated writes (actor_user_id null). entidad renders entity_type + a short entity_id ref that deep-links to the entity's detail screen (dynamic per entity_type: LicenseRequest → SCR-request-detail, Company → SCR-company-detail, Person → SCR-person-detail, VendorAccount → SCR-vendor-account-detail, Statement → SCR-statement-detail); no single static target, so the link lives on the cell, not the row. compañía renders Company.name (code) via company_id, or '—' for global events. Row click opens the read-only before/after diff (modal_audit_diff), rendered as a drilldown per pattern.drilldown_never_new_tab.",
+        "columns": [
+          {
+            "id": "occurred_at",
+            "label": "Fecha y hora"
+          },
+          {
+            "id": "actor",
+            "label": "Actor"
+          },
+          {
+            "id": "action",
+            "label": "Acción"
+          },
+          {
+            "id": "entidad",
+            "label": "Entidad",
+            "type": "link"
+          },
+          {
+            "id": "compania",
+            "label": "Compañía"
+          }
+        ],
+        "rows": [
+          {
+            "occurred_at": "21/07/2026 16:42",
+            "actor": "vherrera@corporativo.ec",
+            "action": "approved",
+            "entidad": "LicenseRequest · a91f…c204",
+            "compania": "Kickoff (KCK)"
+          },
+          {
+            "occurred_at": "21/07/2026 16:43",
+            "actor": "— sistema",
+            "action": "provisioned",
+            "entidad": "LicenseAssignment · 7be2…09d1",
+            "compania": "Kickoff (KCK)"
+          },
+          {
+            "occurred_at": "18/07/2026 09:15",
+            "actor": "mgomez@corporativo.ec",
+            "action": "rotated",
+            "entidad": "IntegrationCredential · 44c8…b7a0",
+            "compania": "—"
+          },
+          {
+            "occurred_at": "15/07/2026 11:08",
+            "actor": "psalazar@corporativo.ec",
+            "action": "overridden",
+            "entidad": "Reconciliation · f530…6e2b",
+            "compania": "Right Angle Media (RAM)"
+          }
+        ],
+        "row_on_click": {
+          "opens_modal": "modal_audit_diff",
+          "exclude_targets": [
+            "A",
+            "BUTTON"
+          ]
+        },
+        "table": {
+          "rowKey": "id",
+          "row_on_click": {
+            "opens_modal": "modal_audit_diff",
+            "exclude_targets": [
+              "A",
+              "BUTTON"
+            ]
+          },
+          "initialSort": {
+            "columnId": "occurred_at",
+            "direction": "desc"
+          },
+          "pagination": {
+            "pageSize": 50
+          }
+        }
+      },
+      {
+        "id": "modal_audit_diff",
+        "type": "modal",
+        "title": "Detalle del cambio",
+        "description": "Read-only before/after JSON diff viewer (organism.audit-trail-viewer) over AuditLog.before / AuditLog.after. Pure inspection: no commit affordance, no states beyond default. Removed keys tinted with semantic error background, added keys with success background — always paired with +/- markers, never color alone. Incluye el campo \"Nota\" (justificación del actor) cuando la acción la exigió (reclamos de deriva, rotaciones, desactivaciones, retiros de rol, propuestas mantenidas).",
+        "fields": [
+          {
+            "id": "diff_occurred_at",
+            "label": "Fecha y hora",
+            "component": "text",
+            "readonly": true,
+            "valueExpr": "row.occurred_at"
+          },
+          {
+            "id": "diff_actor",
+            "label": "Actor",
+            "component": "text",
+            "readonly": true,
+            "valueExpr": "row.actor"
+          },
+          {
+            "id": "diff_action",
+            "label": "Acción",
+            "component": "text",
+            "readonly": true,
+            "valueExpr": "row.action"
+          },
+          {
+            "id": "diff_before",
+            "label": "Antes",
+            "component": "code-viewer",
+            "readonly": true,
+            "help": "Estado del registro antes del cambio (— para creaciones).",
+            "valueExpr": "row.before_json"
+          },
+          {
+            "id": "diff_after",
+            "label": "Después",
+            "component": "code-viewer",
+            "readonly": true,
+            "help": "Estado del registro después del cambio (— para eliminaciones lógicas).",
+            "valueExpr": "row.after_json"
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_close_audit_diff",
+            "label": "Cerrar",
+            "variant": "secondary",
+            "trigger": "close_audit_diff"
+          }
+        ]
+      },
+      {
+        "id": "banner_append_only",
+        "type": "info-banner",
+        "kind": "info",
+        "icon": "lock",
+        "title": "Registro inmutable",
+        "content": "Este registro es de solo escritura a nivel de base de datos: sin permisos de edición ni borrado (append-only). Cada acción que modifica datos en Ledger escribe aquí su antes y después, así que lo que ves es la evidencia completa, sin huecos."
+      }
+    ]
+  }
+}

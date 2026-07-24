@@ -1,0 +1,62 @@
+version: "3"
+
+tasks:
+  setup:
+    desc: "Full project setup (Docker + build + install)"
+    cmds:
+      - bash infra/scripts/setup.sh
+
+  dev:
+    desc: "Run all services in development mode"
+    cmds:
+      - bash infra/scripts/run-all.sh
+
+  api:
+    desc: "Run Spring Boot API only"
+    dir: apps/api
+    cmds:
+      - ./gradlew bootRun --args='--spring.profiles.active=dev'
+
+  web:
+    desc: "Run Next.js frontend only"
+    dir: apps/web
+    cmds:
+      - pnpm dev
+
+  infra:
+    desc: "Start Docker infrastructure"
+    cmds:
+      - docker compose -f infra/docker-compose.yml up -d
+
+  infra:full:
+    desc: "Start Docker infra with pgAdmin"
+    cmds:
+      - docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up -d
+
+  seed:
+    desc: "Seed the development database"
+    cmds:
+      - bash infra/scripts/seed-db.sh
+
+  reset-db:
+    desc: "Drop and recreate the database"
+    cmds:
+      - bash infra/scripts/reset-db.sh
+
+  test:api:
+    desc: "Run backend tests"
+    dir: apps/api
+    cmds:
+      - ./gradlew test
+
+  test:web:
+    desc: "Run frontend type-check and lint"
+    dir: apps/web
+    cmds:
+      - pnpm type-check
+      - pnpm lint
+
+  sync:
+    desc: "Sync specs and stories from Nous"
+    cmds:
+      - bash infra/scripts/sync-from-nous.sh

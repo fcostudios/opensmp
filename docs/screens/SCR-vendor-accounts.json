@@ -1,0 +1,234 @@
+{
+  "accessibility": {
+    "ariaLandmarks": true,
+    "skipToContent": true
+  },
+  "description": "Registry of vendor accounts (organizaciones) for the Group Admin: per-org mode, purchased/free seats, renewal date, credential health and low-pool floor. Rows drill into SCR-vendor-account-detail; a modal creates a new vendor account. Module C / D1.",
+  "i18n": {
+    "es-EC": {
+      "subtitle": "Las organizaciones de proveedor donde viven las licencias del grupo",
+      "title": "Organizaciones"
+    }
+  },
+  "id": "SCR-vendor-accounts",
+  "layout": {
+    "kind": "page",
+    "titleBar": {
+      "subtitle": "Las organizaciones de proveedor donde viven las licencias del grupo"
+    },
+    "sections": [
+      {
+        "id": "vendor_accounts_actions",
+        "type": "action-bar",
+        "actions": [
+          {
+            "id": "btn_new_vendor_account",
+            "label": "Nueva organización",
+            "variant": "primary",
+            "opens_modal": "modal_new_vendor_account"
+          }
+        ]
+      },
+      {
+        "id": "vendor_accounts_table",
+        "type": "data-table",
+        "title": "Organizaciones registradas",
+        "description": "Licencias compradas y libres, y salud de credencial, con etiqueta de frescura sobre las cifras sincronizadas.",
+        "columns": [
+          {
+            "id": "name",
+            "label": "Organización"
+          },
+          {
+            "id": "vendor",
+            "label": "Proveedor"
+          },
+          {
+            "id": "connector",
+            "label": "Conector"
+          },
+          {
+            "id": "mode",
+            "label": "Modalidad",
+            "type": "badge"
+          },
+          {
+            "id": "seats",
+            "label": "Compradas / libres"
+          },
+          {
+            "id": "renewal",
+            "label": "Renovación"
+          },
+          {
+            "id": "credential_health",
+            "label": "Credencial",
+            "type": "status"
+          },
+          {
+            "id": "low_pool_floor",
+            "label": "Umbral mínimo"
+          }
+        ],
+        "rows": [
+          {
+            "name": "Org central Claude Enterprise",
+            "vendor": "Anthropic",
+            "connector": "API · REST",
+            "mode": "Automatizado",
+            "seats": "40 / 5",
+            "renewal": "01/02/2027",
+            "credential_health": "Correcta",
+            "low_pool_floor": "5"
+          },
+          {
+            "name": "Claude Enterprise — Kickoff (org propia)",
+            "vendor": "Anthropic",
+            "connector": "API · REST",
+            "mode": "Automatizado",
+            "seats": "180 / 12",
+            "renewal": "15/09/2026",
+            "credential_health": "Sin verificar",
+            "low_pool_floor": "10"
+          },
+          {
+            "name": "Claude Enterprise — Opina (org propia)",
+            "vendor": "Anthropic",
+            "connector": "Orquestación · manual",
+            "mode": "Orquestación",
+            "seats": "24 / 0",
+            "renewal": "12/04/2027",
+            "credential_health": "Fallo de autenticación",
+            "low_pool_floor": "3"
+          }
+        ],
+        "row_on_click": {
+          "navigate_to": "SCR-vendor-account-detail"
+        }
+      },
+      {
+        "id": "modal_new_vendor_account",
+        "type": "modal",
+        "title": "Nueva organización",
+        "description": "Registra una organización de proveedor. Después podrás cargar capacidad, credenciales y tipos de licencia en su detalle.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "vendor_id",
+            "label": "Proveedor",
+            "component": "select",
+            "required": true,
+            "options": [
+              "Anthropic"
+            ],
+            "help": "Nuevos proveedores del grupo llegan con el registro manual de proveedores (R2 — FEAT-R2-01)."
+          },
+          {
+            "id": "name",
+            "label": "Nombre de la organización",
+            "component": "text",
+            "required": true,
+            "placeholder": "Org central Claude Enterprise"
+          },
+          {
+            "id": "vendor_org_ref",
+            "label": "Referencia en el proveedor (opcional)",
+            "component": "text",
+            "help": "Nuevos proveedores del grupo llegan con el registro manual de proveedores (R2 — FEAT-R2-01).",
+            "options": [
+              "Anthropic"
+            ]
+          },
+          {
+            "id": "mode",
+            "label": "Modalidad",
+            "component": "select",
+            "required": true,
+            "options": [
+              {
+                "value": "automated",
+                "label": "Automatizada (el sistema ejecuta las acciones)"
+              },
+              {
+                "value": "orchestration",
+                "label": "Orquestación (el sistema guía, tú ejecutas en la consola)"
+              }
+            ]
+          },
+          {
+            "id": "low_pool_floor",
+            "label": "Umbral mínimo de licencias libres",
+            "component": "number",
+            "required": true,
+            "default": 5,
+            "min": 0,
+            "help": "Si las licencias libres bajan de este número, te avisamos."
+          },
+          {
+            "id": "contract_renewal_on",
+            "label": "Fecha de renovación del contrato",
+            "component": "date",
+            "placeholder": "dd/mm/aaaa"
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_create_vendor_account",
+            "label": "Crear organización",
+            "variant": "primary",
+            "intent": "server_action:createVendorAccount",
+            "onSuccess": {
+              "toast": "Organización creada. Ahora carga su capacidad y credenciales.",
+              "close": true,
+              "refresh": true
+            }
+          },
+          {
+            "id": "btn_cancel_vendor_account",
+            "label": "Cancelar",
+            "variant": "secondary"
+          }
+        ]
+      }
+    ]
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1",
+    "template": "tpl.workspace-list"
+  },
+  "roles": [
+    "group_admin"
+  ],
+  "route": "/organizaciones",
+  "title": "Organizaciones"
+}

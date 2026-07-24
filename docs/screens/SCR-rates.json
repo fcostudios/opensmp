@@ -1,0 +1,397 @@
+{
+  "accessibility": {
+    "ariaLandmarks": true,
+    "lang": "es-EC",
+    "skipToContent": true
+  },
+  "description": "Rates and purchased-capacity workspace (Module E). Tab Tarifas: effective-dated RateCard rows per vendor account and license type; past rows locked once consumed by a monthly close. Tab Capacidad: VendorAccountCapacity purchase history. Feeds the close computation (register x tarifas).",
+  "i18n": {
+    "es-EC": {
+      "subtitle": "Administra las tarifas por organización y la capacidad comprada que alimentan el cierre mensual",
+      "title": "Tarifas y capacidad",
+      "tab_tarifas": "Tarifas",
+      "tab_capacidad": "Capacidad"
+    }
+  },
+  "id": "SCR-rates",
+  "layout": {
+    "kind": "page",
+    "template": "tpl.workspace-list",
+    "titleBar": {
+      "subtitle": "Administra las tarifas por organización y la capacidad comprada que alimentan el cierre mensual"
+    },
+    "sections": [
+      {
+        "id": "proration_note",
+        "type": "info-banner",
+        "kind": "info",
+        "icon": "info",
+        "title": "Cómo se prorratea",
+        "content": "El prorrateo es diario, actual/actual: cada licencia-día se cobra como la tarifa mensual dividida entre los días reales del mes. Una tarifa ya consumida por un cierre queda bloqueada; si necesitas cambiar un precio, agrega una fila nueva con vigencia futura."
+      },
+      {
+        "id": "rates_tabs",
+        "type": "tabs",
+        "tabs": [
+          {
+            "id": "tab_tarifas",
+            "label": "Tarifas",
+            "sections": [
+              {
+                "id": "rates_table",
+                "type": "data-table",
+                "title": "Tarifas por organización y tipo de licencia",
+                "actions": [
+                  {
+                    "id": "btn_add_rate",
+                    "label": "Agregar tarifa",
+                    "variant": "primary",
+                    "opens_modal": "modal_add_rate"
+                  }
+                ],
+                "columns": [
+                  {
+                    "id": "vendor_account",
+                    "label": "Organización"
+                  },
+                  {
+                    "id": "license_type",
+                    "label": "Tipo de licencia"
+                  },
+                  {
+                    "id": "monthly_rate_usd",
+                    "label": "Tarifa mensual",
+                    "type": "money",
+                    "align": "right",
+                    "cellTemplate": "mono"
+                  },
+                  {
+                    "id": "effective_from",
+                    "label": "Vigente desde"
+                  },
+                  {
+                    "id": "effective_to",
+                    "label": "Vigente hasta"
+                  },
+                  {
+                    "id": "estado",
+                    "label": "Estado",
+                    "type": "status"
+                  },
+                  {
+                    "id": "consumida_por_cierre",
+                    "label": "Consumida por cierre"
+                  }
+                ],
+                "rows": [
+                  {
+                    "vendor_account": "Org central Claude Enterprise",
+                    "license_type": "Claude Enterprise — licencia estándar",
+                    "monthly_rate_usd": "USD 62,00",
+                    "effective_from": "01/01/2026",
+                    "effective_to": "—",
+                    "estado": "Activa",
+                    "consumida_por_cierre": "Sí — cierre 06/2026 (fila bloqueada)"
+                  },
+                  {
+                    "vendor_account": "Org central Claude Enterprise",
+                    "license_type": "Claude Enterprise — licencia estándar",
+                    "monthly_rate_usd": "USD 58,50",
+                    "effective_from": "01/07/2025",
+                    "effective_to": "31/12/2025",
+                    "estado": "—",
+                    "consumida_por_cierre": "Sí — cierre 12/2025 (fila bloqueada)"
+                  },
+                  {
+                    "vendor_account": "Claude Enterprise — Kickoff (org propia)",
+                    "license_type": "Claude Enterprise — licencia con API",
+                    "monthly_rate_usd": "USD 45,00",
+                    "effective_from": "01/03/2026",
+                    "effective_to": "—",
+                    "estado": "Activa",
+                    "consumida_por_cierre": "Sí — cierre 06/2026 (fila bloqueada)"
+                  },
+                  {
+                    "vendor_account": "Claude Enterprise — Opina (org propia)",
+                    "license_type": "Puesto desarrollador",
+                    "monthly_rate_usd": "USD 21,00",
+                    "effective_from": "01/08/2026",
+                    "effective_to": "—",
+                    "estado": "Activa",
+                    "consumida_por_cierre": "No — editable hasta el próximo cierre"
+                  }
+                ],
+                "emptyState": {
+                  "title": "Todavía no hay tarifas",
+                  "description": "Agrega la primera tarifa para que el cierre mensual pueda calcular los estados de cuenta."
+                }
+              }
+            ]
+          },
+          {
+            "id": "tab_capacidad",
+            "label": "Capacidad",
+            "sections": [
+              {
+                "id": "capacity_table",
+                "type": "data-table",
+                "title": "Historial de capacidad comprada",
+                "actions": [
+                  {
+                    "id": "btn_add_capacity",
+                    "label": "Registrar compra",
+                    "variant": "secondary",
+                    "opens_modal": "modal_add_capacity"
+                  }
+                ],
+                "columns": [
+                  {
+                    "id": "vendor_account",
+                    "label": "Organización"
+                  },
+                  {
+                    "id": "license_type",
+                    "label": "Tipo de licencia"
+                  },
+                  {
+                    "id": "purchased_qty",
+                    "label": "Cantidad comprada",
+                    "align": "right",
+                    "cellTemplate": "mono"
+                  },
+                  {
+                    "id": "effective_from",
+                    "label": "Vigente desde"
+                  },
+                  {
+                    "id": "note",
+                    "label": "Nota"
+                  }
+                ],
+                "rows": [
+                  {
+                    "vendor_account": "Org central Claude Enterprise",
+                    "license_type": "Claude Enterprise — licencia estándar",
+                    "purchased_qty": "140",
+                    "effective_from": "10/06/2026",
+                    "note": "Ampliación de 120 a 140 para cubrir a Kickoff y Opina"
+                  },
+                  {
+                    "vendor_account": "Org central Claude Enterprise",
+                    "license_type": "Claude Enterprise — licencia estándar",
+                    "purchased_qty": "120",
+                    "effective_from": "15/01/2026",
+                    "note": "Compra anual 2026 aprobada por finanzas centrales"
+                  },
+                  {
+                    "vendor_account": "Claude Enterprise — Kickoff (org propia)",
+                    "license_type": "Claude Enterprise — licencia con API",
+                    "purchased_qty": "35",
+                    "effective_from": "01/03/2026",
+                    "note": "Compra inicial — Right Angle Media y PPM migran desde cuentas personales"
+                  }
+                ],
+                "emptyState": {
+                  "title": "Sin compras registradas",
+                  "description": "Registra la capacidad comprada de cada organización para que el cupo disponible se calcule bien."
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "modal_add_rate",
+        "type": "modal",
+        "title": "Agregar tarifa con vigencia",
+        "description": "La tarifa nueva aplica desde su fecha de vigencia; las filas anteriores no se tocan.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "vendor_account_id",
+            "label": "Organización",
+            "component": "select",
+            "required": true,
+            "options": [
+              "Org central Claude Enterprise",
+              "Claude Enterprise — Kickoff (org propia)",
+              "Claude Enterprise — Opina (org propia)"
+            ]
+          },
+          {
+            "id": "license_type_id",
+            "label": "Tipo de licencia",
+            "component": "select",
+            "required": true,
+            "options": [
+              "Claude Enterprise — licencia estándar",
+              "Claude Enterprise — licencia con API",
+              "Puesto desarrollador"
+            ]
+          },
+          {
+            "id": "monthly_rate_usd",
+            "label": "Tarifa mensual (USD)",
+            "component": "number",
+            "required": true,
+            "placeholder": "USD 62,00",
+            "help": "Se cobra prorrateada por licencia-día (actual/actual)."
+          },
+          {
+            "id": "effective_from",
+            "label": "Vigente desde",
+            "component": "date",
+            "required": true,
+            "placeholder": "dd/mm/aaaa"
+          },
+          {
+            "id": "effective_to",
+            "label": "Vigente hasta (opcional)",
+            "component": "date",
+            "required": false,
+            "placeholder": "dd/mm/aaaa",
+            "help": "Déjalo vacío si la tarifa sigue vigente."
+          }
+        ],
+        "submit": {
+          "id": "btn_save_rate",
+          "label": "Guardar tarifa",
+          "action": "server_action:saveRateCard",
+          "client_request_id": true
+        },
+        "onError": {
+          "toast": "No pudimos guardar la tarifa. Revisa la fecha de vigencia e intenta de nuevo."
+        }
+      },
+      {
+        "id": "modal_add_capacity",
+        "type": "modal",
+        "title": "Registrar compra de capacidad",
+        "description": "Cada compra queda en el historial con su fecha de vigencia y nota.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "vendor_account_id",
+            "label": "Organización",
+            "component": "select",
+            "required": true,
+            "options": [
+              "Org central Claude Enterprise",
+              "Claude Enterprise — Kickoff (org propia)",
+              "Claude Enterprise — Opina (org propia)"
+            ]
+          },
+          {
+            "id": "license_type_id",
+            "label": "Tipo de licencia",
+            "component": "select",
+            "required": true,
+            "options": [
+              "Claude Enterprise — licencia estándar",
+              "Claude Enterprise — licencia con API",
+              "Puesto desarrollador"
+            ]
+          },
+          {
+            "id": "purchased_qty",
+            "label": "Cantidad comprada",
+            "component": "number",
+            "required": true,
+            "min": 1
+          },
+          {
+            "id": "effective_from",
+            "label": "Vigente desde",
+            "component": "date",
+            "required": true,
+            "placeholder": "dd/mm/aaaa"
+          },
+          {
+            "id": "note",
+            "label": "Nota",
+            "component": "textarea",
+            "required": true,
+            "placeholder": "Por qué cambia la capacidad (compra, ampliación, reducción)"
+          }
+        ],
+        "submit": {
+          "id": "btn_save_capacity",
+          "label": "Registrar capacidad",
+          "action": "server_action:saveVendorAccountCapacity",
+          "client_request_id": true
+        },
+        "onError": {
+          "toast": "No pudimos registrar la compra. Intenta de nuevo."
+        }
+      }
+    ]
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1"
+  },
+  "roles": [
+    "central_finance",
+    "group_admin"
+  ],
+  "route": "/tarifas",
+  "title": "Tarifas y capacidad"
+}

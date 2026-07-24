@@ -1,0 +1,259 @@
+{
+  "accessibility": {
+    "ariaLandmarks": true,
+    "lang": "es-EC",
+    "skipToContent": true
+  },
+  "description": "Group Admin landing (Module F, J4): cross-org pool totals, in-flight request counts by state, inactivity and unacked-alert tiles, recent in-flight requests table, staleness banner when any sync exceeds 48h, and quick links to exceptions, pools and usage.",
+  "i18n": {
+    "es-EC": {
+      "subtitle": "Todo el grupo de un vistazo: cupos, solicitudes en curso y alertas",
+      "title": "Panel de administración"
+    }
+  },
+  "id": "SCR-admin-dashboard",
+  "layout": {
+    "kind": "page",
+    "dataFreshness": {
+      "label": "Datos de uso al 19-jul (retraso ~3 días del proveedor)",
+      "icon": "refresh-cw"
+    },
+    "titleBar": {
+      "subtitle": "Todo el grupo de un vistazo: cupos, solicitudes en curso y alertas"
+    },
+    "sections": [
+      {
+        "id": "kpi_pool_row",
+        "type": "metric-cards",
+        "title": "Licencias del grupo",
+        "description": "Totales cross-org. Toca una tarjeta para ver el detalle por organización.",
+        "gridSpan": {
+          "xs": 12
+        },
+        "metricCards": {
+          "columns": {
+            "xs": 2,
+            "md": 4
+          },
+          "dataFreshness": {
+            "label": "Capacidad al 21/07/2026"
+          },
+          "cards": [
+            {
+              "id": "kpi_purchased",
+              "label": "Licencias compradas",
+              "valueExpr": "148",
+              "caption": "Suma de todas las organizaciones",
+              "on_click": {
+                "navigate_to": "SCR-pools"
+              }
+            },
+            {
+              "id": "kpi_assigned",
+              "label": "Asignadas",
+              "valueExpr": "131",
+              "caption": "Asignaciones abiertas en el registro",
+              "on_click": {
+                "navigate_to": "SCR-pools"
+              }
+            },
+            {
+              "id": "kpi_pending_invites",
+              "label": "Invitaciones pendientes",
+              "valueExpr": "6",
+              "caption": "Enviadas, aún sin aceptar",
+              "on_click": {
+                "navigate_to": "SCR-pools"
+              }
+            },
+            {
+              "id": "kpi_free",
+              "label": "Disponibles",
+              "valueExpr": "11",
+              "caption": "Compradas − asignadas − invitaciones",
+              "on_click": {
+                "navigate_to": "SCR-pools"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "kpi_ops_row",
+        "type": "metric-cards",
+        "title": "Operación",
+        "gridSpan": {
+          "xs": 12
+        },
+        "metricCards": {
+          "columns": {
+            "xs": 1,
+            "md": 3
+          },
+          "cards": [
+            {
+              "id": "kpi_inflight_requests",
+              "label": "Solicitudes en curso",
+              "valueExpr": "14",
+              "caption": "7 pendientes de aprobación · 3 aprovisionando · 2 bloqueadas · 2 invitadas",
+              "on_click": {
+                "navigate_to": "SCR-exceptions"
+              }
+            },
+            {
+              "id": "kpi_inactive_30",
+              "label": "Inactivas 30+ días",
+              "valueExpr": "9",
+              "caption": "Licencias sin uso reciente — candidatas a reclamación",
+              "on_click": {
+                "navigate_to": "SCR-usage"
+              }
+            },
+            {
+              "id": "kpi_unacked_alerts",
+              "label": "Alertas sin reconocer",
+              "valueExpr": "4",
+              "caption": "Revísalas y reconócelas para cerrar el ciclo",
+              "on_click": {
+                "navigate_to": "SCR-alerts"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "staleness_banner",
+        "type": "info-banner",
+        "kind": "attention",
+        "icon": "alert-triangle",
+        "title": "Sincronización atrasada",
+        "content": "La organización Org central Claude Enterprise no sincroniza datos de uso desde el 19/07/2026 (más de 48 horas). Las cifras marcadas con frescura pueden estar desactualizadas; revisa las credenciales si el retraso continúa.",
+        "visibleWhen": "any_vendor_account_sync_older_than_48h",
+        "actions": [
+          {
+            "id": "btn_view_credentials",
+            "label": "Ver credenciales",
+            "variant": "secondary",
+            "navigate_to": "SCR-credentials"
+          }
+        ]
+      },
+      {
+        "id": "requests_table",
+        "type": "data-table",
+        "title": "Solicitudes en curso",
+        "description": "Las más recientes de todas las compañías. Toca una fila para abrir el detalle.",
+        "gridSpan": {
+          "xs": 12
+        },
+        "columns": [
+          {
+            "id": "person",
+            "label": "Solicitud"
+          },
+          {
+            "id": "company",
+            "label": "Compañía"
+          },
+          {
+            "id": "vendor_account",
+            "label": "Organización"
+          },
+          {
+            "id": "license_type",
+            "label": "Tipo de licencia"
+          },
+          {
+            "id": "state",
+            "label": "Estado",
+            "type": "status"
+          },
+          {
+            "id": "created_at",
+            "label": "Enviada"
+          },
+          {
+            "id": "needed_by",
+            "label": "La necesita para"
+          }
+        ],
+        "rows": [
+          {
+            "person": "María José Andrade",
+            "company": "Kickoff",
+            "vendor_account": "Org central Claude Enterprise",
+            "license_type": "Claude Enterprise",
+            "state": "Pendiente de aprobación",
+            "created_at": "20/07/2026",
+            "needed_by": "01/08/2026"
+          },
+          {
+            "person": "Andrés Salazar",
+            "company": "Opina",
+            "vendor_account": "Org central Claude Enterprise",
+            "license_type": "Claude Enterprise",
+            "state": "Bloqueada: sin licencia disponible",
+            "created_at": "17/07/2026",
+            "needed_by": "24/07/2026"
+          },
+          {
+            "person": "Verónica Cueva",
+            "company": "Right Angle Media",
+            "vendor_account": "Claude Enterprise — Kickoff (org propia)",
+            "license_type": "Creative Cloud Completo",
+            "state": "Aprovisionando",
+            "created_at": "21/07/2026",
+            "needed_by": "—"
+          },
+          {
+            "person": "Diego Maldonado",
+            "company": "PPM",
+            "vendor_account": "Org central Claude Enterprise",
+            "license_type": "Claude Enterprise",
+            "state": "Invitación enviada",
+            "created_at": "15/07/2026",
+            "needed_by": "31/07/2026"
+          }
+        ],
+        "row_on_click": {
+          "navigate_to": "SCR-request-detail"
+        }
+      },
+      {
+        "id": "quick_links",
+        "type": "action-bar",
+        "title": "Ir a",
+        "actions": [
+          {
+            "id": "btn_go_exceptions",
+            "label": "Ver excepciones",
+            "variant": "secondary",
+            "navigate_to": "SCR-exceptions"
+          },
+          {
+            "id": "btn_go_pools",
+            "label": "Ver cupos",
+            "variant": "primary",
+            "navigate_to": "SCR-pools"
+          },
+          {
+            "id": "btn_go_usage",
+            "label": "Ver uso",
+            "variant": "secondary",
+            "navigate_to": "SCR-usage"
+          }
+        ]
+      }
+    ]
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1"
+  },
+  "roles": [
+    "group_admin"
+  ],
+  "route": "/panel",
+  "template": "tpl.workspace-list",
+  "title": "Panel de administración"
+}

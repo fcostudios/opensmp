@@ -1,0 +1,14 @@
+/* status-pill SSOT atom — the ONLY sanctioned home for the
+   semantic status hexes. Enforced by scripts/check-status-pill.mjs. */
+.status-pill--error-bg { color: #fee2e2; }
+.status-pill--error-dot { color: #dc2626; }
+.status-pill--error-text { color: #991b1b; }
+.status-pill--neutral-bg { color: #f2f2f2; }
+.status-pill--neutral-dot { color: #949394; }
+.status-pill--neutral-text { color: #595756; }
+.status-pill--pending-bg { color: #fef3c7; }
+.status-pill--pending-dot { color: #d97706; }
+.status-pill--pending-text { color: #92400e; }
+.status-pill--success { color: #166534; }
+.status-pill--success-bg { color: #dcfce7; }
+.status-pill--success-dot { color: #16a34a; }

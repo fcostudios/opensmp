@@ -1,0 +1,241 @@
+{
+  "accessibility": {
+    "ariaLandmarks": true,
+    "focusOnMount": "field_request_for",
+    "lang": "es-EC",
+    "skipToContent": true
+  },
+  "description": "Single-column license request form (J1 S1, tpl.form-single). Self-service for employees; approver/group_admin may request on behalf of another person with company pre-suggested from the email domain. Inline validations: duplicate active license (blocking), domain plausibility (warn), company active, budget headroom soft warn vs Company.budget_monthly_usd. Submit runs server_action:submitRequest and lands on SCR-request-detail.",
+  "i18n": {
+    "es-EC": {
+      "subtitle": "Pide una licencia para ti o para alguien de tu equipo",
+      "title": "Nueva solicitud de licencia"
+    }
+  },
+  "id": "SCR-new-request",
+  "layout": {
+    "kind": "page",
+    "sections": [
+      {
+        "id": "form_new_request",
+        "type": "form",
+        "title": "Solicitar licencia",
+        "description": "Completa los datos y envía tu solicitud. El aprobador de la compañía decide; tú recibes cada cambio de estado por correo.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "field_request_for",
+            "label": "¿Para quién es la licencia?",
+            "component": "radio-group",
+            "required": true,
+            "default": "self",
+            "options": [
+              {
+                "value": "self",
+                "label": "Para mí"
+              },
+              {
+                "value": "on_behalf",
+                "label": "Para otra persona",
+                "roles": [
+                  "approver",
+                  "group_admin"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "field_person_email",
+            "label": "Correo de la persona",
+            "component": "email-input",
+            "placeholder": "mrivadeneira@kickoff.ec",
+            "required": true,
+            "visibleWhen": "field_request_for == 'on_behalf'",
+            "help": "Con el dominio del correo te sugerimos la compañía.",
+            "validation": [
+              {
+                "type": "pattern",
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+                "message": "Revisa el correo: parece incompleto."
+              },
+              {
+                "type": "custom",
+                "expr": "domain_plausibility(field_person_email)",
+                "severity": "warn",
+                "message": "Ese dominio no coincide con ninguna compañía del grupo. Verifica antes de enviar."
+              }
+            ]
+          },
+          {
+            "id": "field_person_full_name",
+            "label": "Nombre completo",
+            "component": "text-input",
+            "placeholder": "María José Rivadeneira",
+            "required": true,
+            "visibleWhen": "field_request_for == 'on_behalf'"
+          },
+          {
+            "id": "field_person_company",
+            "label": "Compañía",
+            "component": "select",
+            "required": true,
+            "visibleWhen": "field_request_for == 'on_behalf'",
+            "help": "Pre-sugerida por el dominio del correo; puedes cambiarla si hace falta.",
+            "options": [
+              "Kickoff",
+              "Opina",
+              "Right Angle Media",
+              "PPM",
+              "Focus"
+            ],
+            "validation": [
+              {
+                "type": "custom",
+                "expr": "company_status_active(field_person_company)",
+                "message": "Esta compañía está inactiva: no puede recibir licencias nuevas."
+              }
+            ]
+          },
+          {
+            "id": "field_vendor_account",
+            "label": "Organización",
+            "component": "select",
+            "required": true,
+            "placeholder": "Elige la organización del proveedor",
+            "options": [
+              "Org central Claude Enterprise",
+              "Claude Enterprise — Kickoff (org propia)"
+            ]
+          },
+          {
+            "id": "field_license_type",
+            "label": "Tipo de licencia",
+            "component": "select",
+            "required": true,
+            "placeholder": "Elige el tipo de licencia",
+            "options": [
+              "Claude Enterprise — licencia estándar",
+              "Claude Enterprise — licencia con API"
+            ],
+            "validation": [
+              {
+                "type": "custom",
+                "expr": "no_duplicate_active_license(field_person_email, field_vendor_account, field_license_type)",
+                "severity": "blocking",
+                "message": "Esta persona ya tiene una licencia activa."
+              },
+              {
+                "type": "custom",
+                "expr": "budget_headroom(field_person_company, field_license_type)",
+                "severity": "warn",
+                "message": "Ojo con el presupuesto: Kickoff tiene USD 850,00 mensuales y ya compromete USD 812,40. Esta licencia lo dejaría por encima del límite; el aprobador lo verá al decidir."
+              }
+            ]
+          },
+          {
+            "id": "field_justification",
+            "label": "Justificación",
+            "component": "textarea",
+            "required": true,
+            "placeholder": "Cuéntanos para qué necesitas la licencia — el aprobador decide con esto.",
+            "validation": [
+              {
+                "type": "required",
+                "message": "La justificación es obligatoria: el aprobador la necesita para decidir."
+              }
+            ]
+          },
+          {
+            "id": "field_needed_by",
+            "label": "La necesitas para el",
+            "component": "date-input",
+            "required": false,
+            "placeholder": "dd/mm/aaaa",
+            "help": "Opcional. Si hay una fecha límite, el aprobador la ve en su cola."
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_submit_request",
+            "label": "Enviar solicitud",
+            "variant": "primary",
+            "intent": "server_action:submitRequest",
+            "navigate_to": "SCR-request-detail",
+            "onSuccess": {
+              "toast": "Listo: tu solicitud quedó registrada. Te avisamos apenas el aprobador decida."
+            },
+            "onError": {
+              "toast": "No pudimos enviar tu solicitud. Revisa los campos marcados e intenta de nuevo."
+            }
+          },
+          {
+            "id": "btn_cancel_request",
+            "label": "Cancelar",
+            "variant": "secondary",
+            "navigate_to": "SCR-my-requests"
+          }
+        ]
+      },
+      {
+        "id": "banner_what_happens_next",
+        "type": "info-banner",
+        "kind": "info",
+        "icon": "info",
+        "title": "Qué pasa después",
+        "content": "Tu solicitud pasa al aprobador de la compañía, que decide en un máximo de 2 días hábiles. Si la aprueba y hay cupo disponible, la licencia se aprovisiona sola y te llega la invitación al correo. Cada cambio de estado queda registrado y lo ves en el detalle de tu solicitud.",
+        "actions": [
+          {
+            "id": "btn_ver_asignacion",
+            "label": "Ver asignación existente",
+            "navigate_to": "SCR-person-detail",
+            "visibleWhen": "validation.duplicate_active_license"
+          }
+        ]
+      }
+    ],
+    "titleBar": {
+      "subtitle": "Pide una licencia para ti o para alguien de tu equipo"
+    }
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1",
+    "template": "tpl.form-single"
+  },
+  "roles": [
+    "employee",
+    "approver",
+    "group_admin"
+  ],
+  "route": "/solicitudes/nueva",
+  "title": "Nueva solicitud de licencia"
+}

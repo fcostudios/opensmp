@@ -1,0 +1,22 @@
+{
+  "_note": "Count-only extract — no rich component_inventory. Run `nous_trace.py extract --step 06_design_system` to materialize per-component props.",
+  "status_pill_atom": "apps/web/src/components/atoms/status-pill.tsx",
+  "counts": {
+    "atoms": 18,
+    "molecules": 9,
+    "organisms": 10,
+    "templates": 6
+  },
+  "scaffolded_organisms": [
+    "organism.alert-list",
+    "organism.app-shell",
+    "organism.audit-trail-viewer",
+    "organism.data-table",
+    "organism.pool-gauge",
+    "organism.queue-card",
+    "organism.register-drilldown",
+    "organism.stat-tile-row",
+    "organism.state-timeline",
+    "organism.statement-header"
+  ]
+}

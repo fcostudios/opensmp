@@ -1,0 +1,27 @@
+{
+  "version": "1",
+  "description": "Lucide icon allow-list — the per-project set of declared nav-map icons (validated against lucide_valid_exports.json) plus the generator fallback. Emitted by regenerate-sidebar.py (IMP-137 / IMP-325). Consumed by Nous/System/spec_parsers/sidebar_parser.py and ready-check 100 (HR-30). DO NOT EDIT BY HAND — regenerated on every regenerate-sidebar.py invocation.",
+  "icons": [
+    "Activity",
+    "AlertTriangle",
+    "Bell",
+    "BookOpen",
+    "Building2",
+    "Calculator",
+    "Circle",
+    "CircleDollarSign",
+    "FileText",
+    "Gauge",
+    "Inbox",
+    "KeyRound",
+    "LayoutDashboard",
+    "Network",
+    "Receipt",
+    "RotateCcw",
+    "Scale",
+    "ScrollText",
+    "Settings",
+    "ShieldCheck",
+    "Users"
+  ]
+}

@@ -1,0 +1,254 @@
+{
+  "id": "SCR-approval-queue",
+  "title": "Cola de aprobaciones",
+  "description": "Approver queue (tpl.queue, J1 S2). Full-context QueueCard stack for one-minute decisions: requester, company, license type + org, justification, needed_by, monthly cost impact (RateCard.monthly_rate_usd), budget headroom vs Company.budget_monthly_usd, and an aging chip at 24h/48h. Inline Aprobar (the single orange primary) and Rechazar (modal with mandatory comment) via server_action:decideRequest. Card click opens the full request record.",
+  "template": "tpl.queue",
+  "route": "/aprobaciones",
+  "roles": [
+    "approver",
+    "group_admin"
+  ],
+  "i18n": {
+    "es-EC": {
+      "title": "Cola de aprobaciones",
+      "subtitle": "Decide en un minuto: cada tarjeta trae todo el contexto para aprobar o rechazar"
+    }
+  },
+  "accessibility": {
+    "ariaLandmarks": true,
+    "lang": "es-EC"
+  },
+  "layout": {
+    "kind": "page",
+    "titleBar": {
+      "subtitle": "Decide en un minuto: cada tarjeta trae todo el contexto para aprobar o rechazar"
+    },
+    "sections": [
+      {
+        "id": "queue_cards",
+        "type": "cards-grid",
+        "title": "Solicitudes pendientes",
+        "description": "Una tarjeta por solicitud en estado Pendiente de aprobación, de la más antigua a la más reciente. La ficha de antigüedad pasa a atención a las 24 h y a alerta a las 48 h.",
+        "gridSpan": {
+          "xs": 12
+        },
+        "cardsGrid": {
+          "columns": {
+            "xs": 1,
+            "md": 1,
+            "lg": 1
+          },
+          "emptyState": {
+            "icon": "inbox",
+            "title": "No hay solicitudes pendientes",
+            "description": "No hay solicitudes pendientes. Te avisaremos por correo cuando llegue una."
+          }
+        },
+        "cards": [
+          {
+            "id": "card_req_0193",
+            "on_click": {
+              "navigate_to": "SCR-request-detail"
+            },
+            "requester_full_name": "María José Andrade",
+            "requester_email": "mandrade@kickoff.ec",
+            "company_name": "Kickoff",
+            "license_type_name": "Claude Team",
+            "vendor_account_name": "Org central Claude Enterprise",
+            "justification": "Necesito Claude para acelerar la producción de propuestas comerciales del equipo de cuentas.",
+            "needed_by": "05/08/2026",
+            "created_at": "20/07/2026",
+            "state": "Pendiente de aprobación",
+            "monthly_rate_usd": "USD 27,10",
+            "budget_headroom": "USD 812,90 disponibles de USD 1.500,00",
+            "aging_chip": {
+              "label": "Hace 51 h",
+              "tone": "attention"
+            },
+            "actions": [
+              {
+                "id": "btn_approve_req_0193",
+                "label": "Aprobar",
+                "variant": "primary",
+                "action": "server_action:decideRequest",
+                "payload": {
+                  "decision": "approved"
+                },
+                "confirm": {
+                  "title": "Aprobar solicitud",
+                  "body": "Vas a aprobar la licencia Claude Team para María José Andrade (Kickoff). El costo mensual de USD 27,10 se cargará a su compañía."
+                }
+              },
+              {
+                "id": "btn_reject_req_0193",
+                "label": "Rechazar",
+                "variant": "secondary",
+                "opens_modal": "modal_reject"
+              }
+            ]
+          },
+          {
+            "id": "card_req_0197",
+            "on_click": {
+              "navigate_to": "SCR-request-detail"
+            },
+            "requester_full_name": "Carlos Vinueza",
+            "requester_email": "cvinueza@opina.ec",
+            "company_name": "Opina",
+            "license_type_name": "Claude Team",
+            "vendor_account_name": "Org central Claude Enterprise",
+            "justification": "Análisis de encuestas y limpieza de bases: hoy me toma dos días por estudio y con Claude baja a horas.",
+            "needed_by": "12/08/2026",
+            "created_at": "21/07/2026",
+            "state": "Pendiente de aprobación",
+            "monthly_rate_usd": "USD 27,10",
+            "budget_headroom": "USD 105,60 disponibles de USD 900,00",
+            "aging_chip": {
+              "label": "Hace 26 h",
+              "tone": "pending"
+            },
+            "actions": [
+              {
+                "id": "btn_approve_req_0197",
+                "label": "Aprobar",
+                "variant": "primary",
+                "action": "server_action:decideRequest",
+                "payload": {
+                  "decision": "approved"
+                },
+                "confirm": {
+                  "title": "Aprobar solicitud",
+                  "body": "Vas a aprobar la licencia Claude Team para Carlos Vinueza (Opina). El costo mensual de USD 27,10 deja USD 78,50 de margen en el presupuesto de la compañía."
+                }
+              },
+              {
+                "id": "btn_reject_req_0197",
+                "label": "Rechazar",
+                "variant": "secondary",
+                "opens_modal": "modal_reject"
+              }
+            ]
+          },
+          {
+            "id": "card_req_0201",
+            "on_click": {
+              "navigate_to": "SCR-request-detail"
+            },
+            "requester_full_name": "Gabriela Espinoza",
+            "requester_email": "gespinoza@rightanglemedia.ec",
+            "company_name": "Right Angle Media",
+            "license_type_name": "Claude Team",
+            "vendor_account_name": "Org central Claude Enterprise",
+            "justification": "Guiones y versiones de campañas para tres clientes nuevos; el equipo creativo ya usa la licencia compartida y nos bloqueamos.",
+            "needed_by": "28/07/2026",
+            "created_at": "22/07/2026",
+            "state": "Pendiente de aprobación",
+            "monthly_rate_usd": "USD 27,10",
+            "budget_headroom": "USD 1.234,56 disponibles de USD 2.000,00",
+            "aging_chip": {
+              "label": "Hace 3 h",
+              "tone": "neutral"
+            },
+            "actions": [
+              {
+                "id": "btn_approve_req_0201",
+                "label": "Aprobar",
+                "variant": "primary",
+                "action": "server_action:decideRequest",
+                "payload": {
+                  "decision": "approved"
+                },
+                "confirm": {
+                  "title": "Aprobar solicitud",
+                  "body": "Vas a aprobar la licencia Claude Team para Gabriela Espinoza (Right Angle Media). El costo mensual de USD 27,10 se cargará a su compañía."
+                }
+              },
+              {
+                "id": "btn_reject_req_0201",
+                "label": "Rechazar",
+                "variant": "secondary",
+                "opens_modal": "modal_reject"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "modal_reject",
+        "type": "modal",
+        "title": "Rechazar solicitud",
+        "description": "El comentario es obligatorio: la persona solicitante lo verá tal cual en su solicitud.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "decision_comment",
+            "label": "Motivo del rechazo",
+            "component": "textarea",
+            "placeholder": "Cuéntale a la persona por qué no procede y qué puede hacer después.",
+            "required": true,
+            "validation": [
+              {
+                "type": "required",
+                "message": "Escribe el motivo del rechazo: la persona solicitante necesita saber por qué."
+              }
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_confirm_reject",
+            "label": "Rechazar solicitud",
+            "variant": "danger",
+            "action": "server_action:decideRequest",
+            "payload": {
+              "decision": "rejected"
+            },
+            "onSuccess": {
+              "toast": "Solicitud rechazada. Avisamos a la persona por correo.",
+              "close": true,
+              "refresh": true
+            }
+          },
+          {
+            "id": "btn_cancel_reject",
+            "label": "Cancelar",
+            "variant": "secondary"
+          }
+        ]
+      }
+    ]
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1"
+  }
+}

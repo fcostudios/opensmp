@@ -1,0 +1,184 @@
+{
+  "id": "SCR-alerts",
+  "title": "Alertas",
+  "description": "Alert acknowledgement log (Module G, J4): every AlertEvent fired by the 8 AlertRule types, with scope, subject link, notified recipients and acknowledgement trail. Group admin reviews unacknowledged alerts first and acknowledges each one inline.",
+  "route": "/alertas",
+  "roles": [
+    "group_admin"
+  ],
+  "template": "tpl.workspace-list",
+  "i18n": {
+    "es-EC": {
+      "title": "Alertas",
+      "subtitle": "Lo que el sistema detectó y quién ya lo revisó"
+    }
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1"
+  },
+  "accessibility": {
+    "lang": "es-EC",
+    "ariaLandmarks": true
+  },
+  "layout": {
+    "kind": "page",
+    "titleBar": {
+      "subtitle": "Lo que el sistema detectó y quién ya lo revisó",
+      "tabs": [
+        {
+          "id": "tab-sin-reconocer",
+          "label": "Sin reconocer",
+          "badge": "3"
+        },
+        {
+          "id": "tab-todas",
+          "label": "Todas",
+          "badge": "12"
+        }
+      ],
+      "actions": [
+        {
+          "id": "btn_configurar_reglas",
+          "label": "Configurar reglas",
+          "variant": "secondary",
+          "navigate_to": "SCR-settings"
+        }
+      ]
+    },
+    "sections": [
+      {
+        "id": "alerts_table",
+        "type": "data-table",
+        "title": "Registro de alertas",
+        "description": "Cada alerta muestra su regla, alcance y asunto. Reconócela cuando ya la hayas revisado: queda registrado quién y cuándo. El enlace del asunto es dinámico por tipo de regla: approval_aging/blocked_no_seat/provisioning_failure/invite_unaccepted → SCR-request-detail; low_pool → SCR-pools; sync_stale/credential_failure → SCR-credentials; register_drift → SCR-exceptions (el enlace vive en la celda, no en la fila).",
+        "table": {
+          "rowKey": "id",
+          "initialSort": {
+            "columnId": "fired_at",
+            "direction": "desc"
+          },
+          "columns": [
+            {
+              "id": "fired_at",
+              "header": "Disparada",
+              "type": "datetime",
+              "sortable": true
+            },
+            {
+              "id": "type",
+              "header": "Tipo",
+              "type": "badge",
+              "sortable": true
+            },
+            {
+              "id": "scope",
+              "header": "Alcance",
+              "type": "text"
+            },
+            {
+              "id": "subject_ref",
+              "header": "Asunto",
+              "type": "link",
+              "link": {
+                "dynamic_per_type": {
+                  "approval_aging": "SCR-request-detail",
+                  "blocked_no_seat": "SCR-request-detail",
+                  "provisioning_failure": "SCR-request-detail",
+                  "invite_unaccepted": "SCR-request-detail",
+                  "low_pool": "SCR-pools",
+                  "sync_stale": "SCR-credentials",
+                  "credential_failure": "SCR-credentials",
+                  "register_drift": "SCR-exceptions"
+                },
+                "param_source": "row.subject_ref"
+              }
+            },
+            {
+              "id": "notified",
+              "header": "Notificados",
+              "type": "text"
+            },
+            {
+              "id": "acknowledged_by",
+              "header": "Reconocida por",
+              "type": "text"
+            },
+            {
+              "id": "acknowledged_at",
+              "header": "Reconocida el",
+              "type": "datetime"
+            }
+          ],
+          "rowActions": [
+            {
+              "id": "act_reconocer",
+              "label": "Reconocer",
+              "variant": "primary",
+              "action": "server_action:ackAlert",
+              "visibleWhen": "row.acknowledged_at == null",
+              "confirm": {
+                "title": "Reconocer alerta",
+                "body": "Vas a marcar esta alerta como revisada. Quedará registrado tu usuario y la hora."
+              },
+              "onSuccess": {
+                "toast": "Alerta reconocida. Gracias por revisarla.",
+                "refresh": true
+              }
+            }
+          ]
+        },
+        "rows": [
+          {
+            "id": "al-001",
+            "fired_at": "21/07/2026 09:14",
+            "type": "Cupo bajo",
+            "scope": "Org: Org central Claude Enterprise",
+            "subject_ref": "Cupo disponible: 3 licencias (piso: 5)",
+            "notified": "vgordillo@corporativo.ec",
+            "acknowledged_by": "—",
+            "acknowledged_at": "—"
+          },
+          {
+            "id": "al-002",
+            "fired_at": "21/07/2026 07:02",
+            "type": "Bloqueada: sin licencia disponible",
+            "scope": "Compañía: Kickoff",
+            "subject_ref": "Solicitud de María Fernanda Yépez — Bloqueada: sin licencia disponible",
+            "notified": "vgordillo@corporativo.ec, aprobador Kickoff",
+            "acknowledged_by": "—",
+            "acknowledged_at": "—"
+          },
+          {
+            "id": "al-003",
+            "fired_at": "20/07/2026 16:40",
+            "type": "Aprobación demorada",
+            "scope": "Compañía: Opina",
+            "subject_ref": "Solicitud de Jorge Cevallos — Pendiente de aprobación (26 h)",
+            "notified": "aprobador Opina",
+            "acknowledged_by": "Verónica Gordillo",
+            "acknowledged_at": "21/07/2026 08:05"
+          },
+          {
+            "id": "al-004",
+            "fired_at": "19/07/2026 03:15",
+            "type": "Sincronización desactualizada",
+            "scope": "Global",
+            "subject_ref": "Datos de uso con más de 48 h de retraso (Right Angle Media, PPM, Focus)",
+            "notified": "vgordillo@corporativo.ec",
+            "acknowledged_by": "Verónica Gordillo",
+            "acknowledged_at": "19/07/2026 09:30"
+          }
+        ]
+      },
+      {
+        "id": "ack_note",
+        "type": "info-banner",
+        "kind": "info",
+        "icon": "info",
+        "title": "Reconocer no resuelve",
+        "content": "Reconocer una alerta solo registra que ya la viste. Si el asunto necesita acción (comprar cupo, reintentar aprovisionamiento, rotar una credencial), resuélvelo desde su pantalla: el enlace del asunto te lleva directo."
+      }
+    ]
+  }
+}

@@ -1,0 +1,313 @@
+{
+  "accessibility": {
+    "ariaLandmarks": true,
+    "skipToContent": true
+  },
+  "description": "Usage and inactivity workspace (Module D, J2). The Group Admin reviews last-activity per person against the 30/60/90 window, sees who is flagged inactive or without data, and batch-proposes reclamations that land in the approver's queue (SCR-reclamation-proposals). Never a silent removal: proposals require approver consent. Synced figures carry the ~3-day provider delay via FreshnessLabel.",
+  "i18n": {
+    "es-EC": {
+      "subtitle": "Quién usa su licencia y quién no — propone liberar las que están dormidas",
+      "title": "Uso de licencias"
+    }
+  },
+  "id": "SCR-usage",
+  "layout": {
+    "kind": "page",
+    "template": "tpl.workspace-list",
+    "titleBar": {
+      "subtitle": "Quién usa su licencia y quién no — propone liberar las que están dormidas"
+    },
+    "sections": [
+      {
+        "id": "usage_filters",
+        "type": "filters",
+        "title": "Filtros",
+        "filters": [
+          {
+            "id": "company",
+            "label": "Compañía",
+            "component": "select",
+            "options": [
+              "Todas",
+              "Kickoff",
+              "Opina",
+              "Right Angle Media",
+              "PPM",
+              "Focus"
+            ],
+            "default": "Todas"
+          },
+          {
+            "id": "window",
+            "label": "Ventana de inactividad",
+            "component": "select",
+            "options": [
+              "30 días",
+              "60 días",
+              "90 días"
+            ],
+            "default": "30 días"
+          }
+        ]
+      },
+      {
+        "id": "usage_metrics",
+        "type": "metric-cards",
+        "title": "Resumen de uso",
+        "metricCards": {
+          "cards": [
+            {
+              "id": "active_30d_pct",
+              "label": "Activas últimos 30 días",
+              "valueExpr": "82 %",
+              "caption": "de 214 licencias activas"
+            },
+            {
+              "id": "flagged_inactive",
+              "label": "Marcadas inactivas",
+              "valueExpr": "14",
+              "caption": "30/60/90 días sin actividad"
+            },
+            {
+              "id": "no_data",
+              "label": "Sin datos",
+              "valueExpr": "6",
+              "caption": "sin registros de actividad del proveedor"
+            }
+          ],
+          "columns": {
+            "xs": 1,
+            "md": 3
+          },
+          "dataFreshness": {
+            "label": "Datos al 19/07/2026"
+          }
+        }
+      },
+      {
+        "id": "freshness_banner",
+        "type": "info-banner",
+        "kind": "info",
+        "icon": "clock",
+        "title": "Frescura de los datos",
+        "content": "Datos al 19/07/2026 (retraso ~3 días del proveedor). Las cifras de actividad avanzan solo con sincronizaciones confirmadas."
+      },
+      {
+        "id": "usage_table",
+        "type": "data-table",
+        "title": "Actividad por persona",
+        "description": "Selecciona una o varias filas marcadas inactivas y propone la reclamación. El aprobador de cada compañía decide — nunca se retira una licencia sin su consentimiento.",
+        "actions": [
+          {
+            "id": "btn_propose_reclamation",
+            "label": "Proponer reclamación",
+            "variant": "primary",
+            "opens_modal": "modal_propose_reclamation",
+            "enabledWhen": "selection.count > 0"
+          },
+          {
+            "id": "btn_view_proposals",
+            "label": "Ver propuestas enviadas",
+            "variant": "secondary",
+            "navigate_to": "SCR-reclamation-proposals"
+          }
+        ],
+        "table": {
+          "selection": "multiple",
+          "rowKey": "id",
+          "row_on_click": {
+            "navigate_to": "SCR-person-detail",
+            "exclude_targets": [
+              "A",
+              "BUTTON",
+              "INPUT"
+            ]
+          },
+          "columns": [
+            {
+              "id": "persona",
+              "header": "Persona"
+            },
+            {
+              "id": "compania",
+              "header": "Compañía"
+            },
+            {
+              "id": "ultima_actividad",
+              "header": "Última actividad",
+              "type": "date"
+            },
+            {
+              "id": "dias_inactiva",
+              "header": "Días inactiva",
+              "align": "right",
+              "sortable": true
+            },
+            {
+              "id": "ventana",
+              "header": "Ventana",
+              "type": "badge"
+            },
+            {
+              "id": "licencia",
+              "header": "Licencia"
+            },
+            {
+              "id": "estado",
+              "header": "Estado",
+              "type": "badge"
+            }
+          ],
+          "initialSort": {
+            "columnId": "dias_inactiva",
+            "direction": "desc"
+          }
+        },
+        "columns": [
+          {
+            "id": "persona",
+            "label": "Persona"
+          },
+          {
+            "id": "compania",
+            "label": "Compañía"
+          },
+          {
+            "id": "ultima_actividad",
+            "label": "Última actividad"
+          },
+          {
+            "id": "dias_inactiva",
+            "label": "Días inactiva"
+          },
+          {
+            "id": "ventana",
+            "label": "Ventana",
+            "type": "badge"
+          },
+          {
+            "id": "licencia",
+            "label": "Licencia"
+          },
+          {
+            "id": "estado",
+            "label": "Estado",
+            "type": "badge"
+          }
+        ],
+        "rows": [
+          {
+            "persona": "Gabriela Espinoza — gespinoza@rightangle.ec",
+            "compania": "Right Angle Media (RAM)",
+            "ultima_actividad": "08/04/2026 · hace 105 días",
+            "dias_inactiva": "105",
+            "ventana": "90",
+            "licencia": "Claude Enterprise · Org central Claude Enterprise",
+            "estado": "Marcada inactiva"
+          },
+          {
+            "persona": "Carlos Villacís — cvillacis@opina.ec",
+            "compania": "Opina (OPN)",
+            "ultima_actividad": "19/05/2026 · hace 64 días",
+            "dias_inactiva": "64",
+            "ventana": "60",
+            "licencia": "Claude Enterprise · Org central Claude Enterprise",
+            "estado": "Marcada inactiva"
+          },
+          {
+            "persona": "María José Andrade — mandrade@kickoff.ec",
+            "compania": "Kickoff (KCK)",
+            "ultima_actividad": "08/06/2026 · hace 44 días",
+            "dias_inactiva": "44",
+            "ventana": "30",
+            "licencia": "Claude Enterprise · Org central Claude Enterprise",
+            "estado": "Marcada inactiva"
+          },
+          {
+            "persona": "Andrés Cevallos — acevallos@ppm.ec",
+            "compania": "PPM (PPM)",
+            "ultima_actividad": "18/07/2026 · hace 4 días",
+            "dias_inactiva": "4",
+            "ventana": "—",
+            "licencia": "Claude Enterprise · Org central Claude Enterprise",
+            "estado": "Activa"
+          }
+        ]
+      },
+      {
+        "id": "modal_propose_reclamation",
+        "type": "modal",
+        "title": "Proponer reclamación",
+        "description": "Se enviará una propuesta al aprobador de cada compañía seleccionada. La licencia no se retirará sin su aprobación.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "selected_summary",
+            "label": "Licencias seleccionadas",
+            "component": "static-text",
+            "readonly": true,
+            "valueExpr": "3 licencias marcadas inactivas (RAM, OPN, KCK)"
+          },
+          {
+            "id": "note",
+            "label": "Nota para el aprobador (opcional)",
+            "component": "textarea",
+            "placeholder": "Ej.: sin actividad desde hace más de 60 días; el cupo del grupo está bajo."
+          }
+        ],
+        "submit": {
+          "id": "btn_send_proposals",
+          "label": "Enviar propuestas",
+          "action": "server_action:proposeReclamations",
+          "client_request_id": true
+        },
+        "actions": [
+          {
+            "id": "btn_go_proposals",
+            "label": "Ver propuestas",
+            "variant": "secondary",
+            "navigate_to": "SCR-reclamation-proposals"
+          }
+        ]
+      }
+    ]
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1"
+  },
+  "roles": [
+    "group_admin"
+  ],
+  "route": "/uso",
+  "title": "Uso de licencias"
+}

@@ -1,0 +1,590 @@
+{
+  "id": "SCR-vendor-account-detail",
+  "title": "Organización — detalle",
+  "description": "Workspace record for one VendorAccount (vendor organization): capacity tiles (purchased/assigned/pending/free), capacity history with purchase registration, integration credentials with rotation, license types with current rates, and account configuration (mode, low pool floor, renewal). Module C/H, group_admin only. Template tpl.workspace-record.",
+  "route": "/organizaciones/:vendorAccountId",
+  "roles": [
+    "group_admin"
+  ],
+  "i18n": {
+    "es-EC": {
+      "title": "Organización — detalle",
+      "subtitle": "Cupos, credenciales, tipos de licencia y configuración de esta organización"
+    }
+  },
+  "breadcrumbs": [
+    {
+      "label": "Organizaciones",
+      "route": "/organizaciones"
+    },
+    {
+      "label": "Org central Claude Enterprise"
+    }
+  ],
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1"
+  },
+  "accessibility": {
+    "lang": "es-EC",
+    "ariaLandmarks": true
+  },
+  "data": {
+    "paramsFromRoute": [
+      "vendorAccountId"
+    ]
+  },
+  "layout": {
+    "kind": "page",
+    "titleBar": {
+      "subtitle": "Anthropic · automatizado · renovación 01/02/2027 · actualizada 18/07/2026"
+    },
+    "sections": [
+      {
+        "id": "capacity_tiles",
+        "type": "metric-cards",
+        "title": "Capacidad",
+        "description": "Compradas viene del historial de capacidad; asignadas, invitaciones pendientes y disponibles se calculan del registro. Datos al 19-jul.",
+        "gridSpan": {
+          "xs": 12
+        },
+        "metricCards": {
+          "cards": [
+            {
+              "id": "tile_purchased",
+              "label": "Licencias compradas",
+              "valueExpr": "50",
+              "caption": "Vigente desde 15/06/2026"
+            },
+            {
+              "id": "tile_assigned",
+              "label": "Asignadas",
+              "valueExpr": "41",
+              "caption": "Registro al 19-jul"
+            },
+            {
+              "id": "tile_pending",
+              "label": "Invitaciones pendientes",
+              "valueExpr": "3",
+              "caption": "Cuentan contra el cupo"
+            },
+            {
+              "id": "tile_free",
+              "label": "Disponibles",
+              "valueExpr": "6",
+              "caption": "Piso de alerta: 5 — toca para ver cupos",
+              "on_click": {
+                "navigate_to": "SCR-pools",
+                "trigger": "view_pools_from_vendor_account"
+              }
+            }
+          ],
+          "columns": {
+            "xs": 2,
+            "md": 4
+          },
+          "dataFreshness": {
+            "label": "Datos al 19-jul"
+          }
+        }
+      },
+      {
+        "id": "record_tabs",
+        "type": "tabs",
+        "title": "Detalle de la organización",
+        "gridSpan": {
+          "xs": 12
+        },
+        "tabs": [
+          {
+            "id": "tab_capacity",
+            "label": "Capacidad",
+            "badge": "3",
+            "on_activate": "show_capacity_history",
+            "sections": [
+              {
+                "id": "capacity_history_table",
+                "type": "data-table",
+                "title": "Historial de capacidad",
+                "description": "Cada compra o ajuste queda como una fila con fecha de vigencia. La capacidad vigente es la suma a la fecha.",
+                "actions": [
+                  {
+                    "id": "btn_add_capacity",
+                    "label": "Registrar compra",
+                    "variant": "primary",
+                    "opens_modal": "modal_add_capacity"
+                  },
+                  {
+                    "id": "btn_view_pools",
+                    "label": "Ver cupos",
+                    "variant": "secondary",
+                    "navigate_to": "SCR-pools"
+                  }
+                ],
+                "columns": [
+                  {
+                    "id": "license_type",
+                    "header": "Tipo de licencia"
+                  },
+                  {
+                    "id": "purchased_qty",
+                    "header": "Cantidad",
+                    "align": "right",
+                    "type": "number"
+                  },
+                  {
+                    "id": "effective_from",
+                    "header": "Vigente desde"
+                  },
+                  {
+                    "id": "note",
+                    "header": "Nota"
+                  },
+                  {
+                    "id": "created_by",
+                    "header": "Registrada por"
+                  },
+                  {
+                    "id": "created_at",
+                    "header": "Registrada el"
+                  }
+                ],
+                "rows": [
+                  {
+                    "license_type": "Claude Enterprise — licencia estándar",
+                    "purchased_qty": 10,
+                    "effective_from": "15/06/2026",
+                    "note": "Ampliación por solicitudes bloqueadas de Kickoff y Opina",
+                    "created_by": "María José Andrade",
+                    "created_at": "15/06/2026"
+                  },
+                  {
+                    "license_type": "Claude Enterprise — licencia estándar",
+                    "purchased_qty": 30,
+                    "effective_from": "01/01/2026",
+                    "note": "Compra inicial del contrato anual",
+                    "created_by": "María José Andrade",
+                    "created_at": "27/02/2026"
+                  },
+                  {
+                    "license_type": "Claude Enterprise — licencia con API",
+                    "purchased_qty": 10,
+                    "effective_from": "01/01/2026",
+                    "note": "Equipos técnicos de Right Angle Media y PPM",
+                    "created_by": "Carlos Vinueza",
+                    "created_at": "27/02/2026"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "tab_credentials",
+            "label": "Credenciales",
+            "badge": "2",
+            "on_activate": "show_credentials",
+            "sections": [
+              {
+                "id": "credentials_table",
+                "type": "data-table",
+                "title": "Credenciales de integración",
+                "description": "Principio de mínimo privilegio: solo los alcances read:members y write:members.",
+                "actions": [
+                  {
+                    "id": "btn_verify_credential",
+                    "label": "Verificar ahora",
+                    "variant": "secondary",
+                    "trigger": "server_action:verifyCredential"
+                  },
+                  {
+                    "id": "btn_rotate_credential",
+                    "label": "Rotar credencial",
+                    "variant": "primary",
+                    "opens_modal": "modal_rotate_credential"
+                  }
+                ],
+                "columns": [
+                  {
+                    "id": "kind",
+                    "header": "Tipo"
+                  },
+                  {
+                    "id": "last4",
+                    "header": "Terminación"
+                  },
+                  {
+                    "id": "scopes",
+                    "header": "Alcances"
+                  },
+                  {
+                    "id": "health",
+                    "header": "Salud",
+                    "type": "status"
+                  },
+                  {
+                    "id": "last_verified_at",
+                    "header": "Última verificación"
+                  },
+                  {
+                    "id": "status",
+                    "header": "Estado",
+                    "type": "status"
+                  }
+                ],
+                "rows": [
+                  {
+                    "kind": "API key de administración",
+                    "last4": "8k2f",
+                    "scopes": "read:members, write:members",
+                    "health": "Correcta",
+                    "last_verified_at": "19/07/2026",
+                    "status": "Activa"
+                  },
+                  {
+                    "kind": "API key de administración (retirada)",
+                    "last4": "c9d1",
+                    "scopes": "read:members, write:members",
+                    "health": "Fallo de autenticación",
+                    "last_verified_at": "12/05/2026",
+                    "status": "Retirada"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "tab_license_types",
+            "label": "Tipos de licencia",
+            "badge": "2",
+            "on_activate": "show_license_types",
+            "sections": [
+              {
+                "id": "license_types_table",
+                "type": "data-table",
+                "title": "Tipos de licencia y tarifa vigente",
+                "description": "La tarifa mensual vigente sale del tarifario con fecha efectiva; las tarifas pasadas se bloquean cuando un cierre ya las consumió.",
+                "actions": [
+                  {
+                    "id": "btn_view_rates",
+                    "label": "Ver tarifario completo",
+                    "variant": "secondary",
+                    "navigate_to": "SCR-rates"
+                  }
+                ],
+                "columns": [
+                  {
+                    "id": "name",
+                    "header": "Tipo de licencia"
+                  },
+                  {
+                    "id": "unit",
+                    "header": "Unidad"
+                  },
+                  {
+                    "id": "monthly_rate_usd",
+                    "header": "Tarifa mensual",
+                    "align": "right",
+                    "type": "money"
+                  },
+                  {
+                    "id": "effective_from",
+                    "header": "Vigente desde"
+                  },
+                  {
+                    "id": "effective_to",
+                    "header": "Vigente hasta"
+                  },
+                  {
+                    "id": "status",
+                    "header": "Estado",
+                    "type": "status"
+                  }
+                ],
+                "rows": [
+                  {
+                    "name": "Claude Enterprise — licencia estándar",
+                    "unit": "asiento",
+                    "monthly_rate_usd": "USD 62,00",
+                    "effective_from": "01/01/2026",
+                    "effective_to": "—",
+                    "status": "Activa"
+                  },
+                  {
+                    "name": "Claude Enterprise — licencia con API",
+                    "unit": "asiento",
+                    "monthly_rate_usd": "USD 96,50",
+                    "effective_from": "01/01/2026",
+                    "effective_to": "—",
+                    "status": "Activa"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "tab_settings",
+            "label": "Configuración",
+            "on_activate": "show_settings",
+            "sections": [
+              {
+                "id": "settings_form",
+                "type": "form",
+                "title": "Configuración de la organización",
+                "states": [
+                  {
+                    "id": "default",
+                    "label": {
+                      "en-US": "Default",
+                      "es-EC": "Predeterminado"
+                    }
+                  },
+                  {
+                    "id": "submitting",
+                    "label": {
+                      "en-US": "Submitting",
+                      "es-EC": "Enviando"
+                    }
+                  },
+                  {
+                    "id": "success",
+                    "label": {
+                      "en-US": "Success",
+                      "es-EC": "Éxito"
+                    }
+                  },
+                  {
+                    "id": "error",
+                    "label": {
+                      "en-US": "Error",
+                      "es-EC": "Error"
+                    }
+                  }
+                ],
+                "fields": [
+                  {
+                    "id": "name",
+                    "label": "Nombre de la organización",
+                    "component": "text",
+                    "required": true,
+                    "default": "Org central Claude Enterprise"
+                  },
+                  {
+                    "id": "mode",
+                    "label": "Modo de aprovisionamiento",
+                    "component": "select",
+                    "required": true,
+                    "default": "automated",
+                    "options": [
+                      {
+                        "value": "automated",
+                        "label": "Automatizado — Ledger invita y retira directo en la consola del proveedor"
+                      },
+                      {
+                        "value": "orchestration",
+                        "label": "Orquestación — Ledger genera la tarea y una persona la ejecuta en la consola"
+                      }
+                    ],
+                    "help": "En modo orquestación nada se ejecuta solo: cada alta o baja queda como acción pendiente hasta que la confirmes."
+                  },
+                  {
+                    "id": "low_pool_floor",
+                    "label": "Piso de cupo bajo",
+                    "component": "number",
+                    "required": true,
+                    "default": 5,
+                    "min": 0,
+                    "help": "Cuando las licencias disponibles caen bajo este número, se dispara la alerta de cupo bajo."
+                  },
+                  {
+                    "id": "contract_renewal_on",
+                    "label": "Fecha de renovación del contrato",
+                    "component": "date",
+                    "required": true,
+                    "default": "01/02/2027"
+                  },
+                  {
+                    "id": "vendor_org_ref",
+                    "label": "Referencia en la consola del proveedor",
+                    "component": "text",
+                    "default": "org_claude_corporativo_central",
+                    "help": "Identificador de la organización en la consola de Anthropic."
+                  },
+                  {
+                    "id": "status",
+                    "label": "Estado de la organización",
+                    "component": "select",
+                    "default": "active",
+                    "options": [
+                      {
+                        "value": "active",
+                        "label": "Activa"
+                      },
+                      {
+                        "value": "inactive",
+                        "label": "Retirada"
+                      }
+                    ]
+                  }
+                ],
+                "submit": {
+                  "id": "btn_save_settings",
+                  "label": "Guardar cambios",
+                  "action": "server_action:updateVendorAccount"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "modal_add_capacity",
+        "type": "modal",
+        "title": "Registrar compra de licencias",
+        "description": "Agrega una fila al historial de capacidad con fecha de vigencia. No modifica filas anteriores.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "license_type_id",
+            "label": "Tipo de licencia",
+            "component": "select",
+            "required": true,
+            "options": [
+              "Claude Enterprise — licencia estándar",
+              "Claude Enterprise — licencia con API"
+            ]
+          },
+          {
+            "id": "purchased_qty",
+            "label": "Cantidad comprada",
+            "component": "number",
+            "required": true,
+            "min": 1
+          },
+          {
+            "id": "effective_from",
+            "label": "Vigente desde",
+            "component": "date",
+            "required": true,
+            "help": "El prorrateo del cierre usa esta fecha (día actual/actual)."
+          },
+          {
+            "id": "note",
+            "label": "Nota",
+            "component": "textarea",
+            "placeholder": "Por qué se compró: solicitudes bloqueadas, nuevo equipo, renovación…"
+          }
+        ],
+        "submit": {
+          "id": "btn_submit_capacity",
+          "label": "Registrar compra",
+          "action": "server_action:addCapacity"
+        }
+      },
+      {
+        "id": "modal_rotate_credential",
+        "type": "modal",
+        "title": "Rotar credencial",
+        "description": "Pega el secreto nuevo: se crea una credencial nueva y la anterior se retira. Nunca se muestra el secreto completo, solo la terminación.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "kind",
+            "label": "Tipo de credencial",
+            "component": "select",
+            "required": true,
+            "options": [
+              "API key de administración"
+            ]
+          },
+          {
+            "id": "encrypted_secret",
+            "label": "Secreto nuevo",
+            "component": "password",
+            "required": true,
+            "help": "Se guarda cifrado; solo se conserva la terminación para identificarla."
+          },
+          {
+            "id": "scopes",
+            "label": "Alcances",
+            "component": "text",
+            "required": true,
+            "default": "read:members, write:members",
+            "help": "Mínimo privilegio: solo lo necesario para leer y escribir miembros."
+          }
+        ],
+        "submit": {
+          "id": "btn_submit_rotation",
+          "label": "Rotar y retirar la anterior",
+          "action": "server_action:rotateCredential"
+        }
+      },
+      {
+        "id": "connector_capabilities",
+        "type": "info-card",
+        "title": "Capacidades del conector",
+        "roles": [
+          "group_admin"
+        ],
+        "description": "Descriptor del conector del proveedor (Módulo I): Aprovisiona ✓ · Retira ✓ · Datos de uso ✓ · Datos de costo ✓ · Protocolo: REST · Identidad por: correo. Un paso sin capacidad se enruta a modo orquestación (DEC-SMP-007/008)."
+      }
+    ]
+  }
+}

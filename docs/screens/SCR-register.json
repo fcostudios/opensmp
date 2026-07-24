@@ -1,0 +1,259 @@
+{
+  "id": "SCR-register",
+  "title": "Registro de licencias",
+  "description": "The register (Module E). Filterable LicenseAssignment table with per-row traceability drilldown: source request on one side, statement lines touching the row on the other. Export CSV. Integrity note: no gaps, no overlaps (DB-enforced exclusion constraint).",
+  "route": "/registro",
+  "roles": [
+    "group_admin",
+    "central_finance"
+  ],
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1",
+    "template": "tpl.workspace-list"
+  },
+  "i18n": {
+    "es-EC": {
+      "title": "REGISTRO DE LICENCIAS",
+      "subtitle": "Cada licencia del grupo, un solo registro: quién, en qué compañía, en qué organización y desde cuándo"
+    }
+  },
+  "accessibility": {
+    "lang": "es-EC",
+    "ariaLandmarks": true
+  },
+  "layout": {
+    "kind": "page",
+    "titleBar": {
+      "subtitle": "Cada licencia del grupo, un solo registro: quién, en qué compañía, en qué organización y desde cuándo"
+    },
+    "sections": [
+      {
+        "id": "register_filters",
+        "type": "filters",
+        "title": "Filtra el registro",
+        "filters": [
+          {
+            "id": "company_id",
+            "label": "Compañía",
+            "component": "select",
+            "options": [
+              "Todas",
+              "Kickoff (KCK)",
+              "Opina (OPN)",
+              "Right Angle Media (RAM)",
+              "PPM (PPM)",
+              "Focus (FOC)"
+            ],
+            "default": "Todas"
+          },
+          {
+            "id": "vendor_account_id",
+            "label": "Organización",
+            "component": "select",
+            "options": [
+              "Todas",
+              "Org central Claude Enterprise"
+            ],
+            "default": "Todas"
+          },
+          {
+            "id": "license_type_id",
+            "label": "Tipo de licencia",
+            "component": "select",
+            "options": [
+              "Todos",
+              "Claude Enterprise"
+            ],
+            "default": "Todos"
+          },
+          {
+            "id": "open_state",
+            "label": "Estado de la fila",
+            "component": "segmented",
+            "options": [
+              "Todas",
+              "Abiertas",
+              "Cerradas"
+            ],
+            "default": "Todas"
+          },
+          {
+            "id": "date_range",
+            "label": "Rango de fechas",
+            "component": "date-range",
+            "placeholder": "dd/mm/aaaa – dd/mm/aaaa"
+          }
+        ]
+      },
+      {
+        "id": "register_actions",
+        "type": "action-bar",
+        "actions": [
+          {
+            "id": "btn_export_csv",
+            "label": "Exportar CSV",
+            "variant": "secondary",
+            "action": "server_action:exportRegisterCsv",
+            "onSuccess": {
+              "toast": "Listo, tu CSV se está descargando."
+            }
+          }
+        ]
+      },
+      {
+        "id": "register_table",
+        "type": "data-table",
+        "title": "Asignaciones",
+        "description": "Cada fila es una asignación del registro. Toca una fila para ver su trazabilidad: la solicitud de origen y las líneas de estado de cuenta que la tocan.",
+        "columns": [
+          {
+            "id": "person",
+            "label": "Persona"
+          },
+          {
+            "id": "company_code",
+            "label": "Compañía"
+          },
+          {
+            "id": "vendor_account",
+            "label": "Organización"
+          },
+          {
+            "id": "license_type",
+            "label": "Tipo"
+          },
+          {
+            "id": "started_on",
+            "label": "Inicio"
+          },
+          {
+            "id": "ended_on",
+            "label": "Fin"
+          },
+          {
+            "id": "end_reason",
+            "label": "Motivo de cierre",
+            "type": "badge"
+          },
+          {
+            "id": "source",
+            "label": "Origen"
+          }
+        ],
+        "rows": [
+          {
+            "person": "María José Andrade",
+            "company_code": "KCK",
+            "vendor_account": "Org central Claude Enterprise",
+            "license_type": "Claude Enterprise",
+            "started_on": "03/02/2026",
+            "ended_on": "—",
+            "end_reason": "—",
+            "source": "Solicitud SOL-1042"
+          },
+          {
+            "person": "Carlos Vinueza",
+            "company_code": "OPN",
+            "vendor_account": "Org central Claude Enterprise",
+            "license_type": "Claude Enterprise",
+            "started_on": "15/01/2026",
+            "ended_on": "30/06/2026",
+            "end_reason": "Inactividad",
+            "source": "Importación inicial"
+          },
+          {
+            "person": "Gabriela Espinosa",
+            "company_code": "RAM",
+            "vendor_account": "Org central Claude Enterprise",
+            "license_type": "Claude Enterprise",
+            "started_on": "01/03/2026",
+            "ended_on": "—",
+            "end_reason": "—",
+            "source": "Solicitud SOL-1103"
+          },
+          {
+            "person": "Diego Salazar",
+            "company_code": "PPM",
+            "vendor_account": "Org central Claude Enterprise",
+            "license_type": "Claude Enterprise",
+            "started_on": "10/04/2026",
+            "ended_on": "12/07/2026",
+            "end_reason": "Reasignada",
+            "source": "Conciliación"
+          }
+        ],
+        "row_on_click": {
+          "opens_modal": "modal_assignment_trace"
+        },
+        "table": {
+          "export": {
+            "formats": [
+              "csv"
+            ]
+          }
+        }
+      },
+      {
+        "id": "modal_assignment_trace",
+        "type": "modal",
+        "title": "Trazabilidad de la asignación",
+        "description": "Drilldown (organism.register-drilldown): de la fila del registro hacia su solicitud de origen y hacia las líneas de estado de cuenta que la tocan — trazabilidad en ambas direcciones. Solo lectura.",
+        "content": {
+          "assignment_summary": {
+            "person": "María José Andrade",
+            "company": "Kickoff (KCK)",
+            "vendor_account": "Org central Claude Enterprise",
+            "license_type": "Claude Enterprise",
+            "started_on": "03/02/2026",
+            "ended_on": "—",
+            "source_kind": "request",
+            "source_request": "SOL-1042 · Aprobada · decidida el 02/02/2026"
+          },
+          "statement_lines": [
+            {
+              "statement": "KCK · feb 2026",
+              "period": "03/02/2026 – 28/02/2026",
+              "license_days": 26,
+              "amount": "USD 27,10"
+            },
+            {
+              "statement": "KCK · mar 2026",
+              "period": "01/03/2026 – 31/03/2026",
+              "license_days": 31,
+              "amount": "USD 31,00"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "id": "btn_view_source_request",
+            "label": "Ver solicitud de origen",
+            "variant": "secondary",
+            "navigate_to": "SCR-request-detail"
+          },
+          {
+            "id": "btn_view_statement",
+            "label": "Ver estado de cuenta",
+            "variant": "secondary",
+            "navigate_to": "SCR-statement-detail"
+          },
+          {
+            "id": "btn_close_trace",
+            "label": "Cerrar",
+            "variant": "ghost",
+            "action": "close_modal"
+          }
+        ]
+      },
+      {
+        "id": "integrity_note",
+        "type": "info-banner",
+        "kind": "info",
+        "icon": "shield-check",
+        "title": "Integridad del registro",
+        "content": "El registro no admite brechas ni solapamientos: la base de datos lo garantiza a nivel de fila (una persona no puede tener dos licencias del mismo tipo a la vez, ni quedar con huecos entre traspasos). Si algo no cuadra, revisa las alertas de desvío del registro."
+      }
+    ]
+  }
+}

@@ -1,0 +1,1287 @@
+{
+  "$schema": "nous/07c_navigation_map",
+  "project_id": "fcostudios__smp",
+  "generated_at": "2026-07-22",
+  "generated_by": "step-7c (session SMP Design)",
+  "report_language": "en-US",
+  "product_ui_language": "es-EC primary + en-US (tú, DEC-SMP-013)",
+  "hr_30_compliant": true,
+  "app_shell": {
+    "archetype": "data-workspace",
+    "sidebar": {
+      "sections": [
+        "OPERACIÓN",
+        "FINANZAS",
+        "ADMINISTRACIÓN"
+      ],
+      "items": [
+        {
+          "id": "nav-panel",
+          "label": "Panel general",
+          "label_en": "Dashboard",
+          "label_es": "Panel general",
+          "labelKey": "nav.panel",
+          "icon": "LayoutDashboard",
+          "route": "/panel",
+          "screen": "SCR-admin-dashboard",
+          "roles": [
+            "group_admin"
+          ],
+          "section": "OPERACIÓN"
+        },
+        {
+          "id": "nav-solicitudes",
+          "label": "Mis solicitudes",
+          "label_en": "My requests",
+          "label_es": "Mis solicitudes",
+          "labelKey": "nav.solicitudes",
+          "icon": "FileText",
+          "route": "/solicitudes",
+          "screen": "SCR-my-requests",
+          "roles": [
+            "employee",
+            "approver",
+            "group_admin"
+          ],
+          "section": "OPERACIÓN"
+        },
+        {
+          "id": "nav-aprobaciones",
+          "label": "Aprobaciones",
+          "label_en": "Approvals",
+          "label_es": "Aprobaciones",
+          "labelKey": "nav.aprobaciones",
+          "icon": "Inbox",
+          "route": "/aprobaciones",
+          "screen": "SCR-approval-queue",
+          "roles": [
+            "approver",
+            "group_admin"
+          ],
+          "section": "OPERACIÓN"
+        },
+        {
+          "id": "nav-reclamaciones",
+          "label": "Reclamaciones",
+          "label_en": "Reclamations",
+          "label_es": "Reclamaciones",
+          "labelKey": "nav.reclamaciones",
+          "icon": "RotateCcw",
+          "route": "/reclamaciones",
+          "screen": "SCR-reclamation-proposals",
+          "roles": [
+            "approver",
+            "group_admin"
+          ],
+          "section": "OPERACIÓN"
+        },
+        {
+          "id": "nav-excepciones",
+          "label": "Excepciones",
+          "label_en": "Exceptions",
+          "label_es": "Excepciones",
+          "labelKey": "nav.excepciones",
+          "icon": "AlertTriangle",
+          "route": "/excepciones",
+          "screen": "SCR-exceptions",
+          "roles": [
+            "group_admin"
+          ],
+          "section": "OPERACIÓN"
+        },
+        {
+          "id": "nav-cupos",
+          "label": "Cupos",
+          "label_en": "Pools",
+          "label_es": "Cupos",
+          "labelKey": "nav.cupos",
+          "icon": "Gauge",
+          "route": "/cupos",
+          "screen": "SCR-pools",
+          "roles": [
+            "group_admin"
+          ],
+          "section": "OPERACIÓN"
+        },
+        {
+          "id": "nav-uso",
+          "label": "Actividad y uso",
+          "label_en": "Usage",
+          "label_es": "Actividad y uso",
+          "labelKey": "nav.uso",
+          "icon": "Activity",
+          "route": "/uso",
+          "screen": "SCR-usage",
+          "roles": [
+            "group_admin"
+          ],
+          "section": "OPERACIÓN"
+        },
+        {
+          "id": "nav-registro",
+          "label": "Registro",
+          "label_en": "Register",
+          "label_es": "Registro",
+          "labelKey": "nav.registro",
+          "icon": "BookOpen",
+          "route": "/registro",
+          "screen": "SCR-register",
+          "roles": [
+            "group_admin",
+            "central_finance"
+          ],
+          "section": "OPERACIÓN"
+        },
+        {
+          "id": "nav-estados-de-cuenta",
+          "label": "Estados de cuenta",
+          "label_en": "Statements",
+          "label_es": "Estados de cuenta",
+          "labelKey": "nav.estados_de_cuenta",
+          "icon": "Receipt",
+          "route": "/estados-de-cuenta",
+          "screen": "SCR-statements",
+          "roles": [
+            "company_finance",
+            "central_finance",
+            "group_admin"
+          ],
+          "section": "FINANZAS"
+        },
+        {
+          "id": "nav-cierre",
+          "label": "Cierre mensual",
+          "label_en": "Monthly close",
+          "label_es": "Cierre mensual",
+          "labelKey": "nav.cierre",
+          "icon": "Calculator",
+          "route": "/cierre",
+          "screen": "SCR-close",
+          "roles": [
+            "central_finance",
+            "group_admin"
+          ],
+          "section": "FINANZAS"
+        },
+        {
+          "id": "nav-conciliacion",
+          "label": "Conciliación",
+          "label_en": "Reconciliation",
+          "label_es": "Conciliación",
+          "labelKey": "nav.conciliacion",
+          "icon": "Scale",
+          "route": "/conciliacion",
+          "screen": "SCR-reconciliation",
+          "roles": [
+            "central_finance",
+            "group_admin"
+          ],
+          "section": "FINANZAS"
+        },
+        {
+          "id": "nav-tarifas",
+          "label": "Tarifas",
+          "label_en": "Rates",
+          "label_es": "Tarifas",
+          "labelKey": "nav.tarifas",
+          "icon": "CircleDollarSign",
+          "route": "/tarifas",
+          "screen": "SCR-rates",
+          "roles": [
+            "central_finance",
+            "group_admin"
+          ],
+          "section": "FINANZAS"
+        },
+        {
+          "id": "nav-companias",
+          "label": "Compañías",
+          "label_en": "Companies",
+          "label_es": "Compañías",
+          "labelKey": "nav.companias",
+          "icon": "Building2",
+          "route": "/companias",
+          "screen": "SCR-companies",
+          "roles": [
+            "group_admin"
+          ],
+          "section": "ADMINISTRACIÓN"
+        },
+        {
+          "id": "nav-personas",
+          "label": "Personas",
+          "label_en": "People",
+          "label_es": "Personas",
+          "labelKey": "nav.personas",
+          "icon": "Users",
+          "route": "/personas",
+          "screen": "SCR-people",
+          "roles": [
+            "group_admin"
+          ],
+          "section": "ADMINISTRACIÓN"
+        },
+        {
+          "id": "nav-organizaciones",
+          "label": "Organizaciones",
+          "label_en": "Vendor accounts",
+          "label_es": "Organizaciones",
+          "labelKey": "nav.organizaciones",
+          "icon": "Network",
+          "route": "/organizaciones",
+          "screen": "SCR-vendor-accounts",
+          "roles": [
+            "group_admin"
+          ],
+          "section": "ADMINISTRACIÓN"
+        },
+        {
+          "id": "nav-credenciales",
+          "label": "Credenciales",
+          "label_en": "Credentials",
+          "label_es": "Credenciales",
+          "labelKey": "nav.credenciales",
+          "icon": "KeyRound",
+          "route": "/credenciales",
+          "screen": "SCR-credentials",
+          "roles": [
+            "group_admin"
+          ],
+          "section": "ADMINISTRACIÓN"
+        },
+        {
+          "id": "nav-usuarios",
+          "label": "Usuarios y roles",
+          "label_en": "Users & roles",
+          "label_es": "Usuarios y roles",
+          "labelKey": "nav.usuarios",
+          "icon": "ShieldCheck",
+          "route": "/usuarios",
+          "screen": "SCR-users-roles",
+          "roles": [
+            "group_admin"
+          ],
+          "section": "ADMINISTRACIÓN"
+        },
+        {
+          "id": "nav-alertas",
+          "label": "Alertas",
+          "label_en": "Alerts",
+          "label_es": "Alertas",
+          "labelKey": "nav.alertas",
+          "icon": "Bell",
+          "route": "/alertas",
+          "screen": "SCR-alerts",
+          "roles": [
+            "group_admin"
+          ],
+          "section": "ADMINISTRACIÓN"
+        },
+        {
+          "id": "nav-auditoria",
+          "label": "Auditoría",
+          "label_en": "Audit",
+          "label_es": "Auditoría",
+          "labelKey": "nav.auditoria",
+          "icon": "ScrollText",
+          "route": "/auditoria",
+          "screen": "SCR-audit",
+          "roles": [
+            "group_admin"
+          ],
+          "section": "ADMINISTRACIÓN"
+        },
+        {
+          "id": "nav-configuracion",
+          "label": "Configuración",
+          "label_en": "Settings",
+          "label_es": "Configuración",
+          "labelKey": "nav.configuracion",
+          "icon": "Settings",
+          "route": "/configuracion",
+          "screen": "SCR-settings",
+          "roles": [
+            "group_admin"
+          ],
+          "section": "ADMINISTRACIÓN"
+        }
+      ]
+    }
+  },
+  "routes": [
+    {
+      "route": "/login",
+      "screen_id": "SCR-login",
+      "roles": [
+        "public"
+      ],
+      "release": "R1",
+      "auth_required": false
+    },
+    {
+      "route": "/solicitudes",
+      "screen_id": "SCR-my-requests",
+      "roles": [
+        "employee",
+        "approver",
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/solicitudes/nueva",
+      "screen_id": "SCR-new-request",
+      "roles": [
+        "employee",
+        "approver",
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/solicitudes/:requestId",
+      "screen_id": "SCR-request-detail",
+      "roles": [
+        "employee",
+        "approver",
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true,
+      "params": {
+        "requestId": {
+          "entity": "LicenseRequest",
+          "column": "id",
+          "description": "License request UUID",
+          "semantic_name": "request id"
+        }
+      }
+    },
+    {
+      "route": "/aprobaciones",
+      "screen_id": "SCR-approval-queue",
+      "roles": [
+        "approver",
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/reclamaciones",
+      "screen_id": "SCR-reclamation-proposals",
+      "roles": [
+        "approver",
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/panel",
+      "screen_id": "SCR-admin-dashboard",
+      "roles": [
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/excepciones",
+      "screen_id": "SCR-exceptions",
+      "roles": [
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/cupos",
+      "screen_id": "SCR-pools",
+      "roles": [
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/organizaciones",
+      "screen_id": "SCR-vendor-accounts",
+      "roles": [
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/organizaciones/:vendorAccountId",
+      "screen_id": "SCR-vendor-account-detail",
+      "roles": [
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true,
+      "params": {
+        "vendorAccountId": {
+          "entity": "VendorAccount",
+          "column": "id",
+          "description": "Vendor account (org/tenant) UUID"
+        }
+      }
+    },
+    {
+      "route": "/credenciales",
+      "screen_id": "SCR-credentials",
+      "roles": [
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/companias",
+      "screen_id": "SCR-companies",
+      "roles": [
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/companias/:companyId",
+      "screen_id": "SCR-company-detail",
+      "roles": [
+        "group_admin",
+        "approver",
+        "company_finance",
+        "viewer"
+      ],
+      "release": "R1",
+      "auth_required": true,
+      "params": {
+        "companyId": {
+          "entity": "Company",
+          "column": "id",
+          "description": "Company UUID"
+        }
+      }
+    },
+    {
+      "route": "/personas",
+      "screen_id": "SCR-people",
+      "roles": [
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/personas/:personId",
+      "screen_id": "SCR-person-detail",
+      "roles": [
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true,
+      "params": {
+        "personId": {
+          "entity": "Person",
+          "column": "id",
+          "description": "Person UUID"
+        }
+      }
+    },
+    {
+      "route": "/registro",
+      "screen_id": "SCR-register",
+      "roles": [
+        "group_admin",
+        "central_finance"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/uso",
+      "screen_id": "SCR-usage",
+      "roles": [
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/alertas",
+      "screen_id": "SCR-alerts",
+      "roles": [
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/auditoria",
+      "screen_id": "SCR-audit",
+      "roles": [
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/usuarios",
+      "screen_id": "SCR-users-roles",
+      "roles": [
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/estados-de-cuenta",
+      "screen_id": "SCR-statements",
+      "roles": [
+        "company_finance",
+        "central_finance",
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/estados-de-cuenta/:statementId",
+      "screen_id": "SCR-statement-detail",
+      "roles": [
+        "company_finance",
+        "central_finance",
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true,
+      "params": {
+        "statementId": {
+          "entity": "Statement",
+          "column": "id",
+          "description": "Monthly statement UUID"
+        }
+      }
+    },
+    {
+      "route": "/cierre",
+      "screen_id": "SCR-close",
+      "roles": [
+        "central_finance",
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/conciliacion",
+      "screen_id": "SCR-reconciliation",
+      "roles": [
+        "central_finance",
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/tarifas",
+      "screen_id": "SCR-rates",
+      "roles": [
+        "central_finance",
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/configuracion",
+      "screen_id": "SCR-settings",
+      "roles": [
+        "group_admin"
+      ],
+      "release": "R1",
+      "auth_required": true
+    },
+    {
+      "route": "/acceso-denegado",
+      "screen_id": "SCR-access-denied",
+      "roles": [
+        "public"
+      ],
+      "release": "R1",
+      "auth_required": false
+    }
+  ],
+  "dynamic_route_params": {
+    "requestId": {
+      "entity": "LicenseRequest",
+      "column": "id",
+      "description": "License request UUID",
+      "semantic_name": "request id"
+    },
+    "vendorAccountId": {
+      "entity": "VendorAccount",
+      "column": "id",
+      "description": "Vendor account (org/tenant) UUID"
+    },
+    "companyId": {
+      "entity": "Company",
+      "column": "id",
+      "description": "Company UUID"
+    },
+    "personId": {
+      "entity": "Person",
+      "column": "id",
+      "description": "Person UUID"
+    },
+    "statementId": {
+      "entity": "Statement",
+      "column": "id",
+      "description": "Monthly statement UUID"
+    }
+  },
+  "navigation_graph": {
+    "nodes": [
+      {
+        "id": "SCR-login",
+        "label": "Ingresar"
+      },
+      {
+        "id": "SCR-my-requests",
+        "label": "Mis solicitudes"
+      },
+      {
+        "id": "SCR-new-request",
+        "label": "Nueva solicitud"
+      },
+      {
+        "id": "SCR-request-detail",
+        "label": "Detalle de solicitud"
+      },
+      {
+        "id": "SCR-approval-queue",
+        "label": "Aprobaciones"
+      },
+      {
+        "id": "SCR-reclamation-proposals",
+        "label": "Reclamaciones"
+      },
+      {
+        "id": "SCR-admin-dashboard",
+        "label": "Panel general"
+      },
+      {
+        "id": "SCR-exceptions",
+        "label": "Excepciones"
+      },
+      {
+        "id": "SCR-pools",
+        "label": "Cupos"
+      },
+      {
+        "id": "SCR-vendor-accounts",
+        "label": "Organizaciones"
+      },
+      {
+        "id": "SCR-vendor-account-detail",
+        "label": "Detalle de organización"
+      },
+      {
+        "id": "SCR-credentials",
+        "label": "Credenciales"
+      },
+      {
+        "id": "SCR-companies",
+        "label": "Compañías"
+      },
+      {
+        "id": "SCR-company-detail",
+        "label": "Detalle de compañía"
+      },
+      {
+        "id": "SCR-people",
+        "label": "Personas"
+      },
+      {
+        "id": "SCR-person-detail",
+        "label": "Detalle de persona"
+      },
+      {
+        "id": "SCR-register",
+        "label": "Registro"
+      },
+      {
+        "id": "SCR-usage",
+        "label": "Actividad y uso"
+      },
+      {
+        "id": "SCR-alerts",
+        "label": "Alertas"
+      },
+      {
+        "id": "SCR-audit",
+        "label": "Auditoría"
+      },
+      {
+        "id": "SCR-users-roles",
+        "label": "Usuarios y roles"
+      },
+      {
+        "id": "SCR-statements",
+        "label": "Estados de cuenta"
+      },
+      {
+        "id": "SCR-statement-detail",
+        "label": "Detalle de estado de cuenta"
+      },
+      {
+        "id": "SCR-close",
+        "label": "Cierre mensual"
+      },
+      {
+        "id": "SCR-reconciliation",
+        "label": "Conciliación"
+      },
+      {
+        "id": "SCR-rates",
+        "label": "Tarifas"
+      },
+      {
+        "id": "SCR-settings",
+        "label": "Configuración"
+      },
+      {
+        "id": "SCR-access-denied",
+        "label": "Acceso denegado"
+      }
+    ],
+    "edges": [
+      {
+        "from": "SCR-login",
+        "to": "SCR-my-requests",
+        "label": "Ingreso colaborador",
+        "kind": "primary_action"
+      },
+      {
+        "from": "SCR-login",
+        "to": "SCR-admin-dashboard",
+        "label": "Ingreso group admin",
+        "kind": "primary_action"
+      },
+      {
+        "from": "SCR-my-requests",
+        "to": "SCR-new-request",
+        "label": "Solicitar licencia",
+        "kind": "primary_action"
+      },
+      {
+        "from": "SCR-my-requests",
+        "to": "SCR-request-detail",
+        "label": "Ver solicitud",
+        "kind": "row_click"
+      },
+      {
+        "from": "SCR-new-request",
+        "to": "SCR-request-detail",
+        "label": "Solicitud enviada",
+        "kind": "after_submit"
+      },
+      {
+        "from": "SCR-approval-queue",
+        "to": "SCR-request-detail",
+        "label": "Ver detalle",
+        "kind": "secondary"
+      },
+      {
+        "from": "SCR-reclamation-proposals",
+        "to": "SCR-request-detail",
+        "label": "Ver retiro",
+        "kind": "secondary"
+      },
+      {
+        "from": "SCR-admin-dashboard",
+        "to": "SCR-exceptions",
+        "label": "Ver excepciones",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-admin-dashboard",
+        "to": "SCR-pools",
+        "label": "Ver cupos",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-admin-dashboard",
+        "to": "SCR-usage",
+        "label": "Ver uso",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-exceptions",
+        "to": "SCR-pools",
+        "label": "Ver cupos (bloqueadas)",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-exceptions",
+        "to": "SCR-request-detail",
+        "label": "Ver solicitud",
+        "kind": "row_click"
+      },
+      {
+        "from": "SCR-pools",
+        "to": "SCR-reclamation-proposals",
+        "label": "Proponer reclamación",
+        "kind": "primary_action"
+      },
+      {
+        "from": "SCR-pools",
+        "to": "SCR-vendor-account-detail",
+        "label": "Ver organización",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-usage",
+        "to": "SCR-reclamation-proposals",
+        "label": "Proponer reclamación",
+        "kind": "primary_action"
+      },
+      {
+        "from": "SCR-usage",
+        "to": "SCR-person-detail",
+        "label": "Ver persona",
+        "kind": "row_click"
+      },
+      {
+        "from": "SCR-vendor-accounts",
+        "to": "SCR-vendor-account-detail",
+        "label": "Ver organización",
+        "kind": "row_click"
+      },
+      {
+        "from": "SCR-companies",
+        "to": "SCR-company-detail",
+        "label": "Ver compañía",
+        "kind": "row_click"
+      },
+      {
+        "from": "SCR-company-detail",
+        "to": "SCR-statement-detail",
+        "label": "Ver estado de cuenta",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-people",
+        "to": "SCR-person-detail",
+        "label": "Ver persona",
+        "kind": "row_click"
+      },
+      {
+        "from": "SCR-person-detail",
+        "to": "SCR-new-request",
+        "label": "Solicitar para esta persona",
+        "kind": "primary_action"
+      },
+      {
+        "from": "SCR-register",
+        "to": "SCR-request-detail",
+        "label": "Ver solicitud origen",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-statements",
+        "to": "SCR-statement-detail",
+        "label": "Ver detalle",
+        "kind": "row_click"
+      },
+      {
+        "from": "SCR-statement-detail",
+        "to": "SCR-register",
+        "label": "Ver evidencia",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-close",
+        "to": "SCR-statements",
+        "label": "Ver estados generados",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-reconciliation",
+        "to": "SCR-statement-detail",
+        "label": "Ver estado de cuenta",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-alerts",
+        "to": "SCR-request-detail",
+        "label": "Ver asunto",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-credentials",
+        "to": "SCR-vendor-account-detail",
+        "label": "Ver organización",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-rates",
+        "to": "SCR-vendor-account-detail",
+        "label": "Ver organización",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-alerts",
+        "to": "SCR-pools",
+        "label": "Ver cupos",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-alerts",
+        "to": "SCR-credentials",
+        "label": "Ver credenciales",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-alerts",
+        "to": "SCR-exceptions",
+        "label": "Ver excepciones",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-alerts",
+        "to": "SCR-settings",
+        "label": "Configurar reglas",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-access-denied",
+        "to": "SCR-my-requests",
+        "label": "Ir a mis solicitudes",
+        "kind": "primary_action"
+      },
+      {
+        "from": "SCR-access-denied",
+        "to": "SCR-login",
+        "label": "Cambiar de cuenta",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-admin-dashboard",
+        "to": "SCR-alerts",
+        "label": "Alertas sin reconocer",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-admin-dashboard",
+        "to": "SCR-credentials",
+        "label": "Revisar credenciales",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-admin-dashboard",
+        "to": "SCR-request-detail",
+        "label": "Ver solicitud",
+        "kind": "row_click"
+      },
+      {
+        "from": "SCR-close",
+        "to": "SCR-statement-detail",
+        "label": "Ver estado de cuenta",
+        "kind": "row_click"
+      },
+      {
+        "from": "SCR-company-detail",
+        "to": "SCR-person-detail",
+        "label": "Ver persona",
+        "kind": "row_click"
+      },
+      {
+        "from": "SCR-new-request",
+        "to": "SCR-my-requests",
+        "label": "Cancelar",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-pools",
+        "to": "SCR-person-detail",
+        "label": "Ver persona",
+        "kind": "row_click"
+      },
+      {
+        "from": "SCR-reconciliation",
+        "to": "SCR-close",
+        "label": "Ir a cierre",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-reconciliation",
+        "to": "SCR-rates",
+        "label": "Ver tarifas",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-register",
+        "to": "SCR-statement-detail",
+        "label": "Ver estado de cuenta",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-request-detail",
+        "to": "SCR-pools",
+        "label": "Ver cupos",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-request-detail",
+        "to": "SCR-register",
+        "label": "Ver registro",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-settings",
+        "to": "SCR-alerts",
+        "label": "Ver alertas",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-settings",
+        "to": "SCR-vendor-accounts",
+        "label": "Ver organizaciones",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-users-roles",
+        "to": "SCR-person-detail",
+        "label": "Ver persona",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-vendor-account-detail",
+        "to": "SCR-pools",
+        "label": "Ver cupos",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-vendor-account-detail",
+        "to": "SCR-rates",
+        "label": "Ver tarifas",
+        "kind": "link"
+      },
+      {
+        "from": "SCR-login",
+        "to": "SCR-approval-queue",
+        "label": "Ingreso aprobador",
+        "kind": "primary_action"
+      },
+      {
+        "from": "SCR-login",
+        "to": "SCR-statements",
+        "label": "Ingreso finanzas de compañía",
+        "kind": "primary_action"
+      },
+      {
+        "from": "SCR-login",
+        "to": "SCR-close",
+        "label": "Ingreso finanzas centrales",
+        "kind": "primary_action"
+      },
+      {
+        "from": "SCR-new-request",
+        "to": "SCR-person-detail",
+        "label": "Ver asignación existente",
+        "kind": "link"
+      }
+    ]
+  },
+  "role_based_views": {
+    "public": {
+      "sidebar": [],
+      "screens": [
+        "SCR-login",
+        "SCR-access-denied"
+      ]
+    },
+    "employee": {
+      "sidebar": [
+        "nav-solicitudes"
+      ],
+      "screens": [
+        "SCR-login",
+        "SCR-my-requests",
+        "SCR-new-request",
+        "SCR-request-detail",
+        "SCR-access-denied"
+      ]
+    },
+    "approver": {
+      "sidebar": [
+        "nav-solicitudes",
+        "nav-aprobaciones",
+        "nav-reclamaciones"
+      ],
+      "screens": [
+        "SCR-login",
+        "SCR-my-requests",
+        "SCR-new-request",
+        "SCR-request-detail",
+        "SCR-approval-queue",
+        "SCR-reclamation-proposals",
+        "SCR-company-detail",
+        "SCR-access-denied"
+      ]
+    },
+    "company_finance": {
+      "sidebar": [
+        "nav-estados-de-cuenta"
+      ],
+      "screens": [
+        "SCR-login",
+        "SCR-statements",
+        "SCR-statement-detail",
+        "SCR-company-detail",
+        "SCR-access-denied"
+      ]
+    },
+    "central_finance": {
+      "sidebar": [
+        "nav-registro",
+        "nav-estados-de-cuenta",
+        "nav-cierre",
+        "nav-conciliacion",
+        "nav-tarifas"
+      ],
+      "screens": [
+        "SCR-login",
+        "SCR-register",
+        "SCR-statements",
+        "SCR-statement-detail",
+        "SCR-close",
+        "SCR-reconciliation",
+        "SCR-rates",
+        "SCR-access-denied"
+      ]
+    },
+    "group_admin": {
+      "sidebar": [
+        "nav-panel",
+        "nav-solicitudes",
+        "nav-aprobaciones",
+        "nav-reclamaciones",
+        "nav-excepciones",
+        "nav-cupos",
+        "nav-uso",
+        "nav-registro",
+        "nav-estados-de-cuenta",
+        "nav-cierre",
+        "nav-conciliacion",
+        "nav-tarifas",
+        "nav-companias",
+        "nav-personas",
+        "nav-organizaciones",
+        "nav-credenciales",
+        "nav-usuarios",
+        "nav-alertas",
+        "nav-auditoria",
+        "nav-configuracion"
+      ],
+      "screens": [
+        "SCR-login",
+        "SCR-my-requests",
+        "SCR-new-request",
+        "SCR-request-detail",
+        "SCR-approval-queue",
+        "SCR-reclamation-proposals",
+        "SCR-admin-dashboard",
+        "SCR-exceptions",
+        "SCR-pools",
+        "SCR-vendor-accounts",
+        "SCR-vendor-account-detail",
+        "SCR-credentials",
+        "SCR-companies",
+        "SCR-company-detail",
+        "SCR-people",
+        "SCR-person-detail",
+        "SCR-register",
+        "SCR-usage",
+        "SCR-alerts",
+        "SCR-audit",
+        "SCR-users-roles",
+        "SCR-statements",
+        "SCR-statement-detail",
+        "SCR-close",
+        "SCR-reconciliation",
+        "SCR-rates",
+        "SCR-settings",
+        "SCR-access-denied"
+      ]
+    },
+    "viewer": {
+      "sidebar": [],
+      "screens": [
+        "SCR-login",
+        "SCR-company-detail",
+        "SCR-access-denied"
+      ],
+      "_note": "Company Viewer (PRD Module H P0): read-only per-company view via SCR-company-detail (admin tabs group_admin-gated); no sidebar entries in R1"
+    }
+  },
+  "user_flows": {
+    "F-J1_seat_request": [
+      "SCR-new-request",
+      "SCR-request-detail",
+      "SCR-approval-queue",
+      "SCR-request-detail"
+    ],
+    "F-J2_reclamation": [
+      "SCR-usage",
+      "SCR-reclamation-proposals",
+      "SCR-request-detail",
+      "SCR-pools"
+    ],
+    "F-J3_monthly_close": [
+      "SCR-close",
+      "SCR-statements",
+      "SCR-statement-detail",
+      "SCR-reconciliation"
+    ],
+    "F-J4_exception_ops": [
+      "SCR-admin-dashboard",
+      "SCR-exceptions",
+      "SCR-pools",
+      "SCR-alerts"
+    ]
+  },
+  "breadcrumbs_pattern_per_dynamic_param_route": {
+    "/solicitudes/:requestId": [
+      "Mis solicitudes",
+      "{request short id}"
+    ],
+    "/organizaciones/:vendorAccountId": [
+      "Organizaciones",
+      "{vendor account name}"
+    ],
+    "/companias/:companyId": [
+      "Compañías",
+      "{company name}"
+    ],
+    "/personas/:personId": [
+      "Personas",
+      "{person name}"
+    ],
+    "/estados-de-cuenta/:statementId": [
+      "Estados de cuenta",
+      "{company code} · {period}"
+    ]
+  },
+  "screen_count": 28,
+  "route_count": 28,
+  "edge_count": 55,
+  "user_flow_count": 4,
+  "validation_status": "authored step 7c + coherence pass 2026-07-22; 20 sidebar icons validated against lucide_valid_exports (20/20); HR-30 item-role/sidebar consistency asserted at generation; edges = closure of TOON-declared navigation"
+}

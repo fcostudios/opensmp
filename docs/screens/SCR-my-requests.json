@@ -1,0 +1,176 @@
+{
+  "accessibility": {
+    "ariaLandmarks": true,
+    "skipToContent": true
+  },
+  "description": "Requester landing (J1): the employee's own LicenseRequest rows with the 12-chip state vocabulary, filters by estado/fecha, and the single orange primary 'Solicitar licencia'. Row click drills into SCR-request-detail. tpl.workspace-list in the data-workspace shell (rail section OPERACION).",
+  "i18n": {
+    "es-EC": {
+      "title": "Mis solicitudes",
+      "subtitle": "Aquí ves cada licencia que has pedido y en qué estado va"
+    }
+  },
+  "id": "SCR-my-requests",
+  "layout": {
+    "kind": "page",
+    "titleBar": {
+      "subtitle": "Aquí ves cada licencia que has pedido y en qué estado va"
+    },
+    "sections": [
+      {
+        "id": "requests_actions",
+        "type": "action-bar",
+        "actions": [
+          {
+            "id": "btn_new_request",
+            "label": "Solicitar licencia",
+            "variant": "primary",
+            "navigate_to": "SCR-new-request"
+          }
+        ]
+      },
+      {
+        "id": "requests_filters",
+        "type": "filters",
+        "title": "Filtrar",
+        "fields": [
+          {
+            "id": "filter_estado",
+            "label": "Estado",
+            "component": "select",
+            "options": [
+              "Todas",
+              "Enviada",
+              "Pendiente de aprobación",
+              "Aprobada",
+              "Bloqueada: sin licencia disponible",
+              "Aprovisionando",
+              "Fallida",
+              "Invitación enviada",
+              "Activa",
+              "Marcada inactiva",
+              "En retiro",
+              "Retirada",
+              "Rechazada"
+            ],
+            "default": "Todas"
+          },
+          {
+            "id": "filter_fecha",
+            "label": "Fecha de envío",
+            "component": "date-range",
+            "placeholder": "dd/mm/aaaa – dd/mm/aaaa"
+          }
+        ]
+      },
+      {
+        "id": "requests_table",
+        "type": "data-table",
+        "title": "Solicitudes",
+        "table": {
+          "rowKey": "id",
+          "row_on_click": {
+            "navigate_to": "SCR-request-detail"
+          },
+          "columns": [
+            {
+              "id": "solicitud",
+              "header": "Solicitud",
+              "type": "text"
+            },
+            {
+              "id": "organizacion",
+              "header": "Organización",
+              "type": "text"
+            },
+            {
+              "id": "estado",
+              "header": "Estado",
+              "type": "status"
+            },
+            {
+              "id": "enviada",
+              "header": "Enviada",
+              "type": "date"
+            },
+            {
+              "id": "decidida",
+              "header": "Decidida",
+              "type": "date"
+            },
+            {
+              "id": "needed_by",
+              "header": "Necesaria para",
+              "type": "date"
+            }
+          ],
+          "initialSort": {
+            "columnId": "enviada",
+            "direction": "desc"
+          }
+        },
+        "rows": [
+          {
+            "id": "req-2041",
+            "solicitud": "Verónica Salazar · Claude Enterprise",
+            "organizacion": "Org central Claude Enterprise",
+            "estado": "Pendiente de aprobación",
+            "enviada": "15/07/2026",
+            "decidida": "—",
+            "needed_by": "01/08/2026"
+          },
+          {
+            "id": "req-1987",
+            "solicitud": "Verónica Salazar · Claude Enterprise",
+            "organizacion": "Org central Claude Enterprise",
+            "estado": "Activa",
+            "enviada": "02/06/2026",
+            "decidida": "03/06/2026",
+            "needed_by": "15/06/2026"
+          },
+          {
+            "id": "req-2015",
+            "solicitud": "Andrés Maldonado · Claude Enterprise",
+            "organizacion": "Org central Claude Enterprise",
+            "estado": "Bloqueada: sin licencia disponible",
+            "enviada": "08/07/2026",
+            "decidida": "09/07/2026",
+            "needed_by": "20/07/2026"
+          },
+          {
+            "id": "req-1899",
+            "solicitud": "Verónica Salazar · Claude Enterprise",
+            "organizacion": "Org central Claude Enterprise",
+            "estado": "Rechazada",
+            "enviada": "11/05/2026",
+            "decidida": "12/05/2026",
+            "needed_by": "—"
+          }
+        ],
+        "emptyState": {
+          "title": "Todavía no has pedido ninguna licencia",
+          "description": "Cuando envíes una solicitud, aquí verás su estado paso a paso. Empieza con \"Solicitar licencia\".",
+          "action": {
+            "id": "btn_empty_new_request",
+            "label": "Solicitar licencia",
+            "variant": "primary",
+            "navigate_to": "SCR-new-request"
+          }
+        }
+      }
+    ]
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1",
+    "template": "tpl.workspace-list",
+    "journey": "J1"
+  },
+  "roles": [
+    "employee",
+    "approver",
+    "group_admin"
+  ],
+  "route": "/solicitudes",
+  "title": "Mis solicitudes"
+}

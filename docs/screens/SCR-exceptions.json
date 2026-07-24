@@ -1,0 +1,473 @@
+{
+  "id": "SCR-exceptions",
+  "title": "Excepciones",
+  "description": "Exception workbench for J4 pool & exception ops: blocked_no_seat requests, failed + verification_failed provisioning actions, drift (console members not in the register) with retroactive claim, and expired invites (>7d) with withdraw. Everything that needs the group admin's attention, in one place with count tabs.",
+  "route": "/excepciones",
+  "roles": [
+    "group_admin"
+  ],
+  "i18n": {
+    "es-EC": {
+      "title": "Excepciones",
+      "subtitle": "Lo que necesita tu atención: solicitudes bloqueadas, acciones fallidas, deriva de consola e invitaciones vencidas"
+    }
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1"
+  },
+  "accessibility": {
+    "lang": "es-EC",
+    "ariaLandmarks": true
+  },
+  "layout": {
+    "kind": "page",
+    "template": "tpl.workspace-list",
+    "titleBar": {
+      "subtitle": "Lo que necesita tu atención: solicitudes bloqueadas, acciones fallidas, deriva de consola e invitaciones vencidas"
+    },
+    "sections": [
+      {
+        "id": "exceptions_tabs",
+        "type": "tabs",
+        "title": "Excepciones abiertas",
+        "description": "Tabs with counts; active tab semibold + orange underline (pattern.tabs_with_counts_orange_underline).",
+        "tabs": [
+          {
+            "id": "tab_blocked",
+            "label": "Bloqueadas",
+            "badge": "3",
+            "on_activate": {
+              "trigger": "show_tab_blocked"
+            }
+          },
+          {
+            "id": "tab_failed",
+            "label": "Fallidas",
+            "badge": "2",
+            "on_activate": {
+              "trigger": "show_tab_failed"
+            }
+          },
+          {
+            "id": "tab_drift",
+            "label": "Deriva",
+            "badge": "2",
+            "on_activate": {
+              "trigger": "show_tab_drift"
+            }
+          },
+          {
+            "id": "tab_expired_invites",
+            "label": "Invitaciones vencidas",
+            "badge": "1",
+            "on_activate": {
+              "trigger": "show_tab_expired_invites"
+            }
+          }
+        ],
+        "children": [
+          {
+            "id": "table_blocked",
+            "type": "data-table",
+            "title": "Solicitudes bloqueadas: sin licencia disponible",
+            "description": "LicenseRequest en estado blocked_no_seat. La persona ya tiene aprobación; falta cupo en la organización.",
+            "visibleWhen": "activeTab == 'tab_blocked'",
+            "columns": [
+              {
+                "id": "solicitud",
+                "label": "Solicitud"
+              },
+              {
+                "id": "compania",
+                "label": "Compañía"
+              },
+              {
+                "id": "organizacion",
+                "label": "Organización"
+              },
+              {
+                "id": "dias_bloqueada",
+                "label": "Días bloqueada"
+              },
+              {
+                "id": "needed_by",
+                "label": "La necesita para"
+              },
+              {
+                "id": "estado",
+                "label": "Estado",
+                "type": "status"
+              }
+            ],
+            "rows": [
+              {
+                "solicitud": "María Fernanda Ríos · Claude Enterprise",
+                "compania": "Kickoff",
+                "organizacion": "Org central Claude Enterprise",
+                "dias_bloqueada": "4",
+                "needed_by": "28/07/2026",
+                "estado": "Bloqueada: sin licencia disponible"
+              },
+              {
+                "solicitud": "Andrés Cevallos · Claude Enterprise",
+                "compania": "Opina",
+                "organizacion": "Org central Claude Enterprise",
+                "dias_bloqueada": "2",
+                "needed_by": "31/07/2026",
+                "estado": "Bloqueada: sin licencia disponible"
+              },
+              {
+                "solicitud": "Gabriela Paredes · Claude Enterprise",
+                "compania": "Right Angle Media",
+                "organizacion": "Org central Claude Enterprise",
+                "dias_bloqueada": "6",
+                "needed_by": "24/07/2026",
+                "estado": "Bloqueada: sin licencia disponible"
+              }
+            ],
+            "table": {
+              "row_on_click": {
+                "navigate_to": "SCR-request-detail"
+              }
+            },
+            "row_on_click": {
+              "navigate_to": "SCR-request-detail"
+            },
+            "actions": [
+              {
+                "id": "btn_ver_cupos",
+                "label": "Ver cupos",
+                "variant": "primary",
+                "navigate_to": "SCR-pools",
+                "trigger": "view_pools_from_blocked"
+              }
+            ]
+          },
+          {
+            "id": "table_failed",
+            "type": "data-table",
+            "title": "Acciones de aprovisionamiento fallidas",
+            "description": "ProvisioningAction con status failed o verification_failed. El estado avanza solo con transiciones confirmadas (sin UI optimista).",
+            "visibleWhen": "activeTab == 'tab_failed'",
+            "columns": [
+              {
+                "id": "solicitud",
+                "label": "Solicitud"
+              },
+              {
+                "id": "organizacion",
+                "label": "Organización"
+              },
+              {
+                "id": "accion",
+                "label": "Acción"
+              },
+              {
+                "id": "modo",
+                "label": "Modo"
+              },
+              {
+                "id": "vendor_ref",
+                "label": "Referencia"
+              },
+              {
+                "id": "enviada",
+                "label": "Enviada"
+              },
+              {
+                "id": "estado",
+                "label": "Estado",
+                "type": "status"
+              },
+              {
+                "id": "motivo",
+                "label": "Motivo"
+              }
+            ],
+            "rows": [
+              {
+                "solicitud": "Juan Carlos Mera · Claude Enterprise",
+                "organizacion": "Org central Claude Enterprise",
+                "accion": "Invitación",
+                "modo": "Automatizado",
+                "vendor_ref": "inv_9f27",
+                "enviada": "18/07/2026",
+                "estado": "Fallida",
+                "motivo": "El proveedor devolvió 403: la credencial no tiene permiso write:members"
+              },
+              {
+                "solicitud": "Paola Sánchez · Claude Enterprise",
+                "organizacion": "Org central Claude Enterprise",
+                "accion": "Verificación",
+                "modo": "Orquestación",
+                "vendor_ref": "—",
+                "enviada": "16/07/2026",
+                "estado": "Fallida",
+                "motivo": "Verificación posterior: la persona no aparece como miembro en la consola"
+              }
+            ],
+            "table": {
+              "row_on_click": {
+                "navigate_to": "SCR-request-detail"
+              }
+            },
+            "row_on_click": {
+              "navigate_to": "SCR-request-detail"
+            },
+            "actions": [
+              {
+                "id": "btn_retry_provisioning",
+                "label": "Reintentar",
+                "variant": "primary",
+                "intent": "server_action:retryProvisioning",
+                "trigger": "retry_provisioning",
+                "confirm": {
+                  "title": "Reintentar aprovisionamiento",
+                  "body": "Se enviará de nuevo la acción al proveedor. El estado avanzará solo cuando el proveedor confirme."
+                },
+                "onSuccess": {
+                  "toast": "Listo, reintentamos la acción. Te avisaremos cuando el proveedor confirme.",
+                  "refresh": true
+                }
+              }
+            ]
+          },
+          {
+            "id": "table_drift",
+            "type": "data-table",
+            "title": "Deriva: miembros en consola que no están en el registro",
+            "description": "Detectados por la sincronización horaria de miembros (consola vs. registro) (AlertEvent). Reclámalos y asígnales compañía retroactivamente; se crea una LicenseAssignment con source_kind=reconciliation.",
+            "visibleWhen": "activeTab == 'tab_drift'",
+            "columns": [
+              {
+                "id": "email_consola",
+                "label": "Correo en consola"
+              },
+              {
+                "id": "organizacion",
+                "label": "Organización"
+              },
+              {
+                "id": "detectado",
+                "label": "Detectado"
+              },
+              {
+                "id": "compania_sugerida",
+                "label": "Compañía sugerida"
+              }
+            ],
+            "rows": [
+              {
+                "email_consola": "dparedes@rightangle.ec",
+                "organizacion": "Org central Claude Enterprise",
+                "detectado": "19/07/2026",
+                "compania_sugerida": "Right Angle Media (por dominio)"
+              },
+              {
+                "email_consola": "lvega@ppm.ec",
+                "organizacion": "Org central Claude Enterprise",
+                "detectado": "17/07/2026",
+                "compania_sugerida": "PPM (por dominio)"
+              }
+            ],
+            "actions": [
+              {
+                "id": "btn_claim_drift",
+                "label": "Reclamar y asignar",
+                "variant": "primary",
+                "opens_modal": "modal_claim_drift",
+                "trigger": "open_claim_drift"
+              }
+            ]
+          },
+          {
+            "id": "table_expired_invites",
+            "type": "data-table",
+            "title": "Invitaciones vencidas (más de 7 días)",
+            "description": "ProvisioningAction de tipo invite enviadas hace más de 7 días sin aceptar. Retíralas para liberar el cupo reservado.",
+            "visibleWhen": "activeTab == 'tab_expired_invites'",
+            "columns": [
+              {
+                "id": "persona",
+                "label": "Persona"
+              },
+              {
+                "id": "compania",
+                "label": "Compañía"
+              },
+              {
+                "id": "organizacion",
+                "label": "Organización"
+              },
+              {
+                "id": "enviada",
+                "label": "Enviada"
+              },
+              {
+                "id": "dias_transcurridos",
+                "label": "Días transcurridos"
+              },
+              {
+                "id": "estado",
+                "label": "Estado",
+                "type": "status"
+              }
+            ],
+            "rows": [
+              {
+                "persona": "Carla Enríquez",
+                "compania": "Kickoff",
+                "organizacion": "Org central Claude Enterprise",
+                "enviada": "12/07/2026",
+                "dias_transcurridos": "10",
+                "estado": "Invitación enviada"
+              }
+            ],
+            "table": {
+              "row_on_click": {
+                "navigate_to": "SCR-request-detail"
+              }
+            },
+            "row_on_click": {
+              "navigate_to": "SCR-request-detail"
+            },
+            "actions": [
+              {
+                "id": "btn_withdraw_invite",
+                "label": "Retirar invitación",
+                "variant": "secondary",
+                "intent": "server_action:withdrawInvite",
+                "trigger": "withdraw_invite",
+                "confirm": {
+                  "title": "Retirar invitación",
+                  "body": "La invitación se retirará en el proveedor y la solicitud volverá a la cola. Nada se pierde: todo queda en el registro de auditoría.",
+                  "noteField": {
+                    "label": "Comentario (obligatorio)",
+                    "maxLength": 300
+                  }
+                },
+                "onSuccess": {
+                  "toast": "Invitación retirada. El cupo queda libre para otra solicitud.",
+                  "refresh": true
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "modal_claim_drift",
+        "type": "modal",
+        "title": "Reclamar miembro y asignar compañía",
+        "description": "Regulariza un miembro de consola que no está en el registro: crea la LicenseAssignment retroactiva con source_kind=reconciliation.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "email",
+            "label": "Correo en consola",
+            "component": "text",
+            "readonly": true,
+            "valueExpr": "row.email_consola"
+          },
+          {
+            "id": "full_name",
+            "label": "Nombre completo",
+            "component": "text",
+            "required": true,
+            "placeholder": "Como aparece en la consola o en RR. HH."
+          },
+          {
+            "id": "company_id",
+            "label": "Compañía",
+            "component": "select",
+            "required": true,
+            "options": [
+              "Kickoff",
+              "Opina",
+              "Right Angle Media",
+              "PPM",
+              "Focus"
+            ],
+            "help": "Te sugerimos la compañía por el dominio del correo; confírmala o corrígela."
+          },
+          {
+            "id": "license_type_id",
+            "label": "Tipo de licencia",
+            "component": "select",
+            "required": true,
+            "options": [
+              "Claude Enterprise"
+            ]
+          },
+          {
+            "id": "started_on",
+            "label": "Activa desde",
+            "component": "date",
+            "required": true,
+            "help": "Fecha retroactiva desde la que la licencia cuenta para el cargo interno de esa compañía."
+          },
+          {
+            "id": "note",
+            "label": "Comentario",
+            "component": "textarea",
+            "required": true,
+            "placeholder": "Por qué esta persona ya tenía licencia sin pasar por una solicitud"
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_submit_claim",
+            "label": "Reclamar y crear asignación",
+            "variant": "primary",
+            "intent": "server_action:claimDriftMember",
+            "trigger": "submit_claim_drift",
+            "onSuccess": {
+              "toast": "Listo. La licencia quedó registrada como conciliación y ya cuenta para su compañía.",
+              "close": true,
+              "refresh": true
+            },
+            "onError": {
+              "toast": "No pudimos crear la asignación. Revisa los datos e inténtalo de nuevo."
+            }
+          },
+          {
+            "id": "btn_cancel_claim",
+            "label": "Cancelar",
+            "variant": "secondary",
+            "trigger": "close_claim_drift"
+          }
+        ]
+      }
+    ]
+  }
+}

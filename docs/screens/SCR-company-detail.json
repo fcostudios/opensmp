@@ -1,0 +1,612 @@
+{
+  "id": "SCR-company-detail",
+  "title": "Kickoff · KCK",
+  "description": "Company record (tpl.workspace-record, Module A): stat tiles for active licenses, current monthly cost (RateCard-derived run-rate), budget vs run-rate and people count; count tabs for Personas, Roles (CompanyRoleAssignment add/remove), Licencias (open LicenseAssignment rows), Estados de cuenta (recent Statement list) and Configuración (Company settings). Sample record: Kickoff (KCK).",
+  "route": "/companias/:companyId",
+  "roles": [
+    "group_admin",
+    "approver",
+    "company_finance",
+    "viewer"
+  ],
+  "i18n": {
+    "es-EC": {
+      "title": "Kickoff · KCK",
+      "subtitle": "Interna · 12 personas · contacto de finanzas: finanzas@kickoff.ec · creada 05/03/2026"
+    }
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1"
+  },
+  "accessibility": {
+    "lang": "es-EC",
+    "ariaLandmarks": true
+  },
+  "breadcrumbs": [
+    {
+      "label": "Compañías",
+      "route": "/companias"
+    },
+    {
+      "label": "Kickoff · KCK"
+    }
+  ],
+  "layout": {
+    "kind": "page",
+    "template": "tpl.workspace-record",
+    "titleBar": {
+      "subtitle": "Interna · 12 personas · contacto de finanzas: finanzas@kickoff.ec · creada 05/03/2026"
+    },
+    "sections": [
+      {
+        "id": "company_tiles",
+        "type": "metric-cards",
+        "title": "Resumen de la compañía",
+        "description": "Stat tile row (organism.stat-tile-row): small gray label over huge bold numeral; money in IBM Plex Mono; FreshnessLabel on synced figures.",
+        "metricCards": {
+          "dataFreshness": {
+            "label": "datos al 19-jul (retraso ~3 días del proveedor)"
+          },
+          "cards": [
+            {
+              "id": "tile_licencias_activas",
+              "label": "Licencias activas",
+              "valueExpr": "7",
+              "caption": "asignaciones abiertas hoy"
+            },
+            {
+              "id": "tile_costo_mensual",
+              "label": "Costo mensual actual",
+              "valueExpr": "USD 1.049,30",
+              "caption": "run-rate según tarifas vigentes · datos al 19-jul"
+            },
+            {
+              "id": "tile_presupuesto",
+              "label": "Presupuesto mensual",
+              "valueExpr": "USD 1.500,00",
+              "caption": "run-rate USD 1.049,30 de USD 1.500,00 (70 %)",
+              "progressBar": {
+                "valueExpr": "1049.30",
+                "maxExpr": "1500.00",
+                "label": "Run-rate frente al presupuesto"
+              }
+            },
+            {
+              "id": "tile_personas",
+              "label": "Personas",
+              "valueExpr": "12",
+              "caption": "11 activas · 1 salió del grupo"
+            }
+          ]
+        },
+        "cards": [
+          {
+            "id": "tile_licencias_activas",
+            "title": "Licencias activas",
+            "value": "7"
+          },
+          {
+            "id": "tile_costo_mensual",
+            "title": "Costo mensual actual",
+            "value": "USD 1.049,30"
+          },
+          {
+            "id": "tile_presupuesto",
+            "title": "Presupuesto mensual",
+            "value": "USD 1.500,00"
+          },
+          {
+            "id": "tile_personas",
+            "title": "Personas",
+            "value": "12"
+          }
+        ]
+      },
+      {
+        "id": "company_tabs",
+        "type": "tabs",
+        "title": "Detalle de la compañía",
+        "description": "Tabs with counts; active tab semibold + orange underline (pattern.tabs_with_counts_orange_underline).",
+        "tabs": [
+          {
+            "id": "tab_personas",
+            "label": "Personas",
+            "badge": "12",
+            "on_activate": {
+              "trigger": "show_tab_personas"
+            }
+          },
+          {
+            "id": "tab_roles",
+            "label": "Roles",
+            "badge": "4",
+            "on_activate": {
+              "trigger": "show_tab_roles"
+            }
+          },
+          {
+            "id": "tab_licencias",
+            "label": "Licencias",
+            "badge": "7",
+            "on_activate": {
+              "trigger": "show_tab_licencias"
+            }
+          },
+          {
+            "id": "tab_estados",
+            "label": "Estados de cuenta",
+            "badge": "3",
+            "on_activate": {
+              "trigger": "show_tab_estados"
+            }
+          },
+          {
+            "id": "tab_configuracion",
+            "label": "Configuración",
+            "on_activate": {
+              "trigger": "show_tab_configuracion"
+            }
+          }
+        ],
+        "children": [
+          {
+            "id": "table_personas",
+            "type": "data-table",
+            "title": "Personas de Kickoff",
+            "description": "Person rows scoped to this company. Toca una fila para abrir el detalle de la persona.",
+            "visibleWhen": "activeTab == 'tab_personas'",
+            "columns": [
+              {
+                "id": "full_name",
+                "label": "Nombre"
+              },
+              {
+                "id": "email",
+                "label": "Correo"
+              },
+              {
+                "id": "estado_persona",
+                "label": "Estado"
+              },
+              {
+                "id": "licencia_actual",
+                "label": "Licencia actual",
+                "type": "status"
+              },
+              {
+                "id": "desde",
+                "label": "Con licencia desde"
+              }
+            ],
+            "rows": [
+              {
+                "full_name": "María Fernanda Ríos",
+                "email": "mrios@kickoff.ec",
+                "estado_persona": "Activa en la compañía",
+                "licencia_actual": "Activa",
+                "desde": "10/03/2026"
+              },
+              {
+                "full_name": "Diego Salazar Mora",
+                "email": "dsalazar@kickoff.ec",
+                "estado_persona": "Activa en la compañía",
+                "licencia_actual": "Pendiente de aprobación",
+                "desde": "—"
+              },
+              {
+                "full_name": "Carla Villacís",
+                "email": "cvillacis@kickoff.ec",
+                "estado_persona": "Activa en la compañía",
+                "licencia_actual": "Marcada inactiva",
+                "desde": "02/04/2026"
+              },
+              {
+                "full_name": "José Luis Andrade",
+                "email": "jandrade@kickoff.ec",
+                "estado_persona": "Salió de la compañía",
+                "licencia_actual": "Retirada",
+                "desde": "—"
+              }
+            ],
+            "table": {
+              "row_on_click": {
+                "navigate_to": "SCR-person-detail"
+              }
+            },
+            "row_on_click": {
+              "navigate_to": "SCR-person-detail"
+            }
+          },
+          {
+            "id": "table_roles",
+            "type": "data-table",
+            "title": "Roles por compañía",
+            "description": "CompanyRoleAssignment: quién aprueba, quién ve finanzas y quién solo consulta, con su ventana de vigencia. Quitar un rol pide confirmación con comentario obligatorio.",
+            "visibleWhen": "activeTab == 'tab_roles'",
+            "columns": [
+              {
+                "id": "usuario",
+                "label": "Usuario"
+              },
+              {
+                "id": "rol",
+                "label": "Rol"
+              },
+              {
+                "id": "valid_from",
+                "label": "Vigente desde"
+              },
+              {
+                "id": "valid_to",
+                "label": "Vigente hasta"
+              }
+            ],
+            "rows": [
+              {
+                "usuario": "María Fernanda Ríos · mrios@kickoff.ec",
+                "rol": "Aprobadora",
+                "valid_from": "05/03/2026",
+                "valid_to": "—"
+              },
+              {
+                "usuario": "Paola Cárdenas · pcardenas@kickoff.ec",
+                "rol": "Finanzas",
+                "valid_from": "05/03/2026",
+                "valid_to": "—"
+              },
+              {
+                "usuario": "Diego Salazar Mora · dsalazar@kickoff.ec",
+                "rol": "Aprobador",
+                "valid_from": "01/06/2026",
+                "valid_to": "31/12/2026"
+              },
+              {
+                "usuario": "Verónica Espín · vespin@corporativo.ec",
+                "rol": "Visualización",
+                "valid_from": "05/03/2026",
+                "valid_to": "—"
+              }
+            ],
+            "rowActions": [
+              {
+                "id": "btn_quitar_rol",
+                "label": "Quitar",
+                "variant": "quiet",
+                "trigger": "remove_company_role",
+                "confirm": {
+                  "title": "Quitar este rol",
+                  "body": "La persona pierde este acceso sobre Kickoff de inmediato. El cambio queda en el registro de auditoría.",
+                  "noteField": {
+                    "label": "Cuéntanos por qué lo quitas (obligatorio)",
+                    "maxLength": 280
+                  }
+                }
+              }
+            ],
+            "actions": [
+              {
+                "id": "btn_agregar_rol",
+                "label": "Agregar rol",
+                "variant": "primary",
+                "opens_modal": "modal_add_role",
+                "trigger": "open_add_role_modal"
+              }
+            ]
+          },
+          {
+            "id": "table_licencias",
+            "type": "data-table",
+            "title": "Licencias abiertas",
+            "description": "LicenseAssignment rows sin fecha de fin: quién tiene qué licencia, en qué organización y desde cuándo. Toca una fila para ver a la persona.",
+            "visibleWhen": "activeTab == 'tab_licencias'",
+            "columns": [
+              {
+                "id": "persona",
+                "label": "Persona"
+              },
+              {
+                "id": "organizacion",
+                "label": "Organización"
+              },
+              {
+                "id": "tipo",
+                "label": "Tipo de licencia"
+              },
+              {
+                "id": "started_on",
+                "label": "Iniciada"
+              },
+              {
+                "id": "tarifa",
+                "label": "Tarifa mensual"
+              },
+              {
+                "id": "estado",
+                "label": "Estado",
+                "type": "status"
+              }
+            ],
+            "rows": [
+              {
+                "persona": "María Fernanda Ríos",
+                "organizacion": "Org central Claude Enterprise",
+                "tipo": "Claude Enterprise",
+                "started_on": "10/03/2026",
+                "tarifa": "USD 149,90",
+                "estado": "Activa"
+              },
+              {
+                "persona": "Carla Villacís",
+                "organizacion": "Org central Claude Enterprise",
+                "tipo": "Claude Enterprise",
+                "started_on": "02/04/2026",
+                "tarifa": "USD 149,90",
+                "estado": "Marcada inactiva"
+              },
+              {
+                "persona": "Sebastián Guerrero",
+                "organizacion": "Org central Claude Enterprise",
+                "tipo": "Claude Enterprise",
+                "started_on": "15/05/2026",
+                "tarifa": "USD 149,90",
+                "estado": "Aprovisionando"
+              }
+            ],
+            "table": {
+              "row_on_click": {
+                "navigate_to": "SCR-person-detail"
+              }
+            },
+            "row_on_click": {
+              "navigate_to": "SCR-person-detail"
+            }
+          },
+          {
+            "id": "table_estados",
+            "type": "data-table",
+            "title": "Estados de cuenta recientes",
+            "description": "Statement rows de esta compañía. Toca una fila para abrir el estado de cuenta con sus líneas.",
+            "visibleWhen": "activeTab == 'tab_estados'",
+            "columns": [
+              {
+                "id": "period",
+                "label": "Período"
+              },
+              {
+                "id": "status",
+                "label": "Estado"
+              },
+              {
+                "id": "opening_seats",
+                "label": "Apertura"
+              },
+              {
+                "id": "total_usd",
+                "label": "Total",
+                "align": "right"
+              },
+              {
+                "id": "generated_at",
+                "label": "Generado"
+              }
+            ],
+            "rows": [
+              {
+                "period": "2026-06",
+                "status": "Conciliado",
+                "opening_seats": "7",
+                "total_usd": "USD 1.049,30",
+                "generated_at": "03/07/2026"
+              },
+              {
+                "period": "2026-05",
+                "status": "Final",
+                "opening_seats": "6",
+                "total_usd": "USD 924,40",
+                "generated_at": "03/06/2026"
+              },
+              {
+                "period": "2026-04",
+                "status": "Final",
+                "opening_seats": "6",
+                "total_usd": "USD 899,40",
+                "generated_at": "05/05/2026"
+              }
+            ],
+            "table": {
+              "row_on_click": {
+                "navigate_to": "SCR-statement-detail"
+              }
+            },
+            "row_on_click": {
+              "navigate_to": "SCR-statement-detail"
+            }
+          },
+          {
+            "id": "form_configuracion",
+            "type": "form",
+            "title": "Configuración de la compañía",
+            "description": "Company settings: presupuesto mensual, contacto de finanzas, idioma del estado de cuenta y estado. Los cambios quedan en el registro de auditoría.",
+            "visibleWhen": "activeTab == 'tab_configuracion'",
+            "states": [
+              {
+                "id": "default",
+                "label": {
+                  "en-US": "Default",
+                  "es-EC": "Predeterminado"
+                }
+              },
+              {
+                "id": "submitting",
+                "label": {
+                  "en-US": "Submitting",
+                  "es-EC": "Enviando"
+                }
+              },
+              {
+                "id": "success",
+                "label": {
+                  "en-US": "Success",
+                  "es-EC": "Éxito"
+                }
+              },
+              {
+                "id": "error",
+                "label": {
+                  "en-US": "Error",
+                  "es-EC": "Error"
+                }
+              }
+            ],
+            "fields": [
+              {
+                "id": "budget_monthly_usd",
+                "label": "Presupuesto mensual (USD)",
+                "component": "input-money",
+                "default": "1.500,00",
+                "help": "Si el run-rate supera este monto, verás una alerta en el panel."
+              },
+              {
+                "id": "finance_contact_email",
+                "label": "Contacto de finanzas (correo)",
+                "component": "input-email",
+                "default": "finanzas@kickoff.ec"
+              },
+              {
+                "id": "statement_language",
+                "label": "Idioma del estado de cuenta",
+                "component": "select",
+                "default": "es",
+                "options": [
+                  {
+                    "value": "es",
+                    "label": "Español (es-EC)"
+                  },
+                  {
+                    "value": "en",
+                    "label": "Inglés (en-US)"
+                  }
+                ]
+              },
+              {
+                "id": "status",
+                "label": "Estado de la compañía",
+                "component": "select",
+                "default": "active",
+                "options": [
+                  {
+                    "value": "active",
+                    "label": "Activa"
+                  },
+                  {
+                    "value": "inactive",
+                    "label": "Inactiva"
+                  }
+                ]
+              }
+            ],
+            "submit": {
+              "id": "btn_guardar_configuracion",
+              "label": "Guardar cambios",
+              "action": "server_action:updateCompany",
+              "client_request_id": true
+            }
+          }
+        ]
+      },
+      {
+        "id": "modal_add_role",
+        "type": "modal",
+        "title": "Agregar rol en Kickoff",
+        "description": "Crea un CompanyRoleAssignment: usuario + rol + ventana de vigencia. Un mismo usuario no puede repetir el mismo rol en la misma compañía.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "user_account_id",
+            "label": "Usuario",
+            "component": "select",
+            "required": true,
+            "placeholder": "Busca por nombre o correo",
+            "options": [
+              "María Fernanda Ríos · mrios@kickoff.ec",
+              "Paola Cárdenas · pcardenas@kickoff.ec",
+              "Verónica Espín · vespin@corporativo.ec"
+            ]
+          },
+          {
+            "id": "role",
+            "label": "Rol",
+            "component": "select",
+            "required": true,
+            "options": [
+              {
+                "value": "approver",
+                "label": "Aprobador/a"
+              },
+              {
+                "value": "finance",
+                "label": "Finanzas"
+              },
+              {
+                "value": "viewer",
+                "label": "Visualización"
+              }
+            ]
+          },
+          {
+            "id": "valid_from",
+            "label": "Vigente desde (opcional)",
+            "component": "date-picker",
+            "placeholder": "dd/mm/aaaa"
+          },
+          {
+            "id": "valid_to",
+            "label": "Vigente hasta (opcional)",
+            "component": "date-picker",
+            "placeholder": "dd/mm/aaaa",
+            "help": "Déjalo vacío si el rol no tiene fecha de fin."
+          }
+        ],
+        "submit": {
+          "id": "btn_guardar_rol",
+          "label": "Guardar rol",
+          "action": "server_action:addCompanyRole",
+          "client_request_id": true
+        },
+        "roles": [
+          "group_admin"
+        ]
+      }
+    ]
+  }
+}

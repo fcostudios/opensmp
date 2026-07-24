@@ -1,0 +1,419 @@
+{
+  "id": "SCR-settings",
+  "title": "Configuración",
+  "description": "Group-level settings (Modules C/G, tpl.form-single). Three save-per-section forms: Alertas (per AlertRule.type: enabled switch + threshold — approval aging 24/48h, low_pool floor default 5, invite unaccepted 7d + auto-withdraw window, sync staleness 48h), Notificaciones (sender email, escalation target, AlertRule.channel — email in R1), Sistema (default UI language, audit retention note). VendorAccount.low_pool_floor per-org override is edited on each vendor account detail; this screen only sets the global default.",
+  "route": "/configuracion",
+  "roles": [
+    "group_admin"
+  ],
+  "i18n": {
+    "es-EC": {
+      "title": "Configuración",
+      "subtitle": "Define las reglas de alerta, las notificaciones y los ajustes generales del grupo"
+    }
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1",
+    "template": "tpl.form-single"
+  },
+  "accessibility": {
+    "lang": "es-EC",
+    "ariaLandmarks": true,
+    "skipToContent": true
+  },
+  "layout": {
+    "kind": "page",
+    "template": "tpl.form-single",
+    "titleBar": {
+      "subtitle": "Define las reglas de alerta, las notificaciones y los ajustes generales del grupo"
+    },
+    "sections": [
+      {
+        "id": "form_alert_rules",
+        "type": "form",
+        "title": "Alertas",
+        "description": "One row per AlertRule.type: enabled toggle + threshold (AlertRule.threshold jsonb). Each change is a scoped save of this section only; every save lands in the audit trail. Fired alerts are reviewed in SCR-alerts.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "rule_approval_aging_enabled",
+            "label": "Aprobaciones envejecidas",
+            "component": "switch",
+            "default": true,
+            "help": "Avisa cuando una solicitud lleva demasiado tiempo esperando decisión."
+          },
+          {
+            "id": "rule_approval_aging_warn_hours",
+            "label": "Primer aviso (horas)",
+            "component": "number-input",
+            "default": 24,
+            "required": true,
+            "visibleWhen": "rule_approval_aging_enabled == true",
+            "help": "La tarjeta en la cola de aprobación se marca en ámbar a las 24 horas."
+          },
+          {
+            "id": "rule_approval_aging_escalate_hours",
+            "label": "Escalamiento (horas)",
+            "component": "number-input",
+            "default": 48,
+            "required": true,
+            "visibleWhen": "rule_approval_aging_enabled == true",
+            "help": "A las 48 horas se notifica también al destinatario de escalamiento.",
+            "validation": [
+              {
+                "type": "custom",
+                "expr": "rule_approval_aging_escalate_hours > rule_approval_aging_warn_hours",
+                "message": "El escalamiento debe ser posterior al primer aviso."
+              }
+            ]
+          },
+          {
+            "id": "rule_provisioning_failure_enabled",
+            "label": "Fallo de aprovisionamiento",
+            "component": "switch",
+            "default": true,
+            "help": "Avisa de inmediato cuando una solicitud aprobada pasa a Fallida por error de la consola del proveedor."
+          },
+          {
+            "id": "rule_blocked_no_seat_enabled",
+            "label": "Solicitud bloqueada sin licencia",
+            "component": "switch",
+            "default": true,
+            "help": "Avisa cuando una solicitud aprobada queda en Bloqueada: sin licencia disponible."
+          },
+          {
+            "id": "rule_low_pool_enabled",
+            "label": "Cupo disponible bajo",
+            "component": "switch",
+            "default": true,
+            "help": "Avisa cuando el cupo disponible de una organización cae bajo el piso."
+          },
+          {
+            "id": "rule_low_pool_floor",
+            "label": "Piso global de cupo disponible",
+            "component": "number-input",
+            "default": 5,
+            "required": true,
+            "visibleWhen": "rule_low_pool_enabled == true",
+            "help": "Valor por defecto para todas las organizaciones. Cada organización puede definir su propio piso en su detalle."
+          },
+          {
+            "id": "rule_invite_unaccepted_enabled",
+            "label": "Invitación sin aceptar",
+            "component": "switch",
+            "default": true,
+            "help": "Avisa cuando una invitación enviada no se acepta a tiempo."
+          },
+          {
+            "id": "rule_invite_unaccepted_days",
+            "label": "Aviso a los (días)",
+            "component": "number-input",
+            "default": 7,
+            "required": true,
+            "visibleWhen": "rule_invite_unaccepted_enabled == true",
+            "help": "A los 7 días sin aceptar, se avisa al solicitante y al administrador."
+          },
+          {
+            "id": "rule_invite_auto_withdraw_days",
+            "label": "Retiro automático a los (días)",
+            "component": "number-input",
+            "default": 14,
+            "required": true,
+            "visibleWhen": "rule_invite_unaccepted_enabled == true",
+            "help": "Pasada esta ventana, la invitación se retira y la licencia vuelve al cupo del grupo. Nunca en silencio: queda registrado y notificado.",
+            "validation": [
+              {
+                "type": "custom",
+                "expr": "rule_invite_auto_withdraw_days > rule_invite_unaccepted_days",
+                "message": "El retiro automático debe ser posterior al primer aviso."
+              }
+            ]
+          },
+          {
+            "id": "rule_sync_stale_enabled",
+            "label": "Datos de sincronización obsoletos",
+            "component": "switch",
+            "default": true,
+            "help": "Avisa cuando una fuente de datos del proveedor deja de sincronizar."
+          },
+          {
+            "id": "rule_sync_stale_hours",
+            "label": "Umbral de obsolescencia (horas)",
+            "component": "number-input",
+            "default": 48,
+            "required": true,
+            "visibleWhen": "rule_sync_stale_enabled == true",
+            "help": "Pasadas 48 horas sin sincronizar, las cifras afectadas se marcan en ámbar en toda la aplicación."
+          },
+          {
+            "id": "rule_credential_failure_enabled",
+            "label": "Fallo de credencial",
+            "component": "switch",
+            "default": true,
+            "help": "Avisa cuando una credencial de integración falla al autenticarse."
+          },
+          {
+            "id": "rule_register_drift_enabled",
+            "label": "Diferencias en el registro",
+            "component": "switch",
+            "default": true,
+            "help": "Avisa cuando el registro de Ledger no coincide con lo que reporta la consola del proveedor."
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_save_alert_rules",
+            "label": "Guardar alertas",
+            "variant": "primary",
+            "intent": "server_action:saveAlertRules",
+            "trigger": "save_alert_rules",
+            "onSuccess": {
+              "toast": "Listo: las reglas de alerta quedaron guardadas y ya están activas."
+            },
+            "onError": {
+              "toast": "No pudimos guardar las reglas. Revisa los umbrales marcados e intenta de nuevo."
+            }
+          },
+          {
+            "id": "btn_view_alerts",
+            "label": "Ver alertas",
+            "variant": "secondary",
+            "navigate_to": "SCR-alerts"
+          }
+        ]
+      },
+      {
+        "id": "banner_low_pool_override",
+        "type": "info-banner",
+        "kind": "info",
+        "icon": "info",
+        "title": "Pisos por organización",
+        "content": "El piso global aplica a toda organización sin piso propio. Hoy la Org central Claude Enterprise usa un piso de 5 definido en su detalle; las demás usan el global de 5. Ajusta el piso de cada organización desde su detalle en Organizaciones.",
+        "actions": [
+          {
+            "id": "btn_go_vendor_accounts",
+            "label": "Ver organizaciones",
+            "variant": "secondary",
+            "navigate_to": "SCR-vendor-accounts"
+          }
+        ]
+      },
+      {
+        "id": "form_notifications",
+        "type": "form",
+        "title": "Notificaciones",
+        "description": "Sender identity and escalation target for every alert email. Channel comes from AlertRule.channel — R1 ships email only; Slack/Teams are enum growth for R2. Persistido como filas SystemSetting (notif_sender_email, notif_escalation_email).",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "notif_channel",
+            "label": "Canal de envío",
+            "component": "select",
+            "default": "email",
+            "required": true,
+            "options": [
+              {
+                "value": "email",
+                "label": "Correo electrónico"
+              },
+              {
+                "value": "slack",
+                "label": "Slack (próximamente)",
+                "disabled": true
+              },
+              {
+                "value": "teams",
+                "label": "Teams (próximamente)",
+                "disabled": true
+              }
+            ],
+            "help": "En R1 todas las alertas llegan por correo."
+          },
+          {
+            "id": "notif_sender_email",
+            "label": "Correo remitente",
+            "component": "email-input",
+            "default": "licencias@corporativo.ec",
+            "required": true,
+            "help": "Todas las notificaciones de Ledger salen desde esta dirección.",
+            "validation": [
+              {
+                "type": "pattern",
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+                "message": "Revisa el correo remitente: parece incompleto."
+              }
+            ]
+          },
+          {
+            "id": "notif_escalation_email",
+            "label": "Destinatario de escalamiento",
+            "component": "email-input",
+            "default": "adminlicencias@corporativo.ec",
+            "required": true,
+            "help": "Recibe los escalamientos de aprobaciones envejecidas y los fallos de credencial o aprovisionamiento.",
+            "validation": [
+              {
+                "type": "pattern",
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+                "message": "Revisa el correo de escalamiento: parece incompleto."
+              }
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_save_notifications",
+            "label": "Guardar notificaciones",
+            "variant": "primary",
+            "intent": "server_action:saveNotificationSettings",
+            "trigger": "save_notifications",
+            "onSuccess": {
+              "toast": "Listo: los ajustes de notificación quedaron guardados."
+            },
+            "onError": {
+              "toast": "No pudimos guardar los ajustes. Revisa los correos e intenta de nuevo."
+            }
+          }
+        ]
+      },
+      {
+        "id": "form_system",
+        "type": "form",
+        "title": "Sistema",
+        "description": "Default UI language for new accounts (each user may switch per-user; statements follow Company.statement_language per DEC-SMP-011). Retention is informational: the audit trail and the register are append-only and are not purged in R1. Persistido como fila SystemSetting default_language.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "system_default_language",
+            "label": "Idioma por defecto",
+            "component": "select",
+            "default": "es-EC",
+            "required": true,
+            "options": [
+              {
+                "value": "es-EC",
+                "label": "Español (Ecuador)"
+              },
+              {
+                "value": "en-US",
+                "label": "English (US)"
+              }
+            ],
+            "help": "Aplica a cuentas nuevas; cada persona puede cambiar su idioma cuando quiera. Los estados de cuenta usan el idioma configurado por compañía."
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_save_system",
+            "label": "Guardar sistema",
+            "variant": "primary",
+            "intent": "server_action:saveSystemSettings",
+            "trigger": "save_system",
+            "onSuccess": {
+              "toast": "Listo: los ajustes del sistema quedaron guardados."
+            },
+            "onError": {
+              "toast": "No pudimos guardar los ajustes del sistema. Inténtalo de nuevo."
+            }
+          }
+        ]
+      },
+      {
+        "id": "banner_retention",
+        "type": "info-banner",
+        "kind": "info",
+        "icon": "archive",
+        "title": "Retención de datos",
+        "content": "El registro de licencias y el registro de auditoría son de solo escritura: nada se borra ni se sobrescribe. Cada cambio que guardes en esta pantalla queda registrado con tu usuario, la fecha y el valor anterior."
+      }
+    ]
+  }
+}

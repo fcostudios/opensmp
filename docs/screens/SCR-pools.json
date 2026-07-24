@@ -1,0 +1,278 @@
+{
+  "accessibility": {
+    "ariaLandmarks": true,
+    "lang": "es-EC"
+  },
+  "description": "Pool operations per VendorAccount (Module C, J4): PoolGauge purchased vs assigned vs pending invites vs free, low-pool attention state, renewal date and mode chip. Purchase-or-reclaim callout when a blocked request exists: inactive candidates beside the prorated purchase note, with actions to propose reclamation or register a purchase (VendorAccountCapacity row).",
+  "i18n": {
+    "es-EC": {
+      "title": "Cupos por organización",
+      "subtitle": "Compradas, asignadas, invitaciones pendientes y disponibles en cada organización"
+    }
+  },
+  "id": "SCR-pools",
+  "layout": {
+    "kind": "page",
+    "titleBar": {
+      "subtitle": "Compradas, asignadas, invitaciones pendientes y disponibles en cada organización"
+    },
+    "dataFreshness": {
+      "label": "Datos sincronizados al 21/07/2026 (retraso ~3 días del proveedor)"
+    },
+    "sections": [
+      {
+        "id": "pool_cards",
+        "type": "cards-grid",
+        "title": "Cupos por organización",
+        "description": "Cada tarjeta muestra el PoolGauge de la organización: compradas vs asignadas vs invitaciones pendientes vs disponibles. Si las disponibles caen bajo el piso mínimo, la tarjeta pasa a estado de atención.",
+        "cardsGrid": {
+          "columns": {
+            "xs": 1,
+            "md": 2,
+            "lg": 3
+          }
+        },
+        "cards": [
+          {
+            "id": "pool_claude",
+            "title": "Org central Claude Enterprise",
+            "mode_chip": "Automatizado",
+            "gauge": {
+              "purchased": 40,
+              "assigned": 34,
+              "pending_invites": 3,
+              "free": 3
+            },
+            "low_pool_floor": 5,
+            "pool_state": "attention",
+            "pool_state_note": "Quedan 3 licencias disponibles: bajo el piso mínimo de 5.",
+            "contract_renewal_on": "01/03/2027",
+            "freshness": "datos al 21/07/2026",
+            "on_click": {
+              "navigate_to": "SCR-vendor-account-detail"
+            }
+          },
+          {
+            "id": "pool_gws",
+            "title": "Claude Enterprise — Kickoff (org propia) corporativo.",
+            "mode_chip": "Automatizado",
+            "gauge": {
+              "purchased": 120,
+              "assigned": 98,
+              "pending_invites": 2,
+              "free": 20
+            },
+            "low_pool_floor": 10,
+            "pool_state": "ok",
+            "contract_renewal_on": "15/01/2027",
+            "freshness": "datos al 21/07/2026",
+            "on_click": {
+              "navigate_to": "SCR-vendor-account-detail"
+            }
+          },
+          {
+            "id": "pool_figma",
+            "title": "Claude Enterprise — Opina (org propia)",
+            "mode_chip": "Orquestación",
+            "gauge": {
+              "purchased": 25,
+              "assigned": 20,
+              "pending_invites": 1,
+              "free": 4
+            },
+            "low_pool_floor": 3,
+            "pool_state": "ok",
+            "contract_renewal_on": "30/09/2026",
+            "freshness": "datos al 21/07/2026",
+            "on_click": {
+              "navigate_to": "SCR-vendor-account-detail"
+            }
+          }
+        ]
+      },
+      {
+        "id": "purchase_or_reclaim_callout",
+        "type": "info-banner",
+        "kind": "attention",
+        "title": "Hay 1 solicitud bloqueada sin licencia disponible",
+        "content": "La solicitud de Daniela Espinosa (Opina) está en \"Bloqueada: sin licencia disponible\" en Org central Claude Enterprise. Puedes liberar una licencia inactiva de la tabla de candidatas o registrar una compra nueva. Nota de prorrateo: una licencia comprada hoy se cobra por días reales del ciclo (prorrateo actual/actual), aprox. USD 9,03 por los 10 días restantes de julio frente a USD 27,10 por mes completo.",
+        "visibleWhen": "exists(LicenseRequest.state == 'blocked_no_seat')",
+        "actions": [
+          {
+            "id": "btn_propose_reclamation",
+            "label": "Proponer reclamación",
+            "variant": "secondary",
+            "navigate_to": "SCR-reclamation-proposals"
+          },
+          {
+            "id": "btn_register_purchase",
+            "label": "Registrar compra",
+            "variant": "primary",
+            "opens_modal": "modal_register_purchase"
+          }
+        ]
+      },
+      {
+        "id": "inactive_candidates",
+        "type": "data-table",
+        "title": "Candidatas a reclamación (inactivas)",
+        "description": "Personas con licencia activa en la organización con cupo agotado y sin uso reciente. Ninguna se retira sin la aprobación de su aprobador/a.",
+        "table": {
+          "columns": [
+            {
+              "id": "person",
+              "header": "Persona"
+            },
+            {
+              "id": "company",
+              "header": "Compañía"
+            },
+            {
+              "id": "last_active",
+              "header": "Última actividad"
+            },
+            {
+              "id": "inactive_days",
+              "header": "Días inactiva"
+            },
+            {
+              "id": "status",
+              "header": "Estado",
+              "type": "badge"
+            },
+            {
+              "id": "monthly_cost",
+              "header": "Costo mensual",
+              "align": "right",
+              "type": "money"
+            }
+          ],
+          "row_on_click": {
+            "navigate_to": "SCR-person-detail"
+          }
+        },
+        "rows": [
+          {
+            "person": "María Fernanda Játiva",
+            "company": "Kickoff",
+            "last_active": "12/05/2026",
+            "inactive_days": 71,
+            "status": "Marcada inactiva",
+            "monthly_cost": "USD 27,10"
+          },
+          {
+            "person": "Jorge Luis Cabezas",
+            "company": "Right Angle Media",
+            "last_active": "02/06/2026",
+            "inactive_days": 50,
+            "status": "Marcada inactiva",
+            "monthly_cost": "USD 27,10"
+          },
+          {
+            "person": "Andrea Carolina Vaca",
+            "company": "PPM",
+            "last_active": "20/06/2026",
+            "inactive_days": 32,
+            "status": "Marcada inactiva",
+            "monthly_cost": "USD 27,10"
+          }
+        ]
+      },
+      {
+        "id": "modal_register_purchase",
+        "type": "modal",
+        "title": "Registrar compra de licencias",
+        "description": "Registra la compra hecha en la consola del proveedor conforme al runbook: crea una fila de capacidad (VendorAccountCapacity) con la cantidad y la fecha efectiva.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "vendor_account_id",
+            "label": "Organización",
+            "component": "select",
+            "required": true,
+            "options": [
+              "Org central Claude Enterprise",
+              "Claude Enterprise — Kickoff (org propia)",
+              "Claude Enterprise — Opina (org propia)"
+            ]
+          },
+          {
+            "id": "license_type_id",
+            "label": "Tipo de licencia",
+            "type": "select",
+            "required": true,
+            "options": [
+              "Claude Enterprise — licencia estándar",
+              "Claude Enterprise — licencia con API"
+            ]
+          },
+          {
+            "id": "purchased_qty",
+            "label": "Cantidad comprada",
+            "component": "number",
+            "required": true,
+            "min": 1,
+            "help": "Cantidad total de licencias compradas que quedan vigentes desde la fecha efectiva."
+          },
+          {
+            "id": "effective_from",
+            "label": "Vigente desde",
+            "component": "date",
+            "required": true,
+            "help": "Formato dd/mm/aaaa. El prorrateo se calcula por días reales (actual/actual)."
+          },
+          {
+            "id": "note",
+            "label": "Nota (opcional)",
+            "component": "textarea",
+            "placeholder": "Ej.: compra de 5 licencias por bloqueo de solicitud, orden interna 2026-114"
+          }
+        ],
+        "submit": {
+          "id": "btn_save_purchase",
+          "label": "Guardar compra",
+          "action": "server_action:registerPurchase",
+          "client_request_id": true
+        }
+      }
+    ]
+  },
+  "meta": {
+    "owner": "fcostudios__smp",
+    "release": "R1"
+  },
+  "roles": [
+    "group_admin"
+  ],
+  "route": "/cupos",
+  "title": "Cupos por organización"
+}

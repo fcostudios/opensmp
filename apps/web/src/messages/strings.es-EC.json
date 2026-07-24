@@ -1,0 +1,10 @@
+{
+  "_note": "Seeded from vocabulary_locked_words (the LOCKED terms) + surfaces. This is a WORD-LIST seed, not the full microcopy/translation map — TODO: full translations need a richer extract (Step-6 md / brand microcopy).",
+  "locked": {},
+  "surfaces": [
+    "approver_queue",
+    "finance_statements",
+    "requester_flow",
+    "workspace_admin"
+  ]
+}
