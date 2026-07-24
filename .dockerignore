@@ -1,5 +1,8 @@
 .env
 .env.*
+**/.env
+**/.env.*
+!**/.env.example
 .git
 .next
 .turbo
