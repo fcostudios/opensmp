@@ -38,12 +38,12 @@
 - **Rules:**
   - Endpoints are route handlers (`route.ts`); no separate backend service
   - Persist via the shared `drizzle` client; every multi-tenant query filters `org_id` (the generated tenant column — not `tenant_id`); add a soft-delete filter only on a table that declares `deleted_at`
-  - Protect handlers with the Keycloak session (`auth()` from `@/lib/auth/auth-config`)
+  - Protect handlers with the keycloak session (`auth()`)
 
 ### Infrastructure Agent
 - **Scope:** `infra/`
 - **Rules:**
-  - Self-hosted Docker Compose on a VPS (DEC-SMP-002) — Postgres, Keycloak, and the app run as Compose services
+  - Hosting: self-hosted (Docker Compose on a VPS) — a single Next.js app plus its declared infra services (see docs/specs/09_architecture.md)
   - Shell scripts must be idempotent (`set -euo pipefail`)
 
 ### Docs Agent
@@ -58,7 +58,7 @@
 1. **No cross-scope changes without discussion.** A new API shape is documented before the UI consumes it.
 2. **Shared code lives in `packages/`.** Never duplicate logic between modules.
 3. **Migrations are append-only.** Never modify a committed migration under `packages/db/src/migrations/`.
-4. **Feature branches follow `feature/<context>/<short-desc>`.** Example: `feature/socias/socia-crud`.
+4. **Feature branches follow `feature/<context>/<short-desc>`.** Example: `feature/members/member-crud`.
 5. **Every PR must reference a story ID** (e.g., US-004).
 6. **`pnpm type-check && pnpm lint && pnpm build` must pass** before any PR is merged.
 
@@ -93,11 +93,11 @@ When an agent needs to coordinate with another:
 
 ## Testing
 
-**Before writing, modifying, or deleting any test, you MUST read `TESTING.md` in this
-repo and follow it.** The org-wide rationale is in `docs/TEST_EFFECTIVENESS_STANDARD.md`.
+**Before writing, modifying, or deleting any test, you MUST read `docs/dev-guide/TESTING.md`
+and follow it.** The org-wide rationale is in `docs/TEST_EFFECTIVENESS_STANDARD.md`.
 These are hard constraints, not suggestions — a PR that violates them will be rejected.
 
-Non-negotiable rules (summarized from `TESTING.md` §1):
+Non-negotiable rules (summarized from `docs/dev-guide/TESTING.md` §1):
 
 - **Never use print/log as a test.** `console.log` / `System.out` / `print`, or a test that
   only checks "does not throw", is NOT an oracle. Every test asserts a property or contract.
@@ -121,4 +121,4 @@ Scope your test-writing to small, well-specified correctness bugs with clear rep
 expected behavior. Do not spray shallow or heavily-mocked tests to inflate volume -- test volume
 is not a goal and is measured as a cost, not a quality.
 
-When you change logic in a `TESTING.md` §3 critical path, update `TESTING.md` §3 in the same PR.
+When you change logic in a `docs/dev-guide/TESTING.md` §3 critical path, update its §3 in the same PR.

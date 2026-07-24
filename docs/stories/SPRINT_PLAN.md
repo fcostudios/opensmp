@@ -1,5 +1,5 @@
 <!-- nous-sprint-stamp
-generated_at: 2026-07-24T01:55:02Z
+generated_at: 2026-07-24T09:52:20Z
 current_sprint: sprint-5
 sprints_hash: 590ae2916211b5fa
 -->
@@ -49,7 +49,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 
 - Architecture: [docs/specs/09_architecture.md](../specs/09_architecture.md)
 - Design system: [packages/design-system/tokens.json](../../packages/design-system/tokens.json)
-- HTML specs: [docs/specs-html/index.html](../specs-html/index.html)
+- Screen specs (TOON): [docs/screens/](../screens/)
 
 ---
 
@@ -78,7 +78,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 
 - Architecture: [docs/specs/09_architecture.md](../specs/09_architecture.md)
 - Design system: [packages/design-system/tokens.json](../../packages/design-system/tokens.json)
-- HTML specs: [docs/specs-html/index.html](../specs-html/index.html)
+- Screen specs (TOON): [docs/screens/](../screens/)
 
 ---
 
@@ -113,7 +113,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 
 - Architecture: [docs/specs/09_architecture.md](../specs/09_architecture.md)
 - Design system: [packages/design-system/tokens.json](../../packages/design-system/tokens.json)
-- HTML specs: [docs/specs-html/index.html](../specs-html/index.html)
+- Screen specs (TOON): [docs/screens/](../screens/)
 
 ---
 
@@ -145,7 +145,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 
 - Architecture: [docs/specs/09_architecture.md](../specs/09_architecture.md)
 - Design system: [packages/design-system/tokens.json](../../packages/design-system/tokens.json)
-- HTML specs: [docs/specs-html/index.html](../specs-html/index.html)
+- Screen specs (TOON): [docs/screens/](../screens/)
 
 ---
 
@@ -166,5 +166,5 @@ See `docs/specs/09_architecture.md` for bounded context details.
 
 - Architecture: [docs/specs/09_architecture.md](../specs/09_architecture.md)
 - Design system: [packages/design-system/tokens.json](../../packages/design-system/tokens.json)
-- HTML specs: [docs/specs-html/index.html](../specs-html/index.html)
+- Screen specs (TOON): [docs/screens/](../screens/)
 

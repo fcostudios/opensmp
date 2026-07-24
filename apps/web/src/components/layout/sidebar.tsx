@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useUser } from "@auth0/nextjs-auth0";
+import { useSession } from "next-auth/react";
 import { navItems } from "@/components/shell/nav-items.gen";
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user } = useUser();
-  const userRoles = ((user as { roles?: string[] } | undefined)?.roles) ?? [];
+  const { data: session } = useSession();
+  const userRoles = ((session?.user as { roles?: string[] } | undefined)?.roles) ?? [];
   const visible = navItems.filter(
     (item) =>
       !item.roles ||

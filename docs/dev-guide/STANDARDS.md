@@ -41,7 +41,7 @@ string value — an unknown member fails the DB enum check at insert/update time
 const session = await auth();
 if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 const orgId = session.user.org_id as string;       // tenant scope (the org_id column)
-const actorSub = session.user.sub as string;       // stable Auth0 subject
+const actorSub = session.user.sub as string;       // stable IdP subject
 ```
 
 - **Never** read the tenant id from the request body/query — only the verified session claim.

@@ -17,11 +17,16 @@ sufficient. See `CLAUDE.md` for the summary; this is the authoritative gate.
 
 3. **Build succeeds:**
    ```bash
-   pnpm test                # Vitest across the workspace — must meet the TESTING.md effectiveness bar
-   pnpm build               # next build --webpack (single-app Next bundle)
+   pnpm build               # next build --webpack (serverless / PWA bundler)
    ```
 
-4. **Schema applies on a fresh database (and is verified):**
+4. **Tests pass** (Vitest across the workspace; effectiveness bar per
+   `TESTING.md` §4 — coverage is a diagnostic, never a completion target):
+   ```bash
+   pnpm test
+   ```
+
+5. **Schema applies on a fresh database (and is verified):**
    - **Prerequisite:** `DATABASE_URL` must be set to a reachable Postgres before this
      step — copy `.env.example` → `.env` and set it (or run `task setup`). The bare
      `push` below silently no-ops against an unset/unreachable URL.
@@ -37,19 +42,19 @@ sufficient. See `CLAUDE.md` for the summary; this is the authoritative gate.
    - Once applied, a migration file is immutable — add a new one; never edit it.
    - Every Drizzle column has a corresponding migration column.
 
-5. **Report evidence** in `.nous-feedback.jsonl`:
+6. **Report evidence** in `.nous-feedback.jsonl`:
    ```jsonl
-   {"story":"US-XXX","event":"build_pass","notes":"type-check + lint + build green"}
+   {"story":"US-XXX","event":"build_pass","notes":"type-check + lint + build + test green"}
    {"story":"US-XXX","event":"done"}
    ```
 
-6. **Adversarial AC verification** — see
+7. **Adversarial AC verification** — see
    [`FEEDBACK.md`](FEEDBACK.md) (AC Verification Protocol).
 
 ## Story Rejection Criteria
 
 A story is REJECTED during sprint acceptance if any of these hold:
-- `pnpm type-check`, `pnpm lint`, `pnpm test`, or `pnpm build` fails.
+- `pnpm type-check`, `pnpm lint`, `pnpm build`, or `pnpm test` fails.
 - A migration file was edited instead of adding a new one.
 - No `build_pass` event in `.nous-feedback.jsonl`.
 - An AC was marked pass with no `ac_verify` adversarial check logged.
