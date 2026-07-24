@@ -1,5 +1,5 @@
 <!-- nous-sprint-stamp
-generated_at: 2026-07-23T03:43:56Z
+generated_at: 2026-07-24T01:55:02Z
 current_sprint: sprint-5
 sprints_hash: 590ae2916211b5fa
 -->
@@ -12,11 +12,11 @@ sprints_hash: 590ae2916211b5fa
 
 | Story Target | Code Location |
 |---|---|
-| **backend** | `apps/api/src/main/java/<base-package-path>/<context>/` |
+| **backend** | `apps/web/src/app/api/<route>/route.ts` (serverless API routes) |
 | **frontend** | `apps/web/src/components/` or `apps/web/src/app/<route>/` |
-| **full-stack** | Both backend API + frontend UI |
+| **full-stack** | Both the API route handler + frontend UI (one Next.js app) |
 
-See `docs/architecture/ARCHITECTURE.md` for bounded context details.
+See `docs/specs/09_architecture.md` for bounded context details.
 
 ---
 
@@ -28,13 +28,13 @@ See `docs/architecture/ARCHITECTURE.md` for bounded context details.
 
 | # | Track | Story | Name | Size | Where to Code | CHG | Blocked By | Blocks | Assignee | File |
 |---|-------|-------|------|------|---------------|-----|------------|--------|----------|------|
-| 1 | frontend | **US-001** ⬜ | Scaffold the monorepo and app skeleton | ? ?SP | `web/src/components/` | — | — | →1 | — | [r1_misc_us_001.md](sprint-1/r1_misc_us_001.md) |
+| 1 | frontend | **US-001** ⬜ | Scaffold the monorepo and app skeleton | ? ?SP | `apps/web/src/components/` | — | — | →1 | — | [r1_misc_us_001.md](sprint-1/r1_misc_us_001.md) |
 | 2 | full-stack | **US-054** ⬜ | Anthropic API probe spike | ? ?SP | `See story file` | — | — | — | — | [r1_misc_us_054.md](sprint-1/r1_misc_us_054.md) |
 | 3 | full-stack | **US-002** ⬜ | Docker Compose runtime + CI pipeline | ? ?SP | `See story file` | — | US-001 | →4 | — | [r1_misc_us_002.md](sprint-1/r1_misc_us_002.md) |
-| 4 | backend | **US-003** ⬜ | Core schema migration with DB-level register integrity | ? ?SP | `api/.../shared/` | — | US-002 | →8 | — | [r1_misc_us_003.md](sprint-1/r1_misc_us_003.md) |
-| 5 | backend | **US-004** ⬜ | Platform auth via Keycloak OIDC (mandatory 2FA for admin roles) | ? ?SP | `api/.../shared/` | — | US-003 | →2 | — | [r1_misc_us_004.md](sprint-1/r1_misc_us_004.md) |
-| 6 | backend | **US-005** ⬜ | Server-side RBAC + company scoping middleware | ? ?SP | `api/.../shared/` | — | US-004 | →9 | — | [r1_misc_us_005.md](sprint-1/r1_misc_us_005.md) |
-| 7 | frontend | **US-006** ⬜ | App shell: data-workspace chrome + bilingual i18n | ? ?SP | `web/src/components/` | — | US-004 | — | — | [r1_misc_us_006.md](sprint-1/r1_misc_us_006.md) |
+| 4 | backend | **US-003** ⬜ | Core schema migration with DB-level register integrity | ? ?SP | `apps/web/src/app/api/` | — | US-002 | →8 | — | [r1_misc_us_003.md](sprint-1/r1_misc_us_003.md) |
+| 5 | backend | **US-004** ⬜ | Platform auth via Keycloak OIDC (mandatory 2FA for admin roles) | ? ?SP | `apps/web/src/app/api/` | — | US-003 | →2 | — | [r1_misc_us_004.md](sprint-1/r1_misc_us_004.md) |
+| 6 | backend | **US-005** ⬜ | Server-side RBAC + company scoping middleware | ? ?SP | `apps/web/src/app/api/` | — | US-004 | →9 | — | [r1_misc_us_005.md](sprint-1/r1_misc_us_005.md) |
+| 7 | frontend | **US-006** ⬜ | App shell: data-workspace chrome + bilingual i18n | ? ?SP | `apps/web/src/components/` | — | US-004 | — | — | [r1_misc_us_006.md](sprint-1/r1_misc_us_006.md) |
 | 8 | full-stack | **US-007** ⬜ | Seed: companies CSV + go-live register backfill | ? ?SP | `See story file` | — | US-003 | →3 | — | [r1_misc_us_007.md](sprint-1/r1_misc_us_007.md) |
 | 9 | full-stack | **US-008** ⬜ | Immutable audit trail + viewer | ? ?SP | `See story file` | — | US-005 | — | — | [r1_misc_us_008.md](sprint-1/r1_misc_us_008.md) |
 | 10 | full-stack | **US-046** ⬜ | Job runner + schedules | ? ?SP | `See story file` | — | US-002 | →6 | — | [r1_misc_us_046.md](sprint-1/r1_misc_us_046.md) |
@@ -47,7 +47,7 @@ See `docs/architecture/ARCHITECTURE.md` for bounded context details.
 
 ### References
 
-- Architecture: [docs/architecture/ARCHITECTURE.md](../architecture/ARCHITECTURE.md)
+- Architecture: [docs/specs/09_architecture.md](../specs/09_architecture.md)
 - Design system: [packages/design-system/tokens.json](../../packages/design-system/tokens.json)
 - HTML specs: [docs/specs-html/index.html](../specs-html/index.html)
 
@@ -76,7 +76,7 @@ See `docs/architecture/ARCHITECTURE.md` for bounded context details.
 
 ### References
 
-- Architecture: [docs/architecture/ARCHITECTURE.md](../architecture/ARCHITECTURE.md)
+- Architecture: [docs/specs/09_architecture.md](../specs/09_architecture.md)
 - Design system: [packages/design-system/tokens.json](../../packages/design-system/tokens.json)
 - HTML specs: [docs/specs-html/index.html](../specs-html/index.html)
 
@@ -100,7 +100,7 @@ See `docs/architecture/ARCHITECTURE.md` for bounded context details.
 | 8 | full-stack | **US-024** ⬜ | Offboarding + deprovisioning | ? ?SP | `See story file` | — | US-019, US-020 | →1 | — | [r1_misc_us_024.md](sprint-3/r1_misc_us_024.md) |
 | 9 | full-stack | **US-026** ⬜ | Analytics sync: activity + cost | ? ?SP | `See story file` | — | US-018, US-046 | →3 | — | [r1_misc_us_026.md](sprint-3/r1_misc_us_026.md) |
 | 10 | full-stack | **US-027** ⬜ | Inactivity flags + usage surface | ? ?SP | `See story file` | — | US-026 | →1 | — | [r1_misc_us_027.md](sprint-3/r1_misc_us_027.md) |
-| 11 | frontend | **US-029** ⬜ | Freshness labels + staleness alert | ? ?SP | `web/src/components/` | — | US-026, US-042 | — | — | [r1_misc_us_029.md](sprint-3/r1_misc_us_029.md) |
+| 11 | frontend | **US-029** ⬜ | Freshness labels + staleness alert | ? ?SP | `apps/web/src/components/` | — | US-026, US-042 | — | — | [r1_misc_us_029.md](sprint-3/r1_misc_us_029.md) |
 | 12 | full-stack | **US-030** ⬜ | Drift detection + retroactive claim | ? ?SP | `See story file` | — | US-018, US-042, US-046 | — | — | [r1_misc_us_030.md](sprint-3/r1_misc_us_030.md) |
 | 13 | full-stack | **US-028** ⬜ | Reclamation proposals: approve or dismiss | ? ?SP | `See story file` | — | US-024, US-027 | — | — | [r1_misc_us_028.md](sprint-3/r1_misc_us_028.md) |
 
@@ -111,7 +111,7 @@ See `docs/architecture/ARCHITECTURE.md` for bounded context details.
 
 ### References
 
-- Architecture: [docs/architecture/ARCHITECTURE.md](../architecture/ARCHITECTURE.md)
+- Architecture: [docs/specs/09_architecture.md](../specs/09_architecture.md)
 - Design system: [packages/design-system/tokens.json](../../packages/design-system/tokens.json)
 - HTML specs: [docs/specs-html/index.html](../specs-html/index.html)
 
@@ -143,7 +143,7 @@ See `docs/architecture/ARCHITECTURE.md` for bounded context details.
 
 ### References
 
-- Architecture: [docs/architecture/ARCHITECTURE.md](../architecture/ARCHITECTURE.md)
+- Architecture: [docs/specs/09_architecture.md](../specs/09_architecture.md)
 - Design system: [packages/design-system/tokens.json](../../packages/design-system/tokens.json)
 - HTML specs: [docs/specs-html/index.html](../specs-html/index.html)
 
@@ -164,7 +164,7 @@ See `docs/architecture/ARCHITECTURE.md` for bounded context details.
 
 ### References
 
-- Architecture: [docs/architecture/ARCHITECTURE.md](../architecture/ARCHITECTURE.md)
+- Architecture: [docs/specs/09_architecture.md](../specs/09_architecture.md)
 - Design system: [packages/design-system/tokens.json](../../packages/design-system/tokens.json)
 - HTML specs: [docs/specs-html/index.html](../specs-html/index.html)
 

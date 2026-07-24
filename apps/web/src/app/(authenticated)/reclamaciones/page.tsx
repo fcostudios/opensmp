@@ -8,7 +8,7 @@ export default function ScrReclamationProposalsPage() {
   return (
     <div className="p-6" data-scaffold={"SCR-reclamation-proposals"}>
       <h1 className="text-2xl font-bold">{title}</h1>
-      <p className="mt-2 text-muted-foreground">
+      <p className="mt-2 text-text-secondary">
         {"SCR-reclamation-proposals"}
       </p>
     </div>

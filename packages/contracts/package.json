@@ -1,0 +1,28 @@
+{
+  "name": "@smp/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "echo 'no lint'",
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "drizzle-zod": "^0.7.0",
+    "zod": "^3.23.8",
+    "drizzle-orm": "^0.38.3",
+    "@smp/db": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.0",
+    "@vitest/coverage-v8": "^4.1.0"
+  }
+}

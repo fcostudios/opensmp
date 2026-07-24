@@ -5,43 +5,37 @@ this file is the authoritative event schema.
 
 ## Where to Write
 
-Append one JSON per line to `.nous-feedback.jsonl` at the repo root.
-`ts` is optional (git fallback). Nous's `pull` command reads this file
-to update story status, add annotations, and register decisions.
+Append one JSON object per line to `.nous-feedback.jsonl` at the repo root.
+`ts` is optional (git fallback). Nous's `pull` command reads this file to update
+story status, add annotations, and register decisions.
 
 ## Event Types
 
 | Event | When | Required fields |
 |-------|------|-----------------|
-| `started` | Begin working on a story | `story`, `event`, `agent` (e.g. "codex", "claude-code", "copilot") |
-| `ac_pass` | An acceptance criterion passes | `story`, `event`, `ac` (number), `notes` |
-| `ac_verify` | Adversarial verification of one AC | `story`, `event`, `ac`, `method`, `pass` (bool), `notes` |
-| `build_pass` | Full build passes (BE + FE) | `story`, `event`, `backend_tests`, `backend_coverage`, `frontend_tests`, `frontend_coverage` |
-| `done` | Story complete, all AC + build passing | `story`, `event`, `coverage` |
-| `blocked` | Can't proceed | `story`, `event`, `reason`, `needs` (blocker story) |
-| `deviation` | Spec divergence | `story`, `event`, `notes` (what and why) |
-| `decision` | Technical decision made | `story`, `event`, `id` (DEC-NNN), `text`, `reason` |
-| `feedback` | Visual/UX issue with screenshot evidence | `story`, `event`, `title`, `description`, `images` (array of paths relative to repo root) |
+| `started` | Begin a story | `story`, `event`, `agent` |
+| `ac_pass` | An acceptance criterion passes | `story`, `event`, `ac`, `notes` |
+| `ac_verify` | Adversarial verification of one AC | `story`, `event`, `ac`, `method`, `pass`, `notes` |
+| `build_pass` | type-check + lint + build pass | `story`, `event`, `notes` |
+| `done` | Story complete, all AC + build passing | `story`, `event` |
+| `blocked` | Can't proceed | `story`, `event`, `reason`, `needs` |
+| `deviation` | Spec divergence | `story`, `event`, `notes` |
+| `decision` | Technical decision made | `story`, `event`, `id`, `text`, `reason` |
+| `feedback` | Visual/UX issue with screenshot evidence | `story`, `event`, `title`, `description`, `images` |
 
 ## Example Stream
 
 ```jsonl
-{"story":"US-064","event":"started","agent":"claude-code","ts":"2026-04-02T18:00:00Z"}
-{"story":"US-064","event":"ac_pass","ac":1,"notes":"Tenant entity created"}
-{"story":"US-064","event":"ac_verify","ac":1,"method":"grep + route check","pass":true,"notes":"Route registered, empty state renders"}
-{"story":"US-064","event":"build_pass","backend_tests":154,"backend_coverage":"84%","frontend_tests":47,"frontend_coverage":"82%"}
-{"story":"US-064","event":"done","coverage":"84%","agent":"claude-code"}
-{"story":"US-064","event":"blocked","reason":"Missing dependency","needs":"US-062"}
-{"story":"US-064","event":"deviation","notes":"Used discriminator strategy instead of schema-per-tenant"}
-{"story":"US-064","event":"decision","id":"DEC-134","text":"Discriminator multi-tenancy for R1","reason":"Simpler"}
-{"story":"US-064","event":"feedback","title":"Button label wrong","description":"Save button says Submit","images":["docs/screenshots/us064-submit-btn.png"]}
+{"story":"US-064","event":"started","agent":"claude-code"}
+{"story":"US-064","event":"ac_pass","ac":1,"notes":"socias list renders"}
+{"story":"US-064","event":"ac_verify","ac":1,"method":"route check","pass":true,"notes":"empty state renders"}
+{"story":"US-064","event":"build_pass","notes":"pnpm type-check && pnpm lint && pnpm build all green"}
+{"story":"US-064","event":"done"}
+{"story":"US-064","event":"feedback","title":"Button label wrong","description":"Save says Submit","images":["screenshots/us064-submit-btn.png"]}
 ```
 
-## Screenshot Evidence (for `feedback` events)
-
-Save screenshots to `docs/screenshots/<story-id>-<short-desc>.png` and reference
-them in the `images` array. `nous_package.py pull` reads these and attaches
-them to the FBK record.
+For `feedback` events, save images under a `screenshots/` folder at the repo root
+and list their repo-relative paths in `images`.
 
 ## AC Verification Protocol (MANDATORY before `done`)
 
@@ -49,23 +43,15 @@ them to the FBK record.
 
 | AC Type | Adversarial Check |
 |---------|-------------------|
-| **Navigation** | `grep -r "path" apps/web/src/` — verify link exists, no competing link. |
-| **Data display** | Verify API called; check empty/null/error; ALL fields render. |
-| **Role visibility** | Verify role check exists; test with WRONG role → hide/403. |
-| **Button/action** | Button exists, `onClick` routes correctly, not disabled by default. |
-| **Empty/error states** | Navigate with no data — empty state renders with exact CTA? |
-| **API contract** | Endpoint path matches story spec; request/response shape matches frontend. |
+| **Navigation** | Verify the link exists in `apps/web/src/app/`, no competing link. |
+| **Data display** | Verify the route handler is called; check empty/null/error; ALL fields render. |
+| **Role visibility** | Verify the role gate exists; test with the WRONG role → hide/403. |
+| **Button/action** | Button exists, handler routes correctly, not disabled by default. |
+| **Empty/error states** | Navigate with no data — empty state renders with the exact CTA. |
+| **API contract** | Handler path matches the TOON `dataSource`; request/response shape matches. |
 
-### Protocol Steps
-
-1. **Re-read the story file** — every AC literally before verifying.
-2. **Run adversarial check per AC** (see table above).
-3. **Log each result**: `{"story":"US-XXX","event":"ac_verify","ac":1,"method":"grep + route check","pass":true,"notes":"..."}`
-4. **If ANY `ac_verify` fails**: fix, then re-verify.
-5. **Log `done` only when all pass**: `{"story":"US-XXX","event":"done","coverage":"84%","ac_verified":7,"agent":"<your-agent>"}`
-
-**What "adversarial" means**: read like a QA tester finding bugs. Check exact wording.
-Test the negative case. Check integration, not just existence. Grep the codebase.
+Read like a QA tester finding bugs: check exact wording, test the negative case,
+verify integration (not just existence), and grep the codebase.
 
 ## `nav_gap` — route missing from the nav map (structured repair event)
 

@@ -1,10 +1,7 @@
 {
-  "dirty": true,
-  "dirty_paths": [
-    "Nous/Specs/fcostudios/smp/v1/07c_navigation_map.json",
-    "Nous/Specs/fcostudios/smp/v1/html_mocks/manifest.json"
-  ],
-  "git_sha": "78519f08c8b0",
+  "dirty": false,
+  "dirty_paths": [],
+  "git_sha": "8d73d3e209a1",
   "project_id": "fcostudios__smp",
   "schema_version": 1
 }

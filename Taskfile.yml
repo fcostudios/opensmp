@@ -2,36 +2,35 @@ version: "3"
 
 tasks:
   setup:
-    desc: "Full project setup (Docker + build + install)"
+    desc: "Full project setup (install + push schema)"
     cmds:
       - bash infra/scripts/setup.sh
 
   dev:
-    desc: "Run all services in development mode"
+    desc: "Run the Next.js app (frontend + serverless API routes)"
     cmds:
       - bash infra/scripts/run-all.sh
 
-  api:
-    desc: "Run Spring Boot API only"
-    dir: apps/api
-    cmds:
-      - ./gradlew bootRun --args='--spring.profiles.active=dev'
-
   web:
-    desc: "Run Next.js frontend only"
+    desc: "Run the Next.js dev server"
     dir: apps/web
     cmds:
       - pnpm dev
 
-  infra:
-    desc: "Start Docker infrastructure"
+  build:
+    desc: "Build the Next.js app"
+    dir: .
     cmds:
-      - docker compose -f infra/docker-compose.yml up -d
+      - turbo run build
 
-  infra:full:
-    desc: "Start Docker infra with pgAdmin"
+  migrate:
+    desc: "Push the Drizzle schema (fails loud on a silent no-op)"
+    dir: packages/db
     cmds:
-      - docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up -d
+      # push exits 0 even on an unreachable DATABASE_URL; verify-schema.mjs
+      # counts the applied tables and fails non-zero on 0 (IMP-259).
+      - pnpm drizzle-kit push
+      - node scripts/verify-schema.mjs
 
   seed:
     desc: "Seed the development database"
@@ -39,15 +38,9 @@ tasks:
       - bash infra/scripts/seed-db.sh
 
   reset-db:
-    desc: "Drop and recreate the database"
+    desc: "Drop and re-push the database schema"
     cmds:
       - bash infra/scripts/reset-db.sh
-
-  test:api:
-    desc: "Run backend tests"
-    dir: apps/api
-    cmds:
-      - ./gradlew test
 
   test:web:
     desc: "Run frontend type-check and lint"

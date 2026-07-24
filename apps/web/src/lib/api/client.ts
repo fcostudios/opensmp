@@ -5,7 +5,7 @@
  */
 import { getSession } from "next-auth/react";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public body?: unknown) {

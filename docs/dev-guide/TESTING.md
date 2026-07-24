@@ -43,7 +43,7 @@ The **aggregate + projection layers should be the widest part of the suite**, no
 > *(Authoritative machine-derived set: [`testing/critical-paths.md`](../../testing/critical-paths.md),
 > generated from this project's business rules + graph. Keep current.)*
 
-- **Tenant isolation** — every path that touches tenant-scoped data (filtered by `tenant_id`). → explicit isolation assertions (a query for tenant A must never return tenant B's rows).
+- **Tenant isolation** — every path that touches tenant-scoped data (filtered by `org_id`). → explicit isolation assertions (a query for tenant A must never return tenant B's rows).
 - **Authorization** — role/permission gates on commands/mutations. → integration tests for allowed vs forbidden (expect 403).
 - **Money / tax / financial math** (if present) — amounts, rounding, and idempotency of charge/ledger events. → property-based + a provider contract test.
 - **BR-01 — Register no-overlap (one seat, one holder, one period)** — critical business rule; oracle: `exact`. (stories: US-003)

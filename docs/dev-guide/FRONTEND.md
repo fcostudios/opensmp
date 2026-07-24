@@ -1,74 +1,84 @@
 # Frontend Rules — Detailed Reference
 
-Full reference for Next.js + TypeScript frontend patterns.
-See `CLAUDE.md` for the 12-rule summary; this file is the authoritative detail.
+Full reference for the Next.js + TypeScript frontend. See `CLAUDE.md` for the summary.
 
 ## Architecture Fundamentals
 
-1. **App Router only** — no pages/ directory.
-2. **Server Components by default** — `"use client"` only when needed.
+1. **App Router only** — no `pages/` directory.
+2. **Server Components by default** — `"use client"` only when using hooks, events, or browser APIs.
 3. **Design tokens from `packages/design-system`** — never hardcode colors, spacing, or fonts.
 4. **Client state: Zustand only** — no Redux, no Context for global state.
-5. **Form validation: Zod schemas** — shared between client and server.
+5. **Form validation: Zod schemas** — shared between client and route handlers.
 6. **Each screen answers ONE question** — no multi-purpose dashboards.
+
+## Server Components & data fetching (the silent prerender trap)
+
+A page Server Component is **statically prerendered at build** unless it opts into
+dynamic rendering. The trap: a page that fetches per-request data for its initial
+render but does NOT read a dynamic API renders **once at build** and ships that
+snapshot — **stale/empty data, silently** (no error). The precise rule:
+
+- A page (`page.tsx`) that fetches per-request data (from the db or an API) and does
+  NOT call a dynamic API → add `export const dynamic = "force-dynamic";` at the top.
+  (Or `export const revalidate = <seconds>` for time-based revalidation.)
+- A page that calls `auth0.getSession()` (or otherwise reads cookies/headers) is
+  **already dynamic** — `force-dynamic` is redundant there. Do NOT sprinkle it on
+  every page; it only matters when you fetch without touching a dynamic API.
+- **Route handlers (`route.ts`) and server actions are never prerendered** — this is
+  a *page* Server Component concern; the rule does not apply to them.
+
+## Design tokens (Tailwind v4 `@theme`)
+
+Tokens are **Tailwind v4 `@theme` variables in `apps/web/src/styles/tokens.css`**
+(imported by `globals.css`). The utility classes resolve from there — use them
+(`bg-primary`, `text-surface`, …); never hardcode colors, spacing, or fonts.
+
+- To change a token, edit the `@theme` block in `apps/web/src/styles/tokens.css`.
+- `tailwind.config.ts` and any `tailwind-preset.js` are **inert under Tailwind v4**
+  (build-proven: removing them yields byte-identical CSS) — editing them does NOT
+  change tokens. The canonical token data also ships under `packages/design-system`.
 
 ## Screen-to-API Wiring (via TOON `dataSource`)
 
-Every TOON section has a `dataSource` field with `url` + `method`. When implementing a screen:
+Every TOON section has a `dataSource` (`url` + `method`). When implementing a screen:
 
-1. Read `docs/screens/SCR-NN.json`.
-2. For each section with a `dataSource`, call that endpoint via the shared API client (`apiGet`, `apiPost`, etc.).
+1. Read the screen's TOON JSON under `docs/screens/` (one file per `SCR-NN`).
+2. For each section with a `dataSource`, call that endpoint via the shared API client.
 3. Replace template variables: `{current_user_id}` → from session; `{:paramId}` → from route params.
-4. Wire section `states`: loading → skeleton; error → error banner with retry; empty → empty state with CTA.
-5. If the backend endpoint doesn't exist yet, **create it** — never show mock data.
-
-## API Contract Registry
-
-`docs/api-contract-registry.json` lists every API endpoint the frontend expects, extracted from TOON `dataSource` fields.
-
-Before implementing a backend controller:
-- Search the registry for your endpoint path.
-- Match path + HTTP method **exactly** to the TOON `dataSource.url` / `method`.
-- Do NOT invent a different path.
-
-After implementing:
-- Verify with `grep -rE '@RequestMapping|@GetMapping|@PostMapping' apps/api/src/main/ | sort`.
+4. Wire section `states`: loading → skeleton; error → banner with retry; empty → empty state with CTA.
+5. If the route handler doesn't exist yet under `apps/web/src/app/api/`, **create it** — never show mock data.
 
 ## Visual Fidelity & `data-testid`
 
-- HTML mocks at `docs/mocks/*.html` are the **visual target**. Open in a browser, match colors/spacing/components.
-- Mocks are **not functional code**. Never copy mock HTML into the app. Never use mock HTML as "fallback UI".
-- Every TOON section/card/action/field MUST have `data-testid` matching the TOON `id`. Enforced by `e2e/toon-fidelity.spec.ts`.
+- The TOON specs under `docs/screens/` are the **layout source of truth** — match each section's structure, states, and `dataSource`.
+- Any HTML prototype is a **visual reference only** — never copy prototype HTML into the app; never use it as fallback UI.
+- Every TOON section/card/action/field MUST have `data-testid` matching the TOON `id`.
 
 ## i18n
 
 - Never hardcode user-facing strings in JSX (the `check-hardcoded-string` lint rejects bare text nodes).
-- **Client Component** (`"use client"`): `useLocale()` hook from `lib/i18n/use-locale.ts`.
-- **Server Component** (default; `async` pages): `useLocale()` is client-only — import the messages JSON instead (`import messages from "@/lib/i18n/<lang>.json"`; read `messages.pages[key]?.title`). See the `socias` list + `[id]` detail worked examples.
+- **Client Component** (`"use client"`): use `useLocale()` from `@/lib/i18n/use-locale`.
+- **Server Component** (default; `async` pages, anything that `await`s): `useLocale()` is a client hook and CANNOT be called here. Import the messages JSON instead — e.g. `import messages from "@/lib/i18n/<lang>.json"` then read `messages.pages[key]?.title` (the `socias` list + `[id]` detail worked examples show the pattern).
 - Locale: `en-US` (single-locale project).
 - Mixed-language view = i18n setup is broken.
 
 ## Authentication & Role Gating
 
-- `hasMinRole()` from `lib/auth/roles.ts`. Hierarchy: `seller < manager < director < admin`.
-- Admin sees ALL menu items.
-- User display name: `session.user.name` (from Keycloak `given_name` + `family_name`). Never display UUID as identity.
-- Logout: `import { logout } from "lib/auth/logout"` — ends both NextAuth + Keycloak SSO sessions.
+- `hasMinRole(roles, minRole)` from `@/lib/auth/roles`; hierarchy is `ROLE_HIERARCHY` (generated from the nav-map RBAC).
+- The highest role sees all menu items.
+- User display name from the Auth0 session — never display a raw id as identity.
+- Log out via `logout()` from `@/lib/auth/logout`.
 
 ## API Client & Error Handling
 
-- ALL `/api/v1/*` calls use the shared client:
-  ```typescript
-  import { apiGet, apiPost } from "lib/api/client";
-  ```
-  It auto-attaches the Bearer token from the session.
-- Raw `fetch('/api/v1/...')` in any page/component is a bug — replace with the shared client.
-- Every page MUST have loading, empty, and error states. No blank screens. Silent failures are **rejection-level defects**.
+- ALL `/api/v1/*` calls use the shared client (`@/lib/api/client`) — it attaches the session token.
+- Raw `fetch("/api/v1/...")` in a page/component is a bug — use the shared client.
+- Every page MUST have loading, empty, and error states. Silent failures are rejection-level defects.
 
 ## Banned Patterns (Rejection-Level Defects)
 
-- **Dev mocks / fake auth** — any `if (devMode)` or `if (!process.env.KEYCLOAK_*)` branch returning fake user data.
-- **Hardcoded app state** — `onboardingComplete: true`, preset feature flags, fallback IDs not matching the DB.
-- **Hardcoded redirect strings** — use route constants from `lib/routes.ts`.
-- **Embedded fixture data** — never preset arrays/IDs in frontend code; fetch from the API and show empty state if unavailable.
+- **Dev mocks / fake auth** — any `if (devMode)` branch returning a fake session.
+- **Hardcoded app state** — `onboardingComplete: true`, preset flags, fixture IDs.
+- **Hardcoded redirect strings** — use route constants from `@/lib/routes`.
+- **Embedded fixture data** — fetch from the API and show an empty state if unavailable.
 - **Copied mock HTML in app code** — mocks are visual references only.

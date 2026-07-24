@@ -3,29 +3,35 @@ set -euo pipefail
 
 echo "=== Ledger — Setup ==="
 
-# 1. Start infrastructure
-echo "[1/4] Starting Docker services..."
-docker compose -f infra/docker-compose.yml up -d
+# 1. Install dependencies (pnpm workspace install at root).
+#    First run writes pnpm-lock.yaml (repo root); commit it so installs are reproducible
+#    (CI can then use `pnpm install --frozen-lockfile`). It is not gitignored.
+echo "[1/3] Installing dependencies..."
+pnpm install
 
-# 2. Wait for health
-echo "[2/4] Waiting for PostgreSQL..."
-until docker exec app-postgres pg_isready -U app >/dev/null 2>&1; do
-  sleep 1
-done
-echo "  PostgreSQL is ready."
+# 2. Provision the database schema. DATABASE_URL drives the driver
+#    (IMP-259): a standard Postgres URL applies locally via node-postgres;
+#    a *.neon.tech URL targets managed Neon. A clean clone only ships
+#    .env.example; without a .env.local, drizzle-kit reads no DATABASE_URL
+#    and the push silently no-ops (IMP-256). Create the env file once, then
+#    push (and verify it actually applied) only if it's set.
+echo "[2/3] Provisioning database schema..."
+cd packages/db
+if [ ! -f .env.local ] && [ -f .env.example ]; then
+  cp .env.example .env.local
+  echo "  Created .env.local from .env.example (under packages/db)."
+fi
+if grep -Eq '^DATABASE_URL=.+' .env.local 2>/dev/null; then
+  # push exits 0 even on an unreachable URL (silent no-op), so verify the
+  # schema actually applied — fail loud on 0 tables (IMP-259).
+  pnpm drizzle-kit push
+  node scripts/verify-schema.mjs
+else
+  echo "  SKIPPED: set DATABASE_URL in the packages/db .env.local file first"
+  echo "  (managed Postgres, e.g. Neon — no local Docker Postgres), then re-run."
+fi
+cd ../..
 
-echo "  Waiting for Keycloak..."
-until curl -sf http://localhost:8180/health/ready >/dev/null 2>&1; do
-  sleep 2
-done
-echo "  Keycloak is ready."
-
-# 3. Build backend
-echo "[3/4] Building Spring Boot API..."
-cd apps/api && ./gradlew build -x test && cd ../..
-
-# 4. Install frontend
-echo "[4/4] Installing frontend dependencies..."
-cd apps/web && pnpm install && cd ../..
-
-echo "=== Setup complete. Run 'infra/scripts/run-all.sh' to start. ==="
+# 3. Done.
+echo "[3/3] Setup complete."
+echo "=== Run 'task dev' (or infra/scripts/run-all.sh) to start. ==="

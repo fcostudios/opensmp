@@ -1,36 +1,49 @@
 # AGENTS.md — Ledger
 
 > Agent coordination rules for AI-assisted multi-agent development.
+> This is a **single serverless nextjs app** — no separate backend service.
+
+## Getting Started (read this first)
+
+1. **Onboard:** install + database + the full conventions are in
+   [`CLAUDE.md`](CLAUDE.md) (Quick Start). Run `pnpm install`, set
+   `DATABASE_URL`, then apply the schema with
+   `cd packages/db && pnpm drizzle-kit push && node scripts/verify-schema.mjs`
+   (the drizzle config + verifier live with the schema, matching
+   DEFINITION_OF_DONE).
+2. **Pick work from [`docs/stories/SPRINT_PLAN.md`](docs/stories/SPRINT_PLAN.md)** — the
+   sprint-ordered work queue (links to each story spec by sprint). `docs/stories/INDEX.md`
+   is a flat catalog, NOT the queue; start from SPRINT_PLAN.
+3. **Definition of Done:** a story is done only when
+   [`docs/dev-guide/DEFINITION_OF_DONE.md`](docs/dev-guide/DEFINITION_OF_DONE.md) passes —
+   `pnpm type-check && pnpm lint && pnpm build`, and `drizzle-kit push` + `verify-schema.mjs`
+   apply the schema.
+4. **Conventions** (tenant column `org_id`, per-table soft delete, App Router, design tokens)
+   live in [`CLAUDE.md`](CLAUDE.md) and `docs/dev-guide/` — follow them verbatim.
 
 ## Agent Roles
 
-### Backend Agent
-- **Scope:** `apps/api/`, `packages/db/`
-- **Language:** typescript 
-- **Framework:** nextjs 
-- **Rules:**
-  - Follow DDD layer boundaries (api → application → domain → infrastructure)
-  - All entities extend `BaseEntity`
-  - Always include `tenant_id` in queries
-  - Write JUnit 5 tests for every service method
-  - Use Flyway for schema changes — never modify existing migrations
-
-### Frontend Agent
+### App Agent
 - **Scope:** `apps/web/`
 - **Language:** TypeScript
-- **Framework:** nextjs  / react 
+- **Framework:** nextjs  / react
 - **Rules:**
-  - Use App Router with Server Components by default
+  - App Router with Server Components by default; `"use client"` only when needed
   - Import design tokens from `packages/design-system`
-  - Use Zustand for client state management
-  - Validate all forms with zod
+  - Use Zustand for client state; validate forms with zod
   - All user-facing strings go in i18n locale files
 
-### Infrastructure Agent
-- **Scope:** `infra/`, `packages/db/`
+### API Agent
+- **Scope:** `apps/web/src/app/api/`, `packages/db/src/`
 - **Rules:**
-  - Docker Compose for local dev
-  - keycloak realm changes go through realm export JSON
+  - Endpoints are route handlers (`route.ts`); no separate backend service
+  - Persist via the shared `drizzle` client; every multi-tenant query filters `org_id` (the generated tenant column — not `tenant_id`); add a soft-delete filter only on a table that declares `deleted_at`
+  - Protect handlers with the keycloak session (`auth0.getSession()`)
+
+### Infrastructure Agent
+- **Scope:** `infra/`
+- **Rules:**
+  - Serverless hosting (Vercel) — no containers
   - Shell scripts must be idempotent (`set -euo pipefail`)
 
 ### Docs Agent
@@ -42,20 +55,18 @@
 
 ## Coordination Rules
 
-1. **No cross-scope changes without discussion.** If a backend change requires
-   a frontend change, document the API contract first.
-2. **Shared code lives in `packages/`.** Never duplicate logic between apps.
-3. **Database migrations are append-only.** Never modify a committed migration.
-4. **Feature branches follow `feature/<context>/<short-desc>`.** Example:
-   `feature/sales/opportunity-crud`.
+1. **No cross-scope changes without discussion.** A new API shape is documented before the UI consumes it.
+2. **Shared code lives in `packages/`.** Never duplicate logic between modules.
+3. **Migrations are append-only.** Never modify a committed migration under `packages/db/src/migrations/`.
+4. **Feature branches follow `feature/<context>/<short-desc>`.** Example: `feature/socias/socia-crud`.
 5. **Every PR must reference a story ID** (e.g., US-004).
-6. **ArchUnit tests must pass** before any backend PR is merged.
+6. **`pnpm type-check && pnpm lint && pnpm build` must pass** before any PR is merged.
 
 ## Sprint Flow
 
-1. **Sprint Planning:** Stories assigned from `docs/stories/INDEX.md`
+1. **Sprint Planning:** pick stories from `docs/stories/SPRINT_PLAN.md` (the sprint-ordered work queue)
 2. **Development:** Agents work on assigned stories within their scope
-3. **Integration:** API contracts validated, frontend connected
+3. **Integration:** API contracts validated, UI connected
 4. **Review:** Cross-agent review for shared boundaries
 5. **Demo:** Working feature demonstrated end-to-end
 
@@ -65,7 +76,8 @@
 |------|---------|
 | `CLAUDE.md` | Project intelligence — architecture, rules, quick start |
 | `AGENTS.md` | This file — agent roles and coordination |
-| `docs/stories/INDEX.md` | Story catalog with sprint assignments |
+| `docs/stories/SPRINT_PLAN.md` | **Work queue** — sprint-ordered stories; start here |
+| `docs/stories/INDEX.md` | Flat story catalog (reference, not the queue) |
 | `docs/specs/` | ER model, screens, navigation map |
 | `docs/decisions/` | Product decision history |
 | `Taskfile.yml` | Task runner commands |
@@ -75,10 +87,9 @@
 
 When an agent needs to coordinate with another:
 
-1. **API Contract:** Define the endpoint in a shared spec before implementing
-2. **Event Contract:** Define the domain event class before publishing
-3. **UI Contract:** Define the component props interface before building
-4. **Migration Ordering:** Coordinate migration version numbers to avoid conflicts
+1. **API Contract:** Define the route handler path + shape before implementing
+2. **UI Contract:** Define the component props interface before building
+3. **Migration Ordering:** Timestamp-slug filenames avoid version conflicts
 
 ## Testing
 

@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint && pnpm lint:ds",
+    "lint": "eslint . && pnpm lint:ds",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "lint:ds": "node ../../scripts/check-status-pill.mjs ../.. && node ../../scripts/check-hardcoded-color.mjs ../.. && node ../../scripts/check-hardcoded-string.mjs ../.. && node ../../scripts/check-lucide-allowlist.mjs ../..",
@@ -23,7 +23,11 @@
     "drizzle-orm": "^0.38.3",
     "@neondatabase/serverless": "^0.10.4",
     "pg": "^8.13.1",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "@smp/db": "workspace:*",
+    "@smp/contracts": "workspace:*",
+    "@smp/domain": "workspace:*",
+    "@smp/ui": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.7.0",
@@ -37,6 +41,7 @@
     "eslint-config-next": "^15.1.0",
     "@types/pg": "^8.11.10",
     "drizzle-kit": "^0.30.1",
+    "@eslint/eslintrc": "^3.3.1",
     "vitest": "^4.1.0",
     "@vitest/coverage-v8": "^4.1.0"
   }

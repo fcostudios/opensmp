@@ -5,8 +5,8 @@
 ## Quick Start
 
 ```bash
-# Prerequisites: Docker, typescript , Node 22, pnpm
-task setup                                  # Docker + build + install
+# Prerequisites: Node 22, pnpm, Postgres (local for dev, or managed Neon for prod)
+task setup                                  # install + push schema (verified)
 ./infra/scripts/install-git-hooks.sh        # enforce US-NNN/CHG-NNN in commits
 task dev                                    # Run all services
 ```
@@ -16,9 +16,7 @@ task dev                                    # Run all services
 
 | Service | URL |
 |---------|-----|
-| API | http://localhost:8080 |
-| Web | http://localhost:3000 |
-| Auth | http://localhost:8180 |
+| Web (+ API routes) | http://localhost:3000 |
 
 ## Dev Credentials
 
@@ -36,12 +34,15 @@ task dev                                    # Run all services
 ## Repository Structure
 
 ```
-apps/api/       Spring Boot REST API
-apps/web/       Next.js SPA
-packages/db/    Flyway migrations + seed
-packages/design-system/  Tokens + Tailwind preset
-infra/          Docker, Keycloak, scripts
-docs/           Stories, specs, decisions
+apps/web/                Next.js app (UI + serverless API routes)
+packages/db/             Drizzle schema + client (drizzle-kit runs here)
+packages/contracts/      Zod schemas (drizzle-zod) shared client/server
+packages/domain/         Business-logic services per bounded context
+packages/ui/             Shared React component library
+packages/config/         Shared ESLint preset
+packages/design-system/  Design tokens (consumed via Tailwind)
+infra/                   Scripts (setup, sync, sidebar)
+docs/                    Stories, specs, decisions
 ```
 
 ## Documentation

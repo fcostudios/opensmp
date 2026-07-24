@@ -1,0 +1,24 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "reporters": [
+    "progress",
+    "clear-text",
+    "html"
+  ],
+  "coverageAnalysis": "perTest",
+  "mutate": [
+    "packages/*/src/**/*.ts",
+    "apps/web/src/**/*.{ts,tsx}",
+    "!**/*.{test,spec}.ts",
+    "!**/*.d.ts",
+    "!packages/db/src/migrations/**",
+    "!packages/db/src/testing/**"
+  ],
+  "thresholds": {
+    "high": 80,
+    "low": 60,
+    "break": null
+  }
+}
