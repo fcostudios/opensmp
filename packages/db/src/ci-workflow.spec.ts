@@ -44,6 +44,8 @@ describe("database CI workflow", () => {
     expect(source).toContain("ledger_app");
     expect(source).toContain("DATABASE_ADMIN_URL");
     expect(source).toContain("DATABASE_URL");
+    expect(source).toContain("--file=packages/db/scripts/ci-bootstrap.sql");
+    expect(source).not.toMatch(/--command=.*CREATE ROLE/);
     expect(source).not.toContain("public.company");
     expect(source).not.toMatch(/uses:\s*[^\n]+@(v\d+|main|master)\b/);
   });

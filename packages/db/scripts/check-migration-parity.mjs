@@ -18,42 +18,146 @@ function databaseUrl(adminUrl, databaseName) {
   return url.toString();
 }
 
-async function runDrizzlePush(pushUrl) {
-  await new Promise((resolveRun, rejectRun) => {
-    const child = spawn(
-      "pnpm",
-      ["exec", "drizzle-kit", "push", "--force"],
-      {
-        cwd: packageRoot,
-        env: {
-          ...process.env,
-          DATABASE_URL: pushUrl,
-          DB_DRIVER: "pg",
-        },
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk;
+function redactOutput(output, redactions) {
+  let redacted = output.replace(
+    /postgres(?:ql)?:\/\/[^\s'"]+/giu,
+    "postgresql://[REDACTED]",
+  );
+  for (const value of [...redactions].filter(Boolean).sort(
+    (left, right) => right.length - left.length,
+  )) {
+    redacted = redacted.replaceAll(value, "[REDACTED]");
+  }
+  return redacted;
+}
+
+function terminateProcessTree(child, signal) {
+  if (!child.pid) return;
+  if (process.platform !== "win32") {
+    try {
+      process.kill(-child.pid, signal);
+      return;
+    } catch {
+      // The group may already be gone; fall back to the direct child.
+    }
+  }
+  try {
+    child.kill(signal);
+  } catch {
+    // The process already exited.
+  }
+}
+
+export async function runBoundedProcess(
+  command,
+  args,
+  {
+    cwd = packageRoot,
+    env = process.env,
+    timeoutMs = 120_000,
+    killGraceMs = 1_000,
+    maxOutputBytes = 64 * 1024,
+    redactions = [],
+  } = {},
+) {
+  return await new Promise((resolveRun, rejectRun) => {
+    const child = spawn(command, args, {
+      cwd,
+      env,
+      detached: process.platform !== "win32",
+      stdio: ["ignore", "pipe", "pipe"],
     });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk;
+    const chunks = [];
+    let capturedBytes = 0;
+    let truncated = false;
+    let timedOut = false;
+    let spawnError;
+    let killTimer;
+
+    const capture = (chunk) => {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      const remaining = Math.max(0, maxOutputBytes - capturedBytes);
+      if (remaining > 0) {
+        chunks.push(buffer.subarray(0, remaining));
+        capturedBytes += Math.min(buffer.length, remaining);
+      }
+      if (buffer.length > remaining) truncated = true;
+    };
+    child.stdout.on("data", capture);
+    child.stderr.on("data", capture);
+    child.once("error", (error) => {
+      spawnError = error;
     });
-    child.once("error", rejectRun);
-    child.once("exit", (code) => {
-      if (code === 0) {
-        resolveRun();
-      } else {
+
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      terminateProcessTree(child, "SIGTERM");
+      killTimer = setTimeout(() => {
+        terminateProcessTree(child, "SIGKILL");
+      }, killGraceMs);
+      killTimer.unref();
+    }, timeoutMs);
+    timeout.unref();
+
+    child.once("close", (code, signal) => {
+      clearTimeout(timeout);
+      if (killTimer) clearTimeout(killTimer);
+      const rawOutput =
+        Buffer.concat(chunks).toString("utf8") +
+        (truncated ? "\n[output truncated]" : "");
+      const output = redactOutput(rawOutput, redactions).trim();
+      if (spawnError) {
         rejectRun(
           new Error(
-            `drizzle-kit push failed with exit ${code}: ${(stderr || stdout).trim()}`,
+            `failed to start ${command}: ${redactOutput(spawnError.message, redactions)}`,
+            { cause: spawnError },
           ),
         );
+      } else if (timedOut) {
+        rejectRun(
+          new Error(
+            `${command} timed out after ${timeoutMs}ms` +
+              (output ? `: ${output}` : ""),
+          ),
+        );
+      } else if (code !== 0) {
+        rejectRun(
+          new Error(
+            `${command} failed with exit ${code ?? `signal ${signal}`}` +
+              (output ? `: ${output}` : ""),
+          ),
+        );
+      } else {
+        resolveRun({ stdout: output });
       }
     });
   });
+}
+
+function configuredPushTimeout() {
+  const timeout = Number(process.env.DRIZZLE_PUSH_TIMEOUT_MS ?? 120_000);
+  return Number.isFinite(timeout) && timeout > 0 ? timeout : 120_000;
+}
+
+async function runDrizzlePush(pushUrl, { dotenvDirectory } = {}) {
+  const password = new URL(pushUrl).password;
+  await runBoundedProcess(
+    "pnpm",
+    ["exec", "drizzle-kit", "push", "--force"],
+    {
+      cwd: packageRoot,
+      env: {
+        ...process.env,
+        DATABASE_URL: pushUrl,
+        DB_DRIVER: "pg",
+        ...(dotenvDirectory
+          ? { DRIZZLE_ENV_DIR: dotenvDirectory }
+          : {}),
+      },
+      timeoutMs: configuredPushTimeout(),
+      redactions: [pushUrl, password],
+    },
+  );
 }
 
 async function describeStructure(connectionString) {
@@ -154,6 +258,7 @@ async function dropDisposableDatabase(admin, databaseName) {
 export async function checkMigrationParity({
   databaseAdminUrl = process.env.DATABASE_ADMIN_URL,
   applicationUrl = process.env.DATABASE_URL,
+  dotenvDirectory,
   beforeCompare,
 } = {}) {
   if (!databaseAdminUrl) {
@@ -187,7 +292,7 @@ export async function checkMigrationParity({
     await admin.query(`CREATE DATABASE ${quotedIdentifier(migrationDatabase)}`);
     await admin.query(`CREATE DATABASE ${quotedIdentifier(pushDatabase)}`);
     await applyMigrations({ databaseAdminUrl: migrationUrl });
-    await runDrizzlePush(pushUrl);
+    await runDrizzlePush(pushUrl, { dotenvDirectory });
     await verifyMigratedSchema({
       databaseAdminUrl: migrationUrl,
       applicationUrl: migrationApplicationUrl,

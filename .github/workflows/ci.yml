@@ -79,15 +79,12 @@ jobs:
         run: |
           psql --host=127.0.0.1 --username=postgres --dbname=postgres \
             --set=ON_ERROR_STOP=1 \
+            --set=owner_role=ledger_owner \
             --set=owner_password="$LEDGER_OWNER_PASSWORD" \
-            --command="CREATE ROLE ledger_owner LOGIN CREATEDB PASSWORD :'owner_password'"
-          psql --host=127.0.0.1 --username=postgres --dbname=postgres \
-            --set=ON_ERROR_STOP=1 \
-            --set=app_password="$LEDGER_APP_PASSWORD" \
-            --command="CREATE ROLE ledger_app LOGIN PASSWORD :'app_password'"
-          psql --host=127.0.0.1 --username=postgres --dbname=postgres \
-            --set=ON_ERROR_STOP=1 \
-            --command="CREATE DATABASE ledger_ci OWNER ledger_owner"
+            --set=application_role=ledger_app \
+            --set=application_password="$LEDGER_APP_PASSWORD" \
+            --set=database_name=ledger_ci \
+            --file=packages/db/scripts/ci-bootstrap.sql
 
       - name: Apply committed migrations as ledger_owner
         run: pnpm --filter @smp/db db:migrate

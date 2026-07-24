@@ -42,6 +42,16 @@ export async function applyMigrations({
   });
   let connected = false;
   let locked = false;
+  let result;
+  let primaryError;
+  const asynchronousErrors = [];
+  client.on("error", (error) => {
+    asynchronousErrors.push(
+      new Error(`migration connection failed: ${error.message}`, {
+        cause: error,
+      }),
+    );
+  });
   try {
     await client.connect();
     connected = true;
@@ -59,26 +69,28 @@ export async function applyMigrations({
     const appliedResult = await client.query(
       "SELECT filename, sha256 FROM ledger_schema_migrations ORDER BY filename",
     );
-    const applied = new Map(
-      appliedResult.rows.map(({ filename, sha256 }) => [filename, sha256]),
-    );
-
-    for (const migration of migrations) {
-      const recordedChecksum = applied.get(migration.filename);
+    for (const [index, appliedMigration] of appliedResult.rows.entries()) {
+      const committedMigration = migrations[index];
       if (
-        recordedChecksum !== undefined &&
-        recordedChecksum !== migration.sha256
+        !committedMigration ||
+        committedMigration.filename !== appliedMigration.filename
       ) {
         throw new Error(
-          `checksum mismatch for applied migration ${migration.filename}: ` +
-            `recorded ${recordedChecksum}, committed ${migration.sha256}`,
+          "applied migration history is not an exact prefix of committed migrations: " +
+            `position ${index + 1} recorded ${appliedMigration.filename}, ` +
+            `committed ${committedMigration?.filename ?? "<missing>"}`,
+        );
+      }
+      if (appliedMigration.sha256 !== committedMigration.sha256) {
+        throw new Error(
+          `checksum mismatch for applied migration ${committedMigration.filename}: ` +
+            `recorded ${appliedMigration.sha256}, committed ${committedMigration.sha256}`,
         );
       }
     }
 
     const appliedNow = [];
-    for (const migration of migrations) {
-      if (applied.has(migration.filename)) continue;
+    for (const migration of migrations.slice(appliedResult.rows.length)) {
       await client.query("BEGIN");
       try {
         await client.query(migration.sql);
@@ -89,23 +101,77 @@ export async function applyMigrations({
         await client.query("COMMIT");
         appliedNow.push(migration.filename);
       } catch (error) {
-        await client.query("ROLLBACK");
+        try {
+          await client.query("ROLLBACK");
+        } catch (rollbackError) {
+          throw new AggregateError(
+            [
+              error,
+              new Error(`migration rollback failed: ${rollbackError.message}`, {
+                cause: rollbackError,
+              }),
+            ],
+            `migration ${migration.filename} and rollback both failed`,
+          );
+        }
         throw error;
       }
     }
 
-    return {
+    result = {
       total: migrations.length,
       applied: appliedNow,
     };
+  } catch (error) {
+    primaryError = error;
   } finally {
+    const cleanupErrors = [];
     if (locked) {
-      await client.query(unlockSql).catch(() => undefined);
+      try {
+        await client.query(unlockSql);
+      } catch (error) {
+        cleanupErrors.push(
+          new Error(`migration advisory unlock failed: ${error.message}`, {
+            cause: error,
+          }),
+        );
+      }
     }
     if (connected) {
-      await client.end().catch(() => undefined);
+      try {
+        await client.end();
+      } catch (error) {
+        cleanupErrors.push(
+          new Error(`migration connection close failed: ${error.message}`, {
+            cause: error,
+          }),
+        );
+      }
+    }
+    const primaryErrors =
+      primaryError instanceof AggregateError
+        ? primaryError.errors
+        : primaryError
+          ? [primaryError]
+          : [];
+    const allErrors = [
+      ...primaryErrors,
+      ...asynchronousErrors,
+      ...cleanupErrors,
+    ];
+    if (allErrors.length > 1) {
+      throw new AggregateError(
+        allErrors,
+        primaryError
+          ? "committed migration apply and cleanup both failed"
+          : "committed migration cleanup failed",
+      );
+    }
+    if (allErrors.length === 1) {
+      throw allErrors[0];
     }
   }
+  return result;
 }
 
 async function main() {

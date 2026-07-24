@@ -4,13 +4,18 @@
 // applies the schema from the env file alone, no manual `export DATABASE_URL`.
 import { config } from "dotenv";
 import { defineConfig } from "drizzle-kit";
+import { resolve } from "node:path";
 
 const explicitEnvironment = {
   DATABASE_URL: process.env.DATABASE_URL,
   DB_DRIVER: process.env.DB_DRIVER,
 };
-config({ path: ".env" });
-config({ path: ".env.local", override: true });
+const environmentDirectory = process.env.DRIZZLE_ENV_DIR ?? ".";
+config({ path: resolve(environmentDirectory, ".env") });
+config({
+  path: resolve(environmentDirectory, ".env.local"),
+  override: true,
+});
 for (const [key, value] of Object.entries(explicitEnvironment)) {
   if (value !== undefined) process.env[key] = value;
 }

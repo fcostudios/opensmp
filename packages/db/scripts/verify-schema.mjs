@@ -65,16 +65,33 @@ export async function verifyMigratedSchema({
       );
     }
     const tables = await owner.query(`
-      SELECT count(*)::int AS count
+      SELECT
+        relation.relname AS table_name,
+        pg_get_userbyid(relation.relowner) AS owner_name
       FROM pg_class AS relation
       JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
       WHERE namespace.nspname = 'public'
         AND relation.relkind IN ('r', 'p')
         AND relation.relname <> 'ledger_schema_migrations'
+      ORDER BY relation.relname
     `);
-    tableCount = Number(tables.rows[0]?.count ?? 0);
+    tableCount = tables.rows.length;
     if (tableCount === 0) {
       throw new Error("0 migrated application tables found in public");
+    }
+    const ownershipDrift = tables.rows.filter(
+      ({ owner_name }) => owner_name !== "ledger_owner",
+    );
+    if (ownershipDrift.length > 0) {
+      throw new Error(
+        "application table ownership mismatch: " +
+          ownershipDrift
+            .map(
+              ({ table_name, owner_name }) =>
+                `${table_name}:${owner_name ?? "<missing>"}`,
+            )
+            .join(", "),
+      );
     }
 
     const committed = await committedMigrations(migrationsDirectory);
@@ -103,7 +120,10 @@ export async function verifyMigratedSchema({
         function_row.proname AS function_name,
         language_row.lanname AS function_language,
         function_row.prorettype = 'trigger'::regtype AS returns_trigger,
-        function_row.prosrc AS function_source
+        function_row.prosrc AS function_source,
+        pg_get_userbyid(function_row.proowner) AS function_owner,
+        function_row.prosecdef AS security_definer,
+        coalesce(function_row.proconfig, ARRAY[]::text[]) AS function_configuration
       FROM pg_trigger AS trigger_row
       JOIN pg_class AS relation ON relation.oid = trigger_row.tgrelid
       JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
@@ -126,6 +146,9 @@ export async function verifyMigratedSchema({
       functionLanguage: row.function_language,
       returnsTrigger: row.returns_trigger,
       functionSource: row.function_source.replace(/\s+/g, " ").trim(),
+      functionOwner: row.function_owner,
+      securityDefiner: row.security_definer,
+      functionConfiguration: row.function_configuration,
     }));
     const expectedTriggerState = expectedAppendOnlyTriggers.map((expected) => ({
       tableName: expected.tableName,
@@ -138,12 +161,49 @@ export async function verifyMigratedSchema({
       returnsTrigger: true,
       functionSource: expected.functionSource,
     }));
+    const triggerState = appendOnlyTriggers.map(
+      ({
+        functionOwner: _functionOwner,
+        securityDefiner: _securityDefiner,
+        functionConfiguration: _functionConfiguration,
+        ...trigger
+      }) => trigger,
+    );
     if (
-      JSON.stringify(appendOnlyTriggers) !==
+      JSON.stringify(triggerState) !==
       JSON.stringify(expectedTriggerState)
     ) {
       throw new Error(
-        `append-only trigger integrity mismatch: ${JSON.stringify(appendOnlyTriggers)}`,
+        `append-only trigger integrity mismatch: ${JSON.stringify(triggerState)}`,
+      );
+    }
+    const functionSecurity = appendOnlyTriggers.map(
+      ({
+        functionName,
+        functionOwner,
+        securityDefiner,
+        functionConfiguration,
+      }) => ({
+        functionName,
+        functionOwner,
+        securityDefiner,
+        functionConfiguration,
+      }),
+    );
+    const expectedFunctionSecurity = expectedAppendOnlyTriggers.map(
+      ({ functionName }) => ({
+        functionName,
+        functionOwner: "ledger_owner",
+        securityDefiner: false,
+        functionConfiguration: [],
+      }),
+    );
+    if (
+      JSON.stringify(functionSecurity) !==
+      JSON.stringify(expectedFunctionSecurity)
+    ) {
+      throw new Error(
+        `integrity function security mismatch: ${JSON.stringify(functionSecurity)}`,
       );
     }
   } finally {
@@ -162,6 +222,98 @@ export async function verifyMigratedSchema({
     if (role !== "ledger_app") {
       throw new Error(
         `DATABASE_URL must connect as ledger_app, connected as ${role}`,
+      );
+    }
+    const roleAttributes = await application.query(`
+      SELECT
+        rolsuper,
+        rolcreaterole,
+        rolcreatedb,
+        rolcanlogin,
+        rolreplication,
+        rolbypassrls
+      FROM pg_roles
+      WHERE rolname = current_user
+    `);
+    const attributes = roleAttributes.rows[0];
+    if (
+      !attributes ||
+      attributes.rolsuper ||
+      attributes.rolcreaterole ||
+      attributes.rolcreatedb ||
+      !attributes.rolcanlogin ||
+      attributes.rolreplication ||
+      attributes.rolbypassrls
+    ) {
+      throw new Error(
+        `ledger_app role attributes are unsafe: ${JSON.stringify(attributes)}`,
+      );
+    }
+    const escalationPaths = await application.query(`
+      WITH RECURSIVE role_paths(role_oid, path, cycle) AS (
+        SELECT
+          role_row.oid,
+          ARRAY[role_row.oid],
+          false
+        FROM pg_roles AS role_row
+        WHERE role_row.rolname = current_user
+
+        UNION ALL
+
+        SELECT
+          membership.roleid,
+          role_paths.path || membership.roleid,
+          membership.roleid = ANY(role_paths.path)
+        FROM role_paths
+        JOIN pg_auth_members AS membership
+          ON membership.member = role_paths.role_oid
+        WHERE NOT role_paths.cycle
+      ),
+      protected_roles(role_oid) AS (
+        SELECT role_row.oid
+        FROM pg_roles AS role_row
+        WHERE role_row.rolsuper
+           OR role_row.rolcreaterole
+           OR role_row.rolcreatedb
+           OR role_row.rolreplication
+           OR role_row.rolbypassrls
+
+        UNION
+
+        SELECT relation.relowner
+        FROM pg_class AS relation
+        JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+        WHERE namespace.nspname = 'public'
+          AND relation.relkind IN ('r', 'p')
+          AND relation.relname <> 'ledger_schema_migrations'
+
+        UNION
+
+        SELECT function_row.proowner
+        FROM pg_proc AS function_row
+        JOIN pg_namespace AS namespace
+          ON namespace.oid = function_row.pronamespace
+        WHERE namespace.nspname = 'public'
+          AND function_row.proname = ANY($1::text[])
+      )
+      SELECT array_to_string(
+        ARRAY(
+          SELECT role_row.rolname
+          FROM unnest(role_paths.path) WITH ORDINALITY AS path_role(oid, position)
+          JOIN pg_roles AS role_row ON role_row.oid = path_role.oid
+          ORDER BY path_role.position
+        ),
+        ' -> '
+      ) AS path
+      FROM role_paths
+      WHERE role_paths.role_oid <> role_paths.path[1]
+        AND role_paths.role_oid IN (SELECT role_oid FROM protected_roles)
+      ORDER BY path
+    `, [expectedAppendOnlyTriggers.map(({ functionName }) => functionName)]);
+    if (escalationPaths.rows.length > 0) {
+      throw new Error(
+        "ledger_app privilege escalation path: " +
+          escalationPaths.rows.map(({ path }) => path).join(", "),
       );
     }
     const grants = await application.query(`

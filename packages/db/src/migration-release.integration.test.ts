@@ -1,4 +1,5 @@
 import { execFile, spawn } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -13,12 +14,14 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const runnerPath = join(packageRoot, "scripts/apply-migrations.mjs");
 const parityPath = join(packageRoot, "scripts/check-migration-parity.mjs");
 const verifyPath = join(packageRoot, "scripts/verify-schema.mjs");
+const bootstrapPath = join(packageRoot, "scripts/ci-bootstrap.sql");
 
-let container: StartedPostgreSqlContainer;
+let container: StartedPostgreSqlContainer | undefined;
 let clusterAdminUrl: string;
 let ownerAdminUrl: string;
 let appAdminUrl: string;
 let databaseSequence = 0;
+const testRunSuffix = randomUUID().replaceAll("-", "").slice(0, 8);
 
 function databaseUrl(baseUrl: string, databaseName: string): string {
   const url = new URL(baseUrl);
@@ -28,7 +31,7 @@ function databaseUrl(baseUrl: string, databaseName: string): string {
 
 async function createDatabase(): Promise<{ name: string; ownerUrl: string; appUrl: string }> {
   databaseSequence += 1;
-  const name = `ledger_test_${databaseSequence}`;
+  const name = `ledger_test_${testRunSuffix}_${databaseSequence}`;
   const admin = new pg.Client({ connectionString: ownerAdminUrl });
   await admin.connect();
   try {
@@ -47,7 +50,7 @@ async function createDatabase(): Promise<{ name: string; ownerUrl: string; appUr
 }
 
 async function dropDatabase(name: string): Promise<void> {
-  const admin = new pg.Client({ connectionString: ownerAdminUrl });
+  const admin = new pg.Client({ connectionString: clusterAdminUrl });
   await admin.connect();
   try {
     await admin.query(
@@ -122,6 +125,62 @@ async function runNode(
   });
 }
 
+async function runCiBootstrap({
+  ownerRole,
+  ownerPassword,
+  applicationRole,
+  applicationPassword,
+  databaseName,
+}: {
+  ownerRole: string;
+  ownerPassword: string;
+  applicationRole: string;
+  applicationPassword: string;
+  databaseName: string;
+}): Promise<{ code: number; stdout: string; stderr: string }> {
+  const adminUrl = new URL(clusterAdminUrl);
+  try {
+    const result = await execFileAsync(
+      "psql",
+      [
+        `--host=${adminUrl.hostname}`,
+        `--port=${adminUrl.port}`,
+        `--username=${decodeURIComponent(adminUrl.username)}`,
+        `--dbname=${adminUrl.pathname.slice(1)}`,
+        "--set=ON_ERROR_STOP=1",
+        `--set=owner_role=${ownerRole}`,
+        `--set=owner_password=${ownerPassword}`,
+        `--set=application_role=${applicationRole}`,
+        `--set=application_password=${applicationPassword}`,
+        `--set=database_name=${databaseName}`,
+        `--file=${bootstrapPath}`,
+      ],
+      {
+        env: {
+          ...process.env,
+          PGPASSWORD: decodeURIComponent(adminUrl.password),
+        },
+      },
+    );
+    return { code: 0, stdout: result.stdout, stderr: result.stderr };
+  } catch (error) {
+    const failure = error as {
+      code?: number;
+      stdout?: string;
+      stderr?: string;
+    };
+    return {
+      code: typeof failure.code === "number" ? failure.code : 1,
+      stdout: failure.stdout ?? "",
+      stderr: failure.stderr ?? String(error),
+    };
+  }
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
 async function waitForConcurrentAdvisoryLocks(databaseName: string): Promise<boolean> {
   const client = new pg.Client({ connectionString: ownerAdminUrl });
   await client.connect();
@@ -153,16 +212,37 @@ async function waitForConcurrentAdvisoryLocks(databaseName: string): Promise<boo
 }
 
 beforeAll(async () => {
-  container = await new PostgreSqlContainer("postgres:16-alpine")
-    .withStartupTimeout(120_000)
-    .start();
-  clusterAdminUrl = container.getConnectionUri();
+  if (process.env.TEST_POSTGRES_URL) {
+    clusterAdminUrl = process.env.TEST_POSTGRES_URL;
+  } else {
+    container = await new PostgreSqlContainer("postgres:16-alpine")
+      .withStartupTimeout(120_000)
+      .start();
+    clusterAdminUrl = container.getConnectionUri();
+  }
 
   const admin = new pg.Client({ connectionString: clusterAdminUrl });
   await admin.connect();
   try {
-    await admin.query("CREATE ROLE ledger_owner LOGIN CREATEDB PASSWORD 'owner-secret'");
-    await admin.query("CREATE ROLE ledger_app LOGIN PASSWORD 'app-secret'");
+    await admin.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ledger_owner') THEN
+          CREATE ROLE ledger_owner LOGIN CREATEDB PASSWORD 'owner-secret';
+        END IF;
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ledger_app') THEN
+          CREATE ROLE ledger_app LOGIN PASSWORD 'app-secret';
+        END IF;
+      END
+      $$
+    `);
+    await admin.query(
+      "ALTER ROLE ledger_owner NOSUPERUSER NOCREATEROLE CREATEDB NOREPLICATION NOBYPASSRLS LOGIN PASSWORD 'owner-secret'",
+    );
+    await admin.query(
+      "ALTER ROLE ledger_app NOSUPERUSER NOCREATEROLE NOCREATEDB NOREPLICATION NOBYPASSRLS LOGIN PASSWORD 'app-secret'",
+    );
+    await admin.query("REVOKE ledger_owner FROM ledger_app");
   } finally {
     await admin.end();
   }
@@ -182,6 +262,108 @@ afterAll(async () => {
 }, 30_000);
 
 describe("committed migration release path", () => {
+  test("executes the production CI bootstrap through psql without exposing passwords", async () => {
+    databaseSequence += 1;
+    const ownerRole = `bootstrap_owner_${testRunSuffix}_${databaseSequence}`;
+    const applicationRole = `bootstrap_app_${testRunSuffix}_${databaseSequence}`;
+    const databaseName = `bootstrap_database_${testRunSuffix}_${databaseSequence}`;
+    const ownerPassword = `owner-password-${databaseSequence}`;
+    const applicationPassword = `application-password-${databaseSequence}`;
+    try {
+      const result = await runCiBootstrap({
+        ownerRole,
+        ownerPassword,
+        applicationRole,
+        applicationPassword,
+        databaseName,
+      });
+      expect(result.code, result.stderr).toBe(0);
+      expect(`${result.stdout}\n${result.stderr}`).not.toContain(ownerPassword);
+      expect(`${result.stdout}\n${result.stderr}`).not.toContain(applicationPassword);
+
+      const owner = new URL(clusterAdminUrl);
+      owner.username = ownerRole;
+      owner.password = ownerPassword;
+      owner.pathname = `/${databaseName}`;
+      const application = new URL(owner);
+      application.username = applicationRole;
+      application.password = applicationPassword;
+
+      const ownerClient = new pg.Client({ connectionString: owner.toString() });
+      const applicationClient = new pg.Client({
+        connectionString: application.toString(),
+      });
+      const admin = new pg.Client({ connectionString: clusterAdminUrl });
+      await Promise.all([
+        ownerClient.connect(),
+        applicationClient.connect(),
+        admin.connect(),
+      ]);
+      try {
+        const [ownerIdentity, applicationIdentity, databaseState] =
+          await Promise.all([
+            ownerClient.query<{ current_user: string }>(
+              "SELECT current_user",
+            ),
+            applicationClient.query<{ current_user: string }>(
+              "SELECT current_user",
+            ),
+            admin.query<{
+              database_owner: string;
+              owner_createdb: boolean;
+              application_createdb: boolean;
+              application_superuser: boolean;
+            }>(
+              `
+                SELECT
+                  pg_get_userbyid(database.datdba) AS database_owner,
+                  owner_role.rolcreatedb AS owner_createdb,
+                  application_role.rolcreatedb AS application_createdb,
+                  application_role.rolsuper AS application_superuser
+                FROM pg_database AS database
+                JOIN pg_roles AS owner_role ON owner_role.rolname = $2
+                JOIN pg_roles AS application_role ON application_role.rolname = $3
+                WHERE database.datname = $1
+              `,
+              [databaseName, ownerRole, applicationRole],
+            ),
+          ]);
+        expect(ownerIdentity.rows).toEqual([{ current_user: ownerRole }]);
+        expect(applicationIdentity.rows).toEqual([
+          { current_user: applicationRole },
+        ]);
+        expect(databaseState.rows).toEqual([
+          {
+            database_owner: ownerRole,
+            owner_createdb: true,
+            application_createdb: false,
+            application_superuser: false,
+          },
+        ]);
+      } finally {
+        await Promise.all([
+          ownerClient.end(),
+          applicationClient.end(),
+          admin.end(),
+        ]);
+      }
+    } finally {
+      const admin = new pg.Client({ connectionString: clusterAdminUrl });
+      await admin.connect();
+      try {
+        await admin.query(
+          "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
+          [databaseName],
+        );
+        await admin.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
+        await admin.query(`DROP ROLE IF EXISTS "${applicationRole}"`);
+        await admin.query(`DROP ROLE IF EXISTS "${ownerRole}"`);
+      } finally {
+        await admin.end();
+      }
+    }
+  }, 30_000);
+
   test("rejects checksum tampering without changing the applied record", async () => {
     const database = await createDatabase();
     const migrations = await mkdtemp(join(tmpdir(), "ledger-migrations-"));
@@ -229,6 +411,184 @@ describe("committed migration release path", () => {
     }
   }, 30_000);
 
+  test("rejects an applied migration that is missing from the committed directory", async () => {
+    const database = await createDatabase();
+    const migrations = await mkdtemp(join(tmpdir(), "ledger-migrations-"));
+    const filename = "V20260724000110__deleted_probe.sql";
+    const migration = join(migrations, filename);
+    try {
+      await writeFile(
+        migration,
+        "CREATE TABLE deleted_probe (id integer PRIMARY KEY);\n",
+      );
+      expect(
+        (
+          await runNode(runnerPath, {
+            DATABASE_ADMIN_URL: database.ownerUrl,
+            MIGRATIONS_DIR: migrations,
+          })
+        ).code,
+      ).toBe(0);
+      await rm(migration);
+
+      const result = await runNode(runnerPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+        MIGRATIONS_DIR: migrations,
+      });
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain(
+        "applied migration history is not an exact prefix",
+      );
+    } finally {
+      await rm(migrations, { recursive: true, force: true });
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test("rejects an applied migration gap before executing committed SQL", async () => {
+    const database = await createDatabase();
+    const migrations = await mkdtemp(join(tmpdir(), "ledger-migrations-"));
+    const firstFilename = "V20260724000120__gap_first.sql";
+    const secondFilename = "V20260724000130__gap_second.sql";
+    const firstSql = "CREATE TABLE gap_first (id integer PRIMARY KEY);\n";
+    const secondSql = "CREATE TABLE gap_second (id integer PRIMARY KEY);\n";
+    const client = new pg.Client({ connectionString: database.ownerUrl });
+    try {
+      await Promise.all([
+        writeFile(join(migrations, firstFilename), firstSql),
+        writeFile(join(migrations, secondFilename), secondSql),
+      ]);
+      await client.connect();
+      await client.query(`
+        CREATE TABLE ledger_schema_migrations (
+          filename text PRIMARY KEY,
+          sha256 text NOT NULL,
+          applied_at timestamptz NOT NULL DEFAULT now()
+        )
+      `);
+      await client.query(
+        "INSERT INTO ledger_schema_migrations (filename, sha256) VALUES ($1, $2)",
+        [secondFilename, sha256(secondSql)],
+      );
+
+      const result = await runNode(runnerPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+        MIGRATIONS_DIR: migrations,
+      });
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain(
+        "applied migration history is not an exact prefix",
+      );
+      const state = await client.query<{
+        first_relation: string | null;
+        second_relation: string | null;
+      }>(
+        `
+          SELECT
+            to_regclass('public.gap_first')::text AS first_relation,
+            to_regclass('public.gap_second')::text AS second_relation
+        `,
+      );
+      expect(state.rows).toEqual([
+        { first_relation: null, second_relation: null },
+      ]);
+    } finally {
+      await client.end().catch(() => undefined);
+      await rm(migrations, { recursive: true, force: true });
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test("rejects a committed migration inserted before the applied prefix", async () => {
+    const database = await createDatabase();
+    const migrations = await mkdtemp(join(tmpdir(), "ledger-migrations-"));
+    const appliedFilename = "V20260724000150__already_applied.sql";
+    const backfillFilename = "V20260724000140__backfill.sql";
+    try {
+      await writeFile(
+        join(migrations, appliedFilename),
+        "CREATE TABLE already_applied (id integer PRIMARY KEY);\n",
+      );
+      expect(
+        (
+          await runNode(runnerPath, {
+            DATABASE_ADMIN_URL: database.ownerUrl,
+            MIGRATIONS_DIR: migrations,
+          })
+        ).code,
+      ).toBe(0);
+      await writeFile(
+        join(migrations, backfillFilename),
+        "CREATE TABLE backfill_probe (id integer PRIMARY KEY);\n",
+      );
+
+      const result = await runNode(runnerPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+        MIGRATIONS_DIR: migrations,
+      });
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain(
+        "applied migration history is not an exact prefix",
+      );
+      const client = new pg.Client({ connectionString: database.ownerUrl });
+      await client.connect();
+      const state = await client
+        .query<{ backfill_relation: string | null }>(
+          "SELECT to_regclass('public.backfill_probe')::text AS backfill_relation",
+        )
+        .finally(() => client.end());
+      expect(state.rows).toEqual([{ backfill_relation: null }]);
+    } finally {
+      await rm(migrations, { recursive: true, force: true });
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test("applies a new committed suffix after the exact applied prefix", async () => {
+    const database = await createDatabase();
+    const migrations = await mkdtemp(join(tmpdir(), "ledger-migrations-"));
+    const firstFilename = "V20260724000160__suffix_first.sql";
+    const secondFilename = "V20260724000170__suffix_second.sql";
+    try {
+      await writeFile(
+        join(migrations, firstFilename),
+        "CREATE TABLE suffix_first (id integer PRIMARY KEY);\n",
+      );
+      expect(
+        (
+          await runNode(runnerPath, {
+            DATABASE_ADMIN_URL: database.ownerUrl,
+            MIGRATIONS_DIR: migrations,
+          })
+        ).code,
+      ).toBe(0);
+      await writeFile(
+        join(migrations, secondFilename),
+        "CREATE TABLE suffix_second (id integer PRIMARY KEY);\n",
+      );
+      const result = await runNode(runnerPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+        MIGRATIONS_DIR: migrations,
+      });
+      expect(result.code, result.stderr).toBe(0);
+
+      const client = new pg.Client({ connectionString: database.ownerUrl });
+      await client.connect();
+      const state = await client
+        .query<{ filename: string }>(
+          "SELECT filename FROM ledger_schema_migrations ORDER BY filename",
+        )
+        .finally(() => client.end());
+      expect(state.rows).toEqual([
+        { filename: firstFilename },
+        { filename: secondFilename },
+      ]);
+    } finally {
+      await rm(migrations, { recursive: true, force: true });
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
   test("rolls back migration SQL and its ledger record together", async () => {
     const database = await createDatabase();
     const migrations = await mkdtemp(join(tmpdir(), "ledger-migrations-"));
@@ -261,6 +621,51 @@ describe("committed migration release path", () => {
         )
         .finally(() => client.end());
       expect(state.rows).toEqual([{ relation: null, migration_count: "0" }]);
+    } finally {
+      await rm(migrations, { recursive: true, force: true });
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test("preserves the migration failure together with rollback and unlock failures", async () => {
+    const database = await createDatabase();
+    const migrations = await mkdtemp(join(tmpdir(), "ledger-migrations-"));
+    try {
+      await writeFile(
+        join(migrations, "V20260724000210__terminate_runner.sql"),
+        `
+          CREATE TABLE terminate_runner_probe (id integer PRIMARY KEY);
+          SELECT pg_terminate_backend(pg_backend_pid());
+        `,
+      );
+      const imported = await import(pathToFileURL(runnerPath).href);
+      await expect(
+        imported.applyMigrations({
+          databaseAdminUrl: database.ownerUrl,
+          migrationsDirectory: migrations,
+        }),
+      ).rejects.toSatisfy((error: unknown) => {
+        if (!(error instanceof AggregateError)) return false;
+        const messages = error.errors.map((entry: unknown) =>
+          entry instanceof Error ? entry.message : String(entry),
+        );
+        return (
+          messages.some((message: string) =>
+            /terminat|connection/i.test(message),
+          ) &&
+          messages.some((message: string) => /rollback/i.test(message)) &&
+          messages.some((message: string) => /unlock/i.test(message))
+        );
+      });
+
+      const client = new pg.Client({ connectionString: database.ownerUrl });
+      await client.connect();
+      const state = await client
+        .query<{ relation: string | null }>(
+          "SELECT to_regclass('public.terminate_runner_probe')::text AS relation",
+        )
+        .finally(() => client.end());
+      expect(state.rows).toEqual([{ relation: null }]);
     } finally {
       await rm(migrations, { recursive: true, force: true });
       await dropDatabase(database.name);
@@ -451,6 +856,118 @@ describe("committed migration release path", () => {
       await dropDatabase(database.name);
     }
   }, 30_000);
+
+  test.each([
+    [
+      "application table ownership",
+      `ALTER TABLE company OWNER TO "${"postgres"}"`,
+      "application table ownership mismatch",
+    ],
+    [
+      "integrity function ownership",
+      `ALTER FUNCTION audit_log_append_only() OWNER TO "${"postgres"}"`,
+      "integrity function security mismatch",
+    ],
+    [
+      "SECURITY DEFINER integrity function",
+      "ALTER FUNCTION audit_log_append_only() SECURITY DEFINER",
+      "integrity function security mismatch",
+    ],
+    [
+      "configured integrity function search_path",
+      "ALTER FUNCTION audit_log_append_only() SET search_path = public",
+      "integrity function security mismatch",
+    ],
+  ])("rejects %s drift", async (_kind, mutationSql, expectedMessage) => {
+    const database = await createDatabase();
+    const admin = new pg.Client({
+      connectionString: databaseUrl(clusterAdminUrl, database.name),
+    });
+    try {
+      await migrate(database.ownerUrl);
+      await admin.connect();
+      const clusterAdminRole = decodeURIComponent(
+        new URL(clusterAdminUrl).username,
+      );
+      await admin.query(
+        mutationSql.replaceAll('"postgres"', `"${clusterAdminRole}"`),
+      );
+
+      const result = await runNode(verifyPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+        DATABASE_URL: database.appUrl,
+      });
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain(expectedMessage);
+    } finally {
+      await admin.end().catch(() => undefined);
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test("rejects direct and indirect SET ROLE paths to ledger_owner", async () => {
+    const database = await createDatabase();
+    databaseSequence += 1;
+    const bridgeRole = `ledger_bridge_${testRunSuffix}_${databaseSequence}`;
+    const admin = new pg.Client({ connectionString: clusterAdminUrl });
+    let adminConnected = false;
+    try {
+      await migrate(database.ownerUrl);
+      await admin.connect();
+      adminConnected = true;
+      await admin.query("GRANT ledger_owner TO ledger_app");
+      let result = await runNode(verifyPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+        DATABASE_URL: database.appUrl,
+      });
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain("ledger_app privilege escalation path");
+      await admin.query("REVOKE ledger_owner FROM ledger_app");
+
+      await admin.query(`CREATE ROLE "${bridgeRole}"`);
+      await admin.query(`GRANT ledger_owner TO "${bridgeRole}"`);
+      await admin.query(`GRANT "${bridgeRole}" TO ledger_app`);
+      result = await runNode(verifyPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+        DATABASE_URL: database.appUrl,
+      });
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain("ledger_app privilege escalation path");
+    } finally {
+      if (adminConnected) {
+        await admin
+          .query(`REVOKE "${bridgeRole}" FROM ledger_app`)
+          .catch(() => undefined);
+        await admin
+          .query(`REVOKE ledger_owner FROM "${bridgeRole}"`)
+          .catch(() => undefined);
+        await admin.query(`DROP ROLE IF EXISTS "${bridgeRole}"`).catch(() => undefined);
+        await admin.query("REVOKE ledger_owner FROM ledger_app").catch(() => undefined);
+      }
+      await admin.end().catch(() => undefined);
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test("rejects unsafe ledger_app role attributes", async () => {
+    const database = await createDatabase();
+    const admin = new pg.Client({ connectionString: clusterAdminUrl });
+    try {
+      await migrate(database.ownerUrl);
+      await admin.connect();
+      await admin.query("ALTER ROLE ledger_app BYPASSRLS");
+      const result = await runNode(verifyPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+        DATABASE_URL: database.appUrl,
+      });
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain("ledger_app role attributes are unsafe");
+    } finally {
+      await admin.query("ALTER ROLE ledger_app NOBYPASSRLS").catch(() => undefined);
+      await admin.end().catch(() => undefined);
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
 });
 
 describe("migration parity", () => {
@@ -467,19 +984,16 @@ describe("migration parity", () => {
   test("disposable push URL wins over a conflicting local env file", async () => {
     const imported = await import(pathToFileURL(parityPath).href);
     const conflicting = await createDatabase();
-    const localEnvironmentPath = join(packageRoot, ".env.local");
-    const originalLocalEnvironment = await readFile(
-      localEnvironmentPath,
-      "utf8",
-    ).catch(() => undefined);
+    const dotenvDirectory = await mkdtemp(join(tmpdir(), "ledger-dotenv-"));
     try {
       await writeFile(
-        localEnvironmentPath,
+        join(dotenvDirectory, ".env.local"),
         `DATABASE_URL=${conflicting.ownerUrl}\nDB_DRIVER=pg\n`,
       );
       await imported.checkMigrationParity({
         databaseAdminUrl: ownerAdminUrl,
         applicationUrl: appAdminUrl,
+        dotenvDirectory,
         beforeCompare: async ({
           pushUrl,
         }: {
@@ -490,11 +1004,7 @@ describe("migration parity", () => {
         },
       });
     } finally {
-      if (originalLocalEnvironment === undefined) {
-        await rm(localEnvironmentPath, { force: true });
-      } else {
-        await writeFile(localEnvironmentPath, originalLocalEnvironment);
-      }
+      await rm(dotenvDirectory, { recursive: true, force: true });
       await dropDatabase(conflicting.name);
     }
   }, 120_000);
@@ -562,7 +1072,7 @@ describe("migration parity", () => {
             await clusterAdmin.connect();
             try {
               await clusterAdmin.query(
-                `ALTER DATABASE "${migrationDatabase}" OWNER TO "${container.getUsername()}"`,
+                `ALTER DATABASE "${migrationDatabase}" OWNER TO "${decodeURIComponent(new URL(clusterAdminUrl).username)}"`,
               );
             } finally {
               await clusterAdmin.end();
