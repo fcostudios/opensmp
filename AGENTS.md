@@ -1,7 +1,7 @@
 # AGENTS.md — Ledger
 
 > Agent coordination rules for AI-assisted multi-agent development.
-> This is a **single serverless nextjs app** — no separate backend service.
+> This is a **single self-hosted Next.js app** — no separate backend service.
 
 ## Getting Started (read this first)
 
@@ -16,42 +16,77 @@
    is a flat catalog, NOT the queue; start from SPRINT_PLAN.
 3. **Definition of Done:** a story is done only when
    [`docs/dev-guide/DEFINITION_OF_DONE.md`](docs/dev-guide/DEFINITION_OF_DONE.md) passes —
-   `pnpm type-check && pnpm lint && pnpm build`, and `drizzle-kit push` + `verify-schema.mjs`
-   apply the schema.
-4. **Conventions** (tenant column `org_id`, per-table soft delete, App Router, design tokens)
-   live in [`CLAUDE.md`](CLAUDE.md) and `docs/dev-guide/` — follow them verbatim.
+   `pnpm type-check && pnpm lint && pnpm build`, and the committed migrations +
+   `verify-schema.mjs` apply the schema.
+4. **Conventions** (tenant column `company_id`, per-table soft delete, App Router,
+   design tokens) live in [`CLAUDE.md`](CLAUDE.md) and `docs/dev-guide/` — follow
+   them verbatim.
+5. **Sprint 1 execution contract:** read
+   [`DEC-SMP-017`](docs/decisions/DEC-SMP-017-sprint-1-execution-contract.md)
+   before implementing US-001/003/004/005/007/054.
+
+## Sprint 1 Execution Contract
+
+- `Company` is the Ledger application-tenant boundary. Every company-scoped
+  query filters the real `company_id` column declared by its table.
+- `VendorAccount` is a vendor organization/account. It is business data inside
+  Ledger, not an application tenant and not an authorization boundary.
+- Auth.js uses Keycloak for OIDC identity. Ledger loads roles and company grants
+  from `UserAccount` and `CompanyRoleAssignment`; it never accepts authorization
+  from a client request or Keycloak business-role claim.
+- Keycloak renders and verifies the OIDC password and TOTP screens. Ledger uses
+  redirect-based OIDC and never renders or collects those credentials.
+- Keycloak-retained, operator-queryable security events evidence password/TOTP
+  failures for US-004. Ledger `AuditLog` records the OIDC/session linking,
+  callback failures, and authorization failures that Ledger observes.
+- US-004 establishes and tests the Keycloak admin-service seam required for
+  admin-group synchronization. The complete user-management UI remains US-011.
+- Releases apply committed migrations using `ledger_owner`. The running
+  application connects as `ledger_app`.
+- R1 deploys through Docker Compose on a VPS.
 
 ## Agent Roles
 
 ### App Agent
+
 - **Scope:** `apps/web/`
 - **Language:** TypeScript
-- **Framework:** nextjs  / react
+- **Framework:** Next.js / React
 - **Rules:**
   - App Router with Server Components by default; `"use client"` only when needed
   - Import design tokens from `packages/design-system`
-  - Use Zustand for client state; validate forms with zod
+  - Use Zustand for client state; validate forms with Zod
   - All user-facing strings go in i18n locale files
 
 ### API Agent
+
 - **Scope:** `apps/web/src/app/api/`, `packages/db/src/`
 - **Rules:**
   - Endpoints are route handlers (`route.ts`); no separate backend service
-  - Persist via the shared `drizzle` client; every multi-tenant query filters `org_id` (the generated tenant column — not `tenant_id`); add a soft-delete filter only on a table that declares `deleted_at`
-  - Protect handlers with the keycloak session (`auth()`)
+  - Persist via the shared Drizzle client; every company-scoped query filters
+    `company_id`; add a soft-delete filter only on a table that declares
+    `deleted_at`
+  - Protect handlers with the Auth.js session (`auth()`)
+  - Resolve authorization from Ledger DB roles/grants after session validation
 
 ### Infrastructure Agent
+
 - **Scope:** `infra/`
 - **Rules:**
-  - Hosting: self-hosted (Docker Compose on a VPS) — a single Next.js app plus its declared infra services (see docs/specs/09_architecture.md)
+  - Hosting: self-hosted Docker Compose on a VPS — one Next.js app plus its
+    declared infrastructure services (see `docs/specs/09_architecture.md`)
+  - Release migrations run as `ledger_owner`; application runtime uses
+    `ledger_app`
   - Shell scripts must be idempotent (`set -euo pipefail`)
 
 ### Docs Agent
+
 - **Scope:** `docs/`, `CLAUDE.md`, `AGENTS.md`
 - **Rules:**
   - Keep CLAUDE.md in sync with architecture changes
   - Story index must reflect current sprint assignments
-  - Decisions must reference their DEC-NNN IDs
+  - Decisions must reference their DEC-SMP-NNN IDs
+  - Open a CHG in Nous before editing generator-owned guidance
 
 ## Coordination Rules
 
@@ -59,7 +94,7 @@
 2. **Shared code lives in `packages/`.** Never duplicate logic between modules.
 3. **Migrations are append-only.** Never modify a committed migration under `packages/db/src/migrations/`.
 4. **Feature branches follow `feature/<context>/<short-desc>`.** Example: `feature/members/member-crud`.
-5. **Every PR must reference a story ID** (e.g., US-004).
+5. **Every PR must reference a story or change ID** (for example, `US-004` or `CHG-001`).
 6. **`pnpm type-check && pnpm lint && pnpm build` must pass** before any PR is merged.
 
 ## Sprint Flow
