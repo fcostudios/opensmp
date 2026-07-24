@@ -59,7 +59,7 @@ from the nav map. Never edit it. After any nav map change, run
 - **Frontend:** nextjs  / react / TypeScript
 - **Data:** drizzle ORM on postgres  (timestamp-slug migrations)
 - **Auth:** keycloak (OIDC / sessions)
-- **Hosting:** serverless (Vercel)
+- **Hosting:** self-hosted Docker Compose on a VPS (DEC-SMP-002)
 
 ## Quick Start
 
@@ -95,7 +95,7 @@ docs/
 1. **App Router only** — no `pages/` directory. Server Components by default; `"use client"` only when using hooks, events, or browser APIs.
 2. **The API is route handlers** — `apps/web/src/app/api/<resource>/route.ts`. There is no separate backend service.
 3. **Data via drizzle** — the shared `db` client (`packages/db/src`). Every multi-tenant query filters `org_id` (the generated tenant column — there is no `tenant_id`). Reuse tables from `packages/db/src/schema.ts`; derive types with `$inferSelect`/`$inferInsert`.
-4. **Auth via keycloak** — `auth0.getSession()` in route handlers (no session → 401); `useUser()` + `hasMinRole()` in the UI. Role/tenant come from the verified session, never the request.
+4. **Auth via Keycloak (Auth.js)** — `auth()` from `@/lib/auth/auth-config` in route handlers and Server Components (no session → 401); `useSession()` from `next-auth/react` + `hasMinRole()` in the UI. Role/tenant come from the verified session, never the request.
 5. **Migrations** — `pnpm drizzle-kit`; timestamp-slug files under `packages/db/src/migrations/` named `V<timestamp>__<slug>.sql`. Immutable once applied.
 6. **Validation: zod schemas** shared between client and route handlers.
 7. **Soft delete is per-table** — only entities that declare a `deleted_at` column have it (check `schema.ts`); most tables hard-delete. Never assume an `is_deleted`/`deleted_at` column exists.
@@ -272,5 +272,5 @@ Build gate + rejection criteria: [`docs/dev-guide/DEFINITION_OF_DONE.md`](docs/d
 - **Frontend:** TypeScript, react, nextjs  App Router, tailwindcss, Zustand, zod
 - **Data:** drizzle ORM, postgres 
 - **Auth:** keycloak (OIDC / sessions)
-- **Tooling:** pnpm, drizzle-kit, Vercel
+- **Tooling:** pnpm, drizzle-kit, Docker Compose
 - **i18n:** locale-aware UI (default `en-US`)

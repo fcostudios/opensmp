@@ -17,7 +17,8 @@ sufficient. See `CLAUDE.md` for the summary; this is the authoritative gate.
 
 3. **Build succeeds:**
    ```bash
-   pnpm build               # next build --webpack (serverless / PWA bundler)
+   pnpm test                # Vitest across the workspace — must meet the TESTING.md effectiveness bar
+   pnpm build               # next build --webpack (single-app Next bundle)
    ```
 
 4. **Schema applies on a fresh database (and is verified):**
@@ -48,7 +49,7 @@ sufficient. See `CLAUDE.md` for the summary; this is the authoritative gate.
 ## Story Rejection Criteria
 
 A story is REJECTED during sprint acceptance if any of these hold:
-- `pnpm type-check`, `pnpm lint`, or `pnpm build` fails.
+- `pnpm type-check`, `pnpm lint`, `pnpm test`, or `pnpm build` fails.
 - A migration file was edited instead of adding a new one.
 - No `build_pass` event in `.nous-feedback.jsonl`.
 - An AC was marked pass with no `ac_verify` adversarial check logged.

@@ -38,7 +38,7 @@ string value — an unknown member fails the DB enum check at insert/update time
 ## Tenant & Actor Extraction
 
 ```ts
-const session = await auth0.getSession();
+const session = await auth();
 if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 const orgId = session.user.org_id as string;       // tenant scope (the org_id column)
 const actorSub = session.user.sub as string;       // stable Auth0 subject

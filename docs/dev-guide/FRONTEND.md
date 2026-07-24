@@ -21,7 +21,7 @@ snapshot — **stale/empty data, silently** (no error). The precise rule:
 - A page (`page.tsx`) that fetches per-request data (from the db or an API) and does
   NOT call a dynamic API → add `export const dynamic = "force-dynamic";` at the top.
   (Or `export const revalidate = <seconds>` for time-based revalidation.)
-- A page that calls `auth0.getSession()` (or otherwise reads cookies/headers) is
+- A page that calls `auth()` (or otherwise reads cookies/headers) is
   **already dynamic** — `force-dynamic` is redundant there. Do NOT sprinkle it on
   every page; it only matters when you fetch without touching a dynamic API.
 - **Route handlers (`route.ts`) and server actions are never prerendered** — this is

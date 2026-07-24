@@ -33,7 +33,7 @@ rule the slice follows:
 
 - **A list / detail READ** → a **Server Component page**. Add
   `export const dynamic = "force-dynamic"` only when it reads request-time/session
-  data (it almost always does — `getSession()` is request-time). See FRONTEND.md.
+  data (it almost always does — `auth()` is request-time). See FRONTEND.md.
 - **A mutation** (every screen that declares a `server_action:<name>` target) → a
   **server action** (`"use server"`). Validate the input with the `@smp/contracts`
   insert schema; take the tenant from the session, never the client.

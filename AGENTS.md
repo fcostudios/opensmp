@@ -38,12 +38,12 @@
 - **Rules:**
   - Endpoints are route handlers (`route.ts`); no separate backend service
   - Persist via the shared `drizzle` client; every multi-tenant query filters `org_id` (the generated tenant column — not `tenant_id`); add a soft-delete filter only on a table that declares `deleted_at`
-  - Protect handlers with the keycloak session (`auth0.getSession()`)
+  - Protect handlers with the Keycloak session (`auth()` from `@/lib/auth/auth-config`)
 
 ### Infrastructure Agent
 - **Scope:** `infra/`
 - **Rules:**
-  - Serverless hosting (Vercel) — no containers
+  - Self-hosted Docker Compose on a VPS (DEC-SMP-002) — Postgres, Keycloak, and the app run as Compose services
   - Shell scripts must be idempotent (`set -euo pipefail`)
 
 ### Docs Agent
