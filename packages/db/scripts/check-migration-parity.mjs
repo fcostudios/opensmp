@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { dirname, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import pg from "pg";
 import { applyMigrations } from "./apply-migrations.mjs";
@@ -31,21 +31,134 @@ function redactOutput(output, redactions) {
   return redacted;
 }
 
-function terminateProcessTree(child, signal) {
+function boundedOutput(output, maxOutputBytes, wasTruncated) {
+  const marker = "\n[output truncated]";
+  const outputBuffer = Buffer.from(output);
+  if (!wasTruncated && outputBuffer.length <= maxOutputBytes) {
+    return output.trim();
+  }
+  const markerBuffer = Buffer.from(marker);
+  const contentLimit = Math.max(0, maxOutputBytes - markerBuffer.length);
+  return (
+    outputBuffer.subarray(0, contentLimit).toString("utf8").trimEnd() +
+    marker
+  ).trim();
+}
+
+async function terminateWindowsProcessTree(pid) {
+  await new Promise((resolveTermination, rejectTermination) => {
+    const terminator = spawn(
+      "taskkill",
+      ["/PID", String(pid), "/T", "/F"],
+      {
+        windowsHide: true,
+        stdio: "ignore",
+      },
+    );
+    terminator.once("error", rejectTermination);
+    terminator.once("close", (code) => {
+      if (code === 0) {
+        resolveTermination();
+      } else {
+        rejectTermination(
+          new Error(`taskkill failed for process tree ${pid} with exit ${code}`),
+        );
+      }
+    });
+  });
+}
+
+async function terminateProcessTree(child, signal) {
   if (!child.pid) return;
-  if (process.platform !== "win32") {
-    try {
-      process.kill(-child.pid, signal);
-      return;
-    } catch {
-      // The group may already be gone; fall back to the direct child.
-    }
+  if (process.platform === "win32") {
+    await terminateWindowsProcessTree(child.pid);
+    return;
+  }
+  try {
+    process.kill(-child.pid, signal);
+    return;
+  } catch {
+    // The group may already be gone; fall back to the direct child.
   }
   try {
     child.kill(signal);
   } catch {
     // The process already exited.
   }
+}
+
+export function resolvePnpmInvocation(
+  args,
+  {
+    env = process.env,
+    platform = process.platform,
+    execPath = process.execPath,
+  } = {},
+) {
+  const packageManagerCli = env.npm_execpath;
+  if (
+    packageManagerCli &&
+    basename(packageManagerCli).toLowerCase().includes("pnpm")
+  ) {
+    return {
+      command: execPath,
+      args: [packageManagerCli, ...args],
+    };
+  }
+  return {
+    command: platform === "win32" ? "pnpm.cmd" : "pnpm",
+    args,
+  };
+}
+
+function processError(message, terminationErrors) {
+  const primary = new Error(message);
+  if (terminationErrors.length === 0) return primary;
+  return new AggregateError(
+    [primary, ...terminationErrors],
+    "child process failed and process-tree cleanup also failed",
+  );
+}
+
+function redactionCaptureLimit(maxOutputBytes, redactions) {
+  const longestKnownSecret = redactions.reduce(
+    (longest, value) =>
+      Math.max(longest, value ? Buffer.byteLength(value) : 0),
+    0,
+  );
+  return maxOutputBytes + longestKnownSecret + 4_096;
+}
+
+/*
+ * Capture beyond the final display cap so a secret beginning immediately
+ * before that cap is complete when redaction runs. The redacted text is then
+ * byte-capped for the error surface.
+ */
+function outputCollector(maxOutputBytes, redactions) {
+  const chunks = [];
+  const captureLimit = redactionCaptureLimit(maxOutputBytes, redactions);
+  let capturedBytes = 0;
+  let truncated = false;
+  return {
+    capture(chunk) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      const remaining = Math.max(0, captureLimit - capturedBytes);
+      if (remaining > 0) {
+        chunks.push(buffer.subarray(0, remaining));
+        capturedBytes += Math.min(buffer.length, remaining);
+      }
+      if (buffer.length > remaining) truncated = true;
+    },
+    output() {
+      const rawOutput = Buffer.concat(chunks).toString("utf8");
+      const redacted = redactOutput(rawOutput, redactions);
+      return boundedOutput(
+        redacted,
+        maxOutputBytes,
+        truncated || Buffer.byteLength(rawOutput) > maxOutputBytes,
+      );
+    },
+  };
 }
 
 export async function runBoundedProcess(
@@ -67,45 +180,49 @@ export async function runBoundedProcess(
       detached: process.platform !== "win32",
       stdio: ["ignore", "pipe", "pipe"],
     });
-    const chunks = [];
-    let capturedBytes = 0;
-    let truncated = false;
+    const collector = outputCollector(maxOutputBytes, redactions);
+    const terminationErrors = [];
     let timedOut = false;
     let spawnError;
     let killTimer;
+    let terminationPromise = Promise.resolve();
 
-    const capture = (chunk) => {
-      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      const remaining = Math.max(0, maxOutputBytes - capturedBytes);
-      if (remaining > 0) {
-        chunks.push(buffer.subarray(0, remaining));
-        capturedBytes += Math.min(buffer.length, remaining);
-      }
-      if (buffer.length > remaining) truncated = true;
-    };
-    child.stdout.on("data", capture);
-    child.stderr.on("data", capture);
+    child.stdout.on("data", collector.capture);
+    child.stderr.on("data", collector.capture);
     child.once("error", (error) => {
       spawnError = error;
     });
 
+    const terminate = async (signal) => {
+      try {
+        await terminateProcessTree(child, signal);
+      } catch (error) {
+        terminationErrors.push(
+          new Error(`process-tree termination failed: ${error.message}`, {
+            cause: error,
+          }),
+        );
+      }
+    };
     const timeout = setTimeout(() => {
       timedOut = true;
-      terminateProcessTree(child, "SIGTERM");
-      killTimer = setTimeout(() => {
-        terminateProcessTree(child, "SIGKILL");
-      }, killGraceMs);
-      killTimer.unref();
+      terminationPromise = terminate("SIGTERM");
+      if (process.platform !== "win32") {
+        killTimer = setTimeout(() => {
+          terminationPromise = terminationPromise.then(() =>
+            terminate("SIGKILL"),
+          );
+        }, killGraceMs);
+        killTimer.unref();
+      }
     }, timeoutMs);
     timeout.unref();
 
-    child.once("close", (code, signal) => {
+    child.once("close", async (code, signal) => {
       clearTimeout(timeout);
       if (killTimer) clearTimeout(killTimer);
-      const rawOutput =
-        Buffer.concat(chunks).toString("utf8") +
-        (truncated ? "\n[output truncated]" : "");
-      const output = redactOutput(rawOutput, redactions).trim();
+      await terminationPromise;
+      const output = collector.output();
       if (spawnError) {
         rejectRun(
           new Error(
@@ -115,9 +232,10 @@ export async function runBoundedProcess(
         );
       } else if (timedOut) {
         rejectRun(
-          new Error(
+          processError(
             `${command} timed out after ${timeoutMs}ms` +
               (output ? `: ${output}` : ""),
+            terminationErrors,
           ),
         );
       } else if (code !== 0) {
@@ -141,9 +259,15 @@ function configuredPushTimeout() {
 
 async function runDrizzlePush(pushUrl, { dotenvDirectory } = {}) {
   const password = new URL(pushUrl).password;
+  const invocation = resolvePnpmInvocation([
+    "exec",
+    "drizzle-kit",
+    "push",
+    "--force",
+  ]);
   await runBoundedProcess(
-    "pnpm",
-    ["exec", "drizzle-kit", "push", "--force"],
+    invocation.command,
+    invocation.args,
     {
       cwd: packageRoot,
       env: {

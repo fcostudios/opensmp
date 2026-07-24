@@ -249,7 +249,7 @@ export async function verifyMigratedSchema({
         `ledger_app role attributes are unsafe: ${JSON.stringify(attributes)}`,
       );
     }
-    const escalationPaths = await application.query(`
+    const membershipPaths = await application.query(`
       WITH RECURSIVE role_paths(role_oid, path, cycle) AS (
         SELECT
           role_row.oid,
@@ -268,33 +268,6 @@ export async function verifyMigratedSchema({
         JOIN pg_auth_members AS membership
           ON membership.member = role_paths.role_oid
         WHERE NOT role_paths.cycle
-      ),
-      protected_roles(role_oid) AS (
-        SELECT role_row.oid
-        FROM pg_roles AS role_row
-        WHERE role_row.rolsuper
-           OR role_row.rolcreaterole
-           OR role_row.rolcreatedb
-           OR role_row.rolreplication
-           OR role_row.rolbypassrls
-
-        UNION
-
-        SELECT relation.relowner
-        FROM pg_class AS relation
-        JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
-        WHERE namespace.nspname = 'public'
-          AND relation.relkind IN ('r', 'p')
-          AND relation.relname <> 'ledger_schema_migrations'
-
-        UNION
-
-        SELECT function_row.proowner
-        FROM pg_proc AS function_row
-        JOIN pg_namespace AS namespace
-          ON namespace.oid = function_row.pronamespace
-        WHERE namespace.nspname = 'public'
-          AND function_row.proname = ANY($1::text[])
       )
       SELECT array_to_string(
         ARRAY(
@@ -307,13 +280,12 @@ export async function verifyMigratedSchema({
       ) AS path
       FROM role_paths
       WHERE role_paths.role_oid <> role_paths.path[1]
-        AND role_paths.role_oid IN (SELECT role_oid FROM protected_roles)
       ORDER BY path
-    `, [expectedAppendOnlyTriggers.map(({ functionName }) => functionName)]);
-    if (escalationPaths.rows.length > 0) {
+    `);
+    if (membershipPaths.rows.length > 0) {
       throw new Error(
-        "ledger_app privilege escalation path: " +
-          escalationPaths.rows.map(({ path }) => path).join(", "),
+        "ledger_app must not be a member of any role: " +
+          membershipPaths.rows.map(({ path }) => path).join(", "),
       );
     }
     const grants = await application.query(`

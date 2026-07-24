@@ -5,6 +5,10 @@ import { describe, expect, test } from "vitest";
 
 const repositoryRoot = resolve(import.meta.dirname, "../../..");
 const workflowPath = resolve(repositoryRoot, ".github/workflows/ci.yml");
+const integrationTestPath = resolve(
+  repositoryRoot,
+  "packages/db/src/migration-release.integration.test.ts",
+);
 
 describe("database CI workflow", () => {
   test("is valid YAML with immutable actions and least permissions", async () => {
@@ -48,5 +52,45 @@ describe("database CI workflow", () => {
     expect(source).not.toMatch(/--command=.*CREATE ROLE/);
     expect(source).not.toContain("public.company");
     expect(source).not.toMatch(/uses:\s*[^\n]+@(v\d+|main|master)\b/);
+  });
+
+  test("runs real subprocess-tree portability tests on Windows and POSIX", async () => {
+    const source = await readFile(workflowPath, "utf8");
+    const workflow = parse(source) as {
+      permissions: Record<string, string>;
+      jobs: Record<
+        string,
+        {
+          permissions?: Record<string, string>;
+          strategy?: { matrix?: { os?: string[] } };
+          steps: Array<{ run?: string; uses?: string }>;
+        }
+      >;
+    };
+    const job = workflow.jobs["process-portability"];
+    expect(job).toBeDefined();
+    expect(job?.permissions ?? workflow.permissions).toEqual({
+      contents: "read",
+    });
+    expect(job?.strategy?.matrix?.os).toEqual([
+      "ubuntu-latest",
+      "windows-latest",
+    ]);
+    expect(job?.steps.some((step) =>
+      step.run?.includes("vitest run src/parity-process.spec.ts"),
+    )).toBe(true);
+    for (const action of job?.steps.flatMap((step) =>
+      step.uses ? [step.uses] : [],
+    ) ?? []) {
+      expect(action).toMatch(/^[^@]+@[0-9a-f]{40}$/);
+    }
+  });
+
+  test("database integration tests never connect to a caller-supplied cluster", async () => {
+    const source = await readFile(integrationTestPath, "utf8");
+    expect(source).not.toContain("TEST_POSTGRES_URL");
+    expect(source).toContain(
+      'new PostgreSqlContainer("postgres:16-alpine")',
+    );
   });
 });

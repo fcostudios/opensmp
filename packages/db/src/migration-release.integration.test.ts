@@ -16,7 +16,7 @@ const parityPath = join(packageRoot, "scripts/check-migration-parity.mjs");
 const verifyPath = join(packageRoot, "scripts/verify-schema.mjs");
 const bootstrapPath = join(packageRoot, "scripts/ci-bootstrap.sql");
 
-let container: StartedPostgreSqlContainer | undefined;
+let container: StartedPostgreSqlContainer;
 let clusterAdminUrl: string;
 let ownerAdminUrl: string;
 let appAdminUrl: string;
@@ -212,14 +212,10 @@ async function waitForConcurrentAdvisoryLocks(databaseName: string): Promise<boo
 }
 
 beforeAll(async () => {
-  if (process.env.TEST_POSTGRES_URL) {
-    clusterAdminUrl = process.env.TEST_POSTGRES_URL;
-  } else {
-    container = await new PostgreSqlContainer("postgres:16-alpine")
-      .withStartupTimeout(120_000)
-      .start();
-    clusterAdminUrl = container.getConnectionUri();
-  }
+  container = await new PostgreSqlContainer("postgres:16-alpine")
+    .withStartupTimeout(120_000)
+    .start();
+  clusterAdminUrl = container.getConnectionUri();
 
   const admin = new pg.Client({ connectionString: clusterAdminUrl });
   await admin.connect();
@@ -258,7 +254,7 @@ beforeAll(async () => {
 }, 150_000);
 
 afterAll(async () => {
-  await container?.stop();
+  await container.stop();
 }, 30_000);
 
 describe("committed migration release path", () => {
@@ -921,7 +917,9 @@ describe("committed migration release path", () => {
         DATABASE_URL: database.appUrl,
       });
       expect(result.code).not.toBe(0);
-      expect(result.stderr).toContain("ledger_app privilege escalation path");
+      expect(result.stderr).toContain(
+        "ledger_app must not be a member of any role",
+      );
       await admin.query("REVOKE ledger_owner FROM ledger_app");
 
       await admin.query(`CREATE ROLE "${bridgeRole}"`);
@@ -932,7 +930,9 @@ describe("committed migration release path", () => {
         DATABASE_URL: database.appUrl,
       });
       expect(result.code).not.toBe(0);
-      expect(result.stderr).toContain("ledger_app privilege escalation path");
+      expect(result.stderr).toContain(
+        "ledger_app must not be a member of any role",
+      );
     } finally {
       if (adminConnected) {
         await admin
@@ -948,6 +948,62 @@ describe("committed migration release path", () => {
       await dropDatabase(database.name);
     }
   }, 30_000);
+
+  test.each([
+    ["INHERIT FALSE, SET TRUE", "set-enabled"],
+    ["INHERIT FALSE, SET FALSE", "set-disabled"],
+  ])(
+    "rejects every ledger_app membership even with %s",
+    async (membershipOptions, label) => {
+      const database = await createDatabase();
+      databaseSequence += 1;
+      const memberRole =
+        `ledger_member_${label}_${testRunSuffix}_${databaseSequence}`.replaceAll(
+          "-",
+          "_",
+        );
+      const owner = new pg.Client({ connectionString: database.ownerUrl });
+      const admin = new pg.Client({ connectionString: clusterAdminUrl });
+      try {
+        await migrate(database.ownerUrl);
+        await Promise.all([owner.connect(), admin.connect()]);
+        await admin.query(`CREATE ROLE "${memberRole}" NOLOGIN`);
+        await owner.query(`GRANT SELECT ON company TO "${memberRole}"`);
+        await admin.query(
+          `GRANT "${memberRole}" TO ledger_app WITH ${membershipOptions}`,
+        );
+
+        const result = await runNode(verifyPath, {
+          DATABASE_ADMIN_URL: database.ownerUrl,
+          DATABASE_URL: database.appUrl,
+        });
+        expect(result.code).not.toBe(0);
+        expect(result.stderr).toContain(
+          "ledger_app must not be a member of any role",
+        );
+      } finally {
+        await admin
+          .query(`REVOKE "${memberRole}" FROM ledger_app`)
+          .catch(() => undefined);
+        await owner
+          .query(`REVOKE ALL ON company FROM "${memberRole}"`)
+          .catch(() => undefined);
+        await Promise.all([
+          owner.end().catch(() => undefined),
+          admin.end().catch(() => undefined),
+        ]);
+        const roleAdmin = new pg.Client({ connectionString: clusterAdminUrl });
+        await roleAdmin.connect();
+        try {
+          await roleAdmin.query(`DROP ROLE IF EXISTS "${memberRole}"`);
+        } finally {
+          await roleAdmin.end();
+        }
+        await dropDatabase(database.name);
+      }
+    },
+    30_000,
+  );
 
   test("rejects unsafe ledger_app role attributes", async () => {
     const database = await createDatabase();
