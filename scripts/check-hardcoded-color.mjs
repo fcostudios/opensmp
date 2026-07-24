@@ -5,6 +5,7 @@
 // rgb()/rgba() and hsl()/hsla() (review #6); comments/strings skipped.
 import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
+import { EXACT_HEX_FRAGMENT, isExactHex } from "./token-validation.mjs";
 // Token ownership contract:
 // - packages/design-system/tokens.json is the only editable token data.
 // - this script deterministically derives both CSS artifacts from it.
@@ -38,7 +39,7 @@ function cssTextAt(value, path) {
 
 function colorAt(value, path) {
   const color = cssTextAt(value, path);
-  if (!/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(color)) schemaError(path, "must be a 3, 4, 6, or 8-digit hex color");
+  if (!isExactHex(color)) schemaError(path, "must be a 3, 4, 6, or 8-digit hex color");
   return color;
 }
 
@@ -57,7 +58,7 @@ function fontAt(value, path) {
 function shadowAt(value, path) {
   const shadow = cssTextAt(value, path);
   const length = "-?(?:0|(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:px|rem|em))";
-  const color = "(?:transparent|#[0-9a-fA-F]{3,8}|rgba?\\(\\d{1,3},\\d{1,3},\\d{1,3}(?:,(?:0|1|0?\\.\\d+))?\\))";
+  const color = `(?:transparent|${EXACT_HEX_FRAGMENT}|rgba?\\(\\d{1,3},\\d{1,3},\\d{1,3}(?:,(?:0|1|0?\\.\\d+))?\\))`;
   if (!new RegExp(`^(?:${length}\\s+){1,3}${color}$`).test(shadow)) schemaError(path, "must be a safe offset/blur shadow");
   return shadow;
 }

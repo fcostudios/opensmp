@@ -2,6 +2,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { createRequire } from "node:module";
+import { isExactHex } from "./token-validation.mjs";
 
 const runtimeRequire = createRequire(new URL("../apps/web/package.json", import.meta.url));
 const postcss = runtimeRequire("postcss");
@@ -39,7 +40,7 @@ let semanticHexes;
 try {
   const tokens = JSON.parse(readFileSync(join(root, "packages", "design-system", "tokens.json"), "utf8"));
   const semantic = tokens?.color?.semantic;
-  if (!semantic || typeof semantic !== "object" || !Object.values(semantic).every((value) => typeof value === "string" && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(value))) throw new Error("color.semantic must contain 3, 4, 6, or 8-digit hex colors");
+  if (!semantic || typeof semantic !== "object" || !Object.values(semantic).every(isExactHex)) throw new Error("color.semantic must contain 3, 4, 6, or 8-digit hex colors");
   semanticHexes = [...new Set(Object.values(semantic).map((value) => value.toUpperCase()))];
 } catch (error) {
   fatal(`cannot load canonical semantic tokens: ${error instanceof Error ? error.message : String(error)}`);

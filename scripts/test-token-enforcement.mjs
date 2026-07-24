@@ -106,6 +106,13 @@ for (const [digits, value] of [[5, "#12345"], [7, "#1234567"]]) {
     writeFileSync(path, `${JSON.stringify(tokens, null, 2)}\n`);
     expectRejected(`invalid ${digits}-digit semantic color`, root, "check-status-pill.mjs", "cannot load canonical semantic tokens");
   });
+  withFixture(`invalid ${digits}-digit shadow color`, (root) => {
+    const path = join(root, "packages", "design-system", "tokens.json");
+    const tokens = JSON.parse(readFileSync(path, "utf8"));
+    tokens.shadow.sm = `0 1px #${"1234567".slice(0, digits)}`;
+    writeFileSync(path, `${JSON.stringify(tokens, null, 2)}\n`);
+    expectRejected(`invalid ${digits}-digit shadow color`, root, "check-hardcoded-color.mjs", "tokens.shadow.sm");
+  });
 }
 
 withFixture("background-color substring", (root) => {
