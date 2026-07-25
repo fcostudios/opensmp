@@ -21,10 +21,6 @@ require_regular_file 'backup manifest signature' "$source_signature_file"
 require_environment AGE_IDENTITY_FILE
 require_regular_file AGE_IDENTITY_FILE "$AGE_IDENTITY_FILE"
 
-require_environment PGHOST
-require_environment PGPORT
-require_environment PGUSER
-require_environment PGPASSWORD
 require_environment RESTORE_ADMIN_DATABASE
 require_environment RESTORE_TARGET_DATABASE
 require_environment RESTORE_TARGET_OWNER
@@ -37,14 +33,12 @@ require_environment RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER
 [[ -z "${DATABASE_URL:-}" ]] || fail 'DATABASE_URL is not permitted for restore; use discrete libpq variables'
 [[ "$RESTORE_TARGET_DATABASE" =~ ^[A-Za-z_][A-Za-z0-9_]{0,62}$ ]] || fail 'RESTORE_TARGET_DATABASE must be a PostgreSQL identifier'
 [[ "$RESTORE_TARGET_OWNER" =~ ^[A-Za-z_][A-Za-z0-9_]{0,62}$ ]] || fail 'RESTORE_TARGET_OWNER must be a PostgreSQL identifier'
-[[ "$PGUSER" =~ ^[A-Za-z_][A-Za-z0-9_]{0,62}$ ]] || fail 'PGUSER must be a PostgreSQL identifier'
 [[ "$RESTORE_CONFIRM_DATABASE" == "$RESTORE_TARGET_DATABASE" ]] || fail 'RESTORE_CONFIRM_DATABASE must exactly match RESTORE_TARGET_DATABASE'
-[[ "$PGPORT" =~ ^[0-9]+$ ]] || fail 'PGPORT must be numeric'
 
-preverified_inputs="${RESTORE_INPUTS_PREVERIFIED:-0}"
+staged_inputs="${RESTORE_STAGED_INPUTS:-0}"
 owns_stage_dir=0
 runtime_dir=''
-if [[ "$preverified_inputs" == 1 ]]; then
+if [[ "$staged_inputs" == 1 ]]; then
   require_environment RESTORE_VERIFIED_STAGE_DIR
   require_environment RESTORE_STAGING_ROOT
   [[ "$RESTORE_VERIFIED_STAGE_DIR" == "$RESTORE_STAGING_ROOT"/ledger-restore-inputs.* ]] \
@@ -52,10 +46,23 @@ if [[ "$preverified_inputs" == 1 ]]; then
   [[ "$(dirname -- "$source_backup_file")" == "$RESTORE_VERIFIED_STAGE_DIR" ]] \
     || fail 'preverified backup is outside RESTORE_VERIFIED_STAGE_DIR'
   perl -MFcntl=':DEFAULT,O_NOFOLLOW' -e '
-    my ($root, $dir, @paths) = @ARGV;
-    my @root_st = lstat($root);
-    die "RESTORE_STAGING_ROOT is no longer a private non-symlink directory\n"
-      unless @root_st && -d _ && !-l _ && $root_st[4] == $> && ($root_st[2] & 0777) == 0700;
+    my ($root, $dir, $root_fd, $root_id, @paths) = @ARGV;
+    my @root_st;
+    if ($root_fd ne "") {
+      open(my $root_fh, "<&$root_fd") or die "open pinned RESTORE_STAGING_ROOT: $!\n";
+      @root_st = stat($root_fh);
+      open(my $info, "<", "/proc/self/fdinfo/$root_fd") or die "read staging fdinfo: $!\n";
+      my $mnt = "";
+      while (my $line = <$info>) { $mnt = $1 if $line =~ /^mnt_id:\s+([0-9]+)\s*$/; }
+      die "pinned RESTORE_STAGING_ROOT identity changed\n"
+        unless "$root_st[0]|$root_st[1]|$mnt" eq $root_id;
+    } else {
+      @root_st = lstat($root);
+      die "RESTORE_STAGING_ROOT is no longer a private non-symlink directory\n"
+        unless @root_st && -d _ && !-l _;
+    }
+    die "RESTORE_STAGING_ROOT is no longer private or owned\n"
+      unless $root_st[4] == $> && ($root_st[2] & 0777) == 0700;
     my @dir_st = lstat($dir);
     die "preverified restore stage metadata changed\n"
       unless @dir_st && -d _ && !-l _ && $dir_st[4] == $> && ($dir_st[2] & 0777) == 0500;
@@ -71,6 +78,7 @@ if [[ "$preverified_inputs" == 1 ]]; then
           && $fd_st[3] == 1;
     }
   ' "$RESTORE_STAGING_ROOT" "$RESTORE_VERIFIED_STAGE_DIR" \
+    "${RESTORE_STAGING_ROOT_FD:-}" "${RESTORE_STAGING_ROOT_ID:-}" \
     "$source_backup_file" "$source_checksum_file" "$source_manifest_file" "$source_signature_file" \
     "$RESTORE_VERIFIED_STAGE_DIR/verify.pub"
   stage_dir="$RESTORE_VERIFIED_STAGE_DIR"
@@ -180,7 +188,7 @@ trap cleanup EXIT INT TERM
 
 # Descriptor-based staging prevents a check-to-copy replacement race on a bind
 # mount. All inputs used after validation are the private staged descriptors.
-if [[ "$preverified_inputs" != 1 ]]; then
+if [[ "$staged_inputs" != 1 ]]; then
   secure_copy_regular "$source_backup_file" "$stage_backup"
   secure_copy_regular "$source_checksum_file" "$stage_checksum"
   secure_copy_regular "$source_manifest_file" "$stage_manifest"
@@ -193,10 +201,8 @@ expected_checksum="$(awk '{print $1}' "$stage_checksum")"
 expected_checksum_line="$expected_checksum  $expected_filename"
 [[ "$expected_checksum" =~ ^[a-f0-9]{64}$ ]] || fail 'backup checksum metadata is invalid'
 [[ "$(wc -l < "$stage_checksum" | tr -d ' ')" == '1' && "$(< "$stage_checksum")" == "$expected_checksum_line" ]] || fail 'backup checksum metadata is invalid'
-if [[ "$preverified_inputs" != 1 ]]; then
-  [[ "$(sha256_file "$stage_backup")" == "$expected_checksum" ]] || fail 'backup checksum verification failed'
-  minisign -Vm "$stage_manifest" -p "$stage_verify_key" -x "$stage_signature" -q >/dev/null
-fi
+[[ "$(sha256_file "$stage_backup")" == "$expected_checksum" ]] || fail 'backup checksum verification failed'
+minisign -Vm "$stage_manifest" -p "$stage_verify_key" -x "$stage_signature" -q >/dev/null
 manifest_lines=()
 while IFS= read -r manifest_line || [[ -n "$manifest_line" ]]; do
   manifest_lines+=("$manifest_line")
@@ -209,11 +215,36 @@ manifest_size="${manifest_lines[3]#ciphertext_size=}"
 manifest_created_at="${manifest_lines[4]#created_at=}"
 source_system_identifier="${manifest_lines[5]#source_system_identifier=}"
 [[ "${manifest_lines[3]}" == "ciphertext_size=$manifest_size" && "$manifest_size" =~ ^[0-9]+$ ]] || fail 'backup manifest size is invalid'
-if [[ "$preverified_inputs" != 1 ]]; then
-  [[ "$manifest_size" == "$(wc -c < "$stage_backup" | tr -d ' ')" ]] || fail 'backup manifest size does not match ciphertext'
-fi
+[[ "$manifest_size" == "$(wc -c < "$stage_backup" | tr -d ' ')" ]] || fail 'backup manifest size does not match ciphertext'
 [[ "${manifest_lines[4]}" == "created_at=$manifest_created_at" && "$manifest_created_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || fail 'backup manifest timestamp is invalid'
 [[ "${manifest_lines[5]}" == "source_system_identifier=$source_system_identifier" && "$source_system_identifier" =~ ^[0-9]+$ ]] || fail 'backup manifest source system identifier is invalid'
+
+# The guarded wrapper deliberately opens authority only after this invocation
+# has unconditionally authenticated the staged ciphertext and signed manifest.
+if [[ "${RESTORE_GUARDED_PREPARE:-0}" == 1 ]]; then
+  if [[ -f "$SCRIPT_DIR/restore-window-common.sh" ]]; then
+    window_script_dir="$SCRIPT_DIR"
+  else
+    window_script_dir="$SCRIPT_DIR/../postgres"
+  fi
+  # shellcheck source=infra/postgres/restore-window-common.sh
+  source "$window_script_dir/restore-window-common.sh"
+  "$window_script_dir/prepare-restore-window.sh"
+  restore_password="$(restore_window_read_credential_file "$RESTORE_WINDOW_CREDENTIAL_FILE")" \
+    || restore_window_fail 'restore-window credential file was replaced'
+  export PGHOST="$RESTORE_WINDOW_PGHOST"
+  export PGPORT="$RESTORE_WINDOW_PGPORT"
+  export PGUSER=ledger_restore_admin
+  export PGDATABASE="$RESTORE_WINDOW_ADMIN_DATABASE"
+  export PGPASSWORD="$restore_password"
+fi
+
+require_environment PGHOST
+require_environment PGPORT
+require_environment PGUSER
+require_environment PGPASSWORD
+[[ "$PGUSER" =~ ^[A-Za-z_][A-Za-z0-9_]{0,62}$ ]] || fail 'PGUSER must be a PostgreSQL identifier'
+[[ "$PGPORT" =~ ^[0-9]+$ ]] || fail 'PGPORT must be numeric'
 
 # Resolve once before the authenticated admin connection. The target psql
 # session uses that numeric address (or a single normalized Unix socket path),

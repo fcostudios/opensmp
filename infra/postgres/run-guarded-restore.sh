@@ -19,6 +19,14 @@ readonly STAGE_SCRIPT="${RESTORE_WINDOW_STAGE_SCRIPT:-$DEFAULT_STAGE_SCRIPT}"
 [[ "$#" -eq 1 ]] || { printf '%s\n' 'usage: run-guarded-restore.sh /path/to/ledger-YYYYMMDDHHMMSS.dump.age' >&2; exit 1; }
 [[ -x "$STAGE_SCRIPT" ]] || restore_window_fail 'stage-restore-inputs.sh is required'
 
+# The packaged entrypoint first pins the exact mounted staging root. All later
+# accesses use its inherited directory descriptor, so replacing an
+# intermediate same-UID parent cannot redirect staging or cleanup.
+if [[ "$SCRIPT_DIR" == /usr/local/bin && -z "${RESTORE_STAGING_ROOT_FD:-}" ]]; then
+  restore_window_require RESTORE_STAGING_ROOT
+  exec /usr/local/bin/exec-with-restore-staging-root.pl "$RESTORE_STAGING_ROOT" "$0" "$@"
+fi
+
 temporary_credential=0
 staged_dir=''
 window_prepared=0
@@ -37,7 +45,13 @@ finalize_restore_window() {
   if [[ -n "$staged_dir" && -d "$staged_dir" ]]; then
     if [[ "$staged_dir" == "$RESTORE_STAGING_ROOT"/ledger-restore-inputs.* ]]; then
       chmod 0700 "$staged_dir" || status=1
-      rm -rf -- "$staged_dir" || status=1
+      staged_name="$(basename -- "$staged_backup")"
+      rm -f -- "$staged_dir/$staged_name" \
+        "$staged_dir/$staged_name.sha256" \
+        "$staged_dir/$staged_name.manifest" \
+        "$staged_dir/$staged_name.manifest.minisig" \
+        "$staged_dir/verify.pub" || status=1
+      rmdir -- "$staged_dir" || status=1
     else
       status=1
     fi
@@ -75,17 +89,10 @@ export RESTORE_WINDOW_GENERATE_CREDENTIAL=0
 staged_backup="$("$STAGE_SCRIPT" "$1")" || restore_window_fail 'restore artifact staging or verification failed'
 staged_dir="$(dirname "$staged_backup")"
 
-# Schedule idempotent finalization before prepare: a server COMMIT can succeed
-# even if a later client-side state check fails.
+# Schedule idempotent finalization before the restore's guarded prepare: a
+# server COMMIT can succeed even if a later client-side state check fails.
 window_prepared=1
-"$SCRIPT_DIR/prepare-restore-window.sh"
-restore_password="$(restore_window_read_credential_file "$RESTORE_WINDOW_CREDENTIAL_FILE")" \
-  || restore_window_fail 'restore-window credential file was replaced'
-export PGHOST="$RESTORE_WINDOW_PGHOST"
-export PGPORT="$RESTORE_WINDOW_PGPORT"
-export PGUSER=ledger_restore_admin
-export PGDATABASE="$RESTORE_WINDOW_ADMIN_DATABASE"
-export PGPASSWORD="$restore_password"
-export RESTORE_INPUTS_PREVERIFIED=1
+export RESTORE_GUARDED_PREPARE=1
+export RESTORE_STAGED_INPUTS=1
 export RESTORE_VERIFIED_STAGE_DIR="$staged_dir"
 "$RESTORE_SCRIPT" "$staged_backup"

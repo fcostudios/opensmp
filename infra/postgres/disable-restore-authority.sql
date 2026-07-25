@@ -13,18 +13,24 @@ SELECT pg_advisory_lock(741263, 2);
 BEGIN;
 ALTER ROLE ledger_restore_admin NOLOGIN PASSWORD NULL VALID UNTIL 'epoch';
 REVOKE ledger_owner FROM ledger_restore_admin;
-SELECT pg_terminate_backend(pid)
-FROM pg_stat_activity
-WHERE usename = 'ledger_restore_admin' AND pid <> pg_backend_pid();
 COMMIT;
 
-DO $wait$
+CREATE PROCEDURE pg_temp.ledger_disable_restore_sessions()
+LANGUAGE plpgsql
+AS $wait$
 DECLARE
   attempt integer;
 BEGIN
   FOR attempt IN 1..50 LOOP
-    EXIT WHEN NOT EXISTS (SELECT 1 FROM pg_stat_activity WHERE usename = 'ledger_restore_admin');
+    PERFORM pg_terminate_backend(pid)
+    FROM pg_stat_activity
+    WHERE usename = 'ledger_restore_admin' AND pid <> pg_backend_pid();
+    -- CALL runs at top level. Commit each termination pass so the next pass
+    -- receives a fresh pg_stat_activity snapshot and catches authentication
+    -- races that began before the NOLOGIN commit became visible.
+    COMMIT;
     PERFORM pg_sleep(0.1);
+    EXIT WHEN NOT EXISTS (SELECT 1 FROM pg_stat_activity WHERE usename = 'ledger_restore_admin');
   END LOOP;
   IF EXISTS (SELECT 1 FROM pg_stat_activity WHERE usename = 'ledger_restore_admin') THEN
     RAISE EXCEPTION 'restore-admin sessions remained after termination';
@@ -49,6 +55,8 @@ BEGIN
   END IF;
 END
 $wait$;
+CALL pg_temp.ledger_disable_restore_sessions();
+DROP PROCEDURE pg_temp.ledger_disable_restore_sessions();
 
 SELECT rolcanlogin::text || '|' ||
   (SELECT rolpassword IS NULL FROM pg_authid WHERE rolname = 'ledger_restore_admin')::text || '|' ||

@@ -7,14 +7,12 @@ set -euo pipefail
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly COMPOSE_FILE="${COMPOSE_FILE:-$SCRIPT_DIR/../docker-compose.yml}"
-readonly DISABLE_AUTHORITY_SQL="$SCRIPT_DIR/disable-restore-authority.sql"
+readonly CONVERGENCE_SQL_BUILDER="$SCRIPT_DIR/build-role-convergence-sql.sh"
 
-docker compose -f "$COMPOSE_FILE" exec -T postgres sh -ec '
-  psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set ON_ERROR_STOP=1 \
-    --file /docker-entrypoint-initdb.d/001-roles.sql
-  /docker-entrypoint-initdb.d/002-set-role-passwords.sh
+"$CONVERGENCE_SQL_BUILDER" | docker compose -f "$COMPOSE_FILE" exec -T postgres sh -ec '
+  exec psql --username "$POSTGRES_USER" --dbname postgres \
+    --set ON_ERROR_STOP=1 \
+    --set ledger_owner_password="$LEDGER_OWNER_PASSWORD" \
+    --set ledger_app_password="$LEDGER_APP_PASSWORD" \
+    --set ledger_backup_password="$LEDGER_BACKUP_PASSWORD"
 '
-
-docker compose -f "$COMPOSE_FILE" exec -T postgres sh -ec '
-  exec psql --username "$POSTGRES_USER" --dbname postgres --set ON_ERROR_STOP=1
-' < "$DISABLE_AUTHORITY_SQL"

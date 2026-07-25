@@ -7,6 +7,7 @@ env_example="$repo_root/.env.example"
 roles_sql="$repo_root/infra/postgres/init/001-roles.sql"
 passwords_script="$repo_root/infra/postgres/init/002-set-role-passwords.sh"
 apply_roles_script="$repo_root/infra/postgres/apply-roles.sh"
+role_convergence_script="$repo_root/infra/postgres/build-role-convergence-sql.sh"
 prepare_window_script="$repo_root/infra/postgres/prepare-restore-window.sh"
 finalize_window_script="$repo_root/infra/postgres/finalize-restore-window.sh"
 guarded_restore_script="$repo_root/infra/postgres/run-guarded-restore.sh"
@@ -77,7 +78,9 @@ teardown() {
   [ "$status" -ne 0 ]
   run test -x "$apply_roles_script"
   [ "$status" -eq 0 ]
-  run grep --fixed-strings '/docker-entrypoint-initdb.d/001-roles.sql' "$apply_roles_script"
+  run grep --fixed-strings 'build-role-convergence-sql.sh' "$apply_roles_script"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'init/001-roles.sql' "$role_convergence_script"
   [ "$status" -eq 0 ]
   run test -x "$prepare_window_script"
   [ "$status" -eq 0 ]
@@ -89,8 +92,11 @@ teardown() {
   [ "$status" -eq 0 ]
   run grep --fixed-strings 'pg_advisory_lock(741263, 2)' "$window_common_script"
   [ "$status" -eq 0 ]
-  run grep --fixed-strings 'disable-restore-authority.sql' "$apply_roles_script"
+  run grep --fixed-strings 'disable-restore-authority.sql' "$role_convergence_script"
   [ "$status" -eq 0 ]
+  run grep -c 'docker compose' "$apply_roles_script"
+  [ "$status" -eq 0 ]
+  [ "$output" = '1' ]
   run grep --fixed-strings 'disable-restore-authority.sql' "$finalize_window_script"
   [ "$status" -eq 0 ]
   run grep --fixed-strings 'ALTER ROLE ledger_restore_admin NOLOGIN PASSWORD NULL' "$disable_authority_sql"

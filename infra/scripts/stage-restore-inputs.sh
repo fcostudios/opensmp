@@ -23,12 +23,32 @@ require_regular_file 'backup manifest signature' "$source_signature"
 require_regular_file BACKUP_VERIFY_KEY_FILE "$BACKUP_VERIFY_KEY_FILE"
 
 [[ "$RESTORE_STAGING_ROOT" == /* ]] || fail 'RESTORE_STAGING_ROOT must be absolute'
-perl -e '
-  my ($root) = @ARGV;
-  my @st = lstat($root);
-  die "RESTORE_STAGING_ROOT must be a private non-symlink directory\n"
-    unless @st && -d _ && !-l _ && $st[4] == $> && ($st[2] & 0777) == 0700;
-' "$RESTORE_STAGING_ROOT"
+validate_staging_root_identity() {
+  if [[ -n "${RESTORE_STAGING_ROOT_FD:-}" ]]; then
+    perl -e '
+      my ($fd, $expected) = @ARGV;
+      open(my $root, "<&$fd") or die "open pinned RESTORE_STAGING_ROOT: $!\n";
+      my @st = stat($root);
+      die "pinned RESTORE_STAGING_ROOT metadata changed\n"
+        unless @st && -d _ && $st[4] == $> && ($st[2] & 0777) == 0700;
+      open(my $info, "<", "/proc/self/fdinfo/$fd") or die "read staging fdinfo: $!\n";
+      my $mnt = "";
+      while (my $line = <$info>) {
+        $mnt = $1 if $line =~ /^mnt_id:\s+([0-9]+)\s*$/;
+      }
+      die "pinned RESTORE_STAGING_ROOT identity changed\n"
+        unless "$st[0]|$st[1]|$mnt" eq $expected;
+    ' "$RESTORE_STAGING_ROOT_FD" "${RESTORE_STAGING_ROOT_ID:-}"
+  else
+    perl -e '
+      my ($root) = @ARGV;
+      my @st = lstat($root);
+      die "RESTORE_STAGING_ROOT must be a private non-symlink directory\n"
+        unless @st && -d _ && !-l _ && $st[4] == $> && ($st[2] & 0777) == 0700;
+    ' "$RESTORE_STAGING_ROOT"
+  fi
+}
+validate_staging_root_identity
 
 filesystem_type=''
 if filesystem_type="$(stat -f -c %T "$RESTORE_STAGING_ROOT" 2>/dev/null)"; then
@@ -120,6 +140,7 @@ manifest_size="${manifest_lines[3]#ciphertext_size=}"
 
 chmod 0400 "$staged_backup" "$staged_checksum" "$staged_manifest" "$staged_signature" "$staged_verify_key"
 chmod 0500 "$staged_dir"
+validate_staging_root_identity
 stage_succeeded=1
 trap - EXIT INT TERM
 printf '%s\n' "$staged_backup"

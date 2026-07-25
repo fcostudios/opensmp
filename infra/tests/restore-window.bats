@@ -4,6 +4,7 @@ prepare_script="$BATS_TEST_DIRNAME/../postgres/prepare-restore-window.sh"
 finalize_script="$BATS_TEST_DIRNAME/../postgres/finalize-restore-window.sh"
 guarded_restore_script="$BATS_TEST_DIRNAME/../postgres/run-guarded-restore.sh"
 disable_authority_sql="$BATS_TEST_DIRNAME/../postgres/disable-restore-authority.sql"
+role_convergence_script="$BATS_TEST_DIRNAME/../postgres/build-role-convergence-sql.sh"
 
 setup_file() {
   bats_require_minimum_version 1.5.0
@@ -193,6 +194,81 @@ restore_admin_can_mutate() {
     set_role_status=$?
   fi
   [ "$set_role_status" -ne 0 ]
+  [ "$(restore_admin_state)" = 'false|true|0|0' ]
+}
+
+@test "disable commits NOLOGIN before repeatedly terminating authentication-race sessions" {
+  start_target_cluster
+  "$prepare_script"
+  credential="$(< "$RESTORE_WINDOW_CREDENTIAL_FILE")"
+  stop_race="$test_root/stop-auth-race"
+
+  (
+    while [[ ! -e "$stop_race" ]]; do
+      PGPASSWORD="$credential" "$host_psql" --host 127.0.0.1 --port "$postgres_port" \
+        --username ledger_restore_admin --dbname ledger --command 'SELECT pg_sleep(1);' \
+        >/dev/null 2>&1 || true
+    done
+  ) &
+  race_pid=$!
+  sleep 0.1
+
+  run env PGPASSWORD=postgres "$host_psql" --host 127.0.0.1 --port "$postgres_port" \
+    --username postgres --dbname postgres --set ON_ERROR_STOP=1 --file "$disable_authority_sql"
+  disable_status="$status"
+  : > "$stop_race"
+  wait "$race_pid"
+  [ "$disable_status" -eq 0 ] || { printf '%s\n' "$output" >&2; return 1; }
+  [ "$(restore_admin_state)" = 'false|true|0|0' ]
+  first_commit_line="$(grep -n '^COMMIT;' "$disable_authority_sql" | head -1 | cut -d: -f1)"
+  first_terminate_line="$(grep -n 'pg_terminate_backend(pid)' "$disable_authority_sql" | head -1 | cut -d: -f1)"
+  [ "$first_commit_line" -lt "$first_terminate_line" ]
+}
+
+@test "existing-volume convergence waits on one maintenance lock before changing any role" {
+  start_target_cluster
+  "$prepare_script"
+  env PGPASSWORD=postgres "$host_psql" --host 127.0.0.1 --port "$postgres_port" \
+    --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
+    --command 'SELECT pg_advisory_lock(741263, 2); SELECT pg_sleep(60);' \
+    >"$test_root/lock-holder.stdout" 2>"$test_root/lock-holder.stderr" &
+  lock_pid=$!
+  for _ in {1..50}; do
+    lock_count="$(env PGPASSWORD=postgres "$host_psql" --host 127.0.0.1 --port "$postgres_port" \
+      --username postgres --dbname postgres --tuples-only --no-align \
+      --command "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND classid = 741263 AND objid = 2 AND granted;")"
+    [[ "$lock_count" == 1 ]] && break
+    sleep 0.1
+  done
+  [ "$lock_count" = 1 ]
+  lock_backend_pid="$(env PGPASSWORD=postgres "$host_psql" --host 127.0.0.1 --port "$postgres_port" \
+    --username postgres --dbname postgres --tuples-only --no-align \
+    --command "SELECT pid FROM pg_locks WHERE locktype = 'advisory' AND classid = 741263 AND objid = 2 AND granted;")"
+  [[ "$lock_backend_pid" =~ ^[0-9]+$ ]]
+
+  "$role_convergence_script" | env PGPASSWORD=postgres "$host_psql" \
+    --host 127.0.0.1 --port "$postgres_port" --username postgres --dbname postgres \
+    --set ON_ERROR_STOP=1 \
+    --set ledger_owner_password=owner-rotated \
+    --set ledger_app_password=app-rotated \
+    --set ledger_backup_password=backup-rotated \
+    >"$test_root/convergence.stdout" 2>"$test_root/convergence.stderr" &
+  convergence_pid=$!
+  sleep 0.3
+  held_state="$(restore_admin_state)"
+  [ "$held_state" = 'true|false|1|0' ] || {
+    printf 'held state: %s\n' "$held_state" >&2
+    cat "$test_root/lock-holder.stdout" "$test_root/lock-holder.stderr" \
+      "$test_root/convergence.stdout" "$test_root/convergence.stderr" >&2
+    return 1
+  }
+  kill -0 "$convergence_pid"
+
+  env PGPASSWORD=postgres "$host_psql" --host 127.0.0.1 --port "$postgres_port" \
+    --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
+    --command "SELECT pg_terminate_backend($lock_backend_pid);" >/dev/null
+  wait "$lock_pid" || true
+  wait "$convergence_pid"
   [ "$(restore_admin_state)" = 'false|true|0|0' ]
 }
 

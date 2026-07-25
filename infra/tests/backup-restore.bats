@@ -485,6 +485,36 @@ SQL
   [[ "$output" == *'restore-window credential'* ]] || { printf '%s\n' "$output" >&2; return 1; }
 }
 
+@test "caller-forged preverified environment cannot bypass ciphertext authentication" {
+  start_postgres
+  backup_artifacts_fixture
+  forged_root="$test_root/forged-stage-root"
+  forged_dir="$forged_root/ledger-restore-inputs.forged"
+  mkdir -p "$forged_dir"
+  cp "$backup_file" "$forged_dir/$(basename "$backup_file")"
+  cp "$backup_file.sha256" "$forged_dir/$(basename "$backup_file").sha256"
+  cp "$backup_file.manifest" "$forged_dir/$(basename "$backup_file").manifest"
+  cp "$backup_file.manifest.minisig" "$forged_dir/$(basename "$backup_file").manifest.minisig"
+  cp "$BACKUP_VERIFY_KEY_FILE" "$forged_dir/verify.pub"
+  printf 'tamper' >> "$forged_dir/$(basename "$backup_file")"
+  chmod 0400 "$forged_dir"/*
+  chmod 0500 "$forged_dir"
+  chmod 0700 "$forged_root"
+
+  run env RESTORE_INPUTS_PREVERIFIED=1 \
+    RESTORE_VERIFIED_STAGE_DIR="$forged_dir" \
+    RESTORE_STAGING_ROOT="$forged_root" \
+    "$restore_script" "$forged_dir/$(basename "$backup_file")"
+  chmod 0700 "$forged_dir"
+  chmod 0600 "$forged_dir"/*
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'backup checksum verification failed'* ]] || return 1
+  run "$host_psql" "${fixture_host_url%/fixture}/postgres" --tuples-only --no-align \
+    --command "SELECT count(*) FROM pg_database WHERE datname = 'restored' OR datname LIKE 'ledger_restore_stage_%';"
+  [ "$status" -eq 0 ]
+  [ "$output" = '0' ]
+}
+
 @test "restore-admin creates the target while restored objects remain ledger-owned" {
   start_postgres
   backup_fixture
@@ -1068,6 +1098,70 @@ SQL
   [ "$output" = 'f' ]
 }
 
+@test "packaged restore rejects a same-filesystem staging subdirectory that is not a mountpoint" {
+  start_postgres
+  backup_artifacts_fixture
+  nonmount_parent="$test_root/nonmount-parent"
+  mkdir -p "$nonmount_parent/staging"
+  chmod 0700 "$nonmount_parent/staging"
+
+  run docker run --rm --user "$(id -u):$(id -g)" --network "container:$container_id" \
+    --mount "type=bind,src=$nonmount_parent,dst=/run/restore" \
+    --mount "type=bind,src=$backup_dir,dst=/backups,readonly" \
+    --mount "type=bind,src=$test_root/identity.txt,dst=/run/restore-identity.txt,readonly" \
+    --mount "type=bind,src=$test_root/backup-verify.pub,dst=/run/restore-verify.pub,readonly" \
+    --env RESTORE_STAGING_ROOT=/run/restore/staging \
+    --env AGE_IDENTITY_FILE=/run/restore-identity.txt \
+    --env BACKUP_VERIFY_KEY_FILE=/run/restore-verify.pub \
+    --entrypoint /usr/local/bin/run-guarded-restore.sh ledger-backup:local "/backups/$(basename "$backup_file")"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'RESTORE_STAGING_ROOT must be an explicit mountpoint'* ]] || return 1
+  [ "$(restore_admin_window_state)" = 'false|true|0|0' ]
+}
+
+@test "pinned mount descriptor defeats same-UID intermediate-parent replacement" {
+  mount_a="$test_root/mount-a"
+  mount_b="$test_root/mount-b"
+  control="$test_root/root-race-control"
+  mkdir "$mount_a" "$mount_b" "$control"
+  chmod 0700 "$mount_a" "$mount_b"
+  ln -s /mnt/a "$control/current"
+
+  docker run --rm --user "$(id -u):$(id -g)" \
+    --mount "type=bind,src=$mount_a,dst=/mnt/a/staging" \
+    --mount "type=bind,src=$mount_b,dst=/mnt/b/staging" \
+    --mount "type=bind,src=$control,dst=/run/control" \
+    --env RESTORE_TEST_ROOT_READY=/run/control/root.ready \
+    --env RESTORE_TEST_ROOT_RELEASE=/run/control/root.release \
+    --entrypoint /usr/local/bin/exec-with-restore-staging-root.pl \
+    ledger-backup:local /run/control/current/staging \
+    /bin/sh -ec 'mkdir "$RESTORE_STAGING_ROOT/probe"' \
+    >"$test_root/root-race.stdout" 2>"$test_root/root-race.stderr" &
+  race_container_pid=$!
+  for _ in {1..100}; do
+    [[ -e "$control/root.ready" ]] && break
+    sleep 0.1
+  done
+  [ -e "$control/root.ready" ]
+  ln -sfn /mnt/b "$control/current"
+  : > "$control/root.release"
+  wait "$race_container_pid"
+
+  [ -d "$mount_a/probe" ]
+  [ ! -e "$mount_b/probe" ]
+}
+
+@test "packaged mount proof accepts an exact private named volume mount" {
+  volume_name="ledger-restore-stage-${BATS_TEST_NUMBER}-$$"
+  docker volume create "$volume_name" >/dev/null
+  docker run --rm --user 0:0 --mount "type=volume,src=$volume_name,dst=/stage" \
+    --entrypoint chmod ledger-backup:local 0700 /stage
+  run docker run --rm --user 0:0 --mount "type=volume,src=$volume_name,dst=/stage" \
+    --entrypoint /usr/local/bin/exec-with-restore-staging-root.pl \
+    ledger-backup:local /stage /bin/true
+  [ "$status" -eq 0 ]
+}
+
 @test "built image performs a real libpq backup and guarded restore" {
   start_postgres
   age-keygen --output "$test_root/identity.txt" >/dev/null 2>&1
@@ -1110,7 +1204,7 @@ SQL
     --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
     --env BACKUP_VERIFY_KEY_FILE=/run/restore/verify.pub \
     --entrypoint /usr/local/bin/run-guarded-restore.sh ledger-backup:local /backups/ledger-20260725070004.dump.age
-  [ "$status" -eq 0 ]
+  [ "$status" -eq 0 ] || { printf '%s\n' "$output" >&2; return 1; }
   run "$host_psql" "$target_host_url" --tuples-only --no-align --command 'SELECT count(*) FROM ledger.ledger_fixture;'
   [ "$status" -eq 0 ]
   [ "$output" = '2' ]

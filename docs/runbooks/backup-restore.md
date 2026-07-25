@@ -98,6 +98,12 @@ already-initialized PostgreSQL volume before relying on `ledger_backup` or
 ./infra/postgres/apply-roles.sh
 ```
 
+Existing-volume convergence uses one `postgres` coordinator session. Its
+session-level maintenance lock remains held across role convergence, all three
+password rotations, the committed `NOLOGIN`/password-null/membership revoke,
+repeated session termination, and final zero-authority postconditions. It
+therefore cannot change restore authority in the middle of a guarded restore.
+
 Each backup keeps four files together:
 
 ```text
@@ -236,14 +242,21 @@ docker run --rm --user "$(id -u):$(id -g)" \
 ```
 
 `run-guarded-restore.sh` first copies every encrypted/public artifact with
-no-follow descriptors into the explicit mounted staging root. It checks
-capacity before copying, verifies the ciphertext hash and size, and verifies
+no-follow descriptors into the explicit mounted staging root. The packaged
+entrypoint opens that exact mount with `O_DIRECTORY|O_NOFOLLOW`, proves its
+mount ID differs from its parent, and retains the descriptor across staging,
+verification, restore, and cleanup. Intermediate-parent replacement therefore
+cannot redirect work; an ordinary same-filesystem directory is rejected. It
+checks capacity before copying, verifies ciphertext hash and size, and verifies
 the Ed25519-signed manifest while `ledger_restore_admin` remains `NOLOGIN`,
-passwordless, and ungranted. Only the resulting private 0400 artifacts are
-passed to the authority phase; slow or tampered input therefore cannot consume
-the role TTL.
+passwordless, and ungranted.
 
-After staging succeeds, the wrapper calls prepare, runs the restore, and has
+The restore invocation unconditionally repeats hash, size, and signature
+authentication against the pinned private stage before it calls prepare.
+Caller-supplied environment cannot claim that input is preverified. Slow or
+tampered input therefore cannot consume the role TTL.
+
+After authentication succeeds, the restore calls prepare and the wrapper has
 `EXIT`, `INT`, and `TERM` traps that always call finalize. Prepare itself also
 invokes finalize if an error occurs after it might have changed authority. The
 wrapper creates a private 0700 credential directory and one 0600
