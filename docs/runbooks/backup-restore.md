@@ -19,13 +19,17 @@ operational safeguard, not an approval to restore production data casually.
 The profile is intentionally not part of a normal `docker compose up`:
 
 ```bash
+docker build -f infra/backup/Dockerfile infra -t ledger-backup:local
 docker compose -f infra/docker-compose.yml --profile backup run --rm backup
 ```
 
-The job writes an encrypted custom dump and an adjacent SHA-256 metadata file
-to the persistent `backup_data` volume. It streams `pg_dump` directly into
-`age`, writes only encrypted partial output, then atomically publishes the dump
-and checksum. A per-directory lock prevents simultaneous jobs.
+The job uses libpq `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, and `PGPASSWORD`
+environment variables; it does not interpolate a password into a URI. It writes
+an encrypted custom dump and adjacent SHA-256 metadata to the persistent
+`backup_data` volume. It streams `pg_dump` directly into `age`, writes only
+encrypted partial output, publishes the checksum first, then publishes the
+ciphertext as the commit marker. If that final publication fails, cleanup removes
+the already-published checksum. A per-directory lock prevents simultaneous jobs.
 
 ## Restore procedure
 
@@ -35,20 +39,33 @@ and checksum. A per-directory lock prevents simultaneous jobs.
    database for a drill.
 3. Make the identity readable only by the restore operator (`chmod 600`) and
    mount it only into the one-shot restore container.
-4. Set the target URI and type its parsed database name exactly as the
-   confirmation. URI query options, unsafe host/port syntax, and mismatches are
-   rejected before decryption.
+4. Set the target libpq variables and type the database name returned by
+   `SELECT current_database()` exactly as the confirmation. A `DATABASE_URL` is
+   also supported for operators that need an IPv6, Unix-socket, or percent-
+   encoded URI, but its `options` parameter is rejected before decryption.
 
 ```bash
-export DATABASE_URL='postgresql://ledger_owner:REDACTED@db.example:5432/ledger_restore'
+export PGHOST='db.example'
+export PGPORT='5432'
+export PGDATABASE='ledger_restore'
+export PGUSER='ledger_owner'
+export PGPASSWORD='REDACTED'
 export RESTORE_CONFIRM_DATABASE='ledger_restore'
-export AGE_IDENTITY_FILE="$PWD/age-restore-identity.txt"
+backup_file="$PWD/ledger-YYYYMMDDHHMMSS.dump.age"
+checksum_file="$backup_file.sha256"
+identity_file="$PWD/age-restore-identity.txt"
 
+docker build -f infra/backup/Dockerfile infra -t ledger-backup:local
 docker run --rm \
   --network ledger_default \
-  --mount type=bind,src="$PWD",dst=/restore,readonly \
+  --env PGHOST --env PGPORT --env PGDATABASE --env PGUSER --env PGPASSWORD \
+  --env RESTORE_CONFIRM_DATABASE \
+  --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
+  --mount type=bind,src="$backup_file",dst=/restore/backup.dump.age,readonly \
+  --mount type=bind,src="$checksum_file",dst=/restore/backup.dump.age.sha256,readonly \
+  --mount type=bind,src="$identity_file",dst=/run/restore/identity.txt,readonly \
   --entrypoint /usr/local/bin/restore-db.sh \
-  ledger-backup:local /restore/ledger-YYYYMMDDHHMMSS.dump.age
+  ledger-backup:local /restore/backup.dump.age
 ```
 
 `restore-db.sh` validates the ciphertext against its SHA-256 metadata before it

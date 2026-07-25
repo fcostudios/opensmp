@@ -6,4 +6,6 @@ set -euo pipefail
 if [[ "${BACKUP_TEST_DELAY_PG_DUMP:-0}" != '0' ]]; then
   sleep "$BACKUP_TEST_DELAY_PG_DUMP"
 fi
-exec docker exec "$BACKUP_TEST_POSTGRES_CONTAINER" pg_dump "$@"
+exec docker exec \
+  --env PGHOST --env PGPORT --env PGDATABASE --env PGUSER --env PGPASSWORD \
+  "$BACKUP_TEST_POSTGRES_CONTAINER" pg_dump "$@"

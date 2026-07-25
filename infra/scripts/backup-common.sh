@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Shared validation for the backup and restore entry points. Database URLs are
-# deliberately constrained to a simple PostgreSQL URI so they cannot smuggle
-# libpq connection options or shell-like arguments into client commands.
+# Shared libpq-safe connection and checksum helpers for backup/restore.
 set -euo pipefail
 
 fail() {
@@ -14,25 +12,31 @@ require_environment() {
   [[ -n "${!name:-}" ]] || fail "$name is required"
 }
 
-parse_database_url() {
-  require_environment DATABASE_URL
+DATABASE_CLIENT_ARGS=()
 
-  [[ "$DATABASE_URL" != *$'\n'* && "$DATABASE_URL" != *$'\r'* && "$DATABASE_URL" != *' '* && "$DATABASE_URL" != *'#'* && "$DATABASE_URL" != *';'* ]] || fail 'DATABASE_URL contains unsafe characters'
-  [[ "$DATABASE_URL" != *'?'* ]] || fail 'DATABASE_URL must not contain URI options'
-  [[ "$DATABASE_URL" =~ ^postgres(ql)?:// ]] || fail 'DATABASE_URL must be a postgresql:// URI'
+prepare_database_connection() {
+  [[ -z "${PGOPTIONS:-}" ]] || fail 'PGOPTIONS is not permitted'
 
-  local authority_and_database="${DATABASE_URL#*://}"
-  local authority="${authority_and_database%%/*}"
-  target_database="${authority_and_database#*/}"
-  [[ "$authority" != "$authority_and_database" && -n "$authority" ]] || fail 'DATABASE_URL must include a host and database name'
-  [[ "$target_database" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,62}$ ]] || fail 'DATABASE_URL has an unsafe database name'
-
-  local host_port="${authority##*@}"
-  [[ "$host_port" =~ ^[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] || fail 'DATABASE_URL has an unsafe host or port'
-  if [[ "$host_port" == *:* ]]; then
-    local port="${host_port##*:}"
-    (( 10#$port >= 1 && 10#$port <= 65535 )) || fail 'DATABASE_URL port is out of range'
+  if [[ -n "${DATABASE_URL:-}" ]]; then
+    [[ "$DATABASE_URL" != *$'\n'* && "$DATABASE_URL" != *$'\r'* ]] || fail 'DATABASE_URL contains unsafe characters'
+    [[ "$DATABASE_URL" =~ ^postgres(ql)?:// ]] || fail 'DATABASE_URL must be a PostgreSQL URI'
+    local query=''
+    if [[ "$DATABASE_URL" == *'?'* ]]; then
+      query="${DATABASE_URL#*\?}"
+      [[ ! "$query" =~ (^|&)options= ]] || fail 'DATABASE_URL must not contain URI options'
+    fi
+    DATABASE_CLIENT_ARGS=("--dbname=$DATABASE_URL")
+  else
+    require_environment PGDATABASE
+    DATABASE_CLIENT_ARGS=("--dbname=$PGDATABASE")
   fi
+}
+
+effective_database_name() {
+  local database
+  database="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 "${DATABASE_CLIENT_ARGS[@]}" --command 'SELECT current_database()')"
+  [[ "$database" =~ ^[[:print:]]+$ && "$database" != *$'\n'* && "$database" != *$'\r'* ]] || fail 'could not determine effective target database'
+  printf '%s\n' "$database"
 }
 
 validate_age_recipient() {
@@ -41,5 +45,11 @@ validate_age_recipient() {
 }
 
 sha256_file() {
-  shasum --algorithm 256 "$1" | awk '{print $1}'
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum --algorithm 256 "$1" | awk '{print $1}'
+  else
+    fail 'no SHA-256 tool is available'
+  fi
 }

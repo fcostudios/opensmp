@@ -1,6 +1,6 @@
 FROM postgres:16-alpine
 
-RUN apk add --no-cache age bash
+RUN apk add --no-cache age bash coreutils
 
 COPY --chown=postgres:postgres scripts/backup-common.sh /usr/local/bin/backup-common.sh
 COPY --chown=postgres:postgres scripts/backup-db.sh /usr/local/bin/backup-db.sh

@@ -101,11 +101,16 @@ services:
   # private identity belongs to the restore operator and is never mounted here.
   backup:
     profiles: ["backup"]
+    image: ledger-backup:local
     build:
       context: .
       dockerfile: backup/Dockerfile
     environment:
-      DATABASE_URL: postgresql://ledger_backup:${LEDGER_BACKUP_PASSWORD:?set LEDGER_BACKUP_PASSWORD in .env}@postgres:5432/ledger
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ledger
+      PGUSER: ledger_backup
+      PGPASSWORD: ${LEDGER_BACKUP_PASSWORD:?set LEDGER_BACKUP_PASSWORD in .env}
       BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?set BACKUP_AGE_RECIPIENT in .env}
       BACKUP_DIR: /backups
     depends_on:

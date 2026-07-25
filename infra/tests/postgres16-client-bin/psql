@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# See pg_dump in this directory; this executes PostgreSQL 16's real pg_restore.
+# The restore confirmation query must use PostgreSQL 16 and the same libpq
+# settings as pg_restore; execute it inside the real fixture container.
 set -euo pipefail
 : "${BACKUP_TEST_POSTGRES_CONTAINER:?fixture container is required}"
 exec docker exec -i \
   --env PGHOST --env PGPORT --env PGDATABASE --env PGUSER --env PGPASSWORD \
-  "$BACKUP_TEST_POSTGRES_CONTAINER" pg_restore "$@"
+  "$BACKUP_TEST_POSTGRES_CONTAINER" psql "$@"

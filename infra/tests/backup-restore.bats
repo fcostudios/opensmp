@@ -9,13 +9,18 @@ setup_file() {
 
 setup() {
   test_root="$(mktemp -d "${TMPDIR:-/tmp}/ledger-backup-restore.XXXXXX")"
+  host_psql="$(command -v psql)"
   export PATH="$BATS_TEST_DIRNAME/postgres16-client-bin:${BACKUP_TEST_TOOLS_DIR:?run infra/tests/bootstrap-backup-tools.sh first}:$PATH"
   container_id=""
+  volume_name=""
 }
 
 teardown() {
   if [[ -n "$container_id" ]]; then
     docker rm --force "$container_id" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$volume_name" ]]; then
+    docker volume rm --force "$volume_name" >/dev/null 2>&1 || true
   fi
   rm -rf "$test_root"
 }
@@ -41,7 +46,7 @@ start_postgres() {
   postgres_port="$(docker port "$container_id" 5432/tcp | sed 's/.*://')"
   fixture_url='postgresql://postgres:postgres@127.0.0.1:5432/fixture'
   fixture_host_url="postgresql://postgres:postgres@127.0.0.1:${postgres_port}/fixture"
-  psql "$fixture_host_url" --set ON_ERROR_STOP=1 <<'SQL'
+  "$host_psql" "$fixture_host_url" --set ON_ERROR_STOP=1 <<'SQL'
 CREATE TABLE ledger_fixture (id integer PRIMARY KEY, note text NOT NULL);
 INSERT INTO ledger_fixture (id, note) VALUES (1, 'opening balance'), (2, 'closing balance');
 CREATE TABLE drizzle_migrations (hash text PRIMARY KEY);
@@ -87,6 +92,33 @@ backup_fixture() {
   [[ "$output" == *'DATABASE_URL must not contain URI options'* ]]
 }
 
+@test "libpq URI validation preserves IPv6 socket and percent-encoded forms" {
+  run env DATABASE_URL='postgresql://backup:p%40ss@[::1]:5432/ledger%2Drestore?sslmode=require' \
+    bash -c 'source "$1"; prepare_database_connection; printf "%s" "${DATABASE_CLIENT_ARGS[0]}"' _ "$BATS_TEST_DIRNAME/../scripts/backup-common.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'[::1]:5432/ledger%2Drestore?sslmode=require'* ]]
+
+  run env DATABASE_URL='postgresql:///ledger%5Frestore?sslmode=disable' \
+    bash -c 'source "$1"; prepare_database_connection; printf "%s" "${DATABASE_CLIENT_ARGS[0]}"' _ "$BATS_TEST_DIRNAME/../scripts/backup-common.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'postgresql:///ledger%5Frestore?sslmode=disable'* ]]
+}
+
+@test "discrete libpq variables preserve a reserved password without a URI" {
+  start_postgres
+  reserved_password='p@ss:word?with/slash'
+  "$host_psql" "$fixture_host_url" --set ON_ERROR_STOP=1 --command "ALTER ROLE postgres PASSWORD '$reserved_password';"
+  backup_dir="$test_root/backups"
+  mkdir -p "$backup_dir"
+  age-keygen --output "$test_root/identity.txt" >/dev/null 2>&1
+
+  run env PGHOST=127.0.0.1 PGPORT=5432 PGDATABASE=fixture PGUSER=postgres PGPASSWORD="$reserved_password" \
+    BACKUP_DIR="$backup_dir" BACKUP_AGE_RECIPIENT="$(age-keygen -y "$test_root/identity.txt")" \
+    BACKUP_TIMESTAMP=20260725070005 "$backup_script"
+  [ "$status" -eq 0 ]
+  [ -s "$backup_dir/ledger-20260725070005.dump.age" ]
+}
+
 @test "real PostgreSQL fixture backs up encrypted without a plaintext dump" {
   start_postgres
   backup_fixture
@@ -104,7 +136,7 @@ backup_fixture() {
   backup_fixture
   target_url="${fixture_url%/fixture}/restored"
   target_host_url="${fixture_host_url%/fixture}/restored"
-  psql "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
+  "$host_psql" "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
 
   run env DATABASE_URL="$target_url" \
     RESTORE_CONFIRM_DATABASE=restored \
@@ -112,10 +144,10 @@ backup_fixture() {
     "$restore_script" "$backup_file"
   [ "$status" -eq 0 ]
 
-  run psql "$target_host_url" --tuples-only --no-align --command "SELECT count(*) FROM pg_tables WHERE schemaname = 'public';"
+  run "$host_psql" "$target_host_url" --tuples-only --no-align --command "SELECT count(*) FROM pg_tables WHERE schemaname = 'public';"
   [ "$status" -eq 0 ]
   [ "$output" = '2' ]
-  run psql "$target_host_url" --tuples-only --no-align --command "SELECT string_agg(hash, ',' ORDER BY hash) FROM drizzle_migrations;"
+  run "$host_psql" "$target_host_url" --tuples-only --no-align --command "SELECT string_agg(hash, ',' ORDER BY hash) FROM drizzle_migrations;"
   [ "$status" -eq 0 ]
   [ "$output" = 'migration-checksum-a,migration-checksum-b' ]
 }
@@ -125,7 +157,7 @@ backup_fixture() {
   backup_fixture
   target_url="${fixture_url%/fixture}/restored"
   target_host_url="${fixture_host_url%/fixture}/restored"
-  psql "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
+  "$host_psql" "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
   run env DATABASE_URL="$target_url" \
     RESTORE_CONFIRM_DATABASE=fixture \
     AGE_IDENTITY_FILE="$test_root/identity.txt" \
@@ -160,7 +192,7 @@ backup_fixture() {
     "$restore_script" "$backup_file"
   [ "$status" -ne 0 ]
   [[ "$output" == *'checksum verification failed'* ]]
-  run psql "$target_host_url" --tuples-only --no-align --command "SELECT count(*) FROM pg_tables WHERE schemaname = 'public';"
+  run "$host_psql" "$target_host_url" --tuples-only --no-align --command "SELECT count(*) FROM pg_tables WHERE schemaname = 'public';"
   [ "$status" -eq 0 ]
   [ "$output" = '0' ]
 }
@@ -180,6 +212,77 @@ backup_fixture() {
   [ "$status" -eq 0 ]
   run grep --fixed-strings 'scripts/backup-common.sh' "$BATS_TEST_DIRNAME/../backup/Dockerfile"
   [ "$status" -eq 0 ]
+}
+
+@test "built backup image provides a portable SHA-256 implementation" {
+  run docker run --rm --entrypoint sha256sum ledger-backup:local --version
+  [ "$status" -eq 0 ]
+}
+
+@test "built image performs a real libpq backup and guarded restore" {
+  start_postgres
+  age-keygen --output "$test_root/identity.txt" >/dev/null 2>&1
+  recipient="$(age-keygen -y "$test_root/identity.txt")"
+  volume_name="ledger-backup-image-${BATS_TEST_NUMBER}-$$"
+  docker volume create "$volume_name" >/dev/null
+  target_host_url="${fixture_host_url%/fixture}/restored"
+  "$host_psql" "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
+
+  run docker run --rm --network "container:$container_id" \
+    --mount "type=volume,src=$volume_name,dst=/backups" \
+    --env PGHOST=127.0.0.1 --env PGPORT=5432 --env PGDATABASE=fixture \
+    --env PGUSER=postgres --env PGPASSWORD=postgres \
+    --env BACKUP_DIR=/backups --env BACKUP_AGE_RECIPIENT="$recipient" \
+    --env BACKUP_TIMESTAMP=20260725070004 ledger-backup:local
+  [ "$status" -eq 0 ]
+  run docker run --rm --mount "type=volume,src=$volume_name,dst=/backups,readonly" \
+    --entrypoint sha256sum ledger-backup:local /backups/ledger-20260725070004.dump.age
+  [ "$status" -eq 0 ]
+
+  run docker run --rm --network "container:$container_id" \
+    --mount "type=volume,src=$volume_name,dst=/backups,readonly" \
+    --mount "type=bind,src=$test_root/identity.txt,dst=/run/restore/identity.txt,readonly" \
+    --env PGHOST=127.0.0.1 --env PGPORT=5432 --env PGDATABASE=restored \
+    --env PGUSER=postgres --env PGPASSWORD=postgres \
+    --env RESTORE_CONFIRM_DATABASE=restored --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
+    --entrypoint /usr/local/bin/restore-db.sh ledger-backup:local /backups/ledger-20260725070004.dump.age
+  [ "$status" -eq 0 ]
+  run "$host_psql" "$target_host_url" --tuples-only --no-align --command 'SELECT count(*) FROM ledger_fixture;'
+  [ "$status" -eq 0 ]
+  [ "$output" = '2' ]
+}
+
+@test "runbook builds the image and mounts only selected restore inputs" {
+  run grep --fixed-strings 'docker build -f infra/backup/Dockerfile infra -t ledger-backup:local' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'dst=/restore/backup.dump.age,readonly' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'dst=/restore/backup.dump.age.sha256,readonly' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'AGE_IDENTITY_FILE=/run/restore/identity.txt' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  [ "$status" -eq 0 ]
+}
+
+@test "failed final publication removes every visible half of a backup pair" {
+  start_postgres
+  backup_dir="$test_root/backups"
+  mkdir -p "$backup_dir"
+  age-keygen --output "$test_root/identity.txt" >/dev/null 2>&1
+
+  run -1 env PATH="$BATS_TEST_DIRNAME/fault-bin:$PATH" \
+    BACKUP_TEST_FAIL_MV_NUMBER=2 \
+    BACKUP_TEST_MV_COUNTER="$test_root/mv-count" \
+    DATABASE_URL="$fixture_url" \
+    BACKUP_DIR="$backup_dir" \
+    BACKUP_AGE_RECIPIENT="$(age-keygen -y "$test_root/identity.txt")" \
+    BACKUP_TIMESTAMP=20260725070003 \
+    "$backup_script"
+  [ "$status" -ne 0 ]
+  [ ! -e "$backup_dir/ledger-20260725070003.dump.age" ]
+  [ ! -e "$backup_dir/ledger-20260725070003.dump.age.sha256" ]
+  run find "$backup_dir" -name '*.partial' -print
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
 }
 
 @test "same timestamp race preserves one private encrypted backup without secret output" {

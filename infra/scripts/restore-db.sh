@@ -14,9 +14,10 @@ readonly backup_file="$1"
 readonly checksum_file="${backup_file}.sha256"
 [[ -f "$checksum_file" ]] || fail 'backup checksum metadata does not exist'
 
-parse_database_url
+prepare_database_connection
 require_environment RESTORE_CONFIRM_DATABASE
-[[ "$RESTORE_CONFIRM_DATABASE" == "$target_database" ]] || fail "RESTORE_CONFIRM_DATABASE does not exactly match target database $target_database"
+effective_database="$(effective_database_name)"
+[[ "$RESTORE_CONFIRM_DATABASE" == "$effective_database" ]] || fail "RESTORE_CONFIRM_DATABASE does not exactly match target database $effective_database"
 require_environment AGE_IDENTITY_FILE
 [[ -f "$AGE_IDENTITY_FILE" && -r "$AGE_IDENTITY_FILE" ]] || fail 'AGE_IDENTITY_FILE must be a readable file'
 
@@ -32,4 +33,4 @@ actual_checksum="$(sha256_file "$backup_file")"
 [[ "$actual_checksum" == "$expected_checksum" ]] || fail 'backup checksum verification failed'
 
 age --decrypt --identity "$AGE_IDENTITY_FILE" < "$backup_file" \
-  | pg_restore --clean --if-exists --no-owner --exit-on-error --dbname="$DATABASE_URL"
+  | pg_restore --clean --if-exists --no-owner --exit-on-error "${DATABASE_CLIENT_ARGS[@]}"
