@@ -101,9 +101,97 @@ restore_window_psql() {
     "$@"
 }
 
+restore_window_credential_metadata() {
+  local path="$1"
+  local root="${RESTORE_WINDOW_CREDENTIAL_ROOT:?RESTORE_WINDOW_CREDENTIAL_ROOT is required}"
+  perl -MCwd=abs_path -MFcntl=':DEFAULT,O_NOFOLLOW' -e '
+    my ($root, $path) = @ARGV;
+    my @root_stat = lstat($root);
+    die "credential root must be a directory\n" unless @root_stat && -d _ && !-l _;
+    die "credential root owner or mode is unsafe\n"
+      unless $root_stat[4] == $> && ($root_stat[2] & 0777) == 0700;
+    die "credential path must be directly below its private root\n"
+      unless index($path, "$root/") == 0;
+    my $relative = substr($path, length($root) + 1);
+    my @parts = split m{/}, $relative, -1;
+    die "credential path is invalid\n" unless @parts && !grep { $_ eq "" || $_ eq "." || $_ eq ".." } @parts;
+    my $parent = $path;
+    $parent =~ s{/[^/]+\z}{};
+    my $canonical_parent = abs_path($parent);
+    die "credential parent must not contain a symlink\n"
+      unless defined($canonical_parent) && $canonical_parent eq $parent;
+    my $current = $root;
+    for my $index (0 .. $#parts - 1) {
+      $current .= "/$parts[$index]";
+      my @st = lstat($current);
+      die "credential parent must not be a symlink\n" unless @st && -d _ && !-l _;
+    }
+    sysopen(my $in, $path, O_RDONLY | O_NOFOLLOW) or die "open credential: $!\n";
+    my @fd_stat = stat($in);
+    my @path_stat = lstat($path);
+    die "credential file identity changed\n"
+      unless @fd_stat && @path_stat && -f _ && !-l _
+        && $fd_stat[0] == $path_stat[0] && $fd_stat[1] == $path_stat[1];
+    die "credential file owner, mode, or link count is unsafe\n"
+      unless $fd_stat[4] == $> && ($fd_stat[2] & 0777) == 0600 && $fd_stat[3] == 1;
+    print "$fd_stat[0]|$fd_stat[1]\n";
+  ' "$root" "$path"
+}
+
+restore_window_create_credential_file() {
+  local path="$1"
+  local root="${RESTORE_WINDOW_CREDENTIAL_ROOT:?RESTORE_WINDOW_CREDENTIAL_ROOT is required}"
+  perl -MFcntl=':DEFAULT,O_NOFOLLOW' -MIO::Handle -e '
+    my ($root, $path) = @ARGV;
+    my @root_stat = lstat($root);
+    die "credential root must be a directory\n" unless @root_stat && -d _ && !-l _;
+    die "credential root owner or mode is unsafe\n"
+      unless $root_stat[4] == $> && ($root_stat[2] & 0777) == 0700;
+    die "credential path must be directly below its private root\n"
+      unless index($path, "$root/") == 0 && substr($path, length($root) + 1) !~ m{/};
+    sysopen(my $out, $path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600)
+      or die "create credential: $!\n";
+    my $content = do { local $/; <STDIN> };
+    die "credential content is invalid\n"
+      unless defined($content) && $content =~ /\A[[:graph:]]{32,}\n?\z/;
+    $content =~ s/\n?\z/\n/;
+    print {$out} $content or die "write credential: $!\n";
+    $out->sync or die "fsync credential: $!\n";
+    my @st = stat($out);
+    die "credential file metadata is unsafe\n"
+      unless @st && -f _ && $st[4] == $> && ($st[2] & 0777) == 0600 && $st[3] == 1;
+    print "$st[0]|$st[1]\n";
+  ' "$root" "$path"
+}
+
+restore_window_read_credential_file() {
+  local path="$1"
+  local expected="${RESTORE_WINDOW_CREDENTIAL_IDENTITY:-}"
+  local metadata
+  metadata="$(restore_window_credential_metadata "$path")" || return 1
+  [[ -z "$expected" || "$metadata" == "$expected" ]] || restore_window_fail 'credential file was replaced'
+  [[ -n "$expected" ]] || expected="$metadata"
+  perl -MFcntl=':DEFAULT,O_NOFOLLOW' -e '
+    my ($path, $expected) = @ARGV;
+    sysopen(my $in, $path, O_RDONLY | O_NOFOLLOW) or die "open credential: $!\n";
+    my @st = stat($in);
+    my @path_st = lstat($path);
+    die "credential file identity changed\n"
+      unless @st && @path_st && -f _ && !-l _
+        && "$st[0]|$st[1]" eq $expected
+        && $st[0] == $path_st[0] && $st[1] == $path_st[1]
+        && $st[4] == $> && ($st[2] & 0777) == 0600 && $st[3] == 1;
+    my $content = do { local $/; <$in> };
+    die "credential content is invalid\n"
+      unless defined($content) && $content =~ /\A[[:graph:]]{32,}\n?\z/;
+    $content =~ s/\n\z//;
+    print $content;
+  ' "$path" "$expected" || return 1
+}
+
 restore_window_remove_credential_file() {
   [[ -n "${RESTORE_WINDOW_CREDENTIAL_FILE:-}" ]] || return 0
   [[ ! -e "$RESTORE_WINDOW_CREDENTIAL_FILE" ]] && return 0
-  [[ ! -L "$RESTORE_WINDOW_CREDENTIAL_FILE" && -f "$RESTORE_WINDOW_CREDENTIAL_FILE" ]] || restore_window_fail 'RESTORE_WINDOW_CREDENTIAL_FILE must be a regular non-symlink file before removal'
-  rm -f -- "$RESTORE_WINDOW_CREDENTIAL_FILE"
+  restore_window_credential_metadata "$RESTORE_WINDOW_CREDENTIAL_FILE" >/dev/null
+  perl -e 'unlink($ARGV[0]) or die "remove credential: $!\n"' "$RESTORE_WINDOW_CREDENTIAL_FILE"
 }

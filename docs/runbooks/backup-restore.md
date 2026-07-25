@@ -180,6 +180,13 @@ manifest_file="$backup_file.manifest"
 signature_file="$manifest_file.minisig"
 identity_file="$PWD/age-restore-identity.txt"
 verify_key_file="$PWD/ledger-backup-verify.pub"
+# This host directory is an explicit mounted scratch filesystem for encrypted
+# and public artifacts only. It must be private, owned by the invoking UID,
+# non-symlinked, and have at least 2x artifact bytes plus 64 MiB available.
+restore_staging_root="$PWD/.restore-staging"
+[[ ! -L "$restore_staging_root" ]] || { echo 'restore staging root must not be a symlink' >&2; exit 1; }
+mkdir -p "$restore_staging_root"
+chmod 700 "$restore_staging_root"
 
 # Verify the signed manifest before using its authenticated source provenance.
 minisign -Vm "$manifest_file" -p "$verify_key_file" -x "$signature_file"
@@ -214,31 +221,41 @@ docker run --rm --user "$(id -u):$(id -g)" \
   --env RESTORE_CONFIRM_FINGERPRINT \
   --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
   --env BACKUP_VERIFY_KEY_FILE=/run/restore/verify.pub \
+  --env RESTORE_STAGING_ROOT=/run/restore/staging \
   --mount type=bind,src="$backup_file",dst="/restore/$backup_name",readonly \
   --mount type=bind,src="$checksum_file",dst="/restore/$backup_name.sha256",readonly \
   --mount type=bind,src="$manifest_file",dst="/restore/$backup_name.manifest",readonly \
   --mount type=bind,src="$signature_file",dst="/restore/$backup_name.manifest.minisig",readonly \
   --mount type=bind,src="$identity_file",dst=/run/restore/identity.txt,readonly \
   --mount type=bind,src="$verify_key_file",dst=/run/restore/verify.pub,readonly \
+  --mount type=bind,src="$restore_staging_root",dst=/run/restore/staging \
   --mount type=bind,src="$RESTORE_WINDOW_AUDIT_LOG",dst=/run/restore/window.audit.jsonl \
   --env RESTORE_WINDOW_AUDIT_LOG=/run/restore/window.audit.jsonl \
   --entrypoint /usr/local/bin/run-guarded-restore.sh \
   ledger-backup:local "/restore/$backup_name"
 ```
 
-`run-guarded-restore.sh` calls prepare, runs the restore, and has `EXIT`,
-`INT`, and `TERM` traps that always call finalize. Prepare itself also invokes
-finalize if an error occurs after it might have changed authority. It generates
-a random one-use credential (or accepts an existing 0600 regular credential
-file when explicitly directed), sends it to PostgreSQL's `\password` prompt
-on standard input, and never logs it. The role is granted `ledger_owner` only
+`run-guarded-restore.sh` first copies every encrypted/public artifact with
+no-follow descriptors into the explicit mounted staging root. It checks
+capacity before copying, verifies the ciphertext hash and size, and verifies
+the Ed25519-signed manifest while `ledger_restore_admin` remains `NOLOGIN`,
+passwordless, and ungranted. Only the resulting private 0400 artifacts are
+passed to the authority phase; slow or tampered input therefore cannot consume
+the role TTL.
+
+After staging succeeds, the wrapper calls prepare, runs the restore, and has
+`EXIT`, `INT`, and `TERM` traps that always call finalize. Prepare itself also
+invokes finalize if an error occurs after it might have changed authority. The
+wrapper creates a private 0700 credential directory and one 0600
+`O_CREAT|O_EXCL|O_NOFOLLOW` credential inode, sends that credential to
+PostgreSQL's `\password` prompt on standard input, and never unlinks/recreates
+or logs it. An explicitly supplied credential is likewise bound to its verified
+device/inode and rejected if replaced. The role is granted `ledger_owner` only
 for the configured short `VALID UNTIL` interval.
 
-The restore script takes no-follow descriptor copies of the backup artifacts
-into a private staging directory, keeps the private age identity on its
-original no-follow descriptor, verifies the checksum and Ed25519-signed
-manifest, then confirms the signed source provenance and independently
-confirmed target cluster. It resolves and pins the endpoint before mutation.
+The restore keeps the private age identity on its original no-follow
+descriptor, confirms signed source provenance and the independently confirmed
+target cluster, and resolves and pins the endpoint before mutation.
 
 For all target prechecks, creation, restore, and promotion, one persistent
 admin `psql` session holds PostgreSQL advisory lock `(741263, 2)`. The script

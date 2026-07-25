@@ -16,11 +16,13 @@ RUN apk add --no-cache \
 COPY --chown=postgres:postgres scripts/backup-common.sh /usr/local/bin/backup-common.sh
 COPY --chown=postgres:postgres scripts/backup-db.sh /usr/local/bin/backup-db.sh
 COPY --chown=postgres:postgres scripts/restore-db.sh /usr/local/bin/restore-db.sh
+COPY --chown=postgres:postgres scripts/stage-restore-inputs.sh /usr/local/bin/stage-restore-inputs.sh
 COPY --chown=postgres:postgres postgres/restore-window-common.sh /usr/local/bin/restore-window-common.sh
 COPY --chown=postgres:postgres postgres/prepare-restore-window.sh /usr/local/bin/prepare-restore-window.sh
 COPY --chown=postgres:postgres postgres/finalize-restore-window.sh /usr/local/bin/finalize-restore-window.sh
 COPY --chown=postgres:postgres postgres/run-guarded-restore.sh /usr/local/bin/run-guarded-restore.sh
-RUN chmod 0555 /usr/local/bin/backup-common.sh /usr/local/bin/backup-db.sh /usr/local/bin/restore-db.sh \
+COPY --chown=postgres:postgres postgres/disable-restore-authority.sql /usr/local/share/ledger/disable-restore-authority.sql
+RUN chmod 0555 /usr/local/bin/backup-common.sh /usr/local/bin/backup-db.sh /usr/local/bin/restore-db.sh /usr/local/bin/stage-restore-inputs.sh \
       /usr/local/bin/restore-window-common.sh /usr/local/bin/prepare-restore-window.sh \
       /usr/local/bin/finalize-restore-window.sh /usr/local/bin/run-guarded-restore.sh \
   && mkdir --parents /backups \

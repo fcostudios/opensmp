@@ -11,10 +11,15 @@ setup_file() {
 
 setup() {
   test_root="$(mktemp -d "${TMPDIR:-/tmp}/ledger-backup-restore.XXXXXX")"
+  test_root="$(cd "$test_root" && pwd -P)"
   host_path="$PATH"
   host_psql="$(command -v psql)"
   export PATH="$BATS_TEST_DIRNAME/minisign-bin:$BATS_TEST_DIRNAME/postgres16-client-bin:${BACKUP_TEST_TOOLS_DIR:?run infra/tests/bootstrap-backup-tools.sh first}:$PATH"
   container_id=""
+  mkdir "$test_root/restore-staging"
+  chmod 0700 "$test_root/restore-staging"
+  export RESTORE_STAGING_ROOT="$test_root/restore-staging"
+  export RESTORE_WINDOW_TTL_SECONDS=300
   export PGPASSWORD=postgres
   export RESTORE_CONFIRM_HOST=127.0.0.1
   export RESTORE_CONFIRM_PORT=5432
@@ -96,6 +101,7 @@ SQL
 }
 
 prepare_restore_window() {
+  export RESTORE_WINDOW_CREDENTIAL_ROOT="$test_root"
   export RESTORE_WINDOW_CREDENTIAL_FILE="$test_root/restore-window.credential"
   export RESTORE_WINDOW_GENERATE_CREDENTIAL=1
   export RESTORE_WINDOW_TTL_SECONDS=300
@@ -104,7 +110,7 @@ prepare_restore_window() {
   export PGPASSWORD="$restore_window_password"
 }
 
-backup_fixture() {
+backup_artifacts_fixture() {
   backup_dir="$test_root/backups"
   mkdir -p "$backup_dir"
   age-keygen --output "$test_root/identity.txt" >/dev/null 2>&1
@@ -116,6 +122,10 @@ backup_fixture() {
     BACKUP_TIMESTAMP=20260725070000 \
     "$backup_script"
   backup_file="$backup_dir/ledger-20260725070000.dump.age"
+}
+
+backup_fixture() {
+  backup_artifacts_fixture
   prepare_restore_window
 }
 
@@ -391,11 +401,11 @@ SQL
 
 @test "guarded restore wrapper succeeds under the maintenance lock and finalizes its temporary authority" {
   start_postgres
-  backup_fixture
+  backup_artifacts_fixture
   target_host_url="${fixture_host_url%/fixture}/restored"
 
   run "$guarded_restore_script" "$backup_file"
-  [ "$status" -eq 0 ]
+  [ "$status" -eq 0 ] || { printf '%s\n' "$output" >&2; return 1; }
   run "$host_psql" "$target_host_url" --tuples-only --no-align --command 'SELECT count(*) FROM ledger.ledger_fixture;'
   [ "$status" -eq 0 ]
   [ "$output" = '2' ]
@@ -403,6 +413,76 @@ SQL
   [ "$status" -eq 0 ]
   [ "$output" = 'false|0' ]
   [ ! -e "$RESTORE_WINDOW_CREDENTIAL_FILE" ]
+}
+
+@test "guarded restore keeps authority closed throughout delayed artifact staging and starts TTL afterward" {
+  start_postgres
+  backup_artifacts_fixture
+  stage_ready="$test_root/stage.ready"
+  stage_release="$test_root/stage.release"
+
+  env PATH="$BATS_TEST_DIRNAME/fault-bin:$PATH" \
+    RESTORE_TEST_DELAY_SOURCE="$backup_file" \
+    RESTORE_TEST_STAGE_READY="$stage_ready" \
+    RESTORE_TEST_STAGE_RELEASE="$stage_release" \
+    "$guarded_restore_script" "$backup_file" >"$test_root/delayed-restore.stdout" 2>"$test_root/delayed-restore.stderr" &
+  guarded_pid=$!
+  for _ in {1..100}; do
+    [[ -e "$stage_ready" ]] && break
+    sleep 0.1
+  done
+  [ -e "$stage_ready" ]
+  [ "$(restore_admin_window_state)" = 'false|true|0|0' ]
+  run grep --fixed-strings '"event":"prepare_started"' "$RESTORE_WINDOW_AUDIT_LOG"
+  [ "$status" -ne 0 ]
+
+  : > "$stage_release"
+  if wait "$guarded_pid"; then guarded_status=0; else guarded_status=$?; fi
+  [ "$guarded_status" -eq 0 ]
+  [ "$(restore_admin_window_state)" = 'false|true|0|0' ]
+  run grep --fixed-strings '"event":"prepared"' "$RESTORE_WINDOW_AUDIT_LOG"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings '"event":"finalized"' "$RESTORE_WINDOW_AUDIT_LOG"
+  [ "$status" -eq 0 ]
+}
+
+@test "guarded restore rejects credential inode replacement during staging without opening authority" {
+  start_postgres
+  backup_artifacts_fixture
+  stage_ready="$test_root/replacement-stage.ready"
+  stage_release="$test_root/replacement-stage.release"
+  credential_root="$test_root/replacement-credentials"
+  credential_file="$credential_root/credential"
+  mkdir "$credential_root"
+  chmod 0700 "$credential_root"
+
+  env PATH="$BATS_TEST_DIRNAME/fault-bin:$PATH" \
+    RESTORE_WINDOW_CREDENTIAL_ROOT="$credential_root" \
+    RESTORE_WINDOW_CREDENTIAL_FILE="$credential_file" \
+    RESTORE_WINDOW_GENERATE_CREDENTIAL=1 \
+    RESTORE_TEST_DELAY_SOURCE="$backup_file" \
+    RESTORE_TEST_STAGE_READY="$stage_ready" \
+    RESTORE_TEST_STAGE_RELEASE="$stage_release" \
+    "$guarded_restore_script" "$backup_file" >"$test_root/replacement.stdout" 2>"$test_root/replacement.stderr" &
+  guarded_pid=$!
+  for _ in {1..100}; do
+    [[ -e "$stage_ready" ]] && break
+    sleep 0.1
+  done
+  [ -e "$stage_ready" ]
+  [ -f "$credential_file" ]
+  printf '%064d\n' 0 > "$credential_root/replacement"
+  chmod 0600 "$credential_root/replacement"
+  mv -f "$credential_root/replacement" "$credential_file"
+  : > "$stage_release"
+
+  if wait "$guarded_pid"; then guarded_status=0; else guarded_status=$?; fi
+  [ "$guarded_status" -ne 0 ]
+  [ "$(restore_admin_window_state)" = 'false|true|0|0' ]
+  run grep --fixed-strings '"event":"prepare_started"' "$RESTORE_WINDOW_AUDIT_LOG"
+  [ "$status" -ne 0 ]
+  run cat "$test_root/replacement.stderr"
+  [[ "$output" == *'restore-window credential'* ]] || { printf '%s\n' "$output" >&2; return 1; }
 }
 
 @test "restore-admin creates the target while restored objects remain ledger-owned" {
@@ -909,14 +989,60 @@ SQL
 
 @test "packaged guarded restore finalizes after its prepared restore fails before target creation" {
   start_postgres
+  backup_artifacts_fixture
   audit_log="$test_root/packaged-restore-window.audit.jsonl"
   install -m 600 /dev/null "$audit_log"
 
-  # The argument has a valid artifact basename but is deliberately not mounted.
-  # This makes restore-db.sh fail only after the packaged wrapper has prepared
-  # the temporary role window.
+  # Public artifact validation succeeds before prepare. The deliberately wrong
+  # provenance confirmation then fails inside the short authority window.
   run docker run --rm --user "$(id -u):$(id -g)" --network "container:$container_id" \
+    --mount "type=bind,src=$backup_dir,dst=/restore,readonly" \
+    --mount "type=bind,src=$test_root/identity.txt,dst=/run/restore/identity.txt,readonly" \
+    --mount "type=bind,src=$test_root/backup-verify.pub,dst=/run/restore/verify.pub,readonly" \
+    --mount "type=bind,src=$RESTORE_STAGING_ROOT,dst=/run/restore/staging" \
     --mount "type=bind,src=$audit_log,dst=/run/restore/window.audit.jsonl" \
+    --env RESTORE_STAGING_ROOT=/run/restore/staging \
+    --env RESTORE_WINDOW_PGHOST=127.0.0.1 --env RESTORE_WINDOW_PGPORT=5432 \
+    --env RESTORE_WINDOW_SUPERADMIN_USER=postgres --env RESTORE_WINDOW_SUPERADMIN_PASSWORD=postgres \
+    --env RESTORE_WINDOW_ADMIN_DATABASE=postgres --env RESTORE_WINDOW_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_WINDOW_CONFIRM_FINGERPRINT="127.0.0.1:5432#$fixture_system_identifier" \
+    --env RESTORE_WINDOW_ISOLATED_TARGET_CONFIRMATION=I_CONFIRM_TARGET_IS_ISOLATED_AND_APPLICATION_STOPPED \
+    --env RESTORE_WINDOW_TTL_SECONDS=300 --env RESTORE_WINDOW_AUDIT_LOG=/run/restore/window.audit.jsonl \
+    --env RESTORE_ADMIN_DATABASE=postgres --env RESTORE_TARGET_DATABASE=restored --env RESTORE_TARGET_OWNER=ledger_owner \
+    --env RESTORE_CONFIRM_DATABASE=restored --env RESTORE_CONFIRM_HOST=127.0.0.1 \
+    --env RESTORE_CONFIRM_PORT=5432 \
+    --env RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER=999999999999 \
+    --env RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_CONFIRM_FINGERPRINT="restored@127.0.0.1:5432#$fixture_system_identifier" \
+    --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
+    --env BACKUP_VERIFY_KEY_FILE=/run/restore/verify.pub \
+    --entrypoint /usr/local/bin/run-guarded-restore.sh ledger-backup:local "/restore/$(basename "$backup_file")"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER does not exactly match the signed backup provenance'* ]] || return 1
+
+  run restore_admin_window_state
+  [ "$status" -eq 0 ]
+  [ "$output" = 'false|true|0|0' ]
+  run grep --fixed-strings '"event":"finalized"' "$audit_log"
+  [ "$status" -eq 0 ]
+  run "$host_psql" "${fixture_host_url%/fixture}/postgres" --tuples-only --no-align --command "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'restored');"
+  [ "$status" -eq 0 ]
+  [ "$output" = 'f' ]
+}
+
+@test "packaged restore rejects insufficient mounted staging capacity before opening authority" {
+  start_postgres
+  backup_artifacts_fixture
+  audit_log="$test_root/insufficient-staging.audit.jsonl"
+  install -m 600 /dev/null "$audit_log"
+
+  run docker run --rm --user 0:0 --network "container:$container_id" \
+    --tmpfs /run/restore/staging:rw,size=1m,mode=0700 \
+    --mount "type=bind,src=$backup_dir,dst=/restore,readonly" \
+    --mount "type=bind,src=$test_root/identity.txt,dst=/run/restore/identity.txt,readonly" \
+    --mount "type=bind,src=$test_root/backup-verify.pub,dst=/run/restore/verify.pub,readonly" \
+    --mount "type=bind,src=$audit_log,dst=/run/restore/window.audit.jsonl" \
+    --env RESTORE_STAGING_ROOT=/run/restore/staging \
     --env RESTORE_WINDOW_PGHOST=127.0.0.1 --env RESTORE_WINDOW_PGPORT=5432 \
     --env RESTORE_WINDOW_SUPERADMIN_USER=postgres --env RESTORE_WINDOW_SUPERADMIN_PASSWORD=postgres \
     --env RESTORE_WINDOW_ADMIN_DATABASE=postgres --env RESTORE_WINDOW_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
@@ -929,15 +1055,14 @@ SQL
     --env RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
     --env RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
     --env RESTORE_CONFIRM_FINGERPRINT="restored@127.0.0.1:5432#$fixture_system_identifier" \
-    --entrypoint /usr/local/bin/run-guarded-restore.sh ledger-backup:local /restore/ledger-20260725070000.dump.age
+    --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
+    --env BACKUP_VERIFY_KEY_FILE=/run/restore/verify.pub \
+    --entrypoint /usr/local/bin/run-guarded-restore.sh ledger-backup:local "/restore/$(basename "$backup_file")"
   [ "$status" -ne 0 ]
-  [[ "$output" == *'backup file must be a readable regular non-symlink file'* ]]
-
-  run restore_admin_window_state
-  [ "$status" -eq 0 ]
-  [ "$output" = 'false|true|0|0' ]
-  run grep --fixed-strings '"event":"finalized"' "$audit_log"
-  [ "$status" -eq 0 ]
+  [[ "$output" == *'RESTORE_STAGING_ROOT has insufficient verified-artifact capacity'* ]] || return 1
+  [ "$(restore_admin_window_state)" = 'false|true|0|0' ]
+  run grep --fixed-strings '"event":"prepare_started"' "$audit_log"
+  [ "$status" -ne 0 ]
   run "$host_psql" "${fixture_host_url%/fixture}/postgres" --tuples-only --no-align --command "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'restored');"
   [ "$status" -eq 0 ]
   [ "$output" = 'f' ]
@@ -968,6 +1093,8 @@ SQL
     --mount "type=bind,src=$image_backup_dir,dst=/backups,readonly" \
     --mount "type=bind,src=$test_root/identity.txt,dst=/run/restore/identity.txt,readonly" \
     --mount "type=bind,src=$test_root/backup-verify.pub,dst=/run/restore/verify.pub,readonly" \
+    --mount "type=bind,src=$RESTORE_STAGING_ROOT,dst=/run/restore/staging" \
+    --env RESTORE_STAGING_ROOT=/run/restore/staging \
     --env RESTORE_WINDOW_PGHOST=127.0.0.1 --env RESTORE_WINDOW_PGPORT=5432 \
     --env RESTORE_WINDOW_SUPERADMIN_USER=postgres --env RESTORE_WINDOW_SUPERADMIN_PASSWORD=postgres \
     --env RESTORE_WINDOW_ADMIN_DATABASE=postgres --env RESTORE_WINDOW_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
@@ -994,7 +1121,7 @@ SQL
 
 @test "Linux restore image accepts a host 0600 identity as the invoking UID and GID" {
   start_postgres
-  backup_fixture
+  backup_artifacts_fixture
   target_host_url="${fixture_host_url%/fixture}/restored"
   chmod 0600 "$test_root/identity.txt"
 
@@ -1005,6 +1132,8 @@ SQL
     --mount "type=bind,src=$backup_file.manifest.minisig,dst=/restore/$(basename "$backup_file").manifest.minisig,readonly" \
     --mount "type=bind,src=$test_root/identity.txt,dst=/run/restore/identity.txt,readonly" \
     --mount "type=bind,src=$test_root/backup-verify.pub,dst=/run/restore/verify.pub,readonly" \
+    --mount "type=bind,src=$RESTORE_STAGING_ROOT,dst=/run/restore/staging" \
+    --env RESTORE_STAGING_ROOT=/run/restore/staging \
     --env RESTORE_WINDOW_PGHOST=127.0.0.1 --env RESTORE_WINDOW_PGPORT=5432 \
     --env RESTORE_WINDOW_SUPERADMIN_USER=postgres --env RESTORE_WINDOW_SUPERADMIN_PASSWORD=postgres \
     --env RESTORE_WINDOW_ADMIN_DATABASE=postgres --env RESTORE_WINDOW_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
@@ -1037,6 +1166,10 @@ SQL
   [ "$status" -eq 0 ]
   run grep --fixed-strings 'BACKUP_VERIFY_KEY_FILE=/run/restore/verify.pub' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
   [ "$status" -eq 0 ]
+  run grep --fixed-strings 'RESTORE_STAGING_ROOT=/run/restore/staging' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'src="$restore_staging_root",dst=/run/restore/staging' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  [ "$status" -eq 0 ]
   run grep --fixed-strings 'docker run --rm --user "$(id -u):$(id -g)"' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
   [ "$status" -eq 0 ]
   run grep --fixed-strings 'RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
@@ -1064,7 +1197,7 @@ SQL
 
 @test "runbook-style selected mounts pass restore metadata-name validation" {
   start_postgres
-  backup_fixture
+  backup_artifacts_fixture
   target_host_url="${fixture_host_url%/fixture}/restored"
   mounted_name="$(basename "$backup_file")"
 
@@ -1075,6 +1208,8 @@ SQL
     --mount "type=bind,src=$backup_file.manifest.minisig,dst=/restore/$mounted_name.manifest.minisig,readonly" \
     --mount "type=bind,src=$test_root/identity.txt,dst=/run/restore/identity.txt,readonly" \
     --mount "type=bind,src=$test_root/backup-verify.pub,dst=/run/restore/verify.pub,readonly" \
+    --mount "type=bind,src=$RESTORE_STAGING_ROOT,dst=/run/restore/staging" \
+    --env RESTORE_STAGING_ROOT=/run/restore/staging \
     --env RESTORE_WINDOW_PGHOST=127.0.0.1 --env RESTORE_WINDOW_PGPORT=5432 \
     --env RESTORE_WINDOW_SUPERADMIN_USER=postgres --env RESTORE_WINDOW_SUPERADMIN_PASSWORD=postgres \
     --env RESTORE_WINDOW_ADMIN_DATABASE=postgres --env RESTORE_WINDOW_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier" \

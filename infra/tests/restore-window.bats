@@ -3,6 +3,7 @@
 prepare_script="$BATS_TEST_DIRNAME/../postgres/prepare-restore-window.sh"
 finalize_script="$BATS_TEST_DIRNAME/../postgres/finalize-restore-window.sh"
 guarded_restore_script="$BATS_TEST_DIRNAME/../postgres/run-guarded-restore.sh"
+disable_authority_sql="$BATS_TEST_DIRNAME/../postgres/disable-restore-authority.sql"
 
 setup_file() {
   bats_require_minimum_version 1.5.0
@@ -10,10 +11,15 @@ setup_file() {
 
 setup() {
   test_root="$(mktemp -d "${TMPDIR:-/tmp}/ledger-restore-window.XXXXXX")"
+  test_root="$(cd "$test_root" && pwd -P)"
   host_psql="$(command -v psql)"
   container_id=""
   export RESTORE_WINDOW_AUDIT_LOG="$test_root/restore-window.audit.jsonl"
   export RESTORE_WINDOW_CREDENTIAL_FILE="$test_root/restore-window.credential"
+  export RESTORE_WINDOW_CREDENTIAL_ROOT="$test_root"
+  mkdir "$test_root/restore-staging"
+  chmod 0700 "$test_root/restore-staging"
+  export RESTORE_STAGING_ROOT="$test_root/restore-staging"
   export RESTORE_WINDOW_GENERATE_CREDENTIAL=1
   export RESTORE_WINDOW_TTL_SECONDS=60
   export RESTORE_WINDOW_ISOLATED_TARGET_CONFIRMATION=I_CONFIRM_TARGET_IS_ISOLATED_AND_APPLICATION_STOPPED
@@ -104,18 +110,43 @@ restore_admin_can_mutate() {
   start_target_cluster
 
   export RESTORE_WINDOW_ISOLATED_TARGET_CONFIRMATION=not-confirmed
-  run "$prepare_script"
-  [ "$status" -ne 0 ]
+  if "$prepare_script"; then prepare_status=0; else prepare_status=$?; fi
+  [ "$prepare_status" -ne 0 ]
   [ "$(restore_admin_state)" = 'false|true|0|0' ]
   [ ! -e "$RESTORE_WINDOW_CREDENTIAL_FILE" ]
 
   export RESTORE_WINDOW_ISOLATED_TARGET_CONFIRMATION=I_CONFIRM_TARGET_IS_ISOLATED_AND_APPLICATION_STOPPED
   export RESTORE_WINDOW_TARGET_SYSTEM_IDENTIFIER=999999999999
   export RESTORE_WINDOW_CONFIRM_FINGERPRINT="127.0.0.1:${postgres_port}#${RESTORE_WINDOW_TARGET_SYSTEM_IDENTIFIER}"
-  run "$prepare_script"
-  [ "$status" -ne 0 ]
+  if "$prepare_script"; then prepare_status=0; else prepare_status=$?; fi
+  [ "$prepare_status" -ne 0 ]
   [ "$(restore_admin_state)" = 'false|true|0|0' ]
   [ ! -e "$RESTORE_WINDOW_CREDENTIAL_FILE" ]
+}
+
+@test "prepare rejects a dangling credential symlink without opening authority" {
+  start_target_cluster
+  export RESTORE_WINDOW_GENERATE_CREDENTIAL=0
+
+  ln -s "$test_root/missing-credential" "$test_root/dangling-credential"
+  export RESTORE_WINDOW_CREDENTIAL_FILE="$test_root/dangling-credential"
+  if "$prepare_script"; then prepare_status=0; else prepare_status=$?; fi
+  [ "$prepare_status" -ne 0 ]
+  [ "$(restore_admin_state)" = 'false|true|0|0' ]
+}
+
+@test "prepare rejects an intermediate credential symlink without opening authority" {
+  start_target_cluster
+  export RESTORE_WINDOW_GENERATE_CREDENTIAL=0
+  mkdir "$test_root/private-credentials"
+  chmod 0700 "$test_root/private-credentials"
+  printf '%064d\n' 0 > "$test_root/private-credentials/credential"
+  chmod 0600 "$test_root/private-credentials/credential"
+  ln -s "$test_root/private-credentials" "$test_root/credential-link"
+  export RESTORE_WINDOW_CREDENTIAL_FILE="$test_root/credential-link/credential"
+  if "$prepare_script"; then prepare_status=0; else prepare_status=$?; fi
+  [ "$prepare_status" -ne 0 ]
+  [ "$(restore_admin_state)" = 'false|true|0|0' ]
 }
 
 @test "finalize terminates a concurrent restore-admin session after disabling it" {
@@ -138,6 +169,30 @@ restore_admin_can_mutate() {
     concurrent_status=$?
   fi
   [ "$concurrent_status" -ne 0 ]
+  [ "$(restore_admin_state)" = 'false|true|0|0' ]
+}
+
+@test "existing-volume disable contract terminates a restore-admin session already SET ROLE owner" {
+  start_target_cluster
+  "$prepare_script"
+  credential="$(< "$RESTORE_WINDOW_CREDENTIAL_FILE")"
+  PGPASSWORD="$credential" "$host_psql" --host 127.0.0.1 --port "$postgres_port" --username ledger_restore_admin --dbname ledger --set ON_ERROR_STOP=1 --command 'SET ROLE ledger_owner; SELECT pg_sleep(60);' >"$test_root/set-role.stdout" 2>"$test_root/set-role.stderr" &
+  set_role_pid=$!
+  local attempt
+  for attempt in {1..30}; do
+    [[ "$(restore_admin_state)" == 'true|false|1|1' ]] && break
+    sleep 0.1
+  done
+  [ "$(restore_admin_state)" = 'true|false|1|1' ]
+
+  run env PGPASSWORD=postgres "$host_psql" --host 127.0.0.1 --port "$postgres_port" --username postgres --dbname postgres --set ON_ERROR_STOP=1 --file "$disable_authority_sql"
+  [ "$status" -eq 0 ]
+  if wait "$set_role_pid"; then
+    set_role_status=0
+  else
+    set_role_status=$?
+  fi
+  [ "$set_role_status" -ne 0 ]
   [ "$(restore_admin_state)" = 'false|true|0|0' ]
 }
 

@@ -11,6 +11,7 @@ prepare_window_script="$repo_root/infra/postgres/prepare-restore-window.sh"
 finalize_window_script="$repo_root/infra/postgres/finalize-restore-window.sh"
 guarded_restore_script="$repo_root/infra/postgres/run-guarded-restore.sh"
 window_common_script="$repo_root/infra/postgres/restore-window-common.sh"
+disable_authority_sql="$repo_root/infra/postgres/disable-restore-authority.sql"
 cron_script="$repo_root/infra/backup/run-cron.sh"
 
 setup_file() {
@@ -88,9 +89,15 @@ teardown() {
   [ "$status" -eq 0 ]
   run grep --fixed-strings 'pg_advisory_lock(741263, 2)' "$window_common_script"
   [ "$status" -eq 0 ]
-  run grep --fixed-strings 'ALTER ROLE ledger_restore_admin NOLOGIN' "$finalize_window_script"
+  run grep --fixed-strings 'disable-restore-authority.sql' "$apply_roles_script"
   [ "$status" -eq 0 ]
-  run grep --fixed-strings 'REVOKE ledger_owner FROM ledger_restore_admin' "$finalize_window_script"
+  run grep --fixed-strings 'disable-restore-authority.sql' "$finalize_window_script"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'ALTER ROLE ledger_restore_admin NOLOGIN PASSWORD NULL' "$disable_authority_sql"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'pg_terminate_backend(pid)' "$disable_authority_sql"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'restore-admin sessions remained after termination' "$disable_authority_sql"
   [ "$status" -eq 0 ]
   run grep --fixed-strings 'trap finalize_restore_window EXIT INT TERM' "$guarded_restore_script"
   [ "$status" -eq 0 ]

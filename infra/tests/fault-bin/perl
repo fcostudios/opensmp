@@ -8,4 +8,14 @@ fi
 if [[ "${BACKUP_TEST_FAIL_FSYNC:-}" == '1' ]]; then
   exit 1
 fi
+if [[ -n "${RESTORE_TEST_DELAY_SOURCE:-}" && "$*" == *"$RESTORE_TEST_DELAY_SOURCE"* ]]; then
+  : "${RESTORE_TEST_STAGE_READY:?RESTORE_TEST_STAGE_READY is required}"
+  : "${RESTORE_TEST_STAGE_RELEASE:?RESTORE_TEST_STAGE_RELEASE is required}"
+  : > "$RESTORE_TEST_STAGE_READY"
+  for _ in {1..600}; do
+    [[ -e "$RESTORE_TEST_STAGE_RELEASE" ]] && break
+    sleep 0.1
+  done
+  [[ -e "$RESTORE_TEST_STAGE_RELEASE" ]] || exit 124
+fi
 exec /usr/bin/perl "$@"

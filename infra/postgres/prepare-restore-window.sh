@@ -26,21 +26,21 @@ trap cleanup_failed_prepare EXIT INT TERM
 restore_window_validate_target
 restore_window_require RESTORE_WINDOW_TTL_SECONDS
 restore_window_require RESTORE_WINDOW_CREDENTIAL_FILE
+restore_window_require RESTORE_WINDOW_CREDENTIAL_ROOT
 [[ "$RESTORE_WINDOW_TTL_SECONDS" =~ ^[0-9]+$ && "$RESTORE_WINDOW_TTL_SECONDS" -ge 1 && "$RESTORE_WINDOW_TTL_SECONDS" -le 900 ]] \
   || restore_window_fail 'RESTORE_WINDOW_TTL_SECONDS must be between 1 and 900'
 
 if [[ "${RESTORE_WINDOW_GENERATE_CREDENTIAL:-0}" == 1 ]]; then
-  [[ ! -e "$RESTORE_WINDOW_CREDENTIAL_FILE" ]] || restore_window_fail 'generated credential path must not already exist'
   command -v openssl >/dev/null 2>&1 || restore_window_fail 'openssl is required to generate a restore-window credential'
-  openssl rand -base64 48 > "$RESTORE_WINDOW_CREDENTIAL_FILE"
-  chmod 0600 "$RESTORE_WINDOW_CREDENTIAL_FILE"
+  generated_secret="$(openssl rand -base64 48)"
+  RESTORE_WINDOW_CREDENTIAL_IDENTITY="$(printf '%s\n' "$generated_secret" | restore_window_create_credential_file "$RESTORE_WINDOW_CREDENTIAL_FILE")"
+  export RESTORE_WINDOW_CREDENTIAL_IDENTITY
+  unset generated_secret
   generated_credential=1
-else
-  [[ ! -L "$RESTORE_WINDOW_CREDENTIAL_FILE" && -f "$RESTORE_WINDOW_CREDENTIAL_FILE" && -r "$RESTORE_WINDOW_CREDENTIAL_FILE" ]] \
-    || restore_window_fail 'RESTORE_WINDOW_CREDENTIAL_FILE must be a readable regular non-symlink file'
 fi
 
-credential="$(< "$RESTORE_WINDOW_CREDENTIAL_FILE")"
+credential="$(restore_window_read_credential_file "$RESTORE_WINDOW_CREDENTIAL_FILE")" \
+  || restore_window_fail 'restore-window credential file validation failed'
 [[ "$credential" =~ ^[[:graph:]]{32,}$ && "$credential" != *$'\n'* && "$credential" != *$'\r'* ]] \
   || restore_window_fail 'restore-window credential must be one printable line of at least 32 characters'
 

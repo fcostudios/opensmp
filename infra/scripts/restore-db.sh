@@ -20,8 +20,6 @@ require_regular_file 'backup manifest' "$source_manifest_file"
 require_regular_file 'backup manifest signature' "$source_signature_file"
 require_environment AGE_IDENTITY_FILE
 require_regular_file AGE_IDENTITY_FILE "$AGE_IDENTITY_FILE"
-require_environment BACKUP_VERIFY_KEY_FILE
-require_regular_file BACKUP_VERIFY_KEY_FILE "$BACKUP_VERIFY_KEY_FILE"
 
 require_environment PGHOST
 require_environment PGPORT
@@ -43,13 +41,59 @@ require_environment RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER
 [[ "$RESTORE_CONFIRM_DATABASE" == "$RESTORE_TARGET_DATABASE" ]] || fail 'RESTORE_CONFIRM_DATABASE must exactly match RESTORE_TARGET_DATABASE'
 [[ "$PGPORT" =~ ^[0-9]+$ ]] || fail 'PGPORT must be numeric'
 
-stage_dir="$(mktemp -d "${TMPDIR:-/tmp}/ledger-restore.XXXXXX")"
-chmod 0700 "$stage_dir"
-stage_backup="$stage_dir/$(basename -- "$source_backup_file")"
-stage_checksum="$stage_dir/$(basename -- "$source_checksum_file")"
-stage_manifest="$stage_dir/$(basename -- "$source_manifest_file")"
-stage_signature="$stage_dir/$(basename -- "$source_signature_file")"
-stage_verify_key="$stage_dir/verify.pub"
+preverified_inputs="${RESTORE_INPUTS_PREVERIFIED:-0}"
+owns_stage_dir=0
+runtime_dir=''
+if [[ "$preverified_inputs" == 1 ]]; then
+  require_environment RESTORE_VERIFIED_STAGE_DIR
+  require_environment RESTORE_STAGING_ROOT
+  [[ "$RESTORE_VERIFIED_STAGE_DIR" == "$RESTORE_STAGING_ROOT"/ledger-restore-inputs.* ]] \
+    || fail 'preverified restore stage is outside RESTORE_STAGING_ROOT'
+  [[ "$(dirname -- "$source_backup_file")" == "$RESTORE_VERIFIED_STAGE_DIR" ]] \
+    || fail 'preverified backup is outside RESTORE_VERIFIED_STAGE_DIR'
+  perl -MFcntl=':DEFAULT,O_NOFOLLOW' -e '
+    my ($root, $dir, @paths) = @ARGV;
+    my @root_st = lstat($root);
+    die "RESTORE_STAGING_ROOT is no longer a private non-symlink directory\n"
+      unless @root_st && -d _ && !-l _ && $root_st[4] == $> && ($root_st[2] & 0777) == 0700;
+    my @dir_st = lstat($dir);
+    die "preverified restore stage metadata changed\n"
+      unless @dir_st && -d _ && !-l _ && $dir_st[4] == $> && ($dir_st[2] & 0777) == 0500;
+    for my $path (@paths) {
+      sysopen(my $in, $path, O_RDONLY | O_NOFOLLOW)
+        or die "open preverified artifact: $!\n";
+      my @fd_st = stat($in);
+      my @path_st = lstat($path);
+      die "preverified artifact metadata changed\n"
+        unless @fd_st && @path_st && -f _ && !-l _
+          && $fd_st[0] == $path_st[0] && $fd_st[1] == $path_st[1]
+          && $fd_st[4] == $> && ($fd_st[2] & 0777) == 0400
+          && $fd_st[3] == 1;
+    }
+  ' "$RESTORE_STAGING_ROOT" "$RESTORE_VERIFIED_STAGE_DIR" \
+    "$source_backup_file" "$source_checksum_file" "$source_manifest_file" "$source_signature_file" \
+    "$RESTORE_VERIFIED_STAGE_DIR/verify.pub"
+  stage_dir="$RESTORE_VERIFIED_STAGE_DIR"
+  stage_backup="$source_backup_file"
+  stage_checksum="$source_checksum_file"
+  stage_manifest="$source_manifest_file"
+  stage_signature="$source_signature_file"
+  stage_verify_key="$stage_dir/verify.pub"
+  runtime_dir="$(mktemp -d "$RESTORE_STAGING_ROOT/ledger-restore-runtime.XXXXXX")"
+  chmod 0700 "$runtime_dir"
+else
+  require_environment BACKUP_VERIFY_KEY_FILE
+  require_regular_file BACKUP_VERIFY_KEY_FILE "$BACKUP_VERIFY_KEY_FILE"
+  stage_dir="$(mktemp -d "${TMPDIR:-/tmp}/ledger-restore.XXXXXX")"
+  chmod 0700 "$stage_dir"
+  owns_stage_dir=1
+  runtime_dir="$stage_dir"
+  stage_backup="$stage_dir/$(basename -- "$source_backup_file")"
+  stage_checksum="$stage_dir/$(basename -- "$source_checksum_file")"
+  stage_manifest="$stage_dir/$(basename -- "$source_manifest_file")"
+  stage_signature="$stage_dir/$(basename -- "$source_signature_file")"
+  stage_verify_key="$stage_dir/verify.pub"
+fi
 staging_database=''
 staging_database_oid=''
 staging_created=0
@@ -82,8 +126,8 @@ start_admin_session() {
   # macOS still ships Bash 3.2, which has no coprocess support. Two private
   # FIFOs keep one psql connection open portably while descriptors 8/9 ensure
   # it never sees EOF between commands.
-  admin_session_input="$stage_dir/admin-session.in"
-  admin_session_output="$stage_dir/admin-session.out"
+  admin_session_input="$runtime_dir/admin-session.in"
+  admin_session_output="$runtime_dir/admin-session.out"
   mkfifo -m 0600 "$admin_session_input" "$admin_session_output"
   psql --no-psqlrc --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 "${pinned_admin_args[@]}" <"$admin_session_input" >"$admin_session_output" &
   admin_session_pid="$!"
@@ -120,27 +164,39 @@ cleanup() {
       "$staging_database" "$staging_database_oid" >&2
   fi
   stop_admin_session
-  rm -rf -- "$stage_dir"
+  if [[ -n "$runtime_dir" && "$runtime_dir" != "$stage_dir" ]]; then
+    if [[ "$runtime_dir" == "$RESTORE_STAGING_ROOT"/ledger-restore-runtime.* ]]; then
+      rm -rf -- "$runtime_dir" || cleanup_status=1
+    else
+      cleanup_status=1
+    fi
+  fi
+  if [[ "$owns_stage_dir" == 1 ]]; then
+    rm -rf -- "$stage_dir" || cleanup_status=1
+  fi
   exit "$cleanup_status"
 }
 trap cleanup EXIT INT TERM
 
 # Descriptor-based staging prevents a check-to-copy replacement race on a bind
 # mount. All inputs used after validation are the private staged descriptors.
-secure_copy_regular "$source_backup_file" "$stage_backup"
-secure_copy_regular "$source_checksum_file" "$stage_checksum"
-secure_copy_regular "$source_manifest_file" "$stage_manifest"
-secure_copy_regular "$source_signature_file" "$stage_signature"
-secure_copy_regular "$BACKUP_VERIFY_KEY_FILE" "$stage_verify_key"
+if [[ "$preverified_inputs" != 1 ]]; then
+  secure_copy_regular "$source_backup_file" "$stage_backup"
+  secure_copy_regular "$source_checksum_file" "$stage_checksum"
+  secure_copy_regular "$source_manifest_file" "$stage_manifest"
+  secure_copy_regular "$source_signature_file" "$stage_signature"
+  secure_copy_regular "$BACKUP_VERIFY_KEY_FILE" "$stage_verify_key"
+fi
 
 expected_filename="$(basename "$stage_backup")"
 expected_checksum="$(awk '{print $1}' "$stage_checksum")"
 expected_checksum_line="$expected_checksum  $expected_filename"
 [[ "$expected_checksum" =~ ^[a-f0-9]{64}$ ]] || fail 'backup checksum metadata is invalid'
 [[ "$(wc -l < "$stage_checksum" | tr -d ' ')" == '1' && "$(< "$stage_checksum")" == "$expected_checksum_line" ]] || fail 'backup checksum metadata is invalid'
-[[ "$(sha256_file "$stage_backup")" == "$expected_checksum" ]] || fail 'backup checksum verification failed'
-
-minisign -Vm "$stage_manifest" -p "$stage_verify_key" -x "$stage_signature" -q >/dev/null
+if [[ "$preverified_inputs" != 1 ]]; then
+  [[ "$(sha256_file "$stage_backup")" == "$expected_checksum" ]] || fail 'backup checksum verification failed'
+  minisign -Vm "$stage_manifest" -p "$stage_verify_key" -x "$stage_signature" -q >/dev/null
+fi
 manifest_lines=()
 while IFS= read -r manifest_line || [[ -n "$manifest_line" ]]; do
   manifest_lines+=("$manifest_line")
@@ -153,7 +209,9 @@ manifest_size="${manifest_lines[3]#ciphertext_size=}"
 manifest_created_at="${manifest_lines[4]#created_at=}"
 source_system_identifier="${manifest_lines[5]#source_system_identifier=}"
 [[ "${manifest_lines[3]}" == "ciphertext_size=$manifest_size" && "$manifest_size" =~ ^[0-9]+$ ]] || fail 'backup manifest size is invalid'
-[[ "$manifest_size" == "$(wc -c < "$stage_backup" | tr -d ' ')" ]] || fail 'backup manifest size does not match ciphertext'
+if [[ "$preverified_inputs" != 1 ]]; then
+  [[ "$manifest_size" == "$(wc -c < "$stage_backup" | tr -d ' ')" ]] || fail 'backup manifest size does not match ciphertext'
+fi
 [[ "${manifest_lines[4]}" == "created_at=$manifest_created_at" && "$manifest_created_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || fail 'backup manifest timestamp is invalid'
 [[ "${manifest_lines[5]}" == "source_system_identifier=$source_system_identifier" && "$source_system_identifier" =~ ^[0-9]+$ ]] || fail 'backup manifest source system identifier is invalid'
 
