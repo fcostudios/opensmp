@@ -4,5 +4,8 @@
 backups/
 backup/*.age
 backup/*.sha256
+backup/*.manifest
+backup/*.minisig
 backup/*.txt
 **/*identity*
+**/*signing*

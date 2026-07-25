@@ -9,14 +9,19 @@ setup_file() {
 
 setup() {
   test_root="$(mktemp -d "${TMPDIR:-/tmp}/ledger-backup-restore.XXXXXX")"
+  host_path="$PATH"
   host_psql="$(command -v psql)"
-  export PATH="$BATS_TEST_DIRNAME/postgres16-client-bin:${BACKUP_TEST_TOOLS_DIR:?run infra/tests/bootstrap-backup-tools.sh first}:$PATH"
+  export PATH="$BATS_TEST_DIRNAME/minisign-bin:$BATS_TEST_DIRNAME/postgres16-client-bin:${BACKUP_TEST_TOOLS_DIR:?run infra/tests/bootstrap-backup-tools.sh first}:$PATH"
   container_id=""
   export PGPASSWORD=postgres
   export RESTORE_CONFIRM_HOST=127.0.0.1
   export RESTORE_CONFIRM_PORT=5432
   export RESTORE_CONFIRM_FINGERPRINT=restored@127.0.0.1:5432
   volume_name=""
+  foreign_container=""
+  minisign -G -W -s "$test_root/backup-signing.key" -p "$test_root/backup-verify.pub" >/dev/null
+  export BACKUP_SIGNING_KEY_FILE="$test_root/backup-signing.key"
+  export BACKUP_VERIFY_KEY_FILE="$test_root/backup-verify.pub"
 }
 
 teardown() {
@@ -25,6 +30,9 @@ teardown() {
   fi
   if [[ -n "$volume_name" ]]; then
     docker volume rm --force "$volume_name" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$foreign_container" ]]; then
+    docker rm --force "$foreign_container" >/dev/null 2>&1 || true
   fi
   rm -rf "$test_root"
 }
@@ -52,7 +60,7 @@ start_postgres() {
   fixture_url="postgresql://postgres@127.0.0.1:${postgres_port}/fixture"
   fixture_host_url="postgresql://postgres:postgres@127.0.0.1:${postgres_port}/fixture"
   "$host_psql" "$fixture_host_url" --set ON_ERROR_STOP=1 <<'SQL'
-CREATE ROLE ledger_owner LOGIN PASSWORD 'owner';
+CREATE ROLE ledger_owner LOGIN PASSWORD 'owner' CREATEDB;
 CREATE ROLE ledger_backup LOGIN PASSWORD 'backup';
 CREATE SCHEMA ledger AUTHORIZATION ledger_owner;
 SET ROLE ledger_owner;
@@ -65,7 +73,16 @@ GRANT CONNECT ON DATABASE fixture TO ledger_backup;
 GRANT USAGE ON SCHEMA ledger TO ledger_backup;
 GRANT SELECT ON ALL TABLES IN SCHEMA ledger TO ledger_backup;
 GRANT pg_read_all_data TO ledger_backup;
+GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO ledger_backup;
+GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO ledger_owner;
 SQL
+  fixture_system_identifier="$("$host_psql" "$fixture_host_url" --tuples-only --no-align --command 'SELECT (pg_control_system()).system_identifier;')"
+  export PGHOST=127.0.0.1 PGPORT="$postgres_port" PGUSER=ledger_owner PGPASSWORD=owner
+  export RESTORE_ADMIN_DATABASE=postgres RESTORE_TARGET_DATABASE=restored RESTORE_TARGET_OWNER=ledger_owner
+  export RESTORE_CONFIRM_DATABASE=restored RESTORE_CONFIRM_HOST=127.0.0.1 RESTORE_CONFIRM_PORT="$postgres_port"
+  export RESTORE_CONFIRM_SYSTEM_IDENTIFIER="$fixture_system_identifier"
+  export RESTORE_CONFIRM_FINGERPRINT="restored@127.0.0.1:${postgres_port}#${fixture_system_identifier}"
+  export AGE_IDENTITY_FILE="$test_root/identity.txt"
 }
 
 backup_fixture() {
@@ -76,9 +93,26 @@ backup_fixture() {
   env DATABASE_URL="postgresql://ledger_backup@127.0.0.1:${postgres_port}/fixture" PGPASSWORD=backup \
     BACKUP_DIR="$backup_dir" \
     BACKUP_AGE_RECIPIENT="$recipient" \
+    BACKUP_SIGNING_KEY_FILE="$test_root/backup-signing.key" \
     BACKUP_TIMESTAMP=20260725070000 \
     "$backup_script"
   backup_file="$backup_dir/ledger-20260725070000.dump.age"
+}
+
+restore_fixture_into_new_target() {
+  local target_database="$1"
+  local target_owner="${2:-ledger_owner}"
+  env -u DATABASE_URL \
+    PGHOST=127.0.0.1 PGPORT="$postgres_port" PGUSER=ledger_owner PGPASSWORD=owner \
+    RESTORE_ADMIN_DATABASE=postgres \
+    RESTORE_TARGET_DATABASE="$target_database" RESTORE_TARGET_OWNER="$target_owner" \
+    RESTORE_CONFIRM_DATABASE="$target_database" RESTORE_CONFIRM_HOST=127.0.0.1 \
+    RESTORE_CONFIRM_PORT="$postgres_port" \
+    RESTORE_CONFIRM_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    RESTORE_CONFIRM_FINGERPRINT="${target_database}@127.0.0.1:${postgres_port}#${fixture_system_identifier}" \
+    AGE_IDENTITY_FILE="$test_root/identity.txt" \
+    BACKUP_VERIFY_KEY_FILE="$test_root/backup-verify.pub" \
+    "$restore_script" "$backup_file"
 }
 
 @test "backup and restore scripts exist and reject unsafe execution" {
@@ -99,6 +133,13 @@ backup_fixture() {
   [ "$status" -ne 0 ]
   [[ "$output" == *'must not be symlinks'* ]]
   rm -f "$link_path"
+
+  intermediate_link="$repo_tmp/bootstrap-parent-$BATS_TEST_NUMBER-$$"
+  ln -s "$test_root" "$intermediate_link"
+  run env BACKUP_TEST_TOOL_DIR="$intermediate_link/tools" bash "$bootstrap_script"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'must not be symlinks'* ]]
+  rm -f "$intermediate_link"
 }
 
 @test "PostgreSQL 16 fixture adapters map the published host port to the container port" {
@@ -172,7 +213,7 @@ backup_fixture() {
 
 @test "Unix-socket restore identity uses the server's single normalized socket directory" {
   start_postgres
-  run env DATABASE_URL='postgresql://postgres@/fixture' \
+  run env -u PGHOST -u PGPORT DATABASE_URL='postgresql://postgres@/fixture' \
     bash -c 'source "$1"; prepare_database_connection; effective_target_identity' _ "$BATS_TEST_DIRNAME/../scripts/backup-common.sh"
   [ "$status" -eq 0 ]
   [ "$output" = $'fixture\tunix:/var/run/postgresql\t5432' ]
@@ -216,18 +257,29 @@ backup_fixture() {
   [[ "$output" == *'ledger_fixture'* ]]
 }
 
+@test "backup publishes a signed versioned manifest bound to the source cluster" {
+  start_postgres
+  backup_fixture
+
+  manifest="$backup_file.manifest"
+  signature="$manifest.minisig"
+  [ -s "$manifest" ]
+  [ -s "$signature" ]
+  run minisign -Vm "$manifest" -p "$test_root/backup-verify.pub" -x "$signature"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings "basename=$(basename "$backup_file")" "$manifest"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'format_version=1' "$manifest"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'source_system_identifier=' "$manifest"
+  [ "$status" -eq 0 ]
+}
+
 @test "restore drill recreates exact tables and migration checksum rows" {
   start_postgres
   backup_fixture
-  target_url="${fixture_url%/fixture}/restored"
   target_host_url="${fixture_host_url%/fixture}/restored"
-  "$host_psql" "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
-
-  run env DATABASE_URL="$target_url" \
-    RESTORE_CONFIRM_DATABASE=restored \
-    AGE_IDENTITY_FILE="$test_root/identity.txt" \
-    "$restore_script" "$backup_file"
-  [ "$status" -eq 0 ]
+  restore_fixture_into_new_target restored
 
   run "$host_psql" "$target_host_url" --tuples-only --no-align --command "SELECT count(*) FROM pg_tables WHERE schemaname = 'ledger';"
   [ "$status" -eq 0 ]
@@ -240,30 +292,24 @@ backup_fixture() {
 @test "restore connects as ledger_owner and recreates ledger-owned objects" {
   start_postgres
   backup_fixture
-  target_url="postgresql://ledger_owner@127.0.0.1:${postgres_port}/restored"
   target_host_url="postgresql://postgres:postgres@127.0.0.1:${postgres_port}/restored"
-  "$host_psql" "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored OWNER ledger_owner;'
-
-  run env DATABASE_URL="$target_url" PGPASSWORD=owner RESTORE_CONFIRM_DATABASE=restored \
-    AGE_IDENTITY_FILE="$test_root/identity.txt" "$restore_script" "$backup_file"
+  run restore_fixture_into_new_target restored ledger_owner
   [ "$status" -eq 0 ]
   run "$host_psql" "$target_host_url" --tuples-only --no-align --command "SELECT tableowner FROM pg_tables WHERE schemaname = 'ledger' AND tablename = 'ledger_fixture';"
   [ "$status" -eq 0 ]
   [ "$output" = 'ledger_owner' ]
 }
 
-@test "restore refuses a nonempty target without changing it" {
+@test "restore refuses an already-existing target without changing it" {
   start_postgres
   backup_fixture
-  target_url="${fixture_url%/fixture}/restored"
   target_host_url="${fixture_host_url%/fixture}/restored"
   "$host_psql" "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
   "$host_psql" "$target_host_url" --set ON_ERROR_STOP=1 --command 'CREATE TABLE keep_me (id integer PRIMARY KEY); INSERT INTO keep_me VALUES (1);'
 
-  run env DATABASE_URL="$target_url" RESTORE_CONFIRM_DATABASE=restored \
-    AGE_IDENTITY_FILE="$test_root/identity.txt" "$restore_script" "$backup_file"
+  run "$restore_script" "$backup_file"
   [ "$status" -ne 0 ]
-  [[ "$output" == *'target database is not empty'* ]]
+  [[ "$output" == *'restore target database must be absent'* ]]
   run "$host_psql" "$target_host_url" --tuples-only --no-align --command 'SELECT count(*) FROM keep_me;'
   [ "$status" -eq 0 ]
   [ "$output" = '1' ]
@@ -272,7 +318,6 @@ backup_fixture() {
 @test "restore refuses an otherwise relation-free target with a user schema function and enum" {
   start_postgres
   backup_fixture
-  target_url="${fixture_url%/fixture}/restored"
   target_host_url="${fixture_host_url%/fixture}/restored"
   "$host_psql" "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
   "$host_psql" "$target_host_url" --set ON_ERROR_STOP=1 <<'SQL'
@@ -281,10 +326,9 @@ CREATE TYPE public.restore_guard_enum AS ENUM ('blocked');
 CREATE FUNCTION public.restore_guard_function() RETURNS integer LANGUAGE sql AS 'SELECT 1';
 SQL
 
-  run env DATABASE_URL="$target_url" RESTORE_CONFIRM_DATABASE=restored \
-    AGE_IDENTITY_FILE="$test_root/identity.txt" "$restore_script" "$backup_file"
+  run "$restore_script" "$backup_file"
   [ "$status" -ne 0 ]
-  [[ "$output" == *'target database is not empty'* ]]
+  [[ "$output" == *'restore target database must be absent'* ]]
   run "$host_psql" "$target_host_url" --tuples-only --no-align --command 'SELECT public.restore_guard_function();'
   [ "$status" -eq 0 ]
   [ "$output" = '1' ]
@@ -293,15 +337,13 @@ SQL
 @test "restore refuses a target containing only a PostgreSQL large object" {
   start_postgres
   backup_fixture
-  target_url="${fixture_url%/fixture}/restored"
   target_host_url="${fixture_host_url%/fixture}/restored"
   "$host_psql" "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
   "$host_psql" "$target_host_url" --set ON_ERROR_STOP=1 --command 'SELECT lo_create(424242);'
 
-  run env DATABASE_URL="$target_url" RESTORE_CONFIRM_DATABASE=restored \
-    AGE_IDENTITY_FILE="$test_root/identity.txt" "$restore_script" "$backup_file"
+  run "$restore_script" "$backup_file"
   [ "$status" -ne 0 ]
-  [[ "$output" == *'target database is not empty'* ]]
+  [[ "$output" == *'restore target database must be absent'* ]]
   run "$host_psql" "$target_host_url" --tuples-only --no-align --command 'SELECT count(*) FROM pg_largeobject_metadata WHERE oid = 424242;'
   [ "$status" -eq 0 ]
   [ "$output" = '1' ]
@@ -310,26 +352,63 @@ SQL
 @test "restore requires an exact host port and target fingerprint confirmation" {
   start_postgres
   backup_fixture
-  target_url="${fixture_url%/fixture}/restored"
-  "$host_psql" "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
 
   run env -u RESTORE_CONFIRM_HOST -u RESTORE_CONFIRM_PORT -u RESTORE_CONFIRM_FINGERPRINT \
-    DATABASE_URL="$target_url" RESTORE_CONFIRM_DATABASE=restored \
-    AGE_IDENTITY_FILE="$test_root/identity.txt" "$restore_script" "$backup_file"
+    "$restore_script" "$backup_file"
   [ "$status" -ne 0 ]
   [[ "$output" == *'RESTORE_CONFIRM_HOST is required'* ]]
+}
+
+@test "restore rejects a different PostgreSQL system identifier before creating its target" {
+  start_postgres
+  backup_fixture
+  foreign_container="ledger-restore-foreign-${BATS_TEST_NUMBER}-$$"
+  docker run --detach --rm --name "$foreign_container" \
+    --env POSTGRES_PASSWORD=postgres --env POSTGRES_DB=postgres \
+    --publish 127.0.0.1::5432 postgres:16-alpine >/dev/null
+  local attempt
+  for attempt in {1..30}; do
+    docker exec "$foreign_container" pg_isready --username postgres --dbname postgres >/dev/null 2>&1 && break
+    sleep 1
+  done
+  docker exec "$foreign_container" pg_isready --username postgres --dbname postgres >/dev/null
+  foreign_port="$(docker port "$foreign_container" 5432/tcp | sed 's/.*://')"
+  foreign_system_identifier="$(docker exec "$foreign_container" psql --username postgres --dbname postgres --tuples-only --no-align --command 'SELECT (pg_control_system()).system_identifier;')"
+
+  run env PATH="$BATS_TEST_DIRNAME/minisign-bin:${BACKUP_TEST_TOOLS_DIR}:$host_path" \
+    PGHOST=127.0.0.1 PGPORT="$foreign_port" PGUSER=postgres PGPASSWORD=postgres \
+    RESTORE_ADMIN_DATABASE=postgres RESTORE_TARGET_DATABASE=wrong_cluster_restore RESTORE_TARGET_OWNER=postgres \
+    RESTORE_CONFIRM_DATABASE=wrong_cluster_restore RESTORE_CONFIRM_HOST=127.0.0.1 \
+    RESTORE_CONFIRM_PORT="$foreign_port" RESTORE_CONFIRM_SYSTEM_IDENTIFIER="$foreign_system_identifier" \
+    RESTORE_CONFIRM_FINGERPRINT="wrong_cluster_restore@127.0.0.1:${foreign_port}#${foreign_system_identifier}" \
+    AGE_IDENTITY_FILE="$test_root/identity.txt" BACKUP_VERIFY_KEY_FILE="$test_root/backup-verify.pub" \
+    "$restore_script" "$backup_file"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'different PostgreSQL system identifier'* ]]
+  run docker exec "$foreign_container" psql --username postgres --dbname postgres --tuples-only --no-align --command "SELECT count(*) FROM pg_database WHERE datname = 'wrong_cluster_restore';"
+  [ "$status" -eq 0 ]
+  [ "$output" = '0' ]
+}
+
+@test "late restore SQL failure rolls back and removes only its created target" {
+  start_postgres
+  "$host_psql" "$fixture_host_url" --set ON_ERROR_STOP=1 --command "CREATE FUNCTION ledger.late_restore_failure(integer) RETURNS integer LANGUAGE internal IMMUTABLE AS 'int4in';"
+  backup_fixture
+
+  run "$restore_script" "$backup_file"
+  [ "$status" -ne 0 ]
+  run "$host_psql" "${fixture_host_url%/fixture}/postgres" --tuples-only --no-align --command "SELECT count(*) FROM pg_database WHERE datname = 'restored';"
+  [ "$status" -eq 0 ]
+  [ "$output" = '0' ]
 }
 
 @test "restore stages inputs in a private directory with owner-only files and cleans it" {
   start_postgres
   backup_fixture
-  target_url="${fixture_url%/fixture}/restored"
-  "$host_psql" "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
   mkdir "$test_root/restore-tmp"
 
   TMPDIR="$test_root/restore-tmp" PATH="$BATS_TEST_DIRNAME/fault-bin:$PATH" RESTORE_TEST_SHA_DELAY=2 \
-    env DATABASE_URL="$target_url" RESTORE_CONFIRM_DATABASE=restored \
-    AGE_IDENTITY_FILE="$test_root/identity.txt" "$restore_script" "$backup_file" >"$test_root/restore.stdout" 2>"$test_root/restore.stderr" &
+    "$restore_script" "$backup_file" >"$test_root/restore.stdout" 2>"$test_root/restore.stderr" &
   restore_pid=$!
   local attempt stage
   for attempt in {1..30}; do
@@ -351,15 +430,12 @@ SQL
 @test "restore consumes private staged bytes when the source pair is replaced during decryption" {
   start_postgres
   backup_fixture
-  target_url="${fixture_url%/fixture}/restored"
   target_host_url="${fixture_host_url%/fixture}/restored"
-  "$host_psql" "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
   ready_file="$test_root/staged-ready"
 
   PATH="$BATS_TEST_DIRNAME/fault-bin:$PATH" RESTORE_TEST_REAL_AGE="$(command -v age)" \
     RESTORE_TEST_STAGE_READY="$ready_file" RESTORE_TEST_STAGE_DELAY=2 \
-    env DATABASE_URL="$target_url" RESTORE_CONFIRM_DATABASE=restored \
-    AGE_IDENTITY_FILE="$test_root/identity.txt" "$restore_script" "$backup_file" >"$test_root/race.stdout" 2>"$test_root/race.stderr" &
+    "$restore_script" "$backup_file" >"$test_root/race.stdout" 2>"$test_root/race.stderr" &
   restore_pid=$!
   local attempt
   for attempt in {1..30}; do
@@ -379,14 +455,11 @@ SQL
 @test "restore rejects a symlinked backup before it touches the target" {
   start_postgres
   backup_fixture
-  target_url="${fixture_url%/fixture}/restored"
-  "$host_psql" "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
   link_file="$test_root/ledger-20260725070000.dump.age"
   ln -s "$backup_file" "$link_file"
   ln -s "$backup_file.sha256" "$link_file.sha256"
 
-  run env DATABASE_URL="$target_url" RESTORE_CONFIRM_DATABASE=restored \
-    AGE_IDENTITY_FILE="$test_root/identity.txt" "$restore_script" "$link_file"
+  run "$restore_script" "$link_file"
   [ "$status" -ne 0 ]
   [[ "$output" == *'regular non-symlink'* ]]
 }
@@ -394,44 +467,31 @@ SQL
 @test "restore rejects ciphertext tampering and a mismatched confirmation" {
   start_postgres
   backup_fixture
-  target_url="${fixture_url%/fixture}/restored"
-  target_host_url="${fixture_host_url%/fixture}/restored"
-  "$host_psql" "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
-  run env DATABASE_URL="$target_url" \
-    RESTORE_CONFIRM_DATABASE=fixture \
-    AGE_IDENTITY_FILE="$test_root/identity.txt" \
-    "$restore_script" "$backup_file"
+  run env RESTORE_CONFIRM_DATABASE=fixture "$restore_script" "$backup_file"
   [ "$status" -ne 0 ]
   [[ "$output" == *'does not exactly match target database'* ]]
 
   tampered_file="$test_root/tampered.dump.age"
   cp "$backup_file" "$tampered_file"
   cp "$backup_file.sha256" "$tampered_file.sha256"
+  cp "$backup_file.manifest" "$tampered_file.manifest"
+  cp "$backup_file.manifest.minisig" "$tampered_file.manifest.minisig"
   printf 'tampered' >> "$tampered_file"
-  run env DATABASE_URL="$target_url" \
-    RESTORE_CONFIRM_DATABASE=restored \
-    AGE_IDENTITY_FILE="$test_root/identity.txt" \
-    "$restore_script" "$tampered_file"
+  run "$restore_script" "$tampered_file"
   [ "$status" -ne 0 ]
   [[ "$output" == *'checksum verification failed'* ]]
 
   valid_checksum="$(shasum --algorithm 256 "$backup_file" | awk '{print $1}')"
   printf '%s  %s unexpected-field\n' "$valid_checksum" "$(basename "$backup_file")" > "$backup_file.sha256"
-  run env DATABASE_URL="$target_url" \
-    RESTORE_CONFIRM_DATABASE=restored \
-    AGE_IDENTITY_FILE="$test_root/identity.txt" \
-    "$restore_script" "$backup_file"
+  run "$restore_script" "$backup_file"
   [ "$status" -ne 0 ]
   [[ "$output" == *'checksum metadata is invalid'* ]]
 
   printf '%064d  %s\n' 0 "$(basename "$backup_file")" > "$backup_file.sha256"
-  run env DATABASE_URL="$target_url" \
-    RESTORE_CONFIRM_DATABASE=restored \
-    AGE_IDENTITY_FILE="$test_root/identity.txt" \
-    "$restore_script" "$backup_file"
+  run "$restore_script" "$backup_file"
   [ "$status" -ne 0 ]
   [[ "$output" == *'checksum verification failed'* ]]
-  run "$host_psql" "$target_host_url" --tuples-only --no-align --command "SELECT count(*) FROM pg_tables WHERE schemaname = 'ledger';"
+  run "$host_psql" "${fixture_host_url%/fixture}/postgres" --tuples-only --no-align --command "SELECT count(*) FROM pg_database WHERE datname = 'restored';"
   [ "$status" -eq 0 ]
   [ "$output" = '0' ]
 }
@@ -475,30 +535,34 @@ SQL
   start_postgres
   age-keygen --output "$test_root/identity.txt" >/dev/null 2>&1
   recipient="$(age-keygen -y "$test_root/identity.txt")"
-  volume_name="ledger-backup-image-${BATS_TEST_NUMBER}-$$"
-  docker volume create "$volume_name" >/dev/null
+  image_backup_dir="$test_root/image-backups"
+  mkdir "$image_backup_dir"
   target_host_url="${fixture_host_url%/fixture}/restored"
-  "$host_psql" "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
 
-  run docker run --rm --network "container:$container_id" \
-    --mount "type=volume,src=$volume_name,dst=/backups" \
+  run docker run --rm --user "$(id -u):$(id -g)" --network "container:$container_id" \
+    --mount "type=bind,src=$image_backup_dir,dst=/backups" \
+    --mount "type=bind,src=$test_root/backup-signing.key,dst=/run/backup/signing.key,readonly" \
     --env PGHOST=127.0.0.1 --env PGPORT=5432 --env PGDATABASE=fixture \
     --env PGUSER=postgres --env PGPASSWORD=postgres \
     --env BACKUP_DIR=/backups --env BACKUP_AGE_RECIPIENT="$recipient" \
+    --env BACKUP_SIGNING_KEY_FILE=/run/backup/signing.key \
     --env BACKUP_TIMESTAMP=20260725070004 ledger-backup:local
   [ "$status" -eq 0 ]
-  run docker run --rm --mount "type=volume,src=$volume_name,dst=/backups,readonly" \
+  run docker run --rm --mount "type=bind,src=$image_backup_dir,dst=/backups,readonly" \
     --entrypoint sha256sum ledger-backup:local /backups/ledger-20260725070004.dump.age
   [ "$status" -eq 0 ]
 
-  run docker run --rm --network "container:$container_id" \
-    --mount "type=volume,src=$volume_name,dst=/backups,readonly" \
+  run docker run --rm --user "$(id -u):$(id -g)" --network "container:$container_id" \
+    --mount "type=bind,src=$image_backup_dir,dst=/backups,readonly" \
     --mount "type=bind,src=$test_root/identity.txt,dst=/run/restore/identity.txt,readonly" \
-    --env PGHOST=127.0.0.1 --env PGPORT=5432 --env PGDATABASE=restored \
-    --env PGUSER=postgres --env PGPASSWORD=postgres \
+    --mount "type=bind,src=$test_root/backup-verify.pub,dst=/run/restore/verify.pub,readonly" \
+    --env PGHOST=127.0.0.1 --env PGPORT=5432 --env PGUSER=ledger_owner --env PGPASSWORD=owner \
+    --env RESTORE_ADMIN_DATABASE=postgres --env RESTORE_TARGET_DATABASE=restored --env RESTORE_TARGET_OWNER=ledger_owner \
     --env RESTORE_CONFIRM_DATABASE=restored --env RESTORE_CONFIRM_HOST=127.0.0.1 \
-    --env RESTORE_CONFIRM_PORT=5432 --env RESTORE_CONFIRM_FINGERPRINT=restored@127.0.0.1:5432 \
+    --env RESTORE_CONFIRM_PORT=5432 --env RESTORE_CONFIRM_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_CONFIRM_FINGERPRINT="restored@127.0.0.1:5432#$fixture_system_identifier" \
     --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
+    --env BACKUP_VERIFY_KEY_FILE=/run/restore/verify.pub \
     --entrypoint /usr/local/bin/restore-db.sh ledger-backup:local /backups/ledger-20260725070004.dump.age
   [ "$status" -eq 0 ]
   run "$host_psql" "$target_host_url" --tuples-only --no-align --command 'SELECT count(*) FROM ledger.ledger_fixture;'
@@ -510,17 +574,22 @@ SQL
   start_postgres
   backup_fixture
   target_host_url="${fixture_host_url%/fixture}/restored"
-  "$host_psql" "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored OWNER ledger_owner;'
   chmod 0600 "$test_root/identity.txt"
 
   run docker run --rm --user "$(id -u):$(id -g)" --network "container:$container_id" \
     --mount "type=bind,src=$backup_file,dst=/restore/$(basename "$backup_file"),readonly" \
     --mount "type=bind,src=$backup_file.sha256,dst=/restore/$(basename "$backup_file").sha256,readonly" \
+    --mount "type=bind,src=$backup_file.manifest,dst=/restore/$(basename "$backup_file").manifest,readonly" \
+    --mount "type=bind,src=$backup_file.manifest.minisig,dst=/restore/$(basename "$backup_file").manifest.minisig,readonly" \
     --mount "type=bind,src=$test_root/identity.txt,dst=/run/restore/identity.txt,readonly" \
-    --env DATABASE_URL='postgresql://ledger_owner@127.0.0.1:5432/restored' --env PGPASSWORD=owner \
+    --mount "type=bind,src=$test_root/backup-verify.pub,dst=/run/restore/verify.pub,readonly" \
+    --env PGHOST=127.0.0.1 --env PGPORT=5432 --env PGUSER=ledger_owner --env PGPASSWORD=owner \
+    --env RESTORE_ADMIN_DATABASE=postgres --env RESTORE_TARGET_DATABASE=restored --env RESTORE_TARGET_OWNER=ledger_owner \
     --env RESTORE_CONFIRM_DATABASE=restored --env RESTORE_CONFIRM_HOST=127.0.0.1 \
-    --env RESTORE_CONFIRM_PORT=5432 --env RESTORE_CONFIRM_FINGERPRINT=restored@127.0.0.1:5432 \
+    --env RESTORE_CONFIRM_PORT=5432 --env RESTORE_CONFIRM_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_CONFIRM_FINGERPRINT="restored@127.0.0.1:5432#$fixture_system_identifier" \
     --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
+    --env BACKUP_VERIFY_KEY_FILE=/run/restore/verify.pub \
     --entrypoint /usr/local/bin/restore-db.sh ledger-backup:local "/restore/$(basename "$backup_file")"
   [ "$status" -eq 0 ]
   run "$host_psql" "$target_host_url" --tuples-only --no-align --command 'SELECT count(*) FROM ledger.ledger_fixture;'
@@ -536,6 +605,10 @@ SQL
   run grep --fixed-strings 'src="$checksum_file"' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
   [ "$status" -eq 0 ]
   run grep --fixed-strings 'AGE_IDENTITY_FILE=/run/restore/identity.txt' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'BACKUP_VERIFY_KEY_FILE=/run/restore/verify.pub' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'docker run --rm --user "$(id -u):$(id -g)"' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
   [ "$status" -eq 0 ]
 }
 
@@ -554,18 +627,22 @@ SQL
   start_postgres
   backup_fixture
   target_host_url="${fixture_host_url%/fixture}/restored"
-  "$host_psql" "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
   mounted_name="$(basename "$backup_file")"
 
-  run docker run --rm --network "container:$container_id" \
+  run docker run --rm --user "$(id -u):$(id -g)" --network "container:$container_id" \
     --mount "type=bind,src=$backup_file,dst=/restore/$mounted_name,readonly" \
     --mount "type=bind,src=$backup_file.sha256,dst=/restore/$mounted_name.sha256,readonly" \
+    --mount "type=bind,src=$backup_file.manifest,dst=/restore/$mounted_name.manifest,readonly" \
+    --mount "type=bind,src=$backup_file.manifest.minisig,dst=/restore/$mounted_name.manifest.minisig,readonly" \
     --mount "type=bind,src=$test_root/identity.txt,dst=/run/restore/identity.txt,readonly" \
-    --env PGHOST=127.0.0.1 --env PGPORT=5432 --env PGDATABASE=restored \
-    --env PGUSER=postgres --env PGPASSWORD=postgres \
+    --mount "type=bind,src=$test_root/backup-verify.pub,dst=/run/restore/verify.pub,readonly" \
+    --env PGHOST=127.0.0.1 --env PGPORT=5432 --env PGUSER=ledger_owner --env PGPASSWORD=owner \
+    --env RESTORE_ADMIN_DATABASE=postgres --env RESTORE_TARGET_DATABASE=restored --env RESTORE_TARGET_OWNER=ledger_owner \
     --env RESTORE_CONFIRM_DATABASE=restored --env RESTORE_CONFIRM_HOST=127.0.0.1 \
-    --env RESTORE_CONFIRM_PORT=5432 --env RESTORE_CONFIRM_FINGERPRINT=restored@127.0.0.1:5432 \
+    --env RESTORE_CONFIRM_PORT=5432 --env RESTORE_CONFIRM_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_CONFIRM_FINGERPRINT="restored@127.0.0.1:5432#$fixture_system_identifier" \
     --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
+    --env BACKUP_VERIFY_KEY_FILE=/run/restore/verify.pub \
     --entrypoint /usr/local/bin/restore-db.sh ledger-backup:local "/restore/$mounted_name"
   [ "$status" -eq 0 ]
   run "$host_psql" "$target_host_url" --tuples-only --no-align --command 'SELECT count(*) FROM ledger.ledger_fixture;'
@@ -578,6 +655,14 @@ SQL
   [ "$status" -eq 0 ]
   run grep --fixed-strings -- '--network ledger_default' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
   [ "$status" -eq 0 ]
+  run grep --fixed-strings 'BACKUP_SIGNING_KEY_FILE: /run/ledger-secrets/backup-signing.key' "$BATS_TEST_DIRNAME/../docker-compose.yml"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'target: /run/ledger-secrets/backup-signing.key' "$BATS_TEST_DIRNAME/../docker-compose.yml"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'read_only: true' "$BATS_TEST_DIRNAME/../docker-compose.yml"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'BACKUP_VERIFY_KEY_FILE' "$BATS_TEST_DIRNAME/../docker-compose.yml"
+  [ "$status" -ne 0 ]
 }
 
 @test "failed final publication removes every visible half of a backup pair" {
@@ -587,8 +672,10 @@ SQL
   age-keygen --output "$test_root/identity.txt" >/dev/null 2>&1
 
   run -1 env PATH="$BATS_TEST_DIRNAME/fault-bin:$PATH" \
-    BACKUP_TEST_FAIL_MV_NUMBER=2 \
+    BACKUP_TEST_FAIL_MV_NUMBER=4 \
     BACKUP_TEST_MV_COUNTER="$test_root/mv-count" \
+    BACKUP_TEST_FSYNC_LOG="$test_root/fsync.log" \
+    BACKUP_TEST_EVENT_LOG="$test_root/events.log" \
     DATABASE_URL="$fixture_url" \
     BACKUP_DIR="$backup_dir" \
     BACKUP_AGE_RECIPIENT="$(age-keygen -y "$test_root/identity.txt")" \
@@ -597,9 +684,13 @@ SQL
   [ "$status" -ne 0 ]
   [ ! -e "$backup_dir/ledger-20260725070003.dump.age" ]
   [ ! -e "$backup_dir/ledger-20260725070003.dump.age.sha256" ]
+  [ ! -e "$backup_dir/ledger-20260725070003.dump.age.manifest" ]
+  [ ! -e "$backup_dir/ledger-20260725070003.dump.age.manifest.minisig" ]
   run find "$backup_dir" -name '*.partial' -print
   [ "$status" -eq 0 ]
   [ -z "$output" ]
+  run grep --fixed-strings -- "-d $backup_dir" "$test_root/fsync.log"
+  [ "$status" -eq 0 ]
 }
 
 @test "same timestamp race preserves one private encrypted backup without secret output" {
@@ -618,10 +709,10 @@ SQL
   first_pid=$!
   local attempt
   for attempt in {1..30}; do
-    [[ -d "$backup_dir/.backup.lock" ]] && break
+    [[ -d "$backup_dir/.backup.lock.d" ]] && break
     sleep 0.1
   done
-  [ -d "$backup_dir/.backup.lock" ]
+  [ -d "$backup_dir/.backup.lock.d" ]
 
   run env DATABASE_URL="$fixture_url" \
     BACKUP_DIR="$backup_dir" \
@@ -647,18 +738,61 @@ SQL
   [ "$status" -ne 0 ]
 }
 
-@test "stale backup lock is reclaimed after its owner is gone" {
+@test "two production containers use flock and recover after the lock holder crashes" {
+  start_postgres
+  shared_backup_dir="$test_root/container-backups"
+  mkdir "$shared_backup_dir" "$test_root/container-bin"
+  printf '%s\n' \
+    '#!/bin/sh' \
+    'if [ "${BACKUP_TEST_DELAY:-}" = 1 ]; then : > /backups/started; sleep 60; fi' \
+    'exec /usr/local/bin/pg_dump "$@"' > "$test_root/container-bin/pg_dump"
+  chmod 0700 "$test_root/container-bin/pg_dump"
+  age-keygen --output "$test_root/identity.txt" >/dev/null 2>&1
+  recipient="$(age-keygen -y "$test_root/identity.txt")"
+  first_container="ledger-backup-flock-${BATS_TEST_NUMBER}-$$"
+  docker run --detach --name "$first_container" --user "$(id -u):$(id -g)" --network "container:$container_id" \
+    --mount "type=bind,src=$shared_backup_dir,dst=/backups" \
+    --mount "type=bind,src=$test_root/container-bin,dst=/test-bin,readonly" \
+    --mount "type=bind,src=$test_root/backup-signing.key,dst=/run/backup/signing.key,readonly" \
+    --env PATH=/test-bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin \
+    --env BACKUP_TEST_DELAY=1 --env PGHOST=127.0.0.1 --env PGPORT=5432 --env PGDATABASE=fixture \
+    --env PGUSER=ledger_backup --env PGPASSWORD=backup --env BACKUP_DIR=/backups \
+    --env BACKUP_AGE_RECIPIENT="$recipient" --env BACKUP_SIGNING_KEY_FILE=/run/backup/signing.key \
+    --env BACKUP_TIMESTAMP=20260725070101 ledger-backup:local >/dev/null
+  local attempt
+  for attempt in {1..30}; do
+    [[ -f "$shared_backup_dir/started" ]] && break
+    sleep 0.1
+  done
+  [ -f "$shared_backup_dir/started" ]
+  docker kill "$first_container" >/dev/null
+  docker rm --force "$first_container" >/dev/null 2>&1 || true
+
+  run docker run --rm --user "$(id -u):$(id -g)" --network "container:$container_id" \
+    --mount "type=bind,src=$shared_backup_dir,dst=/backups" \
+    --mount "type=bind,src=$test_root/container-bin,dst=/test-bin,readonly" \
+    --mount "type=bind,src=$test_root/backup-signing.key,dst=/run/backup/signing.key,readonly" \
+    --env PATH=/test-bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin \
+    --env PGHOST=127.0.0.1 --env PGPORT=5432 --env PGDATABASE=fixture \
+    --env PGUSER=ledger_backup --env PGPASSWORD=backup --env BACKUP_DIR=/backups \
+    --env BACKUP_AGE_RECIPIENT="$recipient" --env BACKUP_SIGNING_KEY_FILE=/run/backup/signing.key \
+    --env BACKUP_TIMESTAMP=20260725070102 ledger-backup:local
+  [ "$status" -eq 0 ]
+  [ -s "$shared_backup_dir/ledger-20260725070102.dump.age" ]
+  [ -s "$shared_backup_dir/ledger-20260725070102.dump.age.manifest.minisig" ]
+}
+
+@test "host fallback treats a pre-existing lock directory as busy" {
   start_postgres
   backup_dir="$test_root/backups"
-  mkdir -p "$backup_dir/.backup.lock"
-  printf '%s %s %s\n' '999999' "$(hostname)" 'not_a_real_start' > "$backup_dir/.backup.lock/pid"
+  mkdir -p "$backup_dir/.backup.lock.d"
   age-keygen --output "$test_root/identity.txt" >/dev/null 2>&1
 
   run env DATABASE_URL="$fixture_url" BACKUP_DIR="$backup_dir" \
     BACKUP_AGE_RECIPIENT="$(age-keygen -y "$test_root/identity.txt")" \
     BACKUP_TIMESTAMP=20260725070006 "$backup_script"
-  [ "$status" -eq 0 ]
-  [ -s "$backup_dir/ledger-20260725070006.dump.age" ]
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'another backup is already running'* ]]
 }
 
 @test "backup removes encrypted partial output when encryption cannot start" {
@@ -694,17 +828,25 @@ SQL
   [ -z "$output" ]
 }
 
-@test "backup synchronizes the containing directory after publishing the pair" {
+@test "backup publishes checksum before ciphertext with directory fsyncs between them" {
   start_postgres
   backup_dir="$test_root/backups"
   mkdir -p "$backup_dir"
   age-keygen --output "$test_root/identity.txt" >/dev/null 2>&1
 
   run env PATH="$BATS_TEST_DIRNAME/fault-bin:$PATH" BACKUP_TEST_FSYNC_LOG="$test_root/fsync.log" \
+    BACKUP_TEST_EVENT_LOG="$test_root/events.log" \
     DATABASE_URL="$fixture_url" BACKUP_DIR="$backup_dir" \
     BACKUP_AGE_RECIPIENT="$(age-keygen -y "$test_root/identity.txt")" \
     BACKUP_TIMESTAMP=20260725070008 "$backup_script"
   [ "$status" -eq 0 ]
-  run grep --fixed-strings -- "-d $backup_dir" "$test_root/fsync.log"
-  [ "$status" -eq 0 ]
+  checksum_publish_line="$(grep -n "ledger-20260725070008.dump.age.sha256" "$test_root/events.log" | sed -n '1p' | cut -d: -f1)"
+  ciphertext_publish_line="$(grep -n "ledger-20260725070008.dump.age$" "$test_root/events.log" | sed -n '1p' | cut -d: -f1)"
+  first_directory_sync_line="$(grep -n "sync:-d $backup_dir" "$test_root/events.log" | sed -n '1p' | cut -d: -f1)"
+  ciphertext_directory_sync_line="$(grep -n "sync:-d $backup_dir" "$test_root/events.log" | tail -n 1 | cut -d: -f1)"
+  [[ "$checksum_publish_line" =~ ^[0-9]+$ && "$ciphertext_publish_line" =~ ^[0-9]+$ ]]
+  [[ "$first_directory_sync_line" =~ ^[0-9]+$ && "$ciphertext_directory_sync_line" =~ ^[0-9]+$ ]]
+  [ "$checksum_publish_line" -lt "$first_directory_sync_line" ]
+  [ "$first_directory_sync_line" -lt "$ciphertext_publish_line" ]
+  [ "$ciphertext_publish_line" -lt "$ciphertext_directory_sync_line" ]
 }

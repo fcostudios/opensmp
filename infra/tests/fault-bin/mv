@@ -3,6 +3,9 @@
 # operation so the scripts' cleanup path is verified without faking encryption.
 set -euo pipefail
 
+if [[ -n "${BACKUP_TEST_EVENT_LOG:-}" ]]; then
+  printf 'mv:%s\n' "$*" >> "$BACKUP_TEST_EVENT_LOG"
+fi
 if [[ -z "${BACKUP_TEST_MV_COUNTER:-}" || -z "${BACKUP_TEST_FAIL_MV_NUMBER:-}" ]]; then
   exec /bin/mv "$@"
 fi

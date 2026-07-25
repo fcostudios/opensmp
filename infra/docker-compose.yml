@@ -112,12 +112,19 @@ services:
       PGUSER: ledger_backup
       PGPASSWORD: ${LEDGER_BACKUP_PASSWORD:?set LEDGER_BACKUP_PASSWORD in .env}
       BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?set BACKUP_AGE_RECIPIENT in .env}
+      # Inside the container this always points at the read-only secret mount;
+      # the host value is used only as the bind source below.
+      BACKUP_SIGNING_KEY_FILE: /run/ledger-secrets/backup-signing.key
       BACKUP_DIR: /backups
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
       - backup_data:/backups
+      - type: bind
+        source: ${BACKUP_SIGNING_KEY_FILE:?set BACKUP_SIGNING_KEY_FILE in .env}
+        target: /run/ledger-secrets/backup-signing.key
+        read_only: true
 
   smtp-relay:
     image: axllent/mailpit:v1.21.8

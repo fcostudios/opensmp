@@ -15,6 +15,19 @@ fail() {
   exit 1
 }
 
+reject_symlink_components() {
+  local path="$1"
+  local component current=''
+  local -a components=()
+  [[ "$path" == /* ]] || fail 'tool path must be absolute'
+  IFS='/' read -r -a components <<< "${path#/}"
+  for component in "${components[@]}"; do
+    [[ -n "$component" && "$component" != '.' && "$component" != '..' ]] || fail 'tool path traversal is not permitted'
+    current+="/$component"
+    [[ ! -L "$current" ]] || fail 'tool directory and every parent must not be symlinks'
+  done
+}
+
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64)
     age_platform='darwin-arm64'
@@ -33,6 +46,8 @@ case "$(uname -s)-$(uname -m)" in
 esac
 
 [[ "$TOOL_DIR" == "$ROOT_DIR/.tmp/"* && "$TOOL_DIR" != *'/../'* && "$TOOL_DIR" != *'/./'* ]] || fail 'tool directory traversal is not permitted'
+reject_symlink_components "$ROOT_DIR/.tmp"
+reject_symlink_components "$TOOL_DIR"
 mkdir -p "$ROOT_DIR/.tmp"
 [[ ! -L "$ROOT_DIR/.tmp" && ! -L "$TOOL_DIR" ]] || fail 'tool directory and repository .tmp must not be symlinks'
 marker_is_owned() {

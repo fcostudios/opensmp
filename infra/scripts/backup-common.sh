@@ -107,6 +107,27 @@ effective_target_identity() {
   printf '%s\t%s\t%s\n' "$database" "$host" "$port"
 }
 
+resolve_pinned_connection_host() {
+  local requested_host="$1"
+  local resolved_candidates resolved
+  [[ -n "$requested_host" ]] || fail 'database host is required'
+  if [[ "$requested_host" == /* ]]; then
+    [[ "$requested_host" =~ ^/[^,[:space:]]*$ && "$requested_host" != *'//'* && "$requested_host" != *'/./'* && "$requested_host" != *'/../'* ]] || fail 'could not normalize Unix socket directory'
+    printf 'unix:%s\n' "${requested_host%/}"
+    return 0
+  fi
+  if [[ "$requested_host" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ || "$requested_host" =~ ^[0-9A-Fa-f:]+$ ]]; then
+    printf '%s\n' "$requested_host"
+    return 0
+  fi
+  command -v getent >/dev/null 2>&1 || fail 'cannot resolve a non-numeric database host without getent'
+  resolved_candidates="$(getent ahostsv4 "$requested_host" 2>/dev/null | awk '{print $1}' | awk '!seen[$0]++')"
+  [[ "$(printf '%s\n' "$resolved_candidates" | sed '/^$/d' | wc -l | tr -d ' ')" == 1 ]] || fail 'database hostname resolves ambiguously; use one explicit address'
+  resolved="$(printf '%s\n' "$resolved_candidates" | sed -n '1p')"
+  [[ "$resolved" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || fail 'could not resolve database host'
+  printf '%s\n' "$resolved"
+}
+
 target_user_object_count() {
   psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 "${DATABASE_CLIENT_ARGS[@]}" --command "
 WITH user_schemas AS (
@@ -143,6 +164,47 @@ SELECT
 validate_age_recipient() {
   require_environment BACKUP_AGE_RECIPIENT
   [[ "$BACKUP_AGE_RECIPIENT" =~ ^age1[ac-hj-np-z02-9]{58}$ ]] || fail 'invalid BACKUP_AGE_RECIPIENT'
+}
+
+require_regular_file() {
+  local label="$1"
+  local path="$2"
+  [[ ! -L "$path" && -f "$path" && -r "$path" ]] || fail "$label must be a readable regular non-symlink file"
+}
+
+database_system_identifier() {
+  local identifier
+  identifier="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 "${DATABASE_CLIENT_ARGS[@]}" --command 'SELECT (pg_control_system()).system_identifier')"
+  [[ "$identifier" =~ ^[0-9]+$ ]] || fail 'could not determine PostgreSQL system identifier'
+  printf '%s\n' "$identifier"
+}
+
+secure_copy_regular() {
+  # Open the source exactly once with O_NOFOLLOW, then copy that descriptor. A
+  # pre-copy lstat alone is TOCTOU-vulnerable if a mounted backup is replaced.
+  local source="$1"
+  local destination="$2"
+  perl -MFcntl=':DEFAULT,O_NOFOLLOW' -MIO::Handle -e '
+    my ($source, $destination) = @ARGV;
+    sysopen(my $in, $source, O_RDONLY | O_NOFOLLOW) or die "open source: $!\n";
+    my @st = stat($in);
+    die "source is not a regular file\n" unless @st && -f _;
+    sysopen(my $out, $destination, O_WRONLY | O_CREAT | O_EXCL, 0600) or die "open destination: $!\n";
+    binmode($in); binmode($out);
+    my $buffer;
+    while (1) {
+      my $read = read($in, $buffer, 1024 * 1024);
+      die "read source: $!\n" unless defined $read;
+      last if $read == 0;
+      my $offset = 0;
+      while ($offset < $read) {
+        my $written = syswrite($out, $buffer, $read - $offset, $offset);
+        die "write destination: $!\n" unless defined $written;
+        $offset += $written;
+      }
+    }
+    $out->sync or die "fsync destination: $!\n";
+  ' "$source" "$destination"
 }
 
 sha256_file() {
