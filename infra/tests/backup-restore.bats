@@ -1060,6 +1060,61 @@ SQL
   [ "$output" = 'f' ]
 }
 
+@test "packaged direct restore rejects a caller-forged authority flag without preparing a window" {
+  start_postgres
+  backup_artifacts_fixture
+  audit_log="$test_root/direct-restore-window.audit.jsonl"
+  credential_root="$test_root/direct-restore-credential"
+  install -m 600 /dev/null "$audit_log"
+  mkdir "$credential_root"
+  chmod 0700 "$credential_root"
+
+  # Mutation oracle: the historical direct entrypoint accepted this forged
+  # flag, prepared ledger_restore_admin, and left its authority open because
+  # no wrapper-owned finalization trap existed. The packaged direct entrypoint
+  # must now refuse before opening any authority or creating a target.
+  run docker run --rm --user "$(id -u):$(id -g)" --network "container:$container_id" \
+    --mount "type=bind,src=$backup_dir,dst=/restore,readonly" \
+    --mount "type=bind,src=$test_root/identity.txt,dst=/run/restore/identity.txt,readonly" \
+    --mount "type=bind,src=$test_root/backup-verify.pub,dst=/run/restore/verify.pub,readonly" \
+    --mount "type=bind,src=$RESTORE_STAGING_ROOT,dst=/run/restore/staging" \
+    --mount "type=bind,src=$credential_root,dst=/run/restore/credential" \
+    --mount "type=bind,src=$audit_log,dst=/run/restore/window.audit.jsonl" \
+    --env RESTORE_GUARDED_PREPARE=1 \
+    --env RESTORE_STAGING_ROOT=/run/restore/staging \
+    --env RESTORE_WINDOW_PGHOST=127.0.0.1 --env RESTORE_WINDOW_PGPORT=5432 \
+    --env RESTORE_WINDOW_SUPERADMIN_USER=postgres --env RESTORE_WINDOW_SUPERADMIN_PASSWORD=postgres \
+    --env RESTORE_WINDOW_ADMIN_DATABASE=postgres --env RESTORE_WINDOW_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_WINDOW_CONFIRM_FINGERPRINT="127.0.0.1:5432#$fixture_system_identifier" \
+    --env RESTORE_WINDOW_ISOLATED_TARGET_CONFIRMATION=I_CONFIRM_TARGET_IS_ISOLATED_AND_APPLICATION_STOPPED \
+    --env RESTORE_WINDOW_TTL_SECONDS=300 --env RESTORE_WINDOW_AUDIT_LOG=/run/restore/window.audit.jsonl \
+    --env RESTORE_WINDOW_CREDENTIAL_ROOT=/run/restore/credential \
+    --env RESTORE_WINDOW_CREDENTIAL_FILE=/run/restore/credential/credential \
+    --env RESTORE_WINDOW_GENERATE_CREDENTIAL=1 \
+    --env RESTORE_ADMIN_DATABASE=postgres --env RESTORE_TARGET_DATABASE=restored --env RESTORE_TARGET_OWNER=ledger_owner \
+    --env RESTORE_CONFIRM_DATABASE=restored --env RESTORE_CONFIRM_HOST=127.0.0.1 \
+    --env RESTORE_CONFIRM_PORT=5432 \
+    --env RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_CONFIRM_FINGERPRINT="restored@127.0.0.1:5432#$fixture_system_identifier" \
+    --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
+    --env BACKUP_VERIFY_KEY_FILE=/run/restore/verify.pub \
+    --env PGHOST=127.0.0.1 --env PGPORT=5432 --env PGUSER=ledger_restore_admin \
+    --env PGDATABASE=postgres --env PGPASSWORD=caller-forged-password \
+    --entrypoint /usr/local/bin/restore-db.sh ledger-backup:local "/restore/$(basename "$backup_file")"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'RESTORE_GUARDED_PREPARE is reserved for run-guarded-restore.sh'* ]] || return 1
+
+  run restore_admin_window_state
+  [ "$status" -eq 0 ]
+  [ "$output" = 'false|true|0|0' ]
+  run grep --fixed-strings '"event":"prepare_started"' "$audit_log"
+  [ "$status" -ne 0 ]
+  run "$host_psql" "${fixture_host_url%/fixture}/postgres" --tuples-only --no-align --command "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'restored');"
+  [ "$status" -eq 0 ]
+  [ "$output" = 'f' ]
+}
+
 @test "packaged restore rejects insufficient mounted staging capacity before opening authority" {
   start_postgres
   backup_artifacts_fixture

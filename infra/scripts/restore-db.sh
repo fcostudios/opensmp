@@ -219,25 +219,12 @@ source_system_identifier="${manifest_lines[5]#source_system_identifier=}"
 [[ "${manifest_lines[4]}" == "created_at=$manifest_created_at" && "$manifest_created_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || fail 'backup manifest timestamp is invalid'
 [[ "${manifest_lines[5]}" == "source_system_identifier=$source_system_identifier" && "$source_system_identifier" =~ ^[0-9]+$ ]] || fail 'backup manifest source system identifier is invalid'
 
-# The guarded wrapper deliberately opens authority only after this invocation
-# has unconditionally authenticated the staged ciphertext and signed manifest.
-if [[ "${RESTORE_GUARDED_PREPARE:-0}" == 1 ]]; then
-  if [[ -f "$SCRIPT_DIR/restore-window-common.sh" ]]; then
-    window_script_dir="$SCRIPT_DIR"
-  else
-    window_script_dir="$SCRIPT_DIR/../postgres"
-  fi
-  # shellcheck source=infra/postgres/restore-window-common.sh
-  source "$window_script_dir/restore-window-common.sh"
-  "$window_script_dir/prepare-restore-window.sh"
-  restore_password="$(restore_window_read_credential_file "$RESTORE_WINDOW_CREDENTIAL_FILE")" \
-    || restore_window_fail 'restore-window credential file was replaced'
-  export PGHOST="$RESTORE_WINDOW_PGHOST"
-  export PGPORT="$RESTORE_WINDOW_PGPORT"
-  export PGUSER=ledger_restore_admin
-  export PGDATABASE="$RESTORE_WINDOW_ADMIN_DATABASE"
-  export PGPASSWORD="$restore_password"
-fi
+# Restore authority is deliberately not a capability of this entrypoint.  An
+# environment variable is caller-controlled, so accepting one here would let
+# a direct invocation enable ledger_restore_admin without the wrapper's
+# unconditional finalization trap and pinned staging-root handoff.
+[[ -z "${RESTORE_GUARDED_PREPARE:-}" ]] \
+  || fail 'RESTORE_GUARDED_PREPARE is reserved for run-guarded-restore.sh'
 
 require_environment PGHOST
 require_environment PGPORT

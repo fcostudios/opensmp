@@ -18,6 +18,9 @@ readonly RESTORE_SCRIPT="${RESTORE_WINDOW_RESTORE_SCRIPT:-$DEFAULT_RESTORE_SCRIP
 readonly STAGE_SCRIPT="${RESTORE_WINDOW_STAGE_SCRIPT:-$DEFAULT_STAGE_SCRIPT}"
 [[ "$#" -eq 1 ]] || { printf '%s\n' 'usage: run-guarded-restore.sh /path/to/ledger-YYYYMMDDHHMMSS.dump.age' >&2; exit 1; }
 [[ -x "$STAGE_SCRIPT" ]] || restore_window_fail 'stage-restore-inputs.sh is required'
+# This is intentionally not a forwarding interface. A caller cannot turn the
+# direct restorer into an authority opener by pre-populating this legacy name.
+unset RESTORE_GUARDED_PREPARE
 
 # The packaged entrypoint first pins the exact mounted staging root. All later
 # accesses use its inherited directory descriptor, so replacing an
@@ -89,10 +92,18 @@ export RESTORE_WINDOW_GENERATE_CREDENTIAL=0
 staged_backup="$("$STAGE_SCRIPT" "$1")" || restore_window_fail 'restore artifact staging or verification failed'
 staged_dir="$(dirname "$staged_backup")"
 
-# Schedule idempotent finalization before the restore's guarded prepare: a
-# server COMMIT can succeed even if a later client-side state check fails.
+# This wrapper, not restore-db.sh, is the sole authority opener.  Its EXIT
+# trap is installed before staging and remains responsible for finalization
+# across every post-prepare success and failure path.
+"$SCRIPT_DIR/prepare-restore-window.sh"
 window_prepared=1
-export RESTORE_GUARDED_PREPARE=1
+restore_password="$(restore_window_read_credential_file "$RESTORE_WINDOW_CREDENTIAL_FILE")" \
+  || restore_window_fail 'restore-window credential file was replaced'
+export PGHOST="$RESTORE_WINDOW_PGHOST"
+export PGPORT="$RESTORE_WINDOW_PGPORT"
+export PGUSER=ledger_restore_admin
+export PGDATABASE="$RESTORE_WINDOW_ADMIN_DATABASE"
+export PGPASSWORD="$restore_password"
 export RESTORE_STAGED_INPUTS=1
 export RESTORE_VERIFIED_STAGE_DIR="$staged_dir"
 "$RESTORE_SCRIPT" "$staged_backup"
