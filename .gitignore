@@ -33,3 +33,7 @@ Thumbs.db
 
 # Local Git worktrees
 .worktrees/
+
+# Ephemeral, checksum-verified test binaries (never commit encryption keys/tools).
+.tmp/backup-restore-tools/
+infra/backups/

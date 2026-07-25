@@ -10,3 +10,7 @@ BEGIN
     CREATE ROLE ledger_backup LOGIN;
   END IF;
 END $$;
+
+-- A dump reader needs data visibility but cannot alter application data.
+GRANT CONNECT ON DATABASE ledger TO ledger_backup;
+GRANT pg_read_all_data TO ledger_backup;

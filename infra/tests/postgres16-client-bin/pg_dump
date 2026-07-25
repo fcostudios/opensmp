@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# The test fixture is a real postgres:16-alpine container. These tiny adapters
+# ensure the real, version-matched PostgreSQL client runs inside that fixture.
+set -euo pipefail
+: "${BACKUP_TEST_POSTGRES_CONTAINER:?fixture container is required}"
+if [[ "${BACKUP_TEST_DELAY_PG_DUMP:-0}" != '0' ]]; then
+  sleep "$BACKUP_TEST_DELAY_PG_DUMP"
+fi
+exec docker exec "$BACKUP_TEST_POSTGRES_CONTAINER" pg_dump "$@"

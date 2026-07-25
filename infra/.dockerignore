@@ -1,0 +1,8 @@
+# The backup image has an allowlisted COPY surface. Keep potentially sensitive
+# operational artifacts out of its build context as defence in depth.
+.env
+backups/
+backup/*.age
+backup/*.sha256
+backup/*.txt
+**/*identity*

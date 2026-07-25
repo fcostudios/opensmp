@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# See pg_dump in this directory; this executes PostgreSQL 16's real pg_restore.
+set -euo pipefail
+: "${BACKUP_TEST_POSTGRES_CONTAINER:?fixture container is required}"
+exec docker exec -i "$BACKUP_TEST_POSTGRES_CONTAINER" pg_restore "$@"

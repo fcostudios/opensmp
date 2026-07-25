@@ -96,6 +96,24 @@ services:
       retries: 4
       start_period: 20s
 
+  # Run on demand through the "backup" profile (the crontab does this nightly).
+  # This container receives an age recipient (public configuration) only. The
+  # private identity belongs to the restore operator and is never mounted here.
+  backup:
+    profiles: ["backup"]
+    build:
+      context: .
+      dockerfile: backup/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://ledger_backup:${LEDGER_BACKUP_PASSWORD:?set LEDGER_BACKUP_PASSWORD in .env}@postgres:5432/ledger
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?set BACKUP_AGE_RECIPIENT in .env}
+      BACKUP_DIR: /backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - backup_data:/backups
+
   smtp-relay:
     image: axllent/mailpit:v1.21.8
     healthcheck:
@@ -107,3 +125,4 @@ services:
 volumes:
   postgres_data:
   keycloak_data:
+  backup_data:
