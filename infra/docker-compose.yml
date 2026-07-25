@@ -8,6 +8,7 @@ services:
       LEDGER_OWNER_PASSWORD: ${LEDGER_OWNER_PASSWORD:?set LEDGER_OWNER_PASSWORD in .env}
       LEDGER_APP_PASSWORD: ${LEDGER_APP_PASSWORD:?set LEDGER_APP_PASSWORD in .env}
       LEDGER_BACKUP_PASSWORD: ${LEDGER_BACKUP_PASSWORD:?set LEDGER_BACKUP_PASSWORD in .env}
+      LEDGER_RESTORE_ADMIN_PASSWORD: ${LEDGER_RESTORE_ADMIN_PASSWORD:?set LEDGER_RESTORE_ADMIN_PASSWORD in .env}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready --username=$$POSTGRES_USER --dbname=$$POSTGRES_DB"]
       interval: 5s
@@ -96,36 +97,6 @@ services:
       retries: 4
       start_period: 20s
 
-  # Run on demand through the "backup" profile (the crontab does this nightly).
-  # This container receives an age recipient (public configuration) only. The
-  # private identity belongs to the restore operator and is never mounted here.
-  backup:
-    profiles: ["backup"]
-    image: ledger-backup:local
-    build:
-      context: .
-      dockerfile: backup/Dockerfile
-    environment:
-      PGHOST: postgres
-      PGPORT: "5432"
-      PGDATABASE: ledger
-      PGUSER: ledger_backup
-      PGPASSWORD: ${LEDGER_BACKUP_PASSWORD:?set LEDGER_BACKUP_PASSWORD in .env}
-      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?set BACKUP_AGE_RECIPIENT in .env}
-      # Inside the container this always points at the read-only secret mount;
-      # the host value is used only as the bind source below.
-      BACKUP_SIGNING_KEY_FILE: /run/ledger-secrets/backup-signing.key
-      BACKUP_DIR: /backups
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - backup_data:/backups
-      - type: bind
-        source: ${BACKUP_SIGNING_KEY_FILE:?set BACKUP_SIGNING_KEY_FILE in .env}
-        target: /run/ledger-secrets/backup-signing.key
-        read_only: true
-
   smtp-relay:
     image: axllent/mailpit:v1.21.8
     healthcheck:
@@ -137,7 +108,6 @@ services:
 volumes:
   postgres_data:
   keycloak_data:
-  backup_data:
 
 networks:
   default:
