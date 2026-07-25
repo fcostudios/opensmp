@@ -37,3 +37,6 @@ Thumbs.db
 # Ephemeral, checksum-verified test binaries (never commit encryption keys/tools).
 .tmp/backup-restore-tools/
 infra/backups/
+
+# Operator-managed backup signing secrets belong outside the checkout.
+*.key
