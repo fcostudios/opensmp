@@ -39,6 +39,7 @@ require_environment RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER
 [[ -z "${DATABASE_URL:-}" ]] || fail 'DATABASE_URL is not permitted for restore; use discrete libpq variables'
 [[ "$RESTORE_TARGET_DATABASE" =~ ^[A-Za-z_][A-Za-z0-9_]{0,62}$ ]] || fail 'RESTORE_TARGET_DATABASE must be a PostgreSQL identifier'
 [[ "$RESTORE_TARGET_OWNER" =~ ^[A-Za-z_][A-Za-z0-9_]{0,62}$ ]] || fail 'RESTORE_TARGET_OWNER must be a PostgreSQL identifier'
+[[ "$PGUSER" =~ ^[A-Za-z_][A-Za-z0-9_]{0,62}$ ]] || fail 'PGUSER must be a PostgreSQL identifier'
 [[ "$RESTORE_CONFIRM_DATABASE" == "$RESTORE_TARGET_DATABASE" ]] || fail 'RESTORE_CONFIRM_DATABASE must exactly match RESTORE_TARGET_DATABASE'
 [[ "$PGPORT" =~ ^[0-9]+$ ]] || fail 'PGPORT must be numeric'
 
@@ -48,13 +49,65 @@ stage_backup="$stage_dir/$(basename -- "$source_backup_file")"
 stage_checksum="$stage_dir/$(basename -- "$source_checksum_file")"
 stage_manifest="$stage_dir/$(basename -- "$source_manifest_file")"
 stage_signature="$stage_dir/$(basename -- "$source_signature_file")"
-stage_identity="$stage_dir/identity.txt"
 stage_verify_key="$stage_dir/verify.pub"
 staging_database=''
 staging_database_oid=''
 staging_created=0
 staging_promoted=0
 pinned_admin_args=()
+admin_session_input=''
+admin_session_output=''
+admin_session_pid=''
+admin_session_locked=0
+admin_session_result=''
+
+admin_session_command() {
+  local sql="$1"
+  local nonce="__LEDGER_RESTORE_ADMIN_${RANDOM}_${RANDOM}_DONE__"
+  local line=''
+  admin_session_result=''
+  [[ -n "$admin_session_input" && -n "$admin_session_output" ]] || fail 'restore maintenance coordinator is not available'
+  printf '%s\n\\echo %s\n' "$sql" "$nonce" >&9 || fail 'restore maintenance coordinator input failed'
+  while IFS= read -r line <&8; do
+    [[ "$line" == "$nonce" ]] && return 0
+    admin_session_result+="$line"$'\n'
+  done
+  fail 'restore maintenance coordinator ended unexpectedly'
+}
+
+start_admin_session() {
+  # This single session owns the cluster-scoped exclusive advisory lock for
+  # every DDL step. CREATE/ALTER DATABASE cannot run in a transaction, so a
+  # transaction lock is deliberately not used here.
+  # macOS still ships Bash 3.2, which has no coprocess support. Two private
+  # FIFOs keep one psql connection open portably while descriptors 8/9 ensure
+  # it never sees EOF between commands.
+  admin_session_input="$stage_dir/admin-session.in"
+  admin_session_output="$stage_dir/admin-session.out"
+  mkfifo -m 0600 "$admin_session_input" "$admin_session_output"
+  psql --no-psqlrc --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 "${pinned_admin_args[@]}" <"$admin_session_input" >"$admin_session_output" &
+  admin_session_pid="$!"
+  exec 9>"$admin_session_input"
+  exec 8<"$admin_session_output"
+  admin_session_command 'SELECT pg_advisory_lock(741263, 2);'
+  admin_session_locked=1
+}
+
+stop_admin_session() {
+  if [[ -n "$admin_session_input" ]]; then
+    if [[ "$admin_session_locked" == 1 ]]; then
+      printf '%s\n' 'SELECT pg_advisory_unlock(741263, 2);' >&9 2>/dev/null || true
+    fi
+    printf '%s\n' '\q' >&9 2>/dev/null || true
+    exec 9>&- 2>/dev/null || true
+    exec 8<&- 2>/dev/null || true
+  fi
+  [[ -z "$admin_session_pid" ]] || wait "$admin_session_pid" 2>/dev/null || true
+  admin_session_input=''
+  admin_session_output=''
+  admin_session_pid=''
+  admin_session_locked=0
+}
 
 cleanup() {
   local cleanup_status=$?
@@ -66,6 +119,7 @@ cleanup() {
     printf 'restore failed; quarantined staging database: name=%s oid=%s\n' \
       "$staging_database" "$staging_database_oid" >&2
   fi
+  stop_admin_session
   rm -rf -- "$stage_dir"
   exit "$cleanup_status"
 }
@@ -77,7 +131,6 @@ secure_copy_regular "$source_backup_file" "$stage_backup"
 secure_copy_regular "$source_checksum_file" "$stage_checksum"
 secure_copy_regular "$source_manifest_file" "$stage_manifest"
 secure_copy_regular "$source_signature_file" "$stage_signature"
-secure_copy_regular "$AGE_IDENTITY_FILE" "$stage_identity"
 secure_copy_regular "$BACKUP_VERIFY_KEY_FILE" "$stage_verify_key"
 
 expected_filename="$(basename "$stage_backup")"
@@ -127,8 +180,16 @@ admin_system_identifier="$(database_system_identifier)"
 expected_fingerprint="${RESTORE_TARGET_DATABASE}@${pinned_endpoint_host}:${PGPORT}#${admin_system_identifier}"
 [[ "$RESTORE_CONFIRM_FINGERPRINT" == "$expected_fingerprint" ]] || fail 'RESTORE_CONFIRM_FINGERPRINT does not exactly match the pinned target'
 
-target_exists="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 "${pinned_admin_args[@]}" --command "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = '$RESTORE_TARGET_DATABASE')")"
-[[ "$target_exists" == f ]] || fail 'restore target database must be absent'
+start_admin_session
+admin_session_command 'SELECT current_database();'
+admin_session_result="${admin_session_result%$'\n'}"
+[[ "$admin_session_result" == "$RESTORE_ADMIN_DATABASE" ]] || fail 'restore maintenance coordinator reached an unexpected admin database'
+admin_session_command 'SELECT (pg_control_system()).system_identifier;'
+admin_session_result="${admin_session_result%$'\n'}"
+[[ "$admin_session_result" == "$admin_system_identifier" ]] || fail 'target PostgreSQL system identifier changed after maintenance lock acquisition'
+admin_session_command "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = '$RESTORE_TARGET_DATABASE');"
+admin_session_result="${admin_session_result%$'\n'}"
+[[ "$admin_session_result" == f ]] || fail 'restore target database must be absent'
 
 generate_staging_database_name() {
   local random_suffix
@@ -142,59 +203,28 @@ for _ in {1..4}; do
   [[ "$staging_database" != "$RESTORE_TARGET_DATABASE" ]] && break
 done
 [[ "$staging_database" != "$RESTORE_TARGET_DATABASE" ]] || fail 'could not generate a staging database distinct from restore target'
-psql --quiet --set ON_ERROR_STOP=1 "${pinned_admin_args[@]}" \
-  --command "CREATE DATABASE \"$staging_database\" WITH TEMPLATE template0 OWNER \"$RESTORE_TARGET_OWNER\""
+# The no-superuser restore-admin initially owns its random template0 staging
+# database. That retains the ownership PostgreSQL requires for the guarded
+# rename; target objects are still restored under RESTORE_TARGET_OWNER below,
+# and ownership transfers to that role in the same locked promotion command.
+admin_session_command "CREATE DATABASE \"$staging_database\" WITH TEMPLATE template0; REVOKE ALL PRIVILEGES ON DATABASE \"$staging_database\" FROM PUBLIC; GRANT CONNECT, CREATE, TEMPORARY ON DATABASE \"$staging_database\" TO \"$RESTORE_TARGET_OWNER\"; GRANT CONNECT ON DATABASE \"$staging_database\" TO \"$PGUSER\";"
 staging_created=1
-staging_database_oid="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 "${pinned_admin_args[@]}" \
-  --command "SELECT d.oid FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '$staging_database' AND r.rolname = '$RESTORE_TARGET_OWNER'")"
+admin_session_command "SELECT d.oid FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '$staging_database' AND r.rolname = '$PGUSER';"
+staging_database_oid="${admin_session_result%$'\n'}"
 [[ "$staging_database_oid" =~ ^[0-9]+$ ]] || fail 'could not identify the staging database created for restore'
 
 target_args=("--host=$pinned_host" "--port=$PGPORT" "--username=$PGUSER" "--dbname=$staging_database")
-target_empty_guard_sql() {
-  cat <<'SQL'
-SELECT 1 / CASE WHEN (
-WITH user_schemas AS (
-  SELECT oid FROM pg_namespace
-  WHERE nspname NOT LIKE 'pg_%' AND nspname NOT IN ('information_schema', 'public')
-), public_schema AS (
-  SELECT oid FROM pg_namespace WHERE nspname = 'public'
-), candidate_schemas AS (
-  SELECT oid FROM user_schemas UNION ALL SELECT oid FROM public_schema
-)
-SELECT
-  (SELECT count(*) FROM user_schemas)
-  + (SELECT count(*) FROM pg_class WHERE relnamespace IN (SELECT oid FROM candidate_schemas))
-  + (SELECT count(*) FROM pg_proc WHERE pronamespace IN (SELECT oid FROM candidate_schemas))
-  + (SELECT count(*) FROM pg_type WHERE typnamespace IN (SELECT oid FROM candidate_schemas))
-  + (SELECT count(*) FROM pg_operator WHERE oprnamespace IN (SELECT oid FROM candidate_schemas))
-  + (SELECT count(*) FROM pg_conversion WHERE connamespace IN (SELECT oid FROM candidate_schemas))
-  + (SELECT count(*) FROM pg_collation WHERE collnamespace IN (SELECT oid FROM candidate_schemas))
-  + (SELECT count(*) FROM pg_ts_config WHERE cfgnamespace IN (SELECT oid FROM candidate_schemas))
-  + (SELECT count(*) FROM pg_ts_dict WHERE dictnamespace IN (SELECT oid FROM candidate_schemas))
-  + (SELECT count(*) FROM pg_ts_parser WHERE prsnamespace IN (SELECT oid FROM candidate_schemas))
-  + (SELECT count(*) FROM pg_ts_template WHERE tmplnamespace IN (SELECT oid FROM candidate_schemas))
-  + (SELECT count(*) FROM pg_extension WHERE extname <> 'plpgsql')
-  + (SELECT count(*) FROM pg_largeobject_metadata)
-  + (SELECT count(*) FROM pg_default_acl)
-  + (SELECT count(*) FROM pg_db_role_setting WHERE setdatabase = (SELECT oid FROM pg_database WHERE datname = current_database()))
-  + (SELECT count(*) FROM pg_foreign_data_wrapper)
-  + (SELECT count(*) FROM pg_foreign_server)
-  + (SELECT count(*) FROM pg_publication)
-  + (SELECT count(*) FROM pg_subscription)
-) = 0 THEN 1 ELSE 0 END;
-SQL
-}
 
-# All gates and every generated SQL statement share this one pinned psql
-# connection and one transaction. A late SQL error makes psql stop and rolls
-# the transaction back; the staging database remains quarantined for review.
+# A random template0 database is isolated from unprivileged sessions before
+# this connection starts. These exact identity checks and the transaction make
+# the dump stream safe without a brittle, incomplete catalog inventory.
 {
   printf '%s\n' "SELECT 1 / CASE WHEN current_database() = :'restore_staging_database' THEN 1 ELSE 0 END;"
   printf '%s\n' "SELECT 1 / CASE WHEN (pg_control_system()).system_identifier::text = :'restore_target_system_identifier' THEN 1 ELSE 0 END;"
   printf '%s\n' "SELECT 1 / CASE WHEN (SELECT oid::text FROM pg_database WHERE datname = current_database()) = :'restore_staging_database_oid' THEN 1 ELSE 0 END;"
-  target_empty_guard_sql
   printf '%s\n' 'SET ROLE :"restore_target_owner";'
-  age --decrypt --identity "$stage_identity" < "$stage_backup" | pg_restore --no-owner --exit-on-error --file=-
+  printf '%s\n' 'REVOKE ALL PRIVILEGES ON SCHEMA public FROM PUBLIC;'
+  age_decrypt_from_regular_fd "$AGE_IDENTITY_FILE" < "$stage_backup" | pg_restore --no-owner --exit-on-error --file=-
 } | psql --quiet --single-transaction --set ON_ERROR_STOP=1 \
   --set restore_staging_database="$staging_database" \
   --set restore_staging_database_oid="$staging_database_oid" \
@@ -202,12 +232,19 @@ SQL
   --set restore_target_system_identifier="$admin_system_identifier" \
   "${target_args[@]}"
 
-# The target session above has exited before promotion. Verify that the exact
-# staging OID and intended owner still exist, then rely on PostgreSQL's atomic
-# rename to reject any final target that appeared during the restore.
-staging_metadata="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 "${pinned_admin_args[@]}" \
-  --command "SELECT d.oid::text || '|' || r.rolname FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '$staging_database'")"
-[[ "$staging_metadata" == "$staging_database_oid|$RESTORE_TARGET_OWNER" ]] || fail 'staging database identity changed before promotion'
-psql --quiet --set ON_ERROR_STOP=1 "${pinned_admin_args[@]}" \
-  --command "SET ROLE \"$RESTORE_TARGET_OWNER\"; ALTER DATABASE \"$staging_database\" RENAME TO \"$RESTORE_TARGET_DATABASE\""
+# The still-locked coordinator verifies and promotes in this same admin
+# session. Cooperating privileged automation must take this advisory lock.
+admin_session_command "SELECT d.oid::text || '|' || r.rolname FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '$staging_database';"
+staging_metadata="${admin_session_result%$'\n'}"
+[[ "$staging_metadata" == "$staging_database_oid|$PGUSER" ]] || fail 'staging database identity changed before promotion'
+admin_session_command 'SELECT (pg_control_system()).system_identifier;'
+admin_session_result="${admin_session_result%$'\n'}"
+[[ "$admin_session_result" == "$admin_system_identifier" ]] || fail 'target PostgreSQL system identifier changed before promotion'
+admin_session_command "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = '$RESTORE_TARGET_DATABASE');"
+admin_session_result="${admin_session_result%$'\n'}"
+[[ "$admin_session_result" == f ]] || fail 'restore target database appeared before promotion'
+# The restore-admin owns the staging database and retains the ownership
+# PostgreSQL requires for the cluster-level rename. It transfers database
+# ownership only after the target name has been authenticated as absent.
+admin_session_command "ALTER DATABASE \"$staging_database\" RENAME TO \"$RESTORE_TARGET_DATABASE\"; ALTER DATABASE \"$RESTORE_TARGET_DATABASE\" OWNER TO \"$RESTORE_TARGET_OWNER\";"
 staging_promoted=1

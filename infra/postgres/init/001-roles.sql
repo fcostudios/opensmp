@@ -16,6 +16,10 @@ END $$;
 
 -- A dump reader needs data visibility but cannot alter application data.
 GRANT CONNECT ON DATABASE ledger TO ledger_backup;
+-- Backup and restore coordinate on the stable administrative database with
+-- the same advisory-lock key; this is deliberately separate from the source
+-- application database, whose name may vary by environment.
+GRANT CONNECT ON DATABASE postgres TO ledger_backup;
 GRANT pg_read_all_data TO ledger_backup;
 -- A backup manifest is bound to the physical PostgreSQL cluster. This is the
 -- narrow extra capability the read-only backup role needs; it does not grant

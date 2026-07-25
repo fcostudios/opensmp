@@ -207,6 +207,25 @@ secure_copy_regular() {
   ' "$source" "$destination"
 }
 
+age_decrypt_from_regular_fd() {
+  # Keep a private age identity on its original no-follow descriptor. Unlike a
+  # private staging copy, this never writes key material (or fsyncs it) to the
+  # restore filesystem. The descriptor is deliberately inherited by age and
+  # referenced through its own /proc entry after exec.
+  local identity_path="$1"
+  perl -MFcntl=':DEFAULT,O_NOFOLLOW' -e '
+    my ($identity) = @ARGV;
+    sysopen(my $in, $identity, O_RDONLY | O_NOFOLLOW) or die "open identity: $!\n";
+    my @st = stat($in);
+    die "identity is not a regular file\n" unless @st && -f _;
+    my $fd = fileno($in);
+    fcntl($in, F_SETFD, 0) or die "preserve identity descriptor: $!\n";
+    my $descriptor_path = -d "/proc/self/fd" ? "/proc/self/fd/$fd" : "/dev/fd/$fd";
+    exec { "age" } "age", "--decrypt", "--identity", $descriptor_path;
+    die "exec age: $!\n";
+  ' "$identity_path"
+}
+
 sha256_file() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum "$1" | awk '{print $1}'

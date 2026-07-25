@@ -12,7 +12,8 @@ set -euo pipefail
 
 export BACKUP_UID="$(id -u)"
 export BACKUP_GID="$(id -g)"
-[[ "$(stat -c '%u:%g' "$BACKUP_OUTPUT_DIR")" == "$BACKUP_UID:$BACKUP_GID" ]] \
+backup_output_owner="$(perl -e '@s = stat $ARGV[0] or die "$!\n"; print "$s[4]:$s[5]"' "$BACKUP_OUTPUT_DIR")"
+[[ "$backup_output_owner" == "$BACKUP_UID:$BACKUP_GID" ]] \
   || { printf '%s\n' 'BACKUP_OUTPUT_DIR must be owned by the invoking Linux UID:GID' >&2; exit 1; }
 
 docker compose -f infra/docker-compose.yml -f infra/docker-compose.backup.yml --profile backup run --rm backup 2>&1 | logger -t ledger-backup

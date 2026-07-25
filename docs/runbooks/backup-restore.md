@@ -86,9 +86,13 @@ docker compose -f infra/docker-compose.yml \
 
 The profile provides the backup process with `PGHOST`, `PGPORT`, `PGDATABASE`,
 `PGUSER`, and `PGPASSWORD`; it must not be converted to a password-bearing
-connection URI. With the Compose PostgreSQL service already running, apply the
-role updates to an already-initialized PostgreSQL volume before relying on
-`ledger_backup` or `ledger_restore_admin`:
+connection URI. Its dump and provenance queries pin those source settings once,
+while its shared maintenance lock uses the stable `postgres` administrative
+database (`BACKUP_MAINTENANCE_DATABASE=postgres`) so it coordinates with the
+restore's exclusive lock even when the application database name differs. With
+the Compose PostgreSQL service already running, apply the role updates to an
+already-initialized PostgreSQL volume before relying on `ledger_backup` or
+`ledger_restore_admin`:
 
 ```bash
 ./infra/postgres/apply-roles.sh
@@ -191,11 +195,14 @@ cluster. It resolves and pins the endpoint before mutation.
 For all target prechecks, creation, restore, and promotion, one persistent
 admin `psql` session holds PostgreSQL advisory lock `(741263, 2)`. The script
 creates a cryptographically random `ledger_restore_stage_<128-bit-hex>`
-database from `template0`, not the requested final target; it is owned by
-`ledger_owner`, has `PUBLIC` database privileges revoked, and grants `CONNECT`
+database from `template0`, not the requested final target; it is initially
+owned by `ledger_restore_admin` so that no-superuser role can perform the
+guarded rename, has `PUBLIC` database privileges revoked, and grants access
 only to `ledger_owner` and `ledger_restore_admin`. Before it streams the dump,
 the transaction verifies the staging name/OID and target system identifier,
-sets the owner role, and revokes `PUBLIC` privileges on the `public` schema:
+sets the owner role, and revokes `PUBLIC` privileges on the `public` schema.
+After the guarded rename, the same admin session transfers database ownership
+to `ledger_owner`:
 
 ```text
 age --decrypt → pg_restore --file=- → psql --single-transaction
@@ -229,8 +236,8 @@ it is in progress.
 Only an operator may remove a quarantined staging database. Do it in a
 coordinated maintenance window after acquiring the same advisory lock, then
 reconnect to the **same pinned target endpoint** and verify the recorded name,
-OID, owner, and target system identifier. Do not run a drop when this query
-returns no row or anything unexpected:
+OID, owner, and target system identifier. Before a drop, verify the recorded name, OID, owner, and target system identifier.
+Do not run a drop when this query returns no row or anything unexpected:
 
 ```bash
 export QUARANTINE_DATABASE='ledger_restore_stage_...'
@@ -240,13 +247,13 @@ psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 \
   --host="$PGHOST" --port="$PGPORT" --username="$PGUSER" --dbname="$RESTORE_ADMIN_DATABASE" \
   --set quarantine_database="$QUARANTINE_DATABASE" \
   --set quarantine_database_oid="$QUARANTINE_DATABASE_OID" \
-  --set restore_target_owner="$RESTORE_TARGET_OWNER" \
+  --set restore_admin_user="$PGUSER" \
   --set restore_target_system_identifier="$RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER" \
   --command "SELECT d.oid::text, r.rolname, (pg_control_system()).system_identifier::text
              FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba
              WHERE d.datname = :'quarantine_database'
                AND d.oid::text = :'quarantine_database_oid'
-               AND r.rolname = :'restore_target_owner'
+               AND r.rolname = :'restore_admin_user'
                AND (pg_control_system()).system_identifier::text = :'restore_target_system_identifier';"
 ```
 

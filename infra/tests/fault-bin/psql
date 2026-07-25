@@ -6,6 +6,34 @@ set -euo pipefail
 
 real_psql="${RESTORE_TEST_REAL_PSQL:-$(dirname "$0")/../postgres16-client-bin/psql}"
 
+if [[ "${BACKUP_TEST_SWITCH_SYSTEM_IDENTIFIER:-}" == 1 ]]; then
+  is_system_identifier_query=0
+  for arg in "$@"; do
+    [[ "$arg" == *'pg_control_system'* ]] && is_system_identifier_query=1
+  done
+  if [[ "$is_system_identifier_query" == 1 ]]; then
+    : "${BACKUP_TEST_SYSTEM_ID_COUNTER:?system identifier counter is required}"
+    : "${BACKUP_TEST_SWITCH_CONTAINER:?switch container is required}"
+    query_count=0
+    [[ ! -f "$BACKUP_TEST_SYSTEM_ID_COUNTER" ]] || query_count="$(< "$BACKUP_TEST_SYSTEM_ID_COUNTER")"
+    query_count=$((query_count + 1))
+    printf '%s\n' "$query_count" > "$BACKUP_TEST_SYSTEM_ID_COUNTER"
+    if [[ "$query_count" -ge 2 ]]; then
+      switched_args=()
+      for arg in "$@"; do
+        if [[ "$arg" == --port=* ]]; then
+          switched_args+=(--port=5432)
+        else
+          switched_args+=("$arg")
+        fi
+      done
+      exec docker exec -i \
+        --env PGHOST --env PGDATABASE --env PGUSER --env PGPASSWORD --env PGPORT=5432 \
+        "$BACKUP_TEST_SWITCH_CONTAINER" psql "${switched_args[@]}"
+    fi
+  fi
+fi
+
 if [[ "${RESTORE_TEST_SWITCH_TARGET_SESSION:-}" != 1 ]]; then
   exec "$real_psql" "$@"
 fi
@@ -25,7 +53,7 @@ fi
 : "${RESTORE_TEST_SWITCH_CONTAINER:?switch container is required}"
 : "${RESTORE_TEST_SWITCH_LOG:?switch log is required}"
 docker exec "$RESTORE_TEST_SWITCH_CONTAINER" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
-  --command "CREATE DATABASE \"$staging_database\" WITH TEMPLATE template0 OWNER \"${RESTORE_TARGET_OWNER:?restore target owner is required}\""
+  --command "CREATE DATABASE \"$staging_database\" WITH TEMPLATE template0 OWNER \"${PGUSER:?restore admin user is required}\""
 printf 'name=%s\n' "$staging_database" > "$RESTORE_TEST_SWITCH_LOG"
 
 switched_args=()
