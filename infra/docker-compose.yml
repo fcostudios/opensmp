@@ -131,3 +131,7 @@ volumes:
   postgres_data:
   keycloak_data:
   backup_data:
+
+networks:
+  default:
+    name: ledger_default

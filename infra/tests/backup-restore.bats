@@ -89,7 +89,23 @@ backup_fixture() {
     "$backup_script"
 
   [ "$status" -ne 0 ]
-  [[ "$output" == *'DATABASE_URL must not contain URI options'* ]]
+  [[ "$output" == *'DATABASE_URL URI query'* ]]
+}
+
+@test "backup rejects decoded and malformed URI query option mutations" {
+  local uri
+  for uri in \
+    'postgresql://postgres:postgres@127.0.0.1:5432/fixture?opt%69ons=-c' \
+    'postgresql://postgres:postgres@127.0.0.1:5432/fixture?opt%2569ons=-c' \
+    'postgresql://postgres:postgres@127.0.0.1:5432/fixture?OPTIONS=-c' \
+    'postgresql://postgres:postgres@127.0.0.1:5432/fixture?sslmode=require&sslmode=disable' \
+    'postgresql://postgres:postgres@127.0.0.1:5432/fixture?sslmode=%ZZ'; do
+    run env DATABASE_URL="$uri" BACKUP_DIR="$test_root" \
+      BACKUP_AGE_RECIPIENT='age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq' \
+      "$backup_script"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *'DATABASE_URL URI query'* ]]
+  done
 }
 
 @test "libpq URI validation preserves IPv6 socket and percent-encoded forms" {
@@ -255,11 +271,50 @@ backup_fixture() {
 @test "runbook builds the image and mounts only selected restore inputs" {
   run grep --fixed-strings 'docker build -f infra/backup/Dockerfile infra -t ledger-backup:local' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
   [ "$status" -eq 0 ]
-  run grep --fixed-strings 'dst=/restore/backup.dump.age,readonly' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  run grep --fixed-strings 'src="$backup_file"' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
   [ "$status" -eq 0 ]
-  run grep --fixed-strings 'dst=/restore/backup.dump.age.sha256,readonly' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  run grep --fixed-strings 'src="$checksum_file"' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
   [ "$status" -eq 0 ]
   run grep --fixed-strings 'AGE_IDENTITY_FILE=/run/restore/identity.txt' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  [ "$status" -eq 0 ]
+}
+
+@test "runbook preserves the original dump basename for metadata validation" {
+  run grep --fixed-strings 'backup_name="$(basename "$backup_file")"' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'dst="/restore/$backup_name",readonly' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'dst="/restore/$backup_name.sha256",readonly' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'ledger-backup:local "/restore/$backup_name"' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  [ "$status" -eq 0 ]
+}
+
+@test "runbook-style selected mounts pass restore metadata-name validation" {
+  start_postgres
+  backup_fixture
+  target_host_url="${fixture_host_url%/fixture}/restored"
+  "$host_psql" "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
+  mounted_name="$(basename "$backup_file")"
+
+  run docker run --rm --network "container:$container_id" \
+    --mount "type=bind,src=$backup_file,dst=/restore/$mounted_name,readonly" \
+    --mount "type=bind,src=$backup_file.sha256,dst=/restore/$mounted_name.sha256,readonly" \
+    --mount "type=bind,src=$test_root/identity.txt,dst=/run/restore/identity.txt,readonly" \
+    --env PGHOST=127.0.0.1 --env PGPORT=5432 --env PGDATABASE=restored \
+    --env PGUSER=postgres --env PGPASSWORD=postgres \
+    --env RESTORE_CONFIRM_DATABASE=restored --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
+    --entrypoint /usr/local/bin/restore-db.sh ledger-backup:local "/restore/$mounted_name"
+  [ "$status" -eq 0 ]
+  run "$host_psql" "$target_host_url" --tuples-only --no-align --command 'SELECT count(*) FROM ledger_fixture;'
+  [ "$status" -eq 0 ]
+  [ "$output" = '2' ]
+}
+
+@test "Compose declares the stable ledger_default network used by the runbook" {
+  run grep --fixed-strings 'name: ledger_default' "$BATS_TEST_DIRNAME/../docker-compose.yml"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings -- '--network ledger_default' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
   [ "$status" -eq 0 ]
 }
 

@@ -52,6 +52,7 @@ export PGUSER='ledger_owner'
 export PGPASSWORD='REDACTED'
 export RESTORE_CONFIRM_DATABASE='ledger_restore'
 backup_file="$PWD/ledger-YYYYMMDDHHMMSS.dump.age"
+backup_name="$(basename "$backup_file")"
 checksum_file="$backup_file.sha256"
 identity_file="$PWD/age-restore-identity.txt"
 
@@ -61,11 +62,11 @@ docker run --rm \
   --env PGHOST --env PGPORT --env PGDATABASE --env PGUSER --env PGPASSWORD \
   --env RESTORE_CONFIRM_DATABASE \
   --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
-  --mount type=bind,src="$backup_file",dst=/restore/backup.dump.age,readonly \
-  --mount type=bind,src="$checksum_file",dst=/restore/backup.dump.age.sha256,readonly \
+  --mount type=bind,src="$backup_file",dst="/restore/$backup_name",readonly \
+  --mount type=bind,src="$checksum_file",dst="/restore/$backup_name.sha256",readonly \
   --mount type=bind,src="$identity_file",dst=/run/restore/identity.txt,readonly \
   --entrypoint /usr/local/bin/restore-db.sh \
-  ledger-backup:local /restore/backup.dump.age
+  ledger-backup:local "/restore/$backup_name"
 ```
 
 `restore-db.sh` validates the ciphertext against its SHA-256 metadata before it

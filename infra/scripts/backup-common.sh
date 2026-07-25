@@ -14,6 +14,51 @@ require_environment() {
 
 DATABASE_CLIENT_ARGS=()
 
+percent_decode_uri_component() {
+  local encoded="$1"
+  local decoded=''
+  local index=0
+  local character hex byte
+  while (( index < ${#encoded} )); do
+    character="${encoded:index:1}"
+    if [[ "$character" == '%' ]]; then
+      (( index + 2 < ${#encoded} )) || fail 'DATABASE_URL URI query has malformed percent encoding'
+      hex="${encoded:index + 1:2}"
+      [[ "$hex" =~ ^[[:xdigit:]]{2}$ && "$hex" != '00' ]] || fail 'DATABASE_URL URI query has malformed percent encoding'
+      printf -v byte '%b' "\\x$hex"
+      decoded+="$byte"
+      ((index += 3))
+    else
+      decoded+="$character"
+      ((index += 1))
+    fi
+  done
+  [[ "$decoded" != *$'\n'* && "$decoded" != *$'\r'* ]] || fail 'DATABASE_URL URI query contains unsafe characters'
+  printf '%s' "$decoded"
+}
+
+validate_database_uri_query() {
+  local query="$1"
+  local pair encoded_key encoded_value key value
+  local seen_keys='|'
+  local -a query_pairs=()
+  local allowed_keys=' sslmode sslrootcert sslcert sslkey sslpassword connect_timeout application_name target_session_attrs gssencmode channel_binding require_auth '
+
+  [[ -n "$query" ]] || fail 'DATABASE_URL URI query must not be empty'
+  IFS='&' read -r -a query_pairs <<< "$query"
+  for pair in "${query_pairs[@]}"; do
+    [[ "$pair" == *=* ]] || fail 'DATABASE_URL URI query parameter is malformed'
+    encoded_key="${pair%%=*}"
+    encoded_value="${pair#*=}"
+    key="$(percent_decode_uri_component "$encoded_key" | tr '[:upper:]' '[:lower:]')"
+    value="$(percent_decode_uri_component "$encoded_value")"
+    [[ -n "$key" && -n "$value" ]] || fail 'DATABASE_URL URI query parameter is malformed'
+    [[ "$seen_keys" != *"|$key|"* ]] || fail 'DATABASE_URL URI query has duplicate parameters'
+    seen_keys+="$key|"
+    [[ "$allowed_keys" == *" $key "* ]] || fail 'DATABASE_URL URI query contains a forbidden parameter'
+  done
+}
+
 prepare_database_connection() {
   [[ -z "${PGOPTIONS:-}" ]] || fail 'PGOPTIONS is not permitted'
 
@@ -23,7 +68,7 @@ prepare_database_connection() {
     local query=''
     if [[ "$DATABASE_URL" == *'?'* ]]; then
       query="${DATABASE_URL#*\?}"
-      [[ ! "$query" =~ (^|&)options= ]] || fail 'DATABASE_URL must not contain URI options'
+      validate_database_uri_query "$query"
     fi
     DATABASE_CLIENT_ARGS=("--dbname=$DATABASE_URL")
   else
