@@ -101,7 +101,7 @@ docs/
 
 1. **App Router only** — no `pages/` directory. Server Components by default; `"use client"` only when using hooks, events, or browser APIs.
 2. **The API is route handlers** — `apps/web/src/app/api/<resource>/route.ts`. There is no separate backend service.
-3. **Data via drizzle** — the shared `db` client (import from `@smp/db`). Every multi-tenant query filters `org_id` (the generated tenant column — there is no `tenant_id`). Reuse tables from `@smp/db/schema`; derive types with `$inferSelect`/`$inferInsert`.
+3. **Data via drizzle** — the shared `db` client (import from `@smp/db`). Every multi-tenant query filters `company_id` (the tenant column, DEC-SMP-017 — there is no `tenant_id` and no `org_id` tenancy column). Reuse tables from `@smp/db/schema`; derive types with `$inferSelect`/`$inferInsert`.
 4. **Auth via keycloak** — `auth()` in route handlers (no session → 401); `useSession()` + `hasMinRole()` in the UI. Role/tenant come from the verified session, never the request.
 5. **Migrations** — `pnpm drizzle-kit`; timestamp-slug files under `packages/db/src/migrations/` named `V<timestamp>__<slug>.sql`. Immutable once applied.
 6. **Validation: zod schemas** shared between client and route handlers.
@@ -132,9 +132,9 @@ When multiple stories touch the same entity, they MUST use consistent APIs.
 |-----------|------|---------|
 | Drizzle table object | camelCase | `export const member = pgTable(...)` |
 | DB table name | snake_case | `pgTable("member", {...})` |
-| DB columns | snake_case | `org_id`, `created_at` |
-| FK columns | `<entity>_id` | `member_id`, `org_id` |
-| Tenant column | `org_id` (uuid) | every multi-tenant table carries `org_id` |
+| DB columns | snake_case | `company_id`, `created_at` |
+| FK columns | `<entity>_id` | `member_id`, `company_id` |
+| Tenant column | `company_id` (uuid) | every multi-tenant table carries `company_id` (DEC-SMP-017) |
 
 ### Type & Query Convention
 
@@ -142,7 +142,7 @@ Full example: [`docs/dev-guide/STANDARDS.md`](docs/dev-guide/STANDARDS.md)
 
 - Derive row types from the schema: `type Member = typeof member.$inferSelect`. Never hand-write a divergent interface.
 - All reads/writes go through the shared `db` client (import from `@smp/db`) — never a second connection.
-- **Tenant isolation:** every query on a multi-tenant table filters by `org_id` (the tenant column generated on every such table). Confirm the column in `packages/db/src/schema.ts` — do NOT invent `tenant_id`.
+- **Tenant isolation:** every query on a multi-tenant table filters by `company_id` (the tenant column, DEC-SMP-017). Confirm the column in `packages/db/src/schema.ts` — do NOT invent `tenant_id`.
 - **Soft delete is per-table, not universal:** only filter a soft-delete column (e.g. `deleted_at`) on tables that actually declare one in `schema.ts`. Most generated tables hard-delete; do NOT add an `is_deleted` filter to a table that has no such column (it will not type-check).
 
 ### Database Migrations (HR-25 — MANDATORY)

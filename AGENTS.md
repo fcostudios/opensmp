@@ -18,7 +18,7 @@
    [`docs/dev-guide/DEFINITION_OF_DONE.md`](docs/dev-guide/DEFINITION_OF_DONE.md) passes —
    `pnpm type-check && pnpm lint && pnpm build`, and `drizzle-kit push` + `verify-schema.mjs`
    apply the schema.
-4. **Conventions** (tenant column `org_id`, per-table soft delete, App Router, design tokens)
+4. **Conventions** (tenant column `company_id` per DEC-SMP-017, per-table soft delete, App Router, design tokens)
    live in [`CLAUDE.md`](CLAUDE.md) and `docs/dev-guide/` — follow them verbatim.
 
 ## Agent Roles
@@ -37,7 +37,7 @@
 - **Scope:** `apps/web/src/app/api/`, `packages/db/src/`
 - **Rules:**
   - Endpoints are route handlers (`route.ts`); no separate backend service
-  - Persist via the shared `drizzle` client; every multi-tenant query filters `org_id` (the generated tenant column — not `tenant_id`); add a soft-delete filter only on a table that declares `deleted_at`
+  - Persist via the shared `drizzle` client; every multi-tenant query filters `company_id` (the generated tenant column — not `tenant_id`); add a soft-delete filter only on a table that declares `deleted_at`
   - Protect handlers with the keycloak session (`auth()`)
 
 ### Infrastructure Agent

@@ -11,7 +11,7 @@ import { pgTable, uuid, timestamp } from "drizzle-orm/pg-core";
 
 export const member = pgTable("member", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),
-  org_id: uuid("org_id").notNull(),               // tenant column (generated on every table)
+  company_id: uuid("company_id").notNull(),       // tenant column (DEC-SMP-017)
   // ... domain columns ...                          (camelCase JS keys, snake_case SQL names)
   createdAt: timestamp("created_at").notNull(),   // set in app code (no .defaultNow())
   updatedAt: timestamp("updated_at"),             // nullable until first update
@@ -26,7 +26,7 @@ export type NewMember = typeof member.$inferInsert;
 
 - Derive row types from the schema (`$inferSelect` / `$inferInsert`) — never hand-write a divergent interface.
 - Reuse the exported table; do NOT redeclare its columns in a second module.
-- The tenant column is `org_id` (uuid) on every multi-tenant table — there is no `tenant_id`.
+- The tenant column is `company_id` (uuid) on every multi-tenant table (DEC-SMP-017) — there is no `tenant_id`.
 
 ## Enums
 
@@ -40,12 +40,12 @@ string value — an unknown member fails the DB enum check at insert/update time
 ```ts
 const session = await auth();
 if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-const orgId = session.user.org_id as string;       // tenant scope (the org_id column)
+const companyIds = await grantedCompanyIds(session.user.idpSubject); // tenant scope from DB grants (DEC-SMP-014/017 — never a token claim)
 const actorSub = session.user.sub as string;       // stable IdP subject
 ```
 
 - **Never** read the tenant id from the request body/query — only the verified session claim.
-- Every multi-tenant query filters `org_id` (the generated tenant column). Apply a soft-delete filter (`deleted_at`) ONLY on a table that declares one in `schema.ts` — do not assume `is_deleted` exists.
+- Every multi-tenant query filters `company_id` (the tenant column, DEC-SMP-017). Apply a soft-delete filter (`deleted_at`) ONLY on a table that declares one in `schema.ts` — do not assume `is_deleted` exists.
 
 ## Error Handling Standard
 
