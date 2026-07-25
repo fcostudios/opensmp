@@ -129,7 +129,15 @@ SELECT
   + (SELECT count(*) FROM pg_ts_dict WHERE dictnamespace IN (SELECT oid FROM candidate_schemas))
   + (SELECT count(*) FROM pg_ts_parser WHERE prsnamespace IN (SELECT oid FROM candidate_schemas))
   + (SELECT count(*) FROM pg_ts_template WHERE tmplnamespace IN (SELECT oid FROM candidate_schemas))
-  + (SELECT count(*) FROM pg_extension WHERE extname <> 'plpgsql');"
+  + (SELECT count(*) FROM pg_extension WHERE extname <> 'plpgsql')
+  -- Database-scoped or non-namespaced dumpable state not covered above.
+  + (SELECT count(*) FROM pg_largeobject_metadata)
+  + (SELECT count(*) FROM pg_default_acl)
+  + (SELECT count(*) FROM pg_db_role_setting WHERE setdatabase = (SELECT oid FROM pg_database WHERE datname = current_database()))
+  + (SELECT count(*) FROM pg_foreign_data_wrapper)
+  + (SELECT count(*) FROM pg_foreign_server)
+  + (SELECT count(*) FROM pg_publication)
+  + (SELECT count(*) FROM pg_subscription);"
 }
 
 validate_age_recipient() {

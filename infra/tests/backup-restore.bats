@@ -290,6 +290,23 @@ SQL
   [ "$output" = '1' ]
 }
 
+@test "restore refuses a target containing only a PostgreSQL large object" {
+  start_postgres
+  backup_fixture
+  target_url="${fixture_url%/fixture}/restored"
+  target_host_url="${fixture_host_url%/fixture}/restored"
+  "$host_psql" "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
+  "$host_psql" "$target_host_url" --set ON_ERROR_STOP=1 --command 'SELECT lo_create(424242);'
+
+  run env DATABASE_URL="$target_url" RESTORE_CONFIRM_DATABASE=restored \
+    AGE_IDENTITY_FILE="$test_root/identity.txt" "$restore_script" "$backup_file"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'target database is not empty'* ]]
+  run "$host_psql" "$target_host_url" --tuples-only --no-align --command 'SELECT count(*) FROM pg_largeobject_metadata WHERE oid = 424242;'
+  [ "$status" -eq 0 ]
+  [ "$output" = '1' ]
+}
+
 @test "restore requires an exact host port and target fingerprint confirmation" {
   start_postgres
   backup_fixture
