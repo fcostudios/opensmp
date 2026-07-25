@@ -59,15 +59,18 @@ follow a written retention policy; a local volume alone is not a backup.
 
 1. Obtain all four artifacts and the matching public verification key through
    the operator vault.
-2. Choose a **new, absent** target. The restore admin must have
-   `CREATE DATABASE` and permission to `SET ROLE ledger_owner`; the target is
-   created from `template0` owned by `ledger_owner`. It must also have the
-   narrowly granted `EXECUTE` privilege on `pg_catalog.pg_control_system()`
-   (the supplied `ledger_owner` init role has that grant).
-3. Resolve and pin one endpoint. Physical failover is permitted only when
-   `(pg_control_system()).system_identifier` exactly matches the value signed
-   into the backup manifest; another cluster is rejected before any database is
-   created.
+2. Choose a **new, absent** final target. The restore admin must have
+   `CREATE DATABASE` and permission to `SET ROLE ledger_owner`; the script
+   creates an unpredictable staging database from `template0`, owned by
+   `ledger_owner`. It must also have the narrowly granted `EXECUTE` privilege
+   on `pg_catalog.pg_control_system()` (the supplied `ledger_owner` init role
+   has that grant).
+3. Resolve and pin one endpoint. The signed source `system_identifier` is
+   authenticated backup provenance and requires an explicit operator
+   confirmation. The target endpoint's `system_identifier` is a **separate**
+   explicit confirmation. A logical dump may be restored to a replacement
+   cluster with a different target identifier. A physical failover workflow is
+   different: it must retain the source identifier.
 4. Use discrete libpq variables. Never put a password in a URI or argv.
 
 ```bash
@@ -79,15 +82,9 @@ export RESTORE_ADMIN_DATABASE='postgres'
 export RESTORE_TARGET_DATABASE='ledger_restore_20260725'
 export RESTORE_TARGET_OWNER='ledger_owner'
 
-system_identifier="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 \
+target_system_identifier="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 \
   --host="$PGHOST" --port="$PGPORT" --username="$PGUSER" --dbname="$RESTORE_ADMIN_DATABASE" \
   --command 'SELECT (pg_control_system()).system_identifier')"
-export RESTORE_CONFIRM_DATABASE="$RESTORE_TARGET_DATABASE"
-export RESTORE_CONFIRM_HOST="$PGHOST"
-export RESTORE_CONFIRM_PORT="$PGPORT"
-export RESTORE_CONFIRM_SYSTEM_IDENTIFIER="$system_identifier"
-export RESTORE_CONFIRM_FINGERPRINT="${RESTORE_TARGET_DATABASE}@${PGHOST}:${PGPORT}#${system_identifier}"
-
 backup_file="$PWD/ledger-YYYYMMDDHHMMSS.dump.age"
 backup_name="$(basename "$backup_file")"
 checksum_file="$backup_file.sha256"
@@ -95,6 +92,16 @@ manifest_file="$backup_file.manifest"
 signature_file="$manifest_file.minisig"
 identity_file="$PWD/age-restore-identity.txt"
 verify_key_file="$PWD/ledger-backup-verify.pub"
+
+# Verify the signed manifest before using its authenticated source provenance.
+minisign -Vm "$manifest_file" -p "$verify_key_file" -x "$signature_file"
+source_system_identifier="$(awk -F= '$1 == "source_system_identifier" { print $2 }' "$manifest_file")"
+export RESTORE_CONFIRM_DATABASE="$RESTORE_TARGET_DATABASE"
+export RESTORE_CONFIRM_HOST="$PGHOST"
+export RESTORE_CONFIRM_PORT="$PGPORT"
+export RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER="$source_system_identifier"
+export RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER="$target_system_identifier"
+export RESTORE_CONFIRM_FINGERPRINT="${RESTORE_TARGET_DATABASE}@${PGHOST}:${PGPORT}#${target_system_identifier}"
 chmod 600 "$identity_file"
 
 docker build -f infra/backup/Dockerfile infra -t ledger-backup:local
@@ -103,7 +110,8 @@ docker run --rm --user "$(id -u):$(id -g)" \
   --env PGHOST --env PGPORT --env PGUSER --env PGPASSWORD \
   --env RESTORE_ADMIN_DATABASE --env RESTORE_TARGET_DATABASE --env RESTORE_TARGET_OWNER \
   --env RESTORE_CONFIRM_DATABASE --env RESTORE_CONFIRM_HOST --env RESTORE_CONFIRM_PORT \
-  --env RESTORE_CONFIRM_SYSTEM_IDENTIFIER --env RESTORE_CONFIRM_FINGERPRINT \
+  --env RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER --env RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER \
+  --env RESTORE_CONFIRM_FINGERPRINT \
   --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
   --env BACKUP_VERIFY_KEY_FILE=/run/restore/verify.pub \
   --mount type=bind,src="$backup_file",dst="/restore/$backup_name",readonly \
@@ -117,18 +125,57 @@ docker run --rm --user "$(id -u):$(id -g)" \
 ```
 
 The script takes no-follow descriptor copies into a private staging directory,
-verifies checksum and Ed25519 signature, resolves/pins the endpoint, then
-creates the target. One pinned `psql --single-transaction` session checks the
-target database name, system identifier, and template0-derived empty state
-before streaming:
+verifies checksum and Ed25519 signature, confirms signed source provenance and
+the independently confirmed target cluster, and resolves/pins the endpoint. It
+creates a cryptographically random `ledger_restore_stage_<128-bit-hex>`
+database, not the requested final target. One pinned `psql --single-transaction`
+session checks that staging database's name and OID, target system identifier,
+and template0-derived empty state before streaming:
 
 ```text
 age --decrypt → pg_restore --file=- → psql --single-transaction
 ```
 
-No plaintext dump or `--clean` is used. Any signature/checksum, endpoint,
-cluster, permission, or late SQL failure rolls back and drops only the database
-OID created by that invocation, never a same-name replacement.
+No plaintext dump or `--clean` is used. After the streaming transaction
+commits, the script verifies the staging name/OID/owner again and atomically
+renames it to the requested final target. The restore session has exited before
+that rename; if a requested target appears in the meantime, PostgreSQL rejects
+the rename without overwriting or dropping it.
+
+The script never automatically drops a staging database. Any signature,
+endpoint, cluster, permission, promotion, or late SQL failure leaves the
+staging database quarantined and prints its exact name and OID. This avoids a
+name-based cleanup race.
+
+### Manual quarantine cleanup
+
+Only an operator may remove a quarantined staging database. First reconnect to
+the **same pinned target endpoint** and verify the recorded name, OID, owner,
+and target system identifier. Do not run a drop when this query returns no row
+or anything unexpected:
+
+```bash
+export QUARANTINE_DATABASE='ledger_restore_stage_...'
+export QUARANTINE_DATABASE_OID='12345' # exact OID printed by restore-db.sh
+
+psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 \
+  --host="$PGHOST" --port="$PGPORT" --username="$PGUSER" --dbname="$RESTORE_ADMIN_DATABASE" \
+  --set quarantine_database="$QUARANTINE_DATABASE" \
+  --set quarantine_database_oid="$QUARANTINE_DATABASE_OID" \
+  --set restore_target_owner="$RESTORE_TARGET_OWNER" \
+  --set restore_target_system_identifier="$RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER" \
+  --command "SELECT d.oid::text, r.rolname, (pg_control_system()).system_identifier::text
+             FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba
+             WHERE d.datname = :'quarantine_database'
+               AND d.oid::text = :'quarantine_database_oid'
+               AND r.rolname = :'restore_target_owner'
+               AND (pg_control_system()).system_identifier::text = :'restore_target_system_identifier';"
+```
+
+After independently checking that single returned row, terminate any remaining
+connections to that exact database and manually drop it. The restore itself has
+already closed its staging connection before promotion; do not terminate or
+drop a database solely by a reused name.
 
 ## Drill evidence
 

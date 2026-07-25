@@ -34,7 +34,8 @@ require_environment RESTORE_CONFIRM_DATABASE
 require_environment RESTORE_CONFIRM_HOST
 require_environment RESTORE_CONFIRM_PORT
 require_environment RESTORE_CONFIRM_FINGERPRINT
-require_environment RESTORE_CONFIRM_SYSTEM_IDENTIFIER
+require_environment RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER
+require_environment RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER
 [[ -z "${DATABASE_URL:-}" ]] || fail 'DATABASE_URL is not permitted for restore; use discrete libpq variables'
 [[ "$RESTORE_TARGET_DATABASE" =~ ^[A-Za-z_][A-Za-z0-9_]{0,62}$ ]] || fail 'RESTORE_TARGET_DATABASE must be a PostgreSQL identifier'
 [[ "$RESTORE_TARGET_OWNER" =~ ^[A-Za-z_][A-Za-z0-9_]{0,62}$ ]] || fail 'RESTORE_TARGET_OWNER must be a PostgreSQL identifier'
@@ -49,21 +50,21 @@ stage_manifest="$stage_dir/$(basename -- "$source_manifest_file")"
 stage_signature="$stage_dir/$(basename -- "$source_signature_file")"
 stage_identity="$stage_dir/identity.txt"
 stage_verify_key="$stage_dir/verify.pub"
-created_target=0
-created_target_oid=''
+staging_database=''
+staging_database_oid=''
+staging_created=0
+staging_promoted=0
 pinned_admin_args=()
 
 cleanup() {
   local cleanup_status=$?
-  if [[ "$created_target" == 1 && -n "$created_target_oid" && ${#pinned_admin_args[@]} -gt 0 ]]; then
-    # The oid check means we never drop a same-name database that an operator or
-    # another process replaced after this invocation created its target.
-    current_target_oid="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 "${pinned_admin_args[@]}" \
-      --command "SELECT d.oid FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '$RESTORE_TARGET_DATABASE' AND r.rolname = '$RESTORE_TARGET_OWNER'" 2>/dev/null || true)"
-    if [[ "$current_target_oid" == "$created_target_oid" ]]; then
-      psql --quiet --set ON_ERROR_STOP=1 "${pinned_admin_args[@]}" \
-        --command "DROP DATABASE \"$RESTORE_TARGET_DATABASE\"" >/dev/null 2>&1 || true
-    fi
+  trap - EXIT INT TERM
+  if [[ "$staging_created" == 1 && "$staging_promoted" == 0 ]]; then
+    # A database cannot be safely dropped by a later name lookup: an operator
+    # could have replaced it after this process disconnected. Preserve the
+    # exact database for an operator to inspect against its recorded identity.
+    printf 'restore failed; quarantined staging database: name=%s oid=%s\n' \
+      "$staging_database" "$staging_database_oid" >&2
   fi
   rm -rf -- "$stage_dir"
   exit "$cleanup_status"
@@ -113,27 +114,42 @@ if [[ "$pinned_endpoint_host" == unix:* ]]; then
 else
   pinned_host="$pinned_endpoint_host"
 fi
-DATABASE_CLIENT_ARGS=("--host=$PGHOST" "--port=$PGPORT" "--username=$PGUSER" "--dbname=$RESTORE_ADMIN_DATABASE")
+pinned_admin_args=("--host=$pinned_host" "--port=$PGPORT" "--username=$PGUSER" "--dbname=$RESTORE_ADMIN_DATABASE")
+# Every connection after hostname resolution uses the pinned address/socket.
+DATABASE_CLIENT_ARGS=("${pinned_admin_args[@]}")
 admin_database="$(effective_database_name)"
 [[ "$admin_database" == "$RESTORE_ADMIN_DATABASE" ]] || fail 'admin connection did not reach RESTORE_ADMIN_DATABASE'
 admin_system_identifier="$(database_system_identifier)"
 [[ "$RESTORE_CONFIRM_HOST" == "$pinned_endpoint_host" ]] || fail 'RESTORE_CONFIRM_HOST does not exactly match pinned admin host'
 [[ "$RESTORE_CONFIRM_PORT" == "$PGPORT" ]] || fail 'RESTORE_CONFIRM_PORT does not exactly match pinned admin port'
-[[ "$RESTORE_CONFIRM_SYSTEM_IDENTIFIER" == "$admin_system_identifier" ]] || fail 'RESTORE_CONFIRM_SYSTEM_IDENTIFIER does not exactly match resolved cluster'
+[[ "$RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER" == "$source_system_identifier" ]] || fail 'RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER does not exactly match the signed backup provenance'
+[[ "$RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER" == "$admin_system_identifier" ]] || fail 'RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER does not exactly match resolved target cluster'
 expected_fingerprint="${RESTORE_TARGET_DATABASE}@${pinned_endpoint_host}:${PGPORT}#${admin_system_identifier}"
 [[ "$RESTORE_CONFIRM_FINGERPRINT" == "$expected_fingerprint" ]] || fail 'RESTORE_CONFIRM_FINGERPRINT does not exactly match the pinned target'
-[[ "$admin_system_identifier" == "$source_system_identifier" ]] || fail 'backup belongs to a different PostgreSQL system identifier'
 
-pinned_admin_args=("--host=$pinned_host" "--port=$PGPORT" "--username=$PGUSER" "--dbname=$admin_database")
 target_exists="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 "${pinned_admin_args[@]}" --command "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = '$RESTORE_TARGET_DATABASE')")"
 [[ "$target_exists" == f ]] || fail 'restore target database must be absent'
-psql --quiet --set ON_ERROR_STOP=1 "${pinned_admin_args[@]}" \
-  --command "CREATE DATABASE \"$RESTORE_TARGET_DATABASE\" WITH TEMPLATE template0 OWNER \"$RESTORE_TARGET_OWNER\""
-created_target=1
-created_target_oid="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 "${pinned_admin_args[@]}" --command "SELECT oid FROM pg_database WHERE datname = '$RESTORE_TARGET_DATABASE'")"
-[[ "$created_target_oid" =~ ^[0-9]+$ ]] || fail 'could not identify database created for restore'
 
-target_args=("--host=$pinned_host" "--port=$PGPORT" "--username=$PGUSER" "--dbname=$RESTORE_TARGET_DATABASE")
+generate_staging_database_name() {
+  local random_suffix
+  random_suffix="$(od -An -N16 -tx1 /dev/urandom | tr -d '[:space:]')"
+  [[ "$random_suffix" =~ ^[a-f0-9]{32}$ ]] || fail 'could not generate a cryptographically unique staging database name'
+  printf 'ledger_restore_stage_%s\n' "$random_suffix"
+}
+
+for _ in {1..4}; do
+  staging_database="$(generate_staging_database_name)"
+  [[ "$staging_database" != "$RESTORE_TARGET_DATABASE" ]] && break
+done
+[[ "$staging_database" != "$RESTORE_TARGET_DATABASE" ]] || fail 'could not generate a staging database distinct from restore target'
+psql --quiet --set ON_ERROR_STOP=1 "${pinned_admin_args[@]}" \
+  --command "CREATE DATABASE \"$staging_database\" WITH TEMPLATE template0 OWNER \"$RESTORE_TARGET_OWNER\""
+staging_created=1
+staging_database_oid="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 "${pinned_admin_args[@]}" \
+  --command "SELECT d.oid FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '$staging_database' AND r.rolname = '$RESTORE_TARGET_OWNER'")"
+[[ "$staging_database_oid" =~ ^[0-9]+$ ]] || fail 'could not identify the staging database created for restore'
+
+target_args=("--host=$pinned_host" "--port=$PGPORT" "--username=$PGUSER" "--dbname=$staging_database")
 target_empty_guard_sql() {
   cat <<'SQL'
 SELECT 1 / CASE WHEN (
@@ -170,18 +186,28 @@ SQL
 }
 
 # All gates and every generated SQL statement share this one pinned psql
-# connection and one transaction. A late SQL error makes psql stop; connection
-# teardown rolls the transaction back and EXIT cleanup drops only this target.
+# connection and one transaction. A late SQL error makes psql stop and rolls
+# the transaction back; the staging database remains quarantined for review.
 {
-  printf '%s\n' "SELECT 1 / CASE WHEN current_database() = :'restore_target_database' THEN 1 ELSE 0 END;"
-  printf '%s\n' "SELECT 1 / CASE WHEN (pg_control_system()).system_identifier::text = :'restore_source_system_identifier' THEN 1 ELSE 0 END;"
+  printf '%s\n' "SELECT 1 / CASE WHEN current_database() = :'restore_staging_database' THEN 1 ELSE 0 END;"
+  printf '%s\n' "SELECT 1 / CASE WHEN (pg_control_system()).system_identifier::text = :'restore_target_system_identifier' THEN 1 ELSE 0 END;"
+  printf '%s\n' "SELECT 1 / CASE WHEN (SELECT oid::text FROM pg_database WHERE datname = current_database()) = :'restore_staging_database_oid' THEN 1 ELSE 0 END;"
   target_empty_guard_sql
   printf '%s\n' 'SET ROLE :"restore_target_owner";'
   age --decrypt --identity "$stage_identity" < "$stage_backup" | pg_restore --no-owner --exit-on-error --file=-
 } | psql --quiet --single-transaction --set ON_ERROR_STOP=1 \
-  --set restore_target_database="$RESTORE_TARGET_DATABASE" \
+  --set restore_staging_database="$staging_database" \
+  --set restore_staging_database_oid="$staging_database_oid" \
   --set restore_target_owner="$RESTORE_TARGET_OWNER" \
-  --set restore_source_system_identifier="$source_system_identifier" \
+  --set restore_target_system_identifier="$admin_system_identifier" \
   "${target_args[@]}"
 
-created_target=0
+# The target session above has exited before promotion. Verify that the exact
+# staging OID and intended owner still exist, then rely on PostgreSQL's atomic
+# rename to reject any final target that appeared during the restore.
+staging_metadata="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 "${pinned_admin_args[@]}" \
+  --command "SELECT d.oid::text || '|' || r.rolname FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '$staging_database'")"
+[[ "$staging_metadata" == "$staging_database_oid|$RESTORE_TARGET_OWNER" ]] || fail 'staging database identity changed before promotion'
+psql --quiet --set ON_ERROR_STOP=1 "${pinned_admin_args[@]}" \
+  --command "SET ROLE \"$RESTORE_TARGET_OWNER\"; ALTER DATABASE \"$staging_database\" RENAME TO \"$RESTORE_TARGET_DATABASE\""
+staging_promoted=1

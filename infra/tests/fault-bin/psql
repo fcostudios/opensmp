@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Test-only DNS/endpoint-switch seam. The admin path delegates to the real
+# PostgreSQL 16 fixture adapter; the first random staging connection is sent to
+# a distinct real PostgreSQL cluster so the in-session identity guard is tested.
+set -euo pipefail
+
+real_psql="${RESTORE_TEST_REAL_PSQL:-$(dirname "$0")/../postgres16-client-bin/psql}"
+
+if [[ "${RESTORE_TEST_SWITCH_TARGET_SESSION:-}" != 1 ]]; then
+  exec "$real_psql" "$@"
+fi
+
+staging_database=''
+for arg in "$@"; do
+  if [[ "$arg" =~ ^--dbname=(ledger_restore_stage_[a-f0-9]{32})$ ]]; then
+    staging_database="${BASH_REMATCH[1]}"
+    break
+  fi
+done
+
+if [[ -z "$staging_database" ]]; then
+  exec "$real_psql" "$@"
+fi
+
+: "${RESTORE_TEST_SWITCH_CONTAINER:?switch container is required}"
+: "${RESTORE_TEST_SWITCH_LOG:?switch log is required}"
+docker exec "$RESTORE_TEST_SWITCH_CONTAINER" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
+  --command "CREATE DATABASE \"$staging_database\" WITH TEMPLATE template0 OWNER \"${RESTORE_TARGET_OWNER:?restore target owner is required}\""
+printf 'name=%s\n' "$staging_database" > "$RESTORE_TEST_SWITCH_LOG"
+
+switched_args=()
+for arg in "$@"; do
+  if [[ "$arg" == --port=* ]]; then
+    switched_args+=(--port=5432)
+  else
+    switched_args+=("$arg")
+  fi
+done
+exec docker exec -i \
+  --env PGHOST --env PGDATABASE --env PGUSER --env PGPASSWORD \
+  --env PGPORT=5432 \
+  "$RESTORE_TEST_SWITCH_CONTAINER" psql "${switched_args[@]}"

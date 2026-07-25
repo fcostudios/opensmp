@@ -18,6 +18,6 @@ GRANT pg_read_all_data TO ledger_backup;
 -- narrow extra capability the read-only backup role needs; it does not grant
 -- DDL or mutation privileges.
 GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO ledger_backup;
--- The restore transaction checks that its newly-created target is still in
--- the same physical cluster before it SET ROLEs to this owner.
+-- The restore transaction checks its independently confirmed target cluster
+-- before it SET ROLEs to this owner.
 GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO ledger_owner;

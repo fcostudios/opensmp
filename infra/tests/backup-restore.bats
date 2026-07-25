@@ -80,7 +80,8 @@ SQL
   export PGHOST=127.0.0.1 PGPORT="$postgres_port" PGUSER=ledger_owner PGPASSWORD=owner
   export RESTORE_ADMIN_DATABASE=postgres RESTORE_TARGET_DATABASE=restored RESTORE_TARGET_OWNER=ledger_owner
   export RESTORE_CONFIRM_DATABASE=restored RESTORE_CONFIRM_HOST=127.0.0.1 RESTORE_CONFIRM_PORT="$postgres_port"
-  export RESTORE_CONFIRM_SYSTEM_IDENTIFIER="$fixture_system_identifier"
+  export RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER="$fixture_system_identifier"
+  export RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier"
   export RESTORE_CONFIRM_FINGERPRINT="restored@127.0.0.1:${postgres_port}#${fixture_system_identifier}"
   export AGE_IDENTITY_FILE="$test_root/identity.txt"
 }
@@ -108,7 +109,8 @@ restore_fixture_into_new_target() {
     RESTORE_TARGET_DATABASE="$target_database" RESTORE_TARGET_OWNER="$target_owner" \
     RESTORE_CONFIRM_DATABASE="$target_database" RESTORE_CONFIRM_HOST=127.0.0.1 \
     RESTORE_CONFIRM_PORT="$postgres_port" \
-    RESTORE_CONFIRM_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
     RESTORE_CONFIRM_FINGERPRINT="${target_database}@127.0.0.1:${postgres_port}#${fixture_system_identifier}" \
     AGE_IDENTITY_FILE="$test_root/identity.txt" \
     BACKUP_VERIFY_KEY_FILE="$test_root/backup-verify.pub" \
@@ -359,7 +361,27 @@ SQL
   [[ "$output" == *'RESTORE_CONFIRM_HOST is required'* ]]
 }
 
-@test "restore rejects a different PostgreSQL system identifier before creating its target" {
+@test "restore requires independently exact signed source and target system identifier confirmations" {
+  start_postgres
+  backup_fixture
+  admin_url="${fixture_host_url%/fixture}/postgres"
+
+  run env RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER=0 "$restore_script" "$backup_file"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'signed backup provenance'* ]]
+  run "$host_psql" "$admin_url" --tuples-only --no-align --command "SELECT count(*) FROM pg_database WHERE datname = 'restored' OR datname LIKE 'ledger_restore_stage_%';"
+  [ "$status" -eq 0 ]
+  [ "$output" = '0' ]
+
+  run env RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER=0 "$restore_script" "$backup_file"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'resolved target cluster'* ]]
+  run "$host_psql" "$admin_url" --tuples-only --no-align --command "SELECT count(*) FROM pg_database WHERE datname = 'restored' OR datname LIKE 'ledger_restore_stage_%';"
+  [ "$status" -eq 0 ]
+  [ "$output" = '0' ]
+}
+
+@test "restore accepts signed source provenance on an independently confirmed replacement cluster" {
   start_postgres
   backup_fixture
   foreign_container="ledger-restore-foreign-${BATS_TEST_NUMBER}-$$"
@@ -374,30 +396,121 @@ SQL
   docker exec "$foreign_container" pg_isready --username postgres --dbname postgres >/dev/null
   foreign_port="$(docker port "$foreign_container" 5432/tcp | sed 's/.*://')"
   foreign_system_identifier="$(docker exec "$foreign_container" psql --username postgres --dbname postgres --tuples-only --no-align --command 'SELECT (pg_control_system()).system_identifier;')"
+  docker exec -i "$foreign_container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 <<'SQL'
+CREATE ROLE ledger_owner LOGIN PASSWORD 'owner' CREATEDB;
+GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO ledger_owner;
+SQL
 
-  run env PATH="$BATS_TEST_DIRNAME/minisign-bin:${BACKUP_TEST_TOOLS_DIR}:$host_path" \
-    PGHOST=127.0.0.1 PGPORT="$foreign_port" PGUSER=postgres PGPASSWORD=postgres \
-    RESTORE_ADMIN_DATABASE=postgres RESTORE_TARGET_DATABASE=wrong_cluster_restore RESTORE_TARGET_OWNER=postgres \
-    RESTORE_CONFIRM_DATABASE=wrong_cluster_restore RESTORE_CONFIRM_HOST=127.0.0.1 \
-    RESTORE_CONFIRM_PORT="$foreign_port" RESTORE_CONFIRM_SYSTEM_IDENTIFIER="$foreign_system_identifier" \
-    RESTORE_CONFIRM_FINGERPRINT="wrong_cluster_restore@127.0.0.1:${foreign_port}#${foreign_system_identifier}" \
+  run env PATH="$BATS_TEST_DIRNAME/minisign-bin:$BATS_TEST_DIRNAME/postgres16-client-bin:${BACKUP_TEST_TOOLS_DIR}:$host_path" \
+    BACKUP_TEST_POSTGRES_CONTAINER="$foreign_container" BACKUP_TEST_POSTGRES_HOST_PORT="$foreign_port" \
+    PGHOST=127.0.0.1 PGPORT="$foreign_port" PGUSER=ledger_owner PGPASSWORD=owner \
+    RESTORE_ADMIN_DATABASE=postgres RESTORE_TARGET_DATABASE=replacement_restore RESTORE_TARGET_OWNER=ledger_owner \
+    RESTORE_CONFIRM_DATABASE=replacement_restore RESTORE_CONFIRM_HOST=127.0.0.1 \
+    RESTORE_CONFIRM_PORT="$foreign_port" \
+    RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER="$foreign_system_identifier" \
+    RESTORE_CONFIRM_FINGERPRINT="replacement_restore@127.0.0.1:${foreign_port}#${foreign_system_identifier}" \
     AGE_IDENTITY_FILE="$test_root/identity.txt" BACKUP_VERIFY_KEY_FILE="$test_root/backup-verify.pub" \
     "$restore_script" "$backup_file"
-  [ "$status" -ne 0 ]
-  [[ "$output" == *'different PostgreSQL system identifier'* ]]
-  run docker exec "$foreign_container" psql --username postgres --dbname postgres --tuples-only --no-align --command "SELECT count(*) FROM pg_database WHERE datname = 'wrong_cluster_restore';"
   [ "$status" -eq 0 ]
-  [ "$output" = '0' ]
+  run docker exec "$foreign_container" psql --username postgres --dbname replacement_restore --tuples-only --no-align --command 'SELECT count(*) FROM ledger.ledger_fixture;'
+  [ "$status" -eq 0 ]
+  [ "$output" = '2' ]
 }
 
-@test "late restore SQL failure rolls back and removes only its created target" {
+@test "a requested target that appears before promotion is untouched and leaves its restored staging database quarantined" {
+  start_postgres
+  backup_fixture
+  ready_file="$test_root/staging-ready"
+  admin_url="${fixture_host_url%/fixture}/postgres"
+
+  PATH="$BATS_TEST_DIRNAME/fault-bin:$PATH" RESTORE_TEST_REAL_AGE="$(command -v age)" \
+    RESTORE_TEST_STAGE_READY="$ready_file" RESTORE_TEST_STAGE_DELAY=2 \
+    "$restore_script" "$backup_file" >"$test_root/promotion-race.stdout" 2>"$test_root/promotion-race.stderr" &
+  restore_pid=$!
+  local attempt
+  for attempt in {1..30}; do
+    [[ -f "$ready_file" ]] && break
+    sleep 0.1
+  done
+  [ -f "$ready_file" ]
+  "$host_psql" "$admin_url" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
+  "$host_psql" "${fixture_host_url%/fixture}/restored" --set ON_ERROR_STOP=1 --command 'CREATE TABLE keep_me (id integer PRIMARY KEY); INSERT INTO keep_me VALUES (1);'
+  if wait "$restore_pid"; then
+    restore_status=0
+  else
+    restore_status=$?
+  fi
+  [ "$restore_status" -ne 0 ]
+
+  quarantine_line="$(grep --fixed-strings 'quarantined staging database:' "$test_root/promotion-race.stderr")"
+  staging_database="$(printf '%s\n' "$quarantine_line" | sed -n 's/.*name=\([a-z0-9_]*\) oid=.*/\1/p')"
+  [[ "$staging_database" =~ ^ledger_restore_stage_[a-f0-9]{32}$ ]]
+  run "$host_psql" "${fixture_host_url%/fixture}/restored" --tuples-only --no-align --command 'SELECT count(*) FROM keep_me;'
+  [ "$status" -eq 0 ]
+  [ "$output" = '1' ]
+  run "$host_psql" "${fixture_host_url%/fixture}/$staging_database" --tuples-only --no-align --command 'SELECT count(*) FROM ledger.ledger_fixture;'
+  [ "$status" -eq 0 ]
+  [ "$output" = '2' ]
+}
+
+@test "restore rejects a target cluster switch between staging creation and its pinned restore session" {
+  start_postgres
+  backup_fixture
+  foreign_container="ledger-restore-switch-${BATS_TEST_NUMBER}-$$"
+  docker run --detach --rm --name "$foreign_container" \
+    --env POSTGRES_PASSWORD=postgres --env POSTGRES_DB=postgres \
+    --publish 127.0.0.1::5432 postgres:16-alpine >/dev/null
+  local attempt
+  for attempt in {1..30}; do
+    docker exec "$foreign_container" pg_isready --username postgres --dbname postgres >/dev/null 2>&1 && break
+    sleep 1
+  done
+  docker exec "$foreign_container" pg_isready --username postgres --dbname postgres >/dev/null
+  foreign_system_identifier="$(docker exec "$foreign_container" psql --username postgres --dbname postgres --tuples-only --no-align --command 'SELECT (pg_control_system()).system_identifier;')"
+  [ "$foreign_system_identifier" != "$fixture_system_identifier" ]
+  docker exec -i "$foreign_container" psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 <<'SQL'
+CREATE ROLE ledger_owner LOGIN PASSWORD 'owner' CREATEDB;
+GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO ledger_owner;
+SQL
+
+  switch_log="$test_root/target-switch.log"
+  run env PATH="$BATS_TEST_DIRNAME/fault-bin:$PATH" \
+    RESTORE_TEST_REAL_PSQL="$BATS_TEST_DIRNAME/postgres16-client-bin/psql" \
+    RESTORE_TEST_SWITCH_TARGET_SESSION=1 RESTORE_TEST_SWITCH_CONTAINER="$foreign_container" \
+    RESTORE_TEST_SWITCH_LOG="$switch_log" \
+    "$restore_script" "$backup_file"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'quarantined staging database:'* ]]
+  staging_database="$(sed -n 's/^name=\([a-z0-9_]*\)$/\1/p' "$switch_log")"
+  [[ "$staging_database" =~ ^ledger_restore_stage_[a-f0-9]{32}$ ]]
+  run "$host_psql" "${fixture_host_url%/fixture}/postgres" --tuples-only --no-align --command "SELECT count(*) FROM pg_database WHERE datname = 'restored';"
+  [ "$status" -eq 0 ]
+  [ "$output" = '0' ]
+  run "$host_psql" "${fixture_host_url%/fixture}/$staging_database" --tuples-only --no-align --command "SELECT count(*) FROM pg_tables WHERE schemaname = 'ledger';"
+  [ "$status" -eq 0 ]
+  [ "$output" = '0' ]
+  run docker exec "$foreign_container" psql --username postgres --dbname postgres --tuples-only --no-align --command "SELECT count(*) FROM pg_database WHERE datname = '$staging_database';"
+  [ "$status" -eq 0 ]
+  [ "$output" = '1' ]
+}
+
+@test "late restore SQL failure rolls back and leaves only an empty staging database quarantined" {
   start_postgres
   "$host_psql" "$fixture_host_url" --set ON_ERROR_STOP=1 --command "CREATE FUNCTION ledger.late_restore_failure(integer) RETURNS integer LANGUAGE internal IMMUTABLE AS 'int4in';"
   backup_fixture
 
   run "$restore_script" "$backup_file"
   [ "$status" -ne 0 ]
+  restore_output="$output"
   run "$host_psql" "${fixture_host_url%/fixture}/postgres" --tuples-only --no-align --command "SELECT count(*) FROM pg_database WHERE datname = 'restored';"
+  [ "$status" -eq 0 ]
+  [ "$output" = '0' ]
+  quarantine_line="$(printf '%s\n' "$restore_output" | grep --fixed-strings 'quarantined staging database:' || true)"
+  [[ "$quarantine_line" == *'oid='* ]]
+  staging_database="$(printf '%s\n' "$quarantine_line" | sed -n 's/.*name=\([a-z0-9_]*\) oid=.*/\1/p')"
+  [[ "$staging_database" =~ ^ledger_restore_stage_[a-f0-9]{32}$ ]]
+  run "$host_psql" "${fixture_host_url%/fixture}/$staging_database" --tuples-only --no-align --command "SELECT count(*) FROM pg_tables WHERE schemaname = 'ledger';"
   [ "$status" -eq 0 ]
   [ "$output" = '0' ]
 }
@@ -559,7 +672,9 @@ SQL
     --env PGHOST=127.0.0.1 --env PGPORT=5432 --env PGUSER=ledger_owner --env PGPASSWORD=owner \
     --env RESTORE_ADMIN_DATABASE=postgres --env RESTORE_TARGET_DATABASE=restored --env RESTORE_TARGET_OWNER=ledger_owner \
     --env RESTORE_CONFIRM_DATABASE=restored --env RESTORE_CONFIRM_HOST=127.0.0.1 \
-    --env RESTORE_CONFIRM_PORT=5432 --env RESTORE_CONFIRM_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_CONFIRM_PORT=5432 \
+    --env RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
     --env RESTORE_CONFIRM_FINGERPRINT="restored@127.0.0.1:5432#$fixture_system_identifier" \
     --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
     --env BACKUP_VERIFY_KEY_FILE=/run/restore/verify.pub \
@@ -586,7 +701,9 @@ SQL
     --env PGHOST=127.0.0.1 --env PGPORT=5432 --env PGUSER=ledger_owner --env PGPASSWORD=owner \
     --env RESTORE_ADMIN_DATABASE=postgres --env RESTORE_TARGET_DATABASE=restored --env RESTORE_TARGET_OWNER=ledger_owner \
     --env RESTORE_CONFIRM_DATABASE=restored --env RESTORE_CONFIRM_HOST=127.0.0.1 \
-    --env RESTORE_CONFIRM_PORT=5432 --env RESTORE_CONFIRM_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_CONFIRM_PORT=5432 \
+    --env RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
     --env RESTORE_CONFIRM_FINGERPRINT="restored@127.0.0.1:5432#$fixture_system_identifier" \
     --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
     --env BACKUP_VERIFY_KEY_FILE=/run/restore/verify.pub \
@@ -610,6 +727,16 @@ SQL
   [ "$status" -eq 0 ]
   run grep --fixed-strings 'docker run --rm --user "$(id -u):$(id -g)"' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
   [ "$status" -eq 0 ]
+  run grep --fixed-strings 'RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'never automatically drops a staging database' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'verify the recorded name, OID, owner,' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'RESTORE_CONFIRM_SYSTEM_IDENTIFIER' "$BATS_TEST_DIRNAME/../../docs/runbooks/backup-restore.md"
+  [ "$status" -ne 0 ]
 }
 
 @test "runbook preserves the original dump basename for metadata validation" {
@@ -639,7 +766,9 @@ SQL
     --env PGHOST=127.0.0.1 --env PGPORT=5432 --env PGUSER=ledger_owner --env PGPASSWORD=owner \
     --env RESTORE_ADMIN_DATABASE=postgres --env RESTORE_TARGET_DATABASE=restored --env RESTORE_TARGET_OWNER=ledger_owner \
     --env RESTORE_CONFIRM_DATABASE=restored --env RESTORE_CONFIRM_HOST=127.0.0.1 \
-    --env RESTORE_CONFIRM_PORT=5432 --env RESTORE_CONFIRM_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_CONFIRM_PORT=5432 \
+    --env RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
     --env RESTORE_CONFIRM_FINGERPRINT="restored@127.0.0.1:5432#$fixture_system_identifier" \
     --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
     --env BACKUP_VERIFY_KEY_FILE=/run/restore/verify.pub \
