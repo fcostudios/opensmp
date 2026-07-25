@@ -7,7 +7,6 @@ COPY apps/worker/package.json apps/worker/package.json
 COPY packages/config/package.json packages/config/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/db/package.json packages/db/package.json
-COPY packages/design-system/package.json packages/design-system/package.json
 COPY packages/domain/package.json packages/domain/package.json
 COPY packages/ui/package.json packages/ui/package.json
 RUN pnpm install --frozen-lockfile
@@ -20,6 +19,7 @@ FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 RUN addgroup --system --gid 1001 ledger && adduser --system --uid 1001 --ingroup ledger ledger
 COPY --from=build --chown=ledger:ledger /app/apps/web/.next/standalone ./
 COPY --from=build --chown=ledger:ledger /app/apps/web/.next/static ./apps/web/.next/static

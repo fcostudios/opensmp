@@ -14,6 +14,7 @@ guarded_restore_script="$repo_root/infra/postgres/run-guarded-restore.sh"
 window_common_script="$repo_root/infra/postgres/restore-window-common.sh"
 disable_authority_sql="$repo_root/infra/postgres/disable-restore-authority.sql"
 cron_script="$repo_root/infra/backup/run-cron.sh"
+web_dockerfile="$repo_root/apps/web/Dockerfile"
 
 setup_file() {
   bats_require_minimum_version 1.5.0
@@ -32,6 +33,40 @@ teardown() {
 @test "base Compose validates the supplied environment without loading backup secrets" {
   run docker compose --env-file "$env_example" -f "$compose_file" config --quiet
 
+  [ "$status" -eq 0 ]
+}
+
+@test "web Dockerfile copies only workspace manifests that exist in its build context" {
+  local manifest_source
+
+  while IFS= read -r manifest_source; do
+    [ -f "$repo_root/$manifest_source" ]
+  done < <(
+    awk '
+      /^COPY / {
+        for (field = 2; field < NF; field++) {
+          if ($field ~ /\/package\.json$/) print $field
+        }
+      }
+    ' "$web_dockerfile"
+  )
+}
+
+@test "web runtime binds Next's standalone server to all container interfaces" {
+  run grep --fixed-strings 'ENV HOSTNAME=0.0.0.0' "$web_dockerfile"
+  [ "$status" -eq 0 ]
+}
+
+@test "Postgres init password script is executable when Compose bind-mounts it" {
+  [ -x "$passwords_script" ]
+}
+
+@test "Postgres init password script uses psql input for its credential variables" {
+  run grep --fixed-strings -- '--command' "$passwords_script"
+  [ "$status" -ne 0 ]
+  run grep --fixed-strings -- "<<'SQL'" "$passwords_script"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings -- ":'ledger_owner_password'" "$passwords_script"
   [ "$status" -eq 0 ]
 }
 
