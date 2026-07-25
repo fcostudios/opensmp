@@ -136,6 +136,10 @@ restore_fixture_into_new_target() {
     "$restore_script" "$backup_file"
 }
 
+restore_admin_window_state() {
+  "$host_psql" "${fixture_host_url%/fixture}/postgres" --tuples-only --no-align --command "SELECT rolcanlogin::text || '|' || (rolpassword IS NULL)::text || '|' || (SELECT count(*) FROM pg_auth_members m JOIN pg_roles parent ON parent.oid = m.roleid JOIN pg_roles member ON member.oid = m.member WHERE parent.rolname = 'ledger_owner' AND member.rolname = 'ledger_restore_admin')::text || '|' || (SELECT count(*) FROM pg_stat_activity WHERE usename = 'ledger_restore_admin')::text FROM pg_authid WHERE rolname = 'ledger_restore_admin';"
+}
+
 @test "backup and restore scripts exist and reject unsafe execution" {
   [ -x "$BATS_TEST_DIRNAME/../scripts/backup-db.sh" ]
   [ -x "$BATS_TEST_DIRNAME/../scripts/restore-db.sh" ]
@@ -901,6 +905,42 @@ SQL
 @test "built backup image provides a portable SHA-256 implementation" {
   run docker run --rm --entrypoint sha256sum ledger-backup:local --version
   [ "$status" -eq 0 ]
+}
+
+@test "packaged guarded restore finalizes after its prepared restore fails before target creation" {
+  start_postgres
+  audit_log="$test_root/packaged-restore-window.audit.jsonl"
+  install -m 600 /dev/null "$audit_log"
+
+  # The argument has a valid artifact basename but is deliberately not mounted.
+  # This makes restore-db.sh fail only after the packaged wrapper has prepared
+  # the temporary role window.
+  run docker run --rm --user "$(id -u):$(id -g)" --network "container:$container_id" \
+    --mount "type=bind,src=$audit_log,dst=/run/restore/window.audit.jsonl" \
+    --env RESTORE_WINDOW_PGHOST=127.0.0.1 --env RESTORE_WINDOW_PGPORT=5432 \
+    --env RESTORE_WINDOW_SUPERADMIN_USER=postgres --env RESTORE_WINDOW_SUPERADMIN_PASSWORD=postgres \
+    --env RESTORE_WINDOW_ADMIN_DATABASE=postgres --env RESTORE_WINDOW_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_WINDOW_CONFIRM_FINGERPRINT="127.0.0.1:5432#$fixture_system_identifier" \
+    --env RESTORE_WINDOW_ISOLATED_TARGET_CONFIRMATION=I_CONFIRM_TARGET_IS_ISOLATED_AND_APPLICATION_STOPPED \
+    --env RESTORE_WINDOW_TTL_SECONDS=300 --env RESTORE_WINDOW_AUDIT_LOG=/run/restore/window.audit.jsonl \
+    --env RESTORE_ADMIN_DATABASE=postgres --env RESTORE_TARGET_DATABASE=restored --env RESTORE_TARGET_OWNER=ledger_owner \
+    --env RESTORE_CONFIRM_DATABASE=restored --env RESTORE_CONFIRM_HOST=127.0.0.1 \
+    --env RESTORE_CONFIRM_PORT=5432 \
+    --env RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_CONFIRM_FINGERPRINT="restored@127.0.0.1:5432#$fixture_system_identifier" \
+    --entrypoint /usr/local/bin/run-guarded-restore.sh ledger-backup:local /restore/ledger-20260725070000.dump.age
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'backup file must be a readable regular non-symlink file'* ]]
+
+  run restore_admin_window_state
+  [ "$status" -eq 0 ]
+  [ "$output" = 'false|true|0|0' ]
+  run grep --fixed-strings '"event":"finalized"' "$audit_log"
+  [ "$status" -eq 0 ]
+  run "$host_psql" "${fixture_host_url%/fixture}/postgres" --tuples-only --no-align --command "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'restored');"
+  [ "$status" -eq 0 ]
+  [ "$output" = 'f' ]
 }
 
 @test "built image performs a real libpq backup and guarded restore" {
