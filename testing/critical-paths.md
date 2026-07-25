@@ -8,7 +8,6 @@
 
 - **Tenant isolation** — every path that touches tenant-scoped data (filtered by `company_id`). → explicit isolation assertions (a query for tenant A must never return tenant B's rows).
 - **Authorization** — role/permission gates on commands/mutations. → integration tests for allowed vs forbidden (expect 403).
-- **Restore maintenance authority** — the temporary restore-admin TTL, credential inode, mounted encrypted stage, and convergence/finalization locks. → real PostgreSQL and packaged-image race tests must prove authority is closed before verification and after every success/failure path.
 - **Money / tax / financial math** (if present) — amounts, rounding, and idempotency of charge/ledger events. → property-based + a provider contract test.
 
 ## Critical business rules
