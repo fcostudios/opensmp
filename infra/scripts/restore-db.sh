@@ -9,15 +9,36 @@ readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/backup-common.sh"
 
 [[ "$#" -eq 1 && "$1" != -* ]] || fail 'usage: restore-db.sh /path/to/ledger-YYYYMMDDHHMMSS.dump.age'
-readonly backup_file="$1"
-[[ -f "$backup_file" ]] || fail 'backup file does not exist'
-readonly checksum_file="${backup_file}.sha256"
-[[ -f "$checksum_file" ]] || fail 'backup checksum metadata does not exist'
+backup_file="$1"
+[[ ! -L "$backup_file" && -f "$backup_file" ]] || fail 'backup file must be a regular non-symlink file'
+[[ "$(basename -- "$backup_file")" =~ ^ledger-[0-9]{14}\.dump\.age$ ]] || fail 'backup file name must be ledger-YYYYMMDDHHMMSS.dump.age'
+checksum_file="${backup_file}.sha256"
+[[ ! -L "$checksum_file" && -f "$checksum_file" ]] || fail 'backup checksum metadata must be a regular non-symlink file'
+stage_dir="$(mktemp -d "${TMPDIR:-/tmp}/ledger-restore.XXXXXX")"
+cleanup_stage() { rm -rf -- "$stage_dir"; }
+trap cleanup_stage EXIT INT TERM
+chmod 0700 "$stage_dir"
+stage_backup="$stage_dir/$(basename -- "$backup_file")"
+stage_checksum="$stage_dir/$(basename -- "$checksum_file")"
+cp -- "$backup_file" "$stage_backup"
+cp -- "$checksum_file" "$stage_checksum"
+chmod 0600 "$stage_backup" "$stage_checksum"
+backup_file="$stage_backup"
+checksum_file="$stage_checksum"
 
 prepare_database_connection
 require_environment RESTORE_CONFIRM_DATABASE
-effective_database="$(effective_database_name)"
+require_environment RESTORE_CONFIRM_HOST
+require_environment RESTORE_CONFIRM_PORT
+require_environment RESTORE_CONFIRM_FINGERPRINT
+IFS=$'\t' read -r effective_database effective_host effective_port < <(effective_target_identity)
 [[ "$RESTORE_CONFIRM_DATABASE" == "$effective_database" ]] || fail "RESTORE_CONFIRM_DATABASE does not exactly match target database $effective_database"
+[[ "$RESTORE_CONFIRM_HOST" == "$effective_host" ]] || fail "RESTORE_CONFIRM_HOST does not exactly match target host $effective_host"
+[[ "$RESTORE_CONFIRM_PORT" == "$effective_port" ]] || fail "RESTORE_CONFIRM_PORT does not exactly match target port $effective_port"
+effective_fingerprint="${effective_database}@${effective_host}:${effective_port}"
+[[ "$RESTORE_CONFIRM_FINGERPRINT" == "$effective_fingerprint" ]] || fail 'RESTORE_CONFIRM_FINGERPRINT does not exactly match target fingerprint'
+user_object_count="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 "${DATABASE_CLIENT_ARGS[@]}" --command "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname NOT IN ('pg_catalog', 'information_schema') AND n.nspname !~ '^pg_toast' AND c.relkind IN ('r', 'p', 'v', 'm', 'S', 'f');")"
+[[ "$user_object_count" == '0' ]] || fail 'target database is not empty'
 require_environment AGE_IDENTITY_FILE
 [[ -f "$AGE_IDENTITY_FILE" && -r "$AGE_IDENTITY_FILE" ]] || fail 'AGE_IDENTITY_FILE must be a readable file'
 
@@ -33,4 +54,4 @@ actual_checksum="$(sha256_file "$backup_file")"
 [[ "$actual_checksum" == "$expected_checksum" ]] || fail 'backup checksum verification failed'
 
 age --decrypt --identity "$AGE_IDENTITY_FILE" < "$backup_file" \
-  | pg_restore --clean --if-exists --no-owner --exit-on-error "${DATABASE_CLIENT_ARGS[@]}"
+  | pg_restore --single-transaction --no-owner --exit-on-error "${DATABASE_CLIENT_ARGS[@]}"

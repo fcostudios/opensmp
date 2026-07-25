@@ -22,7 +22,27 @@ readonly encrypted_file="$BACKUP_DIR/ledger-${backup_timestamp}.dump.age"
 readonly checksum_file="$encrypted_file.sha256"
 readonly lock_dir="$BACKUP_DIR/.backup.lock"
 [[ ! -e "$encrypted_file" && ! -e "$checksum_file" ]] || fail "backup already exists for $backup_timestamp"
-mkdir "$lock_dir" 2>/dev/null || fail 'another backup is already running'
+lock_host="$(hostname)"
+lock_start="$(process_start_token "$$")"
+[[ -n "$lock_start" ]] || fail 'could not determine backup process start token'
+if ! mkdir "$lock_dir" 2>/dev/null; then
+  stale_pid=''
+  stale_host=''
+  stale_start=''
+  if [[ -f "$lock_dir/pid" ]]; then
+    read -r stale_pid stale_host stale_start < "$lock_dir/pid" || true
+  fi
+  observed_start=''
+  [[ "$stale_pid" =~ ^[0-9]+$ ]] && observed_start="$(process_start_token "$stale_pid" 2>/dev/null || true)"
+  if [[ "$stale_pid" =~ ^[0-9]+$ && "$stale_host" == "$lock_host" && "$observed_start" != "$stale_start" ]]; then
+    rm -f -- "$lock_dir/pid"
+    rmdir "$lock_dir" 2>/dev/null || fail 'backup lock is malformed; operator intervention required'
+    mkdir "$lock_dir" 2>/dev/null || fail 'another backup is already running'
+  else
+    fail 'another backup is already running'
+  fi
+fi
+printf '%s %s %s\n' "$$" "$lock_host" "$lock_start" > "$lock_dir/pid"
 
 encrypted_partial=''
 checksum_partial=''
@@ -31,6 +51,7 @@ cleanup() {
   [[ -z "$encrypted_partial" || ! -e "$encrypted_partial" ]] || rm -f -- "$encrypted_partial"
   [[ -z "$checksum_partial" || ! -e "$checksum_partial" ]] || rm -f -- "$checksum_partial"
   [[ -z "$published_checksum" || ! -e "$published_checksum" ]] || rm -f -- "$published_checksum"
+  rm -f -- "$lock_dir/pid"
   rmdir "$lock_dir" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
@@ -40,12 +61,15 @@ checksum_partial="$(mktemp "$BACKUP_DIR/.ledger-${backup_timestamp}.XXXXXX.sha25
 
 pg_dump --format=custom --no-owner --no-acl "${DATABASE_CLIENT_ARGS[@]}" \
   | age --recipient "$BACKUP_AGE_RECIPIENT" > "$encrypted_partial"
+fsync_path "$encrypted_partial"
 
 checksum="$(sha256_file "$encrypted_partial")"
 printf '%s  %s\n' "$checksum" "$(basename "$encrypted_file")" > "$checksum_partial"
+fsync_path "$checksum_partial"
 mv -- "$checksum_partial" "$checksum_file"
 checksum_partial=''
 published_checksum="$checksum_file"
 mv -- "$encrypted_partial" "$encrypted_file"
 encrypted_partial=''
 published_checksum=''
+fsync_directory "$BACKUP_DIR"

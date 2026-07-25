@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Test-only observer: pause decryption after restore has committed to staged
+# bytes, allowing the source pair to be replaced without influencing restore.
+set -euo pipefail
+
+if [[ "$*" == *'--decrypt'* && -n "${RESTORE_TEST_STAGE_READY:-}" ]]; then
+  : > "$RESTORE_TEST_STAGE_READY"
+  sleep "${RESTORE_TEST_STAGE_DELAY:-1}"
+fi
+exec "${RESTORE_TEST_REAL_AGE:-${BACKUP_TEST_TOOLS_DIR:?test tools directory is required}/age}" "$@"

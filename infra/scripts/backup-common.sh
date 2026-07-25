@@ -42,7 +42,7 @@ validate_database_uri_query() {
   local pair encoded_key encoded_value key value
   local seen_keys='|'
   local -a query_pairs=()
-  local allowed_keys=' sslmode sslrootcert sslcert sslkey sslpassword connect_timeout application_name target_session_attrs gssencmode channel_binding require_auth '
+  local allowed_keys=' sslmode sslrootcert sslcert sslkey connect_timeout application_name target_session_attrs gssencmode channel_binding require_auth '
 
   [[ -n "$query" ]] || fail 'DATABASE_URL URI query must not be empty'
   IFS='&' read -r -a query_pairs <<< "$query"
@@ -65,6 +65,11 @@ prepare_database_connection() {
   if [[ -n "${DATABASE_URL:-}" ]]; then
     [[ "$DATABASE_URL" != *$'\n'* && "$DATABASE_URL" != *$'\r'* ]] || fail 'DATABASE_URL contains unsafe characters'
     [[ "$DATABASE_URL" =~ ^postgres(ql)?:// ]] || fail 'DATABASE_URL must be a PostgreSQL URI'
+    local authority="${DATABASE_URL#*://}"
+    authority="${authority%%/*}"
+    if [[ "$authority" == *@* ]]; then
+      [[ "${authority%@*}" != *:* ]] || fail 'DATABASE_URL must not contain a userinfo password'
+    fi
     local query=''
     if [[ "$DATABASE_URL" == *'?'* ]]; then
       query="${DATABASE_URL#*\?}"
@@ -84,6 +89,14 @@ effective_database_name() {
   printf '%s\n' "$database"
 }
 
+effective_target_identity() {
+  local identity database host port
+  identity="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 --field-separator $'\t' "${DATABASE_CLIENT_ARGS[@]}" --command "SELECT current_database(), COALESCE(host(inet_server_addr()), ''), inet_server_port()")"
+  IFS=$'\t' read -r database host port <<< "$identity"
+  [[ "$database" =~ ^[[:print:]]+$ && "$host" =~ ^[[:print:]]+$ && "$port" =~ ^[0-9]+$ ]] || fail 'could not determine effective restore target identity'
+  printf '%s\t%s\t%s\n' "$database" "$host" "$port"
+}
+
 validate_age_recipient() {
   require_environment BACKUP_AGE_RECIPIENT
   [[ "$BACKUP_AGE_RECIPIENT" =~ ^age1[ac-hj-np-z02-9]{58}$ ]] || fail 'invalid BACKUP_AGE_RECIPIENT'
@@ -96,5 +109,33 @@ sha256_file() {
     shasum --algorithm 256 "$1" | awk '{print $1}'
   else
     fail 'no SHA-256 tool is available'
+  fi
+}
+
+process_start_token() {
+  local pid="$1"
+  if [[ -r "/proc/$pid/stat" ]]; then
+    awk '{print $22}' "/proc/$pid/stat"
+  else
+    ps -o lstart= -p "$pid" 2>/dev/null | tr -s ' ' | sed 's/^ //' | tr ' ' '_'
+  fi
+}
+
+fsync_path() {
+  if sync --help 2>&1 | grep -q -- ' -f'; then
+    sync -f "$1"
+  else
+    perl -MIO::Handle -e 'open my $fh, "<", $ARGV[0] or die $!; $fh->sync or die $!' "$1"
+  fi
+}
+
+fsync_directory() {
+  if sync --help 2>&1 | grep -q -- ' -d'; then
+    sync -d "$1"
+  elif [[ "$(uname -s)" == 'Darwin' ]]; then
+    # Darwin sync(1) has no path form; the production Linux image uses GNU sync -d.
+    return 0
+  else
+    perl -MIO::Handle -e 'opendir my $dh, $ARGV[0] or die $!; $dh->sync or die $!' "$1"
   fi
 }

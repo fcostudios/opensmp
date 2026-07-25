@@ -2,6 +2,12 @@
 # See pg_dump in this directory; this executes PostgreSQL 16's real pg_restore.
 set -euo pipefail
 : "${BACKUP_TEST_POSTGRES_CONTAINER:?fixture container is required}"
+# shellcheck source=infra/tests/postgres16-client-bin/uri-port.sh
+source "$(dirname "${BASH_SOURCE[0]}")/uri-port.sh"
+args=()
+for arg in "$@"; do
+  args+=("$(map_fixture_dbname_arg "${BACKUP_TEST_POSTGRES_HOST_PORT:?fixture host port is required}" "$arg")")
+done
 exec docker exec -i \
   --env PGHOST --env PGPORT --env PGDATABASE --env PGUSER --env PGPASSWORD \
-  "$BACKUP_TEST_POSTGRES_CONTAINER" pg_restore "$@"
+  "$BACKUP_TEST_POSTGRES_CONTAINER" pg_restore "${args[@]}"

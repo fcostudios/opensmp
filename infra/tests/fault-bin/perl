@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Test-only OS boundary seam: fail a requested fsync while delegating all other
+# Perl invocations to the real interpreter.
+set -euo pipefail
+if [[ -n "${BACKUP_TEST_FSYNC_LOG:-}" ]]; then
+  printf '%s\n' "$*" >> "$BACKUP_TEST_FSYNC_LOG"
+fi
+if [[ "${BACKUP_TEST_FAIL_FSYNC:-}" == '1' ]]; then
+  exit 1
+fi
+exec /usr/bin/perl "$@"

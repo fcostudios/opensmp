@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Test-only GNU sync capability and call recorder for the portable durability
+# helpers. It records the requested file/directory sync without faking backup
+# creation, encryption, or PostgreSQL.
+set -euo pipefail
+
+if [[ "${1:-}" == '--help' ]]; then
+  printf '%s\n' '  -f FILE' '  -d DIRECTORY'
+  exit 0
+fi
+printf '%s\n' "$*" >> "${BACKUP_TEST_FSYNC_LOG:?fsync log is required}"

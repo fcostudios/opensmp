@@ -3,12 +3,15 @@
 # operation so the scripts' cleanup path is verified without faking encryption.
 set -euo pipefail
 
-counter_file="${BACKUP_TEST_MV_COUNTER:?counter file is required}"
+if [[ -z "${BACKUP_TEST_MV_COUNTER:-}" || -z "${BACKUP_TEST_FAIL_MV_NUMBER:-}" ]]; then
+  exec /bin/mv "$@"
+fi
+counter_file="$BACKUP_TEST_MV_COUNTER"
 count=0
 [[ ! -f "$counter_file" ]] || count="$(< "$counter_file")"
 count=$((count + 1))
 printf '%s\n' "$count" > "$counter_file"
-if [[ "$count" == "${BACKUP_TEST_FAIL_MV_NUMBER:?failure number is required}" ]]; then
+if [[ "$count" == "$BACKUP_TEST_FAIL_MV_NUMBER" ]]; then
   exit 1
 fi
 exec /bin/mv "$@"

@@ -14,7 +14,8 @@ operational safeguard, not an approval to restore production data casually.
 - The backup profile has only `ledger_backup`, which has `CONNECT` and
   `pg_read_all_data`; it is not the application or migration owner.
 - Install [`infra/backup/crontab`](../../infra/backup/crontab) on the VPS. Its
-  `0 7 * * *` `CRON_TZ=UTC` job is 02:00 America/Guayaquil every day.
+  `0 7 * * *` `CRON_TZ=UTC` job is 02:00 America/Guayaquil every day and sends
+  output to journald through `logger` (not a root-owned log file).
 
 The profile is intentionally not part of a normal `docker compose up`:
 
@@ -30,6 +31,14 @@ an encrypted custom dump and adjacent SHA-256 metadata to the persistent
 encrypted partial output, publishes the checksum first, then publishes the
 ciphertext as the commit marker. If that final publication fails, cleanup removes
 the already-published checksum. A per-directory lock prevents simultaneous jobs.
+Keep the encrypted pair and sidecar together, rotate by the operator-approved
+retention policy, and copy each verified pair to an independent off-host store;
+test a restore from that copy. Never rotate one member of a pair independently.
+
+The image is pinned to the Postgres 16.14 Alpine 3.24 manifest digest and exact
+Alpine package versions. When updating it, inspect the registry manifest for
+both amd64 and arm64, verify package availability in that image, refresh the
+SBOM and vulnerability scan, and record the new digest in the change review.
 
 ## Restore procedure
 
@@ -51,6 +60,9 @@ export PGDATABASE='ledger_restore'
 export PGUSER='ledger_owner'
 export PGPASSWORD='REDACTED'
 export RESTORE_CONFIRM_DATABASE='ledger_restore'
+export RESTORE_CONFIRM_HOST='203.0.113.10' # output of SELECT host(inet_server_addr())
+export RESTORE_CONFIRM_PORT='5432'          # output of SELECT inet_server_port()
+export RESTORE_CONFIRM_FINGERPRINT='ledger_restore@203.0.113.10:5432'
 backup_file="$PWD/ledger-YYYYMMDDHHMMSS.dump.age"
 backup_name="$(basename "$backup_file")"
 checksum_file="$backup_file.sha256"
@@ -60,7 +72,7 @@ docker build -f infra/backup/Dockerfile infra -t ledger-backup:local
 docker run --rm \
   --network ledger_default \
   --env PGHOST --env PGPORT --env PGDATABASE --env PGUSER --env PGPASSWORD \
-  --env RESTORE_CONFIRM_DATABASE \
+  --env RESTORE_CONFIRM_DATABASE --env RESTORE_CONFIRM_HOST --env RESTORE_CONFIRM_PORT --env RESTORE_CONFIRM_FINGERPRINT \
   --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
   --mount type=bind,src="$backup_file",dst="/restore/$backup_name",readonly \
   --mount type=bind,src="$checksum_file",dst="/restore/$backup_name.sha256",readonly \
@@ -69,12 +81,12 @@ docker run --rm \
   ledger-backup:local "/restore/$backup_name"
 ```
 
-`restore-db.sh` validates the ciphertext against its SHA-256 metadata before it
-starts, then streams `age --decrypt` directly into
-`pg_restore --clean --if-exists --no-owner --exit-on-error`. It never creates a
-plaintext dump. A checksum failure, tampered ciphertext, missing metadata, or
-confirmation mismatch must stop the operation; investigate rather than using a
-workaround.
+`restore-db.sh` stages private copies, validates their SHA-256 metadata, checks
+that the target is empty, and requires exact database, host, port, and
+fingerprint confirmations before streaming `age --decrypt` directly into
+`pg_restore --single-transaction --no-owner --exit-on-error`. It never creates
+a plaintext dump and never uses `--clean`. A checksum failure, tampered
+ciphertext, non-empty target, or confirmation mismatch must stop the operation.
 
 ## Restore drill
 
