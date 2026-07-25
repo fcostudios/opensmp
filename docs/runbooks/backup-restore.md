@@ -116,37 +116,63 @@ follow a written retention policy; a local volume alone is not a backup.
 
 ## Guarded restore
 
-1. Obtain all four artifacts and the matching public verification key through
-   the operator vault.
-2. Choose a **new, absent** final target. Authenticate as
-   `ledger_restore_admin`, not `ledger_owner`. It is an unprivileged,
-   `NOINHERIT`, `NOSUPERUSER`, `NOCREATEROLE` role with `CREATEDB` and
-   membership in `ledger_owner`, so it may `SET ROLE ledger_owner` only inside
-   the guarded restore transaction. It also has the narrowly granted
-   `EXECUTE` privilege on `pg_catalog.pg_control_system()`. On an existing
-   PostgreSQL volume, run `./infra/postgres/apply-roles.sh` first so those
-   grants and the restore-admin password exist.
-3. Resolve and pin one endpoint. The signed source `system_identifier` is
-   authenticated backup provenance and requires an explicit operator
-   confirmation. The target endpoint's `system_identifier` is a **separate**
-   explicit confirmation. A logical dump may be restored to a replacement
-   cluster with a different target identifier. A physical failover workflow is
-   different: it must retain the source identifier.
-4. Use discrete libpq variables. Never put a password in a URI or argv.
+This procedure is for an **isolated replacement target only**. Stop the target
+application and worker first, or use a cluster that has never served them. Do
+not restore into an active application cluster or use this as a way to alter an
+existing database. The final database name must be new and absent.
+
+`ledger_restore_admin` is deliberately disabled by default: it is `NOLOGIN`,
+`NOINHERIT`, `CREATEDB`, `NOSUPERUSER`, `NOCREATEROLE`, has no password hash,
+and has no membership in `ledger_owner`. Re-running
+`./infra/postgres/apply-roles.sh` on an existing volume converges back to that
+disabled state. It never provisions a restore password or authority.
+
+Only the temporary restore-window scripts may enable the role. They must run
+from a protected operator shell using a target-cluster super-admin connection;
+the restore role itself cannot read the target system identifier or open its
+own window. Every prepare/finalize operation acquires the same PostgreSQL
+maintenance lock `(741263, 2)`, verifies the independently confirmed target
+system identifier while holding it, and writes an audit event without secrets.
+
+1. Obtain all four backup artifacts and the matching public verification key
+   from the operator vault.
+2. Pin one target endpoint: use a numeric address (or a Unix socket directory),
+   never a mutable DNS name. Confirm it is the isolated, stopped target.
+3. Obtain the target `system_identifier` through the protected super-admin
+   connection. The backup manifest's source identifier is authenticated source
+   provenance; it does not replace the separate target confirmation. A logical
+   restore normally uses a different target identifier.
+4. Set the variables below in a protected shell with tracing disabled. Secrets
+   are environment values or private files; never place them in a URI, argv,
+   shell history, audit log, or application configuration.
 
 ```bash
 unset DATABASE_URL
-export PGHOST='203.0.113.10' # one explicit address, not a round-robin name
-export PGPORT='5432'
-export PGUSER='ledger_restore_admin'
-export PGPASSWORD='REDACTED'
+set +x
+export RESTORE_WINDOW_PGHOST='203.0.113.10' # one explicit address
+export RESTORE_WINDOW_PGPORT='5432'
+export RESTORE_WINDOW_SUPERADMIN_USER='postgres'
+export RESTORE_WINDOW_SUPERADMIN_PASSWORD='REDACTED_FROM_VAULT'
+export RESTORE_WINDOW_ADMIN_DATABASE='postgres'
+export RESTORE_WINDOW_ISOLATED_TARGET_CONFIRMATION='I_CONFIRM_TARGET_IS_ISOLATED_AND_APPLICATION_STOPPED'
+export RESTORE_WINDOW_AUDIT_LOG='/srv/ledger/restore-audit/restore-window.jsonl'
+export RESTORE_WINDOW_TTL_SECONDS='300' # 1–900 seconds; keep the window short
+
+# This is a protected super-admin query; the secret is not part of argv.
+target_system_identifier="$(PGPASSWORD="$RESTORE_WINDOW_SUPERADMIN_PASSWORD" psql \
+  --no-psqlrc --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 \
+  --host="$RESTORE_WINDOW_PGHOST" --port="$RESTORE_WINDOW_PGPORT" \
+  --username="$RESTORE_WINDOW_SUPERADMIN_USER" --dbname="$RESTORE_WINDOW_ADMIN_DATABASE" \
+  --command 'SELECT (pg_control_system()).system_identifier')"
+export RESTORE_WINDOW_TARGET_SYSTEM_IDENTIFIER="$target_system_identifier"
+export RESTORE_WINDOW_CONFIRM_FINGERPRINT="${RESTORE_WINDOW_PGHOST}:${RESTORE_WINDOW_PGPORT}#${target_system_identifier}"
+
+# Required by restore-db.sh after the guarded wrapper opens the role.
+export PGHOST="$RESTORE_WINDOW_PGHOST"
+export PGPORT="$RESTORE_WINDOW_PGPORT"
 export RESTORE_ADMIN_DATABASE='postgres'
 export RESTORE_TARGET_DATABASE='ledger_restore_20260725'
 export RESTORE_TARGET_OWNER='ledger_owner'
-
-target_system_identifier="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 \
-  --host="$PGHOST" --port="$PGPORT" --username="$PGUSER" --dbname="$RESTORE_ADMIN_DATABASE" \
-  --command 'SELECT (pg_control_system()).system_identifier')"
 backup_file="$PWD/ledger-YYYYMMDDHHMMSS.dump.age"
 backup_name="$(basename "$backup_file")"
 checksum_file="$backup_file.sha256"
@@ -159,17 +185,29 @@ verify_key_file="$PWD/ledger-backup-verify.pub"
 minisign -Vm "$manifest_file" -p "$verify_key_file" -x "$signature_file"
 source_system_identifier="$(awk -F= '$1 == "source_system_identifier" { print $2 }' "$manifest_file")"
 export RESTORE_CONFIRM_DATABASE="$RESTORE_TARGET_DATABASE"
-export RESTORE_CONFIRM_HOST="$PGHOST"
-export RESTORE_CONFIRM_PORT="$PGPORT"
+export RESTORE_CONFIRM_HOST="$RESTORE_WINDOW_PGHOST"
+export RESTORE_CONFIRM_PORT="$RESTORE_WINDOW_PGPORT"
 export RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER="$source_system_identifier"
 export RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER="$target_system_identifier"
-export RESTORE_CONFIRM_FINGERPRINT="${RESTORE_TARGET_DATABASE}@${PGHOST}:${PGPORT}#${target_system_identifier}"
+export RESTORE_CONFIRM_FINGERPRINT="${RESTORE_TARGET_DATABASE}@${RESTORE_WINDOW_PGHOST}:${RESTORE_WINDOW_PGPORT}#${target_system_identifier}"
 chmod 600 "$identity_file"
 
+# Build only the pinned restore-tool image. Its guarded entrypoint generates a
+# 0600 credential inside the container; the credential never appears in argv,
+# a host file, or the audit log. The bound audit file must already be owned by
+# the operator UID passed to the container and have mode 0600.
+[[ ! -L "$RESTORE_WINDOW_AUDIT_LOG" ]] || { echo 'audit log must not be a symlink' >&2; exit 1; }
+[[ -e "$RESTORE_WINDOW_AUDIT_LOG" ]] || install -m 600 /dev/null "$RESTORE_WINDOW_AUDIT_LOG"
+chmod 600 "$RESTORE_WINDOW_AUDIT_LOG"
 docker build -f infra/backup/Dockerfile infra -t ledger-backup:local
 docker run --rm --user "$(id -u):$(id -g)" \
   --network ledger_default \
-  --env PGHOST --env PGPORT --env PGUSER --env PGPASSWORD \
+  --env RESTORE_WINDOW_PGHOST --env RESTORE_WINDOW_PGPORT \
+  --env RESTORE_WINDOW_SUPERADMIN_USER --env RESTORE_WINDOW_SUPERADMIN_PASSWORD \
+  --env RESTORE_WINDOW_ADMIN_DATABASE --env RESTORE_WINDOW_TARGET_SYSTEM_IDENTIFIER \
+  --env RESTORE_WINDOW_CONFIRM_FINGERPRINT --env RESTORE_WINDOW_ISOLATED_TARGET_CONFIRMATION \
+  --env RESTORE_WINDOW_TTL_SECONDS \
+  --env PGHOST --env PGPORT \
   --env RESTORE_ADMIN_DATABASE --env RESTORE_TARGET_DATABASE --env RESTORE_TARGET_OWNER \
   --env RESTORE_CONFIRM_DATABASE --env RESTORE_CONFIRM_HOST --env RESTORE_CONFIRM_PORT \
   --env RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER --env RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER \
@@ -182,15 +220,25 @@ docker run --rm --user "$(id -u):$(id -g)" \
   --mount type=bind,src="$signature_file",dst="/restore/$backup_name.manifest.minisig",readonly \
   --mount type=bind,src="$identity_file",dst=/run/restore/identity.txt,readonly \
   --mount type=bind,src="$verify_key_file",dst=/run/restore/verify.pub,readonly \
-  --entrypoint /usr/local/bin/restore-db.sh \
+  --mount type=bind,src="$RESTORE_WINDOW_AUDIT_LOG",dst=/run/restore/window.audit.jsonl \
+  --env RESTORE_WINDOW_AUDIT_LOG=/run/restore/window.audit.jsonl \
+  --entrypoint /usr/local/bin/run-guarded-restore.sh \
   ledger-backup:local "/restore/$backup_name"
 ```
 
-The script takes no-follow descriptor copies of the backup artifacts into a
-private staging directory, keeps the private age identity on its original
-no-follow descriptor, verifies the checksum and Ed25519-signed manifest, then
-confirms the signed source provenance and independently confirmed target
-cluster. It resolves and pins the endpoint before mutation.
+`run-guarded-restore.sh` calls prepare, runs the restore, and has `EXIT`,
+`INT`, and `TERM` traps that always call finalize. Prepare itself also invokes
+finalize if an error occurs after it might have changed authority. It generates
+a random one-use credential (or accepts an existing 0600 regular credential
+file when explicitly directed), sends it to PostgreSQL's `\password` prompt
+on standard input, and never logs it. The role is granted `ledger_owner` only
+for the configured short `VALID UNTIL` interval.
+
+The restore script takes no-follow descriptor copies of the backup artifacts
+into a private staging directory, keeps the private age identity on its
+original no-follow descriptor, verifies the checksum and Ed25519-signed
+manifest, then confirms the signed source provenance and independently
+confirmed target cluster. It resolves and pins the endpoint before mutation.
 
 For all target prechecks, creation, restore, and promotion, one persistent
 admin `psql` session holds PostgreSQL advisory lock `(741263, 2)`. The script
@@ -220,6 +268,25 @@ endpoint, cluster, permission, promotion, or late SQL failure leaves the
 staging database quarantined and prints its exact name and OID. This avoids a
 name-based cleanup race.
 
+### Emergency finalization
+
+If a shell, container, or host fails after prepare, **do not retry the
+restore or reuse its credential**. From a protected super-admin shell, export
+the same `RESTORE_WINDOW_*` target, confirmation, and audit variables shown
+above, then run:
+
+```bash
+./infra/postgres/finalize-restore-window.sh
+```
+
+Finalize is idempotent and deliberately performs this order: `NOLOGIN` and
+credential removal first, revoke `ledger_owner`, then terminate every
+`ledger_restore_admin` session and verify `NOLOGIN`, a null password hash, no
+membership, and zero sessions. A `VALID UNTIL` expiry prevents new password
+authentication but does **not** replace finalization; membership must still be
+revoked and an audit event recorded. Treat a failed finalization as an
+incident: keep the application stopped and target isolated until it succeeds.
+
 ### Maintenance coordination boundary
 
 The advisory lock is an operational coordination mechanism, not a defence
@@ -243,12 +310,13 @@ Do not run a drop when this query returns no row or anything unexpected:
 export QUARANTINE_DATABASE='ledger_restore_stage_...'
 export QUARANTINE_DATABASE_OID='12345' # exact OID printed by restore-db.sh
 
-psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 \
-  --host="$PGHOST" --port="$PGPORT" --username="$PGUSER" --dbname="$RESTORE_ADMIN_DATABASE" \
+PGPASSWORD="$RESTORE_WINDOW_SUPERADMIN_PASSWORD" psql --no-psqlrc --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 \
+  --host="$RESTORE_WINDOW_PGHOST" --port="$RESTORE_WINDOW_PGPORT" \
+  --username="$RESTORE_WINDOW_SUPERADMIN_USER" --dbname="$RESTORE_WINDOW_ADMIN_DATABASE" \
   --set quarantine_database="$QUARANTINE_DATABASE" \
   --set quarantine_database_oid="$QUARANTINE_DATABASE_OID" \
-  --set restore_admin_user="$PGUSER" \
-  --set restore_target_system_identifier="$RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER" \
+  --set restore_admin_user='ledger_restore_admin' \
+  --set restore_target_system_identifier="$RESTORE_WINDOW_TARGET_SYSTEM_IDENTIFIER" \
   --command "SELECT d.oid::text, r.rolname, (pg_control_system()).system_identifier::text
              FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba
              WHERE d.datname = :'quarantine_database'

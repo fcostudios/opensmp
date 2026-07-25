@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Re-apply idempotent role grants and rotate role passwords on a running
-# PostgreSQL service whose data volume has already been initialized.
+# Re-apply idempotent default-safe roles and rotate normal role passwords on a
+# running PostgreSQL service.  This always leaves ledger_restore_admin NOLOGIN,
+# ungranted, and without a password; only the guarded maintenance scripts may
+# open its temporary restore window.
 set -euo pipefail
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

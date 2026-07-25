@@ -10,9 +10,15 @@ BEGIN
     CREATE ROLE ledger_backup LOGIN;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ledger_restore_admin') THEN
-    CREATE ROLE ledger_restore_admin LOGIN CREATEDB NOINHERIT NOSUPERUSER NOCREATEROLE;
+    CREATE ROLE ledger_restore_admin NOLOGIN CREATEDB NOINHERIT NOSUPERUSER NOCREATEROLE PASSWORD NULL;
   END IF;
 END $$;
+
+-- Restore authority is disabled by default. Existing volumes are converged to
+-- this state by apply-roles.sh; a separate audited maintenance window may
+-- temporarily grant login and ledger_owner membership on an isolated target.
+ALTER ROLE ledger_restore_admin NOLOGIN CREATEDB NOINHERIT NOSUPERUSER NOCREATEROLE PASSWORD NULL;
+REVOKE ledger_owner FROM ledger_restore_admin;
 
 -- A dump reader needs data visibility but cannot alter application data.
 GRANT CONNECT ON DATABASE ledger TO ledger_backup;
@@ -25,11 +31,6 @@ GRANT pg_read_all_data TO ledger_backup;
 -- narrow extra capability the read-only backup role needs; it does not grant
 -- DDL or mutation privileges.
 GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO ledger_backup;
--- Restore administration may create a fresh target database. It deliberately
--- inherits none of the owner powers; the restore session SET ROLEs only after
--- checking the authenticated target cluster and empty staging database.
-GRANT ledger_owner TO ledger_restore_admin;
-GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO ledger_restore_admin;
--- The restore transaction checks its independently confirmed target cluster
--- before it SET ROLEs to this owner.
+-- The window supervisor authenticates the target cluster as super-admin. The
+-- application owner alone keeps the function privilege outside that window.
 GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO ledger_owner;

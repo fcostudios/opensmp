@@ -2,6 +2,8 @@
 
 backup_script="$BATS_TEST_DIRNAME/../scripts/backup-db.sh"
 restore_script="$BATS_TEST_DIRNAME/../scripts/restore-db.sh"
+prepare_window_script="$BATS_TEST_DIRNAME/../postgres/prepare-restore-window.sh"
+guarded_restore_script="$BATS_TEST_DIRNAME/../postgres/run-guarded-restore.sh"
 
 setup_file() {
   bats_require_minimum_version 1.5.0
@@ -62,8 +64,7 @@ start_postgres() {
   "$host_psql" "$fixture_host_url" --set ON_ERROR_STOP=1 <<'SQL'
 CREATE ROLE ledger_owner LOGIN PASSWORD 'owner' NOSUPERUSER NOCREATEDB NOCREATEROLE;
 CREATE ROLE ledger_backup LOGIN PASSWORD 'backup';
-CREATE ROLE ledger_restore_admin LOGIN PASSWORD 'restore' CREATEDB NOINHERIT NOSUPERUSER NOCREATEROLE;
-GRANT ledger_owner TO ledger_restore_admin;
+CREATE ROLE ledger_restore_admin NOLOGIN CREATEDB NOINHERIT NOSUPERUSER NOCREATEROLE PASSWORD NULL;
 CREATE SCHEMA ledger AUTHORIZATION ledger_owner;
 SET ROLE ledger_owner;
 CREATE TABLE ledger.ledger_fixture (id integer PRIMARY KEY, note text NOT NULL);
@@ -77,16 +78,30 @@ GRANT SELECT ON ALL TABLES IN SCHEMA ledger TO ledger_backup;
 GRANT pg_read_all_data TO ledger_backup;
 GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO ledger_backup;
 GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO ledger_owner;
-GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO ledger_restore_admin;
 SQL
   fixture_system_identifier="$("$host_psql" "$fixture_host_url" --tuples-only --no-align --command 'SELECT (pg_control_system()).system_identifier;')"
-  export PGHOST=127.0.0.1 PGPORT="$postgres_port" PGUSER=ledger_restore_admin PGPASSWORD=restore
+  export PGHOST=127.0.0.1 PGPORT="$postgres_port" PGUSER=ledger_restore_admin PGPASSWORD=restore-window-not-open
   export RESTORE_ADMIN_DATABASE=postgres RESTORE_TARGET_DATABASE=restored RESTORE_TARGET_OWNER=ledger_owner
   export RESTORE_CONFIRM_DATABASE=restored RESTORE_CONFIRM_HOST=127.0.0.1 RESTORE_CONFIRM_PORT="$postgres_port"
   export RESTORE_CONFIRM_SOURCE_SYSTEM_IDENTIFIER="$fixture_system_identifier"
   export RESTORE_CONFIRM_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier"
   export RESTORE_CONFIRM_FINGERPRINT="restored@127.0.0.1:${postgres_port}#${fixture_system_identifier}"
   export AGE_IDENTITY_FILE="$test_root/identity.txt"
+  export RESTORE_WINDOW_PGHOST=127.0.0.1 RESTORE_WINDOW_PGPORT="$postgres_port"
+  export RESTORE_WINDOW_SUPERADMIN_USER=postgres RESTORE_WINDOW_SUPERADMIN_PASSWORD=postgres
+  export RESTORE_WINDOW_ADMIN_DATABASE=postgres RESTORE_WINDOW_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier"
+  export RESTORE_WINDOW_CONFIRM_FINGERPRINT="127.0.0.1:${postgres_port}#${fixture_system_identifier}"
+  export RESTORE_WINDOW_ISOLATED_TARGET_CONFIRMATION=I_CONFIRM_TARGET_IS_ISOLATED_AND_APPLICATION_STOPPED
+  export RESTORE_WINDOW_AUDIT_LOG="$test_root/restore-window.audit.jsonl"
+}
+
+prepare_restore_window() {
+  export RESTORE_WINDOW_CREDENTIAL_FILE="$test_root/restore-window.credential"
+  export RESTORE_WINDOW_GENERATE_CREDENTIAL=1
+  export RESTORE_WINDOW_TTL_SECONDS=300
+  "$prepare_window_script"
+  restore_window_password="$(< "$RESTORE_WINDOW_CREDENTIAL_FILE")"
+  export PGPASSWORD="$restore_window_password"
 }
 
 backup_fixture() {
@@ -101,13 +116,14 @@ backup_fixture() {
     BACKUP_TIMESTAMP=20260725070000 \
     "$backup_script"
   backup_file="$backup_dir/ledger-20260725070000.dump.age"
+  prepare_restore_window
 }
 
 restore_fixture_into_new_target() {
   local target_database="$1"
   local target_owner="${2:-ledger_owner}"
   env -u DATABASE_URL \
-    PGHOST=127.0.0.1 PGPORT="$postgres_port" PGUSER=ledger_restore_admin PGPASSWORD=restore \
+    PGHOST=127.0.0.1 PGPORT="$postgres_port" PGUSER=ledger_restore_admin PGPASSWORD="$restore_window_password" \
     RESTORE_ADMIN_DATABASE=postgres \
     RESTORE_TARGET_DATABASE="$target_database" RESTORE_TARGET_OWNER="$target_owner" \
     RESTORE_CONFIRM_DATABASE="$target_database" RESTORE_CONFIRM_HOST=127.0.0.1 \
@@ -367,6 +383,22 @@ SQL
   run "$host_psql" "$target_host_url" --tuples-only --no-align --command "SELECT string_agg(hash, ',' ORDER BY hash) FROM ledger.drizzle_migrations;"
   [ "$status" -eq 0 ]
   [ "$output" = 'migration-checksum-a,migration-checksum-b' ]
+}
+
+@test "guarded restore wrapper succeeds under the maintenance lock and finalizes its temporary authority" {
+  start_postgres
+  backup_fixture
+  target_host_url="${fixture_host_url%/fixture}/restored"
+
+  run "$guarded_restore_script" "$backup_file"
+  [ "$status" -eq 0 ]
+  run "$host_psql" "$target_host_url" --tuples-only --no-align --command 'SELECT count(*) FROM ledger.ledger_fixture;'
+  [ "$status" -eq 0 ]
+  [ "$output" = '2' ]
+  run "$host_psql" "${fixture_host_url%/fixture}/postgres" --tuples-only --no-align --command "SELECT rolcanlogin::text || '|' || (SELECT count(*) FROM pg_auth_members m JOIN pg_roles parent ON parent.oid = m.roleid JOIN pg_roles member ON member.oid = m.member WHERE parent.rolname = 'ledger_owner' AND member.rolname = 'ledger_restore_admin')::text FROM pg_roles WHERE rolname = 'ledger_restore_admin';"
+  [ "$status" -eq 0 ]
+  [ "$output" = 'false|0' ]
+  [ ! -e "$RESTORE_WINDOW_CREDENTIAL_FILE" ]
 }
 
 @test "restore-admin creates the target while restored objects remain ledger-owned" {
@@ -896,7 +928,12 @@ SQL
     --mount "type=bind,src=$image_backup_dir,dst=/backups,readonly" \
     --mount "type=bind,src=$test_root/identity.txt,dst=/run/restore/identity.txt,readonly" \
     --mount "type=bind,src=$test_root/backup-verify.pub,dst=/run/restore/verify.pub,readonly" \
-    --env PGHOST=127.0.0.1 --env PGPORT=5432 --env PGUSER=ledger_restore_admin --env PGPASSWORD=restore \
+    --env RESTORE_WINDOW_PGHOST=127.0.0.1 --env RESTORE_WINDOW_PGPORT=5432 \
+    --env RESTORE_WINDOW_SUPERADMIN_USER=postgres --env RESTORE_WINDOW_SUPERADMIN_PASSWORD=postgres \
+    --env RESTORE_WINDOW_ADMIN_DATABASE=postgres --env RESTORE_WINDOW_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_WINDOW_CONFIRM_FINGERPRINT="127.0.0.1:5432#$fixture_system_identifier" \
+    --env RESTORE_WINDOW_ISOLATED_TARGET_CONFIRMATION=I_CONFIRM_TARGET_IS_ISOLATED_AND_APPLICATION_STOPPED \
+    --env RESTORE_WINDOW_TTL_SECONDS=300 --env RESTORE_WINDOW_AUDIT_LOG=/tmp/restore-window.audit.jsonl \
     --env RESTORE_ADMIN_DATABASE=postgres --env RESTORE_TARGET_DATABASE=restored --env RESTORE_TARGET_OWNER=ledger_owner \
     --env RESTORE_CONFIRM_DATABASE=restored --env RESTORE_CONFIRM_HOST=127.0.0.1 \
     --env RESTORE_CONFIRM_PORT=5432 \
@@ -905,11 +942,14 @@ SQL
     --env RESTORE_CONFIRM_FINGERPRINT="restored@127.0.0.1:5432#$fixture_system_identifier" \
     --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
     --env BACKUP_VERIFY_KEY_FILE=/run/restore/verify.pub \
-    --entrypoint /usr/local/bin/restore-db.sh ledger-backup:local /backups/ledger-20260725070004.dump.age
+    --entrypoint /usr/local/bin/run-guarded-restore.sh ledger-backup:local /backups/ledger-20260725070004.dump.age
   [ "$status" -eq 0 ]
   run "$host_psql" "$target_host_url" --tuples-only --no-align --command 'SELECT count(*) FROM ledger.ledger_fixture;'
   [ "$status" -eq 0 ]
   [ "$output" = '2' ]
+  run "$host_psql" "${fixture_host_url%/fixture}/postgres" --tuples-only --no-align --command "SELECT rolcanlogin::text || '|' || (SELECT count(*) FROM pg_auth_members m JOIN pg_roles parent ON parent.oid = m.roleid JOIN pg_roles member ON member.oid = m.member WHERE parent.rolname = 'ledger_owner' AND member.rolname = 'ledger_restore_admin')::text FROM pg_roles WHERE rolname = 'ledger_restore_admin';"
+  [ "$status" -eq 0 ]
+  [ "$output" = 'false|0' ]
 }
 
 @test "Linux restore image accepts a host 0600 identity as the invoking UID and GID" {
@@ -925,7 +965,12 @@ SQL
     --mount "type=bind,src=$backup_file.manifest.minisig,dst=/restore/$(basename "$backup_file").manifest.minisig,readonly" \
     --mount "type=bind,src=$test_root/identity.txt,dst=/run/restore/identity.txt,readonly" \
     --mount "type=bind,src=$test_root/backup-verify.pub,dst=/run/restore/verify.pub,readonly" \
-    --env PGHOST=127.0.0.1 --env PGPORT=5432 --env PGUSER=ledger_restore_admin --env PGPASSWORD=restore \
+    --env RESTORE_WINDOW_PGHOST=127.0.0.1 --env RESTORE_WINDOW_PGPORT=5432 \
+    --env RESTORE_WINDOW_SUPERADMIN_USER=postgres --env RESTORE_WINDOW_SUPERADMIN_PASSWORD=postgres \
+    --env RESTORE_WINDOW_ADMIN_DATABASE=postgres --env RESTORE_WINDOW_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_WINDOW_CONFIRM_FINGERPRINT="127.0.0.1:5432#$fixture_system_identifier" \
+    --env RESTORE_WINDOW_ISOLATED_TARGET_CONFIRMATION=I_CONFIRM_TARGET_IS_ISOLATED_AND_APPLICATION_STOPPED \
+    --env RESTORE_WINDOW_TTL_SECONDS=300 --env RESTORE_WINDOW_AUDIT_LOG=/tmp/restore-window.audit.jsonl \
     --env RESTORE_ADMIN_DATABASE=postgres --env RESTORE_TARGET_DATABASE=restored --env RESTORE_TARGET_OWNER=ledger_owner \
     --env RESTORE_CONFIRM_DATABASE=restored --env RESTORE_CONFIRM_HOST=127.0.0.1 \
     --env RESTORE_CONFIRM_PORT=5432 \
@@ -934,7 +979,7 @@ SQL
     --env RESTORE_CONFIRM_FINGERPRINT="restored@127.0.0.1:5432#$fixture_system_identifier" \
     --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
     --env BACKUP_VERIFY_KEY_FILE=/run/restore/verify.pub \
-    --entrypoint /usr/local/bin/restore-db.sh ledger-backup:local "/restore/$(basename "$backup_file")"
+    --entrypoint /usr/local/bin/run-guarded-restore.sh ledger-backup:local "/restore/$(basename "$backup_file")"
   [ "$status" -eq 0 ]
   run "$host_psql" "$target_host_url" --tuples-only --no-align --command 'SELECT count(*) FROM ledger.ledger_fixture;'
   [ "$status" -eq 0 ]
@@ -990,7 +1035,12 @@ SQL
     --mount "type=bind,src=$backup_file.manifest.minisig,dst=/restore/$mounted_name.manifest.minisig,readonly" \
     --mount "type=bind,src=$test_root/identity.txt,dst=/run/restore/identity.txt,readonly" \
     --mount "type=bind,src=$test_root/backup-verify.pub,dst=/run/restore/verify.pub,readonly" \
-    --env PGHOST=127.0.0.1 --env PGPORT=5432 --env PGUSER=ledger_restore_admin --env PGPASSWORD=restore \
+    --env RESTORE_WINDOW_PGHOST=127.0.0.1 --env RESTORE_WINDOW_PGPORT=5432 \
+    --env RESTORE_WINDOW_SUPERADMIN_USER=postgres --env RESTORE_WINDOW_SUPERADMIN_PASSWORD=postgres \
+    --env RESTORE_WINDOW_ADMIN_DATABASE=postgres --env RESTORE_WINDOW_TARGET_SYSTEM_IDENTIFIER="$fixture_system_identifier" \
+    --env RESTORE_WINDOW_CONFIRM_FINGERPRINT="127.0.0.1:5432#$fixture_system_identifier" \
+    --env RESTORE_WINDOW_ISOLATED_TARGET_CONFIRMATION=I_CONFIRM_TARGET_IS_ISOLATED_AND_APPLICATION_STOPPED \
+    --env RESTORE_WINDOW_TTL_SECONDS=300 --env RESTORE_WINDOW_AUDIT_LOG=/tmp/restore-window.audit.jsonl \
     --env RESTORE_ADMIN_DATABASE=postgres --env RESTORE_TARGET_DATABASE=restored --env RESTORE_TARGET_OWNER=ledger_owner \
     --env RESTORE_CONFIRM_DATABASE=restored --env RESTORE_CONFIRM_HOST=127.0.0.1 \
     --env RESTORE_CONFIRM_PORT=5432 \
@@ -999,7 +1049,7 @@ SQL
     --env RESTORE_CONFIRM_FINGERPRINT="restored@127.0.0.1:5432#$fixture_system_identifier" \
     --env AGE_IDENTITY_FILE=/run/restore/identity.txt \
     --env BACKUP_VERIFY_KEY_FILE=/run/restore/verify.pub \
-    --entrypoint /usr/local/bin/restore-db.sh ledger-backup:local "/restore/$mounted_name"
+    --entrypoint /usr/local/bin/run-guarded-restore.sh ledger-backup:local "/restore/$mounted_name"
   [ "$status" -eq 0 ]
   run "$host_psql" "$target_host_url" --tuples-only --no-align --command 'SELECT count(*) FROM ledger.ledger_fixture;'
   [ "$status" -eq 0 ]

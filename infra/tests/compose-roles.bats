@@ -7,6 +7,10 @@ env_example="$repo_root/.env.example"
 roles_sql="$repo_root/infra/postgres/init/001-roles.sql"
 passwords_script="$repo_root/infra/postgres/init/002-set-role-passwords.sh"
 apply_roles_script="$repo_root/infra/postgres/apply-roles.sh"
+prepare_window_script="$repo_root/infra/postgres/prepare-restore-window.sh"
+finalize_window_script="$repo_root/infra/postgres/finalize-restore-window.sh"
+guarded_restore_script="$repo_root/infra/postgres/run-guarded-restore.sh"
+window_common_script="$repo_root/infra/postgres/restore-window-common.sh"
 cron_script="$repo_root/infra/backup/run-cron.sh"
 
 setup_file() {
@@ -56,27 +60,39 @@ teardown() {
   [[ "$output" == *"target: /run/ledger-secrets/backup-signing.key"* ]]
 }
 
-@test "restore administrator is a noinherit createdb role with only the restore capabilities" {
-  run grep --fixed-strings 'CREATE ROLE ledger_restore_admin LOGIN CREATEDB NOINHERIT NOSUPERUSER NOCREATEROLE;' "$roles_sql"
+@test "restore administrator is disabled and ungranted outside a maintenance window" {
+  run grep --fixed-strings 'CREATE ROLE ledger_restore_admin NOLOGIN CREATEDB NOINHERIT NOSUPERUSER NOCREATEROLE PASSWORD NULL;' "$roles_sql"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'ALTER ROLE ledger_restore_admin NOLOGIN CREATEDB NOINHERIT NOSUPERUSER NOCREATEROLE PASSWORD NULL;' "$roles_sql"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'REVOKE ledger_owner FROM ledger_restore_admin;' "$roles_sql"
   [ "$status" -eq 0 ]
   run grep --fixed-strings 'GRANT ledger_owner TO ledger_restore_admin;' "$roles_sql"
-  [ "$status" -eq 0 ]
-  run grep --fixed-strings 'GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO ledger_restore_admin;' "$roles_sql"
-  [ "$status" -eq 0 ]
-  run grep --fixed-strings 'GRANT pg_read_all_data TO ledger_restore_admin;' "$roles_sql"
   [ "$status" -ne 0 ]
 }
 
-@test "password rotation and existing-volume apply include the restore administrator" {
-  run grep --fixed-strings ': "${LEDGER_RESTORE_ADMIN_PASSWORD:?LEDGER_RESTORE_ADMIN_PASSWORD is required}"' "$passwords_script"
-  [ "$status" -eq 0 ]
-  run grep --fixed-strings "ALTER ROLE ledger_restore_admin PASSWORD :'ledger_restore_admin_password';" "$passwords_script"
-  [ "$status" -eq 0 ]
+@test "existing-volume apply leaves restore authority disabled and maintenance scripts make it temporary" {
+  run grep --fixed-strings 'ledger_restore_admin' "$passwords_script"
+  [ "$status" -ne 0 ]
   run test -x "$apply_roles_script"
   [ "$status" -eq 0 ]
   run grep --fixed-strings '/docker-entrypoint-initdb.d/001-roles.sql' "$apply_roles_script"
   [ "$status" -eq 0 ]
-  run grep --fixed-strings '/docker-entrypoint-initdb.d/002-set-role-passwords.sh' "$apply_roles_script"
+  run test -x "$prepare_window_script"
+  [ "$status" -eq 0 ]
+  run test -x "$finalize_window_script"
+  [ "$status" -eq 0 ]
+  run test -x "$guarded_restore_script"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'restore-window-common.sh' "$prepare_window_script"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'pg_advisory_lock(741263, 2)' "$window_common_script"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'ALTER ROLE ledger_restore_admin NOLOGIN' "$finalize_window_script"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'REVOKE ledger_owner FROM ledger_restore_admin' "$finalize_window_script"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'trap finalize_restore_window EXIT INT TERM' "$guarded_restore_script"
   [ "$status" -eq 0 ]
 }
 
