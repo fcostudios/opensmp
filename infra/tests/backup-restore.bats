@@ -170,6 +170,14 @@ backup_fixture() {
   [[ "$output" == *'postgresql:///ledger%5Frestore?sslmode=disable'* ]]
 }
 
+@test "Unix-socket restore identity uses the server's single normalized socket directory" {
+  start_postgres
+  run env DATABASE_URL='postgresql://postgres@/fixture' \
+    bash -c 'source "$1"; prepare_database_connection; effective_target_identity' _ "$BATS_TEST_DIRNAME/../scripts/backup-common.sh"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'fixture\tunix:/var/run/postgresql\t5432' ]
+}
+
 @test "discrete libpq variables preserve a reserved password without a URI" {
   start_postgres
   reserved_password='p@ss:word?with/slash'
@@ -257,6 +265,27 @@ backup_fixture() {
   [ "$status" -ne 0 ]
   [[ "$output" == *'target database is not empty'* ]]
   run "$host_psql" "$target_host_url" --tuples-only --no-align --command 'SELECT count(*) FROM keep_me;'
+  [ "$status" -eq 0 ]
+  [ "$output" = '1' ]
+}
+
+@test "restore refuses an otherwise relation-free target with a user schema function and enum" {
+  start_postgres
+  backup_fixture
+  target_url="${fixture_url%/fixture}/restored"
+  target_host_url="${fixture_host_url%/fixture}/restored"
+  "$host_psql" "${fixture_host_url%/fixture}/postgres" --set ON_ERROR_STOP=1 --command 'CREATE DATABASE restored;'
+  "$host_psql" "$target_host_url" --set ON_ERROR_STOP=1 <<'SQL'
+CREATE SCHEMA adversary;
+CREATE TYPE public.restore_guard_enum AS ENUM ('blocked');
+CREATE FUNCTION public.restore_guard_function() RETURNS integer LANGUAGE sql AS 'SELECT 1';
+SQL
+
+  run env DATABASE_URL="$target_url" RESTORE_CONFIRM_DATABASE=restored \
+    AGE_IDENTITY_FILE="$test_root/identity.txt" "$restore_script" "$backup_file"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'target database is not empty'* ]]
+  run "$host_psql" "$target_host_url" --tuples-only --no-align --command 'SELECT public.restore_guard_function();'
   [ "$status" -eq 0 ]
   [ "$output" = '1' ]
 }
@@ -397,6 +426,19 @@ backup_fixture() {
   [ "$status" -eq 0 ]
   run grep --fixed-strings 'AGE_IDENTITY_FILE' "$BATS_TEST_DIRNAME/../backup/Dockerfile"
   [ "$status" -ne 0 ]
+}
+
+@test "cron wrapper preserves a failed Docker backup exit through logger" {
+  cron_wrapper="$BATS_TEST_DIRNAME/../backup/run-cron.sh"
+  mkdir "$test_root/cron-bin"
+  printf '%s\n' '#!/usr/bin/env bash' 'exit 42' > "$test_root/cron-bin/docker"
+  printf '%s\n' '#!/usr/bin/env bash' 'cat >/dev/null' > "$test_root/cron-bin/logger"
+  chmod 0700 "$test_root/cron-bin/docker" "$test_root/cron-bin/logger"
+  run env PATH="$test_root/cron-bin:$PATH" "$cron_wrapper"
+  [ "$status" -eq 42 ]
+  printf '%s\n' '#!/usr/bin/env bash' 'printf successful-backup' > "$test_root/cron-bin/docker"
+  run env PATH="$test_root/cron-bin:$PATH" "$cron_wrapper"
+  [ "$status" -eq 0 ]
 }
 
 @test "backup build context excludes restore identities" {

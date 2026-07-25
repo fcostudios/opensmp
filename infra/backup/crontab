@@ -1,4 +1,4 @@
 # Ledger database backup schedule. Cron runs in UTC; 07:00 UTC is 02:00
 # America/Guayaquil year-round. Install this file on the VPS operator account.
 CRON_TZ=UTC
-0 7 * * * cd /opt/ledger && /usr/bin/docker compose -f infra/docker-compose.yml --profile backup run --rm backup 2>&1 | /usr/bin/logger -t ledger-backup
+0 7 * * * cd /opt/ledger && /usr/bin/env bash infra/backup/run-cron.sh

@@ -90,11 +90,46 @@ effective_database_name() {
 }
 
 effective_target_identity() {
-  local identity database host port
-  identity="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 --field-separator $'\t' "${DATABASE_CLIENT_ARGS[@]}" --command "SELECT current_database(), COALESCE(host(inet_server_addr()), ''), inet_server_port()")"
-  IFS=$'\t' read -r database host port <<< "$identity"
+  local identity database host port socket_directories
+  identity="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 --field-separator '|' "${DATABASE_CLIENT_ARGS[@]}" --command "SELECT current_database(), COALESCE(host(inet_server_addr()), '<unix>'), inet_server_port()")"
+  IFS='|' read -r database host port <<< "$identity"
+  if [[ "$host" == '<unix>' ]]; then
+    socket_directories="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 "${DATABASE_CLIENT_ARGS[@]}" --command 'SHOW unix_socket_directories')"
+    socket_directories="${socket_directories#"${socket_directories%%[![:space:]]*}"}"
+    socket_directories="${socket_directories%"${socket_directories##*[![:space:]]}"}"
+    [[ "$socket_directories" =~ ^/[^,[:space:]]*$ && "$socket_directories" != *'//'* && "$socket_directories" != *'/./'* && "$socket_directories" != *'/../'* && "$socket_directories" != */. && "$socket_directories" != */.. ]] || fail 'could not determine an unambiguous Unix socket directory'
+    host="unix:${socket_directories%/}"
+  fi
+  if [[ -z "$port" ]]; then
+    port="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 "${DATABASE_CLIENT_ARGS[@]}" --command 'SHOW port')"
+  fi
   [[ "$database" =~ ^[[:print:]]+$ && "$host" =~ ^[[:print:]]+$ && "$port" =~ ^[0-9]+$ ]] || fail 'could not determine effective restore target identity'
   printf '%s\t%s\t%s\n' "$database" "$host" "$port"
+}
+
+target_user_object_count() {
+  psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 "${DATABASE_CLIENT_ARGS[@]}" --command "
+WITH user_schemas AS (
+  SELECT oid FROM pg_namespace
+  WHERE nspname NOT LIKE 'pg_%' AND nspname NOT IN ('information_schema', 'public')
+), public_schema AS (
+  SELECT oid FROM pg_namespace WHERE nspname = 'public'
+), candidate_schemas AS (
+  SELECT oid FROM user_schemas UNION ALL SELECT oid FROM public_schema
+)
+SELECT
+  (SELECT count(*) FROM user_schemas)
+  + (SELECT count(*) FROM pg_class WHERE relnamespace IN (SELECT oid FROM candidate_schemas))
+  + (SELECT count(*) FROM pg_proc WHERE pronamespace IN (SELECT oid FROM candidate_schemas))
+  + (SELECT count(*) FROM pg_type WHERE typnamespace IN (SELECT oid FROM candidate_schemas))
+  + (SELECT count(*) FROM pg_operator WHERE oprnamespace IN (SELECT oid FROM candidate_schemas))
+  + (SELECT count(*) FROM pg_conversion WHERE connamespace IN (SELECT oid FROM candidate_schemas))
+  + (SELECT count(*) FROM pg_collation WHERE collnamespace IN (SELECT oid FROM candidate_schemas))
+  + (SELECT count(*) FROM pg_ts_config WHERE cfgnamespace IN (SELECT oid FROM candidate_schemas))
+  + (SELECT count(*) FROM pg_ts_dict WHERE dictnamespace IN (SELECT oid FROM candidate_schemas))
+  + (SELECT count(*) FROM pg_ts_parser WHERE prsnamespace IN (SELECT oid FROM candidate_schemas))
+  + (SELECT count(*) FROM pg_ts_template WHERE tmplnamespace IN (SELECT oid FROM candidate_schemas))
+  + (SELECT count(*) FROM pg_extension WHERE extname <> 'plpgsql');"
 }
 
 validate_age_recipient() {

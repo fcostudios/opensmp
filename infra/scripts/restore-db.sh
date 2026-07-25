@@ -37,7 +37,7 @@ IFS=$'\t' read -r effective_database effective_host effective_port < <(effective
 [[ "$RESTORE_CONFIRM_PORT" == "$effective_port" ]] || fail "RESTORE_CONFIRM_PORT does not exactly match target port $effective_port"
 effective_fingerprint="${effective_database}@${effective_host}:${effective_port}"
 [[ "$RESTORE_CONFIRM_FINGERPRINT" == "$effective_fingerprint" ]] || fail 'RESTORE_CONFIRM_FINGERPRINT does not exactly match target fingerprint'
-user_object_count="$(psql --no-align --tuples-only --quiet --set ON_ERROR_STOP=1 "${DATABASE_CLIENT_ARGS[@]}" --command "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname NOT IN ('pg_catalog', 'information_schema') AND n.nspname !~ '^pg_toast' AND c.relkind IN ('r', 'p', 'v', 'm', 'S', 'f');")"
+user_object_count="$(target_user_object_count)"
 [[ "$user_object_count" == '0' ]] || fail 'target database is not empty'
 require_environment AGE_IDENTITY_FILE
 [[ -f "$AGE_IDENTITY_FILE" && -r "$AGE_IDENTITY_FILE" ]] || fail 'AGE_IDENTITY_FILE must be a readable file'
