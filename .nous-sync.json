@@ -1,9 +1,9 @@
 {
-  "synced_at": "2026-07-26T04:09:18.789636+00:00",
+  "synced_at": "2026-07-26T04:10:18.461240+00:00",
   "project_id": "fcostudios__smp",
   "files": {
     "docs/stories/SPRINT_PLAN.md": {
-      "hash": "84cd7982bf8a17d2",
+      "hash": "4ddee37269ae07e5",
       "source": "generated"
     },
     "docs/stories/CHANGES.md": {
@@ -11,7 +11,7 @@
       "source": "generated"
     },
     "docs/stories/ASSIGNMENTS.md": {
-      "hash": "282a1986cab9983b",
+      "hash": "e7697dd73dce4e9b",
       "source": "generated"
     },
     "testing/critical-paths.md": {
@@ -19,7 +19,7 @@
       "source": "generated"
     },
     ".nous-project.json": {
-      "hash": "1f029612c059158f",
+      "hash": "901f7898ecfeab53",
       "source": "generated"
     },
     "docs/stories/INDEX.md": {
