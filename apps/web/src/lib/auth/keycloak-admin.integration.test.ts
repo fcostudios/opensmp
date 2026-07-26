@@ -35,7 +35,7 @@ async function resolveKeycloakBaseUrl(): Promise<string> {
 }
 
 async function waitForKeycloak(): Promise<void> {
-  const deadline = Date.now() + 90_000;
+  const deadline = Date.now() + 120_000;
   while (Date.now() < deadline) {
     try {
       const response = await fetch(`${baseUrl}/realms/corporativo`, {
