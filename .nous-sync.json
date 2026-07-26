@@ -1,9 +1,9 @@
 {
-  "synced_at": "2026-07-26T05:13:05.903545+00:00",
+  "synced_at": "2026-07-26T20:12:32.572082+00:00",
   "project_id": "fcostudios__smp",
   "files": {
     "docs/stories/SPRINT_PLAN.md": {
-      "hash": "80c914d2c1ea5758",
+      "hash": "9345e52b36d920f4",
       "source": "generated"
     },
     "docs/stories/CHANGES.md": {
@@ -19,7 +19,7 @@
       "source": "generated"
     },
     ".nous-project.json": {
-      "hash": "1d967c081aa22fad",
+      "hash": "e25361ebd379fe9f",
       "source": "generated"
     },
     "docs/stories/INDEX.md": {
