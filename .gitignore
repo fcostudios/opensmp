@@ -42,3 +42,7 @@ infra/backups/
 
 # Operator-managed backup signing secrets belong outside the checkout.
 *.key
+
+# Operator-managed Sprint 1 import inventory and sanitized probe runtime output.
+data/imports/private/**
+docs/spikes/US-054-anthropic-api-probe.runtime.json
