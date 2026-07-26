@@ -1,3 +1,4 @@
 @import "tailwindcss";
-@import "../../src/styles/tokens.css";
+@source "../../../../packages/ui/src";
+@import "../styles/tokens.css";
 h1, h2 { font-family: var(--font-display); }

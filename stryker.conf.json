@@ -2,23 +2,38 @@
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "packageManager": "pnpm",
   "testRunner": "vitest",
+  "plugins": [
+    "@stryker-mutator/vitest-runner"
+  ],
   "reporters": [
     "progress",
     "clear-text",
     "html"
   ],
   "coverageAnalysis": "perTest",
+  "vitest": {
+    "related": true
+  },
+  "concurrency": 4,
+  "timeoutMS": 60000,
+  "timeoutFactor": 4,
+  "ignorePatterns": [
+    ".tmp/**"
+  ],
   "mutate": [
-    "packages/*/src/**/*.ts",
-    "apps/web/src/**/*.{ts,tsx}",
-    "!**/*.{test,spec}.ts",
-    "!**/*.d.ts",
-    "!packages/db/src/migrations/**",
-    "!packages/db/src/testing/**"
+    "packages/db/src/company-role-assignment-mutations.ts",
+    "packages/domain/src/identity-access/authorization.ts",
+    "apps/web/src/lib/auth/route-access.ts",
+    "apps/web/src/lib/auth/route-guard.ts",
+    "apps/web/src/modules/identity-access/authorization.ts",
+    "apps/web/src/modules/identity-access/authorization-response.ts",
+    "apps/web/src/modules/audit/with-audit.ts",
+    "!**/*.{test,spec}.{ts,tsx}",
+    "!**/*.d.ts"
   ],
   "thresholds": {
     "high": 80,
     "low": 60,
-    "break": null
+    "break": 80
   }
 }

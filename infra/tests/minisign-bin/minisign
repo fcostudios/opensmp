@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Test adapter: execute the production image's pinned Minisign binary against
+# files in one ephemeral Bats directory. This is a real Ed25519 operation, not
+# a replacement cryptographic implementation.
+set -euo pipefail
+
+mount_args=()
+rewritten=()
+mount_index_for() {
+  local directory="$1"
+  local index
+  for index in "${!mount_args[@]}"; do
+    if [[ "${mount_args[$index]}" == "$directory" ]]; then
+      MOUNT_INDEX="$index"
+      return 0
+    fi
+  done
+  mount_args+=("$directory")
+  MOUNT_INDEX="$(( ${#mount_args[@]} - 1 ))"
+}
+while (( "$#" )); do
+  argument="$1"
+  case "$argument" in
+    -s|-p|-m|-x|-Vm)
+      shift
+      value="$1"
+      directory="$(dirname "$value")"
+      mount_index_for "$directory"
+      rewritten+=("$argument" "/work/$MOUNT_INDEX/$(basename "$value")")
+      ;;
+    *) rewritten+=("$argument") ;;
+  esac
+  shift
+done
+
+(( ${#mount_args[@]} > 0 )) || { printf '%s\n' 'minisign test adapter requires a file argument' >&2; exit 2; }
+docker_args=(run --rm --user "$(id -u):$(id -g)")
+for index in "${!mount_args[@]}"; do
+  docker_args+=(--mount "type=bind,src=${mount_args[$index]},dst=/work/$index")
+done
+exec docker "${docker_args[@]}" --entrypoint minisign ledger-backup:local "${rewritten[@]}"

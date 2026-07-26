@@ -299,7 +299,7 @@ rtk git add AGENTS.md CLAUDE.md docs/dev-guide docs/decisions docs/stories
 rtk git commit -m "docs(architecture): reconcile Sprint 1 execution contract (CHG-001)"
 ```
 
-## Task 2: Close US-001 — reproducible workspace baseline
+## Task 2: Establish US-001 reproducible workspace baseline
 
 **Files:**
 - Modify: `package.json`
@@ -376,7 +376,12 @@ Expected: every command exits 0. Fix scaffold defects under US-001; do not suppr
 
 - [ ] **Step 6: Record AC evidence**
 
-Append one `ac_verify` event per US-001 AC, including the exact command and exit status.
+Append `ac_verify` events only for the US-001 acceptance criteria this task
+establishes: AC1 (workspace structure) and AC2 (workspace task execution).
+Include the exact command and exit status for each, then append `build_pass`
+with the successful scaffold-gate evidence. Do not append AC3 or `done` here:
+Tailwind 4 token-layer verification belongs to Task 3, so US-001 remains in
+progress after this task.
 
 - [ ] **Step 7: Commit**
 
@@ -422,7 +427,13 @@ rtk pnpm --filter smp-web lint:ds
 
 Expected: status-pill SSOT, hardcoded-color, hardcoded-string, and Lucide checks pass.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Record final US-001 evidence**
+
+Only after token enforcement passes, append the US-001 AC3 `ac_verify` event
+with the exact command and exit status, then append the story `done` event.
+Tasks 2–3 together cover US-001; Task 3 is the closing evidence boundary.
+
+- [ ] **Step 5: Commit**
 
 ```bash
 rtk git add apps/web/src/styles apps/web/src/app/globals.css packages/design-system packages/ui/src/atoms

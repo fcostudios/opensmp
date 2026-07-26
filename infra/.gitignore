@@ -1,0 +1,2 @@
+# Operator-owned credential values used only by docker-compose.import.yml.
+credential-runtime.env

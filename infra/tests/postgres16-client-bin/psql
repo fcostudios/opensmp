@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# The restore confirmation query must use PostgreSQL 16 and the same libpq
+# settings as pg_restore; execute it inside the real fixture container.
+set -euo pipefail
+: "${BACKUP_TEST_POSTGRES_CONTAINER:?fixture container is required}"
+# shellcheck source=infra/tests/postgres16-client-bin/uri-port.sh
+source "$(dirname "${BASH_SOURCE[0]}")/uri-port.sh"
+args=()
+for arg in "$@"; do
+  mapped_arg="$(map_fixture_dbname_arg "${BACKUP_TEST_POSTGRES_HOST_PORT:?fixture host port is required}" "$arg")"
+  mapped_arg="${mapped_arg/--port=${BACKUP_TEST_POSTGRES_HOST_PORT}/--port=5432}"
+  args+=("$mapped_arg")
+done
+fixture_pgport="${PGPORT:-}"
+if [[ "$fixture_pgport" == "${BACKUP_TEST_POSTGRES_HOST_PORT:?fixture host port is required}" ]]; then
+  fixture_pgport=5432
+fi
+exec docker exec -i \
+  --env PGHOST --env "PGPORT=$fixture_pgport" --env PGDATABASE --env PGUSER --env PGPASSWORD \
+  "$BACKUP_TEST_POSTGRES_CONTAINER" psql "${args[@]}"

@@ -1,10 +1,7 @@
 /**
- * Shared authenticated API client.
- * ALL API calls MUST use this client — it auto-attaches the Bearer token.
- * Never use raw fetch() for authenticated endpoints.
+ * Shared same-origin API client. Authentication is carried by the HttpOnly
+ * Auth.js session cookie; provider bearer tokens never enter browser code.
  */
-import { getSession } from "next-auth/react";
-
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export class ApiError extends Error {
@@ -14,12 +11,9 @@ export class ApiError extends Error {
   }
 }
 
-async function getAuthHeaders(): Promise<HeadersInit> {
-  const session = await getSession();
-  const token = (session as any)?.accessToken;
+function getAuthHeaders(): HeadersInit {
   return {
     "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
 
@@ -27,7 +21,7 @@ export async function api<T = unknown>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const headers = await getAuthHeaders();
+  const headers = getAuthHeaders();
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     headers: { ...headers, ...(options.headers || {}) },

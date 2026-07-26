@@ -1,130 +1,220 @@
 #!/usr/bin/env node
-// IMP-241 status-pill SSOT lint:
-// "any_color_literal_matching_semantic_hexes_outside_status_pill_css_is_build_fail"
-// The 7 semantic hexes are read from the GENERATED tokens.json (not hardcoded).
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
+import { createRequire } from "node:module";
+import { EXACT_HEX_FRAGMENT, isExactHex, normalizeExactHex } from "./token-validation.mjs";
 
+const runtimeRequire = createRequire(new URL("../apps/web/package.json", import.meta.url));
+const postcss = runtimeRequire("postcss");
+const ts = runtimeRequire("typescript");
 const root = resolve(process.argv[2] || ".");
-const TOKENS = join(root, "packages", "design-system", "tokens.json");
-let SEM = ["#166534", "#16A34A", "#595756", "#92400E", "#949394", "#991B1B", "#D97706", "#DC2626", "#DCFCE7", "#F2F2F2", "#FEE2E2", "#FEF3C7"];
-try {
-  const t = JSON.parse(readFileSync(TOKENS, "utf8"));
-  const s = (t.color && t.color.semantic) || {};
-  const fromTokens = Object.values(s).map((v) => String(v).toUpperCase());
-  if (fromTokens.length) SEM = [...new Set(fromTokens)].sort();
-} catch { /* fall back to the baked list */ }
+const canonicalCssPath = join(root, "packages", "ui", "src", "atoms", "status-pill.css");
+const statusPillTsxPath = join(root, "packages", "ui", "src", "atoms", "status-pill.tsx");
+const statusPillRules = [
+  ["success", "--color-success", "--color-success-bg", "--color-success-dot"],
+  ["pending", "--color-pending-text", "--color-pending-bg", "--color-pending-dot"],
+  ["attention", "--color-error-text", "--color-error-bg", "--color-error-dot"],
+  ["neutral", "--color-neutral-text", "--color-neutral-bg", "--color-neutral-dot"],
+];
+const expectedKinds = statusPillRules.map(([kind]) => kind);
+const canonicalSelectors = new Set([
+  ".status-pill",
+  ".status-pill::before",
+  ...statusPillRules.flatMap(([kind]) => [`.status-pill--${kind}`, `.status-pill--${kind}::before`]),
+]);
+const allowedProperties = new Map([
+  [".status-pill", new Set(["align-items", "display", "gap"])],
+  [".status-pill::before", new Set(["border-radius", "content", "flex", "height", "width"])],
+  ...statusPillRules.flatMap(([kind]) => [
+    [`.status-pill--${kind}`, new Set(["color", "background"])],
+    [`.status-pill--${kind}::before`, new Set(["background"])],
+  ]),
+]);
 
-function loadIgnore(root, key) {
+function fatal(message) {
+  console.error(`[status-pill contract] ${message}`);
+  process.exit(1);
+}
+
+let semanticHexes;
+try {
+  const tokens = JSON.parse(readFileSync(join(root, "packages", "design-system", "tokens.json"), "utf8"));
+  const semantic = tokens?.color?.semantic;
+  if (!semantic || typeof semantic !== "object" || !Object.values(semantic).every(isExactHex)) throw new Error("color.semantic must contain 3, 4, 6, or 8-digit hex colors");
+  semanticHexes = new Set(Object.values(semantic).map(normalizeExactHex));
+} catch (error) {
+  fatal(`cannot load canonical semantic tokens: ${error instanceof Error ? error.message : String(error)}`);
+}
+
+function loadIgnore(key) {
   try {
-    const j = JSON.parse(readFileSync(join(root, ".design-system-lint-ignore.json"), "utf8"));
-    return (j[key] || []).map((g) => g.split("/").join(sep));
+    const ignored = JSON.parse(readFileSync(join(root, ".design-system-lint-ignore.json"), "utf8"))[key] || [];
+    return ignored.map((entry) => entry.split("/").join(sep));
   } catch { return []; }
 }
-function ignored(f, root, globs) {
-  let rel = f.startsWith(root) ? f.slice(root.length + 1) : f;
-  rel = rel.split(sep).join("/");
-  // Anchored: exact match OR a directory prefix (g + "/"). No unanchored
-  // endsWith (that over-exempts every file ending in the glob text).
-  return globs.some((g) => {
-    const gg = g.split(sep).join("/");
-    return rel === gg || rel.startsWith(gg.endsWith("/") ? gg : gg + "/");
+function ignored(file, globs) {
+  const relative = file.slice(root.length + 1).split(sep).join("/");
+  return globs.some((glob) => relative === glob || relative.startsWith(glob.endsWith("/") ? glob : `${glob}/`));
+}
+const skipDirectories = new Set(["node_modules", ".next", "dist", "build", ".git", "coverage"]);
+const reportedStatFailures = new Set();
+let failed = false;
+function fail(message) { console.error(`[status-pill contract] ${message}`); failed = true; }
+function walk(directory, extensions) {
+  let files = [];
+  let entries;
+  try { entries = readdirSync(directory); } catch { return files; }
+  for (const entry of entries) {
+    if (skipDirectories.has(entry)) continue;
+    const path = join(directory, entry);
+    let stat;
+    try { stat = statSync(path); }
+    catch (error) {
+      const relative = path.slice(root.length + 1).split(sep).join("/");
+      if (!reportedStatFailures.has(relative)) {
+        reportedStatFailures.add(relative);
+        fail(`cannot stat ${relative}: ${error instanceof Error && "code" in error ? error.code : String(error)}`);
+      }
+      continue;
+    }
+    if (stat.isDirectory()) files = files.concat(walk(path, extensions));
+    else if (extensions.some((extension) => path.endsWith(extension))) files.push(path);
+  }
+  return files;
+}
+const sourceRoots = [join(root, "apps", "web", "src"), join(root, "packages")];
+const cssFiles = sourceRoots.flatMap((directory) => walk(directory, [".css"]));
+const sourceFiles = sourceRoots.flatMap((directory) => walk(directory, [".ts", ".tsx", ".css", ".js", ".jsx"]));
+
+const canonicalRules = new Map();
+const stylesheets = new Map();
+for (const file of cssFiles) {
+  let stylesheet;
+  try { stylesheet = postcss.parse(readFileSync(file, "utf8"), { from: file }); }
+  catch (error) { fail(`cannot parse ${file}: ${error instanceof Error ? error.message : String(error)}`); continue; }
+  stylesheets.set(file, stylesheet);
+  stylesheet.walkRules((rule) => {
+    if (!/\.status-pill(?:--[A-Za-z0-9_-]+)?(?![A-Za-z0-9_-])/.test(rule.selector)) return;
+    if (file !== canonicalCssPath) {
+      fail(`status-pill selector ${rule.selector} outside packages/ui/src/atoms/status-pill.css`);
+      return;
+    }
+    if (!canonicalSelectors.has(rule.selector)) {
+      fail(`noncanonical status-pill selector: ${rule.selector}`);
+      return;
+    }
+    const rules = canonicalRules.get(rule.selector) || [];
+    rules.push(rule);
+    canonicalRules.set(rule.selector, rules);
   });
 }
-const SKIP_DIRS = new Set(["node_modules", ".next", "dist", "build", ".git", "coverage"]);
-function walkRoots(root, roots, exts) {
-  let out = [];
-  for (const r of roots) {
-    out = out.concat(walkOne(join(root, ...r.split("/")), exts));
+
+function requiredRule(selector) {
+  const rules = canonicalRules.get(selector) || [];
+  if (rules.length !== 1) {
+    fail(`${rules.length > 1 ? "duplicate" : "missing"} required selector: ${selector}`);
+    return undefined;
   }
-  return out;
+  return rules[0];
 }
-function walkOne(dir, exts) {
-  let out = [];
-  let ents;
-  try { ents = readdirSync(dir); } catch { return out; }
-  for (const e of ents) {
-    if (SKIP_DIRS.has(e)) continue;
-    const p = join(dir, e);
-    let st;
-    try { st = statSync(p); } catch { continue; }   // broken symlink/race => skip, never crash
-    if (st.isDirectory()) out = out.concat(walkOne(p, exts));
-    else if (exts.some((x) => p.endsWith(x))) out.push(p);
-  }
-  return out;
+function declarations(rule) { return rule?.nodes?.filter((node) => node.type === "decl") || []; }
+function exactDeclaration(rule, property, value) {
+  const matches = declarations(rule).filter((declaration) => declaration.prop === property);
+  return matches.length === 1 && matches[0].value === value;
 }
-function stripComments(text) {
-  // Remove block + line comments only (keeps string literals — color
-  // hexes legitimately live in `color: "#2D7A4F"`). Used by the color
-  // scans so a hex in a comment doesn't false-fail but a hex in code does.
-  let t = text.replace(/\/\*[\s\S]*?\*\//g, " ");
-  t = t.replace(/(^|[^:])\/\/[^\n]*/g, "$1 ");
-  return t;
+function validateProperties(selector, rule) {
+  const allowed = allowedProperties.get(selector);
+  for (const declaration of declarations(rule)) if (!allowed?.has(declaration.prop)) fail(`unexpected declaration ${declaration.prop} in ${selector}`);
 }
-function stripCode(text) {
-  // Remove comments AND string/template literals. Used by the JSX-string
-  // scan so operators inside string literals can't be mistaken for JSX
-  // text nodes (review #5).
-  let t = stripComments(text);
-  t = t.replace(/'(?:\\.|[^'\\])*'/g, "''");
-  t = t.replace(/"(?:\\.|[^"\\])*"/g, '""');
-  t = t.replace(/`(?:\\.|[^`\\])*`/g, "``");
-  return t;
+
+const base = requiredRule(".status-pill");
+const baseDot = requiredRule(".status-pill::before");
+validateProperties(".status-pill", base);
+validateProperties(".status-pill::before", baseDot);
+if (!exactDeclaration(baseDot, "content", '""') || !exactDeclaration(baseDot, "width", "var(--spacing-1)") || !exactDeclaration(baseDot, "height", "var(--spacing-1)") || !exactDeclaration(baseDot, "border-radius", "var(--radius-full)")) fail(".status-pill::before must render a visible dot");
+for (const [kind, color, background, dot] of statusPillRules) {
+  const rule = requiredRule(`.status-pill--${kind}`);
+  const dotRule = requiredRule(`.status-pill--${kind}::before`);
+  validateProperties(`.status-pill--${kind}`, rule);
+  validateProperties(`.status-pill--${kind}::before`, dotRule);
+  if (!exactDeclaration(rule, "color", `var(${color})`) || !exactDeclaration(rule, "background", `var(${background})`)) fail(`.status-pill--${kind} must use color: var(${color}) and background: var(${background})`);
+  if (!exactDeclaration(dotRule, "background", `var(${dot})`)) fail(`.status-pill--${kind}::before must render var(${dot})`);
 }
+
+const statusSource = readFileSync(statusPillTsxPath, "utf8");
+const statusAst = ts.createSourceFile(statusPillTsxPath, statusSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+function isExported(node) {
+  return Boolean(node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword));
+}
+const topLevelKinds = statusAst.statements.flatMap((statement) => ts.isVariableStatement(statement)
+  ? statement.declarationList.declarations.filter((declaration) => ts.isIdentifier(declaration.name) && declaration.name.text === "STATUS_KINDS").map((declaration) => ({ declaration, exported: isExported(statement) }))
+  : []);
+const kindsDeclaration = topLevelKinds.length === 1 && topLevelKinds[0].exported ? topLevelKinds[0].declaration : undefined;
+const tupleValues = kindsDeclaration?.initializer && ts.isAsExpression(kindsDeclaration.initializer) && kindsDeclaration.initializer.type.getText(statusAst) === "const" && ts.isArrayLiteralExpression(kindsDeclaration.initializer.expression)
+  ? kindsDeclaration.initializer.expression.elements.map((element) => ts.isStringLiteral(element) ? element.text : undefined)
+  : undefined;
+if (!tupleValues || tupleValues.length !== expectedKinds.length || tupleValues.some((value, index) => value !== expectedKinds[index])) fail(`STATUS_KINDS must be the unique top-level exported ${expectedKinds.join(", ")} tuple asserted as const`);
+
+const statusKindAliases = statusAst.statements.filter((statement) => ts.isTypeAliasDeclaration(statement) && statement.name.text === "StatusKind" && isExported(statement));
+const statusKindAlias = statusKindAliases.length === 1 ? statusKindAliases[0] : undefined;
+if (!statusKindAlias) fail("StatusKind must be a unique top-level exported type alias");
+else {
+  const program = ts.createProgram({ rootNames: [statusPillTsxPath], options: { jsx: ts.JsxEmit.Preserve, noEmit: true, skipLibCheck: true } });
+  const checkerSource = program.getSourceFile(statusPillTsxPath);
+  const checkerAlias = checkerSource?.statements.find((statement) => ts.isTypeAliasDeclaration(statement) && statement.name.text === "StatusKind");
+  const type = checkerAlias ? program.getTypeChecker().getTypeAtLocation(checkerAlias.name) : undefined;
+  const values = type?.isUnion() ? type.types.map((member) => member.isStringLiteral() ? member.value : undefined) : [];
+  if (values.length !== expectedKinds.length || values.some((value, index) => value !== expectedKinds[index])) fail(`StatusKind must resolve to exactly ${expectedKinds.join(", ")}`);
+}
+
+const statusPillFunctions = statusAst.statements.filter((statement) => ts.isFunctionDeclaration(statement) && statement.name?.text === "StatusPill" && isExported(statement));
+const statusPillFunction = statusPillFunctions.length === 1 ? statusPillFunctions[0] : undefined;
+const hasStatusParameter = statusPillFunction?.parameters.some((parameter) => ts.isObjectBindingPattern(parameter.name) && parameter.name.elements.some((element) => ts.isIdentifier(element.name) && element.name.text === "status"));
+const localKindDeclarations = statusPillFunction?.body?.statements.flatMap((statement) => ts.isVariableStatement(statement)
+  ? statement.declarationList.declarations.filter((declaration) => ts.isIdentifier(declaration.name) && declaration.name.text === "kind")
+  : []) || [];
+const localKindInitializer = localKindDeclarations.length === 1 ? localKindDeclarations[0].initializer : undefined;
+const kindInitializerValid = Boolean(
+  localKindInitializer
+  && ts.isElementAccessExpression(localKindInitializer)
+  && ts.isIdentifier(localKindInitializer.expression)
+  && localKindInitializer.expression.text === "REQUEST_STATUS_KIND"
+  && ts.isIdentifier(localKindInitializer.argumentExpression)
+  && localKindInitializer.argumentExpression.text === "status",
+);
+if (!kindInitializerValid) fail("StatusPill kind must initialize from REQUEST_STATUS_KIND[status]");
+const returnStatement = statusPillFunction?.body?.statements.find(ts.isReturnStatement);
+let returnedExpression = returnStatement?.expression;
+while (returnedExpression && ts.isParenthesizedExpression(returnedExpression)) returnedExpression = returnedExpression.expression;
+const openingElement = returnedExpression && ts.isJsxElement(returnedExpression) ? returnedExpression.openingElement : returnedExpression && ts.isJsxSelfClosingElement(returnedExpression) ? returnedExpression : undefined;
+const className = openingElement?.attributes.properties.find((property) => ts.isJsxAttribute(property) && property.name.text === "className");
+const classExpression = className && ts.isJsxAttribute(className) && className.initializer && ts.isJsxExpression(className.initializer) ? className.initializer.expression : undefined;
+const classMappingValid = Boolean(hasStatusParameter && classExpression && ts.isTemplateExpression(classExpression) && classExpression.head.text === "status-pill status-pill--" && classExpression.templateSpans.length === 1 && ts.isIdentifier(classExpression.templateSpans[0].expression) && classExpression.templateSpans[0].expression.text === "kind" && classExpression.templateSpans[0].literal.text === "");
+if (!classMappingValid) fail("StatusPill must compose its class from the status-derived kind template in its returned JSX");
+
 function normColors(text) {
-  const set = new Set();
-  const push = (r, g, b) => set.add(r + "," + g + "," + b);
-  let m;
-  const hexRe = /#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})\b/g;
-  while ((m = hexRe.exec(text)) !== null) {
-    let h = m[1];
-    if (h.length === 3) h = h.split("").map((c) => c + c).join("");
-    push(parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16));
-  }
-  const rgbRe = /rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/g;
-  while ((m = rgbRe.exec(text)) !== null) push(+m[1], +m[2], +m[3]);
-  const hslRe = /hsla?\(\s*(\d{1,3})\s*,\s*(\d{1,3})%\s*,\s*(\d{1,3})%/g;
-  while ((m = hslRe.exec(text)) !== null) {
-    const [r,g,b] = hslToRgb(+m[1], +m[2], +m[3]);
-    push(r, g, b);
-  }
-  return set;
+  const colors = new Set();
+  const hex = new RegExp(`${EXACT_HEX_FRAGMENT}(?![0-9a-zA-Z])`, "g");
+  for (const match of text.matchAll(hex)) colors.add(normalizeExactHex(match[0]));
+  return colors;
 }
-function hslToRgb(h, s, l) {
-  h = (h % 360) / 360; s /= 100; l /= 100;
-  if (s === 0) { const v = Math.round(l * 255); return [v, v, v]; }
-  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-  const p = 2 * l - q;
-  const hue = (t) => {
-    if (t < 0) t += 1; if (t > 1) t -= 1;
-    if (t < 1/6) return p + (q - p) * 6 * t;
-    if (t < 1/2) return q;
-    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-    return p;
-  };
-  return [Math.round(hue(h + 1/3) * 255), Math.round(hue(h) * 255), Math.round(hue(h - 1/3) * 255)];
+function renderedCssColors(file) {
+  const colors = new Set();
+  stylesheets.get(file)?.walkDecls((declaration) => {
+    for (const color of normColors(declaration.value)) colors.add(color);
+  });
+  return colors;
+}
+function withoutComments(source) {
+  return source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/[^\n]*/g, "$1 ");
+}
+if (renderedCssColors(canonicalCssPath).size) fail("status-pill.css must reference semantic tokens, not color literals");
+const ignore = loadIgnore("color");
+for (const file of sourceFiles) {
+  if (ignored(file, ignore)) continue;
+  const colors = file.endsWith(".css") ? renderedCssColors(file) : normColors(withoutComments(readFileSync(file, "utf8")));
+  for (const color of colors) if (semanticHexes.has(color)) fail(`${file}: semantic hex ${color} rendered outside status-pill.css`);
 }
 
-// The status-pill atom + the token-definition layers (globals/tokens.css)
-// legitimately render the semantic hexes — exempt via the shared manifest.
-const IGNORE = loadIgnore(root, "color");
-const ROOTS = ["apps/web/src", "packages"];
-const EXTS = [".ts", ".tsx", ".css", ".js", ".jsx"];
-// Canonicalize each needle hex to "R,G,B" so rgb()/hsl()/#RGB shorthand
-// escape hatches are also caught (review #6). Keep the hex for the message.
-const SEM_RGB = new Map();   // "R,G,B" -> original hex
-for (const hex of SEM) { for (const c of normColors(hex)) SEM_RGB.set(c, hex); }
-
-let failed = false;
-for (const f of walkRoots(root, ROOTS, EXTS)) {
-  if (ignored(f, root, IGNORE)) continue;   // token layers + the SSOT atom are exempt
-  const colors = normColors(stripComments(readFileSync(f, "utf8")));  // skip comments, keep string-literal hexes
-  for (const c of colors) {
-    if (SEM_RGB.has(c)) {
-      console.error(`[status-pill SSOT] ${f}: semantic hex ${SEM_RGB.get(c)} rendered outside the status-pill atom — build fail`);
-      failed = true;
-    }
-  }
-}
 if (failed) process.exit(1);
 console.log("[status-pill SSOT] ok");

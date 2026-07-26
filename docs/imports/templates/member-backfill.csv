@@ -1,0 +1,3 @@
+vendor_org_ref,email,full_name,company_code,license_type,started_on
+example-org,member01@example.invalid,Example Member 01,EX001,Enterprise,2026-08-01
+example-org,member02@example.invalid,Example Member 02,EX002,Enterprise,2026-08-01

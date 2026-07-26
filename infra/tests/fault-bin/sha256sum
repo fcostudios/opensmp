@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Test-only observer around the host SHA-256 implementation. It delays after
+# hashing so the test can inspect the restore script's private staging files.
+set -euo pipefail
+
+/sbin/sha256sum "$@"
+if [[ "${RESTORE_TEST_SHA_DELAY:-0}" != '0' ]]; then
+  sleep "$RESTORE_TEST_SHA_DELAY"
+fi

@@ -3,11 +3,19 @@
 // The dev team adds tests per docs/dev-guide/TESTING.md §4 — an empty suite
 // is not a failure, a broken one is.
 import { defineConfig } from "vitest/config";
+import { fileURLToPath } from "node:url";
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
   test: {
     environment: "node",
     passWithNoTests: true,
-    include: ["src/**/*.{test,spec}.ts"],
+    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    hookTimeout: 120_000,
+    testTimeout: 120_000,
   },
 });

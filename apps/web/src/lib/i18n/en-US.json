@@ -2,6 +2,16 @@
   "_locale": "en-US",
   "_label": "en-US",
   "app_name": "Ledger",
+  "auth": {
+    "accessDeniedDescription": "Your Ledger account cannot open this route.",
+    "accessDeniedTitle": "Access denied",
+    "continueWithCorporativo": "Continue with corporativo",
+    "credentialsAtCorporativo": "Your password and verification code are entered securely in corporativo.",
+    "goHome": "Go to my home",
+    "goLogin": "Go to login",
+    "signOut": "Sign out",
+    "signInTitle": "Sign in to Ledger"
+  },
   "nav": {
     "alertas": "Alerts",
     "aprobaciones": "Approvals",

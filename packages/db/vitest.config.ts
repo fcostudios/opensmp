@@ -7,6 +7,9 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
+    // Most DB tests provision a real pinned PostgreSQL container. Serialize
+    // files so Docker startup is deterministic rather than port-race bound.
+    fileParallelism: false,
     passWithNoTests: true,
     include: ["src/**/*.{test,spec}.ts"],
   },

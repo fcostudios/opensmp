@@ -32,6 +32,11 @@ else
 fi
 cd ../..
 
-# 3. Done.
-echo "[3/3] Setup complete."
-echo "=== Run 'task dev' (or infra/scripts/run-all.sh) to start. ==="
+# 3. Validate the local Compose definition when Docker is available.
+echo "[3/3] Validating Docker Compose runtime..."
+if [ ! -f .env ] && [ -f .env.example ]; then
+  cp .env.example .env
+  echo "  Created .env from .env.example; replace development values before deployment."
+fi
+docker compose -f infra/docker-compose.yml config >/dev/null
+echo "=== Setup complete. Run infra/scripts/run-all.sh to start the stack. ==="

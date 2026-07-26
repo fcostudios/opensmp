@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Test-only fault injector around the host's real mv. It fails a chosen publish
+# operation so the scripts' cleanup path is verified without faking encryption.
+set -euo pipefail
+
+if [[ -n "${BACKUP_TEST_EVENT_LOG:-}" ]]; then
+  printf 'mv:%s\n' "$*" >> "$BACKUP_TEST_EVENT_LOG"
+fi
+if [[ -z "${BACKUP_TEST_MV_COUNTER:-}" || -z "${BACKUP_TEST_FAIL_MV_NUMBER:-}" ]]; then
+  exec /bin/mv "$@"
+fi
+counter_file="$BACKUP_TEST_MV_COUNTER"
+count=0
+[[ ! -f "$counter_file" ]] || count="$(< "$counter_file")"
+count=$((count + 1))
+printf '%s\n' "$count" > "$counter_file"
+if [[ "$count" == "$BACKUP_TEST_FAIL_MV_NUMBER" ]]; then
+  exit 1
+fi
+exec /bin/mv "$@"

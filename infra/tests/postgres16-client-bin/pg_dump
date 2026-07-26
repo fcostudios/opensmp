@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# The test fixture is a real postgres:16-alpine container. These tiny adapters
+# ensure the real, version-matched PostgreSQL client runs inside that fixture.
+set -euo pipefail
+: "${BACKUP_TEST_POSTGRES_CONTAINER:?fixture container is required}"
+# shellcheck source=infra/tests/postgres16-client-bin/uri-port.sh
+source "$(dirname "${BASH_SOURCE[0]}")/uri-port.sh"
+if [[ "${BACKUP_TEST_DELAY_PG_DUMP:-0}" != '0' ]]; then
+  [[ -z "${BACKUP_TEST_PG_DUMP_READY:-}" ]] || : > "$BACKUP_TEST_PG_DUMP_READY"
+  sleep "$BACKUP_TEST_DELAY_PG_DUMP"
+fi
+args=()
+for arg in "$@"; do
+  mapped_arg="$(map_fixture_dbname_arg "${BACKUP_TEST_POSTGRES_HOST_PORT:?fixture host port is required}" "$arg")"
+  mapped_arg="${mapped_arg/--port=${BACKUP_TEST_POSTGRES_HOST_PORT}/--port=5432}"
+  args+=("$mapped_arg")
+done
+fixture_pgport="${PGPORT:-}"
+if [[ "$fixture_pgport" == "${BACKUP_TEST_POSTGRES_HOST_PORT:?fixture host port is required}" ]]; then
+  fixture_pgport=5432
+fi
+exec docker exec \
+  --env PGHOST --env "PGPORT=$fixture_pgport" --env PGDATABASE --env PGUSER --env PGPASSWORD \
+  "$BACKUP_TEST_POSTGRES_CONTAINER" pg_dump "${args[@]}"

@@ -1,14 +1,27 @@
-/* status-pill SSOT atom — the ONLY sanctioned home for the
-   semantic status hexes. Enforced by scripts/check-status-pill.mjs. */
-.status-pill--error-bg { color: #fee2e2; }
-.status-pill--error-dot { color: #dc2626; }
-.status-pill--error-text { color: #991b1b; }
-.status-pill--neutral-bg { color: #f2f2f2; }
-.status-pill--neutral-dot { color: #949394; }
-.status-pill--neutral-text { color: #595756; }
-.status-pill--pending-bg { color: #fef3c7; }
-.status-pill--pending-dot { color: #d97706; }
-.status-pill--pending-text { color: #92400e; }
-.status-pill--success { color: #166534; }
-.status-pill--success-bg { color: #dcfce7; }
-.status-pill--success-dot { color: #16a34a; }
+/* StatusPill consumes semantic tokens; tokens.json owns their literal values.
+   --spacing-1 is the canonical 8px dot diameter; --spacing-0-5 is its gap. */
+.status-pill {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--spacing-0-5);
+}
+
+.status-pill::before {
+  border-radius: var(--radius-full);
+  content: "";
+  flex: none;
+  height: var(--spacing-1);
+  width: var(--spacing-1);
+}
+
+.status-pill--success { color: var(--color-success); background: var(--color-success-bg); }
+.status-pill--success::before { background: var(--color-success-dot); }
+
+.status-pill--pending { color: var(--color-pending-text); background: var(--color-pending-bg); }
+.status-pill--pending::before { background: var(--color-pending-dot); }
+
+.status-pill--attention { color: var(--color-error-text); background: var(--color-error-bg); }
+.status-pill--attention::before { background: var(--color-error-dot); }
+
+.status-pill--neutral { color: var(--color-neutral-text); background: var(--color-neutral-bg); }
+.status-pill--neutral::before { background: var(--color-neutral-dot); }

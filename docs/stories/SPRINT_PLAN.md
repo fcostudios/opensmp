@@ -1,5 +1,5 @@
 <!-- nous-sprint-stamp
-generated_at: 2026-07-24T09:52:20Z
+generated_at: 2026-07-26T20:12:32Z
 current_sprint: sprint-5
 sprints_hash: 590ae2916211b5fa
 -->
@@ -28,16 +28,16 @@ See `docs/specs/09_architecture.md` for bounded context details.
 
 | # | Track | Story | Name | Size | Where to Code | CHG | Blocked By | Blocks | Assignee | File |
 |---|-------|-------|------|------|---------------|-----|------------|--------|----------|------|
-| 1 | frontend | **US-001** ⬜ | Scaffold the monorepo and app skeleton | ? ?SP | `apps/web/src/components/` | — | — | →1 | — | [r1_misc_us_001.md](sprint-1/r1_misc_us_001.md) |
-| 2 | full-stack | **US-054** ⬜ | Anthropic API probe spike | ? ?SP | `See story file` | — | — | — | — | [r1_misc_us_054.md](sprint-1/r1_misc_us_054.md) |
-| 3 | full-stack | **US-002** ⬜ | Docker Compose runtime + CI pipeline | ? ?SP | `See story file` | — | US-001 | →4 | — | [r1_misc_us_002.md](sprint-1/r1_misc_us_002.md) |
-| 4 | backend | **US-003** ⬜ | Core schema migration with DB-level register integrity | ? ?SP | `apps/web/src/app/api/` | — | US-002 | →8 | — | [r1_misc_us_003.md](sprint-1/r1_misc_us_003.md) |
-| 5 | backend | **US-004** ⬜ | Platform auth via Keycloak OIDC (mandatory 2FA for admin roles) | ? ?SP | `apps/web/src/app/api/` | — | US-003 | →2 | — | [r1_misc_us_004.md](sprint-1/r1_misc_us_004.md) |
-| 6 | backend | **US-005** ⬜ | Server-side RBAC + company scoping middleware | ? ?SP | `apps/web/src/app/api/` | — | US-004 | →9 | — | [r1_misc_us_005.md](sprint-1/r1_misc_us_005.md) |
-| 7 | frontend | **US-006** ⬜ | App shell: data-workspace chrome + bilingual i18n | ? ?SP | `apps/web/src/components/` | — | US-004 | — | — | [r1_misc_us_006.md](sprint-1/r1_misc_us_006.md) |
-| 8 | full-stack | **US-007** ⬜ | Seed: companies CSV + go-live register backfill | ? ?SP | `See story file` | — | US-003 | →3 | — | [r1_misc_us_007.md](sprint-1/r1_misc_us_007.md) |
-| 9 | full-stack | **US-008** ⬜ | Immutable audit trail + viewer | ? ?SP | `See story file` | — | US-005 | — | — | [r1_misc_us_008.md](sprint-1/r1_misc_us_008.md) |
-| 10 | full-stack | **US-046** ⬜ | Job runner + schedules | ? ?SP | `See story file` | — | US-002 | →6 | — | [r1_misc_us_046.md](sprint-1/r1_misc_us_046.md) |
+| 1 | frontend | **US-001** ✅ | Scaffold the monorepo and app skeleton | ? ?SP | `apps/web/src/components/` | CHG-001 | — | →1 | — | [r1_misc_us_001.md](sprint-1/r1_misc_us_001.md) |
+| 2 | full-stack | **US-054** 🔨 | Anthropic API probe spike | ? ?SP | `See story file` | CHG-001 | — | — | 33b725b7-eb1 (push, exp 2026-08-02) | [r1_misc_us_054.md](sprint-1/r1_misc_us_054.md) |
+| 3 | full-stack | **US-002** ✅ | Docker Compose runtime + CI pipeline | ? ?SP | `See story file` | — | US-001 | →4 | — | [r1_misc_us_002.md](sprint-1/r1_misc_us_002.md) |
+| 4 | backend | **US-003** ✅ | Core schema migration with DB-level register integrity | ? ?SP | `apps/web/src/app/api/` | CHG-001 | US-002 | →8 | — | [r1_misc_us_003.md](sprint-1/r1_misc_us_003.md) |
+| 5 | backend | **US-004** ✅ | Platform auth via Keycloak OIDC (mandatory 2FA for admin roles) | ? ?SP | `apps/web/src/app/api/` | CHG-001 | US-003 | →2 | — | [r1_misc_us_004.md](sprint-1/r1_misc_us_004.md) |
+| 6 | backend | **US-005** ✅ | Server-side RBAC + company scoping middleware | ? ?SP | `apps/web/src/app/api/` | CHG-001 | US-004 | →9 | 33b725b7-eb1 (push, exp 2026-08-02) | [r1_misc_us_005.md](sprint-1/r1_misc_us_005.md) |
+| 7 | frontend | **US-006** ✅ | App shell: data-workspace chrome + bilingual i18n | ? ?SP | `apps/web/src/components/` | — | US-004 | — | 33b725b7-eb1 (push, exp 2026-08-02) | [r1_misc_us_006.md](sprint-1/r1_misc_us_006.md) |
+| 8 | full-stack | **US-007** 🔨 | Seed: companies CSV + go-live register backfill | ? ?SP | `See story file` | CHG-001 | US-003 | →3 | 33b725b7-eb1 (push, exp 2026-08-02) | [r1_misc_us_007.md](sprint-1/r1_misc_us_007.md) |
+| 9 | full-stack | **US-008** ✅ | Immutable audit trail + viewer | ? ?SP | `See story file` | — | US-005 | — | 33b725b7-eb1 (push, exp 2026-08-02) | [r1_misc_us_008.md](sprint-1/r1_misc_us_008.md) |
+| 10 | full-stack | **US-046** ✅ | Job runner + schedules | ? ?SP | `See story file` | — | US-002 | →6 | — | [r1_misc_us_046.md](sprint-1/r1_misc_us_046.md) |
 
 ### Parallel Tracks
 
@@ -90,7 +90,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 
 | # | Track | Story | Name | Size | Where to Code | CHG | Blocked By | Blocks | Assignee | File |
 |---|-------|-------|------|------|---------------|-----|------------|--------|----------|------|
-| 1 | full-stack | **US-011** ⬜ | Users, roles and delegation-ready grants | ? ?SP | `See story file` | — | US-005 | — | — | [r1_misc_us_011.md](sprint-3/r1_misc_us_011.md) |
+| 1 | full-stack | **US-011** ⬜ | Users, roles and delegation-ready grants | ? ?SP | `See story file` | CHG-001 | US-005 | — | — | [r1_misc_us_011.md](sprint-3/r1_misc_us_011.md) |
 | 2 | full-stack | **US-018** ⬜ | Anthropic connector client | ? ?SP | `See story file` | — | US-003, US-045 | →4 | — | [r1_misc_us_018.md](sprint-3/r1_misc_us_018.md) |
 | 3 | full-stack | **US-023** ⬜ | Blocked-no-seat + purchase-or-reclaim flow | ? ?SP | `See story file` | — | US-022, US-042 | — | — | [r1_misc_us_023.md](sprint-3/r1_misc_us_023.md) |
 | 4 | full-stack | **US-025** ⬜ | Vendor accounts + capability descriptor | ? ?SP | `See story file` | — | US-005 | — | — | [r1_misc_us_025.md](sprint-3/r1_misc_us_025.md) |

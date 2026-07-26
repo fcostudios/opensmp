@@ -1,0 +1,128 @@
+services:
+  postgres:
+    image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    environment:
+      POSTGRES_DB: ledger
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set POSTGRES_SUPERUSER_PASSWORD in .env}
+      LEDGER_OWNER_PASSWORD: ${LEDGER_OWNER_PASSWORD:?set LEDGER_OWNER_PASSWORD in .env}
+      LEDGER_APP_PASSWORD: ${LEDGER_APP_PASSWORD:?set LEDGER_APP_PASSWORD in .env}
+      LEDGER_BACKUP_PASSWORD: ${LEDGER_BACKUP_PASSWORD:?set LEDGER_BACKUP_PASSWORD in .env}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username=$$POSTGRES_USER --dbname=$$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      # Init scripts run only for a new volume. Rotate existing role passwords
+      # with an explicit coordinated ALTER ROLE and application rollout.
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5
+    command: start-dev --import-realm
+    environment:
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_ORIGIN:?set KEYCLOAK_PUBLIC_ORIGIN in .env}
+      KC_HTTP_PORT: ${KEYCLOAK_PUBLIC_PORT:-8180}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD in .env}
+      KC_HEALTH_ENABLED: "true"
+      LEDGER_PUBLIC_URL: ${LEDGER_PUBLIC_URL:-http://localhost:3000}
+      SMP_WEB_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:?set KEYCLOAK_CLIENT_SECRET in .env}
+      SMP_KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?set KEYCLOAK_ADMIN_CLIENT_SECRET in .env}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bash -c "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3; timeout 5 cat <&3 | grep -q '\"status\": \"UP\"'"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    ports:
+      - "127.0.0.1:${KEYCLOAK_PUBLIC_PORT:-8180}:${KEYCLOAK_PUBLIC_PORT:-8180}"
+    networks:
+      default:
+        aliases:
+          - ${KEYCLOAK_PUBLIC_HOST:-keycloak.localhost}
+    volumes:
+      # Local/CI bootstrap persistence; production proxy and Keycloak hardening
+      # are established by later deployment work.
+      - keycloak_data:/opt/keycloak/data
+      - ./keycloak/realm-corporativo.json:/opt/keycloak/data/import/realm-corporativo.json:ro
+
+  app:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    environment:
+      DB_DRIVER: pg
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ledger_app
+      PGPASSWORD: ${LEDGER_APP_PASSWORD:?set LEDGER_APP_PASSWORD in .env}
+      PGDATABASE: ledger
+      KEYCLOAK_ISSUER: ${KEYCLOAK_PUBLIC_ORIGIN:?set KEYCLOAK_PUBLIC_ORIGIN in .env}/realms/corporativo
+      KEYCLOAK_ADMIN_BASE_URL: http://keycloak:${KEYCLOAK_PUBLIC_PORT:-8180}
+      KEYCLOAK_CLIENT_ID: smp-web
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:?set KEYCLOAK_CLIENT_SECRET in .env}
+      KEYCLOAK_ADMIN_CLIENT_ID: smp-keycloak-admin
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?set KEYCLOAK_ADMIN_CLIENT_SECRET in .env}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?set NEXTAUTH_SECRET in .env}
+      AUTH_URL: ${LEDGER_PUBLIC_URL:-http://localhost:3000}
+      NEXTAUTH_URL: ${LEDGER_PUBLIC_URL:-http://localhost:3000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    ports:
+      - "127.0.0.1:${APP_HOST_PORT:-3000}:3000"
+
+  worker:
+    build:
+      context: ..
+      dockerfile: apps/worker/Dockerfile
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ledger_app
+      PGPASSWORD: ${LEDGER_APP_PASSWORD:?set LEDGER_APP_PASSWORD in .env}
+      PGDATABASE: ledger
+      ECUADOR_HOLIDAYS: ${ECUADOR_HOLIDAYS:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "node", "dist/readiness.js"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 20s
+
+  smtp-relay:
+    image: axllent/mailpit:v1.21.8
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8025/livez >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+volumes:
+  postgres_data:
+  keycloak_data:
+
+networks:
+  default:
+    name: ledger_default

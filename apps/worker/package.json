@@ -1,0 +1,25 @@
+{
+  "name": "@smp/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && esbuild src/index.ts src/readiness.ts --bundle --platform=node --format=esm --target=node22 --outdir=dist --external:pg --external:pg-boss",
+    "start": "node dist/index.js",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@smp/domain": "workspace:^",
+    "pg": "^8.13.1",
+    "pg-boss": "12.26.3"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "^12.0.4",
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.10",
+    "esbuild": "0.27.1",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.0"
+  }
+}

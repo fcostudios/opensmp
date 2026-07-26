@@ -1,18 +1,55 @@
-// status-pill — SSOT atom for status colors (IMP-241).
-// The ONLY component allowed to render the semantic hexes: #fee2e2 #dc2626 #991b1b #f2f2f2 #949394 #595756 #fef3c7 #d97706 #92400e #166534 #dcfce7 #16a34a
+// StatusPill consumes the semantic token variants defined in status-pill.css.
 import "./status-pill.css";
 
-export type StatusKind = 'error_bg' | 'error_dot' | 'error_text' | 'neutral_bg' | 'neutral_dot' | 'neutral_text' | 'pending_bg' | 'pending_dot' | 'pending_text' | 'success' | 'success_bg' | 'success_dot';
+export const STATUS_KINDS = ["success", "pending", "attention", "neutral"] as const;
+
+export type StatusKind = (typeof STATUS_KINDS)[number];
+
+export const REQUEST_STATUSES = [
+  "submitted",
+  "pending_approval",
+  "approved",
+  "blocked_no_seat",
+  "provisioning",
+  "failed",
+  "invited",
+  "active",
+  "flagged_inactive",
+  "offboarding",
+  "deprovisioned",
+  "rejected",
+] as const;
+
+export type RequestStatus = (typeof REQUEST_STATUSES)[number];
+
+export const REQUEST_STATUS_KIND: Record<RequestStatus, StatusKind> = {
+  approved: "success",
+  active: "success",
+  pending_approval: "pending",
+  provisioning: "pending",
+  invited: "pending",
+  flagged_inactive: "pending",
+  blocked_no_seat: "attention",
+  failed: "attention",
+  rejected: "attention",
+  submitted: "neutral",
+  offboarding: "neutral",
+  deprovisioned: "neutral",
+};
 
 export interface StatusPillProps {
-  kind: StatusKind;
+  status: RequestStatus;
   /** Text label — status is NEVER color-only (a11y baseline). */
   label: string;
 }
 
-export function StatusPill({ kind, label }: StatusPillProps) {
+export function StatusPill({ status, label }: StatusPillProps) {
+  const kind = REQUEST_STATUS_KIND[status];
   return (
-    <span className={`status-pill status-pill--${kind.replace(/_/g, "-")}`}>
+    <span
+      className={`status-pill status-pill--${kind}`}
+      data-status={status}
+    >
       {label}
     </span>
   );

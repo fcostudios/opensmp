@@ -1,0 +1,7 @@
+.freshness-label {
+  color: var(--color-neutral-text);
+}
+
+.freshness-label--stale {
+  color: var(--color-error-text);
+}

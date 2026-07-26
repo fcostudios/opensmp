@@ -8,7 +8,11 @@ node_modules/
 .next/
 out/
 .turbo/
+.stryker-tmp/
 apps/web/.next/
+apps/web/test-results/
+dist/
+*.tsbuildinfo
 
 # Drizzle
 apps/web/drizzle/meta/_journal.json.bak
@@ -31,3 +35,15 @@ Thumbs.db
 
 # Local Git worktrees
 .worktrees/
+
+# Ephemeral, checksum-verified test binaries (never commit encryption keys/tools).
+.tmp/backup-restore-tools/
+infra/backups/
+
+# Operator-managed backup signing secrets belong outside the checkout.
+*.key
+
+# Operator-managed Sprint 1 import inventory and sanitized probe runtime output.
+data/imports/private/**
+docs/spikes/US-054-anthropic-api-probe.runtime.json
+docs/spikes/US-054-anthropic-api-probe.checkpoint.json

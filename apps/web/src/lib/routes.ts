@@ -5,7 +5,10 @@
  */
 
 export const ROUTE_HOME = "/";
-export const ROUTE_LOGIN = "/auth/signin";
+export const ROUTE_LOGIN = "/login";
+export const ROUTE_AUTH_LANDING = "/auth/landing";
+export const ROUTE_AUTH_SIGNIN = "/auth/signin";
+export const ROUTE_AUTH_LOGOUT = "/auth/logout";
 export const ROUTE_SCR_ACCESS_DENIED = "/acceso-denegado";
 export const ROUTE_SCR_ADMIN_DASHBOARD = "/panel";
 export const ROUTE_SCR_ALERTS = "/alertas";
@@ -39,6 +42,9 @@ export const ROUTE_SCR_VENDOR_ACCOUNT_DETAIL = "/organizaciones/:vendorAccountId
 export const ROUTES = {
   HOME: ROUTE_HOME,
   LOGIN: ROUTE_LOGIN,
+  AUTH_LANDING: ROUTE_AUTH_LANDING,
+  AUTH_SIGNIN: ROUTE_AUTH_SIGNIN,
+  AUTH_LOGOUT: ROUTE_AUTH_LOGOUT,
   SCR_ACCESS_DENIED: ROUTE_SCR_ACCESS_DENIED,
   SCR_ADMIN_DASHBOARD: ROUTE_SCR_ADMIN_DASHBOARD,
   SCR_ALERTS: ROUTE_SCR_ALERTS,

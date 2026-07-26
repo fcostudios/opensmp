@@ -1,0 +1,38 @@
+# Loaded only for a backup invocation. Keeping profile-only required variables
+# out of docker-compose.yml lets the normal application stack validate from
+# .env.example without an operator's private signing material.
+services:
+  backup:
+    profiles: ["backup"]
+    image: ledger-backup:local
+    build:
+      context: .
+      dockerfile: backup/Dockerfile
+    # Run as the VPS operator so a 0600 host signing key remains private while
+    # still readable inside the container. run-cron.sh exports these values.
+    user: "${BACKUP_UID:?set BACKUP_UID to the operator UID}:${BACKUP_GID:?set BACKUP_GID to the operator GID}"
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ledger
+      PGUSER: ledger_backup
+      PGPASSWORD: ${LEDGER_BACKUP_PASSWORD:?set LEDGER_BACKUP_PASSWORD in .env}
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?set BACKUP_AGE_RECIPIENT in .env}
+      BACKUP_SIGNING_KEY_FILE: /run/ledger-secrets/backup-signing.key
+      BACKUP_DIR: /backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      # A named volume would be initialized with the image's postgres UID.
+      # Bind the operator-owned directory instead so the configured native UID
+      # can publish backups without relaxing key or output permissions.
+      - type: bind
+        source: ${BACKUP_OUTPUT_DIR:?set BACKUP_OUTPUT_DIR to an operator-owned backup directory}
+        target: /backups
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BACKUP_SIGNING_KEY_FILE:?set BACKUP_SIGNING_KEY_FILE in .env}
+        target: /run/ledger-secrets/backup-signing.key
+        read_only: true
