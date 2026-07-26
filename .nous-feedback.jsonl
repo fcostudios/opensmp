@@ -106,3 +106,7 @@
 {"story":"US-008","event":"done"}
 {"story":"US-007","event":"started","agent":"fullstack_us007"}
 {"story":"US-054","event":"started","agent":"probe_us054"}
+{"story":"US-007","event":"blocked","reason":"OQ-SMP-1 operator inventory is unavailable; the final 30-company CSV, per-org inventory, exported member lists, purchased capacities, and per-org Admin/Analytics credentials are absent.","needs":"Primary owner must deliver the final inventory files and per-org keys through the approved private/secret channels."}
+{"story":"US-054","event":"blocked","reason":"OQ-SMP-1 per-org Admin/Analytics keys and explicit invite-canary authorization are unavailable, so the mandatory real per-org probes cannot be executed.","needs":"Primary owner must provide the per-org keys, approved canary address, and immediate VendorAccount confirmation."}
+{"story":"SPRINT-1","event":"started","agent":"sprint_coordinator"}
+{"story":"SPRINT-1","event":"closed_with_deferrals","notes":"US-007 and US-054 mandatory real executions remain externally gated by OQ-SMP-1; all implementation harnesses and all other Sprint 1 stories are implemented and verified."}
