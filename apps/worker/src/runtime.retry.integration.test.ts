@@ -37,7 +37,7 @@ async function waitFor(assertion: () => Promise<void>, timeoutMs = 18_000): Prom
 beforeAll(async () => {
   fixture = await createPostgresFixture();
   await fixture.migrate();
-});
+}, 120_000);
 
 afterAll(async () => {
   await fixture.stop();

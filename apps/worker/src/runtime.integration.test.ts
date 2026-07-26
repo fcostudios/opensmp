@@ -44,7 +44,7 @@ beforeAll(async () => {
   fixture = await createPostgresFixture();
   await fixture.migrate();
   appConnectionString = fixture.appUrl;
-});
+}, 120_000);
 
 afterAll(async () => {
   await fixture.stop();
