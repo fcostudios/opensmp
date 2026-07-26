@@ -104,3 +104,5 @@
 {"story":"US-008","event":"ac_verify","ac":3,"method":"least-privilege PostgreSQL append-only tests plus audited mutation integration tests","pass":true,"notes":"The ledger_app role remains unable to UPDATE or DELETE AuditLog. Locale and OIDC identity mutations emit sanitized immutable audit rows with populated company scope where derivable, while null actors and global scope remain representable and queryable."}
 {"story":"US-008","event":"build_pass","notes":"Independent specification and code-quality reviews APPROVED. Real Keycloak Playwright passes 15/15 including wrong-role denial and audit filtering/diff behavior. Root type-check 7/7, lint 6/6, test-policy lint, full tests (DB 97, UI 26, contracts 4, domain 13, web 188, worker 25), production build 7/7, audited-action checker, and git diff check pass."}
 {"story":"US-008","event":"done"}
+{"story":"US-007","event":"started","agent":"fullstack_us007"}
+{"story":"US-054","event":"started","agent":"probe_us054"}
