@@ -169,15 +169,28 @@ else {
 
 const statusPillFunctions = statusAst.statements.filter((statement) => ts.isFunctionDeclaration(statement) && statement.name?.text === "StatusPill" && isExported(statement));
 const statusPillFunction = statusPillFunctions.length === 1 ? statusPillFunctions[0] : undefined;
-const hasKindParameter = statusPillFunction?.parameters.some((parameter) => ts.isObjectBindingPattern(parameter.name) && parameter.name.elements.some((element) => ts.isIdentifier(element.name) && element.name.text === "kind"));
+const hasStatusParameter = statusPillFunction?.parameters.some((parameter) => ts.isObjectBindingPattern(parameter.name) && parameter.name.elements.some((element) => ts.isIdentifier(element.name) && element.name.text === "status"));
+const localKindDeclarations = statusPillFunction?.body?.statements.flatMap((statement) => ts.isVariableStatement(statement)
+  ? statement.declarationList.declarations.filter((declaration) => ts.isIdentifier(declaration.name) && declaration.name.text === "kind")
+  : []) || [];
+const localKindInitializer = localKindDeclarations.length === 1 ? localKindDeclarations[0].initializer : undefined;
+const kindInitializerValid = Boolean(
+  localKindInitializer
+  && ts.isElementAccessExpression(localKindInitializer)
+  && ts.isIdentifier(localKindInitializer.expression)
+  && localKindInitializer.expression.text === "REQUEST_STATUS_KIND"
+  && ts.isIdentifier(localKindInitializer.argumentExpression)
+  && localKindInitializer.argumentExpression.text === "status",
+);
+if (!kindInitializerValid) fail("StatusPill kind must initialize from REQUEST_STATUS_KIND[status]");
 const returnStatement = statusPillFunction?.body?.statements.find(ts.isReturnStatement);
 let returnedExpression = returnStatement?.expression;
 while (returnedExpression && ts.isParenthesizedExpression(returnedExpression)) returnedExpression = returnedExpression.expression;
 const openingElement = returnedExpression && ts.isJsxElement(returnedExpression) ? returnedExpression.openingElement : returnedExpression && ts.isJsxSelfClosingElement(returnedExpression) ? returnedExpression : undefined;
 const className = openingElement?.attributes.properties.find((property) => ts.isJsxAttribute(property) && property.name.text === "className");
 const classExpression = className && ts.isJsxAttribute(className) && className.initializer && ts.isJsxExpression(className.initializer) ? className.initializer.expression : undefined;
-const classMappingValid = Boolean(hasKindParameter && classExpression && ts.isTemplateExpression(classExpression) && classExpression.head.text === "status-pill status-pill--" && classExpression.templateSpans.length === 1 && ts.isIdentifier(classExpression.templateSpans[0].expression) && classExpression.templateSpans[0].expression.text === "kind" && classExpression.templateSpans[0].literal.text === "");
-if (!classMappingValid) fail("StatusPill must compose its class from the checked kind template in its returned JSX");
+const classMappingValid = Boolean(hasStatusParameter && classExpression && ts.isTemplateExpression(classExpression) && classExpression.head.text === "status-pill status-pill--" && classExpression.templateSpans.length === 1 && ts.isIdentifier(classExpression.templateSpans[0].expression) && classExpression.templateSpans[0].expression.text === "kind" && classExpression.templateSpans[0].literal.text === "");
+if (!classMappingValid) fail("StatusPill must compose its class from the status-derived kind template in its returned JSX");
 
 function normColors(text) {
   const colors = new Set();

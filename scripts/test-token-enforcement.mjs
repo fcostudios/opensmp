@@ -251,6 +251,21 @@ withFixture("unrelated JSX class mapping is not StatusPill", (root) => {
   expectRejected("unrelated JSX class mapping is not StatusPill", root, "check-status-pill.mjs", "StatusPill must compose");
 });
 
+withFixture("StatusPill kind must derive from request status", (root) => {
+  const path = join(root, "packages", "ui", "src", "atoms", "status-pill.tsx");
+  const source = readFileSync(path, "utf8").replace(
+    "const kind = REQUEST_STATUS_KIND[status];",
+    'const kind = "success";',
+  );
+  writeFileSync(path, source);
+  expectRejected(
+    "StatusPill kind must derive from request status",
+    root,
+    "check-status-pill.mjs",
+    "StatusPill kind must initialize from REQUEST_STATUS_KIND[status]",
+  );
+});
+
 withFixture("StatusKind comment spoof", (root) => {
   const path = join(root, "packages", "ui", "src", "atoms", "status-pill.tsx");
   const source = readFileSync(path, "utf8").replace('export const STATUS_KINDS = ["success", "pending", "attention", "neutral"] as const;', '// export const STATUS_KINDS = ["success", "pending", "attention", "neutral"] as const;\nexport const STATUS_KINDS = ["success", "pending", "attention", "legacy"] as const;');

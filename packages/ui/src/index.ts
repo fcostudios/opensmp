@@ -1,5 +1,7 @@
 // @smp/ui — design-system component library barrel (IMP-265).
 export * from "./atoms/status-pill";
+export * from "./atoms/freshness-label";
+export * from "./atoms/money-text";
 export * from "./organisms/alert-list";
 export * from "./organisms/app-shell";
 export * from "./organisms/audit-trail-viewer";

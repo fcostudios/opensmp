@@ -1,0 +1,117 @@
+{
+  "_locale": "en-US",
+  "_label": "English",
+  "app_name": "Ledger",
+  "auth": {
+    "accessDeniedDescription": "Your Ledger account cannot open this route.",
+    "accessDeniedTitle": "Access denied",
+    "continueWithCorporativo": "Continue with corporativo.",
+    "credentialsAtCorporativo": "Enter your password and verification code securely in corporativo.",
+    "goHome": "Go to my home",
+    "goLogin": "Go to sign in",
+    "signOut": "Sign out",
+    "signInTitle": "Sign in to Ledger"
+  },
+  "audit": {
+    "action": "Action",
+    "actor": "Actor",
+    "after": "After",
+    "before": "Before",
+    "occurredAt": "Date and time"
+  },
+  "empty": {
+    "generic": "There is no data to show yet.",
+    "requests": "No pending requests. We'll email you when one arrives."
+  },
+  "errors": {
+    "generic": "We couldn't load the information. Try again.",
+    "unauthorized": "You must sign in to continue.",
+    "validation": "Review the highlighted fields."
+  },
+  "freshness": {
+    "asOf": "data as of",
+    "stale": "Stale data"
+  },
+  "loading": {
+    "generic": "Loading…"
+  },
+  "locale": {
+    "en": "English",
+    "es": "Español"
+  },
+  "money": {
+    "accessibilityLabel": "{amount} US dollars"
+  },
+  "nav": {
+    "alertas": "Alerts",
+    "aprobaciones": "Approvals",
+    "auditoria": "Audit",
+    "cierre": "Monthly close",
+    "companias": "Companies",
+    "conciliacion": "Reconciliation",
+    "configuracion": "Settings",
+    "credenciales": "Credentials",
+    "cupos": "Pools",
+    "estados_de_cuenta": "Statements",
+    "excepciones": "Exceptions",
+    "organizaciones": "Vendor accounts",
+    "panel": "Dashboard",
+    "personas": "People",
+    "reclamaciones": "Reclamations",
+    "registro": "Register",
+    "solicitudes": "My requests",
+    "tarifas": "Rates",
+    "uso": "Usage",
+    "usuarios": "Users & roles"
+  },
+  "pages": {
+    "acceso-denegado": { "title": "Access denied" },
+    "alertas": { "title": "Alerts" },
+    "aprobaciones": { "title": "Approvals" },
+    "auditoria": { "title": "Audit" },
+    "cierre": { "title": "Monthly close" },
+    "companias": { "title": "Companies" },
+    "companias/[companyId]": { "title": "Company details" },
+    "conciliacion": { "title": "Reconciliation" },
+    "configuracion": { "title": "Settings" },
+    "credenciales": { "title": "Credentials" },
+    "cupos": { "title": "Pools" },
+    "estados-de-cuenta": { "title": "Statements" },
+    "estados-de-cuenta/[statementId]": { "title": "Statement details" },
+    "excepciones": { "title": "Exceptions" },
+    "login": { "title": "Sign in" },
+    "organizaciones": { "title": "Vendor accounts" },
+    "organizaciones/[vendorAccountId]": { "title": "Vendor account details" },
+    "panel": { "title": "Dashboard" },
+    "personas": { "title": "People" },
+    "personas/[personId]": { "title": "Person details" },
+    "reclamaciones": { "title": "Reclamations" },
+    "registro": { "title": "Register" },
+    "solicitudes": { "title": "My requests" },
+    "solicitudes/[requestId]": { "title": "Request details" },
+    "solicitudes/nueva": { "title": "New request" },
+    "tarifas": { "title": "Rates" },
+    "uso": { "title": "Activity and usage" },
+    "usuarios": { "title": "Users and roles" }
+  },
+  "shell": {
+    "administration": "ADMINISTRATION",
+    "finance": "FINANCE",
+    "language": "Language",
+    "operation": "OPERATIONS"
+  },
+  "status": {
+    "submitted": "Submitted",
+    "pending_approval": "Pending Approval",
+    "approved": "Approved",
+    "blocked_no_seat": "Blocked: No License Available",
+    "provisioning": "Provisioning",
+    "failed": "Failed",
+    "invited": "Invitation Sent",
+    "active": "Active",
+    "flagged_inactive": "Flagged Inactive",
+    "offboarding": "Offboarding",
+    "deprovisioned": "Deprovisioned",
+    "rejected": "Rejected"
+  }
+}
