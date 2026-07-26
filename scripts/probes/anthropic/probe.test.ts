@@ -1,4 +1,7 @@
 import { describe, expect, test } from "vitest";
+import { chmod, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
   classifyHttpResult,
@@ -14,8 +17,12 @@ import {
 } from "./redact.ts";
 import {
   buildExecutionSchedule,
+  buildProbeQuery,
+  classifyInviteCanaryOutcome,
   inviteCanaryAuthorization,
   probeDefinitions,
+  resolveProbeSecrets,
+  writeSanitizedArtifact,
 } from "./probe.ts";
 
 const HASH_SALT = "synthetic-test-salt-with-at-least-32-bytes";
@@ -217,6 +224,106 @@ describe("probe safety boundary", () => {
     expect(
       schedule.slice(firstMutation).map(({ organization }) => organization.ref),
     ).toEqual(["central", "carveout"]);
+  });
+
+  test("uses a single daily bucket for usage and cost evidence", () => {
+    for (const name of ["usage_report", "cost_report"]) {
+      const definition = probeDefinitions.find(
+        (candidate) => candidate.name === name,
+      );
+      expect(definition).toBeDefined();
+      expect(
+        Object.fromEntries(
+          buildProbeQuery(definition!, "2026-07-24").entries(),
+        ),
+      ).toEqual({
+        starting_at: "2026-07-24T00:00:00Z",
+        ending_at: "2026-07-25T00:00:00Z",
+        bucket_width: "1d",
+        limit: "1",
+      });
+    }
+  });
+
+  test("rejects equal resolved Admin and Analytics secrets during preflight", () => {
+    const manifest = parseManifest({
+      organizations: [
+        {
+          ref: "central",
+          adminKeyEnv: "CENTRAL_ADMIN",
+          analyticsKeyEnv: "CENTRAL_ANALYTICS",
+        },
+      ],
+    });
+    expect(() =>
+      resolveProbeSecrets(manifest, {
+        CENTRAL_ADMIN: "same-secret",
+        CENTRAL_ANALYTICS: "same-secret",
+      }),
+    ).toThrow("resolved Admin and Analytics secrets must differ");
+  });
+
+  test("marks every successful-create cleanup uncertainty for manual review", () => {
+    expect(
+      classifyInviteCanaryOutcome({
+        createStatus: 201,
+        hasInviteId: false,
+        cleanupStatus: null,
+        createTransportFailure: false,
+        cleanupTransportFailure: false,
+      }),
+    ).toBe("indeterminate_manual_review_required");
+    expect(
+      classifyInviteCanaryOutcome({
+        createStatus: 201,
+        hasInviteId: true,
+        cleanupStatus: null,
+        createTransportFailure: false,
+        cleanupTransportFailure: false,
+      }),
+    ).toBe("indeterminate_manual_review_required");
+    const nonSuccessStatuses = Array.from(
+      { length: 500 },
+      (_, index) => index + 100,
+    ).filter((status) => status < 200 || status >= 300);
+    for (const cleanupStatus of nonSuccessStatuses) {
+      expect(
+        classifyInviteCanaryOutcome({
+          createStatus: 201,
+          hasInviteId: true,
+          cleanupStatus,
+          createTransportFailure: false,
+          cleanupTransportFailure: false,
+        }),
+      ).toBe("indeterminate_manual_review_required");
+    }
+    expect(
+      classifyInviteCanaryOutcome({
+        createStatus: 201,
+        hasInviteId: true,
+        cleanupStatus: 200,
+        createTransportFailure: false,
+        cleanupTransportFailure: false,
+      }),
+    ).toBe("executed_and_cleaned_up");
+  });
+
+  test("forces an overwritten artifact back to owner-only permissions", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "smp-probe-test-"));
+    const artifactPath = join(directory, "artifact.json");
+    try {
+      await writeFile(artifactPath, JSON.stringify({ old: true }));
+      await chmod(artifactPath, 0o644);
+
+      await writeSanitizedArtifact(artifactPath, {
+        artifact_version: 1,
+        raw_bodies_persisted: false,
+      });
+
+      expect((await stat(artifactPath)).mode & 0o777).toBe(0o600);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   test("requires every invite mutation authorization signal for the same org", () => {

@@ -1,4 +1,8 @@
 {
   "private": true,
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "lint": "../../../apps/web/node_modules/.bin/eslint . --config eslint.config.mjs --max-warnings 0",
+    "type-check": "../../../apps/web/node_modules/.bin/tsc --noEmit -p tsconfig.json"
+  }
 }

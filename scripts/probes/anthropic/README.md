@@ -46,10 +46,14 @@ organization's mutation is considered:
 1. current organization;
 2. members and invites;
 3. Enterprise activity users and summaries;
-4. Enterprise usage and cost reports.
+4. Enterprise usage and cost reports, each constrained to one `1d` bucket with
+   `limit=1`.
 
 Admin member/invite pages follow `after_id`; Analytics pages echo the opaque
 `next_page` value as `page`. The harness caps each resource at 100 pages.
+Before this schedule begins, every referenced secret is resolved and each
+organization's Admin and Analytics values are compared. Missing or equal
+resolved values fail before the first network request.
 
 ## Invite canary
 
@@ -75,6 +79,9 @@ A network/transport failure during creation or withdrawal is recorded only as
 `indeterminate_manual_review_required`; no exception text or response body is
 persisted. The operator must inspect the target organization immediately and
 withdraw any surviving canary manually.
+The same manual-review state applies to a successful create response without a
+parseable invite ID, missing cleanup evidence after a successful create, and
+every non-2xx withdrawal response.
 
 ## Artifact contract
 
@@ -90,7 +97,8 @@ The JSON artifact allowlists:
 
 Raw response bodies are held only long enough to validate and summarize the
 response, then discarded. Error bodies and thrown error messages are not
-printed. Output mode is `0600`.
+printed. Output mode is forced to `0600`, including when overwriting an existing
+artifact with broader permissions.
 
 ## Verification
 
@@ -100,6 +108,8 @@ connection:
 ```bash
 rtk ./apps/web/node_modules/.bin/vitest run \
   --config scripts/probes/anthropic/vitest.config.ts
+rtk pnpm --dir scripts/probes/anthropic run type-check
+rtk pnpm --dir scripts/probes/anthropic run lint
 ```
 
 It validates cursor families, exact fractional-cent conversion, key-family

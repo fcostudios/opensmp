@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { chmod, readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 import {
@@ -204,21 +204,45 @@ async function loadManifest(path: string): Promise<ProbeManifest> {
   return parseManifest(JSON.parse(serialized) as unknown);
 }
 
-function requireSecret(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`required secret environment variable is unset: ${name}`);
-  return value;
+interface ResolvedKeyPair {
+  admin: string;
+  analytics: string;
 }
 
-function keyFor(
-  organization: ProbeOrganization,
-  kind: KeyKind,
-): string {
-  return requireSecret(
-    kind === "admin"
-      ? organization.adminKeyEnv
-      : organization.analyticsKeyEnv,
-  );
+export function resolveProbeSecrets(
+  manifest: ProbeManifest,
+  environment: Record<string, string | undefined>,
+): Map<string, ResolvedKeyPair> {
+  const resolved = new Map<string, ResolvedKeyPair>();
+  for (const organization of manifest.organizations) {
+    const admin = environment[organization.adminKeyEnv];
+    const analytics = environment[organization.analyticsKeyEnv];
+    if (!admin) {
+      throw new Error(
+        `required secret environment variable is unset: ${organization.adminKeyEnv}`,
+      );
+    }
+    if (!analytics) {
+      throw new Error(
+        `required secret environment variable is unset: ${organization.analyticsKeyEnv}`,
+      );
+    }
+    if (admin === analytics) {
+      throw new Error(
+        "resolved Admin and Analytics secrets must differ",
+      );
+    }
+    resolved.set(organization.ref, { admin, analytics });
+  }
+  return resolved;
+}
+
+function requireSecret(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`required secret environment variable is unset: ${name}`);
+  }
+  return value;
 }
 
 function nextUtcDate(date: string): string {
@@ -227,7 +251,10 @@ function nextUtcDate(date: string): string {
   return parsed.toISOString().slice(0, 10);
 }
 
-function baseQuery(definition: ProbeDefinition, date: string): URLSearchParams {
+export function buildProbeQuery(
+  definition: ProbeDefinition,
+  date: string,
+): URLSearchParams {
   const query = new URLSearchParams();
   if (definition.name === "members" || definition.name === "invites") {
     query.set("limit", "1000");
@@ -242,7 +269,8 @@ function baseQuery(definition: ProbeDefinition, date: string): URLSearchParams {
   ) {
     query.set("starting_at", `${date}T00:00:00Z`);
     query.set("ending_at", `${nextUtcDate(date)}T00:00:00Z`);
-    query.set("limit", "100");
+    query.set("bucket_width", "1d");
+    query.set("limit", "1");
   }
   return query;
 }
@@ -277,14 +305,13 @@ async function request(
 
 async function runReadProbe(input: {
   definition: ProbeDefinition;
-  organization: ProbeOrganization;
+  key: string;
   date: string;
   hashSalt: string;
 }): Promise<ReturnType<typeof createSanitizedObservation>[]> {
-  const { definition, organization, date, hashSalt } = input;
-  const key = keyFor(organization, definition.keyKind);
+  const { definition, key, date, hashSalt } = input;
   const observations: ReturnType<typeof createSanitizedObservation>[] = [];
-  const query = baseQuery(definition, date);
+  const query = buildProbeQuery(definition, date);
 
   for (let page = 0; page < MAX_PAGES; page += 1) {
     const url = new URL(definition.path, API_ORIGIN);
@@ -319,6 +346,7 @@ async function runReadProbe(input: {
 
 async function runInviteCanary(input: {
   organization: ProbeOrganization;
+  adminKey: string;
   hashSalt: string;
 }): Promise<Record<string, unknown>> {
   const authorization = inviteCanaryAuthorization({
@@ -338,7 +366,7 @@ async function runInviteCanary(input: {
     };
   }
 
-  const key = keyFor(input.organization, "admin");
+  const key = input.adminKey;
   const canaryEmail = process.env.PROBE_CANARY_EMAIL as string;
   const createUrl = new URL("/v1/organizations/invites", API_ORIGIN);
   let createdInviteId: string | null = null;
@@ -392,29 +420,67 @@ async function runInviteCanary(input: {
     }
   }
 
-  if (createTransportFailure) {
-    return {
-      status: "indeterminate_manual_review_required",
-      create: { classification: "network_or_transport_failure" },
-      cleanup: { status: "not_possible_without_confirmed_invite_id" },
-    };
-  }
+  const outcome = classifyInviteCanaryOutcome({
+    createStatus: createObservation?.status ?? null,
+    hasInviteId: createdInviteId !== null,
+    cleanupStatus: cleanupObservation?.status ?? null,
+    createTransportFailure,
+    cleanupTransportFailure,
+  });
   return {
-    status: createObservation?.classification === "success"
-      ? "executed"
-      : "attempted",
-    create: createObservation,
+    status: outcome,
+    create: createTransportFailure
+      ? { classification: "network_or_transport_failure" }
+      : createObservation,
     cleanup: cleanupTransportFailure
       ? {
           status: "indeterminate_manual_review_required",
           classification: "network_or_transport_failure",
         }
-      : cleanupObservation,
+      : cleanupObservation ??
+        (outcome === "indeterminate_manual_review_required"
+          ? { status: "not_confirmed" }
+          : null),
   };
+}
+
+export type InviteCanaryOutcome =
+  | "attempted_not_created"
+  | "executed_and_cleaned_up"
+  | "indeterminate_manual_review_required";
+
+export function classifyInviteCanaryOutcome(input: {
+  createStatus: number | null;
+  hasInviteId: boolean;
+  cleanupStatus: number | null;
+  createTransportFailure: boolean;
+  cleanupTransportFailure: boolean;
+}): InviteCanaryOutcome {
+  if (input.createTransportFailure) {
+    return "indeterminate_manual_review_required";
+  }
+  const createSucceeded =
+    input.createStatus !== null &&
+    input.createStatus >= 200 &&
+    input.createStatus < 300;
+  if (!createSucceeded) return "attempted_not_created";
+  if (!input.hasInviteId || input.cleanupTransportFailure) {
+    return "indeterminate_manual_review_required";
+  }
+  const cleanupSucceeded =
+    input.cleanupStatus !== null &&
+    input.cleanupStatus >= 200 &&
+    input.cleanupStatus < 300;
+  return cleanupSucceeded
+    ? "executed_and_cleaned_up"
+    : "indeterminate_manual_review_required";
 }
 
 async function runProbe(options: CliOptions): Promise<Record<string, unknown>> {
   const manifest = await loadManifest(options.manifestPath);
+  // Resolve and compare every key family before the execution schedule can
+  // issue its first network request.
+  const resolvedSecrets = resolveProbeSecrets(manifest, process.env);
   const hashSalt = requireSecret("PROBE_HASH_SALT");
   if (hashSalt.length < 32) {
     throw new Error("PROBE_HASH_SALT must contain at least 32 characters");
@@ -443,11 +509,16 @@ async function runProbe(options: CliOptions): Promise<Record<string, unknown>> {
   for (const step of buildExecutionSchedule(manifest.organizations)) {
     const result = working.get(step.organization.ref);
     if (!result) throw new Error("internal organization schedule mismatch");
+    const keys = resolvedSecrets.get(step.organization.ref);
+    if (!keys) throw new Error("internal secret preflight mismatch");
     if (step.phase === "read") {
       result.observations.push(
         ...(await runReadProbe({
           definition: step.definition,
-          organization: step.organization,
+          key:
+            step.definition.keyKind === "admin"
+              ? keys.admin
+              : keys.analytics,
           date: options.date,
           hashSalt,
         })),
@@ -455,6 +526,7 @@ async function runProbe(options: CliOptions): Promise<Record<string, unknown>> {
     } else {
       result.invite_canary = await runInviteCanary({
         organization: step.organization,
+        adminKey: keys.admin,
         hashSalt,
       });
     }
@@ -476,9 +548,7 @@ async function runProbe(options: CliOptions): Promise<Record<string, unknown>> {
 async function main(): Promise<void> {
   const options = parseCli(process.argv.slice(2));
   const artifact = await runProbe(options);
-  await writeFile(options.outputPath, `${JSON.stringify(artifact, null, 2)}\n`, {
-    mode: 0o600,
-  });
+  await writeSanitizedArtifact(options.outputPath, artifact);
   process.stdout.write(
     `${JSON.stringify({
       status: "sanitized_artifact_written",
@@ -488,6 +558,17 @@ async function main(): Promise<void> {
         : 0,
     })}\n`,
   );
+}
+
+export async function writeSanitizedArtifact(
+  outputPath: string,
+  artifact: Record<string, unknown>,
+): Promise<void> {
+  await writeFile(outputPath, `${JSON.stringify(artifact, null, 2)}\n`, {
+    mode: 0o600,
+  });
+  // writeFile's mode is ignored when overwriting an existing file.
+  await chmod(outputPath, 0o600);
 }
 
 const invokedPath = process.argv[1]

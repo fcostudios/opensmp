@@ -118,6 +118,9 @@ The harness lives in `scripts/probes/anthropic/` and:
 - runs every non-mutating endpoint before considering an invite canary;
 - keeps Admin and Analytics key routing explicit;
 - validates documented pagination and cost-decimal shapes;
+- constrains one-day usage/cost probes to `bucket_width=1d&limit=1`;
+- resolves all key variables and rejects equal Admin/Analytics secret values
+  before the first network call;
 - stores only allowlisted metadata, schema/type paths, and salted HMACs;
 - never persists raw bodies, full PII, IDs, credentials, or authorization
   headers;
@@ -127,7 +130,7 @@ The harness lives in `scripts/probes/anthropic/` and:
 Synthetic contract verification:
 
 ```text
-10 tests passed
+15 tests passed
 ```
 
 The suite does not mock Anthropic HTTP. A future HTTP-boundary test must first
