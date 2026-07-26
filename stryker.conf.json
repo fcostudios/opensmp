@@ -2,12 +2,18 @@
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "packageManager": "pnpm",
   "testRunner": "vitest",
+  "plugins": [
+    "@stryker-mutator/vitest-runner"
+  ],
   "reporters": [
     "progress",
     "clear-text",
     "html"
   ],
   "coverageAnalysis": "perTest",
+  "ignorePatterns": [
+    ".tmp/**"
+  ],
   "mutate": [
     "packages/*/src/**/*.ts",
     "apps/web/src/**/*.{ts,tsx}",

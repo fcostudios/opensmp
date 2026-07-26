@@ -7,6 +7,13 @@ import { neon } from "@neondatabase/serverless";
 import { Pool } from "pg";
 import * as schema from "./schema";
 
+export { SYSTEM_USER_EMAIL, SYSTEM_USER_ID } from "./system-ids";
+export {
+  deleteCompanyRoleAssignmentWithAudit,
+  type DeleteCompanyRoleAssignmentInput,
+  type DeletedCompanyRoleAssignment,
+} from "./company-role-assignment-mutations";
+
 const url = process.env.DATABASE_URL ?? "";
 const driver = process.env.DB_DRIVER;
 const useNeon =

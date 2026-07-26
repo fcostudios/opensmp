@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { POSTGRES_16_ALPINE_IMAGE } from "./testing/postgres-container";
 
 const execFileAsync = promisify(execFile);
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -212,7 +213,7 @@ async function waitForConcurrentAdvisoryLocks(databaseName: string): Promise<boo
 }
 
 beforeAll(async () => {
-  container = await new PostgreSqlContainer("postgres:16-alpine")
+  container = await new PostgreSqlContainer(POSTGRES_16_ALPINE_IMAGE)
     .withStartupTimeout(120_000)
     .start();
   clusterAdminUrl = container.getConnectionUri();
@@ -716,7 +717,7 @@ describe("committed migration release path", () => {
     }
   }, 30_000);
 
-  test("verifies the committed migration ledger and truthful integrity state", async () => {
+  test("verifies the committed migration ledger and exact runtime integrity state", async () => {
     const database = await createDatabase();
     try {
       const migrated = await runNode(runnerPath, {
@@ -731,7 +732,9 @@ describe("committed migration release path", () => {
       expect(verified.code, verified.stderr).toBe(0);
       expect(verified.stdout).toContain("committed migration checksum(s) verified");
       expect(verified.stdout).toContain("append-only trigger(s) verified");
-      expect(verified.stdout).toContain("ledger_app has no table grants in the committed migrations");
+      expect(verified.stdout).toContain(
+        "ledger_app has the exact least-privilege runtime grant matrix",
+      );
     } finally {
       await dropDatabase(database.name);
     }
@@ -773,11 +776,14 @@ describe("committed migration release path", () => {
   }, 30_000);
 
   test.each([
-    ["SELECT", "company"],
-    ["INSERT", "person"],
-    ["UPDATE", "vendor"],
+    ["DELETE", "company"],
+    ["UPDATE", "audit_log"],
+    ["UPDATE", "license_assignment"],
     ["DELETE", "license_type"],
-  ])("rejects any stray ledger_app %s privilege", async (privilege, tableName) => {
+    ["TRUNCATE", "company"],
+    ["REFERENCES", "company"],
+    ["TRIGGER", "company"],
+  ])("rejects a forbidden ledger_app %s privilege", async (privilege, tableName) => {
     const database = await createDatabase();
     const owner = new pg.Client({ connectionString: database.ownerUrl });
     try {
@@ -791,13 +797,57 @@ describe("committed migration release path", () => {
       });
       expect(result.code).not.toBe(0);
       expect(result.stderr).toContain(
-        `unexpected ledger_app DML grants: ${tableName}:${privilege}`,
+        "ledger_app runtime table-grant matrix mismatch",
       );
     } finally {
       await owner.end().catch(() => undefined);
       await dropDatabase(database.name);
     }
   }, 30_000);
+
+  test("rejects a forbidden ledger_app column privilege", async () => {
+    const database = await createDatabase();
+    const owner = new pg.Client({ connectionString: database.ownerUrl });
+    try {
+      await migrate(database.ownerUrl);
+      await owner.connect();
+      await owner.query("GRANT UPDATE (company_id) ON TABLE license_assignment TO ledger_app");
+
+      const result = await runNode(verifyPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+        DATABASE_URL: database.appUrl,
+      });
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain("ledger_app runtime column-grant matrix mismatch");
+    } finally {
+      await owner.end().catch(() => undefined);
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test.each(["UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER", "UPDATE (filename)", "REFERENCES (filename)"])(
+    "rejects a ledger_app %s privilege on the migration ledger",
+    async (privilege) => {
+      const database = await createDatabase();
+      const owner = new pg.Client({ connectionString: database.ownerUrl });
+      try {
+        await migrate(database.ownerUrl);
+        await owner.connect();
+        await owner.query(`GRANT ${privilege} ON TABLE ledger_schema_migrations TO ledger_app`);
+
+        const result = await runNode(verifyPath, {
+          DATABASE_ADMIN_URL: database.ownerUrl,
+          DATABASE_URL: database.appUrl,
+        });
+        expect(result.code).not.toBe(0);
+        expect(result.stderr).toContain("ledger_app schema/migration privilege mismatch");
+      } finally {
+        await owner.end().catch(() => undefined);
+        await dropDatabase(database.name);
+      }
+    },
+    30_000,
+  );
 
   test.each([
     [
@@ -847,6 +897,283 @@ describe("committed migration release path", () => {
       });
       expect(result.code).not.toBe(0);
       expect(result.stderr).toContain("append-only trigger integrity mismatch");
+    } finally {
+      await owner.end().catch(() => undefined);
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test.each([
+    [
+      "an unsafe search path",
+      "ALTER FUNCTION public.revoke_company_role_assignment(uuid, uuid, uuid) SET search_path = public",
+    ],
+    [
+      "a rewritten function body",
+      `
+        CREATE OR REPLACE FUNCTION public.revoke_company_role_assignment(
+          p_assignment_id uuid,
+          p_company_id uuid,
+          p_actor_user_id uuid
+        )
+        RETURNS TABLE (id uuid, user_account_id uuid, company_id uuid,
+          role company_role_assignment_role_enum, unique_grant text)
+        LANGUAGE plpgsql
+        SECURITY DEFINER
+        AS $$ BEGIN RETURN; END; $$;
+      `,
+    ],
+    [
+      "PUBLIC execute",
+      "GRANT EXECUTE ON FUNCTION public.revoke_company_role_assignment(uuid, uuid, uuid) TO PUBLIC",
+    ],
+    [
+      "ledger_app execute with grant option",
+      "GRANT EXECUTE ON FUNCTION public.revoke_company_role_assignment(uuid, uuid, uuid) TO ledger_app WITH GRANT OPTION",
+    ],
+    [
+      "an arbitrary login role execute",
+      `GRANT EXECUTE ON FUNCTION public.revoke_company_role_assignment(uuid, uuid, uuid) TO "${"postgres"}"`,
+    ],
+  ])("rejects %s on the role-revocation function", async (_kind, mutationSql) => {
+    const database = await createDatabase();
+    const owner = new pg.Client({ connectionString: database.ownerUrl });
+    try {
+      await migrate(database.ownerUrl);
+      await owner.connect();
+      const clusterAdminRole = decodeURIComponent(
+        new URL(clusterAdminUrl).username,
+      );
+      await owner.query(
+        mutationSql.replaceAll('"postgres"', `"${clusterAdminRole}"`),
+      );
+
+      const result = await runNode(verifyPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+        DATABASE_URL: database.appUrl,
+      });
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain("role-revocation function integrity mismatch");
+    } finally {
+      await owner.end().catch(() => undefined);
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test.each([
+    [
+      "the btree_gist extension",
+      `
+        ALTER TABLE license_assignment DROP CONSTRAINT license_assignment_no_overlap;
+        DROP EXTENSION btree_gist;
+      `,
+      "register extension mismatch",
+    ],
+    [
+      "the register exclusion constraint",
+      "ALTER TABLE license_assignment DROP CONSTRAINT license_assignment_no_overlap",
+      "register exclusion integrity mismatch",
+    ],
+    [
+      "the source-request uniqueness constraint",
+      "ALTER TABLE license_assignment DROP CONSTRAINT uq_license_assignment_source_request_id",
+      "source-request uniqueness integrity mismatch",
+    ],
+    [
+      "source-request nullable uniqueness semantics",
+      `
+        ALTER TABLE license_assignment
+          DROP CONSTRAINT uq_license_assignment_source_request_id;
+        ALTER TABLE license_assignment
+          ADD CONSTRAINT uq_license_assignment_source_request_id
+          UNIQUE NULLS NOT DISTINCT (source_request_id);
+      `,
+      "source-request uniqueness integrity mismatch",
+    ],
+    [
+      "the register exclusion range boundary",
+      `
+        ALTER TABLE license_assignment DROP CONSTRAINT license_assignment_no_overlap;
+        ALTER TABLE license_assignment
+          ADD CONSTRAINT license_assignment_no_overlap
+          EXCLUDE USING gist (
+            person_id WITH =,
+            vendor_account_id WITH =,
+            license_type_id WITH =,
+            daterange(started_on, COALESCE(ended_on + 1, 'infinity'::date), '[]') WITH &&
+          );
+      `,
+      "register exclusion integrity mismatch",
+    ],
+    [
+      "the pending-proposal partial predicate",
+      `
+        DROP INDEX reclamation_proposal_one_pending_per_assignment;
+        CREATE UNIQUE INDEX reclamation_proposal_one_pending_per_assignment
+          ON reclamation_proposal (assignment_id)
+          WHERE status = 'pending' OR decided_at IS NULL;
+      `,
+      "reclamation pending-index integrity mismatch",
+    ],
+    [
+      "the pending-proposal partial index key",
+      `
+        DROP INDEX reclamation_proposal_one_pending_per_assignment;
+        CREATE UNIQUE INDEX reclamation_proposal_one_pending_per_assignment
+          ON reclamation_proposal (id)
+          WHERE status = 'pending';
+      `,
+      "reclamation pending-index integrity mismatch",
+    ],
+    [
+      "the reallocation successor boundary",
+      `
+        CREATE OR REPLACE FUNCTION public.license_assignment_reallocation_contiguous()
+        RETURNS trigger AS $$
+        BEGIN
+          IF NEW.end_reason = 'reallocated' AND NEW.ended_on IS NOT NULL THEN
+            IF NOT EXISTS (
+              SELECT 1
+              FROM public.license_assignment AS successor
+              WHERE successor.id <> NEW.id
+                AND successor.person_id = NEW.person_id
+                AND successor.vendor_account_id = NEW.vendor_account_id
+                AND successor.license_type_id = NEW.license_type_id
+                AND successor.started_on <= NEW.ended_on
+            ) THEN
+              RAISE EXCEPTION
+                USING ERRCODE = '23514',
+                  CONSTRAINT = 'license_assignment_reallocation_contiguous',
+                  MESSAGE = 'reallocated license assignments require a contiguous successor';
+            END IF;
+          END IF;
+          RETURN NULL;
+        END;
+        $$ LANGUAGE plpgsql;
+      `,
+      "reallocation trigger integrity mismatch",
+    ],
+    [
+      "a removed reallocation person predicate",
+      `
+        CREATE OR REPLACE FUNCTION public.license_assignment_reallocation_contiguous()
+        RETURNS trigger AS $$
+        BEGIN
+          IF NEW.end_reason = 'reallocated' AND NEW.ended_on IS NOT NULL THEN
+            IF NOT EXISTS (
+              SELECT 1
+              FROM public.license_assignment AS successor
+              WHERE successor.id <> NEW.id
+                AND successor.vendor_account_id = NEW.vendor_account_id
+                AND successor.license_type_id = NEW.license_type_id
+                AND successor.started_on > NEW.started_on
+                AND successor.started_on <= NEW.ended_on + 1
+            ) THEN
+              RAISE EXCEPTION
+                USING ERRCODE = '23514',
+                  CONSTRAINT = 'license_assignment_reallocation_contiguous',
+                  MESSAGE = 'reallocated license assignments require a contiguous successor';
+            END IF;
+          END IF;
+          RETURN NULL;
+        END;
+        $$ LANGUAGE plpgsql;
+        ALTER FUNCTION public.license_assignment_reallocation_contiguous()
+          SET search_path = pg_catalog, public;
+      `,
+      "reallocation trigger integrity mismatch",
+    ],
+    [
+      "a dead-code reallocation bypass",
+      `
+        CREATE OR REPLACE FUNCTION public.license_assignment_reallocation_contiguous()
+        RETURNS trigger AS $$
+        BEGIN
+          IF FALSE THEN
+            PERFORM 1
+            FROM public.license_assignment AS successor
+            WHERE successor.started_on > NEW.started_on
+              AND successor.started_on <= NEW.ended_on + 1;
+          END IF;
+          RETURN NULL;
+        END;
+        $$ LANGUAGE plpgsql;
+        ALTER FUNCTION public.license_assignment_reallocation_contiguous()
+          SET search_path = pg_catalog, public;
+      `,
+      "reallocation trigger integrity mismatch",
+    ],
+    [
+      "the reallocation insert event",
+      `
+        DROP TRIGGER license_assignment_reallocation_contiguous ON public.license_assignment;
+        CREATE CONSTRAINT TRIGGER license_assignment_reallocation_contiguous
+          AFTER UPDATE OF ended_on, end_reason
+          ON public.license_assignment
+          DEFERRABLE INITIALLY DEFERRED
+          FOR EACH ROW
+          EXECUTE FUNCTION public.license_assignment_reallocation_contiguous();
+      `,
+      "reallocation trigger integrity mismatch",
+    ],
+    [
+      "the reallocation update key columns",
+      `
+        DROP TRIGGER license_assignment_reallocation_contiguous ON public.license_assignment;
+        CREATE CONSTRAINT TRIGGER license_assignment_reallocation_contiguous
+          AFTER INSERT OR UPDATE OF started_on, end_reason
+          ON public.license_assignment
+          DEFERRABLE INITIALLY DEFERRED
+          FOR EACH ROW
+          EXECUTE FUNCTION public.license_assignment_reallocation_contiguous();
+      `,
+      "reallocation trigger integrity mismatch",
+    ],
+    [
+      "the fixed system actor identity",
+      `
+        ALTER TABLE user_account DROP CONSTRAINT uq_user_account_email;
+        INSERT INTO user_account (id, email, status, created_at)
+        VALUES (
+          '00000000-0000-0000-0000-000000000002',
+          'system@ledger.invalid',
+          'disabled',
+          now()
+        );
+        UPDATE system_setting
+          SET updated_by = '00000000-0000-0000-0000-000000000002';
+      `,
+      "system-default integrity mismatch",
+    ],
+    [
+      "the deferred reallocation trigger",
+      "ALTER TABLE license_assignment DISABLE TRIGGER license_assignment_reallocation_contiguous",
+      "reallocation trigger integrity mismatch",
+    ],
+    [
+      "the pending-proposal partial index",
+      "DROP INDEX reclamation_proposal_one_pending_per_assignment",
+      "reclamation pending-index integrity mismatch",
+    ],
+    [
+      "the seeded system defaults",
+      "DELETE FROM system_setting WHERE key = 'default_language'",
+      "system-default integrity mismatch",
+    ],
+  ])("rejects drift of %s", async (_kind, mutationSql, expectedMessage) => {
+    const database = await createDatabase();
+    const owner = new pg.Client({ connectionString: database.ownerUrl });
+    try {
+      await migrate(database.ownerUrl);
+      await owner.connect();
+      await owner.query(mutationSql);
+
+      const result = await runNode(verifyPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+        DATABASE_URL: database.appUrl,
+      });
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain(expectedMessage);
     } finally {
       await owner.end().catch(() => undefined);
       await dropDatabase(database.name);

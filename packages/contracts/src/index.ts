@@ -31,6 +31,8 @@ import {
   integrationCredential
 } from "@smp/db/schema";
 
+export { SYSTEM_USER_EMAIL, SYSTEM_USER_ID } from "@smp/db/system-ids";
+
 export const insertAlertRuleSchema = createInsertSchema(alertRule);
 export const selectAlertRuleSchema = createSelectSchema(alertRule);
 export const insertAlertEventSchema = createInsertSchema(alertEvent);

@@ -8,6 +8,7 @@ node_modules/
 .next/
 out/
 .turbo/
+.stryker-tmp/
 apps/web/.next/
 dist/
 *.tsbuildinfo

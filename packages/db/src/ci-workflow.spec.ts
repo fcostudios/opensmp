@@ -89,8 +89,6 @@ describe("database CI workflow", () => {
   test("database integration tests never connect to a caller-supplied cluster", async () => {
     const source = await readFile(integrationTestPath, "utf8");
     expect(source).not.toContain("TEST_POSTGRES_URL");
-    expect(source).toContain(
-      'new PostgreSqlContainer("postgres:16-alpine")',
-    );
+    expect(source).toContain("POSTGRES_16_ALPINE_IMAGE");
   });
 });
