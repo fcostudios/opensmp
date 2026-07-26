@@ -25,6 +25,7 @@ export async function previewCompaniesCsv(input: unknown) {
     productionImportDatabase,
     prepared,
     prepared.credentials,
+    prepared.kek,
   );
 }
 

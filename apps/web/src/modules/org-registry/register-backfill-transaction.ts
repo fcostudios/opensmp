@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 import { and, eq } from "drizzle-orm";
 
@@ -26,8 +26,10 @@ import {
   vendorAccountCapacity,
 } from "@smp/db/schema";
 import { db } from "@smp/db";
+import { parseCredentialEnvelope } from "@smp/domain";
 
 import { withAudit } from "@/modules/audit/with-audit";
+import { decryptCredential } from "@/modules/vendor-catalog/credential-crypto";
 import {
   importCompanies,
   type ImportDatabase,
@@ -117,6 +119,12 @@ function requestNumber(row: MemberBackfillRow): string {
   return `IMP-${createHash("sha256").update(canonical).digest("hex").slice(0, 24).toUpperCase()}`;
 }
 
+function secretsMatch(left: string, right: string): boolean {
+  const leftDigest = createHash("sha256").update(left, "utf8").digest();
+  const rightDigest = createHash("sha256").update(right, "utf8").digest();
+  return timingSafeEqual(leftDigest, rightDigest);
+}
+
 function capacityKey(row: CapacityImportRow): string {
   return `${row.vendorOrgRef}\u0000${row.licenseType}`;
 }
@@ -152,6 +160,7 @@ export async function dryRunGoLiveImport(
   database: ImportDatabase,
   input: GoLiveCsvInput,
   credentials: readonly CredentialSeed[] = [],
+  kek?: Uint8Array,
 ): Promise<DryRunReport> {
   const parsed = parseInput(input);
   const inserts = emptyCounters();
@@ -173,6 +182,7 @@ export async function dryRunGoLiveImport(
   const savedCredentials = await database.select().from(integrationCredential);
 
   const companyByCode = new Map(savedCompanies.map((row) => [row.code, row]));
+  const incomingCompanyCodes = new Set(parsed.companies.map((row) => row.code));
   const accountByEmail = new Map(savedAccounts.map((row) => [row.email, row]));
   const personById = new Map(savedPeople.map((row) => [row.id, row]));
   const personByEmail = new Map(savedPeople.map((row) => [row.email, row]));
@@ -231,7 +241,7 @@ export async function dryRunGoLiveImport(
         const linked = savedAccount.personId
           ? personById.get(savedAccount.personId)
           : undefined;
-        if (linked && saved && linked.companyId !== saved.id) {
+        if (linked && (!saved || linked.companyId !== saved.id)) {
           errors.push(`Contact ${email} conflicts with an identity in another company`);
         }
         const grantExists = saved
@@ -294,7 +304,10 @@ export async function dryRunGoLiveImport(
     if (savedPerson) {
       existing.people += 1;
       const targetCompany = companyByCode.get(row.companyCode);
-      if (targetCompany && savedPerson.companyId !== targetCompany.id) {
+      if (
+        (targetCompany && savedPerson.companyId !== targetCompany.id) ||
+        (!targetCompany && incomingCompanyCodes.has(row.companyCode))
+      ) {
         errors.push(`Member ${row.email} conflicts with another company`);
       }
       if (savedPerson.fullName !== row.fullName) {
@@ -313,13 +326,10 @@ export async function dryRunGoLiveImport(
       const savedAssignment = savedAssignments.find(
         (assignment) => assignment.sourceRequestId === savedRequest.id,
       );
-      const transition = savedTransitions.find(
-        (candidate) =>
-          candidate.requestId === savedRequest.id &&
-          candidate.fromState === null &&
-          candidate.toState === "active" &&
-          candidate.actorUserId === null,
+      const requestTransitions = savedTransitions.filter(
+        (candidate) => candidate.requestId === savedRequest.id,
       );
+      const transition = requestTransitions[0];
       if (
         !savedPersonForMember ||
         !targetCompany ||
@@ -331,7 +341,13 @@ export async function dryRunGoLiveImport(
         savedRequest.licenseTypeId !== targetLicense.id ||
         savedRequest.state !== "active" ||
         savedRequest.justification !== "importación inicial" ||
+        savedRequest.neededBy !== null ||
+        savedRequest.requestedBy !== null ||
+        savedRequest.decidedBy !== null ||
+        savedRequest.decidedAt !== null ||
+        savedRequest.decisionComment !== null ||
         savedRequest.createdBy !== null ||
+        savedRequest.updatedAt !== null ||
         !savedAssignment ||
         savedRequest.licenseAssignmentId !== savedAssignment.id ||
         savedAssignment.personId !== savedPersonForMember.id ||
@@ -340,8 +356,18 @@ export async function dryRunGoLiveImport(
         savedAssignment.licenseTypeId !== targetLicense.id ||
         savedAssignment.startedOn !== row.startedOn ||
         savedAssignment.endedOn !== null ||
+        savedAssignment.endReason !== null ||
         savedAssignment.sourceKind !== "import" ||
-        !transition
+        savedAssignment.note !== "importación inicial" ||
+        savedAssignment.createdBy !== null ||
+        savedAssignment.createdAt.getTime() !== savedRequest.createdAt.getTime() ||
+        requestTransitions.length !== 1 ||
+        !transition ||
+        transition.fromState !== null ||
+        transition.toState !== "active" ||
+        transition.actorUserId !== null ||
+        transition.note !== "importación inicial" ||
+        transition.occurredAt.getTime() !== savedRequest.createdAt.getTime()
       ) {
         errors.push(
           `Import lineage ${requestNumber(row)} conflicts with its existing request, transition, or assignment`,
@@ -369,10 +395,19 @@ export async function dryRunGoLiveImport(
       inserts.credentials += 1;
     } else {
       existing.credentials += 1;
-      if (
-        active.last4 !== credential.plaintext.slice(-4) ||
-        (active.scopes ?? null) !== (credential.scopes ?? null)
-      ) {
+      let exactSecret = false;
+      if (kek) {
+        try {
+          const plaintext = await decryptCredential(
+            parseCredentialEnvelope(active.encryptedSecret),
+            kek,
+          );
+          exactSecret = secretsMatch(plaintext, credential.plaintext);
+        } catch {
+          exactSecret = false;
+        }
+      }
+      if (!exactSecret || (active.scopes ?? null) !== (credential.scopes ?? null)) {
         errors.push(
           `Credential ${credential.vendorOrgRef}/${credential.kind} conflicts with its active record`,
         );
@@ -398,6 +433,7 @@ export class AuditedGoLiveImportBoundary {
       transaction as unknown as ImportDatabase,
       input,
       input.credentials,
+      input.kek,
     );
     if (dryRun.errors.length > 0) {
       throw new Error(`Go-live import validation failed: ${dryRun.errors.join("; ")}`);

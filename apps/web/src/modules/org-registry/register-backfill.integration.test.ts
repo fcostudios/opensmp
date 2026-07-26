@@ -10,6 +10,7 @@ import {
   integrationCredential,
   licenseAssignment,
   licenseRequest,
+  person,
   requestTransition,
   userAccount,
   vendor,
@@ -244,6 +245,7 @@ describe("US-007 go-live import", () => {
       database,
       { companiesCsv, membersCsv, capacityCsv },
       credentialSeeds,
+      testKek,
     );
     expect(existingPreview.existing.credentials).toBe(2);
     expect(existingPreview.errors).toEqual([]);
@@ -251,9 +253,10 @@ describe("US-007 go-live import", () => {
       database,
       { companiesCsv, membersCsv, capacityCsv },
       [
-        { ...credentialSeeds[0], plaintext: "different-admin-last4" },
+        { ...credentialSeeds[0], plaintext: "different-secret-synthetic" },
         credentialSeeds[1],
       ],
+      testKek,
     );
     expect(conflictPreview.errors).toContain(
       "Credential anthropic-acme/admin_scoped conflicts with its active record",
@@ -371,26 +374,149 @@ describe("US-007 go-live import", () => {
     );
   });
 
-  it("rejects a deterministic request whose lifecycle lineage was altered", async () => {
-    const [request] = await ownerDatabase.select().from(licenseRequest);
-    await ownerDatabase
-      .update(licenseRequest)
-      .set({ state: "submitted" })
-      .where(eq(licenseRequest.id, request.id));
+  it("rejects a linked contact account whose Person belongs to another incoming company", async () => {
+    const [acme] = await ownerDatabase
+      .select()
+      .from(company)
+      .where(eq(company.code, "ACME"));
+    const [linkedPerson] = await ownerDatabase.insert(person).values({
+      email: "linked-person@example.invalid",
+      fullName: "Linked Person",
+      companyId: acme.id,
+      status: "active",
+      createdAt: now,
+      createdBy: actorId,
+    }).returning();
+    await ownerDatabase.insert(userAccount).values({
+      email: "incoming-approver@example.invalid",
+      personId: linkedPerson.id,
+      status: "disabled",
+      createdAt: now,
+      createdBy: actorId,
+    });
     try {
+      const replacement = [
+        ...companyRows.slice(0, -1),
+        "NEW,New Synthetic Company,internal,incoming-approver@example.invalid,incoming-finance@example.invalid,1000.00,es",
+      ];
       const report = await dryRunGoLiveImport(database, {
-        companiesCsv,
+        companiesCsv: [
+          "code,name,type,approver_email,finance_contact_email,budget_monthly_usd,statement_language",
+          ...replacement,
+        ].join("\n"),
         membersCsv,
         capacityCsv,
       });
       expect(report.errors).toContain(
-        `Import lineage ${request.requestNo} conflicts with its existing request, transition, or assignment`,
+        "Contact incoming-approver@example.invalid conflicts with an identity in another company",
       );
     } finally {
       await ownerDatabase
+        .delete(userAccount)
+        .where(eq(userAccount.email, "incoming-approver@example.invalid"));
+      await ownerDatabase.delete(person).where(eq(person.id, linkedPerson.id));
+    }
+  });
+
+  it("rejects an existing member Person assigned to a new incoming company", async () => {
+    const [acme] = await ownerDatabase
+      .select()
+      .from(company)
+      .where(eq(company.code, "ACME"));
+    const [existingPerson] = await ownerDatabase.insert(person).values({
+      email: "incoming-member@example.invalid",
+      fullName: "Incoming Member",
+      companyId: acme.id,
+      status: "active",
+      createdAt: now,
+      createdBy: actorId,
+    }).returning();
+    try {
+      const replacement = [
+        ...companyRows.slice(0, -1),
+        "NEW,New Synthetic Company,internal,new-approver@example.invalid,new-finance@example.invalid,1000.00,es",
+      ];
+      const report = await dryRunGoLiveImport(database, {
+        companiesCsv: [
+          "code,name,type,approver_email,finance_contact_email,budget_monthly_usd,statement_language",
+          ...replacement,
+        ].join("\n"),
+        membersCsv: [
+          "vendor_org_ref,email,full_name,company_code,license_type,started_on",
+          "anthropic-acme,incoming-member@example.invalid,Incoming Member,NEW,Enterprise,2026-08-01",
+        ].join("\n"),
+        capacityCsv,
+      });
+      expect(report.errors).toContain(
+        "Member incoming-member@example.invalid conflicts with another company",
+      );
+    } finally {
+      await ownerDatabase.delete(person).where(eq(person.id, existingPerson.id));
+    }
+  });
+
+  it("rejects drift independently across request, transition, and assignment lineage", async () => {
+    const [request] = await ownerDatabase.select().from(licenseRequest);
+    const [assignment] = await ownerDatabase
+      .select()
+      .from(licenseAssignment)
+      .where(eq(licenseAssignment.sourceRequestId, request.id));
+    const expectedError =
+      `Import lineage ${request.requestNo} conflicts with its existing request, transition, or assignment`;
+    try {
+      await ownerDatabase
         .update(licenseRequest)
-        .set({ state: "active" })
+        .set({ decisionComment: "unexpected decision" })
         .where(eq(licenseRequest.id, request.id));
+      const requestDrift = await dryRunGoLiveImport(database, {
+        companiesCsv,
+        membersCsv,
+        capacityCsv,
+      });
+      expect(requestDrift.errors).toContain(expectedError);
+      await ownerDatabase
+        .update(licenseRequest)
+        .set({ decisionComment: null })
+        .where(eq(licenseRequest.id, request.id));
+
+      await ownerDatabase
+        .update(licenseAssignment)
+        .set({ note: "unexpected assignment" })
+        .where(eq(licenseAssignment.id, assignment.id));
+      const assignmentDrift = await dryRunGoLiveImport(database, {
+        companiesCsv,
+        membersCsv,
+        capacityCsv,
+      });
+      expect(assignmentDrift.errors).toContain(expectedError);
+      await ownerDatabase
+        .update(licenseAssignment)
+        .set({ note: "importación inicial" })
+        .where(eq(licenseAssignment.id, assignment.id));
+
+      await ownerDatabase.insert(requestTransition).values({
+        requestId: request.id,
+        fromState: null,
+        toState: "active",
+        actorUserId: null,
+        note: "unexpected duplicate transition",
+        occurredAt: now,
+      });
+      const transitionDrift = await dryRunGoLiveImport(database, {
+        companiesCsv,
+        membersCsv,
+        capacityCsv,
+      });
+      expect(transitionDrift.errors).toContain(expectedError);
+    } finally {
+      await ownerDatabase
+        .update(licenseRequest)
+        .set({ decisionComment: null })
+        .where(eq(licenseRequest.id, request.id));
+      await ownerDatabase
+        .update(licenseAssignment)
+        .set({ note: "importación inicial" })
+        .where(eq(licenseAssignment.id, assignment.id));
     }
   });
 

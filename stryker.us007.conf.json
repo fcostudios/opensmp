@@ -1,0 +1,29 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": [
+    "@stryker-mutator/vitest-runner"
+  ],
+  "vitest": {
+    "configFile": "apps/web/vitest.us007.config.ts",
+    "related": false
+  },
+  "coverageAnalysis": "perTest",
+  "reporters": [
+    "clear-text"
+  ],
+  "ignorePatterns": [
+    ".tmp/**"
+  ],
+  "mutate": [
+    "apps/web/src/modules/org-registry/register-backfill-transaction.ts"
+  ],
+  "concurrency": 9,
+  "thresholds": {
+    "high": 80,
+    "low": 60,
+    "break": 80
+  },
+  "tempDirName": ".tmp/stryker-us007"
+}

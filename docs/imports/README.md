@@ -36,6 +36,15 @@ Analytics environment variable. Every name and value must be present and unique;
 Admin and Analytics key material must differ. The manifest stores names only,
 never secrets.
 
+For the self-hosted Compose deployment, set
+`LEDGER_CREDENTIAL_MANIFEST_SOURCE` and `LEDGER_CREDENTIAL_KEK_SOURCE` to
+operator-owned host files outside the repository. Compose mounts both files
+read-only and sets the application paths to
+`/run/ledger-secrets/go-live-credential-manifest.json` and
+`/run/ledger-secrets/integration-credential.kek`. Inject the credential
+environment variables named by the manifest through the private deployment
+environment; never add their values to `.env.example` or a committed override.
+
 The import uses deterministic natural keys, including an `IMP-<hash>` request
 number for every seat. Repeating identical inputs creates no new company,
 contact grant, request, assignment, capacity, or credential. Dry-run reports
@@ -45,6 +54,12 @@ Reconciliation has two independent zero checks. `memberDelta` compares console
 members with active imported assignments. `capacityDelta` compares the purchased
 quantity in the CSV with the persisted capacity row. Purchased capacity may
 legitimately exceed occupied seats; spare seats do not fail reconciliation.
+
+Run the reproducible focused mutation gate from the repository root:
+
+```bash
+pnpm exec stryker run stryker.us007.conf.json
+```
 
 Real execution remains gated on OQ-SMP-1: the final company inventory, exported
 members, purchased capacity, and per-organization Admin/Analytics keys must be
