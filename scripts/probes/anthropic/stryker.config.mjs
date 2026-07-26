@@ -4,9 +4,9 @@ const config = {
   // durable atomic writer. Broader schema/redaction behavior is covered by
   // the repository's existing mutation suite.
   mutate: [
-    "probe.ts:384:0-605:1",
-    "probe.ts:722:0-758:1",
-    "runtime.ts:12:0-69:1",
+    "probe.ts:385:0-632:1",
+    "probe.ts:752:0-788:1",
+    "runtime.ts:50:0-137:1",
   ],
   plugins: [
     "../../../node_modules/@stryker-mutator/vitest-runner/dist/src/index.js",

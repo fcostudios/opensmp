@@ -65,10 +65,14 @@ Transport uncertainty during creation or cleanup is recorded as sanitized
 `indeterminate_manual_review_required` evidence and requires immediate manual
 inspection; raw exception text is never retained.
 
-Before the POST, the harness durably and atomically writes a `0600` checkpoint;
-it updates that checkpoint through create and cleanup. Artifact-write failure
-cannot erase the last checkpoint state. Indeterminate execution exits `2` with
-generic standard error, while other failures exit `1`.
+Before the POST, the harness durably and atomically writes a `0600` checkpoint
+with `manual_review_required: true`; confirmed creation leaves it true. Only a
+successful DELETE followed by a successful checkpoint write can set it false.
+Each organization has an isolated checkpoint filename derived from its
+non-sensitive reference HMAC, and artifacts expose only the filename.
+Artifact-write failure cannot erase the last checkpoint state. Checkpoint
+persistence failure is classified separately from HTTP transport failure and
+also exits `2` for explicit manual review; other failures exit `1`.
 
 ## Scope notes for Sprint 3
 
@@ -133,8 +137,9 @@ The harness lives in `scripts/probes/anthropic/` and:
   before the first network call;
 - binds mutation to an operator-provisioned HMAC of the provider organization
   identity returned by `/v1/organizations/me`;
-- checkpoints authorization before mutation and records create/cleanup
-  confirmation or uncertainty using symlink-safe atomic `0600` writes;
+- checkpoints authorization before mutation, isolates checkpoint state by
+  organization, and records create/cleanup confirmation or uncertainty using
+  parent-and-target-symlink-safe atomic `0600` writes;
 - deletes only an invite ID from a 2xx, schema-valid create response;
 - stores only allowlisted metadata, schema/type paths, and salted HMACs;
 - never persists raw bodies, full PII, IDs, credentials, or authorization
@@ -145,8 +150,9 @@ The harness lives in `scripts/probes/anthropic/` and:
 Synthetic contract verification:
 
 ```text
-29 tests passed
-safety-boundary mutation score: 80.27% (80% breaking threshold)
+38 tests passed
+safety-boundary mutation score: 87.60% (80% breaking threshold)
+runtime.ts mutation score: 84.62%
 ```
 
 The deterministic fetch/filesystem/process fixtures exercise injected

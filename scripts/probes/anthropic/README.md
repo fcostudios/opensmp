@@ -87,10 +87,18 @@ target. A missing gate is evidence that the canary was not executed, not a
 successful dry run.
 
 Immediately before the POST, the probe atomically writes an owner-only (`0600`)
-checkpoint. It then replaces that checkpoint after create and cleanup. The
-checkpoint contains only a salted organization-reference hash and state
-metadata. Keep it when the process exits non-zero: it is the durable record
-needed to decide whether manual provider-console cleanup is required.
+checkpoint whose `manual_review_required` value is `true`. It remains true
+after confirmed creation and becomes false only after both DELETE and the final
+checkpoint write succeed. Each manifest organization receives a separate file
+derived from the base `--checkpoint` path plus its 64-character
+organization-reference HMAC, so one organization's unresolved state cannot
+overwrite another's. Artifacts expose only that safe filename, never a local
+directory path.
+
+A checkpoint persistence failure is distinct from an HTTP transport failure.
+It prevents the POST when it occurs before mutation, preserves the last durable
+true state after mutation, and returns the explicit manual-review exit status.
+Keep all per-organization checkpoint files when the process exits non-zero.
 
 A network/transport failure during creation or withdrawal is recorded only as
 `indeterminate_manual_review_required`; no exception text or response body is
@@ -118,10 +126,11 @@ The JSON artifact allowlists:
 
 Raw response bodies are held only long enough to validate and summarize the
 response, then discarded. Error bodies and thrown error messages are not
-printed. Artifacts and checkpoints use a symlink-rejecting atomic writer: an
-exclusive same-directory temporary file is created at `0600`, flushed, renamed,
-forced back to `0600`, and the directory is synced. Temporary files are removed
-after write failure.
+printed. Artifacts and checkpoints use a symlink-rejecting atomic writer that
+rejects the final target and every parent path component. An exclusive
+same-directory temporary file is created at `0600`, flushed, renamed, forced
+back to `0600`, and the directory is synced. Temporary files are removed after
+write failure.
 
 ## Verification
 

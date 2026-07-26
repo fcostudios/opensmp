@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { basename, dirname, extname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import {
@@ -396,6 +397,19 @@ export function verifyProviderOrganization(
   );
 }
 
+export function checkpointPathForOrganization(
+  basePath: string,
+  organizationRefHash: string,
+): string {
+  const match = /^hmac-sha256:([a-f0-9]{64})$/.exec(organizationRefHash);
+  if (!match?.[1]) {
+    throw new Error("organization reference hash is not a safe HMAC");
+  }
+  const extension = extname(basePath);
+  const stem = basename(basePath, extension);
+  return join(dirname(basePath), `${stem}.${match[1]}${extension || ".json"}`);
+}
+
 export async function runInviteCanary(input: {
   organization: ProbeOrganization;
   adminKey: string;
@@ -408,10 +422,12 @@ export async function runInviteCanary(input: {
   fetchImpl: typeof fetch;
   writeCheckpoint: typeof atomicWriteSecureJson;
 }): Promise<Record<string, unknown>> {
+  const checkpointFile = basename(input.checkpointPath);
   if (!input.providerTargetVerified) {
     return {
       status: "not_executed",
       reason: "provider_target_not_verified",
+      checkpoint_file: checkpointFile,
     };
   }
   const authorization = inviteCanaryAuthorization({
@@ -428,6 +444,7 @@ export async function runInviteCanary(input: {
     return {
       status: "not_executed",
       reason: authorization.reason,
+      checkpoint_file: checkpointFile,
     };
   }
 
@@ -441,122 +458,132 @@ export async function runInviteCanary(input: {
     null;
   let createTransportFailure = false;
   let cleanupTransportFailure = false;
+  let checkpointPersistenceFailure = false;
   const checkpointBase = {
     checkpoint_version: 1,
     organization_ref_hash: input.organizationRefHash,
     provider_target_verified: true,
   };
 
-  await input.writeCheckpoint(input.checkpointPath, {
-    ...checkpointBase,
-    state: "authorized_canary_pending",
-    manual_review_required: false,
-    updated_at: input.now().toISOString(),
-  });
+  const persistCheckpoint = async (
+    state: string,
+    manualReviewRequired: boolean,
+  ): Promise<boolean> => {
+    try {
+      await input.writeCheckpoint(input.checkpointPath, {
+        ...checkpointBase,
+        state,
+        manual_review_required: manualReviewRequired,
+        updated_at: input.now().toISOString(),
+      });
+      return true;
+    } catch {
+      checkpointPersistenceFailure = true;
+      return false;
+    }
+  };
+
+  if (!(await persistCheckpoint("authorized_canary_pending", true))) {
+    return {
+      status: "indeterminate_manual_review_required",
+      checkpoint_file: checkpointFile,
+      checkpoint: { classification: "checkpoint_persistence_failure" },
+      create: { status: "not_attempted" },
+      cleanup: null,
+    };
+  }
 
   try {
+    const created = await request(
+      createUrl,
+      key,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: canaryEmail, role: "user" }),
+      },
+      input.fetchImpl,
+    );
+    createObservation = createSanitizedObservation({
+      endpoint: "invite_canary_create",
+      keyKind: "admin",
+      status: created.response.status,
+      headers: created.response.headers,
+      body: created.body,
+      hashSalt: input.hashSalt,
+      sentBetaHeader: null,
+    });
+    const createIsValid =
+      created.response.status >= 200 &&
+      created.response.status < 300 &&
+      createObservation.schema.valid;
+    createdInviteId = createIsValid ? inviteId(created.body) : null;
+    await persistCheckpoint(
+      createIsValid && createdInviteId
+        ? "invite_create_confirmed"
+        : created.response.ok
+          ? "invite_create_indeterminate"
+          : "invite_create_rejected",
+      true,
+    );
+  } catch {
+    createTransportFailure = true;
+    await persistCheckpoint("invite_create_indeterminate", true);
+  }
+
+  if (createdInviteId) {
     try {
-      const created = await request(
-        createUrl,
+      const deleteUrl = new URL(
+        `/v1/organizations/invites/${encodeURIComponent(createdInviteId)}`,
+        API_ORIGIN,
+      );
+      const deleted = await request(
+        deleteUrl,
         key,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email: canaryEmail, role: "user" }),
-        },
+        { method: "DELETE" },
         input.fetchImpl,
       );
-      createObservation = createSanitizedObservation({
-        endpoint: "invite_canary_create",
+      cleanupObservation = createSanitizedObservation({
+        endpoint: "invite_canary_delete",
         keyKind: "admin",
-        status: created.response.status,
-        headers: created.response.headers,
-        body: created.body,
+        status: deleted.response.status,
+        headers: deleted.response.headers,
+        body: deleted.body,
         hashSalt: input.hashSalt,
         sentBetaHeader: null,
       });
-      const createIsValid =
-        created.response.status >= 200 &&
-        created.response.status < 300 &&
-        createObservation.schema.valid;
-      createdInviteId = createIsValid ? inviteId(created.body) : null;
-      await input.writeCheckpoint(input.checkpointPath, {
-        ...checkpointBase,
-        state:
-          createIsValid && createdInviteId
-            ? "invite_create_confirmed"
-            : created.response.ok
-              ? "invite_create_indeterminate"
-              : "invite_create_rejected",
-        manual_review_required:
-          created.response.ok && (!createIsValid || !createdInviteId),
-        updated_at: input.now().toISOString(),
-      });
+      const cleanupSucceeded =
+        deleted.response.ok && cleanupObservation.schema.valid;
+      await persistCheckpoint(
+        cleanupSucceeded
+          ? "invite_cleanup_confirmed"
+          : "invite_cleanup_indeterminate",
+        !cleanupSucceeded,
+      );
     } catch {
-      createTransportFailure = true;
-      await input.writeCheckpoint(input.checkpointPath, {
-        ...checkpointBase,
-        state: "invite_create_indeterminate",
-        manual_review_required: true,
-        updated_at: input.now().toISOString(),
-      });
-    }
-  } finally {
-    if (createdInviteId) {
-      try {
-        const deleteUrl = new URL(
-          `/v1/organizations/invites/${encodeURIComponent(createdInviteId)}`,
-          API_ORIGIN,
-        );
-        const deleted = await request(
-          deleteUrl,
-          key,
-          { method: "DELETE" },
-          input.fetchImpl,
-        );
-        cleanupObservation = createSanitizedObservation({
-          endpoint: "invite_canary_delete",
-          keyKind: "admin",
-          status: deleted.response.status,
-          headers: deleted.response.headers,
-          body: deleted.body,
-          hashSalt: input.hashSalt,
-          sentBetaHeader: null,
-        });
-        const cleanupSucceeded =
-          deleted.response.ok && cleanupObservation.schema.valid;
-        await input.writeCheckpoint(input.checkpointPath, {
-          ...checkpointBase,
-          state: cleanupSucceeded
-            ? "invite_cleanup_confirmed"
-            : "invite_cleanup_indeterminate",
-          manual_review_required: !cleanupSucceeded,
-          updated_at: input.now().toISOString(),
-        });
-      } catch {
-        cleanupTransportFailure = true;
-        await input.writeCheckpoint(input.checkpointPath, {
-          ...checkpointBase,
-          state: "invite_cleanup_indeterminate",
-          manual_review_required: true,
-          updated_at: input.now().toISOString(),
-        });
-      }
+      cleanupTransportFailure = true;
+      await persistCheckpoint("invite_cleanup_indeterminate", true);
     }
   }
 
-  const outcome = classifyInviteCanaryOutcome({
-    createStatus: createObservation?.status ?? null,
-    hasInviteId: createdInviteId !== null,
-    cleanupStatus:
-      cleanupObservation?.schema.valid === true
-        ? cleanupObservation.status
-        : null,
-    createTransportFailure,
-    cleanupTransportFailure,
-  });
+  const outcome = checkpointPersistenceFailure
+    ? "indeterminate_manual_review_required"
+    : classifyInviteCanaryOutcome({
+        createStatus: createObservation?.status ?? null,
+        hasInviteId: createdInviteId !== null,
+        cleanupStatus:
+          cleanupObservation?.schema.valid === true
+            ? cleanupObservation.status
+            : null,
+        createTransportFailure,
+        cleanupTransportFailure,
+      });
   return {
     status: outcome,
+    checkpoint_file: checkpointFile,
+    checkpoint: checkpointPersistenceFailure
+      ? { classification: "checkpoint_persistence_failure" }
+      : { classification: "persisted" },
     create: createTransportFailure
       ? { classification: "network_or_transport_failure" }
       : createObservation,
@@ -682,7 +709,10 @@ export async function runProbe(
         hashSalt,
         organizationRefHash: result.organization_ref_hash,
         providerTargetVerified: result.provider_target_verified,
-        checkpointPath: options.checkpointPath,
+        checkpointPath: checkpointPathForOrganization(
+          options.checkpointPath,
+          result.organization_ref_hash,
+        ),
         environment: runtime.environment,
         now: runtime.now,
         fetchImpl: runtime.fetchImpl,
