@@ -4,8 +4,8 @@ const config = {
   // durable atomic writer. Broader schema/redaction behavior is covered by
   // the repository's existing mutation suite.
   mutate: [
-    "probe.ts:385:0-632:1",
-    "probe.ts:752:0-788:1",
+    "probe.ts:391:0-653:1",
+    "probe.ts:788:0-836:1",
     "runtime.ts:50:0-137:1",
   ],
   plugins: [

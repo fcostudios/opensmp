@@ -72,7 +72,11 @@ Each organization has an isolated checkpoint filename derived from its
 non-sensitive reference HMAC, and artifacts expose only the filename.
 Artifact-write failure cannot erase the last checkpoint state. Checkpoint
 persistence failure is classified separately from HTTP transport failure and
-also exits `2` for explicit manual review; other failures exit `1`.
+also exits `2` for explicit manual review. If artifact persistence then fails,
+manual-review precedence remains exit `2` with sanitized
+`artifact_write_failed` context. Other failures exit `1`. The manifest,
+artifact, and all derived per-organization checkpoint paths are resolved and
+collision-checked before the first network request.
 
 ## Scope notes for Sprint 3
 
@@ -150,8 +154,8 @@ The harness lives in `scripts/probes/anthropic/` and:
 Synthetic contract verification:
 
 ```text
-38 tests passed
-safety-boundary mutation score: 87.60% (80% breaking threshold)
+39 tests passed
+safety-boundary mutation score: 88.24% (80% breaking threshold)
 runtime.ts mutation score: 84.62%
 ```
 

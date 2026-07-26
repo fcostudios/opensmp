@@ -110,7 +110,14 @@ every non-2xx withdrawal response.
 
 CLI exit codes are `0` for a completed run without uncertainty, `2` when
 manual review is required, and `1` for validation, execution, or artifact-write
-failure. Standard error contains only a generic JSON status.
+failure. Manual review retains exit `2` even if the final artifact write also
+fails; standard error then adds only the sanitized
+`artifact_write_failed` context.
+
+Before the first network request, the probe resolves the manifest, artifact,
+and every derived per-organization checkpoint path and rejects any collision.
+This prevents an output from overwriting the input manifest or another
+organization's recovery state.
 
 ## Artifact contract
 

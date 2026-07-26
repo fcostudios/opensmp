@@ -27,6 +27,7 @@ import {
 import {
   buildExecutionSchedule,
   buildProbeQuery,
+  assertDistinctPersistencePaths,
   checkpointPathForOrganization,
   classifyInviteCanaryOutcome,
   executeProbeCli,
@@ -606,6 +607,76 @@ describe("probe safety boundary", () => {
         "../unsafe",
       ),
     ).toThrow("organization reference hash is not a safe HMAC");
+    expect(() =>
+      assertDistinctPersistencePaths({
+        manifestPath: "manifest.json",
+        outputPath: "artifact.json",
+        checkpointPaths: [firstPath, `./${firstPath}`],
+      }),
+    ).toThrow("probe persistence paths must be distinct");
+  });
+
+  test("rejects persistence path collisions before the first network request", async () => {
+    const organizationHash = stableSecretHash("central", HASH_SALT);
+    const checkpointBase = "synthetic-checkpoint.json";
+    const derivedCheckpoint = checkpointPathForOrganization(
+      checkpointBase,
+      organizationHash,
+    );
+    const scenarios = [
+      {
+        manifestPath: "synthetic-shared.json",
+        outputPath: "./synthetic-shared.json",
+      },
+      {
+        manifestPath: "synthetic-manifest.json",
+        outputPath: derivedCheckpoint,
+      },
+      {
+        manifestPath: derivedCheckpoint,
+        outputPath: "synthetic-artifact.json",
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      let networkCalls = 0;
+      let writes = 0;
+      const stderr: string[] = [];
+      const exitCode = await executeProbeCli({
+        argv: [
+          "--manifest",
+          scenario.manifestPath,
+          "--output",
+          scenario.outputPath,
+          "--checkpoint",
+          checkpointBase,
+          "--date",
+          "2026-07-24",
+        ],
+        runtime: {
+          environment: AUTHORIZED_ENVIRONMENT,
+          now: () => FIXED_NOW,
+          readText: async () =>
+            JSON.stringify({ organizations: [ORGANIZATION] }),
+          fetchImpl: (async () => {
+            networkCalls += 1;
+            throw new Error("network must not be reached");
+          }) as typeof fetch,
+          writeSecureJson: async () => {
+            writes += 1;
+          },
+        },
+        stdout: () => undefined,
+        stderr: (message) => stderr.push(message),
+      });
+
+      expect(exitCode).toBe(1);
+      expect(stderr).toEqual([
+        `${JSON.stringify({ status: "probe_failed" })}\n`,
+      ]);
+      expect(networkCalls).toBe(0);
+      expect(writes).toBe(0);
+    }
   });
 
   test("requires every invite mutation authorization signal for the same org", () => {
@@ -1187,7 +1258,7 @@ describe("probe safety boundary", () => {
     ).toBe(true);
   });
 
-  test("returns explicit manual-review CLI status for checkpoint persistence failure", async () => {
+  test("preserves manual-review precedence when checkpoint and artifact writes fail", async () => {
     const stderr: string[] = [];
     const writes: string[] = [];
     const exitCode = await executeProbeCli({
@@ -1245,6 +1316,7 @@ describe("probe safety boundary", () => {
             throw new Error("synthetic checkpoint persistence failure");
           }
           writes.push(path);
+          throw new Error("synthetic artifact persistence failure");
         },
       },
       stdout: () => undefined,
@@ -1255,6 +1327,7 @@ describe("probe safety boundary", () => {
     expect(stderr).toEqual([
       `${JSON.stringify({
         status: "canary_manual_review_required",
+        context: "artifact_write_failed",
       })}\n`,
     ]);
     expect(writes).toEqual(["synthetic-artifact.json"]);

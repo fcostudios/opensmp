@@ -1,5 +1,11 @@
 import { readFile } from "node:fs/promises";
-import { basename, dirname, extname, join } from "node:path";
+import {
+  basename,
+  dirname,
+  extname,
+  join,
+  resolve,
+} from "node:path";
 import { pathToFileURL } from "node:url";
 
 import {
@@ -410,6 +416,21 @@ export function checkpointPathForOrganization(
   return join(dirname(basePath), `${stem}.${match[1]}${extension || ".json"}`);
 }
 
+export function assertDistinctPersistencePaths(input: {
+  manifestPath: string;
+  outputPath: string;
+  checkpointPaths: readonly string[];
+}): void {
+  const resolvedPaths = [
+    resolve(input.manifestPath),
+    resolve(input.outputPath),
+    ...input.checkpointPaths.map((path) => resolve(path)),
+  ];
+  if (new Set(resolvedPaths).size !== resolvedPaths.length) {
+    throw new Error("probe persistence paths must be distinct");
+  }
+}
+
 export async function runInviteCanary(input: {
   organization: ProbeOrganization;
   adminKey: string;
@@ -678,6 +699,20 @@ export async function runProbe(
       },
     ]),
   );
+  const checkpointPaths = new Map(
+    [...working.values()].map((result) => [
+      result.organization.ref,
+      checkpointPathForOrganization(
+        options.checkpointPath,
+        result.organization_ref_hash,
+      ),
+    ]),
+  );
+  assertDistinctPersistencePaths({
+    manifestPath: options.manifestPath,
+    outputPath: options.outputPath,
+    checkpointPaths: [...checkpointPaths.values()],
+  });
 
   for (const step of buildExecutionSchedule(manifest.organizations)) {
     const result = working.get(step.organization.ref);
@@ -703,16 +738,17 @@ export async function runProbe(
           readResult.providerTargetVerified;
       }
     } else {
+      const checkpointPath = checkpointPaths.get(step.organization.ref);
+      if (!checkpointPath) {
+        throw new Error("internal checkpoint path mismatch");
+      }
       result.invite_canary = await runInviteCanary({
         organization: step.organization,
         adminKey: keys.admin,
         hashSalt,
         organizationRefHash: result.organization_ref_hash,
         providerTargetVerified: result.provider_target_verified,
-        checkpointPath: checkpointPathForOrganization(
-          options.checkpointPath,
-          result.organization_ref_hash,
-        ),
+        checkpointPath,
         environment: runtime.environment,
         now: runtime.now,
         fetchImpl: runtime.fetchImpl,
@@ -758,15 +794,27 @@ export async function executeProbeCli(input: {
   try {
     const options = parseCli(input.argv);
     const result = await runProbe(options, input.runtime);
-    await input.runtime.writeSecureJson(options.outputPath, result.artifact);
     if (result.manualReviewRequired) {
+      let artifactWriteFailed = false;
+      try {
+        await input.runtime.writeSecureJson(
+          options.outputPath,
+          result.artifact,
+        );
+      } catch {
+        artifactWriteFailed = true;
+      }
       input.stderr(
         `${JSON.stringify({
           status: "canary_manual_review_required",
+          ...(artifactWriteFailed
+            ? { context: "artifact_write_failed" }
+            : {}),
         })}\n`,
       );
       return 2;
     }
+    await input.runtime.writeSecureJson(options.outputPath, result.artifact);
     input.stdout(
       `${JSON.stringify({
         status: "sanitized_artifact_written",
