@@ -1,5 +1,5 @@
 <!-- nous-sprint-stamp
-generated_at: 2026-07-26T00:59:46Z
+generated_at: 2026-07-26T02:46:00Z
 current_sprint: sprint-5
 sprints_hash: 590ae2916211b5fa
 -->
@@ -32,7 +32,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | 2 | full-stack | **US-054** ⬜ | Anthropic API probe spike | ? ?SP | `See story file` | CHG-001 | — | — | — | [r1_misc_us_054.md](sprint-1/r1_misc_us_054.md) |
 | 3 | full-stack | **US-002** ✅ | Docker Compose runtime + CI pipeline | ? ?SP | `See story file` | — | US-001 | →4 | — | [r1_misc_us_002.md](sprint-1/r1_misc_us_002.md) |
 | 4 | backend | **US-003** ✅ | Core schema migration with DB-level register integrity | ? ?SP | `apps/web/src/app/api/` | CHG-001 | US-002 | →8 | — | [r1_misc_us_003.md](sprint-1/r1_misc_us_003.md) |
-| 5 | backend | **US-004** 🔨 | Platform auth via Keycloak OIDC (mandatory 2FA for admin roles) | ? ?SP | `apps/web/src/app/api/` | CHG-001 | US-003 | →2 | — | [r1_misc_us_004.md](sprint-1/r1_misc_us_004.md) |
+| 5 | backend | **US-004** ✅ | Platform auth via Keycloak OIDC (mandatory 2FA for admin roles) | ? ?SP | `apps/web/src/app/api/` | CHG-001 | US-003 | →2 | — | [r1_misc_us_004.md](sprint-1/r1_misc_us_004.md) |
 | 6 | backend | **US-005** ⬜ | Server-side RBAC + company scoping middleware | ? ?SP | `apps/web/src/app/api/` | CHG-001 | US-004 | →9 | — | [r1_misc_us_005.md](sprint-1/r1_misc_us_005.md) |
 | 7 | frontend | **US-006** ⬜ | App shell: data-workspace chrome + bilingual i18n | ? ?SP | `apps/web/src/components/` | — | US-004 | — | — | [r1_misc_us_006.md](sprint-1/r1_misc_us_006.md) |
 | 8 | full-stack | **US-007** ⬜ | Seed: companies CSV + go-live register backfill | ? ?SP | `See story file` | CHG-001 | US-003 | →3 | — | [r1_misc_us_007.md](sprint-1/r1_misc_us_007.md) |
