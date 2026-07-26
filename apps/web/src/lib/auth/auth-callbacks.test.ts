@@ -50,6 +50,9 @@ test("exposes only the Ledger-loaded authorization session to browser code", () 
     name: "Ledger User",
     globalRole: "group_admin",
     companyGrants: [],
+    employeeCompanyId: null,
+    roles: ["group_admin"],
+    companyIds: [],
     uiLanguage: "es",
   };
 

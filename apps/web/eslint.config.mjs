@@ -18,6 +18,49 @@ const eslintConfig = [
       "@typescript-eslint/ban-ts-comment": "off",
     },
   },
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@smp/db",
+              message:
+                "Company data access belongs in repositories or transaction services.",
+            },
+          ],
+          patterns: [
+            {
+              group: ["@smp/db/*"],
+              message:
+                "Company data access belongs in repositories or transaction services.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: [
+      "src/**/*.test.{ts,tsx}",
+      "src/**/*.spec.{ts,tsx}",
+      "src/modules/**/repository.ts",
+      "src/modules/**/*-transaction.ts",
+      "src/app/api/health/route.ts",
+      "src/app/api/health/health.ts",
+      "src/lib/auth/auth-config.ts",
+      "src/modules/identity-access/session.ts",
+      "src/modules/identity-access/authorization.ts",
+      "src/modules/identity-access/server-authorization.ts",
+      "src/modules/identity-access/locale.ts",
+      "src/modules/audit/auth-events.ts",
+    ],
+    rules: {
+      "no-restricted-imports": "off",
+    },
+  },
 ];
 
 export default eslintConfig;

@@ -2,15 +2,12 @@ import {
   and,
   asc,
   eq,
-  gte,
   isNull,
-  lte,
-  or,
   sql,
 } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-import { companyRoleAssignment, userAccount } from "@smp/db/schema";
+import { userAccount } from "@smp/db/schema";
 import * as schema from "@smp/db/schema";
 
 import type {
@@ -19,6 +16,7 @@ import type {
   LedgerUiLanguage,
 } from "@/lib/auth/auth-types";
 import { insertAuthAudit } from "../audit/auth-events";
+import { createAuthorizationRepository } from "./authorization";
 
 export type IdentityLinkErrorCode =
   | "account_disabled"
@@ -51,7 +49,6 @@ export interface CompleteOidcLoginInput {
 export interface LoadSessionUserInput {
   readonly subject: string;
   readonly name: string;
-  readonly asOf: string;
 }
 
 type Database = NodePgDatabase<typeof schema>;
@@ -81,6 +78,7 @@ function assertUsableAccount(account: AccountRow): AccountRow {
 }
 
 export function createIdentityAccessRepository(database: Database) {
+  const authorizationRepository = createAuthorizationRepository(database);
   return {
     async completeOidcLogin(
       input: CompleteOidcLoginInput,
@@ -195,7 +193,6 @@ export function createIdentityAccessRepository(database: Database) {
     async loadSessionUser({
       subject,
       name,
-      asOf,
     }: LoadSessionUserInput): Promise<LedgerSessionUser | null> {
       const [account] = await database
         .select(accountSelection)
@@ -206,29 +203,10 @@ export function createIdentityAccessRepository(database: Database) {
         return null;
       }
 
-      const grants = await database
-        .select({
-          companyId: companyRoleAssignment.companyId,
-          role: companyRoleAssignment.role,
-        })
-        .from(companyRoleAssignment)
-        .where(
-          and(
-            eq(companyRoleAssignment.userAccountId, account.id),
-            or(
-              isNull(companyRoleAssignment.validFrom),
-              lte(companyRoleAssignment.validFrom, asOf),
-            ),
-            or(
-              isNull(companyRoleAssignment.validTo),
-              gte(companyRoleAssignment.validTo, asOf),
-            ),
-          ),
-        )
-        .orderBy(
-          asc(companyRoleAssignment.companyId),
-          asc(companyRoleAssignment.role),
-        );
+      const authorization = await authorizationRepository.load({
+        subject,
+      });
+      if (!authorization) return null;
 
       return {
         id: account.id,
@@ -236,7 +214,10 @@ export function createIdentityAccessRepository(database: Database) {
         email: account.email,
         name: name.trim() || account.email,
         globalRole: account.globalRole,
-        companyGrants: grants,
+        companyGrants: authorization.companyGrants,
+        employeeCompanyId: authorization.employeeCompanyId,
+        roles: authorization.roles,
+        companyIds: authorization.companyIds,
         uiLanguage: account.uiLanguage,
       };
     },

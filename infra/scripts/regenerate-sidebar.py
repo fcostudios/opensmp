@@ -36,6 +36,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 NAV_MAP = REPO_ROOT / "docs" / "specs" / "07c_navigation_map.json"
 OUT_FILE = REPO_ROOT / "apps" / "web" / "src" / "components" / "shell" / "nav-items.gen.ts"
+SCREEN_ACCESS_OUT = (
+    REPO_ROOT / "apps" / "web" / "src" / "lib" / "auth" / "screen-access.gen.ts"
+)
 
 # IMP-137 / I03: Lucide icon allow-list emission. We emit a sibling JSON every
 # run (declared ∩ valid ∪ {fallback}) so the Nous pipeline's ready-check 100 can
@@ -139,11 +142,11 @@ def resolve_icon(icon: str | None, valid: frozenset[str]) -> str:
 
 
 def tsroles(roles: list[str]) -> str:
-    """Convert nav-map roles (lowercase) to the dev-package UserRole enum (uppercase)."""
+    """Emit nav-map roles using the lower-case domain role vocabulary."""
     if not roles or roles == ["all"]:
         return "undefined"
-    upper = [f'"{r.upper()}"' for r in roles if r != "all"]
-    return f"[{', '.join(upper)}]"
+    domain_roles = [f'"{r}"' for r in roles if r != "all"]
+    return f"[{', '.join(domain_roles)}]"
 
 
 def label_key(item_id: str) -> str:
@@ -215,7 +218,7 @@ def generate_ts(nav: dict, valid: frozenset[str] | None = None) -> str:
     for it in sidebar_items:
         for r in (it.get("roles") or []):
             if r and r != "all":
-                role_set.add(r.upper())
+                role_set.add(r)
     if role_set:
         user_role = " | ".join(f'"{r}"' for r in sorted(role_set))
     else:
@@ -247,6 +250,104 @@ def generate_ts(nav: dict, valid: frozenset[str] | None = None) -> str:
     )
 
     return header + imports + type_def + array
+
+
+def _default_routes(nav: dict) -> dict[str, str]:
+    """Derive each role's login destination from the nav graph.
+
+    The five authored login edges carry the role-specific destination. Viewer
+    has no login edge in R1, so its first non-public role view is its company
+    detail route template.
+    """
+    routes_by_screen = {
+        route["screen_id"]: route["route"] for route in nav["routes"]
+    }
+    login_edges = [
+        edge for edge in nav["navigation_graph"]["edges"]
+        if edge["from"] == "SCR-login"
+    ]
+    label_tokens = {
+        "employee": "colaborador",
+        "approver": "aprobador",
+        "company_finance": "finanzas de compañía",
+        "central_finance": "finanzas centrales",
+        "group_admin": "group admin",
+    }
+    defaults = {"public": routes_by_screen["SCR-login"]}
+    for role, token in label_tokens.items():
+        edge = next(
+            candidate for candidate in login_edges
+            if token in candidate["label"].lower()
+        )
+        defaults[role] = routes_by_screen[edge["to"]]
+    viewer_screen = next(
+        screen for screen in nav["role_based_views"]["viewer"]["screens"]
+        if screen not in {"SCR-login", "SCR-access-denied"}
+    )
+    defaults["viewer"] = routes_by_screen[viewer_screen]
+    return defaults
+
+
+def generate_screen_access_ts(nav: dict) -> str:
+    role_views = nav["role_based_views"]
+    roles = list(role_views)
+    all_screens = list(dict.fromkeys(
+        screen
+        for role in roles
+        for screen in role_views[role]["screens"]
+    ))
+    screen_roles = {
+        screen: [
+            role for role in roles
+            if screen in role_views[role]["screens"]
+        ]
+        for screen in all_screens
+    }
+    defaults = _default_routes(nav)
+    route_screens = {
+        route["route"]: route["screen_id"] for route in nav["routes"]
+    }
+    public_screens = [
+        route["screen_id"] for route in nav["routes"]
+        if not route["auth_required"]
+    ]
+
+    role_union = " | ".join(f'"{role}"' for role in roles)
+    role_screen_lines = ",\n".join(
+        f'  "{role}": {json.dumps(role_views[role]["screens"]) }'
+        for role in roles
+    )
+    screen_role_lines = ",\n".join(
+        f'  "{screen}": {json.dumps(screen_roles[screen])}'
+        for screen in all_screens
+    )
+    default_lines = ",\n".join(
+        f'  "{role}": "{defaults[role]}"' for role in roles
+    )
+    route_screen_lines = ",\n".join(
+        f'  "{route}": "{screen}"'
+        for route, screen in route_screens.items()
+    )
+    return (
+        "// AUTO-GENERATED — DO NOT EDIT.\n"
+        "// Source: docs/specs/07c_navigation_map.json role_based_views\n"
+        "// Generator: infra/scripts/regenerate-sidebar.py\n\n"
+        f"export type ScreenRole = {role_union};\n\n"
+        "export const ROLE_SCREEN_IDS = {\n"
+        f"{role_screen_lines},\n"
+        "} as const satisfies Record<ScreenRole, readonly string[]>;\n\n"
+        "export const SCREEN_ROLES = {\n"
+        f"{screen_role_lines},\n"
+        "} as const satisfies Record<string, readonly ScreenRole[]>;\n\n"
+        "export const DEFAULT_ROUTE_BY_ROLE = {\n"
+        f"{default_lines},\n"
+        "} as const satisfies Record<ScreenRole, string>;\n\n"
+        "export const ROUTE_SCREEN_IDS = {\n"
+        f"{route_screen_lines},\n"
+        "} as const;\n\n"
+        f"export const PUBLIC_SCREEN_IDS = {json.dumps(public_screens)} "
+        "as const;\n"
+    )
 
 
 def allow_list_payload(nav: dict, valid: frozenset[str] | None = None) -> dict:
@@ -349,6 +450,7 @@ def main() -> int:
         return 1
 
     new_content = generate_ts(nav, valid)
+    new_screen_access = generate_screen_access_ts(nav)
 
     if args.check:
         # 1) nav-items.gen.ts in sync
@@ -363,6 +465,21 @@ def main() -> int:
             else:
                 print(f"✗ {OUT_FILE.name} is OUT OF SYNC with the nav map. Run regenerate-sidebar.py.", file=sys.stderr)
                 rc = 1
+        if not SCREEN_ACCESS_OUT.exists():
+            print(
+                f"✗ {SCREEN_ACCESS_OUT} does not exist — run regenerate-sidebar.py",
+                file=sys.stderr,
+            )
+            rc = 1
+        elif SCREEN_ACCESS_OUT.read_text(encoding="utf-8") == new_screen_access:
+            print(f"✓ {SCREEN_ACCESS_OUT.name} is in sync with the nav map.")
+        else:
+            print(
+                f"✗ {SCREEN_ACCESS_OUT.name} is OUT OF SYNC with the nav map. "
+                "Run regenerate-sidebar.py.",
+                file=sys.stderr,
+            )
+            rc = 1
         # 2) allow-list in sync (IMP-137 / I03)
         _, ok = emit_allow_list(nav, check_mode=True, valid=valid)
         if not ok:
@@ -373,8 +490,11 @@ def main() -> int:
 
     OUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     OUT_FILE.write_text(new_content, encoding="utf-8")
+    SCREEN_ACCESS_OUT.parent.mkdir(parents=True, exist_ok=True)
+    SCREEN_ACCESS_OUT.write_text(new_screen_access, encoding="utf-8")
     items = _sidebar_items(nav)
     print(f"✓ Wrote {OUT_FILE.relative_to(REPO_ROOT)} ({len(items)} nav items)")
+    print(f"✓ Wrote {SCREEN_ACCESS_OUT.relative_to(REPO_ROOT)}")
     # Emit allow-list (IMP-137 / I03)
     changed, _ = emit_allow_list(nav, check_mode=False, valid=valid)
     n_icons = len(allow_list_payload(nav, valid)["icons"])

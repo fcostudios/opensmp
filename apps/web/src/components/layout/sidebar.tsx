@@ -3,19 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { navItems } from "@/components/shell/nav-items.gen";
+import { visibleNavItems } from "./sidebar-access";
 
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const userRoles = ((session?.user as { roles?: string[] } | undefined)?.roles) ?? [];
-  const visible = navItems.filter(
-    (item) =>
-      !item.roles ||
-      item.roles.length === 0 ||
-      userRoles.length === 0 ||
-      item.roles.some((r) => userRoles.includes(r)),
-  );
+  const visible = visibleNavItems(session?.user.roles);
   return (
     <aside className="hidden md:flex w-60 flex-col border-r bg-white">
       <div className="flex h-14 items-center px-4 font-bold text-lg">

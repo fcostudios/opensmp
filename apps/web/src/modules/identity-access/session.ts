@@ -53,16 +53,13 @@ export async function loadLedgerSessionUser(
   },
   {
     repository = productionRepository,
-    asOf = new Date().toISOString().slice(0, 10),
   }: {
     repository?: IdentityAccessRepository;
-    asOf?: string;
   } = {},
 ): Promise<LedgerSessionUser> {
   const sessionUser = await repository.loadSessionUser({
     subject,
     name,
-    asOf,
   });
   if (!sessionUser) {
     throw new IdentityLinkError("account_disabled");

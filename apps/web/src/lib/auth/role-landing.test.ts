@@ -13,6 +13,9 @@ function user(
     name: "Ledger User",
     globalRole: null,
     companyGrants: [],
+    employeeCompanyId: "00000000-0000-0000-0000-000000000411",
+    roles: ["employee"],
+    companyIds: ["00000000-0000-0000-0000-000000000411"],
     uiLanguage: null,
     ...overrides,
   };

@@ -1,15 +1,7 @@
 import { getRequestConfig } from "next-intl/server";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-
-import { db } from "@smp/db";
-import * as schema from "@smp/db/schema";
 
 import { auth } from "@/lib/auth/auth-config";
-import { createLocaleService } from "@/modules/identity-access/locale";
-
-const localeService = createLocaleService(
-  db as unknown as NodePgDatabase<typeof schema>,
-);
+import { localeService } from "@/modules/identity-access/locale";
 
 export default getRequestConfig(async () => {
   const session = await auth();

@@ -419,11 +419,11 @@ describe("identity-access repository", () => {
          ('00000000-0000-0000-0000-000000000471', $1, $2, 'viewer',
           NULL, NULL, 'auth-viewer', now(), $4),
          ('00000000-0000-0000-0000-000000000472', $1, $3, 'approver',
-          '2026-01-01', '2026-12-31', 'auth-approver', now(), $4),
+          CURRENT_DATE, CURRENT_DATE, 'auth-approver', now(), $4),
          ('00000000-0000-0000-0000-000000000473', $1, $2, 'finance',
-          NULL, '2026-07-24', 'auth-expired', now(), $4),
+          NULL, CURRENT_DATE - 1, 'auth-expired', now(), $4),
          ('00000000-0000-0000-0000-000000000474', $1, $3, 'finance',
-          '2026-07-26', NULL, 'auth-future', now(), $4)`,
+          CURRENT_DATE + 1, NULL, 'auth-future', now(), $4)`,
       [accountId, companyB, companyA, systemUserId],
     );
     const repository = createIdentityAccessRepository(
@@ -433,7 +433,6 @@ describe("identity-access repository", () => {
     const sessionUser = await repository.loadSessionUser({
       subject: "keycloak-role-source",
       name: "Role Source",
-      asOf: "2026-07-25",
     });
 
     expect(sessionUser).toEqual({
@@ -442,6 +441,9 @@ describe("identity-access repository", () => {
       email: "roles@corporativo.example",
       name: "Role Source",
       globalRole: "central_finance",
+      employeeCompanyId: null,
+      roles: ["central_finance", "approver", "viewer"],
+      companyIds: [companyA, companyB],
       companyGrants: [
         { companyId: companyA, role: "approver" },
         { companyId: companyB, role: "viewer" },
