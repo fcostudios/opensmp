@@ -13,8 +13,15 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    sequence: {
+      seed: 7007,
+      shuffle: {
+        tests: true,
+      },
+    },
     include: [
       "src/modules/org-registry/register-backfill.integration.test.ts",
+      "src/modules/vendor-catalog/credential-crypto.test.ts",
     ],
     testTimeout: 120_000,
     hookTimeout: 120_000,

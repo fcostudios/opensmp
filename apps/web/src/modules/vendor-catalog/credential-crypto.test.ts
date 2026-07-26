@@ -1,4 +1,11 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -45,9 +52,6 @@ describe("credential envelope encryption", () => {
   });
 
   it("accepts a base64 KEK only from the supplied secret file path", async () => {
-    await expect(readKekFile("/definitely/missing/ledger-kek")).rejects.toThrow(
-      /KEK secret file/i,
-    );
     const directory = await mkdtemp(join(tmpdir(), "ledger-kek-"));
     const validPath = join(directory, "valid");
     const invalidPath = join(directory, "invalid");
@@ -58,10 +62,74 @@ describe("credential envelope encryption", () => {
         Buffer.from(kek.slice(0, 31)).toString("base64"),
         "utf8",
       );
-      expect(await readKekFile(validPath)).toEqual(kek);
-      await expect(readKekFile(invalidPath)).rejects.toThrow(/32 bytes/i);
+      await chmod(validPath, 0o400);
+      await chmod(invalidPath, 0o440);
+      expect(await readKekFile(validPath, { allowedRoot: directory })).toEqual(kek);
+      await expect(
+        readKekFile(invalidPath, { allowedRoot: directory }),
+      ).rejects.toThrow(/32 bytes/i);
     } finally {
       await rm(directory, { recursive: true });
+    }
+  });
+
+  it("rejects paths outside the allowed root, symlinks, non-files, and permissive modes without path disclosure", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ledger-kek-policy-"));
+    const outsideDirectory = await mkdtemp(join(tmpdir(), "ledger-kek-outside-"));
+    const validPath = join(directory, "valid");
+    const symlinkPath = join(directory, "linked");
+    const directoryPath = join(directory, "not-a-file");
+    const permissivePath = join(directory, "permissive");
+    const nestedDirectory = join(directory, "nested");
+    const nestedKekPath = join(nestedDirectory, "kek");
+    const linkedDirectory = join(directory, "linked-directory");
+    const outsidePath = join(outsideDirectory, "outside");
+    const linkedRoot = `${directory}-linked-root`;
+    const encoded = `${Buffer.from(kek).toString("base64")}\n`;
+    try {
+      await writeFile(validPath, encoded, "utf8");
+      await chmod(validPath, 0o400);
+      await symlink(validPath, symlinkPath);
+      await mkdir(directoryPath);
+      await writeFile(permissivePath, encoded, "utf8");
+      await chmod(permissivePath, 0o644);
+      await writeFile(outsidePath, encoded, "utf8");
+      await chmod(outsidePath, 0o400);
+      await mkdir(nestedDirectory);
+      await writeFile(nestedKekPath, encoded, "utf8");
+      await chmod(nestedKekPath, 0o400);
+      await symlink(nestedDirectory, linkedDirectory);
+      await symlink(directory, linkedRoot);
+
+      expect(await readKekFile(nestedKekPath, {
+        allowedRoot: directory,
+      })).toEqual(kek);
+      for (const candidate of [
+        directory,
+        join(directory, ".."),
+        symlinkPath,
+        directoryPath,
+        permissivePath,
+        join(linkedDirectory, "kek"),
+        outsidePath,
+      ]) {
+        const error = await readKekFile(candidate, {
+          allowedRoot: directory,
+        }).then(
+          () => undefined,
+          (caught: unknown) => caught,
+        );
+        expect(error).toBeInstanceOf(Error);
+        expect(String(error)).toContain("Unable to read KEK secret file");
+        expect(String(error)).not.toContain(candidate);
+      }
+      await expect(readKekFile(join(linkedRoot, "valid"), {
+        allowedRoot: linkedRoot,
+      })).rejects.toThrow("Unable to read KEK secret file");
+    } finally {
+      await rm(linkedRoot, { force: true });
+      await rm(directory, { recursive: true });
+      await rm(outsideDirectory, { recursive: true });
     }
   });
 

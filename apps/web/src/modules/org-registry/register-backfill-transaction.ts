@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import {
   parseCapacityCsv,
@@ -41,6 +41,7 @@ import {
 import { loadProductionCredentialManifest } from "@/modules/vendor-catalog/credential-manifest";
 
 export const productionImportDatabase = db as unknown as ImportDatabase;
+const GO_LIVE_IMPORT_LOCK = "ledger:go-live-import:v1";
 
 export interface GoLiveCsvInput {
   readonly companiesCsv: string;
@@ -429,6 +430,9 @@ export class AuditedGoLiveImportBoundary {
   async run(database: ImportDatabase, input: GoLiveImportInput) {
     const occurredAt = input.occurredAt ?? new Date();
     return withAudit(database, async (transaction) => {
+    await transaction.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${GO_LIVE_IMPORT_LOCK}, 0))`,
+    );
     const dryRun = await dryRunGoLiveImport(
       transaction as unknown as ImportDatabase,
       input,

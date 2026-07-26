@@ -1,0 +1,27 @@
+# Optional go-live import channel. Load this overlay only while previewing or
+# executing the one-time import; the normal application stack has no dependency
+# on operator-owned import artifacts.
+services:
+  app:
+    # Keep this synchronized with apps/web/Dockerfile. Host KEK ownership must
+    # grant this numeric identity read access without granting write access.
+    user: "1001:1001"
+    env_file:
+      - path: ${LEDGER_CREDENTIAL_RUNTIME_ENV_FILE:?set LEDGER_CREDENTIAL_RUNTIME_ENV_FILE to the private credential environment file}
+        required: true
+    environment:
+      LEDGER_CREDENTIAL_MANIFEST_FILE: /run/ledger-secrets/go-live-credential-manifest.json
+      LEDGER_CREDENTIAL_KEK_FILE: /run/ledger-secrets/integration-credential.kek
+    volumes:
+      - type: bind
+        source: ${LEDGER_CREDENTIAL_MANIFEST_SOURCE:?set LEDGER_CREDENTIAL_MANIFEST_SOURCE to the operator-owned manifest}
+        target: /run/ledger-secrets/go-live-credential-manifest.json
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${LEDGER_CREDENTIAL_KEK_SOURCE:?set LEDGER_CREDENTIAL_KEK_SOURCE to the operator-owned KEK}
+        target: /run/ledger-secrets/integration-credential.kek
+        read_only: true
+        bind:
+          create_host_path: false

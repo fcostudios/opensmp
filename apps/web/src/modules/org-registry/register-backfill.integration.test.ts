@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 import pg from "pg";
@@ -84,6 +84,26 @@ describe("US-007 go-live import", () => {
     appPool = new pg.Pool({ connectionString: fixture.appUrl });
     ownerDatabase = drizzle(ownerPool, { schema });
     database = drizzle(appPool, { schema });
+  }, 120_000);
+
+  beforeEach(async () => {
+    await ownerPool.query(`
+      TRUNCATE TABLE
+        audit_log,
+        request_transition,
+        license_assignment,
+        license_request,
+        integration_credential,
+        vendor_account_capacity,
+        vendor_account,
+        license_type,
+        vendor,
+        company_role_assignment,
+        user_account,
+        person,
+        company
+      RESTART IDENTITY CASCADE
+    `);
     await ownerDatabase.insert(userAccount).values({
       id: actorId,
       email: "admin@ledger.test",
@@ -91,7 +111,18 @@ describe("US-007 go-live import", () => {
       status: "active",
       createdAt: now,
     });
-  }, 120_000);
+  });
+
+  const importBaseline = () => runGoLiveImport(database, {
+    actorUserId: actorId,
+    companiesCsv,
+    membersCsv,
+    capacityCsv,
+    occurredAt: now,
+    credentials: credentialSeeds,
+    kek: testKek,
+    randomBytes: deterministicBytes,
+  });
 
   afterAll(async () => {
     await appPool?.end();
@@ -169,7 +200,7 @@ describe("US-007 go-live import", () => {
       budgetMonthlyUsd: "1500.00",
       statementLanguage: "es",
     });
-    expect(await database.select().from(userAccount)).toHaveLength(62);
+    expect(await database.select().from(userAccount)).toHaveLength(61);
     expect((await database.select().from(userAccount)).filter(
       (row) => ["approver1@example.invalid", "finance1@example.invalid"].includes(row.email),
     ))
@@ -195,6 +226,7 @@ describe("US-007 go-live import", () => {
   });
 
   it("creates nothing on an identical second run", async () => {
+    await importBaseline();
     const before = {
       companies: (await database.select().from(company)).length,
       requests: (await database.select().from(licenseRequest)).length,
@@ -234,6 +266,7 @@ describe("US-007 go-live import", () => {
   });
 
   it("encrypts each credential once and never persists plaintext", async () => {
+    await importBaseline();
     const credentials = await database.select().from(integrationCredential);
     expect(credentials).toHaveLength(2);
     expect(credentials.map((row) => row.kind).sort()).toEqual([
@@ -299,6 +332,7 @@ describe("US-007 go-live import", () => {
   });
 
   it("reports changed natural-key rows and conflicting member identities", async () => {
+    await importBaseline();
     const changedCapacity = capacityCsv.replace(",3,2026", ",2,2026");
     const changedMember = membersCsv.replace("Member One", "A Different Person");
     const report = await dryRunGoLiveImport(database, {
@@ -313,6 +347,7 @@ describe("US-007 go-live import", () => {
   });
 
   it("enforces vendor-org and active-credential natural keys in PostgreSQL", async () => {
+    await importBaseline();
     const [anthropic] = await database.select().from(vendor);
     const [account] = await database.select().from(vendorAccount);
     await expect(async () => {
@@ -357,6 +392,7 @@ describe("US-007 go-live import", () => {
   });
 
   it("rejects a new-company contact already represented by any Person", async () => {
+    await importBaseline();
     const replacement = [
       ...companyRows.slice(0, -1),
       "NEW,New Synthetic Company,internal,member@acme.test,new-finance@example.invalid,1000.00,es",
@@ -375,6 +411,7 @@ describe("US-007 go-live import", () => {
   });
 
   it("rejects a linked contact account whose Person belongs to another incoming company", async () => {
+    await importBaseline();
     const [acme] = await ownerDatabase
       .select()
       .from(company)
@@ -419,6 +456,7 @@ describe("US-007 go-live import", () => {
   });
 
   it("rejects an existing member Person assigned to a new incoming company", async () => {
+    await importBaseline();
     const [acme] = await ownerDatabase
       .select()
       .from(company)
@@ -456,6 +494,7 @@ describe("US-007 go-live import", () => {
   });
 
   it("rejects drift independently across request, transition, and assignment lineage", async () => {
+    await importBaseline();
     const [request] = await ownerDatabase.select().from(licenseRequest);
     const [assignment] = await ownerDatabase
       .select()
@@ -521,6 +560,7 @@ describe("US-007 go-live import", () => {
   });
 
   it("keeps imported register rows isolated across two companies", async () => {
+    await importBaseline();
     const savedCompanies = await database.select().from(company);
     const acme = savedCompanies.find((row) => row.code === "ACME")!;
     const second = savedCompanies.find((row) => row.code === "C002")!;
@@ -561,5 +601,39 @@ describe("US-007 go-live import", () => {
 
     expect(result.created.requests).toBe(2);
     expect(result.created.assignments).toBe(2);
+  });
+
+  it("serializes concurrent identical imports into one create and one idempotent success", async () => {
+    const input = {
+      actorUserId: actorId,
+      companiesCsv,
+      membersCsv,
+      capacityCsv,
+      occurredAt: now,
+      credentials: credentialSeeds,
+      kek: testKek,
+      randomBytes: deterministicBytes,
+    };
+
+    const results = await Promise.all([
+      runGoLiveImport(database, input),
+      runGoLiveImport(database, input),
+    ]);
+
+    expect(results.map((result) => result.created.companies).sort((a, b) => a - b))
+      .toEqual([0, 30]);
+    expect(await database.select().from(company)).toHaveLength(30);
+    expect(await database.select().from(licenseRequest)).toHaveLength(2);
+    expect(await database.select().from(licenseAssignment)).toHaveLength(2);
+    expect(await database.select().from(vendorAccountCapacity)).toHaveLength(1);
+    expect(await database.select().from(integrationCredential)).toHaveLength(2);
+    const audits = await database.select().from(auditLog);
+    const assignmentAudits = audits.filter(
+      (row) => row.action === "license_assignment.imported",
+    );
+    expect(assignmentAudits).toHaveLength(2);
+    expect(new Set(assignmentAudits.map((row) => row.entityId)).size).toBe(2);
+    expect(audits.filter((row) => row.action === "go_live_import.completed"))
+      .toHaveLength(2);
   });
 });

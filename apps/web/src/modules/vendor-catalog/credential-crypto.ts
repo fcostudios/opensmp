@@ -1,4 +1,6 @@
-import { readFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { lstat, open } from "node:fs/promises";
+import { join, resolve, sep } from "node:path";
 
 import type { CredentialEnvelopeV1 } from "@smp/domain";
 import sodium from "libsodium-wrappers";
@@ -14,12 +16,49 @@ function requireKek(kek: Uint8Array): void {
   }
 }
 
-export async function readKekFile(path: string): Promise<Uint8Array> {
+export async function readKekFile(
+  path: string,
+  {
+    allowedRoot = "/run/ledger-secrets",
+  }: {
+    readonly allowedRoot?: string;
+  } = {},
+): Promise<Uint8Array> {
   let encoded: string;
   try {
-    encoded = (await readFile(path, "utf8")).trim();
-  } catch (error) {
-    throw new Error(`Unable to read KEK secret file: ${path}`, { cause: error });
+    const root = resolve(allowedRoot);
+    const candidate = resolve(path);
+    if (!candidate.startsWith(`${root}${sep}`)) throw new Error();
+
+    const rootStat = await lstat(root);
+    if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
+      throw new Error();
+    }
+    let cursor = root;
+    const segments = candidate.slice(root.length + 1).split(sep);
+    for (const segment of segments.slice(0, -1)) {
+      cursor = join(cursor, segment);
+      const stat = await lstat(cursor);
+      if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error();
+    }
+    const candidateStat = await lstat(candidate);
+    if (candidateStat.isSymbolicLink()) throw new Error();
+
+    const handle = await open(
+      candidate,
+      constants.O_RDONLY | constants.O_NOFOLLOW,
+    );
+    try {
+      const openedStat = await handle.stat();
+      if (!openedStat.isFile()) throw new Error();
+      const mode = openedStat.mode & 0o777;
+      if (mode !== 0o400 && mode !== 0o440) throw new Error();
+      encoded = await handle.readFile("utf8");
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    throw new Error("Unable to read KEK secret file");
   }
   const decoded = Buffer.from(encoded, "base64");
   requireKek(decoded);

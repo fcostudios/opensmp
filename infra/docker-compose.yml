@@ -75,8 +75,6 @@ services:
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?set NEXTAUTH_SECRET in .env}
       AUTH_URL: ${LEDGER_PUBLIC_URL:-http://localhost:3000}
       NEXTAUTH_URL: ${LEDGER_PUBLIC_URL:-http://localhost:3000}
-      LEDGER_CREDENTIAL_MANIFEST_FILE: /run/ledger-secrets/go-live-credential-manifest.json
-      LEDGER_CREDENTIAL_KEK_FILE: /run/ledger-secrets/integration-credential.kek
     depends_on:
       postgres:
         condition: service_healthy
@@ -90,19 +88,6 @@ services:
       start_period: 20s
     ports:
       - "127.0.0.1:${APP_HOST_PORT:-3000}:3000"
-    volumes:
-      - type: bind
-        source: ${LEDGER_CREDENTIAL_MANIFEST_SOURCE:?set LEDGER_CREDENTIAL_MANIFEST_SOURCE to the operator-owned manifest}
-        target: /run/ledger-secrets/go-live-credential-manifest.json
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ${LEDGER_CREDENTIAL_KEK_SOURCE:?set LEDGER_CREDENTIAL_KEK_SOURCE to the operator-owned KEK}
-        target: /run/ledger-secrets/integration-credential.kek
-        read_only: true
-        bind:
-          create_host_path: false
 
   worker:
     build:

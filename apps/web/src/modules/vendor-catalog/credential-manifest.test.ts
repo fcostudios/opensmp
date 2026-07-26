@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -19,7 +19,8 @@ async function fixture(manifest: unknown) {
     `${Buffer.from(Uint8Array.from({ length: 32 }, (_, index) => index)).toString("base64")}\n`,
     "utf8",
   );
-  return { manifestPath, kekPath };
+  await chmod(kekPath, 0o400);
+  return { manifestPath, kekPath, allowedKekRoot: directory };
 }
 
 afterEach(async () => {

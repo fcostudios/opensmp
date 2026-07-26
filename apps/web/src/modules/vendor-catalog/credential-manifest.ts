@@ -18,6 +18,7 @@ const manifestSchema = z.object({
 export interface LoadCredentialManifestInput {
   readonly manifestPath: string;
   readonly kekPath: string;
+  readonly allowedKekRoot?: string;
   readonly expectedVendorOrgRefs: readonly string[];
   readonly environment: Readonly<Record<string, string | undefined>>;
 }
@@ -25,6 +26,7 @@ export interface LoadCredentialManifestInput {
 export async function loadCredentialManifest({
   manifestPath,
   kekPath,
+  allowedKekRoot,
   expectedVendorOrgRefs,
   environment,
 }: LoadCredentialManifestInput): Promise<{
@@ -97,7 +99,7 @@ export async function loadCredentialManifest({
   }
   return {
     credentials,
-    kek: await readKekFile(kekPath),
+    kek: await readKekFile(kekPath, { allowedRoot: allowedKekRoot }),
   };
 }
 

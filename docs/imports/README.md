@@ -6,10 +6,12 @@ operator exports or real addresses.
 The import sequence is:
 
 1. Place the real credential manifest under `data/imports/private/` (gitignored).
-2. Set `LEDGER_CREDENTIAL_MANIFEST_FILE` to its absolute path and
-   `LEDGER_CREDENTIAL_KEK_FILE` to the Docker-secret file containing the
-   base64-encoded 32-byte KEK.
-3. Export every environment variable named by the manifest.
+2. Copy `infra/credential-runtime.env.example` to an operator-owned private
+   location and fill every environment variable named by the real manifest.
+3. Set `LEDGER_CREDENTIAL_MANIFEST_SOURCE`,
+   `LEDGER_CREDENTIAL_KEK_SOURCE`, and `LEDGER_CREDENTIAL_RUNTIME_ENV_FILE`
+   to the operator-owned manifest, base64-encoded 32-byte KEK, and private
+   runtime environment file.
 4. Call the read-only preview with all three exact CSV contracts.
 5. Resolve every reported error before running the mutation.
 6. Run the import once as a Ledger `group_admin`.
@@ -36,14 +38,35 @@ Analytics environment variable. Every name and value must be present and unique;
 Admin and Analytics key material must differ. The manifest stores names only,
 never secrets.
 
-For the self-hosted Compose deployment, set
-`LEDGER_CREDENTIAL_MANIFEST_SOURCE` and `LEDGER_CREDENTIAL_KEK_SOURCE` to
-operator-owned host files outside the repository. Compose mounts both files
-read-only and sets the application paths to
+The normal self-hosted Compose stack has no dependency on go-live import
+artifacts. For an import invocation, add the optional
+`infra/docker-compose.import.yml` overlay after `infra/docker-compose.yml`.
+The overlay loads the operator-owned runtime env file, mounts the manifest and
+KEK read-only, and sets the application paths to
 `/run/ledger-secrets/go-live-credential-manifest.json` and
-`/run/ledger-secrets/integration-credential.kek`. Inject the credential
-environment variables named by the manifest through the private deployment
-environment; never add their values to `.env.example` or a committed override.
+`/run/ledger-secrets/integration-credential.kek`:
+
+```bash
+docker compose --env-file .env \
+  --file infra/docker-compose.yml \
+  --file infra/docker-compose.import.yml \
+  up --detach app
+```
+
+The app runs as numeric UID/GID `1001:1001`. Install the KEK as either
+`1001:1001` mode `0400` or `root:1001` mode `0440`; for example:
+
+```bash
+sudo install -o root -g 1001 -m 0440 /private/source/integration-credential.kek \
+  /srv/ledger/secrets/integration-credential.kek
+```
+
+The manifest must also be readable by UID/GID `1001:1001` and must not be
+writable by the container. The private runtime env file is read by Compose on
+the host and should remain operator-owned mode `0600`.
+
+Never add credential values to `.env.example`, the synthetic runtime template,
+or a committed override.
 
 The import uses deterministic natural keys, including an `IMP-<hash>` request
 number for every seat. Repeating identical inputs creates no new company,

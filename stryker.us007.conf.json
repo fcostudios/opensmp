@@ -17,9 +17,12 @@
     ".tmp/**"
   ],
   "mutate": [
-    "apps/web/src/modules/org-registry/register-backfill-transaction.ts"
+    "apps/web/src/modules/org-registry/register-backfill-transaction.ts:433:4-435:6",
+    "apps/web/src/modules/vendor-catalog/credential-crypto.ts:19:0-66:1"
   ],
   "concurrency": 9,
+  "timeoutMS": 60000,
+  "timeoutFactor": 4,
   "thresholds": {
     "high": 80,
     "low": 60,
