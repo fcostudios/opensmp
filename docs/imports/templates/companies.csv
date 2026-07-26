@@ -1,2 +1,31 @@
 code,name,type,approver_email,finance_contact_email,budget_monthly_usd,statement_language
-EXAMPLE,Example Holdings,internal,approver@example.invalid,finance@example.invalid,1000.00,es
+EX001,Synthetic Company 01,internal,approver01@example.invalid,finance01@example.invalid,1000.00,es
+EX002,Synthetic Company 02,internal,approver02@example.invalid,finance02@example.invalid,1000.00,en
+EX003,Synthetic Company 03,internal,approver03@example.invalid,finance03@example.invalid,1000.00,es
+EX004,Synthetic Company 04,internal,approver04@example.invalid,finance04@example.invalid,1000.00,en
+EX005,Synthetic Company 05,internal,approver05@example.invalid,finance05@example.invalid,1000.00,es
+EX006,Synthetic Company 06,internal,approver06@example.invalid,finance06@example.invalid,1000.00,en
+EX007,Synthetic Company 07,internal,approver07@example.invalid,finance07@example.invalid,1000.00,es
+EX008,Synthetic Company 08,internal,approver08@example.invalid,finance08@example.invalid,1000.00,en
+EX009,Synthetic Company 09,internal,approver09@example.invalid,finance09@example.invalid,1000.00,es
+EX010,Synthetic Company 10,internal,approver10@example.invalid,finance10@example.invalid,1000.00,en
+EX011,Synthetic Company 11,internal,approver11@example.invalid,finance11@example.invalid,1000.00,es
+EX012,Synthetic Company 12,internal,approver12@example.invalid,finance12@example.invalid,1000.00,en
+EX013,Synthetic Company 13,internal,approver13@example.invalid,finance13@example.invalid,1000.00,es
+EX014,Synthetic Company 14,internal,approver14@example.invalid,finance14@example.invalid,1000.00,en
+EX015,Synthetic Company 15,internal,approver15@example.invalid,finance15@example.invalid,1000.00,es
+EX016,Synthetic Company 16,internal,approver16@example.invalid,finance16@example.invalid,1000.00,en
+EX017,Synthetic Company 17,internal,approver17@example.invalid,finance17@example.invalid,1000.00,es
+EX018,Synthetic Company 18,internal,approver18@example.invalid,finance18@example.invalid,1000.00,en
+EX019,Synthetic Company 19,internal,approver19@example.invalid,finance19@example.invalid,1000.00,es
+EX020,Synthetic Company 20,internal,approver20@example.invalid,finance20@example.invalid,1000.00,en
+EX021,Synthetic Company 21,internal,approver21@example.invalid,finance21@example.invalid,1000.00,es
+EX022,Synthetic Company 22,internal,approver22@example.invalid,finance22@example.invalid,1000.00,en
+EX023,Synthetic Company 23,internal,approver23@example.invalid,finance23@example.invalid,1000.00,es
+EX024,Synthetic Company 24,internal,approver24@example.invalid,finance24@example.invalid,1000.00,en
+EX025,Synthetic Company 25,internal,approver25@example.invalid,finance25@example.invalid,1000.00,es
+EX026,Synthetic Company 26,internal,approver26@example.invalid,finance26@example.invalid,1000.00,en
+EX027,Synthetic Company 27,internal,approver27@example.invalid,finance27@example.invalid,1000.00,es
+EX028,Synthetic Company 28,internal,approver28@example.invalid,finance28@example.invalid,1000.00,en
+EX029,Synthetic Company 29,internal,approver29@example.invalid,finance29@example.invalid,1000.00,es
+EX030,Synthetic Company 30,internal,approver30@example.invalid,finance30@example.invalid,1000.00,en

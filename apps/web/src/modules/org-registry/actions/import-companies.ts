@@ -5,7 +5,8 @@ import { goLiveCsvInputSchema } from "@smp/contracts";
 import { auth } from "@/lib/auth/auth-config";
 import {
   dryRunGoLiveImport,
-  goLiveImportService,
+  auditedGoLiveImportBoundary,
+  prepareProductionGoLiveImport,
   productionImportDatabase,
 } from "../register-backfill-transaction";
 
@@ -16,7 +17,15 @@ export async function previewCompaniesCsv(input: unknown) {
     throw new Error("Forbidden");
   }
   const parsed = goLiveCsvInputSchema.parse(input);
-  return dryRunGoLiveImport(productionImportDatabase, parsed);
+  const prepared = await prepareProductionGoLiveImport({
+    ...parsed,
+    actorUserId: session.user.id,
+  });
+  return dryRunGoLiveImport(
+    productionImportDatabase,
+    prepared,
+    prepared.credentials,
+  );
 }
 
 export async function importCompaniesCsv(input: unknown) {
@@ -25,8 +34,11 @@ export async function importCompaniesCsv(input: unknown) {
     throw new Error("Forbidden");
   }
   const parsed = goLiveCsvInputSchema.parse(input);
-  return goLiveImportService.import(productionImportDatabase, {
-    ...parsed,
-    actorUserId: session.user.id,
-  });
+  return auditedGoLiveImportBoundary.run(
+    productionImportDatabase,
+    await prepareProductionGoLiveImport({
+      ...parsed,
+      actorUserId: session.user.id,
+    }),
+  );
 }

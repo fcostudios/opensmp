@@ -234,8 +234,8 @@ export function parseCapacityCsv(csv: string): CapacityImportRow[] {
   }));
   const parsed = parseRows(rowsFor(csv, capacityHeaders), schema);
   rejectDuplicates(parsed, [[
-    "capacity effective key",
-    (row) => `${row.vendorOrgRef}\u0000${row.licenseType}\u0000${row.effectiveFrom}`,
+    "capacity pool/license key",
+    (row) => `${row.vendorOrgRef}\u0000${row.licenseType}`,
   ]]);
   return parsed;
 }

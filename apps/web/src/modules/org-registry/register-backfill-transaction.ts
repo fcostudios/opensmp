@@ -14,6 +14,7 @@ import {
   auditLog,
   company,
   companyRoleAssignment,
+  integrationCredential,
   licenseAssignment,
   licenseRequest,
   licenseType,
@@ -35,6 +36,7 @@ import {
   seedAnthropicCatalog,
   type CredentialSeed,
 } from "@/modules/vendor-catalog/seeding-transaction";
+import { loadProductionCredentialManifest } from "@/modules/vendor-catalog/credential-manifest";
 
 export const productionImportDatabase = db as unknown as ImportDatabase;
 
@@ -54,6 +56,7 @@ interface ImportCounters {
   people: number;
   requests: number;
   assignments: number;
+  credentials: number;
 }
 
 export interface DryRunReport {
@@ -68,7 +71,9 @@ export interface ReconciliationLine {
   readonly purchased: number;
   readonly consoleMembers: number;
   readonly importedAssignments: number;
-  readonly delta: number;
+  readonly persistedCapacity: number;
+  readonly memberDelta: number;
+  readonly capacityDelta: number;
 }
 
 export interface GoLiveImportInput extends GoLiveCsvInput {
@@ -90,6 +95,7 @@ const emptyCounters = (): ImportCounters => ({
   people: 0,
   requests: 0,
   assignments: 0,
+  credentials: 0,
 });
 
 function parseInput(input: GoLiveCsvInput) {
@@ -145,6 +151,7 @@ function assertMemberReferences(
 export async function dryRunGoLiveImport(
   database: ImportDatabase,
   input: GoLiveCsvInput,
+  credentials: readonly CredentialSeed[] = [],
 ): Promise<DryRunReport> {
   const parsed = parseInput(input);
   const inserts = emptyCounters();
@@ -162,6 +169,8 @@ export async function dryRunGoLiveImport(
   const savedCapacities = await database.select().from(vendorAccountCapacity);
   const savedRequests = await database.select().from(licenseRequest);
   const savedAssignments = await database.select().from(licenseAssignment);
+  const savedTransitions = await database.select().from(requestTransition);
+  const savedCredentials = await database.select().from(integrationCredential);
 
   const companyByCode = new Map(savedCompanies.map((row) => [row.code, row]));
   const accountByEmail = new Map(savedAccounts.map((row) => [row.email, row]));
@@ -180,16 +189,17 @@ export async function dryRunGoLiveImport(
       .map((row) => [row.name, row]),
   );
   const requestByNumber = new Map(savedRequests.map((row) => [row.requestNo, row]));
-  const assignmentRequestIds = new Set(
-    savedAssignments.map((row) => row.sourceRequestId),
-  );
-
   errors.push(...assertMemberReferences(
     parsed.companies,
     parsed.members,
     parsed.capacities,
     new Set(companyByCode.keys()),
   ));
+  if (parsed.companies.length !== 30) {
+    errors.push(
+      `Go-live company inventory must contain exactly 30 companies; received ${parsed.companies.length}`,
+    );
+  }
 
   for (const row of parsed.companies) {
     const saved = companyByCode.get(row.code);
@@ -212,6 +222,10 @@ export async function dryRunGoLiveImport(
       [row.financeContactEmail, "finance"],
     ] as const) {
       const savedAccount = accountByEmail.get(email);
+      const contactPerson = personByEmail.get(email);
+      if (contactPerson && (!saved || contactPerson.companyId !== saved.id)) {
+        errors.push(`Contact ${email} conflicts with an existing Person`);
+      }
       if (savedAccount) {
         existing.contactAccounts += 1;
         const linked = savedAccount.personId
@@ -256,14 +270,14 @@ export async function dryRunGoLiveImport(
       ? savedCapacities.find(
           (capacity) =>
             capacity.vendorAccountId === account.id &&
-            capacity.licenseTypeId === license.id &&
-            capacity.effectiveFrom === row.effectiveFrom,
+            capacity.licenseTypeId === license.id,
         )
       : undefined;
     if (found) {
       existing.capacities += 1;
       if (
         found.purchasedQty !== row.purchasedQty ||
+        found.effectiveFrom !== row.effectiveFrom ||
         found.note !== row.note
       ) {
         errors.push(
@@ -292,11 +306,77 @@ export async function dryRunGoLiveImport(
     const savedRequest = requestByNumber.get(requestNumber(row));
     if (savedRequest) {
       existing.requests += 1;
-      if (assignmentRequestIds.has(savedRequest.id)) existing.assignments += 1;
+      const targetCompany = companyByCode.get(row.companyCode);
+      const targetAccount = accountByRef.get(row.vendorOrgRef);
+      const targetLicense = licenseByName.get(row.licenseType);
+      const savedPersonForMember = personByEmail.get(row.email);
+      const savedAssignment = savedAssignments.find(
+        (assignment) => assignment.sourceRequestId === savedRequest.id,
+      );
+      const transition = savedTransitions.find(
+        (candidate) =>
+          candidate.requestId === savedRequest.id &&
+          candidate.fromState === null &&
+          candidate.toState === "active" &&
+          candidate.actorUserId === null,
+      );
+      if (
+        !savedPersonForMember ||
+        !targetCompany ||
+        !targetAccount ||
+        !targetLicense ||
+        savedRequest.personId !== savedPersonForMember.id ||
+        savedRequest.companyId !== targetCompany.id ||
+        savedRequest.vendorAccountId !== targetAccount.id ||
+        savedRequest.licenseTypeId !== targetLicense.id ||
+        savedRequest.state !== "active" ||
+        savedRequest.justification !== "importación inicial" ||
+        savedRequest.createdBy !== null ||
+        !savedAssignment ||
+        savedRequest.licenseAssignmentId !== savedAssignment.id ||
+        savedAssignment.personId !== savedPersonForMember.id ||
+        savedAssignment.companyId !== targetCompany.id ||
+        savedAssignment.vendorAccountId !== targetAccount.id ||
+        savedAssignment.licenseTypeId !== targetLicense.id ||
+        savedAssignment.startedOn !== row.startedOn ||
+        savedAssignment.endedOn !== null ||
+        savedAssignment.sourceKind !== "import" ||
+        !transition
+      ) {
+        errors.push(
+          `Import lineage ${requestNumber(row)} conflicts with its existing request, transition, or assignment`,
+        );
+      }
+      if (savedAssignment) existing.assignments += 1;
       else inserts.assignments += 1;
     } else {
       inserts.requests += 1;
       inserts.assignments += 1;
+    }
+  }
+
+  for (const credential of credentials) {
+    const account = accountByRef.get(credential.vendorOrgRef);
+    const active = account
+      ? savedCredentials.find(
+          (candidate) =>
+            candidate.vendorAccountId === account.id &&
+            candidate.kind === credential.kind &&
+            candidate.status === "active",
+        )
+      : undefined;
+    if (!active) {
+      inserts.credentials += 1;
+    } else {
+      existing.credentials += 1;
+      if (
+        active.last4 !== credential.plaintext.slice(-4) ||
+        (active.scopes ?? null) !== (credential.scopes ?? null)
+      ) {
+        errors.push(
+          `Credential ${credential.vendorOrgRef}/${credential.kind} conflicts with its active record`,
+        );
+      }
     }
   }
 
@@ -307,16 +387,17 @@ export async function runGoLiveImport(
   database: ImportDatabase,
   input: GoLiveImportInput,
 ) {
-  return goLiveImportService.import(database, input);
+  return auditedGoLiveImportBoundary.run(database, input);
 }
 
-export const goLiveImportService = {
-  async import(database: ImportDatabase, input: GoLiveImportInput) {
+export class AuditedGoLiveImportBoundary {
+  async run(database: ImportDatabase, input: GoLiveImportInput) {
     const occurredAt = input.occurredAt ?? new Date();
     return withAudit(database, async (transaction) => {
     const dryRun = await dryRunGoLiveImport(
       transaction as unknown as ImportDatabase,
       input,
+      input.credentials,
     );
     if (dryRun.errors.length > 0) {
       throw new Error(`Go-live import validation failed: ${dryRun.errors.join("; ")}`);
@@ -457,11 +538,13 @@ export const goLiveImportService = {
       accountByRef,
       licenseByName,
     );
-    const failed = reconciliation.filter((line) => line.delta !== 0);
+    const failed = reconciliation.filter(
+      (line) => line.memberDelta !== 0 || line.capacityDelta !== 0,
+    );
     if (failed.length > 0) {
       throw new Error(
         `Go-live reconciliation failed: ${failed.map((line) =>
-          `${line.vendorOrgRef}/${line.licenseType} delta=${line.delta}`).join(", ")}`,
+          `${line.vendorOrgRef}/${line.licenseType} member_delta=${line.memberDelta} capacity_delta=${line.capacityDelta}`).join(", ")}`,
       );
     }
     const created = {
@@ -485,8 +568,29 @@ export const goLiveImportService = {
       },
     };
     }, { occurredAt });
+  }
+}
+
+export const auditedGoLiveImportBoundary = new AuditedGoLiveImportBoundary();
+
+export async function prepareProductionGoLiveImport(
+  input: GoLiveCsvInput & {
+    readonly actorUserId: string;
+    readonly occurredAt?: Date;
   },
-};
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+): Promise<GoLiveImportInput> {
+  const capacities = parseCapacityCsv(input.capacityCsv);
+  const loaded = await loadProductionCredentialManifest(
+    capacities.map((row) => row.vendorOrgRef),
+    environment,
+  );
+  return {
+    ...input,
+    credentials: loaded.credentials,
+    kek: loaded.kek,
+  };
+}
 
 async function reconcileImport(
   transaction: Parameters<Parameters<ImportDatabase["transaction"]>[0]>[0],
@@ -499,6 +603,9 @@ async function reconcileImport(
     .select()
     .from(licenseAssignment)
     .where(and(eq(licenseAssignment.sourceKind, "import")));
+  const persistedCapacities = await transaction
+    .select()
+    .from(vendorAccountCapacity);
   return capacities.map((capacity) => {
     const account = accountByRef.get(capacity.vendorOrgRef);
     const license = licenseByName.get(capacity.licenseType);
@@ -513,15 +620,21 @@ async function reconcileImport(
         assignment.licenseTypeId === license?.id &&
         assignment.endedOn === null,
     ).length;
-    const purchaseDelta = capacity.purchasedQty - consoleMembers;
-    const registerDelta = consoleMembers - importedAssignments;
+    const persistedCapacity = persistedCapacities.find(
+      (candidate) =>
+        candidate.vendorAccountId === account?.id &&
+        candidate.licenseTypeId === license?.id &&
+        candidate.effectiveFrom === capacity.effectiveFrom,
+    )?.purchasedQty ?? 0;
     return {
       vendorOrgRef: capacity.vendorOrgRef,
       licenseType: capacity.licenseType,
       purchased: capacity.purchasedQty,
       consoleMembers,
       importedAssignments,
-      delta: purchaseDelta !== 0 ? purchaseDelta : registerDelta,
+      persistedCapacity,
+      memberDelta: consoleMembers - importedAssignments,
+      capacityDelta: capacity.purchasedQty - persistedCapacity,
     };
   });
 }

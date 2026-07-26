@@ -100,4 +100,16 @@ describe("US-007 CSV contracts", () => {
       ),
     ).toThrow(/duplicate contact email/i);
   });
+
+  it("allows only one capacity snapshot per vendor org and license type", () => {
+    expect(() =>
+      parseCapacityCsv(
+        [
+          "vendor_org_ref,license_type,purchased_qty,effective_from,note",
+          "org-1,Enterprise,30,2026-08-01,Initial",
+          "org-1,Enterprise,31,2026-08-02,Duplicate snapshot",
+        ].join("\n"),
+      ),
+    ).toThrow(/duplicate capacity pool\/license key/i);
+  });
 });
