@@ -6,7 +6,9 @@ COPY apps/worker/package.json apps/worker/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY packages/domain/package.json packages/domain/package.json
-RUN pnpm install --frozen-lockfile --filter @smp/worker...
+RUN --mount=type=cache,id=ledger-pnpm-store,target=/pnpm/store \
+    pnpm config set store-dir /pnpm/store && \
+    pnpm install --frozen-lockfile --filter @smp/worker...
 
 FROM dependencies AS build
 COPY tsconfig.base.json tsconfig.base.json
