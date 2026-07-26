@@ -46,3 +46,4 @@ infra/backups/
 # Operator-managed Sprint 1 import inventory and sanitized probe runtime output.
 data/imports/private/**
 docs/spikes/US-054-anthropic-api-probe.runtime.json
+docs/spikes/US-054-anthropic-api-probe.checkpoint.json
