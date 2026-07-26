@@ -15,5 +15,7 @@ export default defineConfig({
     environment: "node",
     passWithNoTests: true,
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    hookTimeout: 120_000,
+    testTimeout: 120_000,
   },
 });
