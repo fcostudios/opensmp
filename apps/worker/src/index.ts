@@ -1,81 +1,59 @@
-import { Client } from "pg";
 import { pathToFileURL } from "node:url";
+import type { EcuadorBusinessCalendar } from "@smp/domain";
 
-import { HEARTBEAT_INTERVAL_MS, HEARTBEAT_PATH, touchHeartbeat } from "./health.js";
+import { createWorkerRuntime, type WorkerRuntime } from "./runtime.js";
 
-type Timer = ReturnType<typeof setInterval>;
+export function createWorkerConnectionString(environment: NodeJS.ProcessEnv = process.env): string {
+  if (environment.DATABASE_URL) return environment.DATABASE_URL;
 
-type WorkerLifecycleDependencies = {
-  clearHeartbeat: (timer: Timer) => void;
-  connect: () => Promise<void>;
-  disconnect: () => Promise<void>;
-  onHeartbeatFailure?: (error: unknown) => Promise<void>;
-  scheduleHeartbeat: (heartbeat: () => void | Promise<void>, intervalMs: number) => Timer;
-  touchHeartbeat: () => Promise<void>;
-};
-
-export function createWorkerClient(connectionString = process.env.DATABASE_URL): Client {
-  return connectionString ? new Client({ connectionString }) : new Client();
+  const url = new URL("postgresql://localhost");
+  url.hostname = environment.PGHOST ?? "localhost";
+  url.port = environment.PGPORT ?? "5432";
+  url.username = environment.PGUSER ?? "postgres";
+  url.password = environment.PGPASSWORD ?? "";
+  url.pathname = `/${environment.PGDATABASE ?? "postgres"}`;
+  return url.toString();
 }
 
-export function createWorkerLifecycle(dependencies: WorkerLifecycleDependencies) {
-  let timer: Timer | undefined;
-  let stopped = false;
+export function createEcuadorBusinessCalendar(value = process.env.ECUADOR_HOLIDAYS): EcuadorBusinessCalendar {
+  if (!value?.trim()) {
+    throw new TypeError("ECUADOR_HOLIDAYS is required for the close-precheck business calendar");
+  }
 
-  return {
-    async start(): Promise<void> {
-      await dependencies.connect();
-      await dependencies.touchHeartbeat();
-      timer = dependencies.scheduleHeartbeat(
-        async () => {
-          try {
-            await dependencies.touchHeartbeat();
-          } catch (error) {
-            await dependencies.onHeartbeatFailure?.(error);
-          }
-        },
-        HEARTBEAT_INTERVAL_MS,
-      );
-    },
-    async stop(): Promise<void> {
-      if (stopped) return;
-      stopped = true;
-      if (timer) dependencies.clearHeartbeat(timer);
-      await dependencies.disconnect();
-    },
-  };
+  const holidays = new Set<string>();
+  for (const holiday of value?.split(",") ?? []) {
+    const date = holiday.trim();
+    if (!date) continue;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || new Date(`${date}T00:00:00.000Z`).toISOString().slice(0, 10) !== date) {
+      throw new TypeError("ECUADOR_HOLIDAYS entries must be valid YYYY-MM-DD dates");
+    }
+    holidays.add(date);
+  }
+  return { holidays };
 }
 
 async function main(): Promise<void> {
-  const client = createWorkerClient();
-  let lifecycle: ReturnType<typeof createWorkerLifecycle>;
-  lifecycle = createWorkerLifecycle({
-    clearHeartbeat: clearInterval,
-    connect: async () => {
-      await client.connect();
-    },
-    disconnect: () => client.end(),
-    onHeartbeatFailure: async (error) => {
-      console.error(error);
-      await lifecycle.stop();
+  let runtime: WorkerRuntime;
+  runtime = createWorkerRuntime({
+    calendar: createEcuadorBusinessCalendar(),
+    connectionString: createWorkerConnectionString(),
+    onFatalError: async () => {
       process.exitCode = 1;
-    },
-    scheduleHeartbeat: (heartbeat, intervalMs) =>
-      setInterval(() => {
-        void heartbeat();
-      }, intervalMs),
-    touchHeartbeat: async () => {
-      await client.query("SELECT 1");
-      await touchHeartbeat(HEARTBEAT_PATH, new Date());
+      await runtime.stop();
     },
   });
 
-  await lifecycle.start();
+  try {
+    await runtime.start();
+  } catch (error) {
+    await runtime.stop();
+    throw error;
+  }
   let stopping = false;
   const shutdown = async () => {
     if (stopping) return;
     stopping = true;
-    await lifecycle.stop();
+    await runtime.stop();
   };
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);

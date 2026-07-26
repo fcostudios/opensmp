@@ -85,12 +85,13 @@ services:
       PGUSER: ledger_app
       PGPASSWORD: ${LEDGER_APP_PASSWORD:?set LEDGER_APP_PASSWORD in .env}
       PGDATABASE: ledger
+      ECUADOR_HOLIDAYS: ${ECUADOR_HOLIDAYS:-}
     depends_on:
       postgres:
         condition: service_healthy
     restart: on-failure
     healthcheck:
-      test: ["CMD-SHELL", "kill -0 1 && test -f /tmp/ledger-worker-heartbeat && test $$(( $$(date +%s) - $$(stat -c %Y /tmp/ledger-worker-heartbeat) )) -le 60"]
+      test: ["CMD", "node", "dist/readiness.js"]
       interval: 15s
       timeout: 5s
       retries: 4
