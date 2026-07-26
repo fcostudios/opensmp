@@ -1,0 +1,92 @@
+[
+  {
+    "id": "10000000-0000-0000-0000-000000000001",
+    "username": "employee",
+    "email": "employee@auth.test",
+    "firstName": "Elena",
+    "lastName": "Employee",
+    "password": "employee-test-password",
+    "enabled": true,
+    "platformAdmin": false
+  },
+  {
+    "id": "10000000-0000-0000-0000-000000000002",
+    "username": "approver",
+    "email": "approver@auth.test",
+    "firstName": "Ana",
+    "lastName": "Approver",
+    "password": "approver-test-password",
+    "enabled": true,
+    "platformAdmin": false
+  },
+  {
+    "id": "10000000-0000-0000-0000-000000000003",
+    "username": "company-finance",
+    "email": "company-finance@auth.test",
+    "firstName": "Fabian",
+    "lastName": "Finance",
+    "password": "finance-test-password",
+    "enabled": true,
+    "platformAdmin": false
+  },
+  {
+    "id": "10000000-0000-0000-0000-000000000004",
+    "username": "central-finance",
+    "email": "central-finance@auth.test",
+    "firstName": "Celia",
+    "lastName": "Central",
+    "password": "central-test-password",
+    "enabled": true,
+    "platformAdmin": true
+  },
+  {
+    "id": "10000000-0000-0000-0000-000000000005",
+    "username": "group-admin",
+    "email": "group-admin@auth.test",
+    "firstName": "Gabriela",
+    "lastName": "Admin",
+    "password": "group-admin-test-password",
+    "enabled": true,
+    "platformAdmin": true
+  },
+  {
+    "id": "10000000-0000-0000-0000-000000000006",
+    "username": "viewer",
+    "email": "viewer@auth.test",
+    "firstName": "Victor",
+    "lastName": "Viewer",
+    "password": "viewer-test-password",
+    "enabled": true,
+    "platformAdmin": false
+  },
+  {
+    "id": "10000000-0000-0000-0000-000000000007",
+    "username": "disabled",
+    "email": "disabled@auth.test",
+    "firstName": "Diana",
+    "lastName": "Disabled",
+    "password": "disabled-test-password",
+    "enabled": false,
+    "platformAdmin": false
+  },
+  {
+    "id": "10000000-0000-0000-0000-000000000008",
+    "username": "admin-without-totp",
+    "email": "admin-without-totp@auth.test",
+    "firstName": "No",
+    "lastName": "Totp",
+    "password": "no-totp-test-password",
+    "enabled": true,
+    "platformAdmin": true
+  },
+  {
+    "id": "10000000-0000-0000-0000-000000000009",
+    "username": "admin-candidate",
+    "email": "admin-candidate@auth.test",
+    "firstName": "Ada",
+    "lastName": "Candidate",
+    "password": "candidate-test-password",
+    "enabled": true,
+    "platformAdmin": false
+  }
+]

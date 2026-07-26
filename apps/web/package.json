@@ -9,6 +9,7 @@
     "lint": "eslint . && pnpm lint:ds",
     "type-check": "tsc --noEmit",
     "test": "TESTCONTAINERS_RYUK_DISABLED=true vitest run",
+    "test:e2e": "playwright test",
     "lint:ds": "node ../../scripts/check-status-pill.mjs ../.. && node ../../scripts/check-hardcoded-color.mjs ../.. && node ../../scripts/check-hardcoded-string.mjs ../.. && node ../../scripts/check-lucide-allowlist.mjs ../..",
     "lint:a11y": "node ../../scripts/check-a11y.mjs ../.."
   },
@@ -30,6 +31,7 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.51.1",
     "@tailwindcss/postcss": "^4.0.0",
     "@testcontainers/postgresql": "^12.0.4",
     "@types/node": "^22.10.0",

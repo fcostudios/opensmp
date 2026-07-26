@@ -1,15 +1,18 @@
-import type { DefaultSession } from "next-auth";
+import type { LedgerSessionUser } from "@/lib/auth/auth-types";
 
 declare module "next-auth" {
   interface Session {
-    accessToken?: string;
-    user: DefaultSession["user"] & { id: string };
+    user: LedgerSessionUser;
   }
 }
 
-declare module "@auth/core/jwt" {
+declare module "next-auth/jwt" {
   interface JWT {
-    accessToken?: string;
-    id_token?: string;
+    accessToken?: never;
+    access_token?: never;
+    displayName?: string;
+    idToken?: string;
+    id_token?: never;
+    idpSubject?: string;
   }
 }

@@ -70,6 +70,18 @@ teardown() {
   [ "$status" -eq 0 ]
 }
 
+@test "migration owner contract converges on fresh and existing databases" {
+  run grep --fixed-strings 'ALTER ROLE ledger_owner CREATEDB;' "$roles_sql"
+  [ "$status" -eq 0 ]
+  run grep --fixed-strings 'ALTER DATABASE ledger OWNER TO ledger_owner;' "$roles_sql"
+  [ "$status" -eq 0 ]
+
+  run "$role_convergence_script"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'ALTER ROLE ledger_owner CREATEDB;'* ]]
+  [[ "$output" == *'ALTER DATABASE ledger OWNER TO ledger_owner;'* ]]
+}
+
 @test "backup activation rejects a missing signing secret after its other host inputs are set" {
   run env \
     BACKUP_UID=1234 \

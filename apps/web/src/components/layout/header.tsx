@@ -1,6 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { logout } from "@/lib/auth/logout";
+import messages from "@/lib/i18n/en-US.json";
 
 export function Header() {
   const { data: session } = useSession();
@@ -20,6 +22,14 @@ export function Header() {
         </button>
         <span className="text-sm font-medium">{userName}</span>
         <div className="h-8 w-8 rounded-full bg-gray-300" aria-label="User avatar" />
+        <button
+          type="button"
+          data-testid="btn_logout"
+          className="text-sm font-medium"
+          onClick={logout}
+        >
+          {messages.auth.signOut}
+        </button>
       </div>
     </header>
   );

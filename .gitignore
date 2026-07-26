@@ -10,6 +10,7 @@ out/
 .turbo/
 .stryker-tmp/
 apps/web/.next/
+apps/web/test-results/
 dist/
 *.tsbuildinfo
 

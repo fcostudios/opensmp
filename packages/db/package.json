@@ -9,7 +9,9 @@
     ".": "./src/index.ts",
     "./schema": "./src/schema.ts",
     "./system-ids": "./src/system-ids.ts",
-    "./testing/pglite": "./src/testing/pglite.ts"
+    "./testing/pglite": "./src/testing/pglite.ts",
+    "./testing/postgres-container": "./src/testing/postgres-container.ts",
+    "./testing/seed-auth-users": "./src/testing/seed-auth-users.ts"
   },
   "scripts": {
     "db:migrate": "node scripts/apply-migrations.mjs",

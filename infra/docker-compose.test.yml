@@ -1,7 +1,32 @@
 services:
   app:
     environment:
-      NODE_ENV: test
-  postgres:
-    ports:
-      - "127.0.0.1:55432:5432"
+      AUTH_URL: http://localhost:3104
+      KEYCLOAK_CLIENT_SECRET: us004-test-web-secret
+      KEYCLOAK_ADMIN_CLIENT_SECRET: us004-test-admin-secret
+      NEXTAUTH_URL: http://localhost:3104
+  keycloak:
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: us004-bootstrap
+      KC_BOOTSTRAP_ADMIN_PASSWORD: us004-bootstrap-password
+      LEDGER_PUBLIC_URL: http://localhost:3104
+      SMP_WEB_CLIENT_SECRET: us004-test-web-secret
+      SMP_KEYCLOAK_ADMIN_CLIENT_SECRET: us004-test-admin-secret
+  keycloak-test-bootstrap:
+    image: node:22-alpine
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    environment:
+      KEYCLOAK_URL: http://keycloak:${KEYCLOAK_PUBLIC_PORT:-8180}
+      KEYCLOAK_ADMIN_USERNAME: us004-bootstrap
+      KEYCLOAK_ADMIN_PASSWORD: us004-bootstrap-password
+      KEYCLOAK_TEST_USERS_FILE: /fixtures/users.json
+    command: ["node", "/fixtures/bootstrap-users.mjs"]
+    volumes:
+      - ./keycloak/testing/bootstrap-users.mjs:/fixtures/bootstrap-users.mjs:ro
+      - ./keycloak/testing/users.json:/fixtures/users.json:ro
+
+networks:
+  default:
+    name: ${COMPOSE_PROJECT_NAME:-ledger_test}_default

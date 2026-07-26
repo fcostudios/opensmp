@@ -14,6 +14,11 @@ BEGIN
   END IF;
 END $$;
 
+-- The migration principal owns database DDL and can create the disposable
+-- databases required by schema-parity verification. Runtime remains ledger_app.
+ALTER ROLE ledger_owner CREATEDB;
+ALTER DATABASE ledger OWNER TO ledger_owner;
+
 -- Restore authority is disabled by default. Existing volumes are converged to
 -- this state by apply-roles.sh; a separate audited maintenance window may
 -- temporarily grant login and ledger_owner membership on an isolated target.
