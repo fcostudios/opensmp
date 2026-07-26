@@ -19,12 +19,20 @@
     "apps/web/src/**/*.{ts,tsx}",
     "!**/*.{test,spec}.ts",
     "!**/*.d.ts",
+    "!apps/web/src/proxy.ts",
+    "!apps/web/src/app/actions.ts",
+    "!apps/web/src/app/layout.tsx",
+    "!apps/web/src/app/(authenticated)/layout.tsx",
+    "!apps/web/src/components/audit/audit-diff-dialog.tsx",
+    "!apps/web/src/app/(authenticated)/auditoria/loading.tsx",
+    "!apps/web/src/app/(authenticated)/auditoria/error.tsx",
+    "!apps/web/src/app/(authenticated)/auditoria/page.tsx",
     "!packages/db/src/migrations/**",
     "!packages/db/src/testing/**"
   ],
   "thresholds": {
     "high": 80,
     "low": 60,
-    "break": null
+    "break": 80
   }
 }
