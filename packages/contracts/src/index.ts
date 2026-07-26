@@ -32,6 +32,7 @@ import {
 } from "@smp/db/schema";
 
 export { SYSTEM_USER_EMAIL, SYSTEM_USER_ID } from "@smp/db/system-ids";
+export * from "./imports";
 export * from "./locale";
 
 export const insertAlertRuleSchema = createInsertSchema(alertRule);

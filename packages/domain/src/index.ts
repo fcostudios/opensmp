@@ -3,6 +3,7 @@ export * from "./identity-access/authorization.js";
 export * from "./identity-access/roles.js";
 export * from "./jobs/job-result.js";
 export * from "./jobs/schedule.js";
+export * from "./vendor-catalog/credential-envelope.js";
 export type {
   AuditedMutationResult,
   AuditRecordInput,

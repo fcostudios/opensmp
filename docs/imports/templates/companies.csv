@@ -1,0 +1,2 @@
+code,name,type,approver_email,finance_contact_email,budget_monthly_usd,statement_language
+EXAMPLE,Example Holdings,internal,approver@example.invalid,finance@example.invalid,1000.00,es
