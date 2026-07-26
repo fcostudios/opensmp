@@ -41,7 +41,7 @@ import {
 import { loadProductionCredentialManifest } from "@/modules/vendor-catalog/credential-manifest";
 
 export const productionImportDatabase = db as unknown as ImportDatabase;
-const GO_LIVE_IMPORT_LOCK = "ledger:go-live-import:v1";
+export const GO_LIVE_IMPORT_LOCK = "ledger:go-live-import:v1";
 
 export interface GoLiveCsvInput {
   readonly companiesCsv: string;
@@ -121,7 +121,13 @@ function requestNumber(row: MemberBackfillRow): string {
 }
 
 function secretsMatch(left: string, right: string): boolean {
+  // Stryker disable next-line StringLiteral
+  // @equivalent: Node treats an empty encoding argument as the default UTF-8
+  // encoding for string input.
   const leftDigest = createHash("sha256").update(left, "utf8").digest();
+  // Stryker disable next-line StringLiteral
+  // @equivalent: Node treats an empty encoding argument as the default UTF-8
+  // encoding for string input.
   const rightDigest = createHash("sha256").update(right, "utf8").digest();
   return timingSafeEqual(leftDigest, rightDigest);
 }

@@ -122,4 +122,12 @@ describe("route authorization", () => {
       params: { companyId: companyA },
     });
   });
+
+  test("route matching normalizes empty path segments and rejects malformed dynamic parameters", () => {
+    expect(matchRoutePolicy("///login//")).toMatchObject({
+      policy: { route: "/login", screenId: "SCR-login" },
+      params: {},
+    });
+    expect(matchRoutePolicy("/companias/%E0%A4%A")).toBeNull();
+  });
 });

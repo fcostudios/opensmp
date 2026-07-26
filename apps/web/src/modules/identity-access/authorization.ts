@@ -65,6 +65,9 @@ function ledgerRoles(
   grants: readonly LedgerCompanyGrant[],
 ): LedgerRole[] {
   const roles = new Set<LedgerRole>();
+  // @equivalent: forcing this branch for null only inserts null at runtime;
+  // the fixed LedgerRole allowlist below filters it out, while non-null roles
+  // follow the same insertion path.
   if (globalRole) roles.add(globalRole);
   if (employeeCompanyId) roles.add("employee");
   for (const grant of grants) {

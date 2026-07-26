@@ -102,7 +102,6 @@ export function parseManifest(value: unknown): ProbeManifest {
 
 function scalarType(value: unknown): string {
   if (value === null) return "null";
-  if (Array.isArray(value)) return "array";
   return typeof value;
 }
 
@@ -119,14 +118,9 @@ export function collectFieldTypes(
       for (const item of value) collectFieldTypes(item, arrayPath, output);
     }
   } else if (isRecord(value)) {
-    for (const key of Object.keys(value).sort()) {
+    for (const key of Object.keys(value)) {
       const childPath = path ? `${path}.${key}` : key;
-      const child = value[key];
-      if (Array.isArray(child) || isRecord(child)) {
-        collectFieldTypes(child, childPath, output);
-      } else {
-        output.add(`${childPath}:${scalarType(child)}`);
-      }
+      collectFieldTypes(value[key], childPath, output);
     }
   } else if (path) {
     output.add(`${path}:${scalarType(value)}`);

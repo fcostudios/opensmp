@@ -23,6 +23,7 @@ import * as schema from "@smp/db/schema";
 
 import {
   dryRunGoLiveImport,
+  GO_LIVE_IMPORT_LOCK,
   runGoLiveImport,
 } from "./register-backfill-transaction";
 
@@ -347,6 +348,90 @@ describe("US-007 go-live import", () => {
     ]));
   });
 
+  it("reports the exact idempotent dry-run state when credentials are omitted", async () => {
+    await importBaseline();
+
+    const report = await dryRunGoLiveImport(database, {
+      companiesCsv,
+      membersCsv,
+      capacityCsv,
+    });
+
+    expect(report).toEqual({
+      inserts: {
+        companies: 0,
+        contactAccounts: 0,
+        roleAssignments: 0,
+        vendorAccounts: 0,
+        licenseTypes: 0,
+        capacities: 0,
+        people: 0,
+        requests: 0,
+        assignments: 0,
+        credentials: 0,
+      },
+      existing: {
+        companies: 30,
+        contactAccounts: 60,
+        roleAssignments: 60,
+        vendorAccounts: 1,
+        licenseTypes: 1,
+        capacities: 1,
+        people: 2,
+        requests: 2,
+        assignments: 2,
+        credentials: 0,
+      },
+      errors: [],
+    });
+  });
+
+  it("ignores matching catalog references owned by a different vendor", async () => {
+    const [otherVendor] = await ownerDatabase.insert(vendor).values({
+      name: "Other synthetic vendor",
+      connectorType: "manual",
+      provisioningProtocol: "none",
+      canProvision: false,
+      canDeprovision: false,
+      hasUsageData: false,
+      hasCostData: false,
+      identityMatching: "email",
+      status: "active",
+      createdAt: now,
+      createdBy: actorId,
+    }).returning();
+    await ownerDatabase.insert(vendorAccount).values({
+      vendorId: otherVendor.id,
+      name: "Foreign account",
+      mode: "orchestration",
+      vendorOrgRef: "anthropic-acme",
+      lowPoolFloor: 0,
+      status: "active",
+      createdAt: now,
+      createdBy: actorId,
+    });
+    await ownerDatabase.insert(licenseType).values({
+      vendorId: otherVendor.id,
+      name: "Enterprise",
+      unit: "seat",
+      status: "active",
+      createdAt: now,
+      createdBy: actorId,
+    });
+
+    const report = await dryRunGoLiveImport(database, {
+      companiesCsv,
+      membersCsv,
+      capacityCsv,
+    });
+
+    expect(report.existing.vendorAccounts).toBe(0);
+    expect(report.existing.licenseTypes).toBe(0);
+    expect(report.inserts.vendorAccounts).toBe(1);
+    expect(report.inserts.licenseTypes).toBe(1);
+    expect(report.errors).toEqual([]);
+  });
+
   it("enforces vendor-org and active-credential natural keys in PostgreSQL", async () => {
     await importBaseline();
     const [anthropic] = await database.select().from(vendor);
@@ -370,7 +455,9 @@ describe("US-007 go-live import", () => {
   });
 
   it("rejects unknown references before mutation", async () => {
-    const badMembers = membersCsv.replace("ACME,Enterprise", "MISSING,Enterprise");
+    const badMembers = membersCsv
+      .replace("ACME,Enterprise", "MISSING,Enterprise")
+      .replace("C002,Enterprise", "C002,Team");
     const report = await dryRunGoLiveImport(database, {
       companiesCsv,
       membersCsv: badMembers,
@@ -378,6 +465,9 @@ describe("US-007 go-live import", () => {
     });
     expect(report.errors).toContain(
       "Member member@acme.test references unknown company MISSING",
+    );
+    expect(report.errors).toContain(
+      "Member member2@example.invalid references unknown vendor org/license type anthropic-acme/Team",
     );
   });
 
@@ -605,6 +695,7 @@ describe("US-007 go-live import", () => {
   });
 
   it("serializes concurrent identical imports into one create and one idempotent success", async () => {
+    expect(GO_LIVE_IMPORT_LOCK).toBe("ledger:go-live-import:v1");
     const input = {
       actorUserId: actorId,
       companiesCsv,

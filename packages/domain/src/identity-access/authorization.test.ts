@@ -92,4 +92,13 @@ describe("explicit capability authorization", () => {
       new Set([companyA, companyB]),
     );
   });
+
+  test("a scoped capability can be queried without prematurely choosing a company", () => {
+    const scoped = context({
+      companyGrants: [{ companyId: companyA, role: "viewer" }],
+    });
+
+    expect(hasCapability(scoped, "company:read")).toBe(true);
+    expect(hasCapability(scoped, "request:approve")).toBe(false);
+  });
 });

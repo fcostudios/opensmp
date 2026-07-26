@@ -285,6 +285,28 @@ describe("Ledger authorization repository", () => {
     });
   });
 
+  test("rejects a missing identity at the data-access boundary with exact anonymous evidence", async () => {
+    const repository = createAuthorizationRepository(
+      drizzle(appPool, { schema }),
+    );
+
+    await expect(
+      authorizeCompanyDataAccess(repository, {
+        subject: "missing-data-access-subject",
+        companyId: companyB,
+        capability: "company:read",
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<AuthorizationError>>({
+        code: "capability_forbidden",
+        capability: "company:read",
+        companyId: companyB,
+        actorUserId: null,
+        status: 403,
+      }),
+    );
+  });
+
   test("returns sanitized 401 and 403 API decisions before a handler can access company data", async () => {
     const accountId = "00000000-0000-0000-0000-000000000567";
     await seedAccount({
@@ -377,22 +399,34 @@ describe("Ledger authorization repository", () => {
   });
 
   test("propagates a real database failure instead of misreporting it as forbidden", async () => {
-    const stoppedPool = new pg.Pool({ connectionString: fixture.appUrl });
-    await stoppedPool.end();
+    await owner.query(
+      "ALTER TABLE user_account RENAME TO unavailable_user_account",
+    );
     const repository = createAuthorizationRepository(
-      drizzle(stoppedPool, { schema }),
+      drizzle(appPool, { schema }),
     );
 
-    await expect(
-      authorizeCompanyRequestWithSession(
-        { user: { idpSubject: "viewer-api-guard" } },
-        repository,
-        {
-          companyId: companyB,
-          capability: "company:read",
-        },
-      ),
-    ).rejects.toThrow("Cannot use a pool after calling end on the pool");
+    try {
+      await expect(
+        authorizeCompanyRequestWithSession(
+          { user: { idpSubject: "viewer-api-guard" } },
+          repository,
+          {
+            companyId: companyB,
+            capability: "company:read",
+          },
+        ),
+      ).rejects.toMatchObject({
+        code: "42P01",
+        message: expect.stringContaining(
+          'relation "user_account" does not exist',
+        ),
+      });
+    } finally {
+      await owner.query(
+        "ALTER TABLE unavailable_user_account RENAME TO user_account",
+      );
+    }
   });
 
   test("audits a forbidden nonexistent company without violating the audit company foreign key", async () => {

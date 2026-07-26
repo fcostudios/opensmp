@@ -53,7 +53,7 @@ function collectSensitiveHashes(
         (typeof child === "string" || typeof child === "number")
       ) {
         output.add(stableSecretHash(String(child), salt));
-      } else if (Array.isArray(child) || isRecord(child)) {
+      } else {
         collectSensitiveHashes(child, salt, output);
       }
     }

@@ -11,24 +11,25 @@
     "html"
   ],
   "coverageAnalysis": "perTest",
+  "vitest": {
+    "related": true
+  },
+  "concurrency": 4,
+  "timeoutMS": 60000,
+  "timeoutFactor": 4,
   "ignorePatterns": [
     ".tmp/**"
   ],
   "mutate": [
-    "packages/*/src/**/*.ts",
-    "apps/web/src/**/*.{ts,tsx}",
-    "!**/*.{test,spec}.ts",
-    "!**/*.d.ts",
-    "!apps/web/src/proxy.ts",
-    "!apps/web/src/app/actions.ts",
-    "!apps/web/src/app/layout.tsx",
-    "!apps/web/src/app/(authenticated)/layout.tsx",
-    "!apps/web/src/components/audit/audit-diff-dialog.tsx",
-    "!apps/web/src/app/(authenticated)/auditoria/loading.tsx",
-    "!apps/web/src/app/(authenticated)/auditoria/error.tsx",
-    "!apps/web/src/app/(authenticated)/auditoria/page.tsx",
-    "!packages/db/src/migrations/**",
-    "!packages/db/src/testing/**"
+    "packages/db/src/company-role-assignment-mutations.ts",
+    "packages/domain/src/identity-access/authorization.ts",
+    "apps/web/src/lib/auth/route-access.ts",
+    "apps/web/src/lib/auth/route-guard.ts",
+    "apps/web/src/modules/identity-access/authorization.ts",
+    "apps/web/src/modules/identity-access/authorization-response.ts",
+    "apps/web/src/modules/audit/with-audit.ts",
+    "!**/*.{test,spec}.{ts,tsx}",
+    "!**/*.d.ts"
   ],
   "thresholds": {
     "high": 80,

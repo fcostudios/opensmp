@@ -1,12 +1,14 @@
 const config = {
-  // Gate the mutation-sensitive safety boundary: provider identity binding,
-  // mutation/checkpoint orchestration, outcome/exit classification, and the
-  // durable atomic writer. Broader schema/redaction behavior is covered by
-  // the repository's existing mutation suite.
+  // Gate the full probe safety boundary: provider identity binding,
+  // mutation/checkpoint orchestration, outcome/exit classification, durable
+  // atomic writes, schema validation, and evidence redaction.
   mutate: [
-    "probe.ts:391:0-653:1",
-    "probe.ts:788:0-836:1",
+    // The full safety implementation is gated; only the import.meta
+    // direct-invocation launcher below line 840 is environment wiring.
+    "probe.ts:107:0-840:0",
     "runtime.ts:50:0-137:1",
+    "redact.ts",
+    "schemas.ts",
   ],
   plugins: [
     "../../../node_modules/@stryker-mutator/vitest-runner/dist/src/index.js",
@@ -16,9 +18,12 @@ const config = {
     configFile: "vitest.mutation.config.ts",
     related: false,
   },
-  coverageAnalysis: "perTest",
+  // Run every exact boundary oracle against each mutant. Per-test coverage can
+  // under-select tests whose injected filesystem dependencies throw before a
+  // later source location is reached in the dry run.
+  coverageAnalysis: "all",
   concurrency: 4,
-  reporters: ["clear-text", "progress"],
+  reporters: ["clear-text", "progress", "json"],
   thresholds: {
     high: 90,
     low: 80,

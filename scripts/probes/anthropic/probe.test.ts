@@ -14,11 +14,19 @@ import { join } from "node:path";
 
 import {
   classifyHttpResult,
+  adminLastId,
+  collectFieldTypes,
   decimalCentsToUsd,
+  inviteId,
   inspectAdminPage,
   inspectAnalyticsPage,
   inspectEndpointSchema,
+  inspectOrganization,
+  inspectSummaries,
+  opaqueNextPage,
+  organizationId,
   parseManifest,
+  responseHasMore,
 } from "./schemas.ts";
 import {
   createSanitizedObservation,
@@ -33,8 +41,15 @@ import {
   executeProbeCli,
   inviteCanaryAuthorization,
   probeDefinitions,
+  requiresManualReview,
+  request,
   resolveProbeSecrets,
+  runReadProbe,
+  runProbe,
   runInviteCanary,
+  safeJson,
+  parseCli,
+  utcYesterday,
   verifyProviderOrganization,
   writeSanitizedArtifact,
 } from "./probe.ts";
@@ -45,10 +60,8 @@ import {
 } from "./runtime.ts";
 
 const HASH_SALT = "synthetic-test-salt-with-at-least-32-bytes";
-const EXPECTED_ORG_HASH = stableSecretHash(
-  "org_synthetic_trusted",
-  HASH_SALT,
-);
+const EXPECTED_ORG_HASH =
+  "hmac-sha256:e0c94722555cc948216081cd3e15b62f6ce38755d12ee72150af8211a9e9f348";
 const FIXED_NOW = new Date("2026-07-26T05:03:00Z");
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -202,7 +215,1088 @@ describe("public Anthropic contract fixtures", () => {
   });
 });
 
+describe("sanitized evidence and schema boundary oracles", () => {
+  test("accepts exactly 32 salt characters and rejects 31", () => {
+    expect(() => stableSecretHash("secret", "")).toThrow(
+      "PROBE_HASH_SALT must contain at least 32 characters",
+    );
+    expect(() => stableSecretHash("secret", "s".repeat(31))).toThrow(
+      "PROBE_HASH_SALT must contain at least 32 characters",
+    );
+    expect(stableSecretHash("secret", "s".repeat(32))).toBe(
+      "hmac-sha256:55ab5a1355f096bb6ee14bfa60f20305dba2e66c7fb8b829c2891947f4ecb1c8",
+    );
+    expect(stableSecretHash("secret", "s".repeat(33))).not.toBe(
+      stableSecretHash("secret", "s".repeat(32)),
+    );
+  });
+
+  test("redacts only anchored sensitive keys at every nesting depth", () => {
+    const observation = createSanitizedObservation({
+      endpoint: "members",
+      keyKind: "admin",
+      status: 200,
+      headers: {},
+      body: {
+        data: [
+          {
+            id: "user-top",
+            profile: {
+              account_id: "account-nested",
+              email_address: "nested@example.invalid",
+              organization_id: 42,
+              email: true,
+              display_name_suffix: "not-sensitive-by-suffix",
+            },
+          },
+        ],
+        grid: "not-sensitive-by-substring",
+        first_identifier: "not-sensitive-by-prefix",
+        has_more: false,
+        first_id: null,
+        last_id: null,
+      },
+      hashSalt: HASH_SALT,
+      sentBetaHeader: null,
+    });
+
+    expect(observation.sensitive_value_hashes).toEqual(
+      [
+        "user-top",
+        "account-nested",
+        "nested@example.invalid",
+        "42",
+      ]
+        .map((value) => stableSecretHash(value, HASH_SALT))
+        .sort(),
+    );
+    expect(JSON.stringify(observation)).not.toContain("not-sensitive");
+  });
+
+  test("normalizes Headers and uses request-id before x-request-id fallback", () => {
+    const withPrimary = createSanitizedObservation({
+      endpoint: "organization",
+      keyKind: "admin",
+      status: 200,
+      headers: new Headers({
+        "Request-Id": "primary-request",
+        "X-Request-Id": "fallback-request",
+        "Anthropic-Ratelimit-Requests-Limit": "100",
+        "X-Anthropic-Ratelimit-Requests-Limit": "must-not-match",
+        "Anthropic-Ratelimit-Invalid!": "must-not-match",
+        "Anthropic-Beta": "beta-response",
+      }),
+      body: { type: "organization", id: "org-1", name: "Org" },
+      hashSalt: HASH_SALT,
+      sentBetaHeader: "beta-request",
+    });
+    const withFallback = createSanitizedObservation({
+      endpoint: "organization",
+      keyKind: "admin",
+      status: 200,
+      headers: { "X-Request-ID": "fallback-only" },
+      body: { type: "organization", id: "org-1", name: "Org" },
+      hashSalt: HASH_SALT,
+      sentBetaHeader: null,
+    });
+
+    expect(withPrimary.response_headers).toEqual({
+      retry_after: null,
+      rate_limit: { "anthropic-ratelimit-requests-limit": "100" },
+      request_id_hash: stableSecretHash("primary-request", HASH_SALT),
+    });
+    expect(withPrimary.beta_header).toEqual({
+      sent: "beta-request",
+      response: "beta-response",
+    });
+    expect(withFallback.response_headers.request_id_hash).toBe(
+      stableSecretHash("fallback-only", HASH_SALT),
+    );
+  });
+
+  test("sorts retained rate-limit headers for deterministic JSON evidence", () => {
+    const observation = createSanitizedObservation({
+      endpoint: "organization",
+      keyKind: "admin",
+      status: 200,
+      headers: {
+        "Anthropic-Ratelimit-Z": "last",
+        "Anthropic-Ratelimit-A": "first",
+      },
+      body: { type: "organization", id: "org-1", name: "Org" },
+      hashSalt: HASH_SALT,
+      sentBetaHeader: null,
+    });
+
+    expect(Object.keys(observation.response_headers.rate_limit)).toEqual([
+      "anthropic-ratelimit-a",
+      "anthropic-ratelimit-z",
+    ]);
+    expect(JSON.stringify(observation.response_headers.rate_limit)).toBe(
+      '{"anthropic-ratelimit-a":"first","anthropic-ratelimit-z":"last"}',
+    );
+  });
+
+  test("validates manifest names, hashes, uniqueness, and non-empty organizations exactly", () => {
+    const validOrganization = {
+      ref: "central-1",
+      adminKeyEnv: "CENTRAL_ADMIN_1",
+      analyticsKeyEnv: "CENTRAL_ANALYTICS_1",
+      expectedOrganizationIdHash: `hmac-sha256:${"a".repeat(64)}`,
+    };
+    expect(parseManifest({ organizations: [validOrganization] })).toEqual({
+      organizations: [validOrganization],
+    });
+
+    const invalidValues: Array<[unknown, string]> = [
+      [null, "manifest must contain an organizations array"],
+      [{ organizations: {} }, "manifest must contain an organizations array"],
+      [{ organizations: [] }, "manifest must contain at least one organization"],
+      [
+        { organizations: [null] },
+        "organizations[0] must be an object",
+      ],
+      [
+        { organizations: [{ ...validOrganization, ref: "Central" }] },
+        "organizations[0].ref is invalid",
+      ],
+      [
+        { organizations: [{ ...validOrganization, ref: "valid!" }] },
+        "organizations[0].ref is invalid",
+      ],
+      [
+        { organizations: [{ ...validOrganization, ref: 1 }] },
+        "organizations[0].ref is invalid",
+      ],
+      [
+        { organizations: [{ ...validOrganization, adminKeyEnv: "_ADMIN" }] },
+        "organizations[0].adminKeyEnv is invalid",
+      ],
+      [
+        { organizations: [{ ...validOrganization, adminKeyEnv: "ADMIN!" }] },
+        "organizations[0].adminKeyEnv is invalid",
+      ],
+      [
+        { organizations: [{ ...validOrganization, adminKeyEnv: null }] },
+        "organizations[0].adminKeyEnv is invalid",
+      ],
+      [
+        {
+          organizations: [
+            { ...validOrganization, analyticsKeyEnv: "analytics_key" },
+          ],
+        },
+        "organizations[0].analyticsKeyEnv is invalid",
+      ],
+      [
+        {
+          organizations: [
+            { ...validOrganization, analyticsKeyEnv: "ANALYTICS!" },
+          ],
+        },
+        "organizations[0].analyticsKeyEnv is invalid",
+      ],
+      [
+        {
+          organizations: [
+            { ...validOrganization, analyticsKeyEnv: null },
+          ],
+        },
+        "organizations[0].analyticsKeyEnv is invalid",
+      ],
+      [
+        {
+          organizations: [
+            { ...validOrganization, analyticsKeyEnv: "CENTRAL_ADMIN_1" },
+          ],
+        },
+        "Admin and Analytics key environment variables must differ",
+      ],
+      [
+        {
+          organizations: [
+            {
+              ...validOrganization,
+              expectedOrganizationIdHash: `hmac-sha256:${"A".repeat(64)}`,
+            },
+          ],
+        },
+        "organizations[0].expectedOrganizationIdHash is invalid",
+      ],
+      [
+        {
+          organizations: [
+            {
+              ...validOrganization,
+              expectedOrganizationIdHash: `prefix-hmac-sha256:${"a".repeat(64)}`,
+            },
+          ],
+        },
+        "organizations[0].expectedOrganizationIdHash is invalid",
+      ],
+      [
+        {
+          organizations: [
+            {
+              ...validOrganization,
+              expectedOrganizationIdHash: `hmac-sha256:${"a".repeat(64)}-suffix`,
+            },
+          ],
+        },
+        "organizations[0].expectedOrganizationIdHash is invalid",
+      ],
+      [
+        {
+          organizations: [
+            { ...validOrganization, expectedOrganizationIdHash: null },
+          ],
+        },
+        "organizations[0].expectedOrganizationIdHash is invalid",
+      ],
+      [
+        { organizations: [validOrganization, { ...validOrganization }] },
+        "duplicate organization ref: central-1",
+      ],
+      [
+        {
+          organizations: [
+            validOrganization,
+            {
+              ...validOrganization,
+              ref: "second",
+              analyticsKeyEnv: "SECOND_ANALYTICS",
+            },
+          ],
+        },
+        "each organization must use distinct key variables",
+      ],
+    ];
+    for (const [value, message] of invalidValues) {
+      expect(() => parseManifest(value)).toThrow(message);
+    }
+  });
+
+  test("rejects coercible objects and Symbols as manifest strings with the field error", () => {
+    const validOrganization = {
+      ref: "central-1",
+      adminKeyEnv: "CENTRAL_ADMIN_1",
+      analyticsKeyEnv: "CENTRAL_ANALYTICS_1",
+      expectedOrganizationIdHash: `hmac-sha256:${"a".repeat(64)}`,
+    };
+    const coercibleEnvironment = {
+      toString: () => "COERCED_ENV",
+    };
+    const coercibleHash = {
+      toString: () => `hmac-sha256:${"b".repeat(64)}`,
+    };
+
+    const cases: Array<[Record<string, unknown>, string]> = [
+      [
+        { ...validOrganization, adminKeyEnv: coercibleEnvironment },
+        "organizations[0].adminKeyEnv is invalid",
+      ],
+      [
+        { ...validOrganization, analyticsKeyEnv: coercibleEnvironment },
+        "organizations[0].analyticsKeyEnv is invalid",
+      ],
+      [
+        {
+          ...validOrganization,
+          expectedOrganizationIdHash: coercibleHash,
+        },
+        "organizations[0].expectedOrganizationIdHash is invalid",
+      ],
+      [
+        { ...validOrganization, adminKeyEnv: Symbol("ADMIN") },
+        "organizations[0].adminKeyEnv is invalid",
+      ],
+      [
+        { ...validOrganization, analyticsKeyEnv: Symbol("ANALYTICS") },
+        "organizations[0].analyticsKeyEnv is invalid",
+      ],
+      [
+        {
+          ...validOrganization,
+          expectedOrganizationIdHash: Symbol("hash"),
+        },
+        "organizations[0].expectedOrganizationIdHash is invalid",
+      ],
+    ];
+
+    for (const [organization, message] of cases) {
+      expect(() => parseManifest({ organizations: [organization] })).toThrow(
+        message,
+      );
+    }
+  });
+
+  test("reports a deterministic exact field-type inventory", () => {
+    expect(
+      collectFieldTypes({
+        data: [
+          { id: "one", flags: [true, false], nested: { count: 2 } },
+          { id: "two", optional: null },
+        ],
+        empty: [],
+      }),
+    ).toEqual([
+      "data[].flags[]:boolean",
+      "data[].id:string",
+      "data[].nested.count:number",
+      "data[].optional:null",
+      "empty[]:unknown",
+    ]);
+    expect(collectFieldTypes("scalar", "root")).toEqual(["root:string"]);
+    expect(collectFieldTypes([], "root")).toEqual(["root[]:unknown"]);
+    expect(collectFieldTypes("ignored")).toEqual([]);
+    expect(
+      collectFieldTypes({ middle: 1 }, "", new Set(["z:string", "a:string"])),
+    ).toEqual(["a:string", "middle:number", "z:string"]);
+    expect(
+      collectFieldTypes({
+        symbol: Symbol("opaque"),
+        nested: { value: 1n },
+      }),
+    ).toEqual(["nested.value:bigint", "symbol:symbol"]);
+  });
+
+  test("never hashes sensitive fields whose values are Symbols or objects", () => {
+    const symbolId = Symbol("sensitive-id");
+    const observation = createSanitizedObservation({
+      endpoint: "members",
+      keyKind: "admin",
+      status: 200,
+      headers: {},
+      body: {
+        id: symbolId,
+        account_id: { toString: () => "coercible-account" },
+        nested: {
+          email: Symbol("sensitive-email"),
+          name: { value: "not-a-scalar-name" },
+          organization_id: 0,
+        },
+      },
+      hashSalt: HASH_SALT,
+      sentBetaHeader: null,
+    });
+
+    expect(observation.sensitive_value_hashes).toEqual([
+      stableSecretHash("0", HASH_SALT),
+    ]);
+  });
+
+  test("accepts null bodies and null non-sensitive leaves without traversing them", () => {
+    const observe = (body: unknown) =>
+      createSanitizedObservation({
+        endpoint: "members",
+        keyKind: "admin",
+        status: 200,
+        headers: {},
+        body,
+        hashSalt: HASH_SALT,
+        sentBetaHeader: null,
+      });
+
+    expect(observe(null).sensitive_value_hashes).toEqual([]);
+    expect(
+      observe({ metadata: null, nested: { harmless: null } })
+        .sensitive_value_hashes,
+    ).toEqual([]);
+  });
+
+  test("inspects organization and summary contracts exactly", () => {
+    expect(
+      inspectOrganization({
+        type: "organization",
+        id: "org-1",
+        name: "Ledger",
+      }),
+    ).toEqual({
+      valid: true,
+      pagination: "none",
+      itemCount: 1,
+      hasMore: false,
+      hasNextCursor: false,
+      fieldTypes: ["id:string", "name:string", "type:string"],
+    });
+    for (const invalid of [
+      null,
+      { type: "wrong", id: "org-1", name: "Ledger" },
+      { type: "organization", id: 1, name: "Ledger" },
+      { type: "organization", id: "org-1", name: null },
+    ]) {
+      expect(inspectOrganization(invalid).valid).toBe(false);
+    }
+    expect(inspectSummaries({ summaries: [{ count: 1 }] })).toEqual({
+      valid: true,
+      pagination: "none",
+      itemCount: 1,
+      hasMore: false,
+      hasNextCursor: false,
+      fieldTypes: ["summaries[].count:number"],
+    });
+    expect(inspectSummaries({ summaries: null })).toMatchObject({
+      valid: false,
+      itemCount: 0,
+    });
+  });
+
+  test("validates invite create and delete contracts field by field", () => {
+    const create = {
+      type: "invite",
+      id: "invite-1",
+      email: "canary@example.invalid",
+      status: "pending",
+    };
+    expect(inspectEndpointSchema("invite_canary_create", create)).toEqual({
+      valid: true,
+      pagination: "none",
+      itemCount: 1,
+      hasMore: false,
+      hasNextCursor: false,
+      fieldTypes: [
+        "email:string",
+        "id:string",
+        "status:string",
+        "type:string",
+      ],
+    });
+    for (const field of ["type", "id", "email", "status"] as const) {
+      expect(
+        inspectEndpointSchema("invite_canary_create", {
+          ...create,
+          [field]: null,
+        }).valid,
+      ).toBe(false);
+    }
+    expect(
+      inspectEndpointSchema("invite_canary_delete", {
+        type: "invite_deleted",
+        id: "invite-1",
+      }),
+    ).toEqual({
+      valid: true,
+      pagination: "none",
+      itemCount: 1,
+      hasMore: false,
+      hasNextCursor: false,
+      fieldTypes: ["id:string", "type:string"],
+    });
+    expect(
+      inspectEndpointSchema("invite_canary_delete", {
+        type: "invite",
+        id: "invite-1",
+      }).valid,
+    ).toBe(false);
+    expect(
+      inspectEndpointSchema("invite_canary_delete", {
+        type: "invite_deleted",
+        id: 1,
+      }).valid,
+    ).toBe(false);
+    expect(
+      inspectEndpointSchema("invite_canary_delete", null),
+    ).toMatchObject({ valid: false, itemCount: 0 });
+  });
+
+  test("routes each endpoint to its exact pagination and decimal contract", () => {
+    const adminPage = {
+      data: [],
+      has_more: false,
+      first_id: null,
+      last_id: null,
+    };
+    expect(inspectEndpointSchema("members", adminPage).pagination).toBe(
+      "id_cursor",
+    );
+    expect(inspectEndpointSchema("invites", adminPage).pagination).toBe(
+      "id_cursor",
+    );
+    expect(
+      inspectEndpointSchema("activity_summaries", { summaries: [] }).pagination,
+    ).toBe("none");
+    const decimalPage = {
+      data: [{ results: [{ amount: "1.25", list_amount: "-0.50" }] }],
+      next_page: null,
+    };
+    expect(inspectEndpointSchema("cost_report", decimalPage).valid).toBe(true);
+    expect(inspectEndpointSchema("user_cost_report", decimalPage).valid).toBe(
+      true,
+    );
+    expect(
+      inspectEndpointSchema("cost_report", {
+        ...decimalPage,
+        data: [
+          ...decimalPage.data,
+          { results: [{ amount: "1e2", list_amount: "1" }] },
+        ],
+      }).valid,
+    ).toBe(false);
+    expect(
+      inspectEndpointSchema("user_cost_report", {
+        ...decimalPage,
+        data: [{ results: [{ amount: "1", list_amount: null }] }],
+      }).valid,
+    ).toBe(false);
+    expect(
+      inspectEndpointSchema("cost_report", {
+        data: [{ metadata: null, results: [{ amount: "1" }] }],
+        next_page: null,
+      }).valid,
+    ).toBe(true);
+    expect(
+      inspectEndpointSchema("usage_report", {
+        data: [{ amount: 12 }],
+        next_page: null,
+      }).valid,
+    ).toBe(true);
+  });
+
+  test("classifies every HTTP boundary without gaps", () => {
+    expect(
+      [
+        199, 200, 299, 300, 400, 401, 403, 404, 409, 422, 429, 499, 500,
+        599, 600,
+      ].map((status) => [status, classifyHttpResult(status)]),
+    ).toEqual([
+      [199, "unexpected_status"],
+      [200, "success"],
+      [299, "success"],
+      [300, "unexpected_status"],
+      [400, "invalid_request"],
+      [401, "authentication_failed"],
+      [403, "authorization_or_key_type_mismatch"],
+      [404, "route_or_header_behavior_not_available"],
+      [409, "conflict"],
+      [422, "invalid_request"],
+      [429, "rate_limited"],
+      [499, "unexpected_status"],
+      [500, "provider_error"],
+      [599, "provider_error"],
+      [600, "unexpected_status"],
+    ]);
+  });
+
+  test("extracts only string pagination, invite, and organization identifiers", () => {
+    expect(opaqueNextPage({ next_page: "next" })).toBe("next");
+    expect(opaqueNextPage({ next_page: 1 })).toBeNull();
+    expect(adminLastId({ last_id: "last" })).toBe("last");
+    expect(adminLastId({ last_id: null })).toBeNull();
+    expect(adminLastId({ last_id: 1 })).toBeNull();
+    expect(responseHasMore({ has_more: true })).toBe(true);
+    expect(responseHasMore({ has_more: 1 })).toBe(false);
+    expect(inviteId({ id: "invite-1" })).toBe("invite-1");
+    expect(inviteId({ id: 1 })).toBeNull();
+    expect(organizationId({ id: "org-1" })).toBe("org-1");
+    expect(organizationId({ id: null })).toBeNull();
+    expect(organizationId({ id: 1 })).toBeNull();
+    expect(opaqueNextPage(null)).toBeNull();
+    expect(adminLastId([])).toBeNull();
+    expect(responseHasMore(null)).toBe(false);
+    expect(inviteId([])).toBeNull();
+    expect(organizationId(null)).toBeNull();
+  });
+
+  test("preserves decimal sign and scale while rejecting malformed notation", () => {
+    expect(decimalCentsToUsd("-0.100")).toBe("-0.00100");
+    expect(decimalCentsToUsd("-0.000")).toBe("0.00000");
+    expect(decimalCentsToUsd("1")).toBe("0.01");
+    expect(decimalCentsToUsd("0001.20")).toBe("0.0120");
+    for (const invalid of ["", ".1", "1.", "+1", "1e2", " 1", "1 "]) {
+      expect(() => decimalCentsToUsd(invalid)).toThrow(
+        "decimal cents must use plain decimal notation",
+      );
+    }
+  });
+
+  test("distinguishes null and string cursors from missing and wrong-typed cursors", () => {
+    expect(
+      inspectAdminPage({
+        data: [],
+        has_more: false,
+        first_id: null,
+        last_id: null,
+      }),
+    ).toMatchObject({ valid: true, hasMore: false, hasNextCursor: false });
+    expect(
+      inspectAdminPage({
+        data: [],
+        has_more: true,
+        first_id: null,
+        last_id: "last",
+      }),
+    ).toMatchObject({ valid: true, hasMore: true, hasNextCursor: true });
+    expect(
+      inspectAdminPage({ data: [], has_more: false, first_id: null }),
+    ).toMatchObject({ valid: false, hasNextCursor: false });
+    for (const invalid of [
+      { has_more: false, first_id: null, last_id: null },
+      { data: [], has_more: 0, first_id: null, last_id: null },
+      { data: "not-an-array", has_more: false, first_id: null, last_id: null },
+      { data: [], has_more: false, first_id: 0, last_id: null },
+      { data: [], has_more: false, first_id: null, last_id: 0 },
+    ]) {
+      expect(inspectAdminPage(invalid)).toMatchObject({
+        valid: false,
+        itemCount: Array.isArray(invalid.data) ? invalid.data.length : 0,
+      });
+    }
+    expect(
+      inspectAnalyticsPage({ data: [], next_page: null }),
+    ).toMatchObject({ valid: true, hasMore: false, hasNextCursor: false });
+    expect(
+      inspectAnalyticsPage({ data: [], next_page: "next" }),
+    ).toMatchObject({ valid: true, hasMore: true, hasNextCursor: true });
+    expect(
+      inspectAnalyticsPage({ data: [], next_page: 0 }),
+    ).toMatchObject({ valid: false, hasMore: false, hasNextCursor: false });
+    expect(
+      inspectAnalyticsPage({ data: [], has_more: true, next_page: null }),
+    ).toMatchObject({ valid: true, hasMore: true, hasNextCursor: false });
+    expect(
+      inspectAnalyticsPage({ next_page: null }),
+    ).toMatchObject({ valid: false, itemCount: 0 });
+  });
+});
+
 describe("probe safety boundary", () => {
+  test("classifies every invite authorization preflight boundary exactly", () => {
+    const base = {
+      allowMutation: "true",
+      canaryEmail: "canary@example.invalid",
+      canaryEmailApproved: "true",
+      confirmedVendorAccountRef: "central",
+      confirmedAt: "2026-07-26T05:00:00Z",
+      organizationRef: "central",
+      now: FIXED_NOW,
+    };
+
+    expect(
+      inviteCanaryAuthorization({ ...base, canaryEmail: undefined }),
+    ).toEqual({ authorized: false, reason: "canary_email_missing" });
+    expect(
+      inviteCanaryAuthorization({ ...base, confirmedAt: undefined }),
+    ).toEqual({
+      authorized: false,
+      reason: "vendor_account_confirmation_stale",
+    });
+    expect(
+      inviteCanaryAuthorization({ ...base, confirmedAt: "not-a-date" }),
+    ).toEqual({
+      authorized: false,
+      reason: "vendor_account_confirmation_stale",
+    });
+    expect(
+      inviteCanaryAuthorization({
+        ...base,
+        confirmedAt: "2026-07-26T05:03:00.001Z",
+      }),
+    ).toEqual({
+      authorized: false,
+      reason: "vendor_account_confirmation_stale",
+    });
+    expect(
+      inviteCanaryAuthorization({
+        ...base,
+        confirmedAt: FIXED_NOW.toISOString(),
+      }),
+    ).toEqual({
+      authorized: true,
+      reason: "all_operator_gates_confirmed",
+    });
+    expect(
+      inviteCanaryAuthorization({
+        ...base,
+        confirmedAt: "2026-07-26T04:58:00Z",
+      }),
+    ).toEqual({
+      authorized: true,
+      reason: "all_operator_gates_confirmed",
+    });
+    expect(
+      inviteCanaryAuthorization({
+        ...base,
+        confirmedAt: "2026-07-26T04:57:59.999Z",
+      }),
+    ).toEqual({
+      authorized: false,
+      reason: "vendor_account_confirmation_stale",
+    });
+  });
+
+  test("parses CLI defaults, overrides, and malformed boundaries exactly", () => {
+    expect(utcYesterday(new Date("2026-03-01T00:00:00Z"))).toBe(
+      "2026-02-28",
+    );
+    expect(utcYesterday(new Date("2024-03-01T23:59:59Z"))).toBe(
+      "2024-02-29",
+    );
+    expect(parseCli([])).toMatchObject({
+      manifestPath: ".env.anthropic-probe-manifest.local",
+      outputPath: "docs/spikes/US-054-anthropic-api-probe.runtime.json",
+      checkpointPath:
+        "docs/spikes/US-054-anthropic-api-probe.checkpoint.json",
+      date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    });
+    expect(
+      parseCli([
+        "--manifest",
+        "manifest.json",
+        "--output",
+        "artifact.json",
+        "--checkpoint",
+        "checkpoint.json",
+        "--date",
+        "2026-07-24",
+      ]),
+    ).toEqual({
+      manifestPath: "manifest.json",
+      outputPath: "artifact.json",
+      checkpointPath: "checkpoint.json",
+      date: "2026-07-24",
+    });
+    for (const argv of [
+      ["--manifest"],
+      ["--output"],
+      ["--checkpoint"],
+      ["--date"],
+      ["--unsupported", "value"],
+    ]) {
+      expect(() => parseCli(argv)).toThrow(
+        `unsupported or incomplete argument: ${argv[0]}`,
+      );
+    }
+    for (const date of [
+      "2026-7-24",
+      "x2026-07-24",
+      "2026-07-24x",
+      "",
+    ]) {
+      expect(() => parseCli(["--date", date])).toThrow(
+        date
+          ? "--date must use YYYY-MM-DD"
+          : "unsupported or incomplete argument: --date",
+      );
+    }
+  });
+
+  test("requires both key families and the hash salt before network access", async () => {
+    const manifest = parseManifest({
+      organizations: [ORGANIZATION],
+    });
+    expect(() =>
+      resolveProbeSecrets(manifest, {
+        CENTRAL_ANALYTICS: "analytics-secret",
+      }),
+    ).toThrow(
+      "required secret environment variable is unset: CENTRAL_ADMIN",
+    );
+    expect(() =>
+      resolveProbeSecrets(manifest, {
+        CENTRAL_ADMIN: "admin-secret",
+      }),
+    ).toThrow(
+      "required secret environment variable is unset: CENTRAL_ANALYTICS",
+    );
+
+    let networkCalls = 0;
+    await expect(
+      runProbe(
+        {
+          manifestPath: "manifest.json",
+          outputPath: "artifact.json",
+          checkpointPath: "checkpoint.json",
+          date: "2026-07-24",
+        },
+        {
+          environment: {
+            CENTRAL_ADMIN: "admin-secret",
+            CENTRAL_ANALYTICS: "analytics-secret",
+          },
+          fetchImpl: (async () => {
+            networkCalls += 1;
+            throw new Error("network must not run");
+          }) as typeof fetch,
+          now: () => FIXED_NOW,
+          readText: async () =>
+            JSON.stringify({ organizations: [ORGANIZATION] }),
+          writeSecureJson: async () => undefined,
+        },
+      ),
+    ).rejects.toThrow(
+      "required secret environment variable is unset: PROBE_HASH_SALT",
+    );
+    expect(networkCalls).toBe(0);
+  });
+
+  test("builds an exact query contract for every endpoint", () => {
+    expect(
+      probeDefinitions.map((definition) => [
+        definition.name,
+        Object.fromEntries(
+          buildProbeQuery(definition, "2026-12-31").entries(),
+        ),
+      ]),
+    ).toEqual([
+      ["organization", {}],
+      ["members", { limit: "1000" }],
+      ["invites", { limit: "1000" }],
+      ["activity_users", { date: "2026-12-31" }],
+      ["activity_summaries", { date: "2026-12-31" }],
+      [
+        "usage_report",
+        {
+          starting_at: "2026-12-31T00:00:00Z",
+          ending_at: "2027-01-01T00:00:00Z",
+          bucket_width: "1d",
+          limit: "1",
+        },
+      ],
+      [
+        "cost_report",
+        {
+          starting_at: "2026-12-31T00:00:00Z",
+          ending_at: "2027-01-01T00:00:00Z",
+          bucket_width: "1d",
+          limit: "1",
+        },
+      ],
+    ]);
+  });
+
+  test("parses only JSON responses and fixes required request headers", async () => {
+    await expect(safeJson(new Response(null))).resolves.toBeNull();
+    await expect(
+      safeJson(
+        new Response('{"ignored":true}', {
+          headers: { "content-type": "text/plain" },
+        }),
+      ),
+    ).resolves.toBeNull();
+    await expect(
+      safeJson(
+        new Response("{invalid", {
+          headers: { "content-type": "application/json; charset=utf-8" },
+        }),
+      ),
+    ).resolves.toBeNull();
+    await expect(
+      safeJson(
+        new Response('{"ok":true}', {
+          headers: { "content-type": "APPLICATION/JSON" },
+        }),
+      ),
+    ).resolves.toEqual({ ok: true });
+
+    const calls: Array<{
+      url: string;
+      method: string;
+      headers: Record<string, string>;
+      hasSignal: boolean;
+    }> = [];
+    const result = await request(
+      new URL("https://api.anthropic.com/v1/synthetic"),
+      "correct-key",
+      {
+        method: "POST",
+        headers: {
+          "x-api-key": "wrong-key",
+          accept: "text/plain",
+          "x-custom": "retained",
+        },
+      },
+      (async (input, init) => {
+        calls.push({
+          url: input.toString(),
+          method: init?.method ?? "GET",
+          headers: Object.fromEntries(new Headers(init?.headers).entries()),
+          hasSignal: init?.signal instanceof AbortSignal,
+        });
+        return new Response("not-json", {
+          status: 202,
+          headers: { "content-type": "text/plain" },
+        });
+      }) as typeof fetch,
+    );
+    expect(calls).toEqual([
+      {
+        url: "https://api.anthropic.com/v1/synthetic",
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "anthropic-version": "2023-06-01",
+          "user-agent": "Ledger-US-054-Probe/1.0",
+          "x-api-key": "correct-key",
+          "x-custom": "retained",
+        },
+        hasSignal: true,
+      },
+    ]);
+    expect(result.response.status).toBe(202);
+    expect(result.body).toBeNull();
+  });
+
+  test("follows both pagination contracts and stops on every terminal condition", async () => {
+    const members = probeDefinitions.find(({ name }) => name === "members")!;
+    const activity = probeDefinitions.find(
+      ({ name }) => name === "activity_users",
+    )!;
+    const organization = probeDefinitions.find(
+      ({ name }) => name === "organization",
+    )!;
+
+    const memberUrls: string[] = [];
+    const memberResponses = [
+      jsonResponse(200, {
+        data: [],
+        has_more: true,
+        first_id: "user_first",
+        last_id: "user_cursor",
+      }),
+      jsonResponse(200, {
+        data: [],
+        has_more: false,
+        first_id: null,
+        last_id: null,
+      }),
+    ];
+    let memberIndex = 0;
+    const memberResult = await runReadProbe({
+      definition: members,
+      key: "admin-secret",
+      date: "2026-07-24",
+      hashSalt: HASH_SALT,
+      expectedOrganizationIdHash: EXPECTED_ORG_HASH,
+      fetchImpl: (async (input) => {
+        memberUrls.push(input.toString());
+        return memberResponses[memberIndex++]!;
+      }) as typeof fetch,
+    });
+    expect(memberUrls).toEqual([
+      "https://api.anthropic.com/v1/organizations/users?limit=1000",
+      "https://api.anthropic.com/v1/organizations/users?limit=1000&after_id=user_cursor",
+    ]);
+    expect(memberResult.observations).toHaveLength(2);
+    expect(memberResult.providerTargetVerified).toBeNull();
+
+    const activityUrls: string[] = [];
+    const activityResponses = [
+      jsonResponse(200, { data: [], next_page: "opaque-cursor" }),
+      jsonResponse(200, { data: [], next_page: null }),
+    ];
+    let activityIndex = 0;
+    const activityResult = await runReadProbe({
+      definition: activity,
+      key: "analytics-secret",
+      date: "2026-07-24",
+      hashSalt: HASH_SALT,
+      expectedOrganizationIdHash: EXPECTED_ORG_HASH,
+      fetchImpl: (async (input) => {
+        activityUrls.push(input.toString());
+        return activityResponses[activityIndex++]!;
+      }) as typeof fetch,
+    });
+    expect(activityUrls).toEqual([
+      "https://api.anthropic.com/v1/organizations/analytics/users?date=2026-07-24",
+      "https://api.anthropic.com/v1/organizations/analytics/users?date=2026-07-24&page=opaque-cursor",
+    ]);
+    expect(activityResult.observations).toHaveLength(2);
+
+    const failedCalls: string[] = [];
+    await runReadProbe({
+      definition: members,
+      key: "admin-secret",
+      date: "2026-07-24",
+      hashSalt: HASH_SALT,
+      expectedOrganizationIdHash: EXPECTED_ORG_HASH,
+      fetchImpl: (async (input) => {
+        failedCalls.push(input.toString());
+        return jsonResponse(503, {
+          data: [],
+          has_more: true,
+          last_id: "must-not-follow",
+        });
+      }) as typeof fetch,
+    });
+    expect(failedCalls).toHaveLength(1);
+
+    const unpaginatedCalls: string[] = [];
+    await runReadProbe({
+      definition: organization,
+      key: "admin-secret",
+      date: "2026-07-24",
+      hashSalt: HASH_SALT,
+      expectedOrganizationIdHash: EXPECTED_ORG_HASH,
+      fetchImpl: (async (input) => {
+        unpaginatedCalls.push(input.toString());
+        return jsonResponse(200, {
+          id: "org_synthetic_trusted",
+          name: "Synthetic Trusted Organization",
+          type: "organization",
+          next_page: "must-not-follow",
+        });
+      }) as typeof fetch,
+    });
+    expect(unpaginatedCalls).toHaveLength(1);
+
+    for (const terminalBody of [
+      {
+        data: [],
+        has_more: false,
+        first_id: "user_first",
+        last_id: "must-not-follow",
+      },
+      {
+        data: [],
+        has_more: true,
+        first_id: null,
+        last_id: null,
+      },
+    ]) {
+      const terminalCalls: string[] = [];
+      await runReadProbe({
+        definition: members,
+        key: "admin-secret",
+        date: "2026-07-24",
+        hashSalt: HASH_SALT,
+        expectedOrganizationIdHash: EXPECTED_ORG_HASH,
+        fetchImpl: (async (input) => {
+          terminalCalls.push(input.toString());
+          return jsonResponse(200, terminalBody);
+        }) as typeof fetch,
+      });
+      expect(terminalCalls).toHaveLength(1);
+    }
+  });
+
+  test("caps a perpetually paginated endpoint at exactly one hundred requests", async () => {
+    const members = probeDefinitions.find(({ name }) => name === "members")!;
+    const urls: string[] = [];
+    const result = await runReadProbe({
+      definition: members,
+      key: "admin-secret",
+      date: "2026-07-24",
+      hashSalt: HASH_SALT,
+      expectedOrganizationIdHash: EXPECTED_ORG_HASH,
+      fetchImpl: (async (input) => {
+        urls.push(input.toString());
+        return jsonResponse(200, {
+          data: [],
+          has_more: true,
+          first_id: "user_first",
+          last_id: `user_cursor_${urls.length}`,
+        });
+      }) as typeof fetch,
+    });
+
+    expect(urls).toHaveLength(100);
+    expect(urls[0]).toBe(
+      "https://api.anthropic.com/v1/organizations/users?limit=1000",
+    );
+    expect(urls.at(-1)).toContain("after_id=user_cursor_99");
+    expect(result.observations).toHaveLength(100);
+  });
+
   test("rejects a manifest that reuses one environment variable for both key families", () => {
     expect(() =>
       parseManifest({
@@ -384,6 +1478,53 @@ describe("probe safety boundary", () => {
     ).toBe("executed_and_cleaned_up");
   });
 
+  test("aggregates manual review when any organization is indeterminate", () => {
+    expect(
+      requiresManualReview([
+        { invite_canary: { status: "not_executed" } },
+        {
+          invite_canary: {
+            status: "indeterminate_manual_review_required",
+          },
+        },
+      ]),
+    ).toBe(true);
+    expect(
+      requiresManualReview([
+        { invite_canary: { status: "not_executed" } },
+        { invite_canary: { status: "executed_and_cleaned_up" } },
+      ]),
+    ).toBe(false);
+  });
+
+  test("rejects a 31-character hash salt before network access", async () => {
+    const calls: Array<{ url: string; method: string }> = [];
+    await expect(
+      runProbe(
+        {
+          manifestPath: "synthetic-manifest.json",
+          outputPath: "synthetic-artifact.json",
+          checkpointPath: "synthetic-checkpoint.json",
+          date: "2026-07-24",
+        },
+        {
+          environment: {
+            ...AUTHORIZED_ENVIRONMENT,
+            PROBE_HASH_SALT: "x".repeat(31),
+          },
+          now: () => FIXED_NOW,
+          readText: async () =>
+            JSON.stringify({ organizations: [ORGANIZATION] }),
+          fetchImpl: sequencedTransport([], calls),
+          writeSecureJson: async () => undefined,
+        },
+      ),
+    ).rejects.toThrow(
+      "PROBE_HASH_SALT must contain at least 32 characters",
+    );
+    expect(calls).toEqual([]);
+  });
+
   test("forces an overwritten artifact back to owner-only permissions", async () => {
     const directory = await mkdtemp(
       join(process.cwd(), ".smp-probe-test-"),
@@ -539,6 +1680,78 @@ describe("probe safety boundary", () => {
     ]);
   });
 
+  test("does not treat non-Error or intermediate ENOENT values as a missing target", async () => {
+    const outputPath = join(process.cwd(), "nested", "artifact.json");
+    const baseDependencies = {
+      open: async () => {
+        throw new Error("open must not run");
+      },
+      chmod: async () => undefined,
+      rename: async () => undefined,
+      unlink: async () => undefined,
+      randomId: () => "synthetic-id",
+      processId: 4242,
+    };
+
+    for (const failure of [
+      { code: "ENOENT" },
+      Object.assign(new Error("permission denied"), { code: "EACCES" }),
+    ]) {
+      const writer = createAtomicWriteSecureJson({
+        ...baseDependencies,
+        lstat: async (path: string) => {
+          if (path === outputPath) throw failure;
+          return { isSymbolicLink: () => false };
+        },
+      } as SecureWriterDependencies);
+      await expect(writer(outputPath, { artifact_version: 1 })).rejects.toBe(
+        failure,
+      );
+    }
+
+    const intermediateMissing = Object.assign(
+      new Error("intermediate component missing"),
+      { code: "ENOENT" },
+    );
+    const intermediateWriter = createAtomicWriteSecureJson({
+      ...baseDependencies,
+      lstat: async () => {
+        throw intermediateMissing;
+      },
+    } as SecureWriterDependencies);
+    await expect(
+      intermediateWriter(outputPath, { artifact_version: 1 }),
+    ).rejects.toBe(intermediateMissing);
+  });
+
+  test("preserves a directory-open failure when no directory handle exists", async () => {
+    const outputPath = join(process.cwd(), "synthetic-directory-failure.json");
+    const directoryFailure = new Error("synthetic directory open failure");
+    const fileHandle = {
+      writeFile: async () => undefined,
+      sync: async () => undefined,
+      close: async () => undefined,
+    };
+    const dependencies = {
+      lstat: async () => ({ isSymbolicLink: () => false }),
+      open: async (_path: string, flags: "r" | "wx") => {
+        if (flags === "r") throw directoryFailure;
+        return fileHandle as never;
+      },
+      chmod: async () => undefined,
+      rename: async () => undefined,
+      unlink: async () => undefined,
+      randomId: () => "synthetic-id",
+      processId: 4242,
+    } satisfies SecureWriterDependencies;
+
+    await expect(
+      createAtomicWriteSecureJson(dependencies)(outputPath, {
+        artifact_version: 1,
+      }),
+    ).rejects.toBe(directoryFailure);
+  });
+
   test("closes and unlinks an injected temporary file after write failure", async () => {
     const events: string[] = [];
     const outputPath = join(process.cwd(), "synthetic-failure.json");
@@ -601,6 +1814,21 @@ describe("probe safety boundary", () => {
       /^docs\/spikes\/probe\.checkpoint\.[a-f0-9]{64}\.json$/,
     );
     expect(firstPath).not.toContain("central");
+    expect(
+      checkpointPathForOrganization("docs/spikes/checkpoint", first),
+    ).toMatch(/^docs\/spikes\/checkpoint\.[a-f0-9]{64}\.json$/);
+    expect(() =>
+      checkpointPathForOrganization(
+        "docs/spikes/probe.checkpoint.json",
+        `prefix-${first}`,
+      ),
+    ).toThrow("organization reference hash is not a safe HMAC");
+    expect(() =>
+      checkpointPathForOrganization(
+        "docs/spikes/probe.checkpoint.json",
+        `${first}-suffix`,
+      ),
+    ).toThrow("organization reference hash is not a safe HMAC");
     expect(() =>
       checkpointPathForOrganization(
         "docs/spikes/probe.checkpoint.json",
@@ -737,6 +1965,14 @@ describe("probe safety boundary", () => {
         HASH_SALT,
       ),
     ).toBe(false);
+    expect(
+      verifyProviderOrganization(
+        200,
+        { ...trusted, type: "user" },
+        EXPECTED_ORG_HASH,
+        HASH_SALT,
+      ),
+    ).toBe(false);
     expect(JSON.stringify(EXPECTED_ORG_HASH)).not.toContain(
       "org_synthetic_trusted",
     );
@@ -814,8 +2050,27 @@ describe("probe safety boundary", () => {
   });
 
   test("checkpoints authorization before create and confirms cleanup", async () => {
-    const calls: Array<{ url: string; method: string }> = [];
+    const calls: Array<{
+      url: string;
+      method: string;
+      headers: Record<string, string>;
+      body: BodyInit | null | undefined;
+    }> = [];
     const checkpoints: Record<string, unknown>[] = [];
+    const responses = [
+      jsonResponse(201, {
+        type: "invite",
+        id: "invite_synthetic_canary",
+        email: "canary@example.invalid",
+        status: "pending",
+        role: "user",
+      }),
+      jsonResponse(200, {
+        type: "invite_deleted",
+        id: "invite_synthetic_canary",
+      }),
+    ];
+    let responseIndex = 0;
     const result = await runInviteCanary({
       organization: ORGANIZATION,
       adminKey: "admin-secret",
@@ -825,42 +2080,195 @@ describe("probe safety boundary", () => {
       checkpointPath: "synthetic-checkpoint.json",
       environment: AUTHORIZED_ENVIRONMENT,
       now: () => FIXED_NOW,
-      fetchImpl: sequencedTransport(
-        [
-          jsonResponse(201, {
-            type: "invite",
-            id: "invite_synthetic_canary",
-            email: "canary@example.invalid",
-            status: "pending",
-            role: "user",
-          }),
-          jsonResponse(200, {
-            type: "invite_deleted",
-            id: "invite_synthetic_canary",
-          }),
-        ],
-        calls,
-      ),
+      fetchImpl: (async (
+        input: string | URL | Request,
+        init?: RequestInit,
+      ) => {
+        calls.push({
+          url: input instanceof Request ? input.url : input.toString(),
+          method: init?.method ?? "GET",
+          headers: Object.fromEntries(new Headers(init?.headers).entries()),
+          body: init?.body,
+        });
+        const response = responses[responseIndex];
+        responseIndex += 1;
+        if (!response) throw new Error("synthetic sequence exhausted");
+        return response;
+      }) as typeof fetch,
       writeCheckpoint: async (_path, checkpoint) => {
         checkpoints.push(checkpoint);
       },
     });
 
-    expect(calls.map(({ method }) => method)).toEqual(["POST", "DELETE"]);
-    expect(checkpoints.map(({ state }) => state)).toEqual([
-      "authorized_canary_pending",
-      "invite_create_confirmed",
-      "invite_cleanup_confirmed",
+    expect(calls).toEqual([
+      {
+        url: "https://api.anthropic.com/v1/organizations/invites",
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+          "user-agent": "Ledger-US-054-Probe/1.0",
+          "x-api-key": "admin-secret",
+        },
+        body: JSON.stringify({
+          email: "canary@example.invalid",
+          role: "user",
+        }),
+      },
+      {
+        url:
+          "https://api.anthropic.com/v1/organizations/invites/" +
+          "invite_synthetic_canary",
+        method: "DELETE",
+        headers: {
+          accept: "application/json",
+          "anthropic-version": "2023-06-01",
+          "user-agent": "Ledger-US-054-Probe/1.0",
+          "x-api-key": "admin-secret",
+        },
+        body: undefined,
+      },
     ]);
-    expect(
-      checkpoints.slice(0, 2).map(
-        ({ manual_review_required }) => manual_review_required,
-      ),
-    ).toEqual([true, true]);
-    expect(checkpoints.at(-1)?.manual_review_required).toBe(false);
-    expect(result.status).toBe("executed_and_cleaned_up");
+    const checkpointBase = {
+      checkpoint_version: 1,
+      organization_ref_hash: stableSecretHash("central", HASH_SALT),
+      provider_target_verified: true,
+      updated_at: FIXED_NOW.toISOString(),
+    };
+    expect(checkpoints).toEqual([
+      {
+        ...checkpointBase,
+        state: "authorized_canary_pending",
+        manual_review_required: true,
+      },
+      {
+        ...checkpointBase,
+        state: "invite_create_confirmed",
+        manual_review_required: true,
+      },
+      {
+        ...checkpointBase,
+        state: "invite_cleanup_confirmed",
+        manual_review_required: false,
+      },
+    ]);
+    expect(result).toMatchObject({
+      status: "executed_and_cleaned_up",
+      checkpoint: { classification: "persisted" },
+      create: {
+        endpoint: "invite_canary_create",
+        key_kind: "admin",
+        status: 201,
+      },
+      cleanup: {
+        endpoint: "invite_canary_delete",
+        key_kind: "admin",
+        status: 200,
+      },
+    });
     expect(JSON.stringify(checkpoints)).not.toContain(
       "invite_synthetic_canary",
+    );
+  });
+
+  test("enforces create and cleanup HTTP/schema boundaries in the mutation flow", async () => {
+    const runScenario = async (
+      create: Response,
+      cleanup?: Response,
+    ): Promise<{
+      result: Record<string, unknown>;
+      calls: Array<{ url: string; method: string }>;
+      checkpoints: Record<string, unknown>[];
+    }> => {
+      const calls: Array<{ url: string; method: string }> = [];
+      const checkpoints: Record<string, unknown>[] = [];
+      const responses = cleanup ? [create, cleanup] : [create];
+      const result = await runInviteCanary({
+        organization: ORGANIZATION,
+        adminKey: "admin-secret",
+        hashSalt: HASH_SALT,
+        organizationRefHash: stableSecretHash("central", HASH_SALT),
+        providerTargetVerified: true,
+        checkpointPath: "synthetic-checkpoint.json",
+        environment: AUTHORIZED_ENVIRONMENT,
+        now: () => FIXED_NOW,
+        fetchImpl: sequencedTransport(responses, calls),
+        writeCheckpoint: async (_path, checkpoint) => {
+          checkpoints.push(checkpoint);
+        },
+      });
+      return { result, calls, checkpoints };
+    };
+    const validInvite = {
+      type: "invite",
+      id: "invite_boundary",
+      email: "canary@example.invalid",
+      status: "pending",
+    };
+    const validDelete = {
+      type: "invite_deleted",
+      id: "invite_boundary",
+    };
+
+    const lowerSuccess = await runScenario(
+      jsonResponse(200, validInvite),
+      jsonResponse(200, validDelete),
+    );
+    expect(lowerSuccess.calls.map(({ method }) => method)).toEqual([
+      "POST",
+      "DELETE",
+    ]);
+    expect(lowerSuccess.result.status).toBe("executed_and_cleaned_up");
+
+    for (const status of [199, 300]) {
+      const response = jsonResponse(
+        status === 199 ? 200 : status,
+        validInvite,
+      );
+      if (status === 199) {
+        Object.defineProperty(response, "status", { value: 199 });
+        Object.defineProperty(response, "ok", { value: false });
+      }
+      const rejected = await runScenario(response);
+      expect(rejected.calls).toEqual([
+        {
+          url: "https://api.anthropic.com/v1/organizations/invites",
+          method: "POST",
+        },
+      ]);
+      expect(rejected.checkpoints.at(-1)).toMatchObject({
+        state: "invite_create_rejected",
+        manual_review_required: true,
+      });
+      expect(rejected.result).toMatchObject({
+        status: "attempted_not_created",
+        cleanup: null,
+      });
+    }
+
+    const invalidCreate = await runScenario(
+      jsonResponse(201, { ...validInvite, type: "wrong" }),
+    );
+    expect(invalidCreate.calls).toHaveLength(1);
+    expect(invalidCreate.checkpoints.at(-1)).toMatchObject({
+      state: "invite_create_indeterminate",
+    });
+    expect(invalidCreate.result).toMatchObject({
+      status: "indeterminate_manual_review_required",
+      cleanup: { status: "not_confirmed" },
+    });
+
+    const rejectedCleanup = await runScenario(
+      jsonResponse(201, validInvite),
+      jsonResponse(500, validDelete),
+    );
+    expect(rejectedCleanup.checkpoints.at(-1)).toMatchObject({
+      state: "invite_cleanup_indeterminate",
+      manual_review_required: true,
+    });
+    expect(rejectedCleanup.result.status).toBe(
+      "indeterminate_manual_review_required",
     );
   });
 
@@ -1421,6 +2829,39 @@ describe("probe safety boundary", () => {
     const stdout: string[] = [];
     const stderr: string[] = [];
     const writes: Array<{ path: string; value: Record<string, unknown> }> = [];
+    const keysUsed: string[] = [];
+    const responses = [
+      jsonResponse(200, {
+        id: "org_synthetic_trusted",
+        name: "Synthetic Trusted Organization",
+        type: "organization",
+      }),
+      jsonResponse(200, {
+        data: [],
+        has_more: false,
+        first_id: null,
+        last_id: null,
+      }),
+      jsonResponse(200, {
+        data: [],
+        has_more: false,
+        first_id: null,
+        last_id: null,
+      }),
+      jsonResponse(200, { data: [], next_page: null }),
+      jsonResponse(200, { summaries: [] }),
+      jsonResponse(200, {
+        data: [],
+        has_more: false,
+        next_page: null,
+      }),
+      jsonResponse(200, {
+        data: [],
+        has_more: false,
+        next_page: null,
+      }),
+    ];
+    let responseIndex = 0;
     const exitCode = await executeProbeCli({
       argv: [
         "--manifest",
@@ -1436,44 +2877,31 @@ describe("probe safety boundary", () => {
         environment: {
           ...AUTHORIZED_ENVIRONMENT,
           PROBE_ALLOW_INVITE_MUTATION: "false",
+          PROBE_HASH_SALT: "x".repeat(32),
         },
         now: () => FIXED_NOW,
         readText: async () =>
-          JSON.stringify({ organizations: [ORGANIZATION] }),
-        fetchImpl: sequencedTransport(
-          [
-            jsonResponse(200, {
-              id: "org_synthetic_trusted",
-              name: "Synthetic Trusted Organization",
-              type: "organization",
-            }),
-            jsonResponse(200, {
-              data: [],
-              has_more: false,
-              first_id: null,
-              last_id: null,
-            }),
-            jsonResponse(200, {
-              data: [],
-              has_more: false,
-              first_id: null,
-              last_id: null,
-            }),
-            jsonResponse(200, { data: [], next_page: null }),
-            jsonResponse(200, { summaries: [] }),
-            jsonResponse(200, {
-              data: [],
-              has_more: false,
-              next_page: null,
-            }),
-            jsonResponse(200, {
-              data: [],
-              has_more: false,
-              next_page: null,
-            }),
-          ],
-          [],
-        ),
+          JSON.stringify({
+            organizations: [{
+              ...ORGANIZATION,
+              expectedOrganizationIdHash: stableSecretHash(
+                "org_synthetic_trusted",
+                "x".repeat(32),
+              ),
+            }],
+          }),
+        fetchImpl: (async (
+          _input: string | URL | Request,
+          init?: RequestInit,
+        ) => {
+          keysUsed.push(new Headers(init?.headers).get("x-api-key") ?? "");
+          const response = responses[responseIndex];
+          responseIndex += 1;
+          if (!response) {
+            throw new Error("synthetic contract sequence exhausted");
+          }
+          return response;
+        }) as typeof fetch,
         writeSecureJson: async (path, value) => {
           writes.push({ path, value });
         },
@@ -1487,6 +2915,25 @@ describe("probe safety boundary", () => {
     expect(writes.map(({ path }) => path)).toEqual([
       "synthetic-artifact.json",
     ]);
+    expect(keysUsed).toEqual(
+      probeDefinitions.map(({ keyKind }) =>
+        keyKind === "admin" ? "admin-secret" : "analytics-secret",
+      ),
+    );
+    expect(writes[0]?.value).toMatchObject({
+      artifact_version: 1,
+      requested_utc_date: "2026-07-24",
+      raw_bodies_persisted: false,
+      organizations: [
+        {
+          provider_target_verified: true,
+          invite_canary: {
+            status: "not_executed",
+            reason: "mutation_not_enabled",
+          },
+        },
+      ],
+    });
     expect(stdout).toEqual([
       `${JSON.stringify({
         status: "sanitized_artifact_written",
