@@ -13,6 +13,7 @@ import {
   stableSecretHash,
 } from "./redact.ts";
 import {
+  buildExecutionSchedule,
   inviteCanaryAuthorization,
   probeDefinitions,
 } from "./probe.ts";
@@ -189,6 +190,33 @@ describe("probe safety boundary", () => {
         betaHeader: null,
       },
     ]);
+  });
+
+  test("schedules every organization's read probes before any invite canary", () => {
+    const organizations = [
+      {
+        ref: "central",
+        adminKeyEnv: "CENTRAL_ADMIN",
+        analyticsKeyEnv: "CENTRAL_ANALYTICS",
+      },
+      {
+        ref: "carveout",
+        adminKeyEnv: "CARVEOUT_ADMIN",
+        analyticsKeyEnv: "CARVEOUT_ANALYTICS",
+      },
+    ];
+    const schedule = buildExecutionSchedule(organizations);
+    const firstMutation = schedule.findIndex(
+      ({ phase }) => phase === "invite_canary",
+    );
+
+    expect(firstMutation).toBe(probeDefinitions.length * organizations.length);
+    expect(
+      schedule.slice(0, firstMutation).every(({ phase }) => phase === "read"),
+    ).toBe(true);
+    expect(
+      schedule.slice(firstMutation).map(({ organization }) => organization.ref),
+    ).toEqual(["central", "carveout"]);
   });
 
   test("requires every invite mutation authorization signal for the same org", () => {

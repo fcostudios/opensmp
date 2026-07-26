@@ -82,6 +82,35 @@ export const probeDefinitions: readonly ProbeDefinition[] = [
   },
 ] as const;
 
+type ExecutionStep =
+  | {
+      phase: "read";
+      organization: ProbeOrganization;
+      definition: ProbeDefinition;
+    }
+  | {
+      phase: "invite_canary";
+      organization: ProbeOrganization;
+    };
+
+export function buildExecutionSchedule(
+  organizations: ProbeOrganization[],
+): ExecutionStep[] {
+  return [
+    ...organizations.flatMap((organization) =>
+      probeDefinitions.map((definition) => ({
+        phase: "read" as const,
+        organization,
+        definition,
+      })),
+    ),
+    ...organizations.map((organization) => ({
+      phase: "invite_canary" as const,
+      organization,
+    })),
+  ];
+}
+
 interface InviteAuthorizationInput {
   allowMutation: string | undefined;
   canaryEmail: string | undefined;
@@ -317,48 +346,70 @@ async function runInviteCanary(input: {
     null;
   let cleanupObservation: ReturnType<typeof createSanitizedObservation> | null =
     null;
+  let createTransportFailure = false;
+  let cleanupTransportFailure = false;
 
   try {
-    const created = await request(createUrl, key, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: canaryEmail, role: "user" }),
-    });
-    createdInviteId = inviteId(created.body);
-    createObservation = createSanitizedObservation({
-      endpoint: "invite_canary_create",
-      keyKind: "admin",
-      status: created.response.status,
-      headers: created.response.headers,
-      body: created.body,
-      hashSalt: input.hashSalt,
-      sentBetaHeader: null,
-    });
-  } finally {
-    if (createdInviteId) {
-      const deleteUrl = new URL(
-        `/v1/organizations/invites/${encodeURIComponent(createdInviteId)}`,
-        API_ORIGIN,
-      );
-      const deleted = await request(deleteUrl, key, { method: "DELETE" });
-      cleanupObservation = createSanitizedObservation({
-        endpoint: "invite_canary_delete",
+    try {
+      const created = await request(createUrl, key, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: canaryEmail, role: "user" }),
+      });
+      createdInviteId = inviteId(created.body);
+      createObservation = createSanitizedObservation({
+        endpoint: "invite_canary_create",
         keyKind: "admin",
-        status: deleted.response.status,
-        headers: deleted.response.headers,
-        body: deleted.body,
+        status: created.response.status,
+        headers: created.response.headers,
+        body: created.body,
         hashSalt: input.hashSalt,
         sentBetaHeader: null,
       });
+    } catch {
+      createTransportFailure = true;
+    }
+  } finally {
+    if (createdInviteId) {
+      try {
+        const deleteUrl = new URL(
+          `/v1/organizations/invites/${encodeURIComponent(createdInviteId)}`,
+          API_ORIGIN,
+        );
+        const deleted = await request(deleteUrl, key, { method: "DELETE" });
+        cleanupObservation = createSanitizedObservation({
+          endpoint: "invite_canary_delete",
+          keyKind: "admin",
+          status: deleted.response.status,
+          headers: deleted.response.headers,
+          body: deleted.body,
+          hashSalt: input.hashSalt,
+          sentBetaHeader: null,
+        });
+      } catch {
+        cleanupTransportFailure = true;
+      }
     }
   }
 
+  if (createTransportFailure) {
+    return {
+      status: "indeterminate_manual_review_required",
+      create: { classification: "network_or_transport_failure" },
+      cleanup: { status: "not_possible_without_confirmed_invite_id" },
+    };
+  }
   return {
     status: createObservation?.classification === "success"
       ? "executed"
       : "attempted",
     create: createObservation,
-    cleanup: cleanupObservation,
+    cleanup: cleanupTransportFailure
+      ? {
+          status: "indeterminate_manual_review_required",
+          classification: "network_or_transport_failure",
+        }
+      : cleanupObservation,
   };
 }
 
@@ -369,25 +420,44 @@ async function runProbe(options: CliOptions): Promise<Record<string, unknown>> {
     throw new Error("PROBE_HASH_SALT must contain at least 32 characters");
   }
 
-  const organizations = [];
-  for (const organization of manifest.organizations) {
-    const observations = [];
-    // The complete read-only surface always runs before the optional canary.
-    for (const definition of probeDefinitions) {
-      observations.push(
+  const working = new Map(
+    manifest.organizations.map((organization) => [
+      organization.ref,
+      {
+        organization,
+        organization_ref_hash: stableSecretHash(
+          organization.ref,
+          hashSalt,
+        ),
+        observations: [] as ReturnType<
+          typeof createSanitizedObservation
+        >[],
+        invite_canary: {
+          status: "not_executed",
+          reason: "phase_not_reached",
+        } as Record<string, unknown>,
+      },
+    ]),
+  );
+
+  for (const step of buildExecutionSchedule(manifest.organizations)) {
+    const result = working.get(step.organization.ref);
+    if (!result) throw new Error("internal organization schedule mismatch");
+    if (step.phase === "read") {
+      result.observations.push(
         ...(await runReadProbe({
-          definition,
-          organization,
+          definition: step.definition,
+          organization: step.organization,
           date: options.date,
           hashSalt,
         })),
       );
+    } else {
+      result.invite_canary = await runInviteCanary({
+        organization: step.organization,
+        hashSalt,
+      });
     }
-    organizations.push({
-      organization_ref_hash: stableSecretHash(organization.ref, hashSalt),
-      observations,
-      invite_canary: await runInviteCanary({ organization, hashSalt }),
-    });
   }
 
   return {
@@ -397,7 +467,9 @@ async function runProbe(options: CliOptions): Promise<Record<string, unknown>> {
     api_origin: API_ORIGIN,
     anthropic_version: API_VERSION,
     raw_bodies_persisted: false,
-    organizations,
+    organizations: [...working.values()].map(
+      ({ organization: _secretRoutingOnly, ...artifact }) => artifact,
+    ),
   };
 }
 

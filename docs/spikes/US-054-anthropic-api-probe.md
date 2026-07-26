@@ -55,6 +55,10 @@ Therefore the harness performs no mutation unless the operator supplies all of:
 
 If creation yields an invite ID, the withdrawal call is attempted in `finally`.
 Without all gates, the artifact records `invite_canary: not_executed`.
+All organizations' read-only phases complete before the first canary phase.
+Transport uncertainty during creation or cleanup is recorded as sanitized
+`indeterminate_manual_review_required` evidence and requires immediate manual
+inspection; raw exception text is never retained.
 
 ## Scope notes for Sprint 3
 

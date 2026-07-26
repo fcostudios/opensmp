@@ -40,7 +40,8 @@ rtk node --experimental-strip-types scripts/probes/anthropic/probe.ts \
   --output docs/spikes/US-054-anthropic-api-probe.runtime.json
 ```
 
-The read-only sequence always completes before any mutation is considered:
+The read-only sequence completes for **every manifest organization** before any
+organization's mutation is considered:
 
 1. current organization;
 2. members and invites;
@@ -69,6 +70,11 @@ PROBE_VENDOR_ACCOUNT_CONFIRMED_AT='2026-07-26T05:00:00Z'
 old, providing an expiring immediate target confirmation. When creation returns
 an invite ID, withdrawal runs in a `finally` block. A missing gate is evidence
 that the canary was not executed, not a successful dry run.
+
+A network/transport failure during creation or withdrawal is recorded only as
+`indeterminate_manual_review_required`; no exception text or response body is
+persisted. The operator must inspect the target organization immediately and
+withdraw any surviving canary manually.
 
 ## Artifact contract
 
