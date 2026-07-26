@@ -6,22 +6,22 @@ import {
   matchRoutePolicy,
 } from "./route-access";
 
-export function routeAuthorizationResponse(
+export function routeAuthenticationResponse(
   request: NextRequest,
-  user: LedgerSessionUser | null,
+  authenticated: boolean,
 ): NextResponse {
   const { pathname } = request.nextUrl;
   const match = matchRoutePolicy(pathname);
 
-  if (match?.policy.authRequired && !user) {
-    const login = new URL("/login", request.nextUrl);
-    login.searchParams.set("callbackUrl", pathname);
-    return NextResponse.redirect(login);
-  }
-  if (!canAccessRoute(user, pathname)) {
+  if (!match) {
     return NextResponse.redirect(
       new URL("/acceso-denegado", request.nextUrl),
     );
+  }
+  if (match.policy.authRequired && !authenticated) {
+    const login = new URL("/login", request.nextUrl);
+    login.searchParams.set("callbackUrl", pathname);
+    return NextResponse.redirect(login);
   }
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-ledger-pathname", pathname);

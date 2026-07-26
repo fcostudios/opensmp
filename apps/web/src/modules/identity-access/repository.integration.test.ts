@@ -29,6 +29,7 @@ async function seedAccount({
   status = "active",
   globalRole = null,
   uiLanguage = null,
+  lastLoginAt = null,
 }: {
   id: string;
   email: string;
@@ -36,12 +37,22 @@ async function seedAccount({
   status?: "active" | "disabled";
   globalRole?: "group_admin" | "central_finance" | null;
   uiLanguage?: "es" | "en" | null;
+  lastLoginAt?: Date | null;
 }) {
   await owner.query(
     `INSERT INTO user_account (
-       id, email, idp_subject, global_role, ui_language, status, created_at
-     ) VALUES ($1, $2, $3, $4, $5, $6, now())`,
-    [id, email, idpSubject, globalRole, uiLanguage, status],
+       id, email, idp_subject, global_role, ui_language, status,
+       last_login_at, created_at
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, now())`,
+    [
+      id,
+      email,
+      idpSubject,
+      globalRole,
+      uiLanguage,
+      status,
+      lastLoginAt,
+    ],
   );
 }
 
@@ -65,12 +76,30 @@ afterAll(async () => {
 }, 150_000);
 
 describe("identity-access repository", () => {
-  test("atomically links a verified email, updates last login, and writes a sanitized success audit", async () => {
+  test("atomically links a verified email and records the exact tenant-scoped account diff", async () => {
     const accountId = "00000000-0000-0000-0000-000000000461";
+    const personId = "00000000-0000-0000-0000-000000000471";
+    const previousLoginAt = new Date("2026-07-24T12:00:00.000Z");
     await seedAccount({
       id: accountId,
       email: "First.Login@Corporativo.Example",
+      lastLoginAt: previousLoginAt,
     });
+    await owner.query(
+      `INSERT INTO person (
+         id, email, full_name, company_id, status, created_at, created_by
+       ) VALUES ($1, $2, 'First Login', $3, 'active', now(), $4)`,
+      [
+        personId,
+        "first.login@corporativo.example",
+        companyA,
+        accountId,
+      ],
+    );
+    await owner.query(
+      `UPDATE user_account SET person_id = $1 WHERE id = $2`,
+      [personId, accountId],
+    );
     const repository = createIdentityAccessRepository(
       drizzle(appPool, { schema }),
     );
@@ -100,9 +129,10 @@ describe("identity-access repository", () => {
       },
     ]);
     const audit = await owner.query(
-      `SELECT actor_user_id, action, entity_id, before, after, note
+      `SELECT actor_user_id, action, entity_type, entity_id, company_id,
+              before, after, note
        FROM audit_log
-       WHERE after->>'errorCode' = 'none'
+       WHERE action = 'authentication.oidc.succeeded'
          AND actor_user_id = $1`,
       [accountId],
     );
@@ -110,12 +140,23 @@ describe("identity-access repository", () => {
       {
         actor_user_id: accountId,
         action: "authentication.oidc.succeeded",
-        entity_id: "00000000-0000-0000-0000-000000000004",
-        before: null,
-        after: { provider: "keycloak", errorCode: "none" },
+        entity_type: "UserAccount",
+        entity_id: accountId,
+        company_id: companyA,
+        before: {
+          idp_subject: null,
+          last_login_at: previousLoginAt.toISOString(),
+        },
+        after: {
+          idp_subject: "keycloak-first-login",
+          last_login_at: loginAt.toISOString(),
+        },
         note: null,
       },
     ]);
+    expect(JSON.stringify(audit.rows[0])).not.toMatch(
+      /provider|client_secret|token/i,
+    );
   });
 
   test.each([

@@ -36,6 +36,24 @@ describe("authenticated layout authorization", () => {
     );
   });
 
+  test("makes the business authorization decision after proxy authentication", () => {
+    expect(
+      authenticatedRouteRedirect(viewer(), "/usuarios"),
+    ).toBe("/acceso-denegado");
+    expect(
+      authenticatedRouteRedirect(
+        viewer(),
+        `/companias/${companyB}`,
+      ),
+    ).toBe("/acceso-denegado");
+    expect(
+      authenticatedRouteRedirect(
+        viewer(),
+        `/companias/${companyA}`,
+      ),
+    ).toBeNull();
+  });
+
   test("allows only the viewer's declared company-detail screen", () => {
     expect(
       authenticatedRouteRedirect(viewer(), `/companias/${companyA}`),
@@ -51,6 +69,8 @@ describe("authenticated layout authorization", () => {
     expect(source).toContain("await auth()");
     expect(source).toContain('get("x-ledger-pathname")');
     expect(source).toContain("authenticatedRouteRedirect");
+    expect(source).toContain("dynamicBreadcrumbRepository.resolve");
+    expect(source).toContain("dynamicBreadcrumbLabels=");
     expect(source).toContain("redirect(destination)");
   });
 });

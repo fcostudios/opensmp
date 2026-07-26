@@ -49,4 +49,33 @@ describe("message catalogs", () => {
       rejected: "Rechazada",
     });
   });
+
+  test("locks the complete bilingual shell vocabulary", () => {
+    expect(esEc.shell).toEqual({
+      administration: "ADMINISTRACIÓN",
+      breadcrumbs: "Migas de pan",
+      closeMenu: "Cerrar menú",
+      finance: "FINANZAS",
+      language: "Idioma",
+      mainNavigation: "Navegación principal",
+      menu: "Menú",
+      mobileNavigation: "Navegación móvil",
+      operation: "OPERACIÓN",
+      skipToContent: "Saltar al contenido",
+      userMenu: "Cuenta de usuario",
+    });
+    expect(enUs.shell).toEqual({
+      administration: "ADMINISTRATION",
+      breadcrumbs: "Breadcrumbs",
+      closeMenu: "Close menu",
+      finance: "FINANCE",
+      language: "Language",
+      mainNavigation: "Main navigation",
+      menu: "Menu",
+      mobileNavigation: "Mobile navigation",
+      operation: "OPERATIONS",
+      skipToContent: "Skip to content",
+      userMenu: "User account",
+    });
+  });
 });

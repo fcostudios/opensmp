@@ -7,7 +7,7 @@ import {
 } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-import { userAccount } from "@smp/db/schema";
+import { person, userAccount } from "@smp/db/schema";
 import * as schema from "@smp/db/schema";
 
 import type {
@@ -16,6 +16,7 @@ import type {
   LedgerUiLanguage,
 } from "@/lib/auth/auth-types";
 import { insertAuthAudit } from "../audit/auth-events";
+import { withAudit } from "../audit/with-audit";
 import { createAuthorizationRepository } from "./authorization";
 
 export type IdentityLinkErrorCode =
@@ -57,6 +58,8 @@ type AccountRow = {
   email: string;
   globalRole: LedgerGlobalRole | null;
   idpSubject: string | null;
+  lastLoginAt: Date | null;
+  personId: string | null;
   status: "active" | "disabled";
   uiLanguage: LedgerUiLanguage | null;
 };
@@ -66,6 +69,8 @@ const accountSelection = {
   email: userAccount.email,
   globalRole: userAccount.globalRole,
   idpSubject: userAccount.idpSubject,
+  lastLoginAt: userAccount.lastLoginAt,
+  personId: userAccount.personId,
   status: userAccount.status,
   uiLanguage: userAccount.uiLanguage,
 };
@@ -93,7 +98,7 @@ export function createIdentityAccessRepository(database: Database) {
           throw new IdentityLinkError("unverified_email");
         }
 
-        result = await database.transaction(async (transaction) => {
+        result = await withAudit(database, async (transaction) => {
           let [account] = await transaction
             .select(accountSelection)
             .from(userAccount)
@@ -120,6 +125,10 @@ export function createIdentityAccessRepository(database: Database) {
           }
           actorUserId = account.id;
           assertUsableAccount(account);
+          const before = {
+            idp_subject: account.idpSubject,
+            last_login_at: account.lastLoginAt,
+          };
 
           if (
             account.idpSubject !== null &&
@@ -160,15 +169,30 @@ export function createIdentityAccessRepository(database: Database) {
             .update(userAccount)
             .set({ lastLoginAt: input.loginAt })
             .where(eq(userAccount.id, account.id));
-          await insertAuthAudit(transaction, {
-            actorUserId: account.id,
-            action: "authentication.oidc.succeeded",
-            errorCode: "none",
-            occurredAt: input.loginAt,
-            provider: input.provider,
-          });
-          return account;
-        });
+          const [actorPerson] = account.personId
+            ? await transaction
+                .select({ companyId: person.companyId })
+                .from(person)
+                .where(eq(person.id, account.personId))
+                .limit(1)
+            : [];
+          return {
+            value: account,
+            audit: {
+              actorUserId: account.id,
+              action: "authentication.oidc.succeeded",
+              entityType: "UserAccount",
+              entityId: account.id,
+              companyId: actorPerson?.companyId ?? null,
+              note: null,
+              before,
+              after: {
+                idp_subject: input.subject,
+                last_login_at: input.loginAt,
+              },
+            },
+          };
+        }, { occurredAt: input.loginAt });
       } catch (cause) {
         const error =
           cause instanceof IdentityLinkError

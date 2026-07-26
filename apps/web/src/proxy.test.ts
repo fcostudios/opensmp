@@ -5,31 +5,13 @@ import { readFileSync } from "node:fs";
 import { NextRequest } from "next/server";
 import { describe, expect, test } from "vitest";
 
-import type { LedgerSessionUser } from "@/lib/auth/auth-types";
-import { routeAuthorizationResponse } from "./lib/auth/route-guard";
-
-const companyA = "00000000-0000-0000-0000-000000000751";
-
-function viewer(): LedgerSessionUser {
-  return {
-    id: "viewer",
-    idpSubject: "viewer-subject",
-    email: "viewer@example.test",
-    name: "Viewer",
-    globalRole: null,
-    companyGrants: [{ companyId: companyA, role: "viewer" }],
-    employeeCompanyId: null,
-    roles: ["viewer"],
-    companyIds: [companyA],
-    uiLanguage: null,
-  };
-}
+import { routeAuthenticationResponse } from "./lib/auth/route-guard";
 
 describe("request-time route authorization", () => {
   test("redirects an unauthenticated protected request to login with only a same-origin callback", () => {
-    const response = routeAuthorizationResponse(
+    const response = routeAuthenticationResponse(
       new NextRequest("https://ledger.example/companias"),
-      null,
+      false,
     );
 
     expect(getRedirectUrl(response)).toBe(
@@ -37,34 +19,44 @@ describe("request-time route authorization", () => {
     );
   });
 
-  test("redirects an authenticated role or company-scope mismatch to access denied", () => {
-    const roleMismatch = routeAuthorizationResponse(
+  test("defers business-role and company decisions to the database-enriched layout", () => {
+    const roleSensitive = routeAuthenticationResponse(
       new NextRequest("https://ledger.example/usuarios"),
-      viewer(),
+      true,
     );
-    const companyMismatch = routeAuthorizationResponse(
+    const companySensitive = routeAuthenticationResponse(
       new NextRequest(
         "https://ledger.example/companias/00000000-0000-0000-0000-000000000752",
       ),
-      viewer(),
+      true,
     );
 
-    expect(getRedirectUrl(roleMismatch)).toBe(
-      "https://ledger.example/acceso-denegado",
-    );
-    expect(getRedirectUrl(companyMismatch)).toBe(
-      "https://ledger.example/acceso-denegado",
+    expect(getRedirectUrl(roleSensitive)).toBeNull();
+    expect(getRedirectUrl(companySensitive)).toBeNull();
+    expect(
+      roleSensitive.headers.get(
+        "x-middleware-request-x-ledger-pathname",
+      ),
+    ).toBe("/usuarios");
+    expect(
+      companySensitive.headers.get(
+        "x-middleware-request-x-ledger-pathname",
+      ),
+    ).toBe(
+      "/companias/00000000-0000-0000-0000-000000000752",
     );
   });
 
   test("allows public routes and an authorized company-scoped route", () => {
-    const publicResponse = routeAuthorizationResponse(
+    const publicResponse = routeAuthenticationResponse(
       new NextRequest("https://ledger.example/login"),
-      null,
+      false,
     );
-    const scopedResponse = routeAuthorizationResponse(
-      new NextRequest(`https://ledger.example/companias/${companyA}`),
-      viewer(),
+    const scopedResponse = routeAuthenticationResponse(
+      new NextRequest(
+        "https://ledger.example/companias/00000000-0000-0000-0000-000000000751",
+      ),
+      true,
     );
 
     expect(getRedirectUrl(publicResponse)).toBeNull();
@@ -73,13 +65,15 @@ describe("request-time route authorization", () => {
       scopedResponse.headers.get(
         "x-middleware-request-x-ledger-pathname",
       ),
-    ).toBe(`/companias/${companyA}`);
+    ).toBe(
+      "/companias/00000000-0000-0000-0000-000000000751",
+    );
   });
 
   test("fails closed for a route absent from the authoritative navigation map", () => {
-    const response = routeAuthorizationResponse(
+    const response = routeAuthenticationResponse(
       new NextRequest("https://ledger.example/unregistered-screen"),
-      viewer(),
+      true,
     );
 
     expect(getRedirectUrl(response)).toBe(
@@ -91,7 +85,7 @@ describe("request-time route authorization", () => {
     const source = readFileSync(new URL("./proxy.ts", import.meta.url), "utf8");
 
     expect(source).toContain("export const proxy = auth(");
-    expect(source).toContain("routeAuthorizationResponse(");
+    expect(source).toContain("routeAuthenticationResponse(");
     expect(source).toContain("export const config = {");
     expect(source).toContain(
       "/((?!api|auth|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)",

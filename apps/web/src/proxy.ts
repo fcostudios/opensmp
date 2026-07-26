@@ -1,8 +1,8 @@
 import { auth } from "@/lib/auth/auth-config";
-import { routeAuthorizationResponse } from "@/lib/auth/route-guard";
+import { routeAuthenticationResponse } from "@/lib/auth/route-guard";
 
 export const proxy = auth((request) =>
-  routeAuthorizationResponse(request, request.auth?.user ?? null),
+  routeAuthenticationResponse(request, Boolean(request.auth)),
 );
 
 export const config = {

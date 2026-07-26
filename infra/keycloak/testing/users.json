@@ -88,5 +88,15 @@
     "password": "candidate-test-password",
     "enabled": true,
     "platformAdmin": false
+  },
+  {
+    "id": "10000000-0000-0000-0000-000000000010",
+    "username": "audit-admin",
+    "email": "audit-admin@auth.test",
+    "firstName": "Audrey",
+    "lastName": "Audit",
+    "password": "audit-admin-test-password",
+    "enabled": true,
+    "platformAdmin": true
   }
 ]

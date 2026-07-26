@@ -15,9 +15,30 @@
   "audit": {
     "action": "Action",
     "actor": "Actor",
+    "added": "Added",
+    "all": "All",
     "after": "After",
+    "appendOnlyContent": "This log is write-only at the database level: it cannot be edited or deleted.",
+    "appendOnlyTitle": "Immutable log",
+    "applyFilters": "Apply filters",
     "before": "Before",
-    "occurredAt": "Date and time"
+    "close": "Close",
+    "company": "Company",
+    "dateFrom": "From",
+    "dateTo": "To",
+    "details": "Change details",
+    "empty": "There are no audit events yet.",
+    "entity": "Entity",
+    "error": "We couldn't load the audit log.",
+    "loading": "Loading the audit log…",
+    "next": "Next page",
+    "note": "Note",
+    "occurredAt": "Date and time",
+    "removed": "Removed",
+    "retry": "Try again",
+    "subtitle": "Everything that happened in Ledger, who did it, and what changed.",
+    "systemActor": "— system",
+    "title": "Audit log"
   },
   "empty": {
     "generic": "There is no data to show yet.",
@@ -96,9 +117,16 @@
   },
   "shell": {
     "administration": "ADMINISTRATION",
+    "breadcrumbs": "Breadcrumbs",
+    "closeMenu": "Close menu",
     "finance": "FINANCE",
     "language": "Language",
-    "operation": "OPERATIONS"
+    "mainNavigation": "Main navigation",
+    "menu": "Menu",
+    "mobileNavigation": "Mobile navigation",
+    "operation": "OPERATIONS",
+    "skipToContent": "Skip to content",
+    "userMenu": "User account"
   },
   "status": {
     "submitted": "Submitted",

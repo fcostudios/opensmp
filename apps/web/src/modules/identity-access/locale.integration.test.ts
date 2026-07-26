@@ -17,6 +17,8 @@ const actorId = "00000000-0000-0000-0000-000000000681";
 const otherId = "00000000-0000-0000-0000-000000000682";
 const disabledId = "00000000-0000-0000-0000-000000000683";
 const rollbackActorId = "00000000-0000-0000-0000-000000000684";
+const actorCompanyId = "00000000-0000-0000-0000-000000000685";
+const actorPersonId = "00000000-0000-0000-0000-000000000686";
 const changedAt = new Date("2026-07-25T18:30:00.000Z");
 
 let fixture: PostgresFixture;
@@ -37,6 +39,25 @@ beforeAll(async () => {
        ($3, 'locale.disabled@corporativo.example', 'locale-disabled', 'es', 'disabled', now()),
        ($4, 'locale.rollback@corporativo.example', 'locale-rollback', NULL, 'active', now())`,
     [actorId, otherId, disabledId, rollbackActorId],
+  );
+  await owner.query(
+    `INSERT INTO company
+       (id, name, code, type, status, budget_monthly_usd,
+        statement_language, created_at, created_by)
+     VALUES ($1, 'Locale Company', 'LOC', 'internal', 'active', 100,
+             'es', now(), $2)`,
+    [actorCompanyId, actorId],
+  );
+  await owner.query(
+    `INSERT INTO person
+       (id, email, full_name, company_id, status, created_at, created_by)
+     VALUES ($1, 'locale.actor@corporativo.example', 'Locale Actor',
+             $2, 'active', now(), $3)`,
+    [actorPersonId, actorCompanyId, actorId],
+  );
+  await owner.query(
+    "UPDATE user_account SET person_id = $1 WHERE id = $2",
+    [actorPersonId, actorId],
   );
 });
 
@@ -75,7 +96,8 @@ describe("locale service", () => {
       { id: otherId, ui_language: "es" },
     ]);
     const audit = await owner.query(
-      `SELECT actor_user_id, action, entity_type, entity_id, before, after, occurred_at
+      `SELECT actor_user_id, action, entity_type, entity_id, company_id,
+              before, after, occurred_at
        FROM audit_log
        WHERE action = 'user_account.ui_language.updated'
          AND actor_user_id = $1`,
@@ -85,8 +107,9 @@ describe("locale service", () => {
       {
         actor_user_id: actorId,
         action: "user_account.ui_language.updated",
-        entity_type: "user_account",
+        entity_type: "UserAccount",
         entity_id: actorId,
+        company_id: actorCompanyId,
         before: { ui_language: null },
         after: { ui_language: "en" },
         occurred_at: changedAt,

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from "vitest";
 import type pg from "pg";
 
 import {
+  AUTH_TEST_COMPANY_ID,
   AUTH_TEST_IDENTITIES,
   seedAuthUsers,
 } from "./seed-auth-users";
@@ -65,5 +66,19 @@ test("seeds deterministic Ledger authorization without credential material and i
     { email: "approver@auth.test", role: "approver" },
     { email: "company-finance@auth.test", role: "finance" },
     { email: "viewer@auth.test", role: "viewer" },
+  ]);
+
+  const employee = await owner.query(`
+    SELECT user_account.email, person.company_id, person.status
+    FROM user_account
+    JOIN person ON person.id = user_account.person_id
+    WHERE user_account.email = 'employee@auth.test'
+  `);
+  expect(employee.rows).toEqual([
+    {
+      email: "employee@auth.test",
+      company_id: AUTH_TEST_COMPANY_ID,
+      status: "active",
+    },
   ]);
 });

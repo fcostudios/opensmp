@@ -6,7 +6,7 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint . && pnpm lint:ds",
+    "lint": "eslint . && node ../../scripts/check-audited-actions.mjs . && pnpm lint:ds",
     "type-check": "tsc --noEmit",
     "test": "TESTCONTAINERS_RYUK_DISABLED=true vitest run",
     "test:e2e": "playwright test",

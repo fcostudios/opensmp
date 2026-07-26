@@ -1,11 +1,11 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { Sidebar } from "@/components/layout/sidebar";
-import { Header } from "@/components/layout/header";
-import { MobileBar } from "@/components/layout/mobile-bar";
+import { ApplicationShell } from "@/components/layout/app-shell";
 import { auth } from "@/lib/auth/auth-config";
 import { authenticatedRouteRedirect } from "@/lib/auth/route-guard";
+import { updateLocale } from "@/modules/identity-access/actions/update-locale";
+import { dynamicBreadcrumbRepository } from "@/modules/navigation/repository";
 
 export default async function AuthenticatedLayout({
   children,
@@ -14,20 +14,26 @@ export default async function AuthenticatedLayout({
 }) {
   const session = await auth();
   const requestHeaders = await headers();
+  const pathname = requestHeaders.get("x-ledger-pathname");
   const destination = authenticatedRouteRedirect(
     session?.user ?? null,
-    requestHeaders.get("x-ledger-pathname"),
+    pathname,
   );
   if (destination) redirect(destination);
+  if (!session?.user || !pathname) redirect("/login");
+  const user = session.user;
+  const dynamicBreadcrumbLabels =
+    await dynamicBreadcrumbRepository.resolve(pathname, user);
+  if (!dynamicBreadcrumbLabels) redirect("/acceso-denegado");
 
   return (
-    <div className="flex h-screen">
-      <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-y-auto">{children}</main>
-      </div>
-      <MobileBar />
-    </div>
+    <ApplicationShell
+      displayName={user.name || user.email}
+      dynamicBreadcrumbLabels={dynamicBreadcrumbLabels}
+      roles={user.roles}
+      updateLocaleAction={updateLocale}
+    >
+      {children}
+    </ApplicationShell>
   );
 }

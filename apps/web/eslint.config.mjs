@@ -56,6 +56,8 @@ const eslintConfig = [
       "src/modules/identity-access/server-authorization.ts",
       "src/modules/identity-access/locale.ts",
       "src/modules/audit/auth-events.ts",
+      "src/modules/audit/queries.ts",
+      "src/modules/audit/with-audit.ts",
     ],
     rules: {
       "no-restricted-imports": "off",

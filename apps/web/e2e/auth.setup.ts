@@ -165,6 +165,96 @@ export default async function setupAuthEnvironment() {
     try {
       await owner.connect();
       await seedAuthUsers(owner);
+      await owner.query(`
+        INSERT INTO audit_log (
+          id, actor_user_id, action, entity_type, entity_id, company_id,
+          note, before, after, occurred_at
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000810',
+          '20000000-0000-0000-0000-000000000005',
+          'company.updated',
+          'Company',
+          '20000000-0000-0000-0000-000000000451',
+          '20000000-0000-0000-0000-000000000451',
+          'E2E audit note',
+          '{"status":"inactive"}'::jsonb,
+          '{"status":"active","added":"visible"}'::jsonb,
+          '2026-07-25T20:00:00Z'
+        )
+        ON CONFLICT (id) DO NOTHING
+      `);
+      await owner.query(`
+        INSERT INTO vendor (
+          id, name, connector_type, provisioning_protocol, can_provision,
+          can_deprovision, has_usage_data, has_cost_data, identity_matching,
+          status, created_at, created_by
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000460',
+          'Breadcrumb Vendor',
+          'api',
+          'rest',
+          true,
+          true,
+          true,
+          true,
+          'email',
+          'active',
+          now(),
+          '00000000-0000-0000-0000-000000000001'
+        );
+        INSERT INTO vendor_account (
+          id, vendor_id, name, mode, low_pool_floor, status,
+          created_at, created_by
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000461',
+          '20000000-0000-0000-0000-000000000460',
+          'Claude Enterprise · Central',
+          'automated',
+          0,
+          'active',
+          now(),
+          '00000000-0000-0000-0000-000000000001'
+        );
+        INSERT INTO license_type (
+          id, vendor_id, name, unit, status, created_at, created_by
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000462',
+          '20000000-0000-0000-0000-000000000460',
+          'Claude Enterprise',
+          'seat',
+          'active',
+          now(),
+          '00000000-0000-0000-0000-000000000001'
+        );
+        INSERT INTO license_request (
+          id, request_no, person_id, company_id, vendor_account_id,
+          license_type_id, state, justification, created_at, created_by
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000463',
+          'REQ-BREADCRUMB',
+          '20000000-0000-0000-0000-000000000201',
+          '20000000-0000-0000-0000-000000000451',
+          '20000000-0000-0000-0000-000000000461',
+          '20000000-0000-0000-0000-000000000462',
+          'active',
+          'fixture',
+          now(),
+          '00000000-0000-0000-0000-000000000001'
+        );
+        INSERT INTO statement (
+          id, company_id, period, status, opening_seats, total_usd,
+          generated_at, created_at
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000464',
+          '20000000-0000-0000-0000-000000000451',
+          '2026-07',
+          'final',
+          1,
+          100.00,
+          now(),
+          now()
+        )
+      `);
     } finally {
       await owner.end();
     }

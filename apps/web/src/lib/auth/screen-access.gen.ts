@@ -87,3 +87,7 @@ export const ROUTE_SCREEN_IDS = {
 } as const;
 
 export const PUBLIC_SCREEN_IDS = ["SCR-login", "SCR-access-denied"] as const;
+
+export const BREADCRUMB_ROUTE_TEMPLATES = ["/solicitudes/:requestId", "/organizaciones/:vendorAccountId", "/companias/:companyId", "/personas/:personId", "/estados-de-cuenta/:statementId"] as const;
+
+export const BREADCRUMB_PATTERNS = {"/solicitudes/:requestId": ["Mis solicitudes", "{request short id}"], "/organizaciones/:vendorAccountId": ["Organizaciones", "{vendor account name}"], "/companias/:companyId": ["Compa\u00f1\u00edas", "{company name}"], "/personas/:personId": ["Personas", "{person name}"], "/estados-de-cuenta/:statementId": ["Estados de cuenta", "{company code} \u00b7 {period}"]} as const;

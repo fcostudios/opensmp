@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 
 import {
+  BREADCRUMB_PATTERNS,
   DEFAULT_ROUTE_BY_ROLE,
   PUBLIC_SCREEN_IDS,
   ROLE_SCREEN_IDS,
@@ -11,6 +12,9 @@ import {
 } from "./screen-access.gen";
 
 interface NavigationMap {
+  readonly breadcrumbs_pattern_per_dynamic_param_route: Readonly<
+    Record<string, readonly string[]>
+  >;
   readonly role_based_views: Record<
     ScreenRole,
     { readonly screens: readonly string[] }
@@ -92,6 +96,12 @@ describe("generated screen access", () => {
       navigationMap.routes
         .filter(({ auth_required: authRequired }) => !authRequired)
         .map(({ screen_id: screenId }) => screenId),
+    );
+  });
+
+  test("dynamic breadcrumb patterns are an exact nav-map projection", () => {
+    expect(BREADCRUMB_PATTERNS).toEqual(
+      navigationMap.breadcrumbs_pattern_per_dynamic_param_route,
     );
   });
 });

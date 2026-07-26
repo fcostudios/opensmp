@@ -67,6 +67,13 @@ export const AUTH_TEST_IDENTITIES = [
     globalRole: null,
     status: "active",
   },
+  {
+    id: "20000000-0000-0000-0000-000000000010",
+    idpSubject: null,
+    email: "audit-admin@auth.test",
+    globalRole: "group_admin",
+    status: "active",
+  },
 ] as const;
 
 type QueryClient = Pick<pg.Client, "query">;
@@ -110,7 +117,9 @@ export async function seedAuthUsers(client: QueryClient): Promise<void> {
         ('20000000-0000-0000-0000-000000000008', 'admin-without-totp@auth.test',
          NULL, 'group_admin', 'active', now()),
         ('20000000-0000-0000-0000-000000000009', 'admin-candidate@auth.test',
-         NULL, NULL, 'active', now())
+         NULL, NULL, 'active', now()),
+        ('20000000-0000-0000-0000-000000000010', 'audit-admin@auth.test',
+         NULL, 'group_admin', 'active', now())
       ON CONFLICT (id) DO UPDATE SET
         email = EXCLUDED.email,
         idp_subject = COALESCE(user_account.idp_subject, EXCLUDED.idp_subject),
@@ -137,6 +146,27 @@ export async function seedAuthUsers(client: QueryClient): Promise<void> {
       user_account_id = EXCLUDED.user_account_id,
       company_id = EXCLUDED.company_id,
       role = EXCLUDED.role,
-      unique_grant = EXCLUDED.unique_grant
+      unique_grant = EXCLUDED.unique_grant;
+
+    INSERT INTO person (
+      id, email, full_name, company_id, status, created_at, created_by
+    ) VALUES (
+      '20000000-0000-0000-0000-000000000201',
+      'employee@auth.test',
+      'Elena Employee',
+      '${AUTH_TEST_COMPANY_ID}',
+      'active',
+      now(),
+      '00000000-0000-0000-0000-000000000001'
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      email = EXCLUDED.email,
+      full_name = EXCLUDED.full_name,
+      company_id = EXCLUDED.company_id,
+      status = EXCLUDED.status;
+
+    UPDATE user_account
+    SET person_id = '20000000-0000-0000-0000-000000000201'
+    WHERE id = '20000000-0000-0000-0000-000000000001'
   `);
 }

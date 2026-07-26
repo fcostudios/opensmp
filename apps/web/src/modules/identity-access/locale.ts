@@ -7,10 +7,15 @@ import {
   type UpdateLocaleInput,
 } from "@smp/contracts";
 import { db } from "@smp/db";
-import { auditLog, systemSetting, userAccount } from "@smp/db/schema";
+import {
+  person,
+  systemSetting,
+  userAccount,
+} from "@smp/db/schema";
 import * as schema from "@smp/db/schema";
 
 import { resolveAppLocale } from "@/lib/i18n/config";
+import { withAudit } from "@/modules/audit/with-audit";
 
 type Database = NodePgDatabase<typeof schema>;
 
@@ -49,12 +54,13 @@ export function createLocaleService(database: Database) {
       const { locale } = updateLocaleSchema.parse(input);
       if (!actorUserId) throw new LocaleUpdateError("unauthorized");
 
-      await database.transaction(async (transaction) => {
+      await withAudit(database, async (transaction) => {
         const [actor] = await transaction
           .select({
             id: userAccount.id,
             status: userAccount.status,
             uiLanguage: userAccount.uiLanguage,
+            personId: userAccount.personId,
           })
           .from(userAccount)
           .where(eq(userAccount.id, actorUserId))
@@ -63,21 +69,32 @@ export function createLocaleService(database: Database) {
         if (!actor || actor.status !== "active") {
           throw new LocaleUpdateError("account_unavailable");
         }
+        const [actorPerson] = actor.personId
+          ? await transaction
+              .select({ companyId: person.companyId })
+              .from(person)
+              .where(eq(person.id, actor.personId))
+              .limit(1)
+          : [];
 
         await transaction
           .update(userAccount)
           .set({ uiLanguage: locale })
           .where(eq(userAccount.id, actor.id));
-        await transaction.insert(auditLog).values({
-          actorUserId: actor.id,
-          action: "user_account.ui_language.updated",
-          entityType: "user_account",
-          entityId: actor.id,
-          before: { ui_language: actor.uiLanguage },
-          after: { ui_language: locale },
-          occurredAt,
-        });
-      });
+        return {
+          value: undefined,
+          audit: {
+            actorUserId: actor.id,
+            action: "user_account.ui_language.updated",
+            entityType: "UserAccount",
+            entityId: actor.id,
+            companyId: actorPerson?.companyId ?? null,
+            note: null,
+            before: { ui_language: actor.uiLanguage },
+            after: { ui_language: locale },
+          },
+        };
+      }, { occurredAt });
     },
   };
 }

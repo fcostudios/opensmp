@@ -15,9 +15,30 @@
   "audit": {
     "action": "Acción",
     "actor": "Actor",
+    "added": "Añadido",
+    "all": "Todos",
     "after": "Después",
+    "appendOnlyContent": "Este registro es de solo escritura a nivel de base de datos: no se puede editar ni borrar.",
+    "appendOnlyTitle": "Registro inmutable",
+    "applyFilters": "Aplicar filtros",
     "before": "Antes",
-    "occurredAt": "Fecha y hora"
+    "close": "Cerrar",
+    "company": "Compañía",
+    "dateFrom": "Desde",
+    "dateTo": "Hasta",
+    "details": "Detalle del cambio",
+    "empty": "Todavía no hay eventos de auditoría.",
+    "entity": "Entidad",
+    "error": "No pudimos cargar el registro de auditoría.",
+    "loading": "Cargando el registro de auditoría…",
+    "next": "Página siguiente",
+    "note": "Nota",
+    "occurredAt": "Fecha y hora",
+    "removed": "Eliminado",
+    "retry": "Intentar de nuevo",
+    "subtitle": "Todo lo que pasó en Ledger, quién lo hizo y qué cambió.",
+    "systemActor": "— sistema",
+    "title": "Registro de auditoría"
   },
   "empty": {
     "generic": "Todavía no hay datos para mostrar.",
@@ -96,9 +117,16 @@
   },
   "shell": {
     "administration": "ADMINISTRACIÓN",
+    "breadcrumbs": "Migas de pan",
+    "closeMenu": "Cerrar menú",
     "finance": "FINANZAS",
     "language": "Idioma",
-    "operation": "OPERACIÓN"
+    "mainNavigation": "Navegación principal",
+    "menu": "Menú",
+    "mobileNavigation": "Navegación móvil",
+    "operation": "OPERACIÓN",
+    "skipToContent": "Saltar al contenido",
+    "userMenu": "Cuenta de usuario"
   },
   "status": {
     "submitted": "Enviada",

@@ -219,6 +219,42 @@ test("group admin cannot obtain a session until OTP enrollment completes and the
     "group-admin-e2e",
   );
   await expect(page).toHaveURL("/panel");
+
+  const dynamicRoutes = [
+    {
+      path: "/companias/20000000-0000-0000-0000-000000000451",
+      label: "Authentication Test Company",
+    },
+    {
+      path: "/solicitudes/20000000-0000-0000-0000-000000000463",
+      label: "REQ-BREADCRUMB",
+    },
+    {
+      path: "/organizaciones/20000000-0000-0000-0000-000000000461",
+      label: "Claude Enterprise · Central",
+    },
+    {
+      path: "/personas/20000000-0000-0000-0000-000000000201",
+      label: "Elena Employee",
+    },
+    {
+      path:
+        "/estados-de-cuenta/20000000-0000-0000-0000-000000000464",
+      label: "AUTH-TEST · 2026-07",
+    },
+  ] as const;
+  for (const route of dynamicRoutes) {
+    await page.goto(route.path);
+    await expect(page).toHaveURL(route.path);
+    const breadcrumbs = page.getByRole("navigation", {
+      name: /Migas de pan|Breadcrumbs/,
+    });
+    await expect(breadcrumbs).toContainText(route.label);
+    await expect(breadcrumbs).not.toContainText(
+      /Detalle|details|20000000-0000-0000-0000-0000000004/i,
+    );
+    await expect(page.getByRole("main")).toBeVisible();
+  }
 });
 
 test("a disabled identity cannot obtain a Ledger session", async ({ page }) => {
@@ -240,7 +276,7 @@ test("newly synchronized platform-admin membership challenges the candidate on t
 }) => {
   const candidateId = await findKeycloakUserId("admin-candidate");
   await beginLogin(page, "admin-candidate", "candidate-test-password");
-  await expect(page).toHaveURL("/solicitudes");
+  await expect(page).toHaveURL("/acceso-denegado");
   expect(await keycloakUserSessions(candidateId)).not.toHaveLength(0);
 
   try {

@@ -1,35 +1,52 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import { logout } from "@/lib/auth/logout";
-import messages from "@/lib/i18n/en-US.json";
+import { useTranslations } from "next-intl";
 
-export function Header() {
-  const { data: session } = useSession();
-  const userName = session?.user?.name ?? "";
+import { logout } from "@/lib/auth/logout";
+import { Breadcrumbs, type ShellBreadcrumb } from "./breadcrumbs";
+import { LocaleSelector } from "./locale-selector";
+
+export function Header({
+  breadcrumbs,
+  displayName,
+  titleKey,
+  updateLocaleAction,
+}: {
+  readonly breadcrumbs: readonly ShellBreadcrumb[];
+  readonly displayName: string;
+  readonly titleKey: string;
+  readonly updateLocaleAction: Parameters<
+    typeof LocaleSelector
+  >[0]["updateLocaleAction"];
+}) {
+  const t = useTranslations();
 
   return (
-    <header className="flex h-14 items-center justify-between border-b bg-white px-4">
-      <div className="text-sm font-medium text-gray-600">
-        {/* Page title injected by route */}
-      </div>
-      <div className="flex items-center gap-4">
-        <button className="relative" aria-label="Notifications">
-          <span className="sr-only">Notifications</span>
-          <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white">
-            3
-          </span>
-        </button>
-        <span className="text-sm font-medium">{userName}</span>
-        <div className="h-8 w-8 rounded-full bg-gray-300" aria-label="User avatar" />
-        <button
-          type="button"
-          data-testid="btn_logout"
-          className="text-sm font-medium"
-          onClick={logout}
+    <header className="border-b border-border bg-surface px-3 py-3 sm:px-4 lg:px-5">
+      <div className="mx-auto flex max-w-[1280px] items-start justify-between gap-4">
+        <div className="min-w-0">
+          <Breadcrumbs items={breadcrumbs} />
+          <h1 className="mt-1 max-w-4xl font-display text-3xl font-black uppercase leading-none tracking-tight text-text-primary sm:text-4xl lg:text-5xl">
+            {t(titleKey)}
+          </h1>
+        </div>
+        <div
+          aria-label={t("shell.userMenu")}
+          className="hidden min-h-[var(--size-tap-target-min)] shrink-0 items-center gap-3 md:flex"
         >
-          {messages.auth.signOut}
-        </button>
+          <LocaleSelector updateLocaleAction={updateLocaleAction} />
+          <span className="max-w-48 truncate text-sm font-semibold text-text-secondary">
+            {displayName}
+          </span>
+          <button
+            type="button"
+            data-testid="btn_logout"
+            className="min-h-[var(--size-tap-target-min)] rounded-md border border-border px-3 text-sm font-semibold text-text-secondary outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            onClick={logout}
+          >
+            {t("auth.signOut")}
+          </button>
+        </div>
       </div>
     </header>
   );

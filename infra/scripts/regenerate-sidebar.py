@@ -84,6 +84,11 @@ def load_extra_icons(valid: frozenset[str]) -> frozenset[str]:
 # check-lucide-allowlist.mjs (IMP-245 / I01). A DECLARED icon never legally
 # resolves to this — if it would, main() errors out first (IMP-325).
 FALLBACK_ICON = "Circle"
+SECTION_IDS = {
+    "OPERACIÓN": "operation",
+    "FINANZAS": "finance",
+    "ADMINISTRACIÓN": "administration",
+}
 
 
 def load_valid_exports() -> frozenset[str]:
@@ -170,6 +175,11 @@ def build_sidebar_array(items: list[dict], valid: frozenset[str]) -> tuple[list[
     for it in items:
         resolved = resolve_icon(it.get("icon"), valid)
         icons_used.add(resolved)
+        section = SECTION_IDS.get(it.get("section"))
+        if section is None:
+            raise ValueError(
+                f"Unknown sidebar section {it.get('section')!r} for {it['id']}"
+            )
         lines.append(
             "  {\n"
             f'    id: "{it["id"]}",\n'
@@ -178,6 +188,7 @@ def build_sidebar_array(items: list[dict], valid: frozenset[str]) -> tuple[list[
             f'    icon: {resolved},\n'
             f'    href: "{it["route"]}",\n'
             f'    screenId: "{it.get("screen", "")}",\n'
+            f'    section: "{section}",\n'
             f"    roles: {tsroles(it.get('roles', []))},\n"
             + (f'    badge: "{it["badge"]}",\n' if it.get("badge") else "")
             + (f'    position: "{it["position"]}",\n' if it.get("position") else "")
@@ -226,7 +237,14 @@ def generate_ts(nav: dict, valid: frozenset[str] | None = None) -> str:
     type_def = (
         "// UserRole — the distinct roles the nav map gates sidebar items on.\n"
         "// Generated locally (the dev team may re-home this in a real auth hook).\n"
-        f"export type UserRole = {user_role};\n\n"
+        f"export type UserRole = {user_role};\n"
+        'export type NavSectionId = "operation" | "finance" | "administration";\n\n'
+        "export const navSections = [\n"
+        + "\n".join(
+            f'  {{ id: "{SECTION_IDS[section]}" }},'
+            for section in nav["app_shell"]["sidebar"]["sections"]
+        )
+        + "\n] as const satisfies readonly { id: NavSectionId }[];\n\n"
         "export interface NavItem {\n"
         "  id: string;\n"
         "  label: string;\n"
@@ -234,6 +252,7 @@ def generate_ts(nav: dict, valid: frozenset[str] | None = None) -> str:
         "  icon: LucideIcon;\n"
         "  href: string;\n"
         "  screenId: string;\n"
+        "  section: NavSectionId;\n"
         "  roles?: UserRole[];\n"
         '  /** Key on the API unread-count response — renders a numeric badge when > 0. */\n'
         "  badge?: string;\n"
@@ -311,6 +330,10 @@ def generate_screen_access_ts(nav: dict) -> str:
         route["screen_id"] for route in nav["routes"]
         if not route["auth_required"]
     ]
+    breadcrumb_patterns = nav.get(
+        "breadcrumbs_pattern_per_dynamic_param_route", {}
+    )
+    breadcrumb_routes = list(breadcrumb_patterns)
 
     role_union = " | ".join(f'"{role}"' for role in roles)
     role_screen_lines = ",\n".join(
@@ -346,6 +369,10 @@ def generate_screen_access_ts(nav: dict) -> str:
         f"{route_screen_lines},\n"
         "} as const;\n\n"
         f"export const PUBLIC_SCREEN_IDS = {json.dumps(public_screens)} "
+        "as const;\n\n"
+        f"export const BREADCRUMB_ROUTE_TEMPLATES = {json.dumps(breadcrumb_routes)} "
+        "as const;\n\n"
+        f"export const BREADCRUMB_PATTERNS = {json.dumps(breadcrumb_patterns)} "
         "as const;\n"
     )
 
