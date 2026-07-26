@@ -3,6 +3,7 @@
   "type": "module",
   "scripts": {
     "lint": "../../../apps/web/node_modules/.bin/eslint . --config eslint.config.mjs --max-warnings 0",
-    "type-check": "../../../apps/web/node_modules/.bin/tsc --noEmit -p tsconfig.json"
+    "type-check": "../../../apps/web/node_modules/.bin/tsc --noEmit -p tsconfig.json",
+    "test:mutation": "../../../node_modules/.bin/stryker run stryker.config.mjs"
   }
 }

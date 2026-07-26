@@ -3,7 +3,8 @@
     {
       "ref": "synthetic-central",
       "adminKeyEnv": "ANTHROPIC_SYNTHETIC_CENTRAL_ADMIN_KEY",
-      "analyticsKeyEnv": "ANTHROPIC_SYNTHETIC_CENTRAL_ANALYTICS_KEY"
+      "analyticsKeyEnv": "ANTHROPIC_SYNTHETIC_CENTRAL_ANALYTICS_KEY",
+      "expectedOrganizationIdHash": "hmac-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     }
   ]
 }

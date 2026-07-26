@@ -1,5 +1,13 @@
 import { describe, expect, test } from "vitest";
-import { chmod, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  readFile,
+  mkdtemp,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -19,13 +27,70 @@ import {
   buildExecutionSchedule,
   buildProbeQuery,
   classifyInviteCanaryOutcome,
+  executeProbeCli,
   inviteCanaryAuthorization,
   probeDefinitions,
   resolveProbeSecrets,
+  runInviteCanary,
+  verifyProviderOrganization,
   writeSanitizedArtifact,
 } from "./probe.ts";
+import { atomicWriteSecureJson } from "./runtime.ts";
 
 const HASH_SALT = "synthetic-test-salt-with-at-least-32-bytes";
+const EXPECTED_ORG_HASH = stableSecretHash(
+  "org_synthetic_trusted",
+  HASH_SALT,
+);
+const FIXED_NOW = new Date("2026-07-26T05:03:00Z");
+
+function jsonResponse(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "content-type": "application/json",
+      "request-id": "req_synthetic_contract",
+    },
+  });
+}
+
+function sequencedTransport(
+  responses: Response[],
+  calls: Array<{ url: string; method: string }>,
+): typeof fetch {
+  let index = 0;
+  return (async (input: string | URL | Request, init?: RequestInit) => {
+    calls.push({
+      url:
+        input instanceof Request
+          ? input.url
+          : input.toString(),
+      method: init?.method ?? "GET",
+    });
+    const response = responses[index];
+    index += 1;
+    if (!response) throw new Error("synthetic contract sequence exhausted");
+    return response;
+  }) as typeof fetch;
+}
+
+const ORGANIZATION = {
+  ref: "central",
+  adminKeyEnv: "CENTRAL_ADMIN",
+  analyticsKeyEnv: "CENTRAL_ANALYTICS",
+  expectedOrganizationIdHash: EXPECTED_ORG_HASH,
+};
+
+const AUTHORIZED_ENVIRONMENT = {
+  CENTRAL_ADMIN: "admin-secret",
+  CENTRAL_ANALYTICS: "analytics-secret",
+  PROBE_HASH_SALT: HASH_SALT,
+  PROBE_ALLOW_INVITE_MUTATION: "true",
+  PROBE_CANARY_EMAIL: "canary@example.invalid",
+  PROBE_CANARY_EMAIL_APPROVED: "true",
+  PROBE_CONFIRMED_VENDOR_ACCOUNT_REF: "central",
+  PROBE_VENDOR_ACCOUNT_CONFIRMED_AT: "2026-07-26T05:00:00Z",
+};
 
 describe("public Anthropic contract fixtures", () => {
   test("classifies Admin member pagination as ID-based without retaining IDs", () => {
@@ -139,6 +204,7 @@ describe("probe safety boundary", () => {
             ref: "synthetic",
             adminKeyEnv: "ANTHROPIC_SHARED_KEY",
             analyticsKeyEnv: "ANTHROPIC_SHARED_KEY",
+            expectedOrganizationIdHash: EXPECTED_ORG_HASH,
           },
         ],
       }),
@@ -205,11 +271,13 @@ describe("probe safety boundary", () => {
         ref: "central",
         adminKeyEnv: "CENTRAL_ADMIN",
         analyticsKeyEnv: "CENTRAL_ANALYTICS",
+        expectedOrganizationIdHash: EXPECTED_ORG_HASH,
       },
       {
         ref: "carveout",
         adminKeyEnv: "CARVEOUT_ADMIN",
         analyticsKeyEnv: "CARVEOUT_ANALYTICS",
+        expectedOrganizationIdHash: EXPECTED_ORG_HASH,
       },
     ];
     const schedule = buildExecutionSchedule(organizations);
@@ -252,6 +320,7 @@ describe("probe safety boundary", () => {
           ref: "central",
           adminKeyEnv: "CENTRAL_ADMIN",
           analyticsKeyEnv: "CENTRAL_ANALYTICS",
+          expectedOrganizationIdHash: EXPECTED_ORG_HASH,
         },
       ],
     });
@@ -321,6 +390,31 @@ describe("probe safety boundary", () => {
       });
 
       expect((await stat(artifactPath)).mode & 0o777).toBe(0o600);
+      expect(await readFile(artifactPath, "utf8")).toBe(
+        `${JSON.stringify(
+          {
+            artifact_version: 1,
+            raw_bodies_persisted: false,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects a symbolic-link artifact target", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "smp-probe-link-test-"));
+    const realPath = join(directory, "real.json");
+    const linkedPath = join(directory, "linked.json");
+    try {
+      await writeFile(realPath, JSON.stringify({ untouched: true }));
+      await symlink(realPath, linkedPath);
+      await expect(
+        atomicWriteSecureJson(linkedPath, { artifact_version: 1 }),
+      ).rejects.toThrow("must not be a symbolic link");
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
@@ -365,6 +459,591 @@ describe("probe safety boundary", () => {
       authorized: false,
       reason: "vendor_account_confirmation_stale",
     });
+  });
+
+  test("binds the Admin response to the operator-supplied organization hash", () => {
+    const trusted = {
+      id: "org_synthetic_trusted",
+      name: "Synthetic Trusted Organization",
+      type: "organization",
+    };
+    expect(
+      verifyProviderOrganization(200, trusted, EXPECTED_ORG_HASH, HASH_SALT),
+    ).toBe(true);
+    expect(
+      verifyProviderOrganization(
+        200,
+        { ...trusted, id: "org_synthetic_wrong" },
+        EXPECTED_ORG_HASH,
+        HASH_SALT,
+      ),
+    ).toBe(false);
+    expect(JSON.stringify(EXPECTED_ORG_HASH)).not.toContain(
+      "org_synthetic_trusted",
+    );
+    expect(
+      verifyProviderOrganization(199, trusted, EXPECTED_ORG_HASH, HASH_SALT),
+    ).toBe(false);
+    expect(
+      verifyProviderOrganization(300, trusted, EXPECTED_ORG_HASH, HASH_SALT),
+    ).toBe(false);
+    expect(
+      verifyProviderOrganization(
+        200,
+        { name: "Missing ID", type: "organization" },
+        EXPECTED_ORG_HASH,
+        HASH_SALT,
+      ),
+    ).toBe(false);
+  });
+
+  test("does not mutate or checkpoint before provider target verification", async () => {
+    const calls: Array<{ url: string; method: string }> = [];
+    const checkpoints: Record<string, unknown>[] = [];
+    const result = await runInviteCanary({
+      organization: ORGANIZATION,
+      adminKey: "admin-secret",
+      hashSalt: HASH_SALT,
+      organizationRefHash: stableSecretHash("central", HASH_SALT),
+      providerTargetVerified: false,
+      checkpointPath: "synthetic-checkpoint.json",
+      environment: AUTHORIZED_ENVIRONMENT,
+      now: () => FIXED_NOW,
+      fetchImpl: sequencedTransport([], calls),
+      writeCheckpoint: async (_path, checkpoint) => {
+        checkpoints.push(checkpoint);
+      },
+    });
+
+    expect(result).toEqual({
+      status: "not_executed",
+      reason: "provider_target_not_verified",
+    });
+    expect(calls).toEqual([]);
+    expect(checkpoints).toEqual([]);
+  });
+
+  test("does not mutate or checkpoint without complete operator authorization", async () => {
+    const calls: Array<{ url: string; method: string }> = [];
+    const checkpoints: Record<string, unknown>[] = [];
+    const result = await runInviteCanary({
+      organization: ORGANIZATION,
+      adminKey: "admin-secret",
+      hashSalt: HASH_SALT,
+      organizationRefHash: stableSecretHash("central", HASH_SALT),
+      providerTargetVerified: true,
+      checkpointPath: "synthetic-checkpoint.json",
+      environment: {
+        ...AUTHORIZED_ENVIRONMENT,
+        PROBE_CANARY_EMAIL_APPROVED: "false",
+      },
+      now: () => FIXED_NOW,
+      fetchImpl: sequencedTransport([], calls),
+      writeCheckpoint: async (_path, checkpoint) => {
+        checkpoints.push(checkpoint);
+      },
+    });
+
+    expect(result).toEqual({
+      status: "not_executed",
+      reason: "email_not_approved",
+    });
+    expect(calls).toEqual([]);
+    expect(checkpoints).toEqual([]);
+  });
+
+  test("checkpoints authorization before create and confirms cleanup", async () => {
+    const calls: Array<{ url: string; method: string }> = [];
+    const checkpoints: Record<string, unknown>[] = [];
+    const result = await runInviteCanary({
+      organization: ORGANIZATION,
+      adminKey: "admin-secret",
+      hashSalt: HASH_SALT,
+      organizationRefHash: stableSecretHash("central", HASH_SALT),
+      providerTargetVerified: true,
+      checkpointPath: "synthetic-checkpoint.json",
+      environment: AUTHORIZED_ENVIRONMENT,
+      now: () => FIXED_NOW,
+      fetchImpl: sequencedTransport(
+        [
+          jsonResponse(201, {
+            type: "invite",
+            id: "invite_synthetic_canary",
+            email: "canary@example.invalid",
+            status: "pending",
+            role: "user",
+          }),
+          jsonResponse(200, {
+            type: "invite_deleted",
+            id: "invite_synthetic_canary",
+          }),
+        ],
+        calls,
+      ),
+      writeCheckpoint: async (_path, checkpoint) => {
+        checkpoints.push(checkpoint);
+      },
+    });
+
+    expect(calls.map(({ method }) => method)).toEqual(["POST", "DELETE"]);
+    expect(checkpoints.map(({ state }) => state)).toEqual([
+      "authorized_canary_pending",
+      "invite_create_confirmed",
+      "invite_cleanup_confirmed",
+    ]);
+    expect(result.status).toBe("executed_and_cleaned_up");
+    expect(JSON.stringify(checkpoints)).not.toContain(
+      "invite_synthetic_canary",
+    );
+  });
+
+  test("never deletes an ID returned by a non-success create response", async () => {
+    const calls: Array<{ url: string; method: string }> = [];
+    const result = await runInviteCanary({
+      organization: ORGANIZATION,
+      adminKey: "admin-secret",
+      hashSalt: HASH_SALT,
+      organizationRefHash: stableSecretHash("central", HASH_SALT),
+      providerTargetVerified: true,
+      checkpointPath: "synthetic-checkpoint.json",
+      environment: AUTHORIZED_ENVIRONMENT,
+      now: () => FIXED_NOW,
+      fetchImpl: sequencedTransport(
+        [
+          jsonResponse(400, {
+            type: "invite",
+            id: "invite_must_not_delete",
+            email: "canary@example.invalid",
+            status: "pending",
+          }),
+        ],
+        calls,
+      ),
+      writeCheckpoint: async () => undefined,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.method).toBe("POST");
+    expect(result.status).toBe("attempted_not_created");
+  });
+
+  test("marks a 2xx create without a contract-valid ID as indeterminate", async () => {
+    const checkpoints: Record<string, unknown>[] = [];
+    const result = await runInviteCanary({
+      organization: ORGANIZATION,
+      adminKey: "admin-secret",
+      hashSalt: HASH_SALT,
+      organizationRefHash: stableSecretHash("central", HASH_SALT),
+      providerTargetVerified: true,
+      checkpointPath: "synthetic-checkpoint.json",
+      environment: AUTHORIZED_ENVIRONMENT,
+      now: () => FIXED_NOW,
+      fetchImpl: sequencedTransport(
+        [jsonResponse(201, { type: "invite", status: "pending" })],
+        [],
+      ),
+      writeCheckpoint: async (_path, checkpoint) => {
+        checkpoints.push(checkpoint);
+      },
+    });
+
+    expect(result.status).toBe("indeterminate_manual_review_required");
+    expect(checkpoints.at(-1)).toMatchObject({
+      state: "invite_create_indeterminate",
+      manual_review_required: true,
+    });
+  });
+
+  test("persists indeterminate evidence for create transport failure", async () => {
+    const checkpoints: Record<string, unknown>[] = [];
+    const result = await runInviteCanary({
+      organization: ORGANIZATION,
+      adminKey: "admin-secret",
+      hashSalt: HASH_SALT,
+      organizationRefHash: stableSecretHash("central", HASH_SALT),
+      providerTargetVerified: true,
+      checkpointPath: "synthetic-checkpoint.json",
+      environment: AUTHORIZED_ENVIRONMENT,
+      now: () => FIXED_NOW,
+      fetchImpl: (async () => {
+        throw new Error("synthetic create transport failure");
+      }) as typeof fetch,
+      writeCheckpoint: async (_path, checkpoint) => {
+        checkpoints.push(checkpoint);
+      },
+    });
+
+    expect(checkpoints.map(({ state }) => state)).toEqual([
+      "authorized_canary_pending",
+      "invite_create_indeterminate",
+    ]);
+    expect(checkpoints.at(-1)?.manual_review_required).toBe(true);
+    expect(result).toEqual({
+      status: "indeterminate_manual_review_required",
+      create: { classification: "network_or_transport_failure" },
+      cleanup: { status: "not_confirmed" },
+    });
+  });
+
+  test("persists indeterminate evidence for cleanup rejection and transport failure", async () => {
+    for (const cleanupResponse of [
+      jsonResponse(500, { type: "error" }),
+      new Error("synthetic cleanup transport failure"),
+    ]) {
+      const checkpoints: Record<string, unknown>[] = [];
+      let requestNumber = 0;
+      const result = await runInviteCanary({
+        organization: ORGANIZATION,
+        adminKey: "admin-secret",
+        hashSalt: HASH_SALT,
+        organizationRefHash: stableSecretHash("central", HASH_SALT),
+        providerTargetVerified: true,
+        checkpointPath: "synthetic-checkpoint.json",
+        environment: AUTHORIZED_ENVIRONMENT,
+        now: () => FIXED_NOW,
+        fetchImpl: (async () => {
+          requestNumber += 1;
+          if (requestNumber === 1) {
+            return jsonResponse(201, {
+              type: "invite",
+              id: "invite_synthetic_canary",
+              email: "canary@example.invalid",
+              status: "pending",
+              role: "user",
+            });
+          }
+          if (cleanupResponse instanceof Error) throw cleanupResponse;
+          return cleanupResponse;
+        }) as typeof fetch,
+        writeCheckpoint: async (_path, checkpoint) => {
+          checkpoints.push(checkpoint);
+        },
+      });
+
+      expect(result.status).toBe("indeterminate_manual_review_required");
+      expect(checkpoints.at(-1)).toMatchObject({
+        state: "invite_cleanup_indeterminate",
+        manual_review_required: true,
+      });
+      if (cleanupResponse instanceof Error) {
+        expect(result.cleanup).toEqual({
+          status: "indeterminate_manual_review_required",
+          classification: "network_or_transport_failure",
+        });
+      }
+    }
+  });
+
+  test("classifies create and cleanup status boundaries exactly", () => {
+    const classify = (
+      createStatus: number | null,
+      hasInviteId: boolean,
+      cleanupStatus: number | null,
+      createTransportFailure = false,
+      cleanupTransportFailure = false,
+    ) =>
+      classifyInviteCanaryOutcome({
+        createStatus,
+        hasInviteId,
+        cleanupStatus,
+        createTransportFailure,
+        cleanupTransportFailure,
+      });
+
+    expect(classify(null, false, null, true)).toBe(
+      "indeterminate_manual_review_required",
+    );
+    expect(classify(null, false, null)).toBe("attempted_not_created");
+    expect(classify(199, false, null)).toBe("attempted_not_created");
+    expect(classify(200, false, null)).toBe(
+      "indeterminate_manual_review_required",
+    );
+    expect(classify(299, true, 200)).toBe("executed_and_cleaned_up");
+    expect(classify(300, true, 200)).toBe("attempted_not_created");
+    expect(classify(201, true, 200, false, true)).toBe(
+      "indeterminate_manual_review_required",
+    );
+    expect(classify(201, true, 199)).toBe(
+      "indeterminate_manual_review_required",
+    );
+    expect(classify(201, true, 299)).toBe("executed_and_cleaned_up");
+    expect(classify(201, true, 300)).toBe(
+      "indeterminate_manual_review_required",
+    );
+  });
+
+  test("returns non-zero CLI status for an indeterminate create", async () => {
+    const writes: Array<{
+      path: string;
+      value: Record<string, unknown>;
+    }> = [];
+    const stderr: string[] = [];
+    const exitCode = await executeProbeCli({
+      argv: [
+        "--manifest",
+        "synthetic-manifest.json",
+        "--output",
+        "synthetic-artifact.json",
+        "--checkpoint",
+        "synthetic-checkpoint.json",
+        "--date",
+        "2026-07-24",
+      ],
+      runtime: {
+        environment: AUTHORIZED_ENVIRONMENT,
+        now: () => FIXED_NOW,
+        readText: async () =>
+          JSON.stringify({ organizations: [ORGANIZATION] }),
+        fetchImpl: sequencedTransport(
+          [
+            jsonResponse(200, {
+              id: "org_synthetic_trusted",
+              name: "Synthetic Trusted Organization",
+              type: "organization",
+            }),
+            jsonResponse(200, {
+              data: [],
+              has_more: false,
+              first_id: null,
+              last_id: null,
+            }),
+            jsonResponse(200, {
+              data: [],
+              has_more: false,
+              first_id: null,
+              last_id: null,
+            }),
+            jsonResponse(200, { data: [], next_page: null }),
+            jsonResponse(200, { summaries: [] }),
+            jsonResponse(200, {
+              data: [],
+              has_more: false,
+              next_page: null,
+            }),
+            jsonResponse(200, {
+              data: [],
+              has_more: false,
+              next_page: null,
+            }),
+            jsonResponse(201, { type: "invite", status: "pending" }),
+          ],
+          [],
+        ),
+        writeSecureJson: async (path, value) => {
+          writes.push({ path, value });
+        },
+      },
+      stdout: () => undefined,
+      stderr: (message) => stderr.push(message),
+    });
+
+    expect(exitCode).toBe(2);
+    expect(stderr).toEqual([
+      `${JSON.stringify({
+        status: "canary_manual_review_required",
+      })}\n`,
+    ]);
+    expect(
+      writes.some(
+        ({ path, value }) =>
+          path === "synthetic-checkpoint.json" &&
+          value.state === "authorized_canary_pending",
+      ),
+    ).toBe(true);
+    expect(
+      writes.some(({ path }) => path === "synthetic-artifact.json"),
+    ).toBe(true);
+  });
+
+  test("keeps cleanup checkpoint evidence when artifact writing fails", async () => {
+    const checkpoints: Record<string, unknown>[] = [];
+    const stderr: string[] = [];
+    const exitCode = await executeProbeCli({
+      argv: [
+        "--manifest",
+        "synthetic-manifest.json",
+        "--output",
+        "synthetic-artifact.json",
+        "--checkpoint",
+        "synthetic-checkpoint.json",
+        "--date",
+        "2026-07-24",
+      ],
+      runtime: {
+        environment: AUTHORIZED_ENVIRONMENT,
+        now: () => FIXED_NOW,
+        readText: async () =>
+          JSON.stringify({ organizations: [ORGANIZATION] }),
+        fetchImpl: sequencedTransport(
+          [
+            jsonResponse(200, {
+              id: "org_synthetic_trusted",
+              name: "Synthetic Trusted Organization",
+              type: "organization",
+            }),
+            jsonResponse(200, {
+              data: [],
+              has_more: false,
+              first_id: null,
+              last_id: null,
+            }),
+            jsonResponse(200, {
+              data: [],
+              has_more: false,
+              first_id: null,
+              last_id: null,
+            }),
+            jsonResponse(200, { data: [], next_page: null }),
+            jsonResponse(200, { summaries: [] }),
+            jsonResponse(200, {
+              data: [],
+              has_more: false,
+              next_page: null,
+            }),
+            jsonResponse(200, {
+              data: [],
+              has_more: false,
+              next_page: null,
+            }),
+            jsonResponse(201, {
+              type: "invite",
+              id: "invite_synthetic_canary",
+              email: "canary@example.invalid",
+              status: "pending",
+            }),
+            jsonResponse(200, {
+              type: "invite_deleted",
+              id: "invite_synthetic_canary",
+            }),
+          ],
+          [],
+        ),
+        writeSecureJson: async (path, value) => {
+          if (path === "synthetic-artifact.json") {
+            throw new Error("synthetic artifact boundary failure");
+          }
+          checkpoints.push(value);
+        },
+      },
+      stdout: () => undefined,
+      stderr: (message) => stderr.push(message),
+    });
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toEqual([
+      `${JSON.stringify({ status: "probe_failed" })}\n`,
+    ]);
+    expect(checkpoints.at(-1)).toMatchObject({
+      state: "invite_cleanup_confirmed",
+      manual_review_required: false,
+    });
+  });
+
+  test("returns zero and a sanitized summary when mutation is not authorized", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const writes: Array<{ path: string; value: Record<string, unknown> }> = [];
+    const exitCode = await executeProbeCli({
+      argv: [
+        "--manifest",
+        "synthetic-manifest.json",
+        "--output",
+        "synthetic-artifact.json",
+        "--checkpoint",
+        "synthetic-checkpoint.json",
+        "--date",
+        "2026-07-24",
+      ],
+      runtime: {
+        environment: {
+          ...AUTHORIZED_ENVIRONMENT,
+          PROBE_ALLOW_INVITE_MUTATION: "false",
+        },
+        now: () => FIXED_NOW,
+        readText: async () =>
+          JSON.stringify({ organizations: [ORGANIZATION] }),
+        fetchImpl: sequencedTransport(
+          [
+            jsonResponse(200, {
+              id: "org_synthetic_trusted",
+              name: "Synthetic Trusted Organization",
+              type: "organization",
+            }),
+            jsonResponse(200, {
+              data: [],
+              has_more: false,
+              first_id: null,
+              last_id: null,
+            }),
+            jsonResponse(200, {
+              data: [],
+              has_more: false,
+              first_id: null,
+              last_id: null,
+            }),
+            jsonResponse(200, { data: [], next_page: null }),
+            jsonResponse(200, { summaries: [] }),
+            jsonResponse(200, {
+              data: [],
+              has_more: false,
+              next_page: null,
+            }),
+            jsonResponse(200, {
+              data: [],
+              has_more: false,
+              next_page: null,
+            }),
+          ],
+          [],
+        ),
+        writeSecureJson: async (path, value) => {
+          writes.push({ path, value });
+        },
+      },
+      stdout: (message) => stdout.push(message),
+      stderr: (message) => stderr.push(message),
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stderr).toEqual([]);
+    expect(writes.map(({ path }) => path)).toEqual([
+      "synthetic-artifact.json",
+    ]);
+    expect(stdout).toEqual([
+      `${JSON.stringify({
+        status: "sanitized_artifact_written",
+        output: "synthetic-artifact.json",
+        organizations: 1,
+      })}\n`,
+    ]);
+  });
+
+  test("maps invalid manifest JSON to a generic non-zero CLI result", async () => {
+    const stderr: string[] = [];
+    const exitCode = await executeProbeCli({
+      argv: [
+        "--manifest",
+        "synthetic-manifest.json",
+        "--output",
+        "synthetic-artifact.json",
+        "--date",
+        "2026-07-24",
+      ],
+      runtime: {
+        environment: AUTHORIZED_ENVIRONMENT,
+        now: () => FIXED_NOW,
+        readText: async () => "{invalid-json",
+        fetchImpl: sequencedTransport([], []),
+        writeSecureJson: async () => undefined,
+      },
+      stdout: () => undefined,
+      stderr: (message) => stderr.push(message),
+    });
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toEqual([
+      `${JSON.stringify({ status: "invalid_manifest_json" })}\n`,
+    ]);
   });
 
   test("emits only allowlisted metadata and salted hashes", () => {

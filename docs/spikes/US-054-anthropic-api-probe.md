@@ -52,13 +52,23 @@ Therefore the harness performs no mutation unless the operator supplies all of:
 3. `PROBE_CONFIRMED_VENDOR_ACCOUNT_REF` matching the manifest organization
    plus `PROBE_VENDOR_ACCOUNT_CONFIRMED_AT` no more than five minutes old,
    supplied immediately before execution.
+4. a manifest `expectedOrganizationIdHash`, provisioned out of band from the
+   trusted provider console and computed with the run's `PROBE_HASH_SALT`,
+   matching a schema-valid `GET /v1/organizations/me` response.
 
-If creation yields an invite ID, the withdrawal call is attempted in `finally`.
+If a 2xx, schema-valid creation yields an invite ID, the withdrawal call is
+attempted in `finally`. IDs returned by non-2xx or invalid responses are never
+used as deletion targets.
 Without all gates, the artifact records `invite_canary: not_executed`.
 All organizations' read-only phases complete before the first canary phase.
 Transport uncertainty during creation or cleanup is recorded as sanitized
 `indeterminate_manual_review_required` evidence and requires immediate manual
 inspection; raw exception text is never retained.
+
+Before the POST, the harness durably and atomically writes a `0600` checkpoint;
+it updates that checkpoint through create and cleanup. Artifact-write failure
+cannot erase the last checkpoint state. Indeterminate execution exits `2` with
+generic standard error, while other failures exit `1`.
 
 ## Scope notes for Sprint 3
 
@@ -121,6 +131,11 @@ The harness lives in `scripts/probes/anthropic/` and:
 - constrains one-day usage/cost probes to `bucket_width=1d&limit=1`;
 - resolves all key variables and rejects equal Admin/Analytics secret values
   before the first network call;
+- binds mutation to an operator-provisioned HMAC of the provider organization
+  identity returned by `/v1/organizations/me`;
+- checkpoints authorization before mutation and records create/cleanup
+  confirmation or uncertainty using symlink-safe atomic `0600` writes;
+- deletes only an invite ID from a 2xx, schema-valid create response;
 - stores only allowlisted metadata, schema/type paths, and salted HMACs;
 - never persists raw bodies, full PII, IDs, credentials, or authorization
   headers;
@@ -130,14 +145,15 @@ The harness lives in `scripts/probes/anthropic/` and:
 Synthetic contract verification:
 
 ```text
-15 tests passed
+29 tests passed
+safety-boundary mutation score: 80.27% (80% breaking threshold)
 ```
 
-The suite does not mock Anthropic HTTP. A future HTTP-boundary test must first
-add root-level `@pact-foundation/pact` and wire a contract-test task, then verify
-the Pact against an authorized provider run or an explicitly governed
-official-schema adapter. Until that exists, the pure fixture checks are the
-strongest policy-compliant offline validation.
+The deterministic fetch/filesystem/process fixtures exercise injected
+boundaries with public-schema-derived synthetic responses and never connect to
+Anthropic. They assert orchestration contracts, durable recovery state, and
+generic CLI failure output; the authorized real provider run remains an
+external gate.
 
 ## Remaining external gates
 

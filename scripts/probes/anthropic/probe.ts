@@ -1,4 +1,4 @@
-import { chmod, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 import {
@@ -8,18 +8,23 @@ import {
 import {
   adminLastId,
   inviteId,
+  inspectEndpointSchema,
   opaqueNextPage,
+  organizationId,
   parseManifest,
   responseHasMore,
   type KeyKind,
   type ProbeManifest,
   type ProbeOrganization,
 } from "./schemas.ts";
+import { atomicWriteSecureJson } from "./runtime.ts";
 
 const API_ORIGIN = "https://api.anthropic.com";
 const API_VERSION = "2023-06-01";
 const DEFAULT_MANIFEST = ".env.anthropic-probe-manifest.local";
 const DEFAULT_OUTPUT = "docs/spikes/US-054-anthropic-api-probe.runtime.json";
+const DEFAULT_CHECKPOINT =
+  "docs/spikes/US-054-anthropic-api-probe.checkpoint.json";
 const MAX_PAGES = 100;
 
 export interface ProbeDefinition {
@@ -168,6 +173,7 @@ export function inviteCanaryAuthorization(
 interface CliOptions {
   manifestPath: string;
   outputPath: string;
+  checkpointPath: string;
   date: string;
 }
 
@@ -182,6 +188,7 @@ function parseCli(argv: string[]): CliOptions {
   const options: CliOptions = {
     manifestPath: DEFAULT_MANIFEST,
     outputPath: DEFAULT_OUTPUT,
+    checkpointPath: DEFAULT_CHECKPOINT,
     date: utcYesterday(),
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -189,6 +196,7 @@ function parseCli(argv: string[]): CliOptions {
     const value = argv[index + 1];
     if (flag === "--manifest" && value) options.manifestPath = value;
     else if (flag === "--output" && value) options.outputPath = value;
+    else if (flag === "--checkpoint" && value) options.checkpointPath = value;
     else if (flag === "--date" && value) options.date = value;
     else throw new Error(`unsupported or incomplete argument: ${flag}`);
     index += 1;
@@ -199,8 +207,11 @@ function parseCli(argv: string[]): CliOptions {
   return options;
 }
 
-async function loadManifest(path: string): Promise<ProbeManifest> {
-  const serialized = await readFile(path, "utf8");
+async function loadManifest(
+  path: string,
+  readText: (path: string) => Promise<string>,
+): Promise<ProbeManifest> {
+  const serialized = await readText(path);
   return parseManifest(JSON.parse(serialized) as unknown);
 }
 
@@ -237,8 +248,11 @@ export function resolveProbeSecrets(
   return resolved;
 }
 
-function requireSecret(name: string): string {
-  const value = process.env[name];
+function requireSecret(
+  name: string,
+  environment: Record<string, string | undefined>,
+): string {
+  const value = environment[name];
   if (!value) {
     throw new Error(`required secret environment variable is unset: ${name}`);
   }
@@ -289,13 +303,14 @@ async function request(
   url: URL,
   key: string,
   init: RequestInit = {},
+  fetchImpl: typeof fetch = fetch,
 ): Promise<{ response: Response; body: unknown }> {
   const headers = new Headers(init.headers);
   headers.set("x-api-key", key);
   headers.set("anthropic-version", API_VERSION);
   headers.set("accept", "application/json");
   headers.set("user-agent", "Ledger-US-054-Probe/1.0");
-  const response = await fetch(url, {
+  const response = await fetchImpl(url, {
     ...init,
     headers,
     signal: AbortSignal.timeout(30_000),
@@ -308,15 +323,26 @@ async function runReadProbe(input: {
   key: string;
   date: string;
   hashSalt: string;
-}): Promise<ReturnType<typeof createSanitizedObservation>[]> {
+  fetchImpl: typeof fetch;
+  expectedOrganizationIdHash: string;
+}): Promise<{
+  observations: ReturnType<typeof createSanitizedObservation>[];
+  providerTargetVerified: boolean | null;
+}> {
   const { definition, key, date, hashSalt } = input;
   const observations: ReturnType<typeof createSanitizedObservation>[] = [];
   const query = buildProbeQuery(definition, date);
+  let providerTargetVerified: boolean | null = null;
 
   for (let page = 0; page < MAX_PAGES; page += 1) {
     const url = new URL(definition.path, API_ORIGIN);
     url.search = query.toString();
-    const { response, body } = await request(url, key);
+    const { response, body } = await request(
+      url,
+      key,
+      {},
+      input.fetchImpl,
+    );
     observations.push(
       createSanitizedObservation({
         endpoint: definition.name,
@@ -328,6 +354,14 @@ async function runReadProbe(input: {
         sentBetaHeader: definition.betaHeader,
       }),
     );
+    if (definition.name === "organization") {
+      providerTargetVerified = verifyProviderOrganization(
+        response.status,
+        body,
+        input.expectedOrganizationIdHash,
+        hashSalt,
+      );
+    }
 
     if (!response.ok || definition.pagination === "none") break;
     if (definition.pagination === "id_cursor") {
@@ -341,23 +375,54 @@ async function runReadProbe(input: {
       query.set("page", cursor);
     }
   }
-  return observations;
+  return {
+    observations,
+    providerTargetVerified,
+  };
 }
 
-async function runInviteCanary(input: {
+export function verifyProviderOrganization(
+  status: number,
+  body: unknown,
+  expectedOrganizationIdHash: string,
+  hashSalt: string,
+): boolean {
+  if (status < 200 || status >= 300) return false;
+  if (!inspectEndpointSchema("organization", body).valid) return false;
+  const id = organizationId(body);
+  return (
+    id !== null &&
+    stableSecretHash(id, hashSalt) === expectedOrganizationIdHash
+  );
+}
+
+export async function runInviteCanary(input: {
   organization: ProbeOrganization;
   adminKey: string;
   hashSalt: string;
+  organizationRefHash: string;
+  providerTargetVerified: boolean;
+  checkpointPath: string;
+  environment: Record<string, string | undefined>;
+  now: () => Date;
+  fetchImpl: typeof fetch;
+  writeCheckpoint: typeof atomicWriteSecureJson;
 }): Promise<Record<string, unknown>> {
+  if (!input.providerTargetVerified) {
+    return {
+      status: "not_executed",
+      reason: "provider_target_not_verified",
+    };
+  }
   const authorization = inviteCanaryAuthorization({
-    allowMutation: process.env.PROBE_ALLOW_INVITE_MUTATION,
-    canaryEmail: process.env.PROBE_CANARY_EMAIL,
-    canaryEmailApproved: process.env.PROBE_CANARY_EMAIL_APPROVED,
+    allowMutation: input.environment.PROBE_ALLOW_INVITE_MUTATION,
+    canaryEmail: input.environment.PROBE_CANARY_EMAIL,
+    canaryEmailApproved: input.environment.PROBE_CANARY_EMAIL_APPROVED,
     confirmedVendorAccountRef:
-      process.env.PROBE_CONFIRMED_VENDOR_ACCOUNT_REF,
-    confirmedAt: process.env.PROBE_VENDOR_ACCOUNT_CONFIRMED_AT,
+      input.environment.PROBE_CONFIRMED_VENDOR_ACCOUNT_REF,
+    confirmedAt: input.environment.PROBE_VENDOR_ACCOUNT_CONFIRMED_AT,
     organizationRef: input.organization.ref,
-    now: new Date(),
+    now: input.now(),
   });
   if (!authorization.authorized) {
     return {
@@ -367,7 +432,7 @@ async function runInviteCanary(input: {
   }
 
   const key = input.adminKey;
-  const canaryEmail = process.env.PROBE_CANARY_EMAIL as string;
+  const canaryEmail = input.environment.PROBE_CANARY_EMAIL as string;
   const createUrl = new URL("/v1/organizations/invites", API_ORIGIN);
   let createdInviteId: string | null = null;
   let createObservation: ReturnType<typeof createSanitizedObservation> | null =
@@ -376,15 +441,31 @@ async function runInviteCanary(input: {
     null;
   let createTransportFailure = false;
   let cleanupTransportFailure = false;
+  const checkpointBase = {
+    checkpoint_version: 1,
+    organization_ref_hash: input.organizationRefHash,
+    provider_target_verified: true,
+  };
+
+  await input.writeCheckpoint(input.checkpointPath, {
+    ...checkpointBase,
+    state: "authorized_canary_pending",
+    manual_review_required: false,
+    updated_at: input.now().toISOString(),
+  });
 
   try {
     try {
-      const created = await request(createUrl, key, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: canaryEmail, role: "user" }),
-      });
-      createdInviteId = inviteId(created.body);
+      const created = await request(
+        createUrl,
+        key,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email: canaryEmail, role: "user" }),
+        },
+        input.fetchImpl,
+      );
       createObservation = createSanitizedObservation({
         endpoint: "invite_canary_create",
         keyKind: "admin",
@@ -394,8 +475,31 @@ async function runInviteCanary(input: {
         hashSalt: input.hashSalt,
         sentBetaHeader: null,
       });
+      const createIsValid =
+        created.response.status >= 200 &&
+        created.response.status < 300 &&
+        createObservation.schema.valid;
+      createdInviteId = createIsValid ? inviteId(created.body) : null;
+      await input.writeCheckpoint(input.checkpointPath, {
+        ...checkpointBase,
+        state:
+          createIsValid && createdInviteId
+            ? "invite_create_confirmed"
+            : created.response.ok
+              ? "invite_create_indeterminate"
+              : "invite_create_rejected",
+        manual_review_required:
+          created.response.ok && (!createIsValid || !createdInviteId),
+        updated_at: input.now().toISOString(),
+      });
     } catch {
       createTransportFailure = true;
+      await input.writeCheckpoint(input.checkpointPath, {
+        ...checkpointBase,
+        state: "invite_create_indeterminate",
+        manual_review_required: true,
+        updated_at: input.now().toISOString(),
+      });
     }
   } finally {
     if (createdInviteId) {
@@ -404,7 +508,12 @@ async function runInviteCanary(input: {
           `/v1/organizations/invites/${encodeURIComponent(createdInviteId)}`,
           API_ORIGIN,
         );
-        const deleted = await request(deleteUrl, key, { method: "DELETE" });
+        const deleted = await request(
+          deleteUrl,
+          key,
+          { method: "DELETE" },
+          input.fetchImpl,
+        );
         cleanupObservation = createSanitizedObservation({
           endpoint: "invite_canary_delete",
           keyKind: "admin",
@@ -414,8 +523,24 @@ async function runInviteCanary(input: {
           hashSalt: input.hashSalt,
           sentBetaHeader: null,
         });
+        const cleanupSucceeded =
+          deleted.response.ok && cleanupObservation.schema.valid;
+        await input.writeCheckpoint(input.checkpointPath, {
+          ...checkpointBase,
+          state: cleanupSucceeded
+            ? "invite_cleanup_confirmed"
+            : "invite_cleanup_indeterminate",
+          manual_review_required: !cleanupSucceeded,
+          updated_at: input.now().toISOString(),
+        });
       } catch {
         cleanupTransportFailure = true;
+        await input.writeCheckpoint(input.checkpointPath, {
+          ...checkpointBase,
+          state: "invite_cleanup_indeterminate",
+          manual_review_required: true,
+          updated_at: input.now().toISOString(),
+        });
       }
     }
   }
@@ -423,7 +548,10 @@ async function runInviteCanary(input: {
   const outcome = classifyInviteCanaryOutcome({
     createStatus: createObservation?.status ?? null,
     hasInviteId: createdInviteId !== null,
-    cleanupStatus: cleanupObservation?.status ?? null,
+    cleanupStatus:
+      cleanupObservation?.schema.valid === true
+        ? cleanupObservation.status
+        : null,
     createTransportFailure,
     cleanupTransportFailure,
   });
@@ -476,12 +604,29 @@ export function classifyInviteCanaryOutcome(input: {
     : "indeterminate_manual_review_required";
 }
 
-async function runProbe(options: CliOptions): Promise<Record<string, unknown>> {
-  const manifest = await loadManifest(options.manifestPath);
+export interface ProbeRuntime {
+  environment: Record<string, string | undefined>;
+  fetchImpl: typeof fetch;
+  now: () => Date;
+  readText: (path: string) => Promise<string>;
+  writeSecureJson: typeof atomicWriteSecureJson;
+}
+
+export async function runProbe(
+  options: CliOptions,
+  runtime: ProbeRuntime,
+): Promise<{
+  artifact: Record<string, unknown>;
+  manualReviewRequired: boolean;
+}> {
+  const manifest = await loadManifest(options.manifestPath, runtime.readText);
   // Resolve and compare every key family before the execution schedule can
   // issue its first network request.
-  const resolvedSecrets = resolveProbeSecrets(manifest, process.env);
-  const hashSalt = requireSecret("PROBE_HASH_SALT");
+  const resolvedSecrets = resolveProbeSecrets(
+    manifest,
+    runtime.environment,
+  );
+  const hashSalt = requireSecret("PROBE_HASH_SALT", runtime.environment);
   if (hashSalt.length < 32) {
     throw new Error("PROBE_HASH_SALT must contain at least 32 characters");
   }
@@ -502,6 +647,7 @@ async function runProbe(options: CliOptions): Promise<Record<string, unknown>> {
           status: "not_executed",
           reason: "phase_not_reached",
         } as Record<string, unknown>,
+        provider_target_verified: false,
       },
     ]),
   );
@@ -512,75 +658,121 @@ async function runProbe(options: CliOptions): Promise<Record<string, unknown>> {
     const keys = resolvedSecrets.get(step.organization.ref);
     if (!keys) throw new Error("internal secret preflight mismatch");
     if (step.phase === "read") {
-      result.observations.push(
-        ...(await runReadProbe({
-          definition: step.definition,
-          key:
-            step.definition.keyKind === "admin"
-              ? keys.admin
-              : keys.analytics,
-          date: options.date,
-          hashSalt,
-        })),
-      );
+      const readResult = await runReadProbe({
+        definition: step.definition,
+        key:
+          step.definition.keyKind === "admin"
+            ? keys.admin
+            : keys.analytics,
+        date: options.date,
+        hashSalt,
+        fetchImpl: runtime.fetchImpl,
+        expectedOrganizationIdHash:
+          step.organization.expectedOrganizationIdHash,
+      });
+      result.observations.push(...readResult.observations);
+      if (readResult.providerTargetVerified !== null) {
+        result.provider_target_verified =
+          readResult.providerTargetVerified;
+      }
     } else {
       result.invite_canary = await runInviteCanary({
         organization: step.organization,
         adminKey: keys.admin,
         hashSalt,
+        organizationRefHash: result.organization_ref_hash,
+        providerTargetVerified: result.provider_target_verified,
+        checkpointPath: options.checkpointPath,
+        environment: runtime.environment,
+        now: runtime.now,
+        fetchImpl: runtime.fetchImpl,
+        writeCheckpoint: runtime.writeSecureJson,
       });
     }
   }
 
+  const organizationArtifacts = [...working.values()].map(
+    ({ organization: _secretRoutingOnly, ...artifact }) => artifact,
+  );
   return {
-    artifact_version: 1,
-    generated_at: new Date().toISOString(),
-    requested_utc_date: options.date,
-    api_origin: API_ORIGIN,
-    anthropic_version: API_VERSION,
-    raw_bodies_persisted: false,
-    organizations: [...working.values()].map(
-      ({ organization: _secretRoutingOnly, ...artifact }) => artifact,
+    artifact: {
+      artifact_version: 1,
+      generated_at: runtime.now().toISOString(),
+      requested_utc_date: options.date,
+      api_origin: API_ORIGIN,
+      anthropic_version: API_VERSION,
+      raw_bodies_persisted: false,
+      organizations: organizationArtifacts,
+    },
+    manualReviewRequired: organizationArtifacts.some(
+      ({ invite_canary }) =>
+        invite_canary.status ===
+        "indeterminate_manual_review_required",
     ),
   };
-}
-
-async function main(): Promise<void> {
-  const options = parseCli(process.argv.slice(2));
-  const artifact = await runProbe(options);
-  await writeSanitizedArtifact(options.outputPath, artifact);
-  process.stdout.write(
-    `${JSON.stringify({
-      status: "sanitized_artifact_written",
-      output: options.outputPath,
-      organizations: Array.isArray(artifact.organizations)
-        ? artifact.organizations.length
-        : 0,
-    })}\n`,
-  );
 }
 
 export async function writeSanitizedArtifact(
   outputPath: string,
   artifact: Record<string, unknown>,
 ): Promise<void> {
-  await writeFile(outputPath, `${JSON.stringify(artifact, null, 2)}\n`, {
-    mode: 0o600,
-  });
-  // writeFile's mode is ignored when overwriting an existing file.
-  await chmod(outputPath, 0o600);
+  await atomicWriteSecureJson(outputPath, artifact);
+}
+
+export async function executeProbeCli(input: {
+  argv: string[];
+  runtime: ProbeRuntime;
+  stdout: (message: string) => void;
+  stderr: (message: string) => void;
+}): Promise<number> {
+  try {
+    const options = parseCli(input.argv);
+    const result = await runProbe(options, input.runtime);
+    await input.runtime.writeSecureJson(options.outputPath, result.artifact);
+    if (result.manualReviewRequired) {
+      input.stderr(
+        `${JSON.stringify({
+          status: "canary_manual_review_required",
+        })}\n`,
+      );
+      return 2;
+    }
+    input.stdout(
+      `${JSON.stringify({
+        status: "sanitized_artifact_written",
+        output: options.outputPath,
+        organizations: Array.isArray(result.artifact.organizations)
+          ? result.artifact.organizations.length
+          : 0,
+      })}\n`,
+    );
+    return 0;
+  } catch (error: unknown) {
+    const category =
+      error instanceof SyntaxError
+        ? "invalid_manifest_json"
+        : "probe_failed";
+    input.stderr(`${JSON.stringify({ status: category })}\n`);
+    return 1;
+  }
 }
 
 const invokedPath = process.argv[1]
   ? pathToFileURL(process.argv[1]).href
   : null;
 if (invokedPath === import.meta.url) {
-  main().catch((error: unknown) => {
-    const category =
-      error instanceof SyntaxError
-        ? "invalid_manifest_json"
-        : "probe_failed";
-    process.stderr.write(`${JSON.stringify({ status: category })}\n`);
-    process.exitCode = 1;
+  executeProbeCli({
+    argv: process.argv.slice(2),
+    runtime: {
+      environment: process.env,
+      fetchImpl: fetch,
+      now: () => new Date(),
+      readText: (path) => readFile(path, "utf8"),
+      writeSecureJson: atomicWriteSecureJson,
+    },
+    stdout: (message) => process.stdout.write(message),
+    stderr: (message) => process.stderr.write(message),
+  }).then((exitCode) => {
+    process.exitCode = exitCode;
   });
 }

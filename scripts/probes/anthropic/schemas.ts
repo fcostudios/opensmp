@@ -5,6 +5,7 @@ export interface ProbeOrganization {
   ref: string;
   adminKeyEnv: string;
   analyticsKeyEnv: string;
+  expectedOrganizationIdHash: string;
 }
 
 export interface ProbeManifest {
@@ -23,6 +24,7 @@ export interface SchemaInspection {
 const ENV_NAME = /^[A-Z][A-Z0-9_]*$/;
 const ORG_REF = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const PLAIN_DECIMAL = /^-?\d+(?:\.\d+)?$/;
+const HMAC_SHA256 = /^hmac-sha256:[a-f0-9]{64}$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -42,7 +44,12 @@ export function parseManifest(value: unknown): ProbeManifest {
     if (!isRecord(candidate)) {
       throw new Error(`organizations[${index}] must be an object`);
     }
-    const { ref, adminKeyEnv, analyticsKeyEnv } = candidate;
+    const {
+      ref,
+      adminKeyEnv,
+      analyticsKeyEnv,
+      expectedOrganizationIdHash,
+    } = candidate;
     if (typeof ref !== "string" || !ORG_REF.test(ref)) {
       throw new Error(`organizations[${index}].ref is invalid`);
     }
@@ -66,6 +73,14 @@ export function parseManifest(value: unknown): ProbeManifest {
       );
     }
     if (
+      typeof expectedOrganizationIdHash !== "string" ||
+      !HMAC_SHA256.test(expectedOrganizationIdHash)
+    ) {
+      throw new Error(
+        `organizations[${index}].expectedOrganizationIdHash is invalid`,
+      );
+    }
+    if (
       keyEnvironments.has(adminKeyEnv) ||
       keyEnvironments.has(analyticsKeyEnv)
     ) {
@@ -74,7 +89,12 @@ export function parseManifest(value: unknown): ProbeManifest {
     keyEnvironments.add(adminKeyEnv);
     keyEnvironments.add(analyticsKeyEnv);
 
-    return { ref, adminKeyEnv, analyticsKeyEnv };
+    return {
+      ref,
+      adminKeyEnv,
+      analyticsKeyEnv,
+      expectedOrganizationIdHash,
+    };
   });
 
   return { organizations };
@@ -189,6 +209,34 @@ export function inspectEndpointSchema(
   value: unknown,
 ): SchemaInspection {
   if (endpoint === "organization") return inspectOrganization(value);
+  if (endpoint === "invite_canary_create") {
+    const record = isRecord(value) ? value : {};
+    return {
+      valid:
+        record.type === "invite" &&
+        typeof record.id === "string" &&
+        typeof record.email === "string" &&
+        typeof record.status === "string",
+      pagination: "none",
+      itemCount: isRecord(value) ? 1 : 0,
+      hasMore: false,
+      hasNextCursor: false,
+      fieldTypes: collectFieldTypes(value),
+    };
+  }
+  if (endpoint === "invite_canary_delete") {
+    const record = isRecord(value) ? value : {};
+    return {
+      valid:
+        record.type === "invite_deleted" &&
+        typeof record.id === "string",
+      pagination: "none",
+      itemCount: isRecord(value) ? 1 : 0,
+      hasMore: false,
+      hasNextCursor: false,
+      fieldTypes: collectFieldTypes(value),
+    };
+  }
   if (endpoint === "members" || endpoint === "invites") {
     return inspectAdminPage(value);
   }
@@ -284,5 +332,9 @@ export function responseHasMore(value: unknown): boolean {
 }
 
 export function inviteId(value: unknown): string | null {
+  return isRecord(value) && typeof value.id === "string" ? value.id : null;
+}
+
+export function organizationId(value: unknown): string | null {
   return isRecord(value) && typeof value.id === "string" ? value.id : null;
 }
