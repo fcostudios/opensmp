@@ -10,6 +10,7 @@ import {
   integrationCredential,
   licenseAssignment,
   licenseRequest,
+  licenseType,
   person,
   requestTransition,
   userAccount,
@@ -620,12 +621,44 @@ describe("US-007 go-live import", () => {
       runGoLiveImport(database, input),
     ]);
 
-    expect(results.map((result) => result.created.companies).sort((a, b) => a - b))
-      .toEqual([0, 30]);
+    const zeroCreated = results.find((result) => result.created.companies === 0);
+    const creating = results.find((result) => result.created.companies === 30);
+    expect(zeroCreated?.created).toEqual({
+      companies: 0,
+      contactAccounts: 0,
+      roleAssignments: 0,
+      vendorAccounts: 0,
+      licenseTypes: 0,
+      capacities: 0,
+      people: 0,
+      requests: 0,
+      assignments: 0,
+      credentials: 0,
+    });
+    expect(creating?.created).toEqual({
+      companies: 30,
+      contactAccounts: 60,
+      roleAssignments: 60,
+      vendorAccounts: 1,
+      licenseTypes: 1,
+      capacities: 1,
+      people: 2,
+      requests: 2,
+      assignments: 2,
+      credentials: 2,
+    });
+    expect(zeroCreated?.reconciliation).toEqual(creating?.reconciliation);
     expect(await database.select().from(company)).toHaveLength(30);
+    expect(await database.select().from(userAccount)).toHaveLength(61);
+    expect(await database.select().from(companyRoleAssignment)).toHaveLength(60);
+    expect(await database.select().from(vendor)).toHaveLength(1);
+    expect(await database.select().from(vendorAccount)).toHaveLength(1);
+    expect(await database.select().from(licenseType)).toHaveLength(1);
     expect(await database.select().from(licenseRequest)).toHaveLength(2);
+    expect(await database.select().from(requestTransition)).toHaveLength(2);
     expect(await database.select().from(licenseAssignment)).toHaveLength(2);
     expect(await database.select().from(vendorAccountCapacity)).toHaveLength(1);
+    expect(await database.select().from(person)).toHaveLength(2);
     expect(await database.select().from(integrationCredential)).toHaveLength(2);
     const audits = await database.select().from(auditLog);
     const assignmentAudits = audits.filter(
@@ -635,5 +668,6 @@ describe("US-007 go-live import", () => {
     expect(new Set(assignmentAudits.map((row) => row.entityId)).size).toBe(2);
     expect(audits.filter((row) => row.action === "go_live_import.completed"))
       .toHaveLength(2);
+    expect(audits).toHaveLength(4);
   });
 });

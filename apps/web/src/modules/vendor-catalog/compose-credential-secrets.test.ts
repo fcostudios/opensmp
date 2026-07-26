@@ -7,6 +7,11 @@ import { expect, test } from "vitest";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = resolve(import.meta.dirname, "../../../../..");
+const credentialCryptoSource = join(
+  repositoryRoot,
+  "apps/web/src/modules/vendor-catalog/credential-crypto.ts",
+);
+const esbuildBinary = join(repositoryRoot, "apps/web/node_modules/.bin/esbuild");
 
 type ComposeConfig = {
   services: {
@@ -134,9 +139,25 @@ test("injects dynamic credential variables and read-only artifacts through the i
 test("the import container identity can read a root-owned 0440 KEK without write access", async () => {
   const privateDirectory = await mkdtemp(join(tmpdir(), "ledger-import-kek-"));
   const kekPath = join(privateDirectory, "integration-credential.kek");
-  const expected = "synthetic-base64-kek";
+  const entryPath = join(privateDirectory, "read-kek-entry.ts");
+  const bundlePath = join(privateDirectory, "read-kek.cjs");
+  const expected = Buffer.from(
+    Uint8Array.from({ length: 32 }, (_, index) => index),
+  ).toString("base64");
   try {
     await writeFile(kekPath, `${expected}\n`, { mode: 0o600 });
+    await writeFile(
+      entryPath,
+      `export { readKekFile } from ${JSON.stringify(credentialCryptoSource)};\n`,
+      "utf8",
+    );
+    await execFileAsync(esbuildBinary, [
+      entryPath,
+      "--bundle",
+      "--platform=node",
+      "--format=cjs",
+      `--outfile=${bundlePath}`,
+    ]);
     await execFileAsync("docker", [
       "run",
       "--rm",
@@ -154,16 +175,21 @@ test("the import container identity can read a root-owned 0440 KEK without write
       "1001:1001",
       "--volume",
       `${kekPath}:/run/ledger-secrets/integration-credential.kek:ro`,
+      "--volume",
+      `${bundlePath}:/test/read-kek.cjs:ro`,
       "node:22-alpine",
       "node",
       "-e",
       [
+        "const { readKekFile } = require('/test/read-kek.cjs');",
         "const fs = require('node:fs');",
         "const path = '/run/ledger-secrets/integration-credential.kek';",
-        "const value = fs.readFileSync(path, 'utf8').trim();",
-        `if (value !== ${JSON.stringify(expected)}) process.exit(2);`,
+        "(async () => {",
+        "const value = await readKekFile(path);",
+        `if (Buffer.from(value).toString('base64') !== ${JSON.stringify(expected)}) process.exit(2);`,
         "try { fs.appendFileSync(path, 'forbidden'); process.exit(3); }",
         "catch (error) { if (!['EACCES', 'EROFS'].includes(error.code)) throw error; }",
+        "})().catch((error) => { console.error(error); process.exit(4); });",
       ].join(" "),
     ]);
     expect(stdout).toBe("");

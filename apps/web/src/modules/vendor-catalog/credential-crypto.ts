@@ -10,6 +10,24 @@ const WRAPPED_SEPARATOR = ".";
 
 type RandomBytes = (length: number) => Uint8Array;
 
+type KekFileErrorCode =
+  | "KEK_NOT_REGULAR_FILE"
+  | "KEK_FILE_UNREADABLE";
+
+class KekFileReadError extends Error {
+  readonly code: KekFileErrorCode;
+
+  constructor(code: KekFileErrorCode) {
+    super("Unable to read KEK secret file");
+    this.name = "KekFileReadError";
+    this.code = code;
+  }
+}
+
+function rejectKekFile(code: KekFileErrorCode): never {
+  throw new KekFileReadError(code);
+}
+
 function requireKek(kek: Uint8Array): void {
   if (kek.length !== 32) {
     throw new Error("Credential KEK must contain exactly 32 bytes");
@@ -28,37 +46,54 @@ export async function readKekFile(
   try {
     const root = resolve(allowedRoot);
     const candidate = resolve(path);
-    if (!candidate.startsWith(`${root}${sep}`)) throw new Error();
+    if (!candidate.startsWith(`${root}${sep}`)) {
+      rejectKekFile("KEK_FILE_UNREADABLE");
+    }
 
     const rootStat = await lstat(root);
+    // @equivalent: lstat makes a directory symlink satisfy both predicates;
+    // a non-directory root is independently rejected by the child lstat with
+    // the same sanitized KEK_FILE_UNREADABLE result.
     if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
-      throw new Error();
+      rejectKekFile("KEK_FILE_UNREADABLE");
     }
     let cursor = root;
     const segments = candidate.slice(root.length + 1).split(sep);
     for (const segment of segments.slice(0, -1)) {
       cursor = join(cursor, segment);
       const stat = await lstat(cursor);
-      if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error();
+      // @equivalent: lstat makes a directory symlink satisfy both predicates;
+      // a non-directory segment is independently rejected by the next lstat/open
+      // with the same sanitized KEK_FILE_UNREADABLE result.
+      if (stat.isSymbolicLink() || !stat.isDirectory()) {
+        rejectKekFile("KEK_FILE_UNREADABLE");
+      }
     }
     const candidateStat = await lstat(candidate);
-    if (candidateStat.isSymbolicLink()) throw new Error();
+    // @equivalent: O_NOFOLLOW independently rejects the final symlink with
+    // the same sanitized KEK_FILE_UNREADABLE result.
+    if (candidateStat.isSymbolicLink()) {
+      rejectKekFile("KEK_FILE_UNREADABLE");
+    }
 
     const handle = await open(
       candidate,
-      constants.O_RDONLY | constants.O_NOFOLLOW,
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
     );
     try {
       const openedStat = await handle.stat();
-      if (!openedStat.isFile()) throw new Error();
+      if (!openedStat.isFile()) rejectKekFile("KEK_NOT_REGULAR_FILE");
       const mode = openedStat.mode & 0o777;
-      if (mode !== 0o400 && mode !== 0o440) throw new Error();
+      if (mode !== 0o400 && mode !== 0o440) {
+        rejectKekFile("KEK_FILE_UNREADABLE");
+      }
       encoded = await handle.readFile("utf8");
     } finally {
       await handle.close();
     }
-  } catch {
-    throw new Error("Unable to read KEK secret file");
+  } catch (error) {
+    if (error instanceof KekFileReadError) throw error;
+    throw new KekFileReadError("KEK_FILE_UNREADABLE");
   }
   const decoded = Buffer.from(encoded, "base64");
   requireKek(decoded);
