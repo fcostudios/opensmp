@@ -176,7 +176,11 @@ export function parseCompaniesCsv(csv: string): CompanyImportRow[] {
     budgetMonthlyUsd: row.budget_monthly_usd,
     statementLanguage: row.statement_language,
   }));
-  const parsed = parseRows(rowsFor(csv, companyHeaders), schema);
+  const rows = rowsFor(csv, companyHeaders);
+  if (rows.length === 0) {
+    throw new Error("Companies CSV must contain at least one data row");
+  }
+  const parsed = parseRows(rows, schema);
   rejectDuplicates(parsed, [
     ["company code", (row) => row.code],
     ["approver email", (row) => row.approverEmail],

@@ -28,6 +28,14 @@ describe("US-007 CSV contracts", () => {
     ]);
   });
 
+  it("rejects a companies CSV without data rows", () => {
+    expect(() =>
+      parseCompaniesCsv(
+        "code,name,type,approver_email,finance_contact_email,budget_monthly_usd,statement_language",
+      ),
+    ).toThrowError(/^Companies CSV must contain at least one data row$/);
+  });
+
   it("parses quoted commas and exact member/capacity contracts", () => {
     expect(
       parseMemberBackfillCsv(
