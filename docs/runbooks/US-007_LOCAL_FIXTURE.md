@@ -12,7 +12,7 @@ nonfunctional.
 - Migrations have been applied and the schema verifier passes:
 
   ```bash
-  rtk pnpm --dir packages/db drizzle-kit push
+  rtk pnpm --dir packages/db exec drizzle-kit push
   rtk node packages/db/scripts/verify-schema.mjs
   ```
 

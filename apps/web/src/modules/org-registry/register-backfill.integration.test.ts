@@ -26,8 +26,16 @@ import {
   GO_LIVE_IMPORT_LOCK,
   runGoLiveImport,
 } from "./register-backfill-transaction";
+import {
+  GO_LIVE_OPERATOR_ACTOR_BOOTSTRAP_ACTION,
+  runLockedGoLiveOperatorImport,
+} from "./go-live-operator";
 
 const actorId = "00000000-0000-4000-8000-000000000701";
+const operatorActor = {
+  id: "70070000-0000-4000-8000-000000000007",
+  email: "us007.group-admin@ledger.invalid",
+} as const;
 const now = new Date("2026-08-01T12:00:00.000Z");
 const baselineCompanyCount = 5;
 const companiesCsvFor = (count: number) => [
@@ -333,6 +341,74 @@ describe("US-007 go-live import", () => {
       randomBytes: () => new Uint8Array(1),
     })).rejects.toThrow();
     expect(await database.select().from(vendorAccount)).toHaveLength(beforeAccounts);
+  });
+
+  it("rolls back the operator actor and bootstrap audit when import encryption fails", async () => {
+    await expect(runLockedGoLiveOperatorImport(
+      database,
+      {
+        actorUserId: operatorActor.id,
+        companiesCsv,
+        membersCsv,
+        capacityCsv,
+        occurredAt: now,
+        credentials: credentialSeeds,
+        kek: new Uint8Array(31),
+        randomBytes: deterministicBytes,
+      },
+      operatorActor,
+    )).rejects.toThrow("Credential KEK must contain exactly 32 bytes");
+
+    expect(await database
+      .select()
+      .from(userAccount)
+      .where(eq(userAccount.id, operatorActor.id))).toEqual([]);
+    expect(await database
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, GO_LIVE_OPERATOR_ACTOR_BOOTSTRAP_ACTION)))
+      .toEqual([]);
+  });
+
+  it("bootstraps and audits the local operator actor exactly once", async () => {
+    const input = {
+      actorUserId: operatorActor.id,
+      companiesCsv,
+      membersCsv,
+      capacityCsv,
+      occurredAt: now,
+      credentials: credentialSeeds,
+      kek: testKek,
+      randomBytes: deterministicBytes,
+    };
+
+    await runLockedGoLiveOperatorImport(database, input, operatorActor);
+    await runLockedGoLiveOperatorImport(database, input, operatorActor);
+
+    expect(await database
+      .select()
+      .from(userAccount)
+      .where(eq(userAccount.id, operatorActor.id)))
+      .toEqual([
+        expect.objectContaining({
+          id: operatorActor.id,
+          email: operatorActor.email,
+          globalRole: "group_admin",
+          status: "active",
+        }),
+      ]);
+    expect(await database
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, GO_LIVE_OPERATOR_ACTOR_BOOTSTRAP_ACTION)))
+      .toEqual([
+        expect.objectContaining({
+          actorUserId: null,
+          entityType: "UserAccount",
+          entityId: operatorActor.id,
+          note: "US-007 local operator actor bootstrap",
+        }),
+      ]);
   });
 
   it("reports changed natural-key rows and conflicting member identities", async () => {
