@@ -304,7 +304,7 @@ Build gate + rejection criteria: [`docs/dev-guide/DEFINITION_OF_DONE.md`](docs/d
 ## Skills Required
 
 - **Frontend:** TypeScript, react, nextjs App Router, tailwindcss, Zustand, zod
-- **Data:** drizzle ORM, postgres 
+- **Data:** drizzle ORM, postgres
 - **Auth:** Auth.js + Keycloak (OIDC / sessions)
 - **Tooling:** pnpm, drizzle-kit, Docker Compose
 - **i18n:** locale-aware UI (default `en-US`)

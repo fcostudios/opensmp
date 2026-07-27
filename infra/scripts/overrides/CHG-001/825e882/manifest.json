@@ -7,7 +7,7 @@
     },
     "CLAUDE.md": {
       "source_sha256": "efdbf2e5161bfe56f865bbeb812fd5e7f8019c81528f74c098198530582e2145",
-      "desired_sha256": "b325297a3b0aa9ce6747ce34aa8418adfed2ad7b458bb80d96bc3adaf9acd3f9"
+      "desired_sha256": "bf6182a5c7ef8b51158181b8de3f91eda8e4107e1dbfa1b4adee230be4a66ea6"
     },
     "docs/dev-guide/DEFINITION_OF_DONE.md": {
       "source_sha256": "c061aeeb58cc4fd07c9a1037f752c590a647398f07d2e2709ebccf26b58acde8",
@@ -31,7 +31,7 @@
     },
     "docs/stories/CHANGES.md": {
       "source_sha256": "b6b9140fe8dbe904ba063e6379b0131a593962eb6533dcc0988f959ab523a633",
-      "desired_sha256": "65c39f8b8b4f7c3fcd4b7e7cf1f8920245d367b99428a4f37ad9c9f0df24bf66"
+      "desired_sha256": "497f881891a7461d0b25dbce214cf454c0090f9f6e73e7a2e17429dffd944223"
     },
     "testing/critical-paths.md": {
       "source_sha256": "89bb5f4270ddc9797fcd63ee8a1f4f6497c357d53af84d61c31fb627402ff9d2",
@@ -39,4 +39,3 @@
     }
   }
 }
-

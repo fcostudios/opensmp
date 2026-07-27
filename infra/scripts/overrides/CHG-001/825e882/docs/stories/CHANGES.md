@@ -30,4 +30,3 @@
 | **US-007** | Seed: companies CSV + go-live register backfill | Sprint 1 | 🔨 in_development | [r1_misc_us_007.md](sprint-1/r1_misc_us_007.md) |
 | **US-011** | Users, roles and delegation-ready grants | Sprint 3 | ⬜ backlog | [r1_misc_us_011.md](sprint-3/r1_misc_us_011.md) |
 | **US-054** | Anthropic API probe spike | Sprint 1 | 🔨 in_development | [r1_misc_us_054.md](sprint-1/r1_misc_us_054.md) |
-
