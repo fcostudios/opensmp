@@ -212,12 +212,6 @@ export async function dryRunGoLiveImport(
     parsed.capacities,
     new Set(companyByCode.keys()),
   ));
-  if (parsed.companies.length !== 30) {
-    errors.push(
-      `Go-live company inventory must contain exactly 30 companies; received ${parsed.companies.length}`,
-    );
-  }
-
   for (const row of parsed.companies) {
     const saved = companyByCode.get(row.code);
     if (saved) {

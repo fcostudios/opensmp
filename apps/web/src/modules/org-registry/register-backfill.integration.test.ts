@@ -29,23 +29,25 @@ import {
 
 const actorId = "00000000-0000-4000-8000-000000000701";
 const now = new Date("2026-08-01T12:00:00.000Z");
-const companyRows = Array.from({ length: 30 }, (_, index) => {
-  const ordinal = index + 1;
-  const code = index === 0 ? "ACME" : `C${String(ordinal).padStart(3, "0")}`;
-  return [
-    code,
-    index === 0 ? "Acme Holdings" : `Synthetic Company ${ordinal}`,
-    "internal",
-    `approver${ordinal}@example.invalid`,
-    `finance${ordinal}@example.invalid`,
-    index === 0 ? "1500.00" : "1000.00",
-    index % 2 === 0 ? "es" : "en",
-  ].join(",");
-});
-const companiesCsv = [
+const baselineCompanyCount = 5;
+const companiesCsvFor = (count: number) => [
   "code,name,type,approver_email,finance_contact_email,budget_monthly_usd,statement_language",
-  ...companyRows,
+  ...Array.from({ length: count }, (_, index) => {
+    const ordinal = index + 1;
+    const code = index === 0 ? "ACME" : `C${String(ordinal).padStart(3, "0")}`;
+    return [
+      code,
+      index === 0 ? "Acme Holdings" : `Synthetic Company ${ordinal}`,
+      "internal",
+      `approver${ordinal}@example.invalid`,
+      `finance${ordinal}@example.invalid`,
+      index === 0 ? "1500.00" : "1000.00",
+      index % 2 === 0 ? "es" : "en",
+    ].join(",");
+  }),
 ].join("\n");
+const companiesCsv = companiesCsvFor(baselineCompanyCount);
+const companyRows = companiesCsv.split("\n").slice(1);
 const membersCsv = [
   "vendor_org_ref,email,full_name,company_code,license_type,started_on",
   "anthropic-acme,member@acme.test,Member One,ACME,Enterprise,2026-08-01",
@@ -140,9 +142,9 @@ describe("US-007 go-live import", () => {
     );
     expect(report).toEqual({
       inserts: {
-        companies: 30,
-        contactAccounts: 60,
-        roleAssignments: 60,
+        companies: 5,
+        contactAccounts: 10,
+        roleAssignments: 10,
         vendorAccounts: 1,
         licenseTypes: 1,
         capacities: 1,
@@ -202,7 +204,7 @@ describe("US-007 go-live import", () => {
       budgetMonthlyUsd: "1500.00",
       statementLanguage: "es",
     });
-    expect(await database.select().from(userAccount)).toHaveLength(61);
+    expect(await database.select().from(userAccount)).toHaveLength(11);
     expect((await database.select().from(userAccount)).filter(
       (row) => ["approver1@example.invalid", "finance1@example.invalid"].includes(row.email),
     ))
@@ -211,7 +213,7 @@ describe("US-007 go-live import", () => {
         expect.objectContaining({ email: "finance1@example.invalid", status: "disabled" }),
       ]));
     expect((await database.select().from(companyRoleAssignment)).map((row) => row.role).sort())
-      .toHaveLength(60);
+      .toHaveLength(10);
     expect(await database.select().from(licenseRequest)).toEqual(
       expect.arrayContaining([expect.objectContaining({
         requestNo: expect.stringMatching(/^IMP-[A-F0-9]{24}$/),
@@ -371,9 +373,9 @@ describe("US-007 go-live import", () => {
         credentials: 0,
       },
       existing: {
-        companies: 30,
-        contactAccounts: 60,
-        roleAssignments: 60,
+        companies: 5,
+        contactAccounts: 10,
+        roleAssignments: 10,
         vendorAccounts: 1,
         licenseTypes: 1,
         capacities: 1,
@@ -471,16 +473,21 @@ describe("US-007 go-live import", () => {
     );
   });
 
-  it("rejects any go-live inventory that does not contain exactly 30 companies", async () => {
-    const report = await dryRunGoLiveImport(database, {
-      companiesCsv: companiesCsv.split("\n").slice(0, -1).join("\n"),
-      membersCsv,
-      capacityCsv,
-    });
-    expect(report.errors).toContain(
-      "Go-live company inventory must contain exactly 30 companies; received 29",
-    );
-  });
+  it.each([5, 6, 30])(
+    "accepts a valid %i-company inventory through the same path",
+    async (count) => {
+      const report = await dryRunGoLiveImport(database, {
+        companiesCsv: companiesCsvFor(count),
+        membersCsv,
+        capacityCsv,
+      });
+      expect(report.errors).toEqual([]);
+      expect(report.inserts.companies).toBe(count);
+      expect(report.inserts.contactAccounts).toBe(count * 2);
+      expect(report.inserts.roleAssignments).toBe(count * 2);
+      expect(await database.select().from(company)).toHaveLength(0);
+    },
+  );
 
   it("rejects a new-company contact already represented by any Person", async () => {
     await importBaseline();
@@ -713,7 +720,9 @@ describe("US-007 go-live import", () => {
     ]);
 
     const zeroCreated = results.find((result) => result.created.companies === 0);
-    const creating = results.find((result) => result.created.companies === 30);
+    const creating = results.find(
+      (result) => result.created.companies === baselineCompanyCount,
+    );
     expect(zeroCreated?.created).toEqual({
       companies: 0,
       contactAccounts: 0,
@@ -727,9 +736,9 @@ describe("US-007 go-live import", () => {
       credentials: 0,
     });
     expect(creating?.created).toEqual({
-      companies: 30,
-      contactAccounts: 60,
-      roleAssignments: 60,
+      companies: 5,
+      contactAccounts: 10,
+      roleAssignments: 10,
       vendorAccounts: 1,
       licenseTypes: 1,
       capacities: 1,
@@ -739,9 +748,9 @@ describe("US-007 go-live import", () => {
       credentials: 2,
     });
     expect(zeroCreated?.reconciliation).toEqual(creating?.reconciliation);
-    expect(await database.select().from(company)).toHaveLength(30);
-    expect(await database.select().from(userAccount)).toHaveLength(61);
-    expect(await database.select().from(companyRoleAssignment)).toHaveLength(60);
+    expect(await database.select().from(company)).toHaveLength(5);
+    expect(await database.select().from(userAccount)).toHaveLength(11);
+    expect(await database.select().from(companyRoleAssignment)).toHaveLength(10);
     expect(await database.select().from(vendor)).toHaveLength(1);
     expect(await database.select().from(vendorAccount)).toHaveLength(1);
     expect(await database.select().from(licenseType)).toHaveLength(1);
