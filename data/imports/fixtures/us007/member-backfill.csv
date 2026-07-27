@@ -1,0 +1,13 @@
+vendor_org_ref,email,full_name,company_code,license_type,started_on
+corporativo-teams,ana.corp@ledger.invalid,Ana Corporativo,CORP,Teams,2026-07-01
+corporativo-teams,bruno.corp@ledger.invalid,Bruno Corporativo,CORP,Teams,2026-07-01
+corporativo-teams,ana.ppm@ledger.invalid,Ana PPM,PPM,Teams,2026-07-01
+corporativo-teams,bruno.ppm@ledger.invalid,Bruno PPM,PPM,Teams,2026-07-01
+corporativo-teams,ana.focus@ledger.invalid,Ana Focus,FOCUS,Teams,2026-07-01
+corporativo-teams,bruno.focus@ledger.invalid,Bruno Focus,FOCUS,Teams,2026-07-01
+corporativo-teams,ana.mullen@ledger.invalid,Ana Mullen,MULLEN,Teams,2026-07-01
+corporativo-teams,bruno.mullen@ledger.invalid,Bruno Mullen,MULLEN,Teams,2026-07-01
+corporativo-teams,ana.ram@ledger.invalid,Ana RAM,RAM,Teams,2026-07-01
+corporativo-teams,bruno.ram@ledger.invalid,Bruno RAM,RAM,Teams,2026-07-01
+centrohub-teams,ana.centrohub@ledger.invalid,Ana CentroHub,CENTROHUB,Teams,2026-07-01
+centrohub-teams,bruno.centrohub@ledger.invalid,Bruno CentroHub,CENTROHUB,Teams,2026-07-01

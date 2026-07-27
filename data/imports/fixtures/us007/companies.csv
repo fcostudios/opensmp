@@ -1,0 +1,7 @@
+code,name,type,approver_email,finance_contact_email,budget_monthly_usd,statement_language
+CORP,Corporativo,internal,approver.corp@ledger.invalid,finance.corp@ledger.invalid,2500.00,es
+PPM,PPM,internal,approver.ppm@ledger.invalid,finance.ppm@ledger.invalid,1500.00,es
+FOCUS,Focus,internal,approver.focus@ledger.invalid,finance.focus@ledger.invalid,1500.00,es
+MULLEN,Mullen Lowe,internal,approver.mullen@ledger.invalid,finance.mullen@ledger.invalid,1500.00,es
+RAM,RAM,internal,approver.ram@ledger.invalid,finance.ram@ledger.invalid,1000.00,es
+CENTROHUB,CentroHub,internal,approver.centrohub@ledger.invalid,finance.centrohub@ledger.invalid,1000.00,es

@@ -20,8 +20,11 @@ The import sequence is:
 The parser rejects unknown or reordered columns and any header that resembles a
 credential, token, password, or secret. Company codes and emails are normalized;
 all references are validated before the transaction mutates the database.
-The companies file must contain exactly 30 rows. Capacity accepts exactly one
-row per `(vendor_org_ref, license_type)` go-live snapshot.
+Five companies is the DEC-SMP-018 MVP baseline. The importer accepts the
+operator's complete validated inventory through the same path, including the
+approved six-company fixture and the 30-company rollout; company count is not a
+parser invariant. Capacity accepts exactly one row per
+`(vendor_org_ref, license_type)` go-live snapshot.
 
 Vendor credentials are not CSV fields. They enter only through the server-side
 secret channel, are encrypted with XChaCha20-Poly1305 under a random data key,
@@ -67,6 +70,13 @@ the host and should remain operator-owned mode `0600`.
 
 Never add credential values to `.env.example`, the synthetic runtime template,
 or a committed override.
+
+## Local synthetic fixture
+
+See the [US-007 local fixture runbook](../runbooks/US-007_LOCAL_FIXTURE.md) for
+the approved six-company inventory. Synthetic Teams credentials are
+nonfunctional placeholders solely for exercising the encrypted-storage path
+until US-055 supplies API-less ingestion.
 
 The import uses deterministic natural keys, including an `IMP-<hash>` request
 number for every seat. Repeating identical inputs creates no new company,
