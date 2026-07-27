@@ -21,7 +21,7 @@ snapshot — **stale/empty data, silently** (no error). The precise rule:
 - A page (`page.tsx`) that fetches per-request data (from the db or an API) and does
   NOT call a dynamic API → add `export const dynamic = "force-dynamic";` at the top.
   (Or `export const revalidate = <seconds>` for time-based revalidation.)
-- A page that calls `auth()` (or otherwise reads cookies/headers) is
+- A page that calls `auth0.getSession()` (or otherwise reads cookies/headers) is
   **already dynamic** — `force-dynamic` is redundant there. Do NOT sprinkle it on
   every page; it only matters when you fetch without touching a dynamic API.
 - **Route handlers (`route.ts`) and server actions are never prerendered** — this is
@@ -66,12 +66,8 @@ Every TOON section has a `dataSource` (`url` + `method`). When implementing a sc
 
 - `hasMinRole(roles, minRole)` from `@/lib/auth/roles`; hierarchy is `ROLE_HIERARCHY` (generated from the nav-map RBAC).
 - The highest role sees all menu items.
-- User display name from the Auth.js session backed by Keycloak — never display a raw id as identity.
+- User display name from the Auth0 session — never display a raw id as identity.
 - Log out via `logout()` from `@/lib/auth/logout`.
-- Sign-in is an OIDC redirect to Keycloak. Ledger must not render, collect, or
-  proxy a password or TOTP field; those credential screens belong to Keycloak.
-- UI role gates are only a presentation aid. Server-side authorization resolves
-  roles and company grants from Ledger DB.
 
 ## API Client & Error Handling
 

@@ -26,7 +26,7 @@ As a Group Admin (persona_01), I want to catch console bypass within an hour so 
 
 ## Acceptance Criteria
 
-- [ ] AC1: Hourly member sync diffs console vs register; unknown members → register_drift alert + Deriva tab entry
+- [ ] AC1: Hourly member sync diffs console vs register (ingestion_mode=api orgs); for csv_import/manual orgs the SAME diff runs on every `importMembersCsv` (US-055) — unknown members → register_drift alert + Deriva tab entry either way
 - [ ] AC2: `claimDriftMember` assigns company retroactively: creates LicenseAssignment (source_kind=reconciliation, note=comentario) + system-materialized request
 - [ ] AC3: Drift metric on dashboard trends to zero (PRD §17)
 

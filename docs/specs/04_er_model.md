@@ -178,7 +178,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 
 - **Domain:** `vendor_catalog_context`
 - **Business purpose.** One vendor org/tenant/license-server: the D1 Anthropic orgs (central + carve-outs), later one M365 tenant per company, a SAP B1 license server. The unit of pools, credentials, sync jobs, and execution mode (DEC-SMP-006/007). `[SRC:RAW]` §9, §14.
-- **Lifecycle.** Created at onboarding per org inventory (OQ-SMP-1); mode flipped between automated/orchestration per org (Module C).
+- **Lifecycle.** Created at onboarding per org inventory (OQ-SMP-1); mode flipped between automated/orchestration per org (Module C); ingestion_mode flipped between api/csv_import/manual per org (DEC-SMP-018).
 - **Flags.** `requires_versioning: no` · `has_soft_delete: via status` · `audit_required: yes` · `multi_tenant_scoped: no (an account can serve many companies)`
 
 | Attribute | Type | PK/FK/IDX | Nullable | Description | Example | Source(s) |
@@ -187,6 +187,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `vendor_id` | `uuid` | FK => Vendor.id, IDX | no |  |  | [SRC:RAW] |
 | `name` | `text` | UNIQUE(vendor_id, name) | no |  | `Central Claude Enterprise org` | [SRC:RAW] |
 | `mode` | `text` (enum) |  | no | `automated / orchestration` | `automated` | [SRC:RAW] §13 |
+| `ingestion_mode` | `text` (enum) |  | no | `api / csv_import / manual` — how member/activity/cost data enters for this org (DEC-SMP-018). Orgs without API access (e.g. a Claude Teams plan) run on Console CSV exports or manual upkeep; independent of provisioning `mode` | `api` | DEC-SMP-018 |
 | `vendor_org_ref` | `text` |  | yes | Vendor-side org identifier | … | [ASSUMPTION] |
 | `contract_renewal_on` | `date` |  | yes | Renewal alerts (🟡) | `2027-01-01` | [SRC:RAW] |
 | `low_pool_floor` | `integer` |  | no | Low-pool alert threshold, default 5 | `5` | [SRC:RAW] Module C |
@@ -313,7 +314,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `ended_on` | `date` |  | yes | Inclusive; null = open holding | `2026-09-09` | [SRC:RAW] |
 | `end_reason` | `text` (enum) |  | yes | `left_company / inactive / reallocated` | `reallocated` | [SRC:RAW] §10 |
 | `source_request_id` | `uuid` | FK => LicenseRequest.id, UNIQUE(source_request_id) | yes | Import/reconciliation rows reference their system-materialized request (see LicenseRequest lifecycle); null only for transfer-reopened rows (a transfer's inbound leg is its own fast-tracked request, PRD §10); Postgres NULLs-distinct makes plain UNIQUE enforce the 1:0..1 | … | [SRC:RAW] §14 |
-| `source_kind` | `text` (enum) |  | no | `request / import / reconciliation` | `request` | [SRC:RAW] §14 |
+| `source_kind` | `text` (enum) |  | no | `request / import / reconciliation / manual` — `manual` = admin-recorded row on an API-less org (DEC-SMP-018), same integrity constraints | `request` | [SRC:RAW] §14 |
 | `note` | `text` |  | yes | Rationale for import/reconciliation rows (e.g. drift-claim comment), visible on the register row expander | … | [SRC:CJ] J4 |
 | `created_at` | `timestamptz` |  | no |  |  | — |
 | `created_by` | `uuid` | FK => UserAccount.id | yes | Null for job-written rows | … | — |
@@ -364,7 +365,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 
 - **Domain:** `telemetry_context`
 - **Business purpose.** Person-day activity grain per vendor account (chat messages, Claude Code sessions, Cowork), schema-flexible counters + raw payload — feeds inactivity flags (30/60/90d) and utilization views. ~3-day lag; freshness surfaced in UI. `[SRC:RAW]` Module D, §8.
-- **Lifecycle.** Upserted by the daily analytics sync job (idempotent); never user-edited.
+- **Lifecycle.** Upserted by the daily analytics sync job, a Console CSV usage import, or manual entry per the org's ingestion_mode (DEC-SMP-018) — all channels idempotent on the (org, person, date) key with `source` provenance.
 - **Flags.** `requires_versioning: no` · `has_soft_delete: no` · `audit_required: sync-job level` · `multi_tenant_scoped: via person`
 
 | Attribute | Type | PK/FK/IDX | Nullable | Description | Example | Source(s) |
@@ -374,8 +375,9 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `person_id` | `uuid` | FK => Person.id, IDX | no | Matched via Vendor.identity_matching | … | [SRC:RAW] Module I |
 | `activity_date` | `date` | UNIQUE(vendor_account_id, person_id, activity_date) | no |  | `2026-08-04` | [SRC:RAW] §14 |
 | `counters` | `jsonb` |  | no | Schema-flexible activity counters | `{"chat":12,"code_sessions":3}` | [SRC:RAW] §14 |
-| `raw_payload` | `jsonb` |  | yes | Vendor payload for replay | … | [SRC:RAW] §13 |
-| `synced_at` | `timestamptz` |  | no | Freshness labeling source | … | [SRC:RAW] Module D |
+| `source` | `text` (enum) |  | no | `api / csv_import / manual` — ingestion channel provenance (DEC-SMP-018); default `api` | `api` | DEC-SMP-018 |
+| `raw_payload` | `jsonb` |  | yes | Vendor payload for replay (CSV imports store the parsed row) | … | [SRC:RAW] §13 |
+| `synced_at` | `timestamptz` |  | no | Freshness labeling source (import/manual entries stamp it too) | … | [SRC:RAW] Module D |
 
 ### `CostRecord`
 
@@ -391,6 +393,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `person_id` | `uuid` | FK => Person.id, IDX | no |  |  | [SRC:RAW] |
 | `cost_date` | `date` | UNIQUE(vendor_account_id, person_id, cost_date) | no |  | `2026-08-04` | [SRC:RAW] §14 |
 | `amount_usd` | `decimal(12,4)` |  | no | Vendor reports decimal-string cents; stored as USD decimal | `4.2150` | [SRC:RAW] §20 |
+| `source` | `text` (enum) |  | no | `api / csv_import / manual` — ingestion channel provenance (DEC-SMP-018); default `api` | `api` | DEC-SMP-018 |
 | `raw_payload` | `jsonb` |  | yes |  |  | [SRC:RAW] §13 |
 | `synced_at` | `timestamptz` |  | no | Revisable ~30 days → last sync wins | … | [SRC:RAW] §8 |
 
@@ -651,7 +654,7 @@ No N:M relationships require join entities beyond those already derived (`Compan
 
 ## Legacy vs To-Be Model Mapping
 
-No legacy model — Ledger is greenfield (DEC-SMP-001 rejected the Snipe-IT fork precisely because its asset-shaped schema mismatches this workflow-shaped domain). The only inbound data migrations are CSV seeds: 30 companies (Module A) and the initial register backfill from the Anthropic member lists at go-live (source_kind `import`). The backfill also materializes one system `LicenseRequest` (state `active`, justification 'importación inicial') per imported seat and sets `source_request_id`, so the J2 reclamation flow covers the go-live population from day one.
+No legacy model — Ledger is greenfield (DEC-SMP-001 rejected the Snipe-IT fork precisely because its asset-shaped schema mismatches this workflow-shaped domain). The only inbound data migrations are CSV seeds: the managed companies (Module A; 5 in the MVP fixture per DEC-SMP-018, the 30-company rollout follows the same path) and the initial register backfill from the Anthropic member lists at go-live (source_kind `import`). The backfill also materializes one system `LicenseRequest` (state `active`, justification 'importación inicial') per imported seat and sets `source_request_id`, so the J2 reclamation flow covers the go-live population from day one.
 
 ---SECTION: SEC6---
 

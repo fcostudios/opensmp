@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="es-EC">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detalle de persona — Ledger</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" defer></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js" defer></script>
+  <script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Barlow', 'system-ui', 'sans-serif'],
+        mono: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
+      },
+      colors: {
+        primary: {
+          50: '#fdf3e8',
+          100: '#fae7d1',
+          200: '#f5cea3',
+          300: '#f1b676',
+          400: '#ec9d48',
+          500: '#e7851a',
+          600: '#d07817',
+          700: '#b96a15',
+          800: '#a25d12',
+          900: '#8b5010'
+        },
+        accent: {
+          DEFAULT: '#64748b'
+        },
+        gray: {
+          50: '#f8fafc',
+          100: '#f1f5f9',
+          200: '#e2e8f0',
+          300: '#cbd5e1',
+          400: '#94a3b8',
+          500: '#64748b',
+          600: '#475569',
+          700: '#334155',
+          800: '#1e293b',
+          900: '#0f172a'
+        },
+        // slate is an alias of gray so existing slate-* classes use the same neutral palette
+        slate: {
+          50: '#f8fafc',
+          100: '#f1f5f9',
+          200: '#e2e8f0',
+          300: '#cbd5e1',
+          400: '#94a3b8',
+          500: '#64748b',
+          600: '#475569',
+          700: '#334155',
+          800: '#1e293b',
+          900: '#0f172a'
+        },
+        success: '#166534',
+        warning: '#f59e0b',
+        error: '#991b1b',
+        info: '#3b82f6',
+      },
+      boxShadow: {
+        sm: '0 1px 2px rgba(89,87,86,0.10)',
+        md: '0 4px 10px rgba(89,87,86,0.14)',
+        lg: '0 12px 28px rgba(61,61,61,0.18)',
+        xl: '0 20px 25px rgba(0,0,0,0.12)',
+      },
+    },
+  },
+};
+</script>
+  <style>
+    /* ── Design tokens (matches /src/styles/tokens.css) ─────────────────── */
+    :root {
+      --color-primary:     #e7851a;
+      --color-primary-50: #fdf3e8;
+      --color-primary-100: #fae7d1;
+      --color-primary-200: #f5cea3;
+      --color-primary-300: #f1b676;
+      --color-primary-400: #ec9d48;
+      --color-primary-500: #e7851a;
+      --color-primary-600: #d07817;
+      --color-primary-700: #b96a15;
+      --color-primary-800: #a25d12;
+      --color-primary-900: #8b5010;
+      --color-accent:      #475569;
+      --color-success: #166534;
+      --color-error: #991b1b;
+      --color-background: #f2f2f2;
+      --color-surface: #FFFFFF;
+      --color-surface-muted: #f2f2f2;
+      --color-border: #e3e2e2;
+      --color-text-primary: #3d3d3d;
+      --color-text-secondary: #595756;
+      --color-text-on-primary: #FFFFFF;
+      --font-sans: Barlow, system-ui, sans-serif;
+      --font-mono: IBM Plex Mono, ui-monospace, monospace;
+      --font-display: Barlow Condensed, Barlow, sans-serif;
+      --font-size-body: 16px;
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 16px;
+      --radius-full: 9999px;
+      --shadow-none: 0 0 transparent;
+      --shadow-sm: 0 1px 2px rgba(89,87,86,0.10);
+      --shadow-md: 0 4px 10px rgba(89,87,86,0.14);
+      --shadow-lg: 0 12px 28px rgba(61,61,61,0.18);
+      --transition-fast: 150ms;
+      --transition-normal: 250ms;
+    }
+    /* ── IMP-291 I02 — layout_grammar.max_width (centered content column) ── */
+    main { max-width: 1280px; margin-inline: auto; }
+    /* ── IMP-292 I01 — data-workspace dark/brand chrome ── */
+    :root {
+      --color-chrome-bg: #2b2a29;
+      --color-chrome-fg: #f2f2f2;
+      --color-chrome-fg-muted: #c0bfc0;
+      --color-chrome-border: #454341;
+      --color-chrome-hover: #454341;
+      --color-chrome-active: #e7851a;
+    }
+    /* ── IMP-292 I02 — display-serif content headings (data-workspace) ── */
+    main :is(h1,h2){ font-family: var(--font-display, inherit); }
+    /* ── Base ──────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      /* IMP-208 I02 — body canvas reads project's --color-background token
+       * (e.g. cream #F8F4E9 for Mi Banquito); falls back to neutral slate. */
+      background: var(--color-background, #f8fafc);
+      color: var(--color-text-primary, var(--color-gray-900, #0f172a));
+      /* IMP-208 I02 — body size honors project token (default_body_size_px).
+       * Fallback raised to 18px so brands that intentionally use a larger
+       * baseline (Mi Banquito; accessibility-first projects) don't collapse
+       * to a smaller default if the CSS var fails to resolve. Inter renders
+       * 16px → 17px more legibly anyway, so 18px is a strictly-better
+       * default for unspec'd projects. */
+      font-size: var(--font-size-body, 18px);
+    }
+    code, pre, .font-mono { font-family: var(--font-mono); }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    @keyframes shimmer {
+      0%   { background-position: -200% 0; }
+      100% { background-position:  200% 0; }
+    }
+    .skeleton {
+      background: linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+      border-radius: 4px;
+    }
+    /* Focus ring (matches --focus-ring-color) */
+    :focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body class="overflow-x-hidden antialiased">
+<link rel="stylesheet" href="./nous-runtime.css">
+<script>
+  window.NOUS_CONTEXT = Object.freeze({
+  "screen": "SCR-person-detail",
+  "route": "/personas/:personId",
+  "flows": [],
+  "roles": [
+    "group_admin"
+  ],
+  "lang": "es-EC",
+  "messages": {},
+  "generated_at": "sha256:83b72b95bb372f16",
+  "change_id": null
+});
+</script>
+<script src="./nous-runtime.js"></script>
+<script>window.NOUS_MODAL_CACHE = {};</script>
+
+<!-- IMP-208 I02 — body palette comes from project tokens via the inline style block (--color-background / --color-text-primary). The hardcoded bg-gray-50 / text-gray-900 was masking the project's brand canvas. -->
+
+<aside class="fixed top-0 left-0 z-20 w-60 h-screen border-r border-[color:var(--color-chrome-border,#1e293b)] bg-[color:var(--color-chrome-bg,#0f172a)] flex flex-col"><a href="SCR-admin-dashboard.html" class="flex items-center gap-2.5 h-14 px-4 no-underline border-b border-[color:var(--color-chrome-border,#1e293b)]"><div class="w-8 h-8 rounded-lg bg-[color:var(--color-primary,#0f766e)] flex items-center justify-center text-white"><i data-lucide="BookOpen" class="w-5 h-5 text-white"></i></div><div class="leading-tight"><span class="text-sm font-bold" style="color:var(--color-chrome-fg,#f1f5f9)">Ledger</span></div></a><nav data-nous-sidebar class="flex-1 overflow-y-auto p-2 space-y-0.5" aria-label="Navegación"><a href="SCR-admin-dashboard.html" data-route="SCR-admin-dashboard" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="LayoutDashboard" class="w-4 h-4 shrink-0"></i><span class="truncate">Panel general</span></a><a href="SCR-my-requests.html" data-route="SCR-my-requests" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="FileText" class="w-4 h-4 shrink-0"></i><span class="truncate">Mis solicitudes</span></a><a href="SCR-approval-queue.html" data-route="SCR-approval-queue" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="Inbox" class="w-4 h-4 shrink-0"></i><span class="truncate">Aprobaciones</span></a><a href="SCR-reclamation-proposals.html" data-route="SCR-reclamation-proposals" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="RotateCcw" class="w-4 h-4 shrink-0"></i><span class="truncate">Reclamaciones</span></a><a href="SCR-exceptions.html" data-route="SCR-exceptions" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="AlertTriangle" class="w-4 h-4 shrink-0"></i><span class="truncate">Excepciones</span></a><a href="SCR-pools.html" data-route="SCR-pools" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="Gauge" class="w-4 h-4 shrink-0"></i><span class="truncate">Cupos</span></a><a href="SCR-usage.html" data-route="SCR-usage" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="Activity" class="w-4 h-4 shrink-0"></i><span class="truncate">Actividad y uso</span></a><a href="SCR-register.html" data-route="SCR-register" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="BookOpen" class="w-4 h-4 shrink-0"></i><span class="truncate">Registro</span></a><a href="SCR-statements.html" data-route="SCR-statements" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="Receipt" class="w-4 h-4 shrink-0"></i><span class="truncate">Estados de cuenta</span></a><a href="SCR-close.html" data-route="SCR-close" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="Calculator" class="w-4 h-4 shrink-0"></i><span class="truncate">Cierre mensual</span></a><details data-nous-more class="mt-1"><summary class="list-none cursor-pointer flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)] select-none"><i data-lucide="MoreHorizontal" class="w-4 h-4 shrink-0"></i><span>Más</span></summary><div class="mt-1 space-y-0.5"><a href="SCR-reconciliation.html" data-route="SCR-reconciliation" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="Scale" class="w-4 h-4 shrink-0"></i><span class="truncate">Conciliación</span></a><a href="SCR-rates.html" data-route="SCR-rates" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="CircleDollarSign" class="w-4 h-4 shrink-0"></i><span class="truncate">Tarifas</span></a><a href="SCR-companies.html" data-route="SCR-companies" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="Building2" class="w-4 h-4 shrink-0"></i><span class="truncate">Compañías</span></a><a href="SCR-people.html" data-route="SCR-people" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="Users" class="w-4 h-4 shrink-0"></i><span class="truncate">Personas</span></a><a href="SCR-vendor-accounts.html" data-route="SCR-vendor-accounts" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="Network" class="w-4 h-4 shrink-0"></i><span class="truncate">Organizaciones</span></a><a href="SCR-credentials.html" data-route="SCR-credentials" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="KeyRound" class="w-4 h-4 shrink-0"></i><span class="truncate">Credenciales</span></a><a href="SCR-users-roles.html" data-route="SCR-users-roles" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="ShieldCheck" class="w-4 h-4 shrink-0"></i><span class="truncate">Usuarios y roles</span></a><a href="SCR-alerts.html" data-route="SCR-alerts" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="Bell" class="w-4 h-4 shrink-0"></i><span class="truncate">Alertas</span></a><a href="SCR-audit.html" data-route="SCR-audit" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="ScrollText" class="w-4 h-4 shrink-0"></i><span class="truncate">Auditoría</span></a><a href="SCR-settings.html" data-route="SCR-settings" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm no-underline text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-hover,#1e293b)]"><i data-lucide="Settings" class="w-4 h-4 shrink-0"></i><span class="truncate">Configuración</span></a></div></details></nav></aside>
+<header class="fixed top-0 right-0 left-60 z-10 h-14 border-b border-[color:var(--color-chrome-border,#1e293b)] bg-[color:var(--color-chrome-bg,#0f172a)] flex items-center gap-3 px-5"><button type="button" data-nous-command aria-label="Buscar registros…" class="group flex items-center gap-2 flex-1 max-w-xl h-9 px-3 rounded-lg border border-[color:var(--color-chrome-border,#1e293b)] bg-[color:var(--color-chrome-hover,#1e293b)] text-[color:var(--color-chrome-fg-muted,#94a3b8)] hover:bg-[color:var(--color-chrome-bg,#0f172a)] text-sm"><i data-lucide="Search" class="w-4 h-4"></i><span class="flex-1 text-left">Buscar registros…</span><kbd class="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-[color:var(--color-chrome-border,#1e293b)] bg-[color:var(--color-chrome-bg,#0f172a)] text-[10px] font-medium text-[color:var(--color-chrome-fg-muted,#94a3b8)]">⌘K</kbd></button><div class="flex items-center gap-3 ml-auto"><div class="flex items-center gap-0.5 bg-[color:var(--color-chrome-hover,#1e293b)] rounded-md p-0.5" role="group"><button class="px-2 py-1 rounded text-[11px] font-semibold text-[color:var(--color-chrome-fg-muted,#94a3b8)]">EN</button><button class="px-2 py-1 rounded text-[11px] font-semibold bg-[color:var(--color-primary,#0f766e)] text-white">ES</button></div><button type="button" aria-label="Notificaciones" class="relative p-2 rounded-lg hover:bg-[color:var(--color-chrome-hover,#1e293b)] text-[color:var(--color-chrome-fg-muted,#94a3b8)]"><i data-lucide="Bell" class="w-5 h-5"></i><span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span></button><div class="w-8 h-8 rounded-full bg-[color:var(--color-primary,#0f766e)] text-white flex items-center justify-center text-xs font-semibold">FL</div></div></header>
+
+
+
+<!-- Main content -->
+<main class="ml-60 pt-14 px-8 py-6 min-h-screen" role="main" id="main-content" data-modal-content>
+  <div class="p-6">
+    <nav class="flex items-center gap-0.5 text-xs mb-3" aria-label="Breadcrumb"><a href="/personas.html" class="text-slate-500 hover:text-slate-900 transition-colors">Personas</a><i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400 mx-1.5"></i><span class="text-slate-900 font-medium" aria-current="page">María Fernanda Cevallos</span></nav><div class="flex items-center justify-between mb-6"><div><div class="flex items-center gap-2 mb-0.5"><h1 class="text-xl font-bold text-slate-900">PERSONA · MARÍA FERNANDA CEVALLOS</h1></div><p class=\'text-sm text-slate-500\'>maria.cevallos@kickoff.ec · Kickoff · Activa</p></div><div class="flex items-center gap-2"><button type="button" onclick="document.querySelector('button[type=submit]')?.click()" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-primary-500 text-white hover:bg-primary-600 transition-colors shadow-sm"><i data-lucide="check" class="w-4 h-4"></i>Guardar</button></div></div><div class="grid grid-cols-12 gap-4"><div class="col-span-full" data-section="person_tiles"><div class="grid grid-cols-2 lg:grid-cols-4 gap-4"><a href="SCR-02.html" class="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition-shadow cursor-pointer block no-underline"><p class="text-sm font-medium text-slate-500 mb-1">Pipeline This Month</p><p class="text-2xl font-bold text-slate-900 tabular-nums">$180,500</p><div class="flex items-center gap-1 mt-2 text-emerald-600"><i data-lucide="trending-up" class="w-3.5 h-3.5"></i><span class="text-xs font-medium">+16%</span></div></a><a href="SCR-02.html" class="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition-shadow cursor-pointer block no-underline"><p class="text-sm font-medium text-slate-500 mb-1">Quota Progress</p><p class="text-2xl font-bold text-slate-900 tabular-nums">68%</p><div class="flex items-center gap-1 mt-2 text-emerald-600"><i data-lucide="trending-up" class="w-3.5 h-3.5"></i><span class="text-xs font-medium">+8pp</span></div></a><a href="SCR-02.html" class="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition-shadow cursor-pointer block no-underline"><p class="text-sm font-medium text-slate-500 mb-1">Active Deals</p><p class="text-2xl font-bold text-slate-900 tabular-nums">23</p><div class="flex items-center gap-1 mt-2 text-red-600"><i data-lucide="trending-down" class="w-3.5 h-3.5"></i><span class="text-xs font-medium">-2</span></div></a><a href="#" class="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition-shadow cursor-pointer block no-underline"><p class="text-sm font-medium text-slate-500 mb-1">Activities This Week</p><p class="text-2xl font-bold text-slate-900 tabular-nums">47</p><div class="flex items-center gap-1 mt-2 text-emerald-600"><i data-lucide="trending-up" class="w-3.5 h-3.5"></i><span class="text-xs font-medium">+12%</span></div></a></div></div>
+<div class="col-span-full" data-section="assignment_history"><div class="bg-white rounded-xl border border-slate-200 p-4"><div class="flex items-center justify-between mb-4"><h3 class="text-sm font-semibold text-slate-900">Cronología de actividades</h3><button class="text-xs text-primary-600 hover:underline">+ Registrar actividad</button></div><div class="space-y-0"><div class="flex gap-3"><div class="flex flex-col items-center"><div class="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0"><i data-lucide="phone" class="w-4 h-4 text-slate-500"></i></div><div class="w-px flex-1 bg-slate-200 mt-1"></div></div><div class="pb-4 flex-1 min-w-0"><p class="text-sm font-medium text-slate-900">Discovery call completed</p><p class="text-xs text-slate-500 mt-0.5">45 min with Ana García (CTO)</p><p class="text-xs text-slate-400 mt-1">Today, 10:30</p></div></div><div class="flex gap-3"><div class="flex flex-col items-center"><div class="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0"><i data-lucide="mail" class="w-4 h-4 text-slate-500"></i></div><div class="w-px flex-1 bg-slate-200 mt-1"></div></div><div class="pb-4 flex-1 min-w-0"><p class="text-sm font-medium text-slate-900">Proposal sent</p><p class="text-xs text-slate-500 mt-0.5">Sent proposal v2 to decision committee</p><p class="text-xs text-slate-400 mt-1">Yesterday</p></div></div><div class="flex gap-3"><div class="flex flex-col items-center"><div class="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0"><i data-lucide="calendar" class="w-4 h-4 text-slate-500"></i></div><div class="w-px flex-1 bg-slate-200 mt-1"></div></div><div class="pb-4 flex-1 min-w-0"><p class="text-sm font-medium text-slate-900">Technical demo</p><p class="text-xs text-slate-500 mt-0.5">Live demo of integration module</p><p class="text-xs text-slate-400 mt-1">Apr 10</p></div></div><div class="flex gap-3"><div class="flex flex-col items-center"><div class="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0"><i data-lucide="message-square" class="w-4 h-4 text-slate-500"></i></div><div class="w-px flex-1 bg-slate-200 mt-1"></div></div><div class="pb-4 flex-1 min-w-0"><p class="text-sm font-medium text-slate-900">Internal note</p><p class="text-xs text-slate-500 mt-0.5">Client expressed budget concerns; needs CFO approval</p><p class="text-xs text-slate-400 mt-1">Apr 8</p></div></div></div></div></div>
+<div class="col-span-full" data-section="activity_table"><h3 class="text-sm font-semibold text-slate-900 mb-3">Actividad reciente</h3><div class="bg-white rounded-xl border border-slate-200 overflow-hidden"><div class="overflow-x-auto"><table class="w-full"><thead class="bg-slate-50 border-b border-slate-200"><tr><th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap  ">Name<i data-lucide="chevron-down" class="w-3 h-3 inline ml-0.5 opacity-50"></i></th><th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap  ">Status<i data-lucide="chevron-down" class="w-3 h-3 inline ml-0.5 opacity-50"></i></th><th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap  ">Amount<i data-lucide="chevron-down" class="w-3 h-3 inline ml-0.5 opacity-50"></i></th><th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap  ">Date<i data-lucide="chevron-down" class="w-3 h-3 inline ml-0.5 opacity-50"></i></th><th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap  ">Owner<i data-lucide="chevron-down" class="w-3 h-3 inline ml-0.5 opacity-50"></i></th></tr></thead><tbody><tr class="hover:bg-slate-50 border-b border-slate-100 "><td class="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">activity_date</td><td class="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">counters</td><td class="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">synced_at</td></tr><tr class="hover:bg-slate-50 border-b border-slate-100 "><td class="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">activity_date</td><td class="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">counters</td><td class="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">synced_at</td></tr><tr class="hover:bg-slate-50 border-b border-slate-100 "><td class="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">activity_date</td><td class="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">counters</td><td class="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">synced_at</td></tr></tbody></table></div><div class="flex items-center justify-between px-4 py-3 border-t border-slate-200"><p class="text-xs text-slate-500">Mostrando 3 de 47 resultados</p><div class="flex gap-2"><button class="px-3 py-1 text-xs border border-slate-300 rounded hover:bg-slate-50">Anterior</button><button class="px-3 py-1 text-xs bg-primary-500 text-white rounded hover:bg-primary-600">Siguiente</button></div></div></div></div>
+<div class="col-span-full" data-section="person_actions"><div class="sticky bottom-0 bg-white border-t border-slate-200 px-6 py-3 flex items-center justify-between gap-4 -mx-6 -mb-6 lg:-mx-8 lg:-mb-8"><div class="flex items-center gap-2"></div><div class="flex items-center gap-2"><a id="btn_request_license" href="SCR-new-request.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-primary-500 text-white hover:bg-primary-600" data-intent="route" data-route="" data-interaction="buttonPress">Solicitar licencia para esta persona</a><button id="btn-imp160-2" data-interaction="{&quot;kind&quot;:&quot;button&quot;,&quot;opens_modal&quot;:&quot;modal_offboarding&quot;}" id="btn_start_offboarding" type="button" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 motion-btn-pressable" data-intent="modal" data-modal-id="modal_offboarding" data-modal-src="modal_offboarding.html">Iniciar retiro</button><button id="btn-imp160-3" data-interaction="{&quot;kind&quot;:&quot;button&quot;,&quot;opens_modal&quot;:&quot;modal_editar_persona&quot;}" id="btn_editar_persona" type="button" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 motion-btn-pressable" data-intent="modal" data-modal-id="modal_editar_persona" data-modal-src="modal_editar_persona.html">Editar persona</button></div></div></div>
+<div class="col-span-full" data-states-container="modal_offboarding"><div class="mb-3 flex items-center gap-3 flex-wrap"><span class="text-[11px] uppercase tracking-wider font-semibold text-slate-500">Revisar estados</span><div class="inline-flex gap-1 p-1 bg-slate-100 rounded-lg"><button type="button" onclick="__nousSetState('modal_offboarding', 'default', this)" data-state-pill="default" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors bg-primary-500 text-white shadow-sm">Predeterminado</button><button type="button" onclick="__nousSetState('modal_offboarding', 'submitting', this)" data-state-pill="submitting" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors text-slate-700 hover:bg-slate-100">Enviando</button><button type="button" onclick="__nousSetState('modal_offboarding', 'success', this)" data-state-pill="success" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors text-slate-700 hover:bg-slate-100">Éxito</button><button type="button" onclick="__nousSetState('modal_offboarding', 'error', this)" data-state-pill="error" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors text-slate-700 hover:bg-slate-100">Error</button></div></div><div data-state-variant="default" class=""><div class="col-span-full" data-section="modal_offboarding__default"><details class="bg-white rounded-xl border border-slate-200 overflow-hidden"><summary class="flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-slate-50 list-none"><i data-lucide="alert-octagon" class="w-4 h-4 text-primary-600"></i><span class="text-sm font-semibold text-slate-900">Iniciar retiro de licencias</span><i data-lucide="chevron-down" class="w-4 h-4 ml-auto text-slate-400 transition-transform"></i></summary><div class="px-4 py-3 border-t border-slate-200 space-y-3"><p class="text-sm text-slate-600">Confirma el retiro de la licencia activa de esta persona. Si es una salida de la compañía, el retiro se ejecuta el mismo día hábil (SLA de offboarding).</p><div class="col-span-full" data-section="modal_offboarding__default_form"><form class="bg-white rounded-xl border border-slate-200 p-6 relative" onsubmit="return false;"><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Motivo del retiro</label><select id="end_reason"  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"><option value="left_company" >Salida de la compañía</option><option value="inactive" >Inactividad</option><option value="reallocated" >Reasignación de la licencia</option></select></div>
+<div class="col-span-full space-y-1"><label class="block text-sm font-medium text-slate-700">Nota (obligatoria)</label><textarea id="offboarding_note" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" placeholder="Cuéntanos por qué inicias el retiro; queda en el registro de auditoría."></textarea></div>
+</div></form></div><div class="flex justify-end gap-2 pt-2"><button class="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900">Cancelar</button><button  class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-primary-500 hover:bg-primary-600 text-white">Confirmar retiro</button><button  class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-primary-500 hover:bg-primary-600 text-white">Cancelar</button></div></div></details></div></div><div data-state-variant="submitting" class="hidden"><div class="col-span-full" data-section="modal_offboarding__submitting"><details class="bg-white rounded-xl border border-slate-200 overflow-hidden"><summary class="flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-slate-50 list-none"><i data-lucide="alert-octagon" class="w-4 h-4 text-primary-600"></i><span class="text-sm font-semibold text-slate-900">Iniciar retiro de licencias</span><i data-lucide="chevron-down" class="w-4 h-4 ml-auto text-slate-400 transition-transform"></i></summary><div class="px-4 py-3 border-t border-slate-200 space-y-3"><p class="text-sm text-slate-600">Confirma el retiro de la licencia activa de esta persona. Si es una salida de la compañía, el retiro se ejecuta el mismo día hábil (SLA de offboarding).</p><div class="col-span-full" data-section="modal_offboarding__submitting_form"><form class="bg-white rounded-xl border border-slate-200 p-6 relative" onsubmit="return false;"><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Motivo del retiro</label><select id="end_reason"  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"><option value="left_company" >Salida de la compañía</option><option value="inactive" >Inactividad</option><option value="reallocated" >Reasignación de la licencia</option></select></div>
+<div class="col-span-full space-y-1"><label class="block text-sm font-medium text-slate-700">Nota (obligatoria)</label><textarea id="offboarding_note" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" placeholder="Cuéntanos por qué inicias el retiro; queda en el registro de auditoría."></textarea></div>
+</div></form></div><div class="flex justify-end gap-2 pt-2"><button class="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900">Cancelar</button><button  class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-primary-500 hover:bg-primary-600 text-white">Confirmar retiro</button><button  class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-primary-500 hover:bg-primary-600 text-white">Cancelar</button></div></div></details></div></div><div data-state-variant="success" class="hidden"><div class="col-span-full" data-section="modal_offboarding__success"><details class="bg-white rounded-xl border border-slate-200 overflow-hidden"><summary class="flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-slate-50 list-none"><i data-lucide="alert-octagon" class="w-4 h-4 text-primary-600"></i><span class="text-sm font-semibold text-slate-900">Iniciar retiro de licencias</span><i data-lucide="chevron-down" class="w-4 h-4 ml-auto text-slate-400 transition-transform"></i></summary><div class="px-4 py-3 border-t border-slate-200 space-y-3"><p class="text-sm text-slate-600">Confirma el retiro de la licencia activa de esta persona. Si es una salida de la compañía, el retiro se ejecuta el mismo día hábil (SLA de offboarding).</p><div class="col-span-full" data-section="modal_offboarding__success_form"><form class="bg-white rounded-xl border border-slate-200 p-6 relative" onsubmit="return false;"><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Motivo del retiro</label><select id="end_reason"  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"><option value="left_company" >Salida de la compañía</option><option value="inactive" >Inactividad</option><option value="reallocated" >Reasignación de la licencia</option></select></div>
+<div class="col-span-full space-y-1"><label class="block text-sm font-medium text-slate-700">Nota (obligatoria)</label><textarea id="offboarding_note" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" placeholder="Cuéntanos por qué inicias el retiro; queda en el registro de auditoría."></textarea></div>
+</div></form></div><div class="flex justify-end gap-2 pt-2"><button class="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900">Cancelar</button><button  class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-primary-500 hover:bg-primary-600 text-white">Confirmar retiro</button><button  class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-primary-500 hover:bg-primary-600 text-white">Cancelar</button></div></div></details></div></div><div data-state-variant="error" class="hidden"><div class="col-span-full" data-section="modal_offboarding__error"><details class="bg-white rounded-xl border border-slate-200 overflow-hidden"><summary class="flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-slate-50 list-none"><i data-lucide="alert-octagon" class="w-4 h-4 text-primary-600"></i><span class="text-sm font-semibold text-slate-900">Iniciar retiro de licencias</span><i data-lucide="chevron-down" class="w-4 h-4 ml-auto text-slate-400 transition-transform"></i></summary><div class="px-4 py-3 border-t border-slate-200 space-y-3"><p class="text-sm text-slate-600">Confirma el retiro de la licencia activa de esta persona. Si es una salida de la compañía, el retiro se ejecuta el mismo día hábil (SLA de offboarding).</p><div class="col-span-full" data-section="modal_offboarding__error_form"><form class="bg-white rounded-xl border border-slate-200 p-6 relative" onsubmit="return false;"><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Motivo del retiro</label><select id="end_reason"  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"><option value="left_company" >Salida de la compañía</option><option value="inactive" >Inactividad</option><option value="reallocated" >Reasignación de la licencia</option></select></div>
+<div class="col-span-full space-y-1"><label class="block text-sm font-medium text-slate-700">Nota (obligatoria)</label><textarea id="offboarding_note" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" placeholder="Cuéntanos por qué inicias el retiro; queda en el registro de auditoría."></textarea></div>
+</div></form></div><div class="flex justify-end gap-2 pt-2"><button class="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900">Cancelar</button><button  class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-primary-500 hover:bg-primary-600 text-white">Confirmar retiro</button><button  class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-primary-500 hover:bg-primary-600 text-white">Cancelar</button></div></div></details></div></div><script>(function(){if (!window.__nousSetState) {window.__nousSetState = function(sid, stateId, btn) {var container = document.querySelector('[data-states-container="'+sid+'"]');if (!container) return;var variants = container.querySelectorAll('[data-state-variant]');variants.forEach(function(v){ v.classList.toggle("hidden", v.getAttribute("data-state-variant") !== stateId); });var pills = container.querySelectorAll('[data-state-pill]');pills.forEach(function(p){var isActive = p.getAttribute("data-state-pill") === stateId;p.classList.toggle("bg-primary-500", isActive);p.classList.toggle("text-white", isActive);p.classList.toggle("shadow-sm", isActive);p.classList.toggle("text-slate-700", !isActive);p.classList.toggle("hover:bg-slate-100", !isActive);});if (window.lucide) window.lucide.createIcons();};}})();</script></div>
+<div class="col-span-full" data-states-container="modal_editar_persona"><div class="mb-3 flex items-center gap-3 flex-wrap"><span class="text-[11px] uppercase tracking-wider font-semibold text-slate-500">Revisar estados</span><div class="inline-flex gap-1 p-1 bg-slate-100 rounded-lg"><button type="button" onclick="__nousSetState('modal_editar_persona', 'default', this)" data-state-pill="default" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors bg-primary-500 text-white shadow-sm">Predeterminado</button><button type="button" onclick="__nousSetState('modal_editar_persona', 'submitting', this)" data-state-pill="submitting" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors text-slate-700 hover:bg-slate-100">Enviando</button><button type="button" onclick="__nousSetState('modal_editar_persona', 'success', this)" data-state-pill="success" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors text-slate-700 hover:bg-slate-100">Éxito</button><button type="button" onclick="__nousSetState('modal_editar_persona', 'error', this)" data-state-pill="error" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors text-slate-700 hover:bg-slate-100">Error</button></div></div><div data-state-variant="default" class=""><div class="col-span-full" data-section="modal_editar_persona__default"><details class="bg-white rounded-xl border border-slate-200 overflow-hidden"><summary class="flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-slate-50 list-none"><i data-lucide="alert-octagon" class="w-4 h-4 text-primary-600"></i><span class="text-sm font-semibold text-slate-900">Editar persona</span><i data-lucide="chevron-down" class="w-4 h-4 ml-auto text-slate-400 transition-transform"></i></summary><div class="px-4 py-3 border-t border-slate-200 space-y-3"><div class="col-span-full" data-section="modal_editar_persona__default_form"><form class="bg-white rounded-xl border border-slate-200 p-6 relative" onsubmit="return false;"><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Nombre completo<span class=\'text-red-500 ml-1\'>*</span></label><input id="full_name" type="text" required value="" placeholder="Ingrese nombre completo…" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"></div>
+<div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Correo corporativo<span class=\'text-red-500 ml-1\'>*</span></label><input id="email" type="text" required value="" placeholder="Ingrese correo corporativo…" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"></div>
+<div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Compañía</label><select id="company_id"  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"><option value="opt1" >Option 1</option><option value="opt2" >Option 2</option></select></div>
+<div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Estado</label><select id="status"  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"><option value="Activa" >Activa</option><option value="Salió del grupo" >Salió del grupo</option></select></div>
+</div></form></div><div class="flex justify-end gap-2 pt-2"><button class="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900">Cancelar</button></div></div></details></div></div><div data-state-variant="submitting" class="hidden"><div class="col-span-full" data-section="modal_editar_persona__submitting"><details class="bg-white rounded-xl border border-slate-200 overflow-hidden"><summary class="flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-slate-50 list-none"><i data-lucide="alert-octagon" class="w-4 h-4 text-primary-600"></i><span class="text-sm font-semibold text-slate-900">Editar persona</span><i data-lucide="chevron-down" class="w-4 h-4 ml-auto text-slate-400 transition-transform"></i></summary><div class="px-4 py-3 border-t border-slate-200 space-y-3"><div class="col-span-full" data-section="modal_editar_persona__submitting_form"><form class="bg-white rounded-xl border border-slate-200 p-6 relative" onsubmit="return false;"><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Nombre completo<span class=\'text-red-500 ml-1\'>*</span></label><input id="full_name" type="text" required value="" placeholder="Ingrese nombre completo…" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"></div>
+<div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Correo corporativo<span class=\'text-red-500 ml-1\'>*</span></label><input id="email" type="text" required value="" placeholder="Ingrese correo corporativo…" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"></div>
+<div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Compañía</label><select id="company_id"  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"><option value="opt1" >Option 1</option><option value="opt2" >Option 2</option></select></div>
+<div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Estado</label><select id="status"  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"><option value="Activa" >Activa</option><option value="Salió del grupo" >Salió del grupo</option></select></div>
+</div></form></div><div class="flex justify-end gap-2 pt-2"><button class="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900">Cancelar</button></div></div></details></div></div><div data-state-variant="success" class="hidden"><div class="col-span-full" data-section="modal_editar_persona__success"><details class="bg-white rounded-xl border border-slate-200 overflow-hidden"><summary class="flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-slate-50 list-none"><i data-lucide="alert-octagon" class="w-4 h-4 text-primary-600"></i><span class="text-sm font-semibold text-slate-900">Editar persona</span><i data-lucide="chevron-down" class="w-4 h-4 ml-auto text-slate-400 transition-transform"></i></summary><div class="px-4 py-3 border-t border-slate-200 space-y-3"><div class="col-span-full" data-section="modal_editar_persona__success_form"><form class="bg-white rounded-xl border border-slate-200 p-6 relative" onsubmit="return false;"><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Nombre completo<span class=\'text-red-500 ml-1\'>*</span></label><input id="full_name" type="text" required value="" placeholder="Ingrese nombre completo…" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"></div>
+<div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Correo corporativo<span class=\'text-red-500 ml-1\'>*</span></label><input id="email" type="text" required value="" placeholder="Ingrese correo corporativo…" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"></div>
+<div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Compañía</label><select id="company_id"  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"><option value="opt1" >Option 1</option><option value="opt2" >Option 2</option></select></div>
+<div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Estado</label><select id="status"  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"><option value="Activa" >Activa</option><option value="Salió del grupo" >Salió del grupo</option></select></div>
+</div></form></div><div class="flex justify-end gap-2 pt-2"><button class="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900">Cancelar</button></div></div></details></div></div><div data-state-variant="error" class="hidden"><div class="col-span-full" data-section="modal_editar_persona__error"><details class="bg-white rounded-xl border border-slate-200 overflow-hidden"><summary class="flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-slate-50 list-none"><i data-lucide="alert-octagon" class="w-4 h-4 text-primary-600"></i><span class="text-sm font-semibold text-slate-900">Editar persona</span><i data-lucide="chevron-down" class="w-4 h-4 ml-auto text-slate-400 transition-transform"></i></summary><div class="px-4 py-3 border-t border-slate-200 space-y-3"><div class="col-span-full" data-section="modal_editar_persona__error_form"><form class="bg-white rounded-xl border border-slate-200 p-6 relative" onsubmit="return false;"><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Nombre completo<span class=\'text-red-500 ml-1\'>*</span></label><input id="full_name" type="text" required value="" placeholder="Ingrese nombre completo…" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"></div>
+<div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Correo corporativo<span class=\'text-red-500 ml-1\'>*</span></label><input id="email" type="text" required value="" placeholder="Ingrese correo corporativo…" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"></div>
+<div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Compañía</label><select id="company_id"  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"><option value="opt1" >Option 1</option><option value="opt2" >Option 2</option></select></div>
+<div class="space-y-1"><label class="block text-sm font-medium text-slate-700">Estado</label><select id="status"  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"><option value="Activa" >Activa</option><option value="Salió del grupo" >Salió del grupo</option></select></div>
+</div></form></div><div class="flex justify-end gap-2 pt-2"><button class="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900">Cancelar</button></div></div></details></div></div><script>(function(){if (!window.__nousSetState) {window.__nousSetState = function(sid, stateId, btn) {var container = document.querySelector('[data-states-container="'+sid+'"]');if (!container) return;var variants = container.querySelectorAll('[data-state-variant]');variants.forEach(function(v){ v.classList.toggle("hidden", v.getAttribute("data-state-variant") !== stateId); });var pills = container.querySelectorAll('[data-state-pill]');pills.forEach(function(p){var isActive = p.getAttribute("data-state-pill") === stateId;p.classList.toggle("bg-primary-500", isActive);p.classList.toggle("text-white", isActive);p.classList.toggle("shadow-sm", isActive);p.classList.toggle("text-slate-700", !isActive);p.classList.toggle("hover:bg-slate-100", !isActive);});if (window.lucide) window.lucide.createIcons();};}})();</script></div></div>
+  </div>
+</main>
+
+
+
+<!-- Generated: sha256:83b72b95bb372f16 -->
+<!-- Source: SCR-person-detail | Locale: es-EC -->
+
+<script>
+// Initialize Lucide icons
+document.addEventListener('DOMContentLoaded', function() {
+  if (window.lucide) lucide.createIcons();
+  // IMP-208 Sprint 2.T — conditional rendering evaluator.
+  // Watches form-field changes and toggles [hidden] on sections that
+  // declare a `data-conditional-on="<field_id> == 'value'"` attribute.
+  // Supports simple equality + && conjunction. Default: section is hidden
+  // when the predicate is false, visible when true.
+  // Resolve a field's CURRENT value (checked radio in a group, else element value).
+  function fieldValue(fieldId) {
+    var radios = document.querySelectorAll('[name="'+fieldId+'"]');
+    if (radios.length) {
+      for (var i=0;i<radios.length;i++){ if (radios[i].checked) return radios[i].value; }
+      // no radio checked yet → unresolved
+      return null;
+    }
+    var el = document.getElementById(fieldId) || document.querySelector('[data-field="'+fieldId+'"]');
+    return el ? el.value : null;
+  }
+  function firstField(expr) {
+    var m = (expr||'').match(/^([\w.]+)/);
+    return m ? m[1] : '';
+  }
+  function condMatches(expr) {
+    if (!expr) return true;
+    var parts = expr.split('&&').map(function(s){return s.trim();});
+    return parts.every(function(part){
+      var m = part.match(/^([\w.]+)\s*(==|!=)\s*['"]?([\w.\-_]+)['"]?$/);
+      if (!m) return true;
+      var v = fieldValue(m[1]);
+      if (v === null) return false;           // unresolved → not a match (fail-closed)
+      return m[2] === '==' ? v === m[3] : v !== m[3];
+    });
+  }
+  // Group-aware reveal: for each field, show exactly ONE conditional branch —
+  // the matching one, or (if the field is unresolved at load) the first in the group.
+  function applyConditionals() {
+    var groups = {};
+    document.querySelectorAll('[data-conditional-on]').forEach(function(sec){
+      var f = firstField(sec.getAttribute('data-conditional-on'));
+      (groups[f] = groups[f] || []).push(sec);
+    });
+    Object.keys(groups).forEach(function(f){
+      var secs = groups[f];
+      var resolved = fieldValue(f) !== null;
+      var shownOne = false;
+      secs.forEach(function(sec){
+        var ok = condMatches(sec.getAttribute('data-conditional-on'));
+        if (ok) { sec.removeAttribute('hidden'); shownOne = true; }
+        else sec.setAttribute('hidden','');
+      });
+      // Field unresolved (nothing checked) → reveal the first branch so the screen
+      // is never blank; user selection then switches via the change handler.
+      if (!resolved && !shownOne && secs.length) secs[0].removeAttribute('hidden');
+    });
+  }
+  // IMP-217 — conditional REQUIREDNESS. A field carrying
+  // data-required-when="<field> == '<value>'" is always visible but becomes
+  // `required` only when the predicate holds. Reuses fieldValue()/condMatches()
+  // (the same evaluator as visibility conditionals) so the two compose. Toggles
+  // the control's `required` attribute + an id-linked asterisk span
+  // (data-req-star-for="<id>") so the label gains/loses its "*".
+  function applyRequiredConditionals() {
+    document.querySelectorAll('[data-required-when]').forEach(function(ctl){
+      var expr = ctl.getAttribute('data-required-when') || '';
+      var match = condMatches(expr);   // fail-closed false on unresolved controller
+      ctl.toggleAttribute('required', match);
+      var star = document.querySelector('[data-req-star-for="' + (ctl.id || '') + '"]');
+      if (star) star.classList.toggle('hidden', !match);
+    });
+  }
+  document.addEventListener('change', applyConditionals);
+  document.addEventListener('input', applyConditionals);
+  document.addEventListener('change', applyRequiredConditionals);
+  document.addEventListener('input', applyRequiredConditionals);
+  setTimeout(applyConditionals, 50);
+  setTimeout(applyRequiredConditionals, 50);
+});
+
+// Command palette toggle
+function toggleCommandPalette() {
+  var el = document.getElementById('command-palette');
+  if (el) el.classList.toggle('hidden');
+}
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    toggleCommandPalette();
+  }
+  if (e.key === 'Escape') {
+    var el = document.getElementById('command-palette');
+    if (el) el.classList.add('hidden');
+  }
+});
+
+// Tab switching
+function switchTab(tabId, idx) {
+  var buttons = document.querySelectorAll('[id^="btn-' + tabId + '_"]');
+  var panels = document.querySelectorAll('[id^="panel-' + tabId + '_"]');
+  buttons.forEach(function(b, i) {
+    if (i === idx) {
+      b.classList.add('border-b-2', 'border-primary-500', 'text-primary-600', 'font-semibold');
+      b.classList.remove('text-slate-500');
+    } else {
+      b.classList.remove('border-b-2', 'border-primary-500', 'text-primary-600', 'font-semibold');
+      b.classList.add('text-slate-500');
+    }
+  });
+  panels.forEach(function(p, i) {
+    p.classList.toggle('hidden', i !== idx);
+    p.classList.toggle('block', i === idx);
+  });
+  if (window.lucide) lucide.createIcons();
+}
+
+// Wizard navigation
+function updateWizardIndicator(wizardId, activeIdx) {
+  var circles = document.querySelectorAll('[id^="' + wizardId + '_circle_"]');
+  var base = 'w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold';
+  var labelBase = 'text-[11px] hidden sm:block text-center max-w-[72px] leading-tight';
+  circles.forEach(function(c, i) {
+    c.className = base + (i === activeIdx
+      ? ' bg-primary-500 text-white shadow-sm ring-2 ring-primary-200'
+      : ' bg-white text-slate-500 border-2 border-slate-300');
+    var parent = c.parentElement;
+    if (parent) {
+      var lbl = parent.querySelector('span');
+      if (lbl) {
+        lbl.className = labelBase + (i === activeIdx ? ' text-primary-600 font-semibold' : ' text-slate-400');
+      }
+    }
+  });
+}
+function wizardNext(wizardId) {
+  var steps = document.querySelectorAll('[id^="' + wizardId + '_step_"]');
+  for (var i = 0; i < steps.length - 1; i++) {
+    if (!steps[i].classList.contains('hidden')) {
+      steps[i].classList.add('hidden');
+      steps[i].classList.remove('block');
+      steps[i+1].classList.remove('hidden');
+      steps[i+1].classList.add('block');
+      updateWizardIndicator(wizardId, i + 1);
+      var pbN = document.getElementById('wizard_prev_btn'); if (pbN) pbN.hidden = false;
+      break;
+    }
+  }
+}
+function wizardPrev(wizardId) {
+  var steps = document.querySelectorAll('[id^="' + wizardId + '_step_"]');
+  for (var i = 1; i < steps.length; i++) {
+    if (!steps[i].classList.contains('hidden')) {
+      steps[i].classList.add('hidden');
+      steps[i].classList.remove('block');
+      steps[i-1].classList.remove('hidden');
+      steps[i-1].classList.add('block');
+      updateWizardIndicator(wizardId, i - 1);
+      var pbP = document.getElementById('wizard_prev_btn'); if (pbP) pbP.hidden = (i - 1 === 0);
+      break;
+    }
+  }
+}
+</script>
+<style data-imp="IMP-160-motion-catalog">.motion-modal>summary~*{opacity:0;transform:translateY(-4px);transition:opacity 180ms cubic-bezier(0.2, 0, 0, 1),transform 180ms cubic-bezier(0.2, 0, 0, 1)}.motion-modal[open]>summary~*{opacity:1;transform:none}.motion-modal.motion-modal-ring{box-shadow:0 0 0 4px rgba(252,211,77,.55),0 0 0 6px rgba(252,211,77,.25)}.motion-row-pressable{cursor:pointer;transition:background-color 220ms cubic-bezier(0.2, 0, 0, 1)}.motion-row-pressed{background-color:rgba(254,243,199,.6)!important}.motion-row-chevron{display:inline-flex;align-items:center;margin-left:.5rem;color:#94a3b8;transition:transform 160ms cubic-bezier(0.2, 0, 0, 1)}tr:hover .motion-row-chevron{transform:translateX(3px)}.motion-card-pressable{cursor:pointer;transition:transform 90ms cubic-bezier(0.2, 0, 0, 1)}.motion-card-pressed{transform:scale(.97)}.motion-btn-pressable{transition:transform 70ms cubic-bezier(0.2, 0, 0, 1)}.motion-btn-pressed{transform:scale(.96)}body.motion-page-leaving{opacity:.6;transition:opacity 160ms cubic-bezier(0.4, 0, 1, 1)}@media (prefers-reduced-motion: reduce){.motion-modal>summary~*,.motion-modal[open]>summary~*,.motion-row-pressable,.motion-row-chevron,.motion-card-pressable,.motion-btn-pressable,body.motion-page-leaving{transition:none!important;animation:none!important;transform:none!important}}</style><script data-imp="IMP-160-wiring">(function(){var I=[{"selector":"#btn-imp160-1","kind":"button","navigate_to":"SCR-new-request"},{"selector":"#btn-imp160-2","kind":"button","opens_modal":"modal_offboarding"},{"selector":"#btn-imp160-3","kind":"button","opens_modal":"modal_editar_persona"}];var R=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;function openModal(id){var d=document.querySelector('details[data-section="'+id+'"]');if(!d)d=document.querySelector('details[data-section="'+id+'__default"]');if(!d)d=document.querySelector('details[data-section^="'+id+'__"]');if(!d)return;d.classList.add("motion-modal");d.open=true;var r=d.getBoundingClientRect();window.scrollTo({top:r.top+window.scrollY-80,behavior:R?"auto":"smooth"});d.classList.add("motion-modal-ring");setTimeout(function(){d.classList.remove("motion-modal-ring")},R?0:1400);}function navigate(scr){var delay=R?0:160;document.body.classList.add("motion-page-leaving");setTimeout(function(){window.location.href=scr+".html"},delay);}function press(el,cls,ms){if(R)return;el.classList.add(cls);setTimeout(function(){el.classList.remove(cls)},ms);}function wireRow(tr,i){var ex=(i.exclude_targets||["A","BUTTON"]).map(function(s){return s.toUpperCase()});tr.addEventListener("click",function(ev){var t=ev.target;while(t&&t!==tr){if(ex.indexOf((t.tagName||"").toUpperCase())>=0)return;t=t.parentNode}var hold=R?0:140;tr.classList.add("motion-row-pressed");setTimeout(function(){tr.classList.remove("motion-row-pressed");if(i.opens_modal)openModal(i.opens_modal);else if(i.navigate_to)navigate(i.navigate_to);},hold);});var td=tr.querySelector("td:last-child");if(td&&!td.querySelector(".motion-row-chevron")){var c=document.createElement("span");c.className="motion-row-chevron";c.innerHTML="\u203A";td.appendChild(c)}}function wire(){I.forEach(function(i){var els=document.querySelectorAll(i.selector);els.forEach(function(el){el.style.cursor="pointer";if(i.kind==="row"){wireRow(el,i);return}var pressCls=i.kind==="card"?"motion-card-pressed":"motion-btn-pressed";var pressMs=i.kind==="card"?90:70;el.addEventListener("mousedown",function(){press(el,pressCls,pressMs)});el.addEventListener("click",function(ev){ev.preventDefault();if(i.opens_modal)openModal(i.opens_modal);else if(i.navigate_to)navigate(i.navigate_to);})})})}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",wire)}else{wire()}})();</script></body>
+</html>

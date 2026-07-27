@@ -89,6 +89,26 @@
         }
       },
       {
+        "id": "ingestion_actions",
+        "type": "action-bar",
+        "actions": [
+          {
+            "id": "btn_import_members_csv",
+            "label": "Importar miembros (CSV)",
+            "variant": "secondary",
+            "icon": "upload",
+            "opens_modal": "modal_import_members_csv"
+          },
+          {
+            "id": "btn_import_usage_csv",
+            "label": "Importar uso (CSV)",
+            "variant": "secondary",
+            "icon": "upload",
+            "opens_modal": "modal_import_usage_csv"
+          }
+        ]
+      },
+      {
         "id": "record_tabs",
         "type": "tabs",
         "title": "Detalle de la organización",
@@ -387,6 +407,28 @@
                     "help": "En modo orquestación nada se ejecuta solo: cada alta o baja queda como acción pendiente hasta que la confirmes."
                   },
                   {
+                    "id": "ingestion_mode",
+                    "label": "Modo de ingesta de datos",
+                    "component": "select",
+                    "required": true,
+                    "default": "api",
+                    "options": [
+                      {
+                        "value": "api",
+                        "label": "API — Ledger sincroniza miembros, actividad y costo automáticamente"
+                      },
+                      {
+                        "value": "csv_import",
+                        "label": "Importación CSV — cargas los exports de la consola y Ledger los procesa igual que la API"
+                      },
+                      {
+                        "value": "manual",
+                        "label": "Manual — registras altas, bajas y uso directamente en Ledger"
+                      }
+                    ],
+                    "help": "Para organizaciones sin acceso a la API (p. ej. un plan Teams): la importación CSV y el registro manual mantienen el registro y la frescura con las mismas validaciones y auditoría."
+                  },
+                  {
                     "id": "low_pool_floor",
                     "label": "Piso de cupo bajo",
                     "component": "number",
@@ -575,6 +617,138 @@
           "label": "Rotar y retirar la anterior",
           "action": "server_action:rotateCredential"
         }
+      },
+      {
+        "id": "modal_import_members_csv",
+        "type": "modal",
+        "title": "Importar miembros desde CSV",
+        "description": "Carga el export de miembros de la consola del proveedor para esta organización. Ledger corre la misma verificación de deriva que la sincronización por API: confirma altas/bajas pendientes y marca miembros desconocidos.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "csv_file",
+            "label": "Archivo CSV",
+            "component": "file",
+            "required": true,
+            "help": "Máximo 1 archivo .csv (export de la consola). Las filas sin correo válido se omiten y se reportan."
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_run_modal_import_members_csv",
+            "label": "Importar",
+            "variant": "primary",
+            "intent": "server_action:importMembersCsv",
+            "onSuccess": {
+              "toast": "Importación completada. Revisa el resumen: confirmaciones, cierres y deriva detectada.",
+              "close": true,
+              "refresh": true
+            },
+            "onError": {
+              "toast": "La importación falló. El archivo no se aplicó; corrige los errores y vuelve a intentarlo."
+            }
+          },
+          {
+            "id": "btn_cancel_modal_import_members_csv",
+            "label": "Cancelar",
+            "variant": "secondary"
+          }
+        ]
+      },
+      {
+        "id": "modal_import_usage_csv",
+        "type": "modal",
+        "title": "Importar uso desde CSV",
+        "description": "Carga el export de uso/costo de la consola del proveedor. Ledger actualiza actividad y costo por persona y día con los mismos criterios que la sincronización por API (origen: importación CSV).",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "csv_file",
+            "label": "Archivo CSV",
+            "component": "file",
+            "required": true,
+            "help": "Máximo 1 archivo .csv (export de la consola). Las identidades sin match se reportan como advertencias."
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_run_modal_import_usage_csv",
+            "label": "Importar",
+            "variant": "primary",
+            "intent": "server_action:importUsageCsv",
+            "onSuccess": {
+              "toast": "Importación completada. La frescura de datos de esta organización se actualizó.",
+              "close": true,
+              "refresh": true
+            },
+            "onError": {
+              "toast": "La importación falló. El archivo no se aplicó; corrige los errores y vuelve a intentarlo."
+            }
+          },
+          {
+            "id": "btn_cancel_modal_import_usage_csv",
+            "label": "Cancelar",
+            "variant": "secondary"
+          }
+        ]
       },
       {
         "id": "connector_capabilities",

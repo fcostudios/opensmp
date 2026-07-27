@@ -5,7 +5,7 @@
 
 ## Summary
 
-- **R1 features:** 45 (FEAT-001..FEAT-045) · **R2 fast-follow:** 12 · **R3+:** named in PRD §12 (not enumerated here)
+- **R1 features:** 46 (FEAT-001..FEAT-046) · **R2 fast-follow:** 12 · **R3+:** named in PRD §12 (not enumerated here)
 - **Screens covered:** 28 · **Journeys covered:** J1–J4 · **Modules covered:** A–I (all P0 rows)
 
 ## Feature matrix (R1)
@@ -39,7 +39,7 @@
 | FEAT-025 | Append-only seat register with DB-level integrity (EXCLUDE + contiguity trigger) + register CSV export | E | all | SCR-register | LicenseAssignment |
 | FEAT-026 | Effective-dated rate cards (locked once consumed by a close) | E | J3 | SCR-rates | RateCard |
 | FEAT-027 | Monthly close by business day 3: per-company statements + lines (seat-days × rate + usage) | E | J3 | SCR-close, SCR-statements | CloseRun, Statement, StatementLine, CostRecord |
-| FEAT-028 | Central rollup across 30 companies per period | E | J3 | SCR-close, SCR-reconciliation | Statement, Reconciliation |
+| FEAT-028 | Central rollup across all companies per period | E | J3 | SCR-close, SCR-reconciliation | Statement, Reconciliation |
 | FEAT-029 | Reconciliation vs vendor invoice: 0.5% tolerance, line-level variance, override with note | E | J3 | SCR-reconciliation | Reconciliation, ReconciliationVarianceLine |
 | FEAT-030 | Statement + consolidated rollup exports CSV/PDF (`Company.statement_language` for statements) | E | J3 | SCR-statement-detail, SCR-close | Statement, Company |
 | FEAT-031 | Statement→register→raw-payload traceability drill-down | E/H | J3 | SCR-statement-detail, SCR-register | StatementLine.assignment_id |
@@ -57,6 +57,7 @@
 | FEAT-043 | Bilingual UI es-EC/en-US, tú register, per-user selector | — | all | all screens | (i18n catalogs) |
 | FEAT-044 | Operational settings: alert thresholds, hygiene windows, pool floors, notification identity | C/G | J4 | SCR-settings | AlertRule, SystemSetting |
 | FEAT-045 | Requester status tracking (my requests + state timeline + notifications) | B | J1 | SCR-my-requests, SCR-request-detail | LicenseRequest, RequestTransition |
+| FEAT-046 | API-less ingestion: member/usage CSV import + manual register upkeep per org ingestion_mode (DEC-SMP-018) | I | J4 | SCR-vendor-account-detail | VendorAccount, LicenseAssignment, ActivityRecord, CostRecord |
 
 ## R2 fast-follow (no R1 stories; PRD §12 middle column)
 

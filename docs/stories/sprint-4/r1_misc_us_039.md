@@ -27,7 +27,7 @@ As a Central Finance (persona_04), I want to see and export the group total so t
 ## Acceptance Criteria
 
 - [ ] AC1: Group-total tile on SCR-close (SUM Statement.total_usd for period)
-- [ ] AC2: `exportRollupCsv`/`Pdf`: consolidated rollup across 30 companies
+- [ ] AC2: `exportRollupCsv`/`Pdf`: consolidated rollup across all companies
 - [ ] AC3: Rollup ties to reconciliation totals (same period source)
 
 ## Notes

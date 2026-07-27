@@ -6,7 +6,7 @@
 
 ## Always-mandated (Standard §3.1)
 
-- **Tenant isolation** — every path that touches tenant-scoped data (filtered by `company_id`). → explicit isolation assertions (a query for tenant A must never return tenant B's rows).
+- **Tenant isolation** — every path that touches tenant-scoped data (filtered by `org_id`). → explicit isolation assertions (a query for tenant A must never return tenant B's rows).
 - **Authorization** — role/permission gates on commands/mutations. → integration tests for allowed vs forbidden (expect 403).
 - **Money / tax / financial math** (if present) — amounts, rounding, and idempotency of charge/ledger events. → property-based + a provider contract test.
 

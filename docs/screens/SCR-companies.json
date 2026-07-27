@@ -272,7 +272,7 @@
         "id": "modal_csv_import",
         "type": "modal",
         "title": "Importar compañías desde CSV",
-        "description": "Carga inicial de las 30 compañías del grupo. Columnas esperadas: code, name, type (internal/external), budget_monthly_usd, finance_contact_email, statement_language (es/en).",
+        "description": "Carga inicial de las compañías del grupo. Columnas esperadas: code, name, type (internal/external), budget_monthly_usd, finance_contact_email, statement_language (es/en).",
         "states": [
           {
             "id": "default",

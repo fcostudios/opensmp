@@ -33,14 +33,7 @@ import {
 
 // UserRole — the distinct roles the nav map gates sidebar items on.
 // Generated locally (the dev team may re-home this in a real auth hook).
-export type UserRole = "approver" | "central_finance" | "company_finance" | "employee" | "group_admin";
-export type NavSectionId = "operation" | "finance" | "administration";
-
-export const navSections = [
-  { id: "operation" },
-  { id: "finance" },
-  { id: "administration" },
-] as const satisfies readonly { id: NavSectionId }[];
+export type UserRole = "APPROVER" | "CENTRAL_FINANCE" | "COMPANY_FINANCE" | "EMPLOYEE" | "GROUP_ADMIN";
 
 export interface NavItem {
   id: string;
@@ -49,7 +42,6 @@ export interface NavItem {
   icon: LucideIcon;
   href: string;
   screenId: string;
-  section: NavSectionId;
   roles?: UserRole[];
   /** Key on the API unread-count response — renders a numeric badge when > 0. */
   badge?: string;
@@ -66,8 +58,7 @@ export const navItems: readonly NavItem[] = [
     icon: LayoutDashboard,
     href: "/panel",
     screenId: "SCR-admin-dashboard",
-    section: "operation",
-    roles: ["group_admin"],
+    roles: ["GROUP_ADMIN"],
   },
   {
     id: "nav-solicitudes",
@@ -76,8 +67,7 @@ export const navItems: readonly NavItem[] = [
     icon: FileText,
     href: "/solicitudes",
     screenId: "SCR-my-requests",
-    section: "operation",
-    roles: ["employee", "approver", "group_admin"],
+    roles: ["EMPLOYEE", "APPROVER", "GROUP_ADMIN"],
   },
   {
     id: "nav-aprobaciones",
@@ -86,8 +76,7 @@ export const navItems: readonly NavItem[] = [
     icon: Inbox,
     href: "/aprobaciones",
     screenId: "SCR-approval-queue",
-    section: "operation",
-    roles: ["approver", "group_admin"],
+    roles: ["APPROVER", "GROUP_ADMIN"],
   },
   {
     id: "nav-reclamaciones",
@@ -96,8 +85,7 @@ export const navItems: readonly NavItem[] = [
     icon: RotateCcw,
     href: "/reclamaciones",
     screenId: "SCR-reclamation-proposals",
-    section: "operation",
-    roles: ["approver", "group_admin"],
+    roles: ["APPROVER", "GROUP_ADMIN"],
   },
   {
     id: "nav-excepciones",
@@ -106,8 +94,7 @@ export const navItems: readonly NavItem[] = [
     icon: AlertTriangle,
     href: "/excepciones",
     screenId: "SCR-exceptions",
-    section: "operation",
-    roles: ["group_admin"],
+    roles: ["GROUP_ADMIN"],
   },
   {
     id: "nav-cupos",
@@ -116,8 +103,7 @@ export const navItems: readonly NavItem[] = [
     icon: Gauge,
     href: "/cupos",
     screenId: "SCR-pools",
-    section: "operation",
-    roles: ["group_admin"],
+    roles: ["GROUP_ADMIN"],
   },
   {
     id: "nav-uso",
@@ -126,8 +112,7 @@ export const navItems: readonly NavItem[] = [
     icon: Activity,
     href: "/uso",
     screenId: "SCR-usage",
-    section: "operation",
-    roles: ["group_admin"],
+    roles: ["GROUP_ADMIN"],
   },
   {
     id: "nav-registro",
@@ -136,8 +121,7 @@ export const navItems: readonly NavItem[] = [
     icon: BookOpen,
     href: "/registro",
     screenId: "SCR-register",
-    section: "operation",
-    roles: ["group_admin", "central_finance"],
+    roles: ["GROUP_ADMIN", "CENTRAL_FINANCE"],
   },
   {
     id: "nav-estados-de-cuenta",
@@ -146,8 +130,7 @@ export const navItems: readonly NavItem[] = [
     icon: Receipt,
     href: "/estados-de-cuenta",
     screenId: "SCR-statements",
-    section: "finance",
-    roles: ["company_finance", "central_finance", "group_admin"],
+    roles: ["COMPANY_FINANCE", "CENTRAL_FINANCE", "GROUP_ADMIN"],
   },
   {
     id: "nav-cierre",
@@ -156,8 +139,7 @@ export const navItems: readonly NavItem[] = [
     icon: Calculator,
     href: "/cierre",
     screenId: "SCR-close",
-    section: "finance",
-    roles: ["central_finance", "group_admin"],
+    roles: ["CENTRAL_FINANCE", "GROUP_ADMIN"],
   },
   {
     id: "nav-conciliacion",
@@ -166,8 +148,7 @@ export const navItems: readonly NavItem[] = [
     icon: Scale,
     href: "/conciliacion",
     screenId: "SCR-reconciliation",
-    section: "finance",
-    roles: ["central_finance", "group_admin"],
+    roles: ["CENTRAL_FINANCE", "GROUP_ADMIN"],
   },
   {
     id: "nav-tarifas",
@@ -176,8 +157,7 @@ export const navItems: readonly NavItem[] = [
     icon: CircleDollarSign,
     href: "/tarifas",
     screenId: "SCR-rates",
-    section: "finance",
-    roles: ["central_finance", "group_admin"],
+    roles: ["CENTRAL_FINANCE", "GROUP_ADMIN"],
   },
   {
     id: "nav-companias",
@@ -186,8 +166,7 @@ export const navItems: readonly NavItem[] = [
     icon: Building2,
     href: "/companias",
     screenId: "SCR-companies",
-    section: "administration",
-    roles: ["group_admin"],
+    roles: ["GROUP_ADMIN"],
   },
   {
     id: "nav-personas",
@@ -196,8 +175,7 @@ export const navItems: readonly NavItem[] = [
     icon: Users,
     href: "/personas",
     screenId: "SCR-people",
-    section: "administration",
-    roles: ["group_admin"],
+    roles: ["GROUP_ADMIN"],
   },
   {
     id: "nav-organizaciones",
@@ -206,8 +184,7 @@ export const navItems: readonly NavItem[] = [
     icon: Network,
     href: "/organizaciones",
     screenId: "SCR-vendor-accounts",
-    section: "administration",
-    roles: ["group_admin"],
+    roles: ["GROUP_ADMIN"],
   },
   {
     id: "nav-credenciales",
@@ -216,8 +193,7 @@ export const navItems: readonly NavItem[] = [
     icon: KeyRound,
     href: "/credenciales",
     screenId: "SCR-credentials",
-    section: "administration",
-    roles: ["group_admin"],
+    roles: ["GROUP_ADMIN"],
   },
   {
     id: "nav-usuarios",
@@ -226,8 +202,7 @@ export const navItems: readonly NavItem[] = [
     icon: ShieldCheck,
     href: "/usuarios",
     screenId: "SCR-users-roles",
-    section: "administration",
-    roles: ["group_admin"],
+    roles: ["GROUP_ADMIN"],
   },
   {
     id: "nav-alertas",
@@ -236,8 +211,7 @@ export const navItems: readonly NavItem[] = [
     icon: Bell,
     href: "/alertas",
     screenId: "SCR-alerts",
-    section: "administration",
-    roles: ["group_admin"],
+    roles: ["GROUP_ADMIN"],
   },
   {
     id: "nav-auditoria",
@@ -246,8 +220,7 @@ export const navItems: readonly NavItem[] = [
     icon: ScrollText,
     href: "/auditoria",
     screenId: "SCR-audit",
-    section: "administration",
-    roles: ["group_admin"],
+    roles: ["GROUP_ADMIN"],
   },
   {
     id: "nav-configuracion",
@@ -256,7 +229,6 @@ export const navItems: readonly NavItem[] = [
     icon: Settings,
     href: "/configuracion",
     screenId: "SCR-settings",
-    section: "administration",
-    roles: ["group_admin"],
+    roles: ["GROUP_ADMIN"],
   },
 ] as const;

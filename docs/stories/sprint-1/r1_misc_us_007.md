@@ -4,7 +4,7 @@
 
 ## User Story
 
-As a Group Admin (persona_01), I want to load the 30 companies and current seat holders so that 
+As a Group Admin (persona_01), I want to load the managed companies and current seat holders so that 
 
 ## Meta
 
@@ -27,7 +27,7 @@ As a Group Admin (persona_01), I want to load the 30 companies and current seat 
 
 ## Acceptance Criteria
 
-- [ ] AC1: `importCompaniesCsv` seeds 30 companies (code, approver, finance contact, budget, statement_language)
+- [ ] AC1: `importCompaniesCsv` seeds companies from CSV (code, approver, finance contact, budget, statement_language); MVP fixture seeds 5 companies (DEC-SMP-018) — the same path handles the 30-company rollout
 - [ ] AC2: Backfill imports current Anthropic members as LicenseAssignment rows (source_kind=import) each with a system-materialized LicenseRequest (state=active, justification 'importación inicial') per 04 lifecycle
 - [ ] AC3: Register passes integrity constraints post-backfill; counts reconcile with the console lists
 - [ ] AC4: Seeds one effective-dated VendorAccountCapacity row per (org, license type) at go-live, purchased counts reconciled with the console

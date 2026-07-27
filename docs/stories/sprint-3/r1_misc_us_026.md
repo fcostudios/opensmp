@@ -29,6 +29,7 @@ As a Group Admin (persona_01), I want to ingest per-user daily activity and cost
 - [ ] AC1: Daily job upserts ActivityRecord (counters jsonb + raw payload + synced_at) per (org, person, date); idempotent re-runs
 - [ ] AC2: Cost sync upserts CostRecord within the 30-day revision window
 - [ ] AC3: Identity matched via Vendor.identity_matching (email); unmatched rows surfaced as warnings
+- [ ] AC4: The job only auto-syncs orgs with ingestion_mode=api; csv_import/manual orgs reach the SAME upserts through US-055 (source=csv_import/manual) — freshness labels and sync_stale semantics (US-029) are channel-agnostic, keyed on synced_at
 
 ## Notes
 

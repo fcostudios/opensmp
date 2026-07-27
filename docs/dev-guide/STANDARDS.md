@@ -1,7 +1,6 @@
 # Coding Standards Reference
 
-Entity conventions, error handling, and field standards for the self-hosted
-Next.js stack.
+Entity conventions, error handling, and field standards for the serverless stack.
 See `CLAUDE.md` for the condensed rules and tables.
 
 ## Drizzle Entity Convention
@@ -10,9 +9,9 @@ See `CLAUDE.md` for the condensed rules and tables.
 // packages/db/src/schema.ts
 import { pgTable, uuid, timestamp } from "drizzle-orm/pg-core";
 
-export const statement = pgTable("statement", {
+export const member = pgTable("member", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),
-  companyId: uuid("company_id").notNull(),        // company scope (camelCase key, snake_case SQL)
+  company_id: uuid("company_id").notNull(),       // tenant column (DEC-SMP-017)
   // ... domain columns ...                          (camelCase JS keys, snake_case SQL names)
   createdAt: timestamp("created_at").notNull(),   // set in app code (no .defaultNow())
   updatedAt: timestamp("updated_at"),             // nullable until first update
@@ -21,15 +20,13 @@ export const statement = pgTable("statement", {
   // `is_deleted`/`deleted_at` column exists; check schema.ts for the real table.
 });
 
-export type Statement = typeof statement.$inferSelect;
-export type NewStatement = typeof statement.$inferInsert;
+export type Member = typeof member.$inferSelect;
+export type NewMember = typeof member.$inferInsert;
 ```
 
 - Derive row types from the schema (`$inferSelect` / `$inferInsert`) — never hand-write a divergent interface.
 - Reuse the exported table; do NOT redeclare its columns in a second module.
-- Company-owned records use `companyId: uuid("company_id")`. Confirm the
-  actual column on the table; `VendorAccount` is vendor-organization data and
-  does not define Ledger tenant scope.
+- The tenant column is `company_id` (uuid) on every multi-tenant table (DEC-SMP-017) — there is no `tenant_id` and no `org_id`.
 
 ## Enums
 
@@ -41,28 +38,14 @@ string value — an unknown member fails the DB enum check at insert/update time
 ## Tenant & Actor Extraction
 
 ```ts
-const session = await auth();
+const session = await auth0.getSession();
 if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-const authorization = await loadLedgerAuthorization(session.user.idpSubject);
-const companyIds = authorization.companyIds;      // from Ledger DB grants
-const actorSub = session.user.idpSubject;          // stable Keycloak subject
+const companyIds = await grantedCompanyIds(session.user.idpSubject); // tenant scope from DB grants (DEC-SMP-014/017)
+const actorSub = session.user.sub as string;       // stable Auth0 subject
 ```
 
-- **Never** read company scope or roles from the request body/query. Authenticate
-  with the verified Keycloak OIDC session, then load authorization from
-  Ledger's `UserAccount` and `CompanyRoleAssignment` records.
-- Every company-scoped query filters the table's `company_id` column against
-  the authorized company set. Apply a soft-delete filter (`deleted_at`) ONLY
-  on a table that declares one in `schema.ts` — do not assume `is_deleted`
-  exists.
-
-## Database Roles and Migration Execution
-
-- Committed release migrations run as `ledger_owner`, which owns schema changes
-  and grants.
-- The deployed Next.js application connects as `ledger_app`, which has only the
-  runtime privileges established by migrations.
-- Do not run schema mutation or migration tooling with the application role.
+- **Never** read the tenant id from the request body/query — only the verified session claim.
+- Every multi-tenant query filters `company_id` (the tenant column, DEC-SMP-017). Apply a soft-delete filter (`deleted_at`) ONLY on a table that declares one in `schema.ts` — do not assume `is_deleted` exists.
 
 ## Error Handling Standard
 

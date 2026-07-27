@@ -26,7 +26,7 @@ As a Group Admin (persona_01), I want to keep the core vendor-neutral so that
 
 ## Acceptance Criteria
 
-- [ ] AC1: Connector interface: capabilities() + provision/deprovision/syncMembers/syncActivity/syncCost; 'unsupported' routes the step to orchestration mode; ships BEFORE any concrete connector (US-018 implements it) — the orchestration path (US-020) runs against the interface alone
+- [ ] AC1: Connector interface: capabilities() + provision/deprovision/syncMembers/syncActivity/syncCost; 'unsupported' routes provisioning steps to orchestration mode (US-020) and sync steps to the CSV-import/manual ingestion path (US-055, DEC-SMP-018); ships BEFORE any concrete connector (US-018 implements it) — the orchestration path (US-020) runs against the interface alone
 - [ ] AC2: Dispatch reads Vendor.provisioning_protocol (rest/scim/none); Anthropic connector registered as #1
 - [ ] AC3: Core modules import only the interface (lint/test guard)
 

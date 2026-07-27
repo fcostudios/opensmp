@@ -1,7 +1,7 @@
 # 10 — Plan: Ledger (`fcostudios__smp`)
 
 **Step:** 10 — Plan · **Date:** 2026-07-22 (rev 2, post plan-review) · **Report language:** en-US
-**Inputs:** `08_scope.md` (54 stories, cycle-free DAG) · `09_architecture.md` · `09b` · PRD §16 (D4) · sizing (tier M).
+**Inputs:** `08_scope.md` (55 stories, cycle-free DAG) · `09_architecture.md` · `09b` · PRD §16 (D4) · sizing (tier M).
 
 ## SEC1 — Sprint plan (PRD §16 mirror; hydrator forbids Sprint 0 → PRD "Sprint 0" folds into Sprint 1)
 
@@ -45,9 +45,9 @@ Capacity model: 2 FTEs, AI-assisted; target ≈ 30–40 SP/week-sprint (velocity
 | US-045 | Connector interface + orchestration routing | 3 | US-003 |
 | US-020 | Orchestration mode: checklist + confirm + verification | 3 | US-014, US-045 |
 
-### Sprint 3 — Automation + monitoring (37 SP)
+### Sprint 3 — Automation + monitoring (40 SP)
 
-**Milestone:** Automation + monitoring: connector live (interface from Sprint 2, capability semantics via US-025), invite≤15min, hygiene, reclamation, drift. Beta-API risk retired here (surprise-detection already pulled to the Sprint-1 probe). Connector jobs run on Compose-secret keys (ADR-13) until US-031 lands the managed credential store in Sprint 4.
+**Milestone:** Automation + monitoring: connector live (interface from Sprint 2, capability semantics via US-025), invite≤15min, hygiene, reclamation, drift, API-less ingestion (CSV import + manual upkeep, DEC-SMP-018). Beta-API risk retired here (surprise-detection already pulled to the Sprint-1 probe). Connector jobs run on Compose-secret keys (ADR-13) until US-031 lands the managed credential store in Sprint 4.
 
 | Story | Title | SP | Blocked By |
 |---|---|---|---|
@@ -63,6 +63,7 @@ Capacity model: 2 FTEs, AI-assisted; target ≈ 30–40 SP/week-sprint (velocity
 | US-028 | Reclamation proposals: approve or dismiss | 3 | US-027, US-024 |
 | US-029 | Freshness labels + staleness alert | 2 | US-026, US-042 |
 | US-030 | Drift detection + retroactive claim | 3 | US-018, US-046, US-042 |
+| US-055 | API-less ingestion: member/usage CSV import + manual register upkeep | 3 | US-003, US-025, US-026, US-030 |
 | US-043 | Alert log + acknowledgment | 2 | US-042 |
 
 ### Sprint 4 — Money + production readiness (39 SP)

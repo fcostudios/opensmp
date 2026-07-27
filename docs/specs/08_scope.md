@@ -1,12 +1,13 @@
 # 08 — Scope: Ledger (`fcostudios__smp`)
 
 **Step:** 8 — Scope · **Date:** 2026-07-22 · **Report language:** en-US
-**Inputs:** `07b_features_backlog.md` (45 R1 FEATs) · `07_screens.md` + 28 TOONs (44 server actions) · `04_er_model.md` (26 entities) · `03_cx_journeys.md` (J1–J4 + SLAs) · `02_cx_personas.md` · PRD §11 ACs · `extracts/_step8_coherence_pack.json`
+**Inputs:** `07b_features_backlog.md` (46 R1 FEATs) · `07_screens.md` + 28 TOONs (46 server actions) · `04_er_model.md` (26 entities) · `03_cx_journeys.md` (J1–J4 + SLAs) · `02_cx_personas.md` · PRD §11 ACs · `extracts/_step8_coherence_pack.json`
 **Release:** all stories R1 unless noted. R2 features (FEAT-R2-01..12) get NO stories here.
 
 ### SEC1 — Summary
 
-- **54 stories (US-001..US-054; 052–054 added by the Step-10 plan review: parallel-close execution, production deploy, API probe spike)** covering all 45 R1 features, all 44 TOON-declared server actions, and every entity write path.
+- **55 stories (US-001..US-055; 052–054 added by the Step-10 plan review: parallel-close execution, production deploy, API probe spike; 055 added by DEC-SMP-018: API-less ingestion — CSV import + manual upkeep)** covering all 46 R1 features, all 46 TOON-declared server actions, and every entity write path.
+- **MVP scale baseline (DEC-SMP-018):** acceptance criteria and fixtures exercise **5 companies**; the 30-company rollout is the deployment target, not an AC requirement — every seed/close/rollup path scales without code change.
 - Sequencing: foundation (US-001..008) → registry/workflow (US-009..017) → connector/automation (US-018..031) → money (US-032..039) → surfaces/ops (US-040..049) — mirrors PRD §16 sprints.
 - SLAs carried as ACs: invite ≤15 min post-approval; aging 24h/48h; departure same-business-day; close < 5 min by bd-3; reconciliation ≤0.5%; dashboards < 3 s at scale; drift→0.
 - Candidate `critical` business rules (Step 9b): register integrity (DEC-SMP-009, US-003), close determinism (US-034), reconciliation tolerance/override (US-038).
@@ -132,8 +133,8 @@
 - **Entities (CRUD)**: UserAccount (U ui_language)
 
 ### US-007 — Seed: companies CSV + go-live register backfill
-- **As**: Group Admin (persona_01) | **Want to**: load the 30 companies and current seat holders | **So that**: day-one data is real and attributed
-- **AC1**: `importCompaniesCsv` seeds 30 companies (code, approver, finance contact, budget, statement_language)
+- **As**: Group Admin (persona_01) | **Want to**: load the managed companies and current seat holders | **So that**: day-one data is real and attributed
+- **AC1**: `importCompaniesCsv` seeds companies from CSV (code, approver, finance contact, budget, statement_language); MVP fixture seeds 5 companies (DEC-SMP-018) — the same path handles the 30-company rollout
 - **AC2**: Backfill imports current Anthropic members as LicenseAssignment rows (source_kind=import) each with a system-materialized LicenseRequest (state=active, justification 'importación inicial') per 04 lifecycle
 - **AC3**: Register passes integrity constraints post-backfill; counts reconcile with the console lists
 - **AC4**: Seeds one effective-dated VendorAccountCapacity row per (org, license type) at go-live, purchased counts reconciled with the console
@@ -342,6 +343,7 @@
 - **AC1**: Daily job upserts ActivityRecord (counters jsonb + raw payload + synced_at) per (org, person, date); idempotent re-runs
 - **AC2**: Cost sync upserts CostRecord within the 30-day revision window
 - **AC3**: Identity matched via Vendor.identity_matching (email); unmatched rows surfaced as warnings
+- **AC4**: The job only auto-syncs orgs with ingestion_mode=api; csv_import/manual orgs reach the SAME upserts through US-055 (source=csv_import/manual) — freshness labels and sync_stale semantics (US-029) are channel-agnostic, keyed on synced_at
 - **Prerequisites**: US-018, US-046
 - **Feature**: FEAT-020 | **Journey**: J1 S5 | **Release**: R1
 - **Screens**: (jobs)
@@ -381,7 +383,7 @@
 
 ### US-030 — Drift detection + retroactive claim
 - **As**: Group Admin (persona_01) | **Want to**: catch console bypass within an hour | **So that**: the register stays the truth (J4)
-- **AC1**: Hourly member sync diffs console vs register; unknown members → register_drift alert + Deriva tab entry
+- **AC1**: Hourly member sync diffs console vs register (ingestion_mode=api orgs); for csv_import/manual orgs the SAME diff runs on every `importMembersCsv` (US-055) — unknown members → register_drift alert + Deriva tab entry either way
 - **AC2**: `claimDriftMember` assigns company retroactively: creates LicenseAssignment (source_kind=reconciliation, note=comentario) + system-materialized request
 - **AC3**: Drift metric on dashboard trends to zero (PRD §17)
 - **Prerequisites**: US-018, US-046, US-042
@@ -424,7 +426,7 @@
 - **Entities (CRUD)**: LicenseAssignment (R)
 
 ### US-034 — Monthly close job + CloseRun
-- **As**: Central Finance (persona_04) | **Want to**: generate 30 draft statements by business day 3 | **So that**: the close is push-button and <5 min (J3)
+- **As**: Central Finance (persona_04) | **Want to**: generate per-company draft statements by business day 3 | **So that**: the close is push-button and <5 min (J3)
 - **AC1**: `runClose` writes CloseRun (running→succeeded/failed, note) then per-company Statement + StatementLines: license lines from register seat-days × effective rates (daily actual/actual proration, mid-month splits with period_from/to); oracle test (PRD §11 Module E): a transfer effective the 10th yields a company-A line with period_to = the 9th and a company-B line with period_from = the 10th, zero gap/overlap in seat-days, and the person appears on both statements with dates
 - **AC2**: Idempotent per period: re-run recalculates drafts, never touches finals; duration surfaced (<5 min NFR)
 - **AC3**: Statements stamped close_run_id
@@ -481,7 +483,7 @@
 ### US-039 — Consolidated rollup + export
 - **As**: Central Finance (persona_04) | **Want to**: see and export the group total | **So that**: Module E P0 'statement AND rollup' is complete (J3)
 - **AC1**: Group-total tile on SCR-close (SUM Statement.total_usd for period)
-- **AC2**: `exportRollupCsv`/`Pdf`: consolidated rollup across 30 companies
+- **AC2**: `exportRollupCsv`/`Pdf`: consolidated rollup across all companies
 - **AC3**: Rollup ties to reconciliation totals (same period source)
 - **Prerequisites**: US-050
 - **Feature**: FEAT-028, FEAT-030 | **Journey**: J3 | **Release**: R1
@@ -544,7 +546,7 @@
 
 ### US-045 — Connector interface + orchestration routing
 - **As**: Group Admin (persona_01) | **Want to**: keep the core vendor-neutral | **So that**: vendor #2 is additive, never a rewrite (DEC-SMP-008)
-- **AC1**: Connector interface: capabilities() + provision/deprovision/syncMembers/syncActivity/syncCost; 'unsupported' routes the step to orchestration mode; ships BEFORE any concrete connector (US-018 implements it) — the orchestration path (US-020) runs against the interface alone
+- **AC1**: Connector interface: capabilities() + provision/deprovision/syncMembers/syncActivity/syncCost; 'unsupported' routes provisioning steps to orchestration mode (US-020) and sync steps to the CSV-import/manual ingestion path (US-055, DEC-SMP-018); ships BEFORE any concrete connector (US-018 implements it) — the orchestration path (US-020) runs against the interface alone
 - **AC2**: Dispatch reads Vendor.provisioning_protocol (rest/scim/none); Anthropic connector registered as #1
 - **AC3**: Core modules import only the interface (lint/test guard)
 - **Prerequisites**: US-003
@@ -644,6 +646,19 @@
 - **Screens**: n/a
 - **Entities (CRUD)**: —
 
+### US-055 — API-less ingestion: member/usage CSV import + manual register upkeep
+- **As**: Group Admin (persona_01) | **Want to**: keep the register and usage data true for orgs without API access | **So that**: a Teams-plan (or any API-less) org is fully manageable — Ledger helps control the estate even when nothing can be automated (DEC-SMP-018)
+- **AC1**: `importMembersCsv` (SCR-vendor-account-detail) parses a Console member-list export and runs the US-030 diff: verifies checklist-confirmed provisions, opens/closes LicenseAssignment rows it evidences, flags unknown members as register_drift — identical states + audit as the API member sync
+- **AC2**: `importUsageCsv` parses Console usage/cost exports and upserts ActivityRecord/CostRecord (source=csv_import) with the US-026 idempotent semantics; unmatched identities surfaced as warnings
+- **AC3**: On ingestion_mode=manual orgs the admin can record/close a LicenseAssignment directly (source_kind=manual, note required) — DB-level register integrity (US-003) and audit (US-008) apply unchanged
+- **AC4**: Ingestion mode is configured per org on SCR-vendor-account-detail (Configuración); non-api orgs surface freshness from the last import/manual entry, and sync_stale alerting (US-029) keys on the same synced_at
+- **Prerequisites**: US-003, US-025, US-026, US-030
+- **Feature**: FEAT-046 | **Journey**: J4 | **Release**: R1
+- **Screens**: SCR-vendor-account-detail
+- **Server actions**: importMembersCsv, importUsageCsv
+- **Entities (CRUD)**: LicenseAssignment (CU), LicenseRequest (C system), ActivityRecord (CU), CostRecord (CU), VendorAccount (U ingestion_mode), AlertEvent (C)
+
+<!-- nous:generated:08-sec4:begin -->
 ### SEC4 — Feature → story coverage (computed)
 
 | Feature | Stories |
@@ -674,9 +689,9 @@
 | FEAT-024 | US-029, US-031 |
 | FEAT-025 | US-003, US-033 |
 | FEAT-026 | US-032 |
-| FEAT-027 | US-034, US-035, US-050, US-051 |
+| FEAT-027 | US-034, US-035, US-050, US-051, US-052 |
 | FEAT-028 | US-038, US-039 |
-| FEAT-029 | US-038 |
+| FEAT-029 | US-038, US-052 |
 | FEAT-030 | US-037, US-039, US-049 |
 | FEAT-031 | US-033, US-036 |
 | FEAT-032 | US-040 |
@@ -693,39 +708,44 @@
 | FEAT-043 | US-006 |
 | FEAT-044 | US-044 |
 | FEAT-045 | US-013 |
+| FEAT-046 | US-055 |
+<!-- nous:generated:08-sec4:end -->
 
+<!-- nous:generated:08-sec5:begin -->
 ### SEC5 — Coverage matrix: entity × operation → owning stories (IMP-090 §5a)
 
 | Entity | Operations covered (story) |
 |---|---|
 | Company | US-007:C; US-009:CRU |
 | Person | US-010:CRU; US-012:C-if-absent; US-024:U |
-| UserAccount | US-004:R/U; US-006:U ui_language; US-011:CRU |
+| UserAccount | US-004:R/U idp_subject; US-006:U ui_language; US-011:CRU |
 | CompanyRoleAssignment | US-005:R; US-011:CRD |
 | Vendor | US-007:C seed: Anthropic; US-025:R; US-045:R |
-| VendorAccount | US-007:C seed per org inventory OQ-SMP-1; US-025:CRU |
+| VendorAccount | US-007:C seed per org inventory OQ-SMP-1; US-025:CRU; US-055:U ingestion_mode |
 | VendorAccountCapacity | US-007:C seed; US-022:R; US-023:C |
 | LicenseType | US-007:C seed: Claude tiers; US-025:R |
 | IntegrationCredential | US-007:C per org; US-031:CRU |
-| LicenseRequest | US-007:C system; US-012:C; US-013:R; US-014:U; US-015:U; US-019:U; US-023:U; US-027:U; US-028:U; US-030:C system |
+| LicenseRequest | US-007:C system; US-012:C; US-013:R; US-014:U; US-015:U; US-019:U; US-023:U; US-027:U; US-028:U; US-030:C system; US-055:C system |
 | RequestTransition | US-012:C; US-013:R; US-014:C; US-015:C |
-| LicenseAssignment | US-007:C; US-019:C; US-024:U close; US-030:C; US-033:R |
+| LicenseAssignment | US-007:C; US-019:C; US-024:U close; US-030:C; US-033:R; US-055:CU |
 | ProvisioningAction | US-018:C; US-019:CU; US-020:U; US-021:U; US-024:C |
 | ReclamationProposal | US-027:C; US-028:U |
-| ActivityRecord | US-026:CU |
-| CostRecord | US-026:CU; US-036:R; US-050:R |
+| ActivityRecord | US-026:CU; US-055:CU |
+| CostRecord | US-026:CU; US-036:R; US-050:R; US-055:CU |
 | RateCard | US-032:CR |
 | Statement | US-034:C; US-035:U status; US-037:R; US-039:R aggregate; US-049:R |
 | StatementLine | US-034:C; US-036:R; US-050:C usage |
-| CloseRun | US-034:CU; US-051:R |
-| Reconciliation | US-038:CU |
-| ReconciliationVarianceLine | US-038:C |
+| CloseRun | US-034:CU; US-051:R; US-052:C |
+| Reconciliation | US-038:CU; US-052:CU |
+| ReconciliationVarianceLine | US-038:C; US-052:C |
 | AlertRule | US-042:C seed/R; US-044:U |
-| AlertEvent | US-017:C; US-021:C; US-022:C; US-029:C; US-030:C; US-042:C; US-043:RU; US-051:C |
+| AlertEvent | US-017:C; US-021:C; US-022:C; US-029:C; US-030:C; US-042:C; US-043:RU; US-051:C; US-055:C |
 | SystemSetting | US-003:C seed; US-016:R; US-044:CU |
 | AuditLog | US-008:C/R |
+<!-- nous:generated:08-sec5:end -->
 
-### SEC6 — Server-action ownership (all 44 TOON-declared actions)
+<!-- nous:generated:08-sec6:begin -->
+### SEC6 — Server-action ownership (all 46 TOON-declared actions)
 
 | Action | Story |
 |---|---|
@@ -750,6 +770,8 @@
 | `finalizeStatement` | US-035 |
 | `finalizeStatements` | US-035 |
 | `importCompaniesCsv` | US-007 |
+| `importMembersCsv` | US-055 |
+| `importUsageCsv` | US-055 |
 | `login` | US-004 |
 | `markChecklistNotDone` | US-020 |
 | `overrideReconciliation` | US-038 |
@@ -773,6 +795,7 @@
 | `updateVendorAccount` | US-025 |
 | `verifyCredential` | US-031 |
 | `withdrawInvite` | US-021 |
+<!-- nous:generated:08-sec6:end -->
 
 ### SEC7 — Deferred (R2/R3+)
 

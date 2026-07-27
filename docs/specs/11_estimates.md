@@ -4,7 +4,7 @@
 
 ## R1 (MVP → go-live)
 
-- **Scope:** 54 stories · 152 SP · 5 story-sprints + go-live reserve.
+- **Scope:** 55 stories · 155 SP · 5 story-sprints + go-live reserve.
 - **Duration:** **6 weeks best-case (floor), 7–9 weeks expected band** (Step-1 sizing: 1.5–3 months AI-assisted vs 3–6 months conventional tier-M comparable). Replan trigger: Sprint-1 actuals < 25 SP → re-baseline to 1.5-week sprints.
 - **Effort:** 2 AI-assisted FTEs × 6–9 weeks = **12–18 FTE-weeks**, where: Sprints 1–4 priced by SP/velocity except Sprint 4 (serial close chain → price by duration, ≈1.5 effective FTE); weeks 5–6 priced as FTE-time reserves (Sprint 5 stories + ~1 FTE-wk parallel-run reserve; Sprint 6 = 1 FTE-wk go-live reserve).
 - **Cost (internal, indicative):** at a blended internal rate R/FTE-week, R1 = 12–18 × R. Against the Step-1 comparable band (USD 15–60K equivalent effort) the plan sits at the lower half given AI-assist. Hosting: < USD 100/mo (ADR-11); Keycloak/pg-boss/Postgres self-hosted — no new SaaS line items.

@@ -4,7 +4,7 @@
 
 ## User Story
 
-As a Central Finance (persona_04), I want to generate 30 draft statements by business day 3 so that 
+As a Central Finance (persona_04), I want to generate per-company draft statements by business day 3 so that 
 
 ## Meta
 
