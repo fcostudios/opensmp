@@ -117,6 +117,18 @@ MUTATIONS = (
             "test_reconcile_enforces_exact_mirror_parity_and_complete_change_notes"
         ),
     ),
+    Mutation(
+        "M08",
+        "disable exact known-substrate transformations",
+        """            if (stale_count, expected_count) == (1, 0):
+""",
+        """            if False and (stale_count, expected_count) == (1, 0):
+""",
+        (
+            "ReconciliationBehaviorTests."
+            "test_reconciles_known_825e882_substrate_to_authoritative_guidance"
+        ),
+    ),
 )
 
 

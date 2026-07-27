@@ -15,6 +15,42 @@ SCRIPT = Path(
         Path(__file__).parents[1] / "reconcile-sprint1-docs.py",
     )
 )
+PROJECT_ROOT = Path(__file__).parents[3]
+SYNC_SCRIPT = Path(__file__).parents[1] / "sync-from-nous.sh"
+KNOWN_SUBSTRATE_ROOT = Path(__file__).parent / "fixtures/825e882"
+KNOWN_SUBSTRATE_GUIDES = (
+    "AGENTS.md",
+    "CLAUDE.md",
+    "docs/dev-guide/DEFINITION_OF_DONE.md",
+    "docs/dev-guide/FRONTEND.md",
+    "docs/dev-guide/SECURITY.md",
+    "docs/dev-guide/STANDARDS.md",
+    "docs/dev-guide/TESTING.md",
+    "docs/stories/CHANGES.md",
+    "testing/critical-paths.md",
+)
+AUTHORITATIVE_GUIDES = (
+    "AGENTS.md",
+    "CLAUDE.md",
+    "docs/dev-guide/DEFINITION_OF_DONE.md",
+    "docs/dev-guide/FRONTEND.md",
+    "docs/dev-guide/SECURITY.md",
+    "docs/dev-guide/STANDARDS.md",
+    "docs/dev-guide/TESTING.md",
+    "docs/stories/CHANGES.md",
+    "testing/critical-paths.md",
+)
+EXPECTED_NEXTJS_GUIDANCE = textwrap.dedent(
+    """\
+    ### nextjs 16.1.6
+
+    - **App Router ONLY** — do NOT create files in `pages/` directory.
+    - **Server Components by default** — add `"use client"` only when using hooks, event handlers, or browser APIs.
+    - **Bundler: webpack** — `scripts.build` runs `next build --webpack` (Serwist injects a webpack config; Turbopack would hard-fail). Module imports MUST include file extensions for non-TS files (e.g., `import preset from './tailwind-preset.js'`).
+    - **Server Actions** available. Use for form submissions instead of API routes.
+    """
+)
+FORBIDDEN_GUIDANCE = ("Auth0", "auth0", "Vercel", "org_id", "tenant_id")
 
 STALE_TESTING = (
     "every path that touches tenant-scoped data (filtered by `org_id`)."
@@ -104,42 +140,46 @@ def write(root: Path, relative_path: str, content: str) -> None:
 
 
 def create_project(root: Path) -> None:
-    claude = (
-        "# CLAUDE.md — Ledger\n\n"
-        "Use `company_id`, Keycloak with Auth.js, and Docker Compose.\n"
-    )
+    for relative_path in AUTHORITATIVE_GUIDES:
+        write(
+            root,
+            relative_path,
+            authoritative_guide(relative_path).decode(),
+        )
+    claude = authoritative_guide("CLAUDE.md").decode()
     stale_mirror = (
         "<!-- stale generated mirror -->\n"
-        "# CLAUDE.md — Ledger\n\n"
-        "Use `company_id`, Keycloak with Auth.js, and Docker Compose.\n"
+        + claude
     )
-    write(root, "AGENTS.md", "# Agents\n\nUse company-scoped authorization.\n")
-    write(root, "CLAUDE.md", claude)
     write(root, "CODEX.md", stale_mirror)
     write(root, ".cursorrules", stale_mirror)
     write(root, ".github/copilot-instructions.md", stale_mirror)
-    write(root, "docs/dev-guide/TESTING.md", f"prefix {STALE_TESTING}\n")
-    write(root, "testing/critical-paths.md", f"prefix {STALE_TESTING}\n")
     write(
         root,
         "docs/dev-guide/PACKAGE_MAP.md",
         f"{STALE_PACKAGE_ENTITY}\n{STALE_PACKAGE_SCOPE}\n",
     )
-    write(
-        root,
-        "docs/dev-guide/SECURITY.md",
-        "Keycloak identities map to Ledger company authorization.\n",
-    )
-    write(
-        root,
-        "docs/dev-guide/DEFINITION_OF_DONE.md",
-        STALE_DEFINITION_OF_DONE + "\n",
-    )
-    write(
-        root,
-        "docs/stories/CHANGES.md",
-        f"# Changes\n\n{STALE_CHANGE_NOTES}\n\n**Feedback:** readiness\n",
-    )
+
+
+def install_known_substrate_guides(root: Path) -> None:
+    for relative_path in KNOWN_SUBSTRATE_GUIDES:
+        write(
+            root,
+            relative_path,
+            (KNOWN_SUBSTRATE_ROOT / relative_path).read_text(encoding="utf-8"),
+        )
+
+
+def authoritative_guide(relative_path: str) -> bytes:
+    text = (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
+    if relative_path == "CLAUDE.md":
+        text = text.replace(
+            "### nextjs\n\n\n## Shared Contracts & Entity Conventions",
+            EXPECTED_NEXTJS_GUIDANCE
+            + "\n## Shared Contracts & Entity Conventions",
+            1,
+        )
+    return text.encode()
 
 
 def snapshot(root: Path) -> dict[str, bytes]:
@@ -159,13 +199,70 @@ def run_reconciler(root: Path, *arguments: str) -> subprocess.CompletedProcess[s
 
 
 class ReconciliationBehaviorTests(unittest.TestCase):
+    def test_restores_missing_nextjs_version_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_project(root)
+            claude_path = root / "CLAUDE.md"
+            claude_path.write_text(
+                claude_path.read_text(encoding="utf-8").replace(
+                    EXPECTED_NEXTJS_GUIDANCE,
+                    "### nextjs\n\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            result = run_reconciler(root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            claude = claude_path.read_text(encoding="utf-8")
+            self.assertIn(EXPECTED_NEXTJS_GUIDANCE, claude)
+            for mirror in (
+                "CODEX.md",
+                ".cursorrules",
+                ".github/copilot-instructions.md",
+            ):
+                self.assertEqual((root / mirror).read_text(encoding="utf-8"), claude)
+
+    def test_reconciles_known_825e882_substrate_to_authoritative_guidance(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_project(root)
+            install_known_substrate_guides(root)
+
+            result = run_reconciler(root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for relative_path in AUTHORITATIVE_GUIDES:
+                self.assertEqual(
+                    (root / relative_path).read_bytes(),
+                    authoritative_guide(relative_path),
+                    relative_path,
+                )
+            claude = (root / "CLAUDE.md").read_text(encoding="utf-8")
+            self.assertIn(EXPECTED_NEXTJS_GUIDANCE, claude)
+            for forbidden in FORBIDDEN_GUIDANCE:
+                self.assertNotIn(forbidden, claude)
+            for mirror in (
+                "CODEX.md",
+                ".cursorrules",
+                ".github/copilot-instructions.md",
+            ):
+                self.assertEqual((root / mirror).read_text(encoding="utf-8"), claude)
+
     def test_duplicate_governed_text_fails_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             create_project(root)
             testing = root / "docs/dev-guide/TESTING.md"
+            stale_testing = (
+                KNOWN_SUBSTRATE_ROOT / "docs/dev-guide/TESTING.md"
+            ).read_text(encoding="utf-8")
             testing.write_text(
-                f"{STALE_TESTING}\n{STALE_TESTING}\n",
+                stale_testing + stale_testing,
                 encoding="utf-8",
             )
             before = snapshot(root)
@@ -232,22 +329,20 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             definition_of_done = (
                 root / "docs/dev-guide/DEFINITION_OF_DONE.md"
             ).read_text(encoding="utf-8")
-            self.assertEqual(
-                definition_of_done,
-                EXPECTED_DEFINITION_OF_DONE + "\n",
-            )
+            self.assertIn(EXPECTED_DEFINITION_OF_DONE, definition_of_done)
 
     def test_preview_shows_effective_changes_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             create_project(root)
+            install_known_substrate_guides(root)
             before = snapshot(root)
 
             result = run_reconciler(root, "--preview")
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(snapshot(root), before)
-            self.assertIn("+prefix " + EXPECTED_TESTING, result.stdout)
+            self.assertIn(EXPECTED_TESTING, result.stdout)
             self.assertIn("docs/stories/CHANGES.md", result.stdout)
 
     def test_check_reports_exact_mirror_drift_without_writing(self) -> None:
@@ -262,6 +357,71 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             self.assertEqual(snapshot(root), before)
             self.assertIn("CODEX.md", result.stderr)
             self.assertIn("differs from CLAUDE.md", result.stderr)
+
+
+class SyncIntegrationTests(unittest.TestCase):
+    def test_sync_repairs_known_825e882_substrate_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_project(root)
+            scripts = root / "infra/scripts"
+            scripts.mkdir(parents=True, exist_ok=True)
+            (scripts / SCRIPT.name).write_bytes(SCRIPT.read_bytes())
+            (scripts / SYNC_SCRIPT.name).write_bytes(SYNC_SCRIPT.read_bytes())
+
+            nous_system = root / "fixture-nous-system"
+            nous_system.mkdir()
+            write(
+                nous_system,
+                "nous_package.py",
+                textwrap.dedent(
+                    """\
+                    import argparse
+                    import os
+                    import shutil
+                    from pathlib import Path
+
+                    parser = argparse.ArgumentParser()
+                    parser.add_argument("command")
+                    parser.add_argument("--target", required=True)
+                    parser.add_argument("--project", required=True)
+                    parser.add_argument("-c", "--categories", nargs="*")
+                    args = parser.parse_args()
+
+                    fixture = Path(os.environ["KNOWN_SUBSTRATE_FIXTURE"])
+                    target = Path(args.target)
+                    for source in fixture.rglob("*"):
+                        if source.is_file():
+                            destination = target / source.relative_to(fixture)
+                            destination.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(source, destination)
+                    """
+                ),
+            )
+            environment = os.environ.copy()
+            environment["NOUS_SYSTEM"] = str(nous_system)
+            environment["KNOWN_SUBSTRATE_FIXTURE"] = str(KNOWN_SUBSTRATE_ROOT)
+
+            result = subprocess.run(
+                ["bash", str(scripts / SYNC_SCRIPT.name)],
+                cwd=root,
+                env=environment,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for relative_path in AUTHORITATIVE_GUIDES:
+                self.assertEqual(
+                    (root / relative_path).read_bytes(),
+                    authoritative_guide(relative_path),
+                    relative_path,
+                )
+            self.assertIn(
+                EXPECTED_NEXTJS_GUIDANCE,
+                (root / "CLAUDE.md").read_text(encoding="utf-8"),
+            )
 
 
 if __name__ == "__main__":

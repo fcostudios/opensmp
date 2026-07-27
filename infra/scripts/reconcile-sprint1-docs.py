@@ -25,87 +25,1158 @@ COMPLETE_CHANGE_NOTES = (
     "Docker Compose self-hosting."
 )
 
-REPLACEMENTS = {
-    "docs/dev-guide/DEFINITION_OF_DONE.md": (
-        (
-            """5. **Schema applies on a fresh database (and is verified):**
-   - **Prerequisite:** `DATABASE_URL` must be set to a reachable Postgres before this
-     step — copy `.env.example` → `.env` and set it (or run `task setup`). The bare
-     `push` below silently no-ops against an unset/unreachable URL.
-   ```bash
-   cd packages/db && pnpm drizzle-kit push && node scripts/verify-schema.mjs
-   ```
-   - `drizzle-kit push` exits **0 even on an unreachable `DATABASE_URL`** (a silent
-     no-op: 0 tables). `verify-schema.mjs` counts the applied tables and exits
-     non-zero on 0 — so "schema applies cleanly" can no longer be a false pass.
-   - The DB client auto-selects its driver by `DATABASE_URL` (`pg` for a local/
-     standard Postgres URL, `neon-http` for a Neon URL), so `push` applies locally.
-   - Migrations live in `packages/db/src/migrations/` as `V<timestamp>__<slug>.sql`.
-   - Once applied, a migration file is immutable — add a new one; never edit it.
-   - Every Drizzle column has a corresponding migration column.
-   - The release path applies committed migrations using the `ledger_owner`
-     connection. It then starts the application using the lower-privilege
-     `ledger_app` connection; application runtime must not use the owner role.""",
-            """5. **Committed migrations apply on a fresh database (and parity is verified):**
-   - **Prerequisite:** `DATABASE_ADMIN_URL` connects as `ledger_owner` and has
-     permission to create the two disposable parity databases. `DATABASE_URL`
-     connects as the lower-privilege `ledger_app` for runtime grant checks.
-   ```bash
-   pnpm --filter @smp/db db:migrate
-   pnpm --filter @smp/db db:verify
-   pnpm --filter @smp/db db:parity
-   ```
-   - `db:migrate` applies only sorted, committed `V<timestamp>__<slug>.sql` files,
-     under the migration advisory lock, and rejects changed checksums.
-   - `db:verify` verifies the migration ledger and the committed integrity objects.
-   - `db:parity` compares committed migrations with a fresh `drizzle-kit push`
-     across tables, columns, normalized types, nullability, and foreign keys.
-   - Once applied, a migration file is immutable — add a new one; never edit it.
-   - The release path applies committed migrations using the `ledger_owner`
-     connection. It then starts the application using the lower-privilege
-     `ledger_app` connection; application runtime must not use the owner role.""",
-        ),
-    ),
-    "docs/dev-guide/TESTING.md": (
-        (
-            "every path that touches tenant-scoped data (filtered by `org_id`).",
-            "every path that touches tenant-scoped data (filtered by `company_id`).",
-        ),
-    ),
-    "testing/critical-paths.md": (
-        (
-            "every path that touches tenant-scoped data (filtered by `org_id`).",
-            "every path that touches tenant-scoped data (filtered by `company_id`).",
-        ),
-    ),
-    "docs/dev-guide/PACKAGE_MAP.md": (
-        (
-            "db table + `org_id` and both a read-list and a mutation screen",
-            "db table + `company_id` and both a read-list and a mutation screen",
-        ),
-        (
-            "take the tenant from the session, never the client.",
-            "load authorized company scope from Ledger DB after verifying the "
-            "session; never take it from the client.",
-        ),
-    ),
-    "docs/stories/CHANGES.md": (
-        (
-            """**Notes:** # CHG-001 — Reconcile Sprint 1 execution contract
+MISSING_NEXTJS_GUIDANCE = """### nextjs
 
-## Trigger
 
-Sprint 1 readiness review found generator-owned guidance that contradicts the
-authoritative ER model and architecture.
+## Shared Contracts & Entity Conventions"""
 
-## Required changes
+SUBSTRATE_NEXTJS_GUIDANCE = """### nextjs 16.1.6
 
-- Replace tenant guidance that names `org_id` or `tenant_id` with
-  `company_id`, matching `0...""",
-            COMPLETE_CHANGE_NOTES,
+- **App Router ONLY** — do NOT create files in `pages/` directory.
+- **Server Components by default** — add `"use client"` only when using hooks, event handlers, or browser APIs.
+- **Bundler: webpack** — `scripts.build` runs `next build --webpack` (Serwist injects a webpack config; Turbopack would hard-fail). Module imports MUST include file extensions for non-TS files (e.g., `import preset from './tailwind-preset.js'`).
+- **Server Actions** available. Use for form submissions instead of API routes.
+
+
+## Shared Contracts & Entity Conventions"""
+
+AUTHORITATIVE_NEXTJS_GUIDANCE = SUBSTRATE_NEXTJS_GUIDANCE.replace(
+    "routes.\n\n\n## Shared",
+    "routes.\n\n## Shared",
+)
+
+KNOWN_VARIANTS = {
+    "CLAUDE.md": (
+        (
+            MISSING_NEXTJS_GUIDANCE,
+            SUBSTRATE_NEXTJS_GUIDANCE,
+            AUTHORITATIVE_NEXTJS_GUIDANCE,
         ),
     ),
 }
+
+REPLACEMENTS = {'AGENTS.md': (('<!-- agent-sync: 8a0580364022 | source: CLAUDE.md | DO NOT EDIT — this file '
+                'is auto-generated from CLAUDE.md. Edit CLAUDE.md then run: python3 '
+                'nous_agent_sync.py -->\n'
+                '# CLAUDE.md — Mi Banquito\n',
+                '# AGENTS.md — Ledger\n'),
+               ('> Project intelligence file for AI-assisted development.\n'
+                '> This file is auto-generated by Nous (Developer Package Generator).\n',
+                '> Agent coordination rules for AI-assisted multi-agent development.\n'
+                '> This is a **single self-hosted Next.js app** — no separate backend '
+                'service.\n'),
+               ('## Dev Package — What This Is\n', '## Getting Started (read this first)\n'),
+               ('This repository is the **dev package** — a ready-to-code Next.js app '
+                'generated by\n'
+                'the Nous product design pipeline. It is a **single serverless app** (route '
+                'handlers,\n'
+                'Drizzle, Auth0) — there is no separate backend service.\n',
+                '1. **Onboard:** install + database + the full conventions are in\n'
+                '   [`CLAUDE.md`](CLAUDE.md) (Quick Start). Run `pnpm install`, set\n'
+                '   `DATABASE_URL`, then apply the schema with\n'
+                '   `cd packages/db && pnpm drizzle-kit push && node '
+                'scripts/verify-schema.mjs`\n'
+                '   (the drizzle config + verifier live with the schema, matching\n'
+                '   DEFINITION_OF_DONE).\n'
+                '2. **Pick work from '
+                '[`docs/stories/SPRINT_PLAN.md`](docs/stories/SPRINT_PLAN.md)** — the\n'
+                '   sprint-ordered work queue (links to each story spec by sprint). '
+                '`docs/stories/INDEX.md`\n'
+                '   is a flat catalog, NOT the queue; start from SPRINT_PLAN.\n'
+                '3. **Definition of Done:** a story is done only when\n'
+                '   '
+                '[`docs/dev-guide/DEFINITION_OF_DONE.md`](docs/dev-guide/DEFINITION_OF_DONE.md) '
+                'passes —\n'
+                '   `pnpm type-check && pnpm lint && pnpm build`, and the committed migrations '
+                '+\n'
+                '   `verify-schema.mjs` apply the schema.\n'
+                '4. **Conventions** (tenant column `company_id`, per-table soft delete, App '
+                'Router,\n'
+                '   design tokens) live in [`CLAUDE.md`](CLAUDE.md) and `docs/dev-guide/` — '
+                'follow\n'
+                '   them verbatim.\n'
+                '5. **Sprint 1 execution contract:** read\n'
+                '   '
+                '[`DEC-SMP-017`](docs/decisions/DEC-SMP-017-sprint-1-execution-contract.md)\n'
+                '   before implementing US-001/003/004/005/007/054.\n'),
+               ('| What | Where | Read when |\n'
+                '|------|-------|-----------|\n'
+                '| **This file (CLAUDE.md)** | Root | Always — architecture rules, current '
+                'sprint, coding standards |\n'
+                '| **Sprint plan** | `docs/stories/SPRINT_PLAN.md` | Before picking a story — '
+                'sprints, status, execution order |\n'
+                '| **Story files** | `docs/stories/` | Before coding — full spec: ACs, API '
+                'contracts, entity changes, screen wiring |\n'
+                '| **Screen specs (TOON)** | `docs/screens/` | For UI — `dataSource` tells you '
+                'which API to call per section |\n'
+                '| **Architecture** | `docs/specs/09_architecture.md` | For bounded-context '
+                'structure + API conventions |\n'
+                '| **Decisions** | `docs/decisions/` | When unsure about a design choice |\n'
+                '| **API registry** | `docs/api-contract-registry.json` | Before implementing '
+                'a route handler — source of truth for API paths |\n'
+                '| **Navigation map** | `docs/specs/07c_navigation_map.json` | **Before adding '
+                'a route, sidebar item, or flow — authoritative registry** |\n'
+                '| **Feature backlog** | `docs/specs/07b_features_backlog.md` | Feature-level '
+                'specs (FT-NNN) |\n',
+                '## Sprint 1 Execution Contract\n'),
+               ('### Dev-guide references (load on demand)\n',
+                '- `Company` is the Ledger application-tenant boundary. Every company-scoped\n'
+                '  query filters the real `company_id` column declared by its table.\n'
+                '- `VendorAccount` is a vendor organization/account. It is business data '
+                'inside\n'
+                '  Ledger, not an application tenant and not an authorization boundary.\n'
+                '- Auth.js uses Keycloak for OIDC identity. Ledger loads roles and company '
+                'grants\n'
+                '  from `UserAccount` and `CompanyRoleAssignment`; it never accepts '
+                'authorization\n'
+                '  from a client request or Keycloak business-role claim.\n'
+                '- Keycloak renders and verifies the OIDC password and TOTP screens. Ledger '
+                'uses\n'
+                '  redirect-based OIDC and never renders or collects those credentials.\n'
+                '- Keycloak-retained, operator-queryable security events evidence '
+                'password/TOTP\n'
+                '  failures for US-004. Ledger `AuditLog` records the OIDC/session linking,\n'
+                '  callback failures, and authorization failures that Ledger observes.\n'
+                '- US-004 establishes and tests the Keycloak admin-service seam required for\n'
+                '  admin-group synchronization. The complete user-management UI remains '
+                'US-011.\n'
+                '- Releases apply committed migrations using `ledger_owner`. The running\n'
+                '  application connects as `ledger_app`.\n'
+                '- R1 deploys through Docker Compose on a VPS.\n'),
+               ('| Topic | File | Load when |\n'
+                '|-------|------|-----------|\n'
+                '| Frontend rules | `docs/dev-guide/FRONTEND.md` | Implementing any '
+                'screen/page/component |\n'
+                '| Coding standards (Drizzle entities, error codes, tenant scoping, fields) | '
+                '`docs/dev-guide/STANDARDS.md` | Writing a route handler or shared '
+                'form/display |\n'
+                '| Security patterns (Auth0 sessions, role gating, tenant scoping) | '
+                "`docs/dev-guide/SECURITY.md` | Adding an auth'd route handler |\n"
+                '| Testing patterns | `docs/dev-guide/TESTING.md` | Writing any test |\n'
+                '| Nous feedback events + AC verification protocol | '
+                '`docs/dev-guide/FEEDBACK.md` | Before starting, reporting progress, or '
+                'marking `done` |\n'
+                '| Build verification gate + rejection criteria | '
+                '`docs/dev-guide/DEFINITION_OF_DONE.md` | Before marking any story `done` |\n'
+                '| Commit conventions (US-NNN / CHG-NNN required) | '
+                '`docs/dev-guide/COMMITS.md` | Writing commit messages |\n',
+                '## Agent Roles\n'),
+               ('## Navigation & routes — authoritative source\n', '### App Agent\n'),
+               ('`docs/specs/07c_navigation_map.json` is the **single source of truth** for '
+                'routes,\n'
+                'sidebar items, navigation edges, and user flows.\n',
+                '- **Scope:** `apps/web/`\n'
+                '- **Language:** TypeScript\n'
+                '- **Framework:** Next.js / React\n'
+                '- **Rules:**\n'
+                '  - App Router with Server Components by default; `"use client"` only when '
+                'needed\n'
+                '  - Import design tokens from `packages/design-system`\n'
+                '  - Use Zustand for client state; validate forms with Zod\n'
+                '  - All user-facing strings go in i18n locale files\n'),
+               ('**The invariant**: every `apps/web/src/app/**/page.tsx` must have a matching '
+                'entry\n'
+                'in `routes[].path` of the nav map. Enforced by '
+                '`infra/scripts/validate-routes.sh`.\n'
+                "**No exemptions.** Need a new route the map doesn't have? Update the map in "
+                'Nous\n'
+                'first (via CHG-NNN), sync, then code.\n',
+                '### API Agent\n'),
+               ('**Sidebar**: `apps/web/src/components/shell/nav-items.gen.ts` is '
+                '**auto-generated**\n'
+                'from the nav map. Never edit it. After any nav map change, run\n'
+                '`./infra/scripts/regenerate-sidebar.py`. Scaffold a new page with\n'
+                '`./infra/scripts/scaffold-route.sh SCR-NN`. Full guide: '
+                '`docs/dev-guide/NAVIGATION.md`.\n',
+                '- **Scope:** `apps/web/src/app/api/`, `packages/db/src/`\n'
+                '- **Rules:**\n'
+                '  - Endpoints are route handlers (`route.ts`); no separate backend service\n'
+                '  - Persist via the shared Drizzle client; every company-scoped query '
+                'filters\n'
+                '    `company_id`; add a soft-delete filter only on a table that declares\n'
+                '    `deleted_at`\n'
+                '  - Protect handlers with the Auth.js session (`auth()`)\n'
+                '  - Resolve authorization from Ledger DB roles/grants after session '
+                'validation\n'),
+               ('## Project Overview\n', '### Infrastructure Agent\n'),
+               ('**Mi Banquito** — built for Organization.\n',
+                '- **Scope:** `infra/`\n'
+                '- **Rules:**\n'
+                '  - Hosting: self-hosted Docker Compose on a VPS — one Next.js app plus its\n'
+                '    declared infrastructure services (see `docs/specs/09_architecture.md`)\n'
+                '  - Release migrations run as `ledger_owner`; application runtime uses\n'
+                '    `ledger_app`\n'
+                '  - Shell scripts must be idempotent (`set -euo pipefail`)\n'),
+               ('- **Organization:** Organization\n'
+                '- **Owner:** Owner\n'
+                '- **Architecture:** Single serverless Next.js app (App Router + route '
+                'handlers)\n'
+                '- **Frontend:** nextjs 16 / react / TypeScript\n'
+                '- **Data:** drizzle ORM on postgres  (timestamp-slug migrations)\n'
+                '- **Auth:** auth0 (OIDC / sessions)\n'
+                '- **Hosting:** serverless (Vercel)\n',
+                '### Docs Agent\n'),
+               ('## Quick Start\n',
+                '- **Scope:** `docs/`, `CLAUDE.md`, `AGENTS.md`\n'
+                '- **Rules:**\n'
+                '  - Keep CLAUDE.md in sync with architecture changes\n'
+                '  - Story index must reflect current sprint assignments\n'
+                '  - Decisions must reference their DEC-SMP-NNN IDs\n'
+                '  - Open a CHG in Nous before editing generator-owned guidance\n'),
+               ('```bash\n'
+                'cd apps/web\n'
+                'pnpm install\n'
+                'pnpm dev          # next dev --webpack\n'
+                '```\n',
+                '## Coordination Rules\n'),
+               ('Or `task dev` from the repo root.\n\n\n',
+                '1. **No cross-scope changes without discussion.** A new API shape is '
+                'documented before the UI consumes it.\n'
+                '2. **Shared code lives in `packages/`.** Never duplicate logic between '
+                'modules.\n'
+                '3. **Migrations are append-only.** Never modify a committed migration under '
+                '`packages/db/src/migrations/`.\n'
+                '4. **Feature branches follow `feature/<context>/<short-desc>`.** Example: '
+                '`feature/members/member-crud`.\n'
+                '5. **Every PR must reference a story or change ID** (for example, `US-004` or '
+                '`CHG-001`).\n'
+                '6. **`pnpm type-check && pnpm lint && pnpm build` must pass** before any PR '
+                'is merged.\n'
+                '\n'
+                '## Sprint Flow\n'
+                '\n'
+                '1. **Sprint Planning:** pick stories from `docs/stories/SPRINT_PLAN.md` (the '
+                'sprint-ordered work queue)\n'
+                '2. **Development:** Agents work on assigned stories within their scope\n'
+                '3. **Integration:** API contracts validated, UI connected\n'
+                '4. **Review:** Cross-agent review for shared boundaries\n'
+                '5. **Demo:** Working feature demonstrated end-to-end\n'),
+               ('## Repository Structure\n', '## File References\n'),
+               ('```\n'
+                'apps/\n'
+                '  web/            # nextjs 16 — App Router, route handlers, Drizzle, Auth0\n'
+                'packages/\n'
+                '  db/             # @smp/db — Drizzle schema + client (drizzle-kit runs '
+                'here)\n'
+                '  contracts/      # @smp/contracts — Zod schemas shared client/server\n'
+                '  domain/         # @smp/domain — business logic\n'
+                '  ui/             # @smp/ui — shared React components\n'
+                '  config/         # @smp/config — shared tsconfig / ESLint preset\n'
+                '  design-system/  # tokens + tailwindcss preset (consumed by @smp/ui)\n',
+                '| File | Purpose |\n'
+                '|------|---------|\n'
+                '| `CLAUDE.md` | Project intelligence — architecture, rules, quick start |\n'
+                '| `AGENTS.md` | This file — agent roles and coordination |\n'
+                '| `docs/stories/SPRINT_PLAN.md` | **Work queue** — sprint-ordered stories; '
+                'start here |\n'
+                '| `docs/stories/INDEX.md` | Flat story catalog (reference, not the queue) |\n'
+                '| `docs/specs/` | ER model, screens, navigation map |\n'
+                '| `docs/decisions/` | Product decision history |\n'
+                '| `Taskfile.yml` | Task runner commands |\n'
+                '| `.env.example` | Required environment variables |\n'),
+               ('# Which packages are live vs scaffold, and how to make your first\n'
+                '# delivery: docs/dev-guide/PACKAGE_MAP.md\n'
+                'infra/\n'
+                '  scripts/        # setup, run, seed, reset, sync, sidebar, route '
+                'scaffolding\n'
+                'docs/\n'
+                '  stories/        # User stories by sprint\n'
+                '  specs/          # ER model, screens, navigation map, architecture\n'
+                '  screens/        # TOON JSON screen specifications (source of truth for UI)\n'
+                '  decisions/      # Product decisions\n'
+                '  dev-guide/      # Security, testing, standards reference (serverless)\n'
+                '```\n',
+                '## Communication Protocol\n'),
+               ('## App & API Rules\n', 'When an agent needs to coordinate with another:\n'),
+               ('1. **App Router only** — no `pages/` directory. Server Components by default; '
+                '`"use client"` only when using hooks, events, or browser APIs.\n'
+                '2. **The API is route handlers** — '
+                '`apps/web/src/app/api/<resource>/route.ts`. There is no separate backend '
+                'service.\n'
+                '3. **Data via drizzle** — the shared `db` client (import from `@smp/db`). '
+                'Every multi-tenant query filters `company_id` (the tenant column, DEC-SMP-017 '
+                '— there is no `tenant_id` and no `org_id` tenancy column). Reuse tables from '
+                '`@smp/db/schema`; derive types with `$inferSelect`/`$inferInsert`.\n'
+                '4. **Auth via auth0** — `auth0.getSession()` in route handlers (no session → '
+                '401); `useUser()` + `hasMinRole()` in the UI. Role/tenant come from the '
+                'verified session, never the request.\n'
+                '5. **Migrations** — `pnpm drizzle-kit`; timestamp-slug files under '
+                '`packages/db/src/migrations/` named `V<timestamp>__<slug>.sql`. Immutable '
+                'once applied.\n'
+                '6. **Validation: zod schemas** shared between client and route handlers.\n'
+                '7. **Soft delete is per-table** — only entities that declare a `deleted_at` '
+                'column have it (check `schema.ts`); most tables hard-delete. Never assume an '
+                '`is_deleted`/`deleted_at` column exists.\n'
+                '8. **Cursor-based pagination** for list endpoints.\n'
+                '9. **Design tokens from `packages/design-system`** — never hardcode colors, '
+                'spacing, or fonts.\n'
+                '10. **Client state: Zustand only** — no Redux, no Context for global state.\n'
+                '\n'
+                'Full frontend reference: '
+                '[`docs/dev-guide/FRONTEND.md`](docs/dev-guide/FRONTEND.md).\n'
+                '\n'
+                '## Version-Specific Constraints (IMPORTANT)\n'
+                '\n'
+                'These rules are derived from the exact framework versions in this project.\n'
+                'Violating them causes compile/test failures. **Read before writing any '
+                'code.**\n'
+                '\n'
+                '### nextjs 16.1.6\n'
+                '\n'
+                '- **App Router ONLY** — do NOT create files in `pages/` directory.\n'
+                '- **Server Components by default** — add `"use client"` only when using '
+                'hooks, event handlers, or browser APIs.\n'
+                '- **Bundler: webpack** — `scripts.build` runs `next build --webpack` (Serwist '
+                'injects a webpack config; Turbopack would hard-fail). Module imports MUST '
+                'include file extensions for non-TS files (e.g., `import preset from '
+                "'./tailwind-preset.js'`).\n"
+                '- **Server Actions** available. Use for form submissions instead of API '
+                'routes.\n'
+                '\n'
+                '\n'
+                '## Shared Contracts & Entity Conventions\n'
+                '\n'
+                'When multiple stories touch the same entity, they MUST use consistent APIs.\n'
+                '**Before writing code, check if the entity already exists** in '
+                '`packages/db/src/schema.ts`. If it does, reuse its table + inferred types — '
+                'do NOT redeclare columns or invent a parallel shape.\n'
+                '\n'
+                '### Entity Naming Conventions\n'
+                '\n'
+                '| Convention | Rule | Example |\n'
+                '|-----------|------|---------|\n'
+                '| Drizzle table object | camelCase | `export const member = pgTable(...)` |\n'
+                '| DB table name | snake_case | `pgTable("member", {...})` |\n'
+                '| DB columns | snake_case | `company_id`, `created_at` |\n'
+                '| FK columns | `<entity>_id` | `member_id`, `company_id` |\n'
+                '| Tenant column | `company_id` (uuid) | every multi-tenant table carries '
+                '`company_id` (DEC-SMP-017) |\n'
+                '\n'
+                '### Type & Query Convention\n'
+                '\n'
+                'Full example: [`docs/dev-guide/STANDARDS.md`](docs/dev-guide/STANDARDS.md)\n'
+                '\n'
+                '- Derive row types from the schema: `type Member = typeof '
+                'member.$inferSelect`. Never hand-write a divergent interface.\n'
+                '- All reads/writes go through the shared `db` client (import from `@smp/db`) '
+                '— never a second connection.\n'
+                '- **Tenant isolation:** every query on a multi-tenant table filters by '
+                '`company_id` (the tenant column, DEC-SMP-017). Confirm the column in '
+                '`packages/db/src/schema.ts` — do NOT invent `tenant_id`.\n'
+                '- **Soft delete is per-table, not universal:** only filter a soft-delete '
+                'column (e.g. `deleted_at`) on tables that actually declare one in '
+                '`schema.ts`. Most generated tables hard-delete; do NOT add an `is_deleted` '
+                'filter to a table that has no such column (it will not type-check).\n'
+                '\n'
+                '### Database Migrations (HR-25 — MANDATORY)\n'
+                '\n'
+                'This project uses **Drizzle** with **timestamp-slug** migration files under '
+                '`packages/db/src/migrations/` named `V<UTC-yyyyMMddHHmmss>__<slug>.sql`.\n'
+                '\n'
+                '- Edit `packages/db/src/schema.ts`, then regenerate/apply with `pnpm '
+                'drizzle-kit` (`generate` to author a migration, `push` to apply the schema to '
+                'a fresh DB).\n'
+                '- Never hand-pick a numeric version; the timestamp is the version. Once '
+                'applied, a migration file is immutable — add a new one.\n'
+                '- Foreign-key references must point at tables already declared in '
+                '`schema.ts`.\n'
+                '\n'
+                '### Enum Columns (MANDATORY)\n'
+                '\n'
+                '- Declare enums once with `pgEnum("role", ["DECISION_MAKER", "INFLUENCER", '
+                '"USER"])` and reuse the export.\n'
+                '- On-disk values are the exact literals in the `pgEnum` array '
+                '(case-sensitive) — CHECK/seed values must match them byte-for-byte.\n'
+                '- Never redeclare the same logical enum in two places; import the shared '
+                'one.\n'
+                '\n'
+                '\n'
+                '## Bounded Contexts\n'
+                '\n'
+                'Bounded-context structure + API conventions live in\n'
+                '[`docs/specs/09_architecture.md`](docs/specs/09_architecture.md). The '
+                'authenticated\n'
+                'surface is under `apps/web/src/app/(authenticated)/` — one route group per '
+                'screen.\n'
+                '\n'
+                '## Key Decisions\n'
+                '\n'
+                '| ID | Decision | Impact |\n'
+                '|----|----------|--------|\n'
+                '| — | — | — |\n'
+                '\n'
+                'See `docs/decisions/` for full decision history.\n'
+                '\n'
+                '## Design System\n'
+                '\n'
+                '- **Primary:** #007AFF (Primary)\n'
+                '- **Accent:** #FF3B30 (Accent)\n'
+                '- **Font:** Inter (sans), JetBrains Mono (code)\n'
+                '- **Tokens:** `packages/design-system`\n'
+                '\n'
+                '## Testing Strategy\n'
+                '\n'
+                '**Every story includes tests. Code without tests is not done.**\n'
+                '\n'
+                '- Components: render test for every page/component; logic tests for '
+                'hooks/stores.\n'
+                '- Route handlers: cover auth branches (401/403) + happy path; assert against '
+                'a test `db`.\n'
+                '- Empty/error/loading states for every screen.\n'
+                '- TDD by default when possible.\n'
+                '\n'
+                'Full targets + patterns: '
+                '[`docs/dev-guide/TESTING.md`](docs/dev-guide/TESTING.md).\n'
+                '\n'
+                '## Testing\n'
+                '\n'
+                '**Before writing, modifying, or deleting any test, you MUST read '
+                '`docs/dev-guide/TESTING.md`\n'
+                'and follow it.** The org-wide rationale is in '
+                '`docs/TEST_EFFECTIVENESS_STANDARD.md`.\n'
+                'These are hard constraints, not suggestions — a PR that violates them will be '
+                'rejected.\n'
+                '\n'
+                'Non-negotiable rules (summarized from `docs/dev-guide/TESTING.md` §1):\n'
+                '\n'
+                '- **Never use print/log as a test.** `console.log` / `System.out` / `print`, '
+                'or a test that\n'
+                '  only checks "does not throw", is NOT an oracle. Every test asserts a '
+                'property or contract.\n'
+                '- **Never mock code we own.** Mock ONLY true third-party network boundaries '
+                '(payments,\n'
+                '  email/SMS/push, LLM providers). Use Testcontainers or in-memory real '
+                'implementations for\n'
+                '  databases, our own services, the event store, and read models. Every '
+                'third-party mock must\n'
+                '  be backed by a Pact contract test.\n'
+                '- **Test aggregates with given/when/then over events:** `GIVEN [past events] '
+                'WHEN [command]\n'
+                '  THEN [emitted events | rejection]`. Do not mock the event store.\n'
+                '- **Use the strongest available oracle** (exact -> property-based -> '
+                'metamorphic -> differential\n'
+                '  -> golden). Use property-based tests for all scoring/standings/money math. '
+                'Do not default to\n'
+                '  exact-equality on large objects.\n'
+                '- **Do not write tests to raise coverage.** Coverage is a diagnostic, never a '
+                'target. The only\n'
+                '  effectiveness target is the mutation score on critical paths. A new test '
+                'must kill a mutant\n'
+                '  that was not previously killed; if it only adds coverage, it is redundant '
+                '-- do not add it.\n'
+                '- **Keep tests deterministic:** inject the clock and RNG seed, no live '
+                'network, no reliance on\n'
+                '  ordering or timing.\n'
+                '- **Assert tenant isolation** on every path touching tenant-scoped data.\n'
+                '\n'
+                'Scope your test-writing to small, well-specified correctness bugs with clear '
+                'reproduction and\n'
+                'expected behavior. Do not spray shallow or heavily-mocked tests to inflate '
+                'volume -- test volume\n'
+                'is not a goal and is measured as a cost, not a quality.\n'
+                '\n'
+                'When you change logic in a `docs/dev-guide/TESTING.md` §3 critical path, '
+                'update its §3 in the same PR.\n'
+                '\n'
+                '## Build Verification Gate\n'
+                '\n'
+                'A story is NOT done until the build passes — self-reported "tests pass" is '
+                'not sufficient.\n'
+                '\n'
+                'Before marking any story `done`:\n'
+                '- `pnpm type-check` passes (`tsc --noEmit`, zero errors).\n'
+                '- `pnpm lint` passes (Next.js lint + the design-system token lints).\n'
+                '- `pnpm build` succeeds — runs `next build --webpack` (the serverless/PWA '
+                'bundler).\n'
+                '- `pnpm test` passes — Vitest across the workspace. Tests must meet the '
+                'effectiveness bar in [`docs/dev-guide/TESTING.md`](docs/dev-guide/TESTING.md) '
+                '§4 (real-DB seam tests via the pglite fixture, strongest available oracle; '
+                'coverage is a diagnostic, never a completion target — TE-1 / R1).\n'
+                '- `cd packages/db && pnpm drizzle-kit push && node scripts/verify-schema.mjs` '
+                'applies the Drizzle schema to a fresh database AND verifies it landed (push '
+                'exits 0 on an unreachable URL — the verifier fails loud on a silent no-op); '
+                'no duplicate timestamp migrations under `packages/db/src/migrations/`.\n'
+                '- Report evidence: `{"story":"US-XXX","event":"build_pass",...}` then '
+                '`{"event":"done",...}`.\n'
+                '\n'
+                'Full gate (commands, rejection criteria, troubleshooting):\n'
+                '[`docs/dev-guide/DEFINITION_OF_DONE.md`](docs/dev-guide/DEFINITION_OF_DONE.md).\n'
+                '\n'
+                '## API Contract Reconciliation\n'
+                '\n'
+                '`docs/api-contract-registry.json` lists every API endpoint the frontend '
+                'expects,\n'
+                'extracted from TOON `dataSource` fields. Before implementing a route handler, '
+                'search\n'
+                'the registry and match the path + method **exactly**. After implementing, '
+                'run\n'
+                '`python3 docs/scripts/nous_api_reconcile.py`. If spec and implementation '
+                'must\n'
+                'diverge, log it — never silently change paths:\n'
+                '\n'
+                '```jsonl\n'
+                '{"story":"US-XXX","event":"deviation","notes":"renamed /api/v1/foo to '
+                '/api/v1/bar — naming convention"}\n'
+                '```\n'
+                '\n'
+                '## Nous Feedback & Story Lifecycle\n'
+                '\n'
+                'Append events to `.nous-feedback.jsonl` at the repo root as you work. Core '
+                'events:\n'
+                '`started`, `ac_pass`, `ac_verify`, `build_pass`, `done`, `blocked`, '
+                '`deviation`,\n'
+                '`decision`, `feedback`.\n'
+                '\n'
+                '```jsonl\n'
+                '{"story":"US-064","event":"started","agent":"<your-agent>"}\n'
+                '{"story":"US-064","event":"build_pass","notes":"type-check + lint + build '
+                'green"}\n'
+                '{"story":"US-064","event":"done"}\n'
+                '```\n'
+                '\n'
+                '**Never mark `done` without adversarial AC verification** — try to BREAK each '
+                'AC.\n'
+                '\n'
+                'Status propagation is operator/CI-owned: your `done` lands in '
+                '`.nous-feedback.jsonl`,\n'
+                'but `docs/stories/SPRINT_PLAN.md` only refreshes after `nous_package.py sync` '
+                'runs Nous-side.\n'
+                "Don't re-implement a story just because `docs/stories/SPRINT_PLAN.md` still "
+                'shows it as backlog —\n'
+                'check `.nous-feedback.jsonl` first. To force a refresh (when you have '
+                'access):\n'
+                '`./infra/scripts/sync-from-nous.sh`.\n'
+                '\n'
+                'Full event schema + AC protocol: '
+                '[`docs/dev-guide/FEEDBACK.md`](docs/dev-guide/FEEDBACK.md).\n'
+                'Build gate + rejection criteria: '
+                '[`docs/dev-guide/DEFINITION_OF_DONE.md`](docs/dev-guide/DEFINITION_OF_DONE.md).\n'
+                '\n'
+                '## Skills Required\n'
+                '\n'
+                '- **Frontend:** TypeScript, react, nextjs 16 App Router, tailwindcss, '
+                'Zustand, zod\n'
+                '- **Data:** drizzle ORM, postgres \n'
+                '- **Auth:** auth0 (OIDC / sessions)\n'
+                '- **Tooling:** pnpm, drizzle-kit, Vercel\n'
+                '- **i18n:** locale-aware UI (default `en-US`)\n',
+                '1. **API Contract:** Define the route handler path + shape before '
+                'implementing\n'
+                '2. **UI Contract:** Define the component props interface before building\n'
+                '3. **Migration Ordering:** Timestamp-slug filenames avoid version conflicts\n'
+                '\n'
+                '## Testing\n'
+                '\n'
+                '**Before writing, modifying, or deleting any test, you MUST read '
+                '`docs/dev-guide/TESTING.md`\n'
+                'and follow it.** The org-wide rationale is in '
+                '`docs/TEST_EFFECTIVENESS_STANDARD.md`.\n'
+                'These are hard constraints, not suggestions — a PR that violates them will be '
+                'rejected.\n'
+                '\n'
+                'Non-negotiable rules (summarized from `docs/dev-guide/TESTING.md` §1):\n'
+                '\n'
+                '- **Never use print/log as a test.** `console.log` / `System.out` / `print`, '
+                'or a test that\n'
+                '  only checks "does not throw", is NOT an oracle. Every test asserts a '
+                'property or contract.\n'
+                '- **Never mock code we own.** Mock ONLY true third-party network boundaries '
+                '(payments,\n'
+                '  email/SMS/push, LLM providers). Use Testcontainers or in-memory real '
+                'implementations for\n'
+                '  databases, our own services, the event store, and read models. Every '
+                'third-party mock must\n'
+                '  be backed by a Pact contract test.\n'
+                '- **Test aggregates with given/when/then over events:** `GIVEN [past events] '
+                'WHEN [command]\n'
+                '  THEN [emitted events | rejection]`. Do not mock the event store.\n'
+                '- **Use the strongest available oracle** (exact -> property-based -> '
+                'metamorphic -> differential\n'
+                '  -> golden). Use property-based tests for all scoring/standings/money math. '
+                'Do not default to\n'
+                '  exact-equality on large objects.\n'
+                '- **Do not write tests to raise coverage.** Coverage is a diagnostic, never a '
+                'target. The only\n'
+                '  effectiveness target is the mutation score on critical paths. A new test '
+                'must kill a mutant\n'
+                '  that was not previously killed; if it only adds coverage, it is redundant '
+                '-- do not add it.\n'
+                '- **Keep tests deterministic:** inject the clock and RNG seed, no live '
+                'network, no reliance on\n'
+                '  ordering or timing.\n'
+                '- **Assert tenant isolation** on every path touching tenant-scoped data.\n'
+                '\n'
+                'Scope your test-writing to small, well-specified correctness bugs with clear '
+                'reproduction and\n'
+                'expected behavior. Do not spray shallow or heavily-mocked tests to inflate '
+                'volume -- test volume\n'
+                'is not a goal and is measured as a cost, not a quality.\n'
+                '\n'
+                'When you change logic in a `docs/dev-guide/TESTING.md` §3 critical path, '
+                'update its §3 in the same PR.\n')),
+ 'CLAUDE.md': (('# CLAUDE.md — Mi Banquito\n', '# CLAUDE.md — Ledger\n'),
+               ('the Nous product design pipeline. It is a **single serverless app** (route '
+                'handlers,\n'
+                'Drizzle, Auth0) — there is no separate backend service.\n',
+                'the Nous product design pipeline. It is a **single self-hosted app** (route '
+                'handlers,\n'
+                'Drizzle, Auth.js, Keycloak) — there is no separate backend service.\n'),
+               ('| Security patterns (Auth0 sessions, role gating, tenant scoping) | '
+                "`docs/dev-guide/SECURITY.md` | Adding an auth'd route handler |\n",
+                '| Security patterns (Auth.js/Keycloak sessions, role gating, tenant scoping) '
+                "| `docs/dev-guide/SECURITY.md` | Adding an auth'd route handler |\n"),
+               ('**Mi Banquito** — built for Organization.\n',
+                '**Ledger** — built for Organization.\n'),
+               ('- **Architecture:** Single serverless Next.js app (App Router + route '
+                'handlers)\n'
+                '- **Frontend:** nextjs 16 / react / TypeScript\n',
+                '- **Architecture:** Single self-hosted Next.js app (App Router + route '
+                'handlers)\n'
+                '- **Frontend:** nextjs / react / TypeScript\n'),
+               ('- **Auth:** auth0 (OIDC / sessions)\n- **Hosting:** serverless (Vercel)\n',
+                '- **Auth:** Auth.js with Keycloak (OIDC / sessions)\n'
+                '- **Hosting:** self-hosted (Docker Compose on a VPS)\n'
+                '\n'
+                '## Sprint 1 Execution Contract (DEC-SMP-017 / CHG-001)\n'
+                '\n'
+                '- `Company` is the Ledger application-tenant boundary. Every company-scoped\n'
+                '  query filters the real `company_id` column declared by its table.\n'
+                '- `VendorAccount` is a vendor organization/account, not a Ledger application\n'
+                '  tenant or authorization boundary.\n'
+                '- Auth.js obtains identity from Keycloak. Ledger obtains authorization from\n'
+                '  `UserAccount` and `CompanyRoleAssignment` in its own database.\n'
+                '- Keycloak renders and verifies OIDC passwords and TOTP challenges. Ledger\n'
+                '  redirects to Keycloak and never renders or collects those credentials.\n'
+                '- Retained, operator-queryable Keycloak security events are US-004 evidence '
+                'for\n'
+                '  password/TOTP failures. Ledger `AuditLog` records successful OIDC/session\n'
+                '  linking plus callback and authorization failures that Ledger observes.\n'
+                '- US-004 establishes and tests the Keycloak admin-service seam required for\n'
+                '  admin-group synchronization. The complete user-management UI remains '
+                'US-011.\n'
+                '- Releases apply committed migrations as `ledger_owner`; the application '
+                'runs\n'
+                '  as `ledger_app`.\n'
+                '- Docker Compose on a VPS is the R1 deployment target.\n'),
+               ('  web/            # nextjs 16 — App Router, route handlers, Drizzle, Auth0\n',
+                '  web/            # nextjs — App Router, route handlers, Drizzle, '
+                'Auth.js/Keycloak\n'),
+               ('  dev-guide/      # Security, testing, standards reference (serverless)\n',
+                '  dev-guide/      # Security, testing, standards reference\n'),
+               ('3. **Data via drizzle** — the shared `db` client (import from `@smp/db`). '
+                'Every multi-tenant query filters `company_id` (the tenant column, DEC-SMP-017 '
+                '— there is no `tenant_id` and no `org_id` tenancy column). Reuse tables from '
+                '`@smp/db/schema`; derive types with `$inferSelect`/`$inferInsert`.\n'
+                '4. **Auth via auth0** — `auth0.getSession()` in route handlers (no session → '
+                '401); `useUser()` + `hasMinRole()` in the UI. Role/tenant come from the '
+                'verified session, never the request.\n'
+                '5. **Migrations** — `pnpm drizzle-kit`; timestamp-slug files under '
+                '`packages/db/src/migrations/` named `V<timestamp>__<slug>.sql`. Immutable '
+                'once applied.\n'
+                '6. **Validation: zod schemas** shared between client and route handlers.\n'
+                '7. **Soft delete is per-table** — only entities that declare a `deleted_at` '
+                'column have it (check `schema.ts`); most tables hard-delete. Never assume an '
+                '`is_deleted`/`deleted_at` column exists.\n'
+                '8. **Cursor-based pagination** for list endpoints.\n'
+                '9. **Design tokens from `packages/design-system`** — never hardcode colors, '
+                'spacing, or fonts.\n'
+                '10. **Client state: Zustand only** — no Redux, no Context for global state.\n'
+                '\n'
+                'Full frontend reference: '
+                '[`docs/dev-guide/FRONTEND.md`](docs/dev-guide/FRONTEND.md).\n'
+                '\n'
+                '## Version-Specific Constraints (IMPORTANT)\n'
+                '\n'
+                'These rules are derived from the exact framework versions in this project.\n'
+                'Violating them causes compile/test failures. **Read before writing any '
+                'code.**\n'
+                '\n'
+                '### nextjs 16.1.6\n'
+                '\n'
+                '- **App Router ONLY** — do NOT create files in `pages/` directory.\n'
+                '- **Server Components by default** — add `"use client"` only when using '
+                'hooks, event handlers, or browser APIs.\n'
+                '- **Bundler: webpack** — `scripts.build` runs `next build --webpack` (Serwist '
+                'injects a webpack config; Turbopack would hard-fail). Module imports MUST '
+                'include file extensions for non-TS files (e.g., `import preset from '
+                "'./tailwind-preset.js'`).\n"
+                '- **Server Actions** available. Use for form submissions instead of API '
+                'routes.\n'
+                '\n'
+                '\n',
+                '3. **Data via drizzle** — the shared `db` client (import from `@smp/db`). '
+                "Every company-scoped query filters the table's `company_id` column. Reuse "
+                'tables from `@smp/db/schema`; derive types with '
+                '`$inferSelect`/`$inferInsert`.\n'
+                '4. **Auth via Auth.js and Keycloak** — `auth()` in route handlers (no session '
+                '→ 401); `useSession()` + `hasMinRole()` in the UI. Identity comes from the '
+                'verified Keycloak OIDC session; roles and company grants come from Ledger DB, '
+                'never the request.\n'
+                '5. **Migrations** — `pnpm drizzle-kit`; timestamp-slug files under '
+                '`packages/db/src/migrations/` named `V<timestamp>__<slug>.sql`. Immutable '
+                'once applied.\n'
+                '6. **Validation: zod schemas** shared between client and route handlers.\n'
+                '7. **Soft delete is per-table** — only entities that declare a `deleted_at` '
+                'column have it (check `schema.ts`); most tables hard-delete. Never assume an '
+                '`is_deleted`/`deleted_at` column exists.\n'
+                '8. **Cursor-based pagination** for list endpoints.\n'
+                '9. **Design tokens from `packages/design-system`** — never hardcode colors, '
+                'spacing, or fonts.\n'
+                '10. **Client state: Zustand only** — no Redux, no Context for global state.\n'
+                '\n'
+                'Full frontend reference: '
+                '[`docs/dev-guide/FRONTEND.md`](docs/dev-guide/FRONTEND.md).\n'
+                '\n'
+                '## Version-Specific Constraints (IMPORTANT)\n'
+                '\n'
+                'These rules are derived from the exact framework versions in this project.\n'
+                'Violating them causes compile/test failures. **Read before writing any '
+                'code.**\n'
+                '\n'
+                '### nextjs 16.1.6\n'
+                '\n'
+                '- **App Router ONLY** — do NOT create files in `pages/` directory.\n'
+                '- **Server Components by default** — add `"use client"` only when using '
+                'hooks, event handlers, or browser APIs.\n'
+                '- **Bundler: webpack** — `scripts.build` runs `next build --webpack` (Serwist '
+                'injects a webpack config; Turbopack would hard-fail). Module imports MUST '
+                'include file extensions for non-TS files (e.g., `import preset from '
+                "'./tailwind-preset.js'`).\n"
+                '- **Server Actions** available. Use for form submissions instead of API '
+                'routes.\n'
+                '\n'),
+               ('| Tenant column | `company_id` (uuid) | every multi-tenant table carries '
+                '`company_id` (DEC-SMP-017) |\n',
+                '| Tenant column | `company_id` (uuid) | every company-scoped table carries '
+                '`company_id` |\n'),
+               ('- **Tenant isolation:** every query on a multi-tenant table filters by '
+                '`company_id` (the tenant column, DEC-SMP-017). Confirm the column in '
+                '`packages/db/src/schema.ts` — do NOT invent `tenant_id`.\n',
+                '- **Tenant isolation:** every company-scoped query filters by the real\n'
+                '  `company_id` column. Confirm the column in `packages/db/src/schema.ts`;\n'
+                '  `VendorAccount` references do not define Ledger tenant scope.\n'),
+               ('| — | — | — |\n',
+                '| DEC-SMP-017 | Sprint 1 execution contract | `company_id` isolation; '
+                'Keycloak/Auth.js identity; Ledger DB authorization; Keycloak-retained '
+                'auth-failure evidence; least-privilege DB roles; Docker Compose/VPS R1 |\n'),
+               ('- `pnpm build` succeeds — runs `next build --webpack` (the serverless/PWA '
+                'bundler).\n',
+                '- `pnpm build` succeeds — runs `next build --webpack` (the production/PWA '
+                'bundler).\n'),
+               ('- `cd packages/db && pnpm drizzle-kit push && node scripts/verify-schema.mjs` '
+                'applies the Drizzle schema to a fresh database AND verifies it landed (push '
+                'exits 0 on an unreachable URL — the verifier fails loud on a silent no-op); '
+                'no duplicate timestamp migrations under `packages/db/src/migrations/`.\n',
+                '- Committed migrations apply to a fresh database as `ledger_owner`, then\n'
+                '  `node packages/db/scripts/verify-schema.mjs` verifies the result. '
+                'Application\n'
+                '  runtime checks use `ledger_app`; no duplicate timestamp migrations exist\n'
+                '  under `packages/db/src/migrations/`.\n'),
+               ('- **Frontend:** TypeScript, react, nextjs 16 App Router, tailwindcss, '
+                'Zustand, zod\n',
+                '- **Frontend:** TypeScript, react, nextjs App Router, tailwindcss, Zustand, '
+                'zod\n'),
+               ('- **Auth:** auth0 (OIDC / sessions)\n'
+                '- **Tooling:** pnpm, drizzle-kit, Vercel\n',
+                '- **Auth:** Auth.js + Keycloak (OIDC / sessions)\n'
+                '- **Tooling:** pnpm, drizzle-kit, Docker Compose\n')),
+ 'docs/dev-guide/DEFINITION_OF_DONE.md': (('   pnpm build               # next build --webpack '
+                                           '(serverless / PWA bundler)\n',
+                                           '   pnpm build               # next build --webpack '
+                                           '(production / PWA bundler)\n'),
+                                          ('5. **Schema applies on a fresh database (and is '
+                                           'verified):**\n'
+                                           '   - **Prerequisite:** `DATABASE_URL` must be set '
+                                           'to a reachable Postgres before this\n'
+                                           '     step — copy `.env.example` → `.env` and set '
+                                           'it (or run `task setup`). The bare\n'
+                                           '     `push` below silently no-ops against an '
+                                           'unset/unreachable URL.\n',
+                                           '5. **Committed migrations apply on a fresh '
+                                           'database (and parity is verified):**\n'
+                                           '   - **Prerequisite:** `DATABASE_ADMIN_URL` '
+                                           'connects as `ledger_owner` and has\n'
+                                           '     permission to create the two disposable '
+                                           'parity databases. `DATABASE_URL`\n'
+                                           '     connects as the lower-privilege `ledger_app` '
+                                           'for runtime grant checks.\n'),
+                                          ('   cd packages/db && pnpm drizzle-kit push && node '
+                                           'scripts/verify-schema.mjs\n',
+                                           '   pnpm --filter @smp/db db:migrate\n'
+                                           '   pnpm --filter @smp/db db:verify\n'
+                                           '   pnpm --filter @smp/db db:parity\n'),
+                                          ('   - `drizzle-kit push` exits **0 even on an '
+                                           'unreachable `DATABASE_URL`** (a silent\n'
+                                           '     no-op: 0 tables). `verify-schema.mjs` counts '
+                                           'the applied tables and exits\n'
+                                           '     non-zero on 0 — so "schema applies cleanly" '
+                                           'can no longer be a false pass.\n'
+                                           '   - The DB client auto-selects its driver by '
+                                           '`DATABASE_URL` (`pg` for a local/\n'
+                                           '     standard Postgres URL, `neon-http` for a Neon '
+                                           'URL), so `push` applies locally.\n'
+                                           '   - Migrations live in '
+                                           '`packages/db/src/migrations/` as '
+                                           '`V<timestamp>__<slug>.sql`.\n',
+                                           '   - `db:migrate` applies only sorted, committed '
+                                           '`V<timestamp>__<slug>.sql` files,\n'
+                                           '     under the migration advisory lock, and '
+                                           'rejects changed checksums.\n'
+                                           '   - `db:verify` verifies the migration ledger and '
+                                           'the committed integrity objects.\n'
+                                           '   - `db:parity` compares committed migrations '
+                                           'with a fresh `drizzle-kit push`\n'
+                                           '     across tables, columns, normalized types, '
+                                           'nullability, and foreign keys.\n'),
+                                          ('   - Every Drizzle column has a corresponding '
+                                           'migration column.\n',
+                                           '   - The release path applies committed migrations '
+                                           'using the `ledger_owner`\n'
+                                           '     connection. It then starts the application '
+                                           'using the lower-privilege\n'
+                                           '     `ledger_app` connection; application runtime '
+                                           'must not use the owner role.\n'),
+                                          ('6. **Report evidence** in '
+                                           '`.nous-feedback.jsonl`:\n',
+                                           '6. **Authentication evidence passes for US-004:**\n'
+                                           '   - Auth.js redirects OIDC to Keycloak; Ledger '
+                                           'renders no password or TOTP\n'
+                                           '     fields.\n'
+                                           '   - Keycloak realm event retention is configured, '
+                                           'and an integration or\n'
+                                           '     operational verification proves an authorized '
+                                           'operator can query retained\n'
+                                           '     password/TOTP failure events.\n'
+                                           '   - Ledger `AuditLog` contains only the '
+                                           'OIDC/session linking, callback, and\n'
+                                           '     authorization outcomes Ledger observes; no '
+                                           'Keycloak-event ingestion\n'
+                                           '     adapter is required in Sprint 1.\n'
+                                           '   - The Keycloak admin-service seam is tested for '
+                                           '`platform-admin`\n'
+                                           '     synchronization; the complete user-management '
+                                           'UI remains US-011.\n'
+                                           '\n'
+                                           '7. **R1 deployment target is verified for '
+                                           'release/infrastructure stories:**\n'
+                                           '   Docker Compose on a VPS (or an equivalent CI '
+                                           'Compose environment) starts\n'
+                                           '   the Next.js app and declared infrastructure '
+                                           'services with health checks\n'
+                                           '   passing.\n'
+                                           '\n'
+                                           '8. **Report evidence** in '
+                                           '`.nous-feedback.jsonl`:\n'),
+                                          ('7. **Adversarial AC verification** — see\n'
+                                           '   [`FEEDBACK.md`](FEEDBACK.md) (AC Verification '
+                                           'Protocol).\n'
+                                           '\n'
+                                           '## Story Rejection Criteria\n'
+                                           '\n'
+                                           'A story is REJECTED during sprint acceptance if '
+                                           'any of these hold:\n'
+                                           '- `pnpm type-check`, `pnpm lint`, `pnpm build`, or '
+                                           '`pnpm test` fails.\n'
+                                           '- A migration file was edited instead of adding a '
+                                           'new one.\n',
+                                           '9. **Adversarial AC verification** — see\n'
+                                           '   [`FEEDBACK.md`](FEEDBACK.md) (AC Verification '
+                                           'Protocol).\n'
+                                           '\n'
+                                           '## Story Rejection Criteria\n'
+                                           '\n'
+                                           'A story is REJECTED during sprint acceptance if '
+                                           'any of these hold:\n'
+                                           '- `pnpm type-check`, `pnpm lint`, `pnpm build`, or '
+                                           '`pnpm test` fails.\n'
+                                           '- A migration file was edited instead of adding a '
+                                           'new one.\n'
+                                           '- Release migrations ran as `ledger_app`, or the '
+                                           'deployed app runs as\n'
+                                           '  `ledger_owner`.\n'
+                                           '- A Sprint 1 deployment assumes a managed hosting '
+                                           'target instead of the\n'
+                                           '  Docker Compose/VPS contract.\n'
+                                           '- US-004 lacks operator-queryable retained '
+                                           'Keycloak password/TOTP failure\n'
+                                           '  evidence.\n')),
+ 'docs/dev-guide/FRONTEND.md': (('- A page that calls `auth0.getSession()` (or otherwise reads '
+                                 'cookies/headers) is\n',
+                                 '- A page that calls `auth()` (or otherwise reads '
+                                 'cookies/headers) is\n'),
+                                ('- User display name from the Auth0 session — never display a '
+                                 'raw id as identity.\n'
+                                 '- Log out via `logout()` from `@/lib/auth/logout`.\n',
+                                 '- User display name from the Auth.js session backed by '
+                                 'Keycloak — never display a raw id as identity.\n'
+                                 '- Log out via `logout()` from `@/lib/auth/logout`.\n'
+                                 '- Sign-in is an OIDC redirect to Keycloak. Ledger must not '
+                                 'render, collect, or\n'
+                                 '  proxy a password or TOTP field; those credential screens '
+                                 'belong to Keycloak.\n'
+                                 '- UI role gates are only a presentation aid. Server-side '
+                                 'authorization resolves\n'
+                                 '  roles and company grants from Ledger DB.\n')),
+ 'docs/dev-guide/SECURITY.md': (('Authentication, authorization, and tenant scoping for this '
+                                 'serverless Next.js app.\n'
+                                 'See `CLAUDE.md` for the condensed rules; this file is the '
+                                 'authoritative reference.\n',
+                                 'Authentication, authorization, and company scoping for the '
+                                 'self-hosted Next.js\n'
+                                 'app. See `CLAUDE.md` for the condensed rules; this file is '
+                                 'the authoritative\n'
+                                 'reference.\n'
+                                 '\n'
+                                 '## Identity and Authorization Boundary\n'
+                                 '\n'
+                                 '- Auth.js performs OIDC authorization-code redirects against '
+                                 'the self-hosted\n'
+                                 '  Keycloak realm `corporativo`.\n'
+                                 '- Keycloak is the identity provider. It renders and verifies '
+                                 'passwords and TOTP;\n'
+                                 '  Ledger must never render, collect, proxy, or persist those '
+                                 'credentials.\n'
+                                 '- Ledger is the authorization source of truth. After '
+                                 'verifying the session,\n'
+                                 '  resolve the matching `UserAccount` and its '
+                                 '`CompanyRoleAssignment` rows.\n'
+                                 '  Keycloak carries no Ledger business roles.\n'
+                                 '- `Company` is the application-tenant boundary. '
+                                 '`VendorAccount` is a vendor\n'
+                                 '  organization/account inside Ledger, not an application '
+                                 'tenant.\n'),
+                                ('import { auth0 } from "@/lib/auth0";\n',
+                                 'import { auth } from "@/lib/auth/auth-config";\n'),
+                                ('import { member } from "@smp/db/schema";\n'
+                                 'import { inArray } from "drizzle-orm";\n',
+                                 'import { statement } from "@smp/db/schema";\n'
+                                 'import { inArray } from "drizzle-orm";\n'
+                                 'import { loadLedgerAuthorization } from '
+                                 '"@/lib/auth/authorization";\n'),
+                                ('  const session = await auth0.getSession();\n',
+                                 '  const session = await auth();\n'),
+                                ('  // DEC-SMP-014/017: the token is identity-only. Resolve '
+                                 "the caller's company\n"
+                                 '  // grants from the DB (UserAccount.idp_subject → '
+                                 'CompanyRoleAssignment) — never\n'
+                                 '  // from a token claim.\n'
+                                 '  const companyIds = await '
+                                 'grantedCompanyIds(session.user.idpSubject);\n',
+                                 '\n'
+                                 '  const authorization = await '
+                                 'loadLedgerAuthorization(session.user.idpSubject);\n'),
+                                ('    .from(member)\n'
+                                 '    .where(inArray(member.company_id, companyIds));          '
+                                 '// filter the tenant column\n',
+                                 '    .from(statement)\n'
+                                 '    .where(inArray(statement.companyId, '
+                                 'authorization.companyIds));\n'
+                                 '\n'),
+                                ('- Every protected handler calls `auth0.getSession()` first — '
+                                 'no session → `401`.\n'
+                                 '- Tenant scope comes from **DB grants** (`idp_subject` → '
+                                 '`CompanyRoleAssignment`, DEC-SMP-014/017), NEVER from a '
+                                 'token claim or the request body/query.\n'
+                                 '- Every Drizzle query on a multi-tenant table filters '
+                                 '`company_id` (the generated tenant column — confirm it in '
+                                 '`schema.ts`; there is no `tenant_id`). Add a soft-delete '
+                                 'filter (`deleted_at`) ONLY on a table that declares one — '
+                                 'most tables hard-delete and have no `is_deleted` column.\n'
+                                 '- Role-gate a mutation with the session roles claim:\n',
+                                 '\n'
+                                 '- Every protected handler calls `auth()` first — no session '
+                                 '→ `401`.\n'
+                                 '- Roles and authorized company IDs come from Ledger DB, '
+                                 'never from the request\n'
+                                 '  body/query and never from a client-supplied claim.\n'
+                                 '- Every company-scoped Drizzle query filters the real '
+                                 '`company_id` column\n'
+                                 '  declared by its table. Add a soft-delete filter '
+                                 '(`deleted_at`) only on a\n'
+                                 '  table that declares one.\n'
+                                 '- Role-gate mutations with the Ledger authorization result:\n'
+                                 '\n'),
+                                ('  const roles = (session.user.roles ?? []) as string[];\n'
+                                 '  if (!roles.includes("PRESIDENTE")) {\n',
+                                 '  if (!authorization.roles.includes("group_admin")) {\n'),
+                                ('- NEVER trust a role or tenant supplied by the client; only '
+                                 'the verified session.\n',
+                                 '\n'
+                                 '- A vendor-account filter can narrow business data, but it '
+                                 'never replaces the\n'
+                                 '  company authorization predicate.\n'),
+                                ('- The app is wrapped in `AuthSessionProvider` '
+                                 '(`@/lib/auth/session-provider`), already mounted in the root '
+                                 'layout.\n'
+                                 '- Read the user with `useUser()` from '
+                                 '`@auth0/nextjs-auth0`.\n'
+                                 '- Gate UI with `hasMinRole(roles, minRole)` from '
+                                 '`@/lib/auth/roles` — hierarchy is `ROLE_HIERARCHY`, '
+                                 'generated from the nav-map RBAC.\n'
+                                 '- Log out via `logout()` from `@/lib/auth/logout` (ends the '
+                                 'Auth0 session).\n'
+                                 '- Never render a raw user id as identity — use the display '
+                                 'name from the session.\n',
+                                 '- The app is wrapped in `AuthSessionProvider`\n'
+                                 '  (`@/lib/auth/session-provider`), already mounted in the '
+                                 'root layout.\n'
+                                 '- Read the Auth.js session with `useSession()` from '
+                                 '`next-auth/react`.\n'
+                                 '- Gate UI with `hasMinRole(roles, minRole)` from '
+                                 '`@/lib/auth/roles`; the server\n'
+                                 '  must independently enforce the same Ledger DB '
+                                 'authorization.\n'
+                                 '- Log out via `logout()` from `@/lib/auth/logout` (ends the '
+                                 'Auth.js session and\n'
+                                 '  the Keycloak SSO session).\n'
+                                 '- Never render a raw user id as identity; use the display '
+                                 'name from the\n'
+                                 '  verified session.\n'
+                                 '\n'
+                                 '## Authentication-Failure Evidence (US-004)\n'
+                                 '\n'
+                                 '- Keycloak is the system of record for password and TOTP '
+                                 'failures.\n'
+                                 '- The realm configuration must retain security events for '
+                                 'the agreed\n'
+                                 '  operational period and make them queryable by authorized '
+                                 'operators.\n'
+                                 '- US-004 must include a tested integration/operational check '
+                                 'proving retained\n'
+                                 '  password/TOTP failures can be queried. Sprint 1 does not '
+                                 'ingest those events\n'
+                                 '  into Ledger.\n'
+                                 '- Ledger `AuditLog` records successful OIDC/session linking '
+                                 'and the callback or\n'
+                                 '  authorization failures that Ledger itself observes. '
+                                 'Sanitize provider errors;\n'
+                                 '  never copy credentials, tokens, TOTP values, or raw '
+                                 'sensitive payloads.\n'
+                                 '- US-004 establishes and tests the Keycloak admin-service '
+                                 'seam used to\n'
+                                 '  synchronize `platform-admin` membership. Complete account '
+                                 'administration,\n'
+                                 '  reset-2FA workflows, and the user-management UI remain '
+                                 'US-011.\n')),
+ 'docs/dev-guide/STANDARDS.md': (('Entity conventions, error handling, and field standards for '
+                                  'the serverless stack.\n',
+                                  'Entity conventions, error handling, and field standards for '
+                                  'the self-hosted\n'
+                                  'Next.js stack.\n'),
+                                 ('export const member = pgTable("member", {\n',
+                                  'export const statement = pgTable("statement", {\n'),
+                                 ('  company_id: uuid("company_id").notNull(),       // tenant '
+                                  'column (DEC-SMP-017)\n',
+                                  '  companyId: uuid("company_id").notNull(),        // '
+                                  'company scope (camelCase key, snake_case SQL)\n'),
+                                 ('export type Member = typeof member.$inferSelect;\n'
+                                  'export type NewMember = typeof member.$inferInsert;\n',
+                                  'export type Statement = typeof statement.$inferSelect;\n'
+                                  'export type NewStatement = typeof '
+                                  'statement.$inferInsert;\n'),
+                                 ('- The tenant column is `company_id` (uuid) on every '
+                                  'multi-tenant table (DEC-SMP-017) — there is no `tenant_id` '
+                                  'and no `org_id`.\n',
+                                  '- Company-owned records use `companyId: '
+                                  'uuid("company_id")`. Confirm the\n'
+                                  '  actual column on the table; `VendorAccount` is '
+                                  'vendor-organization data and\n'
+                                  '  does not define Ledger tenant scope.\n'),
+                                 ('const session = await auth0.getSession();\n',
+                                  'const session = await auth();\n'),
+                                 ('const companyIds = await '
+                                  'grantedCompanyIds(session.user.idpSubject); // tenant scope '
+                                  'from DB grants (DEC-SMP-014/017)\n'
+                                  'const actorSub = session.user.sub as string;       // '
+                                  'stable Auth0 subject\n',
+                                  'const authorization = await '
+                                  'loadLedgerAuthorization(session.user.idpSubject);\n'
+                                  'const companyIds = authorization.companyIds;      // from '
+                                  'Ledger DB grants\n'
+                                  'const actorSub = session.user.idpSubject;          // '
+                                  'stable Keycloak subject\n'),
+                                 ('- **Never** read the tenant id from the request body/query '
+                                  '— only the verified session claim.\n'
+                                  '- Every multi-tenant query filters `company_id` (the tenant '
+                                  'column, DEC-SMP-017). Apply a soft-delete filter '
+                                  '(`deleted_at`) ONLY on a table that declares one in '
+                                  '`schema.ts` — do not assume `is_deleted` exists.\n',
+                                  '- **Never** read company scope or roles from the request '
+                                  'body/query. Authenticate\n'
+                                  '  with the verified Keycloak OIDC session, then load '
+                                  'authorization from\n'
+                                  "  Ledger's `UserAccount` and `CompanyRoleAssignment` "
+                                  'records.\n'
+                                  "- Every company-scoped query filters the table's "
+                                  '`company_id` column against\n'
+                                  '  the authorized company set. Apply a soft-delete filter '
+                                  '(`deleted_at`) ONLY\n'
+                                  '  on a table that declares one in `schema.ts` — do not '
+                                  'assume `is_deleted`\n'
+                                  '  exists.\n'
+                                  '\n'
+                                  '## Database Roles and Migration Execution\n'
+                                  '\n'
+                                  '- Committed release migrations run as `ledger_owner`, which '
+                                  'owns schema changes\n'
+                                  '  and grants.\n'
+                                  '- The deployed Next.js application connects as '
+                                  '`ledger_app`, which has only the\n'
+                                  '  runtime privileges established by migrations.\n'
+                                  '- Do not run schema mutation or migration tooling with the '
+                                  'application role.\n')),
+ 'docs/dev-guide/TESTING.md': (('# TESTING.md — Mi Banquito\n', '# TESTING.md — Ledger\n'),
+                               ('- **Tenant isolation** — every path that touches '
+                                'tenant-scoped data (filtered by `company_id`, DEC-SMP-017). → '
+                                'explicit isolation assertions (a query for tenant A must '
+                                "never return tenant B's rows).\n"
+                                '- **Authorization** — role/permission gates on '
+                                'commands/mutations. → integration tests for allowed vs '
+                                'forbidden (expect 403).\n',
+                                '- **Tenant isolation** — every path that touches '
+                                'tenant-scoped data (filtered by `company_id`). → explicit '
+                                'isolation assertions (a query for tenant A must never return '
+                                "tenant B's rows).\n"
+                                '- **Authorization** — role/permission gates on '
+                                'commands/mutations. → integration tests for allowed vs '
+                                'forbidden (expect 403).\n'
+                                '- **Restore maintenance authority** — the temporary '
+                                'restore-admin TTL, credential inode, mounted encrypted stage, '
+                                'and convergence/finalization locks. → real PostgreSQL and '
+                                'packaged-image race tests must prove authority is closed '
+                                'before verification and after every success/failure path.\n')),
+ 'docs/stories/CHANGES.md': (('**Notes:** # CHG-001 — Reconcile Sprint 1 execution contract\n'
+                              '\n'
+                              '## Trigger\n'
+                              '\n'
+                              'Sprint 1 readiness review found generator-owned guidance that '
+                              'contradicts the\n'
+                              'authoritative ER model and architecture.\n'
+                              '\n'
+                              '## Required changes\n'
+                              '\n'
+                              '- Replace tenant guidance that names `org_id` or `tenant_id` '
+                              'with\n'
+                              '  `company_id`, matching `0...\n',
+                              '**Notes:** CHG-001 reconciles Sprint 1 guidance with '
+                              '[DEC-SMP-017](../decisions/DEC-SMP-017-sprint-1-execution-contract.md): '
+                              '`company_id` scoping, Keycloak/Auth.js redirect-based OIDC, and '
+                              'Docker Compose self-hosting.\n'),),
+ 'testing/critical-paths.md': (('- **Tenant isolation** — every path that touches '
+                                'tenant-scoped data (filtered by `org_id`). → explicit '
+                                'isolation assertions (a query for tenant A must never return '
+                                "tenant B's rows).\n",
+                                '- **Tenant isolation** — every path that touches '
+                                'tenant-scoped data (filtered by `company_id`). → explicit '
+                                'isolation assertions (a query for tenant A must never return '
+                                "tenant B's rows).\n"),),
+ 'docs/dev-guide/PACKAGE_MAP.md': (('db table + `org_id` and both a read-list and a mutation '
+                                    'screen',
+                                    'db table + `company_id` and both a read-list and a '
+                                    'mutation screen'),
+                                   ('take the tenant from the session, never the client.',
+                                    'load authorized company scope from Ledger DB after '
+                                    'verifying the session; never take it from the client.'))}
 
 MIRRORS = (
     "CODEX.md",
@@ -157,6 +1228,21 @@ def build_plan(root: Path) -> dict[Path, str]:
         original[path] = text
         updated = text
 
+        for missing, substrate, expected in KNOWN_VARIANTS.get(relative_path, ()):
+            counts = (
+                updated.count(missing),
+                updated.count(substrate),
+                updated.count(expected),
+            )
+            if counts == (1, 0, 0):
+                updated = updated.replace(missing, expected, 1)
+            elif counts not in ((0, 1, 0), (0, 0, 1)):
+                errors.append(
+                    f"{relative_path}: expected exactly one known guidance variant "
+                    f"(missing={counts[0]}, substrate={counts[1]}, "
+                    f"expected={counts[2]})"
+                )
+
         for stale, expected in replacements:
             stale_count = updated.count(stale)
             expected_count = updated.count(expected)
@@ -172,8 +1258,8 @@ def build_plan(root: Path) -> dict[Path, str]:
         desired[path] = updated
 
     claude_path = root / "CLAUDE.md"
-    claude = original.setdefault(claude_path, read_text(claude_path))
-    desired.setdefault(claude_path, claude)
+    original_claude = original.setdefault(claude_path, read_text(claude_path))
+    claude = desired.setdefault(claude_path, original_claude)
     for relative_path in MIRRORS:
         path = root / relative_path
         original[path] = read_text(path)

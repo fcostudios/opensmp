@@ -21,3 +21,4 @@ fails an assertion rather than raising an infrastructure or syntax error.
 | M05 | Preview no-write guarantee | `test_preview_shows_effective_changes_without_writing` |
 | M06 | Check-mode drift failure | `test_check_reports_exact_mirror_drift_without_writing` |
 | M07 | Atomic application of a validated plan | `test_reconcile_enforces_exact_mirror_parity_and_complete_change_notes` |
+| M08 | Exact known-substrate transformations | `test_reconciles_known_825e882_substrate_to_authoritative_guidance` |

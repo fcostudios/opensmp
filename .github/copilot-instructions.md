@@ -136,8 +136,12 @@ Full frontend reference: [`docs/dev-guide/FRONTEND.md`](docs/dev-guide/FRONTEND.
 These rules are derived from the exact framework versions in this project.
 Violating them causes compile/test failures. **Read before writing any code.**
 
-### nextjs
+### nextjs 16.1.6
 
+- **App Router ONLY** — do NOT create files in `pages/` directory.
+- **Server Components by default** — add `"use client"` only when using hooks, event handlers, or browser APIs.
+- **Bundler: webpack** — `scripts.build` runs `next build --webpack` (Serwist injects a webpack config; Turbopack would hard-fail). Module imports MUST include file extensions for non-TS files (e.g., `import preset from './tailwind-preset.js'`).
+- **Server Actions** available. Use for form submissions instead of API routes.
 
 ## Shared Contracts & Entity Conventions
 
