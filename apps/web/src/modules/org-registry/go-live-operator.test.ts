@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  assertLocalDatabaseUrl,
   initializePrivateMaterial,
   parseOperatorMode,
   type OperatorPaths,
@@ -152,5 +153,27 @@ describe("US-007 local operator arguments", () => {
     { args: ["init", "unexpected"] },
   ])("rejects invalid argument vector $args with exact usage", ({ args }) => {
     expect(() => parseOperatorMode(args)).toThrowError(new Error(usage));
+  });
+});
+
+describe("US-007 local operator database boundary", () => {
+  it.each([
+    "postgresql://ledger:secret@localhost:15432/ledger",
+    "postgres://ledger:secret@127.0.0.1:15432/ledger",
+    "postgresql://ledger:secret@[::1]:15432/ledger",
+  ])("accepts the expected loopback development database %s", (databaseUrl) => {
+    expect(() => assertLocalDatabaseUrl(databaseUrl)).not.toThrow();
+  });
+
+  it.each([
+    "postgresql://ledger:secret@database.example.com:15432/ledger",
+    "postgresql://ledger:secret@localhost:5432/ledger",
+    "postgresql://ledger:secret@127.0.0.1:15433/ledger",
+    "mysql://ledger:secret@localhost:15432/ledger",
+    "not-a-database-url",
+  ])("rejects a database outside the local development boundary: %s", (databaseUrl) => {
+    expect(() => assertLocalDatabaseUrl(databaseUrl)).toThrow(
+      "US-007 operator requires the local development database at loopback port 15432",
+    );
   });
 });

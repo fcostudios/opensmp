@@ -497,7 +497,7 @@ describe("US-007 go-live import", () => {
     expect(await database.select().from(licenseAssignment)).toHaveLength(2);
   });
 
-  it("verifies the committed fixture and ignores unrelated imported-shaped rows", async () => {
+  it("rejects a committed fixture whose production reconciliation has a nonzero member delta", async () => {
     const csvInput = await readCommittedFixture();
     const privateRoot = await mkdtemp(join(tmpdir(), "ledger-verify-"));
     const kekFile = join(privateRoot, "kek");
@@ -623,14 +623,132 @@ describe("US-007 go-live import", () => {
         occurredAt: now,
       });
 
-      const afterUnrelated = await verifyGoLiveFixture(database, verificationInput);
-      expect(afterUnrelated.status).toBe("ok");
-      expect(afterUnrelated.counts.assignments).toBe(12);
-      expect(afterUnrelated.counts.companyRoleAssignments).toBe(12);
-      expect(afterUnrelated.counts.importedAudits).toBe(12);
+      await expect(
+        verifyGoLiveFixture(database, verificationInput),
+      ).rejects.toThrow("Fixture reconciliation is invalid");
     } finally {
       await rm(privateRoot, { recursive: true, force: true });
     }
+  });
+
+  it("rejects an unexpected company grant for a fixture contact", async () => {
+    const csvInput = await readCommittedFixture();
+    const privateRoot = await mkdtemp(join(tmpdir(), "ledger-verify-grant-"));
+    const kekFile = join(privateRoot, "kek");
+    await writeFile(
+      kekFile,
+      `${Buffer.from(testKek).toString("base64")}\n`,
+      { mode: 0o400 },
+    );
+    await chmod(kekFile, 0o400);
+    try {
+      await runLockedGoLiveOperatorImport(database, {
+        ...csvInput,
+        actorUserId: operatorActor.id,
+        occurredAt: now,
+        credentials: fixtureCredentialSeeds,
+        kek: testKek,
+        randomBytes: deterministicBytes,
+      }, operatorActor);
+      const [corp] = await database
+        .select()
+        .from(company)
+        .where(eq(company.code, "CORP"));
+      const [approver] = await database
+        .select()
+        .from(userAccount)
+        .where(eq(userAccount.email, "approver.corp@ledger.invalid"));
+      await database.insert(companyRoleAssignment).values({
+        userAccountId: approver.id,
+        companyId: corp.id,
+        role: "finance",
+        uniqueGrant: `${approver.id}:${corp.id}:finance`,
+        createdAt: now,
+        createdBy: operatorActor.id,
+      });
+
+      await expect(verifyGoLiveFixture(database, {
+        csvInput,
+        actorUserId: operatorActor.id,
+        privateRoot,
+        kekFile,
+        environment: fixtureCredentialEnvironment,
+      })).rejects.toThrow("Fixture contact grant mapping is invalid");
+    } finally {
+      await rm(privateRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a committed fixture whose production reconciliation has a nonzero capacity delta", async () => {
+    const csvInput = await readCommittedFixture();
+    const privateRoot = await mkdtemp(join(tmpdir(), "ledger-verify-capacity-"));
+    const kekFile = join(privateRoot, "kek");
+    await writeFile(
+      kekFile,
+      `${Buffer.from(testKek).toString("base64")}\n`,
+      { mode: 0o400 },
+    );
+    await chmod(kekFile, 0o400);
+    try {
+      await runLockedGoLiveOperatorImport(database, {
+        ...csvInput,
+        actorUserId: operatorActor.id,
+        occurredAt: now,
+        credentials: fixtureCredentialSeeds,
+        kek: testKek,
+        randomBytes: deterministicBytes,
+      }, operatorActor);
+      const [account] = await database
+        .select()
+        .from(vendorAccount)
+        .where(eq(vendorAccount.vendorOrgRef, "corporativo-teams"));
+      await ownerDatabase
+        .update(vendorAccountCapacity)
+        .set({ purchasedQty: 14 })
+        .where(eq(vendorAccountCapacity.vendorAccountId, account.id));
+
+      await expect(verifyGoLiveFixture(database, {
+        csvInput,
+        actorUserId: operatorActor.id,
+        privateRoot,
+        kekFile,
+        environment: fixtureCredentialEnvironment,
+      })).rejects.toThrow("Fixture reconciliation is invalid");
+    } finally {
+      await rm(privateRoot, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    {
+      inventory: "company",
+      field: "companiesCsv" as const,
+      message: "Fixture company inventory is invalid",
+    },
+    {
+      inventory: "member",
+      field: "membersCsv" as const,
+      message: "Fixture member inventory is invalid",
+    },
+    {
+      inventory: "capacity",
+      field: "capacityCsv" as const,
+      message: "Fixture capacity inventory is invalid",
+    },
+  ])("rejects an invalid committed $inventory inventory cardinality", async ({
+    field,
+    message,
+  }) => {
+    const csvInput = await readCommittedFixture();
+    const invalidCsv = csvInput[field].trimEnd().split("\n").slice(0, -1).join("\n");
+
+    await expect(verifyGoLiveFixture(database, {
+      csvInput: { ...csvInput, [field]: invalidCsv },
+      actorUserId: operatorActor.id,
+      privateRoot: "/unused",
+      kekFile: "/unused/kek",
+      environment: {},
+    })).rejects.toThrow(message);
   });
 
   it("rejects a mismatched expected fixture credential without disclosing it", async () => {

@@ -20,7 +20,22 @@
     "scripts/probes/anthropic/reports/**"
   ],
   "mutate": [
+    "apps/web/src/modules/org-registry/go-live-operator.ts:19:0-43:1",
+    "apps/web/src/modules/org-registry/go-live-operator-files.ts:38:0-38:33",
+    "apps/web/src/modules/org-registry/go-live-operator-files.ts:85:0-88:6",
+    "apps/web/src/modules/org-registry/go-live-operator-files.ts:111:0-114:4",
+    "apps/web/src/modules/org-registry/go-live-operator-files.ts:135:0-145:1",
+    "apps/web/src/modules/org-registry/go-live-operator-transaction.ts:31:0-31:27",
+    "apps/web/src/modules/org-registry/go-live-operator-transaction.ts:56:0-63:4",
+    "apps/web/src/modules/org-registry/go-live-operator-transaction.ts:71:0-74:4",
+    "apps/web/src/modules/org-registry/go-live-operator-transaction.ts:80:0-88:6",
+    "apps/web/src/modules/org-registry/go-live-fixture-verification.ts:91:0-102:1",
+    "apps/web/src/modules/org-registry/go-live-fixture-verification.ts:288:0-300:1",
+    "apps/web/src/modules/org-registry/go-live-fixture-verification.ts:413:0-427:1",
+    "apps/web/src/modules/org-registry/register-backfill-transaction.ts:146:0-161:1",
     "apps/web/src/modules/org-registry/register-backfill-transaction.ts:439:4-441:6",
+    "apps/web/src/modules/org-registry/register-backfill-transaction.ts:658:0-668:1",
+    "apps/web/src/modules/org-registry/register-backfill-transaction.ts:669:0-683:1",
     "apps/web/src/modules/vendor-catalog/credential-crypto.ts:37:0-101:1"
   ],
   "concurrency": 1,

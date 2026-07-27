@@ -6,7 +6,10 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
 import * as schema from "@smp/db/schema";
-import { parseOperatorMode } from "../src/modules/org-registry/go-live-operator";
+import {
+  assertLocalDatabaseUrl,
+  parseOperatorMode,
+} from "../src/modules/org-registry/go-live-operator";
 
 const REPO_ROOT = resolve(import.meta.dirname, "../../..");
 const FIXTURE_ROOT = resolve(REPO_ROOT, "data/imports/fixtures/us007");
@@ -150,7 +153,10 @@ async function run(): Promise<void> {
   }
 
   await loadRuntimeEnvironment();
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const databaseUrl = process.env.DATABASE_URL;
+  assertCondition(databaseUrl, "DATABASE_URL is required");
+  assertLocalDatabaseUrl(databaseUrl);
+  const pool = new Pool({ connectionString: databaseUrl });
   try {
     const database = drizzle(pool, { schema });
     if (mode === "preview") {

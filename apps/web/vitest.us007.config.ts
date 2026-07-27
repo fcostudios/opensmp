@@ -20,6 +20,7 @@ export default defineConfig({
       },
     },
     include: [
+      "src/modules/org-registry/go-live-operator.test.ts",
       "src/modules/org-registry/register-backfill.integration.test.ts",
       "src/modules/vendor-catalog/credential-crypto.test.ts",
     ],

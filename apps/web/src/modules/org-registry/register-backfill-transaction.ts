@@ -571,7 +571,7 @@ export class AuditedGoLiveImportBoundary {
       }
     }
 
-    const reconciliation = await reconcileImport(
+    const reconciliation = await reconcileGoLiveImport(
       transaction,
       parsed.members,
       parsed.capacities,
@@ -638,8 +638,8 @@ export async function prepareProductionGoLiveImport(
   };
 }
 
-async function reconcileImport(
-  transaction: Parameters<Parameters<ImportDatabase["transaction"]>[0]>[0],
+export async function reconcileGoLiveImport(
+  transaction: Pick<ImportDatabase, "select">,
   members: readonly MemberBackfillRow[],
   capacities: readonly CapacityImportRow[],
   accountByRef: ReadonlyMap<string | null, typeof vendorAccount.$inferSelect>,

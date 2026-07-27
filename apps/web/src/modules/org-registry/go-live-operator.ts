@@ -15,6 +15,27 @@ export {
 
 export type OperatorMode = "init" | "preview" | "apply" | "verify";
 
+const LOCAL_DATABASE_ERROR =
+  "US-007 operator requires the local development database at loopback port 15432";
+
+export function assertLocalDatabaseUrl(databaseUrl: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(databaseUrl);
+  } catch {
+    throw new Error(LOCAL_DATABASE_ERROR);
+  }
+  const loopbackHosts = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+  if (
+    (parsed.protocol !== "postgres:" &&
+      parsed.protocol !== "postgresql:") ||
+    !loopbackHosts.has(parsed.hostname) ||
+    parsed.port !== "15432"
+  ) {
+    throw new Error(LOCAL_DATABASE_ERROR);
+  }
+}
+
 export function parseOperatorMode(args: readonly string[]): OperatorMode {
   if (
     args.length === 1 &&

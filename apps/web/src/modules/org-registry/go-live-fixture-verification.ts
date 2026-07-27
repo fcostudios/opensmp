@@ -33,7 +33,10 @@ import {
   readKekFile,
 } from "@/modules/vendor-catalog/credential-crypto";
 import type { ImportDatabase } from "./company-import-transaction";
-import type { GoLiveCsvInput } from "./register-backfill-transaction";
+import {
+  reconcileGoLiveImport,
+  type GoLiveCsvInput,
+} from "./register-backfill-transaction";
 
 const FIXTURE_ORG_REFS = ["corporativo-teams", "centrohub-teams"] as const;
 const CREDENTIAL_ENV_BY_ACCOUNT_KIND = new Map([
@@ -282,6 +285,19 @@ export async function verifyGoLiveFixture(
     capacities.length === expectedCapacities.length,
     "Fixture capacity rows are invalid",
   );
+  const reconciliation = await reconcileGoLiveImport(
+    database,
+    expectedMembers,
+    expectedCapacities,
+    new Map(accounts.map((row) => [row.vendorOrgRef, row])),
+    new Map(teamsTypes.map((row) => [row.name, row])),
+  );
+  assertOperatorCondition(
+    reconciliation.every(
+      (line) => line.memberDelta === 0 && line.capacityDelta === 0,
+    ),
+    "Fixture reconciliation is invalid",
+  );
   const capacityByOrgRef = new Map<string, number>();
   for (const expected of expectedCapacities) {
     const matches = capacities.filter(
@@ -394,6 +410,21 @@ export async function verifyGoLiveFixture(
         contactAccounts.map((row) => row.id),
       ),
     );
+  const expectedGrantKeys = new Set(
+    expectedGrantTuples.map((tuple) => {
+      const account = contactAccountByEmail.get(tuple.email);
+      assertOperatorCondition(account, "Fixture contact account is missing");
+      return `${account.id}\u0000${tuple.companyId}\u0000${tuple.role}`;
+    }),
+  );
+  const actualGrantKeys = grants.map(
+    (row) => `${row.userAccountId}\u0000${row.companyId}\u0000${row.role}`,
+  );
+  assertOperatorCondition(
+    grants.length === expectedGrantTuples.length &&
+      actualGrantKeys.every((key) => expectedGrantKeys.has(key)),
+    "Fixture contact grant mapping is invalid",
+  );
   for (const expected of expectedGrantTuples) {
     const account = contactAccountByEmail.get(expected.email);
     assertOperatorCondition(account, "Fixture contact account is missing");
@@ -470,7 +501,7 @@ export async function verifyGoLiveFixture(
       assignments: assignments.length,
       capacities: capacities.length,
       credentials: credentials.length,
-      companyRoleAssignments: expectedGrantTuples.length,
+      companyRoleAssignments: grants.length,
       importedAudits: importedAudits.length,
       completionAudits: completionAudits.length,
     },
