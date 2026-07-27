@@ -155,16 +155,45 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             root = Path(directory)
             create_project(root)
             install_known_substrate_guides(root)
+            changes_path = root / "docs/stories/CHANGES.md"
+            generated_changes = changes_path.read_text(encoding="utf-8")
+            changes_path.write_text(
+                generated_changes.replace(
+                    "| **US-007** | Seed: companies CSV + go-live register "
+                    "backfill | Sprint 1 | 🔨 in_development |",
+                    "| **US-007** | Seed: companies CSV + go-live register "
+                    "backfill | Sprint 1 | ✅ dev_done |",
+                ),
+                encoding="utf-8",
+            )
 
             result = run_reconciler(root)
 
             self.assertEqual(result.returncode, 0, result.stderr)
             for relative_path in PINNED_GUIDES:
+                if relative_path == "docs/stories/CHANGES.md":
+                    continue
                 self.assertEqual(
                     (root / relative_path).read_bytes(),
                     desired_guide(relative_path),
                     relative_path,
                 )
+            changes = (root / "docs/stories/CHANGES.md").read_text(encoding="utf-8")
+            self.assertIn(
+                "| **US-007** | Seed: companies CSV + go-live register backfill "
+                "| Sprint 1 | ✅ dev_done |",
+                changes,
+            )
+            self.assertIn(
+                "**Notes:** CHG-001 reconciles Sprint 1 guidance with",
+                changes,
+            )
+            self.assertNotIn("## Required changes", changes)
+            critical_paths = (
+                root / "testing/critical-paths.md"
+            ).read_text(encoding="utf-8")
+            self.assertIn("filtered by `company_id`", critical_paths)
+            self.assertNotIn("filtered by `org_id`", critical_paths)
             claude = desired_guide("CLAUDE.md")
             for mirror in (
                 "CODEX.md",
@@ -214,6 +243,32 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             self.assertEqual(snapshot(root), before)
             self.assertIn("docs/dev-guide/SECURITY.md", result.stderr)
             self.assertIn("unknown generated guidance state", result.stderr)
+            self.assertIn("review and pin a new migration", result.stderr)
+
+    def test_unknown_reviewed_section_fails_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_project(root)
+            changes = root / "docs/stories/CHANGES.md"
+            changes.write_text(
+                changes.read_text(encoding="utf-8").replace(
+                    "**Notes:** CHG-001 reconciles Sprint 1 guidance with "
+                    "[DEC-SMP-017](../decisions/"
+                    "DEC-SMP-017-sprint-1-execution-contract.md): "
+                    "`company_id` scoping, Keycloak/Auth.js redirect-based "
+                    "OIDC, and Docker Compose self-hosting.",
+                    "**Notes:** unreviewed but superficially harmless guidance",
+                ),
+                encoding="utf-8",
+            )
+            before = snapshot(root)
+
+            result = run_reconciler(root)
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(snapshot(root), before)
+            self.assertIn("docs/stories/CHANGES.md", result.stderr)
+            self.assertIn("unknown reviewed guidance section", result.stderr)
             self.assertIn("review and pin a new migration", result.stderr)
 
     def test_manifest_artifact_hash_mismatch_fails_without_writing(self) -> None:
@@ -380,11 +435,23 @@ class SyncIntegrationTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             for relative_path in PINNED_GUIDES:
+                if relative_path == "docs/stories/CHANGES.md":
+                    continue
                 self.assertEqual(
                     (root / relative_path).read_bytes(),
                     desired_guide(relative_path),
                     relative_path,
                 )
+            changes = (root / "docs/stories/CHANGES.md").read_text(encoding="utf-8")
+            self.assertIn(
+                "**Notes:** CHG-001 reconciles Sprint 1 guidance with",
+                changes,
+            )
+            self.assertIn(
+                "| **US-007** | Seed: companies CSV + go-live register backfill "
+                "| Sprint 1 | 🔨 in_development |",
+                changes,
+            )
             claude = desired_guide("CLAUDE.md")
             for mirror in (
                 "CODEX.md",

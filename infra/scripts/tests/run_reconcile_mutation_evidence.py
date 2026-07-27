@@ -142,6 +142,23 @@ MUTATIONS = (
             "test_reconciles_known_source_hash_to_pinned_desired_artifacts"
         ),
     ),
+    Mutation(
+        "M10",
+        "accept an unknown reviewed guidance section",
+        """        else:
+            errors.append(
+                f"{relative_path}: unknown reviewed guidance section; "
+                "review and pin a new migration"
+            )
+""",
+        """        else:
+            desired[path] = current_text
+""",
+        (
+            "ReconciliationBehaviorTests."
+            "test_unknown_reviewed_section_fails_without_writing"
+        ),
+    ),
 )
 
 

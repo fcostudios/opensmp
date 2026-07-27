@@ -22,9 +22,11 @@ PINNED_PATHS = (
     "docs/dev-guide/SECURITY.md",
     "docs/dev-guide/STANDARDS.md",
     "docs/dev-guide/TESTING.md",
-    "docs/stories/CHANGES.md",
     "testing/critical-paths.md",
 )
+
+SECTION_PINNED_PATHS = ("docs/stories/CHANGES.md",)
+REVIEWED_PATHS = (*PINNED_PATHS, *SECTION_PINNED_PATHS)
 
 SEMANTIC_REPLACEMENTS = {
     "docs/dev-guide/PACKAGE_MAP.md": (
@@ -82,7 +84,7 @@ def sha256(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
-def load_pinned_overrides() -> dict[str, tuple[str, str, str]]:
+def load_pinned_overrides() -> dict[str, tuple[str, str, str, str]]:
     data_root = Path(
         os.environ.get("RECONCILER_DATA_ROOT", Path(__file__).resolve().parent)
     )
@@ -102,13 +104,13 @@ def load_pinned_overrides() -> dict[str, tuple[str, str, str]]:
     if not isinstance(manifest, dict) or manifest.get("version") != 1:
         raise ReconciliationError("override manifest must declare version 1")
     entries = manifest.get("paths")
-    if not isinstance(entries, dict) or set(entries) != set(PINNED_PATHS):
+    if not isinstance(entries, dict) or set(entries) != set(REVIEWED_PATHS):
         raise ReconciliationError(
             "override manifest paths do not match the reviewed CHG-001 path set"
         )
 
-    pinned: dict[str, tuple[str, str, str]] = {}
-    for relative_path in PINNED_PATHS:
+    pinned: dict[str, tuple[str, str, str, str]] = {}
+    for relative_path in REVIEWED_PATHS:
         metadata = entries[relative_path]
         if not isinstance(metadata, dict) or set(metadata) != {
             "source_sha256",
@@ -146,12 +148,18 @@ def load_pinned_overrides() -> dict[str, tuple[str, str, str]]:
                 f"{relative_path}: desired override artifact hash mismatch"
             )
         try:
+            source_text = source_bytes.decode("utf-8")
             desired_text = desired_bytes.decode("utf-8")
         except UnicodeDecodeError as error:
             raise ReconciliationError(
-                f"{relative_path}: desired override artifact is not UTF-8"
+                f"{relative_path}: reviewed override artifact is not UTF-8"
             ) from error
-        pinned[relative_path] = (source_hash, desired_hash, desired_text)
+        pinned[relative_path] = (
+            source_hash,
+            desired_hash,
+            source_text,
+            desired_text,
+        )
 
     return pinned
 
@@ -163,15 +171,31 @@ def governed_guidance_paths(root: Path) -> tuple[Path, ...]:
     return tuple(dict.fromkeys(paths))
 
 
+def reviewed_section(
+    text: str,
+    relative_path: str,
+    start_marker: str,
+    end_marker: str,
+) -> str:
+    if text.count(start_marker) != 1 or text.count(end_marker) != 1:
+        raise ReconciliationError(
+            f"{relative_path}: reviewed section markers changed; "
+            "review and pin a new migration"
+        )
+    start = text.index(start_marker)
+    end = text.index(end_marker, start)
+    return text[start:end]
+
+
 def build_plan(root: Path) -> dict[Path, str]:
     """Validate every invariant, then return the complete desired file plan."""
     original: dict[Path, str] = {}
     desired: dict[Path, str] = {}
     errors: list[str] = []
 
-    for relative_path, (source_hash, desired_hash, desired_text) in (
-        load_pinned_overrides().items()
-    ):
+    pinned = load_pinned_overrides()
+    for relative_path in PINNED_PATHS:
+        source_hash, desired_hash, _, desired_text = pinned[relative_path]
         path = root / relative_path
         current_bytes = read_bytes(path, "required generated file")
         current_hash = sha256(current_bytes)
@@ -190,6 +214,43 @@ def build_plan(root: Path) -> dict[Path, str]:
             errors.append(
                 f"{relative_path}: unknown generated guidance state "
                 f"(sha256={current_hash}); review and pin a new migration"
+            )
+
+    for relative_path in SECTION_PINNED_PATHS:
+        _, _, source_text, desired_text = pinned[relative_path]
+        path = root / relative_path
+        current_text = read_text(path)
+        original[path] = current_text
+        source_section = reviewed_section(
+            source_text,
+            relative_path,
+            "**Notes:**",
+            "**Feedback:**",
+        )
+        desired_section = reviewed_section(
+            desired_text,
+            relative_path,
+            "**Notes:**",
+            "**Feedback:**",
+        )
+        current_section = reviewed_section(
+            current_text,
+            relative_path,
+            "**Notes:**",
+            "**Feedback:**",
+        )
+        if current_section == source_section:
+            desired[path] = current_text.replace(
+                source_section,
+                desired_section,
+                1,
+            )
+        elif current_section == desired_section:
+            desired[path] = current_text
+        else:
+            errors.append(
+                f"{relative_path}: unknown reviewed guidance section; "
+                "review and pin a new migration"
             )
 
     for relative_path, replacements in SEMANTIC_REPLACEMENTS.items():
