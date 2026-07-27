@@ -16,7 +16,7 @@
     "test:enforcement": "node scripts/test-token-enforcement.mjs",
     "test:feedback-order": "node scripts/check-nous-feedback-order.mjs .",
     "test:feedback-order:fixtures": "node scripts/test-feedback-order.mjs",
-    "test:infra": "python3 -B -m unittest infra.scripts.tests.test_reconcile_sprint1_docs infra.scripts.tests.test_sync_from_nous_config -v",
+    "test:infra": "python3 -B -m unittest infra.scripts.tests.test_reconcile_sprint1_docs infra.scripts.tests.test_sync_from_nous_config infra.scripts.tests.test_regenerate_sidebar -v",
     "test:infra:integration": "python3 -B -m unittest infra.scripts.tests.test_sync_from_nous_integration -v",
     "test:probe": "./apps/web/node_modules/.bin/vitest run --root . --config scripts/probes/anthropic/vitest.config.ts",
     "test:mutation:infra": "python3 -B infra/scripts/tests/run_reconcile_mutation_evidence.py",
