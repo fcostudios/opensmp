@@ -3,10 +3,15 @@ import { access, chmod, mkdir, readFile, unlink, writeFile } from "node:fs/promi
 import { resolve } from "node:path";
 
 import { config as loadDotenv } from "dotenv";
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
+import {
+  parseCapacityCsv,
+  parseCompaniesCsv,
+  parseMemberBackfillCsv,
+} from "@smp/contracts";
 import * as schema from "@smp/db/schema";
 import {
   auditLog,
@@ -22,6 +27,7 @@ import {
   vendorAccount,
   vendorAccountCapacity,
 } from "@smp/db/schema";
+import { parseCredentialEnvelope } from "@smp/domain";
 
 const REPO_ROOT = resolve(import.meta.dirname, "../../..");
 const FIXTURE_ROOT = resolve(REPO_ROOT, "data/imports/fixtures/us007");
@@ -33,15 +39,6 @@ const ROOT_ENV_FILE = resolve(REPO_ROOT, ".env");
 
 const ACTOR_ID = "70070000-0000-4000-8000-000000000007";
 const ACTOR_EMAIL = "us007.group-admin@ledger.invalid";
-const FIXTURE_COMPANIES = new Map([
-  ["CORP", "Corporativo"],
-  ["PPM", "PPM"],
-  ["FOCUS", "Focus"],
-  ["MULLEN", "Mullen Lowe"],
-  ["RAM", "RAM"],
-  ["CENTROHUB", "CentroHub"],
-]);
-const CORPORATIVO_CODES = new Set(["CORP", "PPM", "FOCUS", "MULLEN", "RAM"]);
 const FIXTURE_ORG_REFS = ["corporativo-teams", "centrohub-teams"] as const;
 const CREDENTIAL_ENV_NAMES = [
   "ANTHROPIC_CORPORATIVO_TEAMS_ADMIN_KEY",
@@ -113,7 +110,7 @@ async function initializePrivateMaterial(): Promise<void> {
   let wroteRuntimeEnvironment = false;
 
   try {
-    await writeFile(KEK_FILE, kek, { flag: "wx", mode: 0o600 });
+    await writeFile(KEK_FILE, kek, { flag: "wx", mode: 0o400 });
     wroteKek = true;
     await writeFile(RUNTIME_ENV_FILE, runtimeEnvironment, {
       flag: "wx",
@@ -165,7 +162,7 @@ async function loadPreparedInput() {
   const prepared = await boundary.prepareProductionGoLiveImport({
     ...csvInput,
     actorUserId: ACTOR_ID,
-  });
+  }, process.env, { allowedKekRoot: PRIVATE_ROOT });
   return { boundary, prepared };
 }
 
@@ -225,20 +222,33 @@ async function applyImport(database: Database): Promise<void> {
 }
 
 async function verifyImport(database: Database): Promise<void> {
-  const fixtureCodes = [...FIXTURE_COMPANIES.keys()];
+  const fixtureInput = await readFixtureInput();
+  const expectedCompanies = parseCompaniesCsv(fixtureInput.companiesCsv);
+  const expectedMembers = parseMemberBackfillCsv(fixtureInput.membersCsv);
+  const expectedCapacities = parseCapacityCsv(fixtureInput.capacityCsv);
+  assertCondition(expectedCompanies.length === 6, "Fixture company inventory is invalid");
+  assertCondition(expectedMembers.length === 12, "Fixture member inventory is invalid");
+  assertCondition(expectedCapacities.length === 2, "Fixture capacity inventory is invalid");
+
+  const expectedCompanyByCode = new Map(
+    expectedCompanies.map((row) => [row.code, row]),
+  );
+  const fixtureCodes = expectedCompanies.map((row) => row.code);
   const companies = await database
     .select()
     .from(company)
     .where(inArray(company.code, fixtureCodes));
-  assertCondition(companies.length === 6, "Fixture company count is invalid");
+  assertCondition(
+    companies.length === expectedCompanies.length,
+    "Fixture company count is invalid",
+  );
   for (const row of companies) {
     assertCondition(
-      FIXTURE_COMPANIES.get(row.code) === row.name,
+      expectedCompanyByCode.get(row.code)?.name === row.name,
       "Fixture company code/name mapping is invalid",
     );
   }
-  const companyIds = companies.map((row) => row.id);
-  const companyCodeById = new Map(companies.map((row) => [row.id, row.code]));
+  const companyIdByCode = new Map(companies.map((row) => [row.code, row.id]));
 
   const anthropicVendors = await database
     .select()
@@ -278,37 +288,66 @@ async function verifyImport(database: Database): Promise<void> {
   assertCondition(teamsTypes.length === 1, "Fixture Teams license type count is invalid");
   const teamsType = teamsTypes[0];
 
+  const expectedMemberByEmail = new Map(
+    expectedMembers.map((row) => [row.email, row]),
+  );
+  const people = await database
+    .select()
+    .from(person)
+    .where(inArray(person.email, expectedMembers.map((row) => row.email)));
+  assertCondition(
+    people.length === expectedMembers.length,
+    "Fixture people count is invalid",
+  );
+  const personByEmail = new Map(people.map((row) => [row.email, row]));
+  for (const savedPerson of people) {
+    const expected = expectedMemberByEmail.get(savedPerson.email);
+    assertCondition(expected, "Fixture person identity is invalid");
+    assertCondition(
+      savedPerson.fullName === expected.fullName &&
+        savedPerson.companyId === companyIdByCode.get(expected.companyCode) &&
+        savedPerson.status === "active",
+      "Fixture person mapping is invalid",
+    );
+  }
+
   const assignments = await database
     .select()
     .from(licenseAssignment)
     .where(
       and(
-        inArray(licenseAssignment.companyId, companyIds),
+        inArray(licenseAssignment.personId, people.map((row) => row.id)),
         eq(licenseAssignment.sourceKind, "import"),
+        isNull(licenseAssignment.endedOn),
       ),
     );
   assertCondition(
-    assignments.length === 12 && assignments.every((row) => row.endedOn === null),
+    assignments.length === expectedMembers.length,
     "Fixture open imported assignment count is invalid",
   );
-  assertCondition(
-    new Set(assignments.map((row) => row.personId)).size === 12,
-    "Fixture imported assignments do not map to 12 distinct people",
-  );
   const assignmentCounts = new Map<string, number>();
-  for (const assignment of assignments) {
-    const code = companyCodeById.get(assignment.companyId);
-    const orgRef = accountRefById.get(assignment.vendorAccountId);
-    assertCondition(code && orgRef, "Fixture assignment mapping is incomplete");
-    const expectedOrgRef = CORPORATIVO_CODES.has(code)
-      ? "corporativo-teams"
-      : "centrohub-teams";
-    assertCondition(orgRef === expectedOrgRef, "Fixture company/vendor mapping is invalid");
-    assertCondition(
-      assignment.licenseTypeId === teamsType.id,
-      "Fixture assignment license type is invalid",
+  for (const expected of expectedMembers) {
+    const savedPerson = personByEmail.get(expected.email);
+    assertCondition(savedPerson, "Fixture person is missing");
+    const memberAssignments = assignments.filter(
+      (row) => row.personId === savedPerson.id,
     );
-    assignmentCounts.set(code, (assignmentCounts.get(code) ?? 0) + 1);
+    assertCondition(
+      memberAssignments.length === 1,
+      "Fixture member does not have exactly one open import assignment",
+    );
+    const assignment = memberAssignments[0];
+    assertCondition(
+      assignment.startedOn === expected.startedOn &&
+        assignment.companyId === companyIdByCode.get(expected.companyCode) &&
+        accountRefById.get(assignment.vendorAccountId) === expected.vendorOrgRef &&
+        assignment.licenseTypeId === teamsType.id,
+      "Fixture member assignment mapping is invalid",
+    );
+    assignmentCounts.set(
+      expected.companyCode,
+      (assignmentCounts.get(expected.companyCode) ?? 0) + 1,
+    );
   }
   assertCondition(
     fixtureCodes.every((code) => assignmentCounts.get(code) === 2),
@@ -323,28 +362,29 @@ async function verifyImport(database: Database): Promise<void> {
     .select()
     .from(licenseRequest)
     .where(inArray(licenseRequest.id, sourceRequestIds));
-  const assignmentByRequestId = new Map(
-    assignments.map((row) => [row.sourceRequestId, row.id]),
-  );
   assertCondition(
     requests.length === 12 &&
-      requests.every(
-        (row) =>
-          row.state === "active" &&
-          row.requestNo.startsWith("IMP-") &&
-          row.licenseAssignmentId === assignmentByRequestId.get(row.id),
-      ),
+      requests.every((row) => {
+        const assignment = assignments.find(
+          (candidate) => candidate.sourceRequestId === row.id,
+        );
+        return Boolean(
+          assignment &&
+            row.state === "active" &&
+            row.requestNo.startsWith("IMP-") &&
+            row.personId === assignment.personId &&
+            row.companyId === assignment.companyId &&
+            row.vendorAccountId === assignment.vendorAccountId &&
+            row.licenseTypeId === assignment.licenseTypeId &&
+            row.licenseAssignmentId === assignment.id,
+        );
+      }),
     "Fixture active import request lineage is invalid",
   );
-  const people = await database
-    .select()
-    .from(person)
-    .where(inArray(person.id, assignments.map((row) => row.personId)));
-  assertCondition(
-    people.length === 12 && people.every((row) => row.status === "active"),
-    "Fixture active people count is invalid",
-  );
 
+  const effectiveDates = [
+    ...new Set(expectedCapacities.map((row) => row.effectiveFrom)),
+  ];
   const capacities = await database
     .select()
     .from(vendorAccountCapacity)
@@ -352,21 +392,24 @@ async function verifyImport(database: Database): Promise<void> {
       and(
         inArray(vendorAccountCapacity.vendorAccountId, accountIds),
         eq(vendorAccountCapacity.licenseTypeId, teamsType.id),
-        eq(vendorAccountCapacity.effectiveFrom, "2026-07-01"),
+        inArray(vendorAccountCapacity.effectiveFrom, effectiveDates),
       ),
     );
-  const capacityByOrgRef = new Map(
-    capacities.map((row) => [
-      accountRefById.get(row.vendorAccountId),
-      row.purchasedQty,
-    ]),
-  );
   assertCondition(
-    capacities.length === 2 &&
-      capacityByOrgRef.get("corporativo-teams") === 15 &&
-      capacityByOrgRef.get("centrohub-teams") === 3,
+    capacities.length === expectedCapacities.length,
     "Fixture capacity rows are invalid",
   );
+  const capacityByOrgRef = new Map<string, number>();
+  for (const expected of expectedCapacities) {
+    const matches = capacities.filter(
+      (row) =>
+        accountRefById.get(row.vendorAccountId) === expected.vendorOrgRef &&
+        row.effectiveFrom === expected.effectiveFrom &&
+        row.purchasedQty === expected.purchasedQty,
+    );
+    assertCondition(matches.length === 1, "Fixture capacity mapping is invalid");
+    capacityByOrgRef.set(expected.vendorOrgRef, expected.purchasedQty);
+  }
 
   const credentials = await database
     .select()
@@ -390,28 +433,103 @@ async function verifyImport(database: Database): Promise<void> {
       "Fixture credential kind mapping is invalid",
     );
   }
-  assertCondition(
-    credentials.every((row) => !row.encryptedSecret.includes("synthetic-local-")),
-    "Fixture credential encryption is invalid",
-  );
+  for (const credential of credentials) {
+    assertCondition(
+      !credential.encryptedSecret.includes("synthetic-local-"),
+      "Fixture credential encryption is invalid",
+    );
+    const envelope = parseCredentialEnvelope(credential.encryptedSecret);
+    assertCondition(
+      envelope.version === 1 &&
+        envelope.algorithm === "xchacha20poly1305" &&
+        envelope.ciphertext.length > 0 &&
+        envelope.wrappedDek.length > 0 &&
+        envelope.nonce.length > 0,
+      "Fixture credential envelope is invalid",
+    );
+  }
 
+  const expectedGrantTuples = expectedCompanies.flatMap((row) => [
+    {
+      email: row.approverEmail,
+      companyId: companyIdByCode.get(row.code),
+      role: "approver" as const,
+    },
+    {
+      email: row.financeContactEmail,
+      companyId: companyIdByCode.get(row.code),
+      role: "finance" as const,
+    },
+  ]);
+  assertCondition(
+    expectedGrantTuples.every((tuple) => tuple.companyId),
+    "Fixture contact company mapping is invalid",
+  );
+  const contactAccounts = await database
+    .select()
+    .from(userAccount)
+    .where(inArray(
+      userAccount.email,
+      expectedGrantTuples.map((tuple) => tuple.email),
+    ));
+  assertCondition(
+    contactAccounts.length === expectedGrantTuples.length,
+    "Fixture contact account count is invalid",
+  );
+  const contactAccountByEmail = new Map(
+    contactAccounts.map((row) => [row.email, row]),
+  );
   const grants = await database
     .select()
     .from(companyRoleAssignment)
-    .where(inArray(companyRoleAssignment.companyId, companyIds));
-  assertCondition(grants.length === 12, "Fixture company role assignment count is invalid");
+    .where(inArray(
+      companyRoleAssignment.userAccountId,
+      contactAccounts.map((row) => row.id),
+    ));
+  for (const expected of expectedGrantTuples) {
+    const account = contactAccountByEmail.get(expected.email);
+    assertCondition(account, "Fixture contact account is missing");
+    assertCondition(
+      grants.filter(
+        (row) =>
+          row.userAccountId === account.id &&
+          row.companyId === expected.companyId &&
+          row.role === expected.role,
+      ).length === 1,
+      "Fixture contact grant mapping is invalid",
+    );
+  }
 
+  const assignmentIds = assignments.map((row) => row.id);
+  const assignmentById = new Map(assignments.map((row) => [row.id, row]));
   const importedAudits = await database
     .select()
     .from(auditLog)
     .where(
       and(
-        inArray(auditLog.companyId, companyIds),
         eq(auditLog.action, "license_assignment.imported"),
+        inArray(auditLog.entityId, assignmentIds),
       ),
     );
   assertCondition(
-    importedAudits.length >= 12,
+    assignments.every((assignment) =>
+      importedAudits.some(
+        (audit) =>
+          audit.entityId === assignment.id &&
+          audit.entityType === "LicenseAssignment" &&
+          audit.companyId === assignment.companyId &&
+          audit.note === "importación inicial",
+      ),
+    ) &&
+      importedAudits.every((audit) => {
+        const assignment = assignmentById.get(audit.entityId);
+        return Boolean(
+          assignment &&
+            audit.entityType === "LicenseAssignment" &&
+            audit.companyId === assignment.companyId &&
+            audit.note === "importación inicial",
+        );
+      }),
     "Fixture license import audit count is invalid",
   );
   const completionAudits = await database
@@ -424,7 +542,13 @@ async function verifyImport(database: Database): Promise<void> {
       ),
     );
   assertCondition(
-    completionAudits.length >= 1,
+    completionAudits.length >= 1 &&
+      completionAudits.every(
+        (audit) =>
+          audit.entityType === "UserAccount" &&
+          audit.entityId === ACTOR_ID &&
+          audit.note === "US-007 validated go-live import",
+      ),
     "Fixture go-live completion audit is missing",
   );
 
@@ -439,7 +563,7 @@ async function verifyImport(database: Database): Promise<void> {
       assignments: assignments.length,
       capacities: capacities.length,
       credentials: credentials.length,
-      companyRoleAssignments: grants.length,
+      companyRoleAssignments: expectedGrantTuples.length,
       importedAudits: importedAudits.length,
       completionAudits: completionAudits.length,
     },

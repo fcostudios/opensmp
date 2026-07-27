@@ -4,7 +4,10 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { loadCredentialManifest } from "./credential-manifest";
+import {
+  loadCredentialManifest,
+  loadProductionCredentialManifest,
+} from "./credential-manifest";
 
 const directories: string[] = [];
 
@@ -29,6 +32,37 @@ afterEach(async () => {
 });
 
 describe("server-side credential manifest", () => {
+  it("loads production credentials from an explicitly allowed local KEK root", async () => {
+    const paths = await fixture({
+      version: 1,
+      organizations: [{
+        vendor_org_ref: "org-1",
+        admin_env: "ORG_1_ADMIN_KEY",
+        analytics_env: "ORG_1_ANALYTICS_KEY",
+      }],
+    });
+
+    const loaded = await loadProductionCredentialManifest(
+      ["org-1"],
+      {
+        LEDGER_CREDENTIAL_MANIFEST_FILE: paths.manifestPath,
+        LEDGER_CREDENTIAL_KEK_FILE: paths.kekPath,
+        ORG_1_ADMIN_KEY: "admin-synthetic-value",
+        ORG_1_ANALYTICS_KEY: "analytics-synthetic-value",
+      },
+      { allowedKekRoot: paths.allowedKekRoot },
+    );
+
+    expect(loaded.credentials.map(({ kind, plaintext }) => ({
+      kind,
+      plaintext,
+    }))).toEqual([
+      { kind: "admin_scoped", plaintext: "admin-synthetic-value" },
+      { kind: "analytics", plaintext: "analytics-synthetic-value" },
+    ]);
+    expect(loaded.kek).toHaveLength(32);
+  });
+
   it("resolves complete, distinct Admin and Analytics key families without returning env names", async () => {
     const paths = await fixture({
       version: 1,

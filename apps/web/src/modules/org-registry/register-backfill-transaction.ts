@@ -619,11 +619,17 @@ export async function prepareProductionGoLiveImport(
     readonly occurredAt?: Date;
   },
   environment: Readonly<Record<string, string | undefined>> = process.env,
+  {
+    allowedKekRoot,
+  }: {
+    readonly allowedKekRoot?: string;
+  } = {},
 ): Promise<GoLiveImportInput> {
   const capacities = parseCapacityCsv(input.capacityCsv);
   const loaded = await loadProductionCredentialManifest(
     capacities.map((row) => row.vendorOrgRef),
     environment,
+    { allowedKekRoot },
   );
   return {
     ...input,

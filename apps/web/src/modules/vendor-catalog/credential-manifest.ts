@@ -106,6 +106,11 @@ export async function loadCredentialManifest({
 export async function loadProductionCredentialManifest(
   expectedVendorOrgRefs: readonly string[],
   environment: Readonly<Record<string, string | undefined>> = process.env,
+  {
+    allowedKekRoot,
+  }: {
+    readonly allowedKekRoot?: string;
+  } = {},
 ) {
   const manifestPath = environment.LEDGER_CREDENTIAL_MANIFEST_FILE?.trim();
   const kekPath = environment.LEDGER_CREDENTIAL_KEK_FILE?.trim();
@@ -120,5 +125,6 @@ export async function loadProductionCredentialManifest(
     kekPath,
     expectedVendorOrgRefs,
     environment,
+    ...(allowedKekRoot === undefined ? {} : { allowedKekRoot }),
   });
 }

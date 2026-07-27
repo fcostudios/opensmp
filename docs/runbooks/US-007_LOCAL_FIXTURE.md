@@ -32,7 +32,8 @@ rtk pnpm --filter smp-web import:go-live verify
 `init` creates the runtime environment and encryption key under
 `data/imports/private/`. That directory is ignored and must never be committed.
 The command refuses to overwrite either file; remove the private files deliberately
-before regenerating them.
+before regenerating them. The runtime environment is mode `0600`; the KEK is
+read-only mode `0400`.
 
 The first `apply` creates 6 companies, 12 contact accounts, 2 vendor accounts, 1
 license type, 12 people, 12 requests, 12 assignments, 2 capacity rows, 4 encrypted
