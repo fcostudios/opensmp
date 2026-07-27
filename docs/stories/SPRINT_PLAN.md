@@ -1,5 +1,5 @@
 <!-- nous-sprint-stamp
-generated_at: 2026-07-26T23:57:53Z
+generated_at: 2026-07-27T04:39:45Z
 current_sprint: sprint-5
 sprints_hash: 22ec244e51f61a79
 -->
@@ -35,7 +35,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | 5 | backend | **US-004** ✅ | Platform auth via Keycloak OIDC (mandatory 2FA for admin roles) | ? ?SP | `apps/web/src/app/api/` | CHG-001 | US-003 | →2 | — | [r1_misc_us_004.md](sprint-1/r1_misc_us_004.md) |
 | 6 | backend | **US-005** ✅ | Server-side RBAC + company scoping middleware | ? ?SP | `apps/web/src/app/api/` | CHG-001 | US-004 | →9 | 33b725b7-eb1 (push, exp 2026-08-02) | [r1_misc_us_005.md](sprint-1/r1_misc_us_005.md) |
 | 7 | frontend | **US-006** ✅ | App shell: data-workspace chrome + bilingual i18n | ? ?SP | `apps/web/src/components/` | — | US-004 | — | 33b725b7-eb1 (push, exp 2026-08-02) | [r1_misc_us_006.md](sprint-1/r1_misc_us_006.md) |
-| 8 | full-stack | **US-007** 🔨 | Seed: companies CSV + go-live register backfill | ? ?SP | `See story file` | CHG-001 | US-003 | →3 | 33b725b7-eb1 (push, exp 2026-08-02) | [r1_misc_us_007.md](sprint-1/r1_misc_us_007.md) |
+| 8 | full-stack | **US-007** ✅ | Seed: companies CSV + go-live register backfill | ? ?SP | `See story file` | CHG-001 | US-003 | →3 | 33b725b7-eb1 (push, exp 2026-08-02) | [r1_misc_us_007.md](sprint-1/r1_misc_us_007.md) |
 | 9 | full-stack | **US-008** ✅ | Immutable audit trail + viewer | ? ?SP | `See story file` | — | US-005 | — | 33b725b7-eb1 (push, exp 2026-08-02) | [r1_misc_us_008.md](sprint-1/r1_misc_us_008.md) |
 | 10 | full-stack | **US-046** ✅ | Job runner + schedules | ? ?SP | `See story file` | — | US-002 | →6 | — | [r1_misc_us_046.md](sprint-1/r1_misc_us_046.md) |
 
