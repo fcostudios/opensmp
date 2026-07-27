@@ -81,6 +81,11 @@ def load_extra_icons(valid: frozenset[str]) -> frozenset[str]:
 # check-lucide-allowlist.mjs (IMP-245 / I01). A DECLARED icon never legally
 # resolves to this — if it would, main() errors out first (IMP-325).
 FALLBACK_ICON = "Circle"
+SECTION_IDS = {
+    "OPERACIÓN": "operation",
+    "FINANZAS": "finance",
+    "ADMINISTRACIÓN": "administration",
+}
 
 
 def load_valid_exports() -> frozenset[str]:
@@ -139,11 +144,11 @@ def resolve_icon(icon: str | None, valid: frozenset[str]) -> str:
 
 
 def tsroles(roles: list[str]) -> str:
-    """Convert nav-map roles (lowercase) to the dev-package UserRole enum (uppercase)."""
+    """Emit nav-map roles using the lower-case domain role vocabulary."""
     if not roles or roles == ["all"]:
         return "undefined"
-    upper = [f'"{r.upper()}"' for r in roles if r != "all"]
-    return f"[{', '.join(upper)}]"
+    domain_roles = [f'"{r}"' for r in roles if r != "all"]
+    return f"[{', '.join(domain_roles)}]"
 
 
 def label_key(item_id: str) -> str:
@@ -167,6 +172,11 @@ def build_sidebar_array(items: list[dict], valid: frozenset[str]) -> tuple[list[
     for it in items:
         resolved = resolve_icon(it.get("icon"), valid)
         icons_used.add(resolved)
+        section = SECTION_IDS.get(it.get("section"))
+        if section is None:
+            raise ValueError(
+                f"Unknown sidebar section {it.get('section')!r} for {it['id']}"
+            )
         lines.append(
             "  {\n"
             f'    id: "{it["id"]}",\n'
@@ -175,6 +185,7 @@ def build_sidebar_array(items: list[dict], valid: frozenset[str]) -> tuple[list[
             f'    icon: {resolved},\n'
             f'    href: "{it["route"]}",\n'
             f'    screenId: "{it.get("screen", "")}",\n'
+            f'    section: "{section}",\n'
             f"    roles: {tsroles(it.get('roles', []))},\n"
             + (f'    badge: "{it["badge"]}",\n' if it.get("badge") else "")
             + (f'    position: "{it["position"]}",\n' if it.get("position") else "")
@@ -210,12 +221,13 @@ def generate_ts(nav: dict, valid: frozenset[str] | None = None) -> str:
     # ("Cannot find module"). `nav-items.gen.ts` is the SOLE referencer of
     # UserRole, so we DEFINE it locally as a deterministic union of the actual
     # nav-map roles (uppercased to the dev-package convention) instead of
-    # importing a non-existent hook. Sorted for HR-3 determinism.
+    # importing a non-existent hook. The emitted values retain the nav map's
+    # domain vocabulary. Sorted for HR-3 determinism.
     role_set: set[str] = set()
     for it in sidebar_items:
         for r in (it.get("roles") or []):
             if r and r != "all":
-                role_set.add(r.upper())
+                role_set.add(r)
     if role_set:
         user_role = " | ".join(f'"{r}"' for r in sorted(role_set))
     else:
@@ -223,7 +235,14 @@ def generate_ts(nav: dict, valid: frozenset[str] | None = None) -> str:
     type_def = (
         "// UserRole — the distinct roles the nav map gates sidebar items on.\n"
         "// Generated locally (the dev team may re-home this in a real auth hook).\n"
-        f"export type UserRole = {user_role};\n\n"
+        f"export type UserRole = {user_role};\n"
+        'export type NavSectionId = "operation" | "finance" | "administration";\n\n'
+        "export const navSections = [\n"
+        + "\n".join(
+            f'  {{ id: "{SECTION_IDS[section]}" }},'
+            for section in nav["app_shell"]["sidebar"]["sections"]
+        )
+        + "\n] as const satisfies readonly { id: NavSectionId }[];\n\n"
         "export interface NavItem {\n"
         "  id: string;\n"
         "  label: string;\n"
@@ -231,6 +250,7 @@ def generate_ts(nav: dict, valid: frozenset[str] | None = None) -> str:
         "  icon: LucideIcon;\n"
         "  href: string;\n"
         "  screenId: string;\n"
+        "  section: NavSectionId;\n"
         "  roles?: UserRole[];\n"
         '  /** Key on the API unread-count response — renders a numeric badge when > 0. */\n'
         "  badge?: string;\n"
