@@ -6,6 +6,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
 import * as schema from "@smp/db/schema";
+import { parseOperatorMode } from "../src/modules/org-registry/go-live-operator";
 
 const REPO_ROOT = resolve(import.meta.dirname, "../../..");
 const FIXTURE_ROOT = resolve(REPO_ROOT, "data/imports/fixtures/us007");
@@ -20,27 +21,12 @@ const ACTOR = {
   email: "us007.group-admin@ledger.invalid",
 } as const;
 
-type Mode = "init" | "preview" | "apply" | "verify";
 type Database = ReturnType<typeof drizzle<typeof schema>>;
 
 function assertCondition(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(message);
   }
-}
-
-function parseMode(value: string | undefined): Mode {
-  if (
-    value === "init" ||
-    value === "preview" ||
-    value === "apply" ||
-    value === "verify"
-  ) {
-    return value;
-  }
-  throw new Error(
-    "Usage: pnpm --filter smp-web import:go-live <init|preview|apply|verify>",
-  );
 }
 
 function printJson(value: unknown): void {
@@ -148,7 +134,7 @@ async function verifyImport(database: Database): Promise<void> {
 }
 
 async function run(): Promise<void> {
-  const mode = parseMode(process.argv[2]);
+  const mode = parseOperatorMode(process.argv.slice(2));
   if (mode === "init") {
     const { initializePrivateMaterial } = await import(
       "../src/modules/org-registry/go-live-operator"

@@ -15,10 +15,13 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   initializePrivateMaterial,
+  parseOperatorMode,
   type OperatorPaths,
 } from "./go-live-operator";
 
 const directories: string[] = [];
+const usage =
+  "Usage: pnpm --filter smp-web import:go-live <init|preview|apply|verify>";
 
 async function temporaryDirectory(prefix: string): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), prefix));
@@ -131,5 +134,23 @@ describe("US-007 local operator private material", () => {
     )).rejects.toThrow(`Unable to create private import files under: ${privateRoot}`);
 
     await expect(lstat(sharedFile)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+});
+
+describe("US-007 local operator arguments", () => {
+  it.each(["init", "preview", "apply", "verify"] as const)(
+    "accepts the exact %s mode",
+    (mode) => {
+      expect(parseOperatorMode([mode])).toBe(mode);
+    },
+  );
+
+  it.each([
+    { args: [] },
+    { args: ["unknown"] },
+    { args: ["apply", "--force"] },
+    { args: ["init", "unexpected"] },
+  ])("rejects invalid argument vector $args with exact usage", ({ args }) => {
+    expect(() => parseOperatorMode(args)).toThrowError(new Error(usage));
   });
 });

@@ -43,8 +43,6 @@ import {
 } from "@/modules/vendor-catalog/credential-crypto";
 import type { ImportDatabase } from "./company-import-transaction";
 import {
-  auditedGoLiveImportBoundary,
-  GO_LIVE_IMPORT_LOCK,
   type GoLiveCsvInput,
   type GoLiveImportInput,
 } from "./register-backfill-transaction";
@@ -96,6 +94,22 @@ export interface FixtureVerificationInput {
 }
 
 type RandomBytes = (length: number) => Uint8Array;
+export type OperatorMode = "init" | "preview" | "apply" | "verify";
+
+export function parseOperatorMode(args: readonly string[]): OperatorMode {
+  if (
+    args.length === 1 &&
+    (args[0] === "init" ||
+      args[0] === "preview" ||
+      args[0] === "apply" ||
+      args[0] === "verify")
+  ) {
+    return args[0];
+  }
+  throw new Error(
+    "Usage: pnpm --filter smp-web import:go-live <init|preview|apply|verify>",
+  );
+}
 
 export function assertOperatorCondition(
   condition: unknown,
@@ -279,6 +293,10 @@ export async function runLockedGoLiveOperatorImport(
     "Operator actor does not match the prepared import",
   );
   const occurredAt = input.occurredAt ?? new Date();
+  const {
+    auditedGoLiveImportBoundary,
+    GO_LIVE_IMPORT_LOCK,
+  } = await import("./register-backfill-transaction");
   return database.transaction(async (transaction) => {
     await transaction.execute(
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${GO_LIVE_IMPORT_LOCK}, 0))`,
