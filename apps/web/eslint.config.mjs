@@ -3,7 +3,7 @@ import nextTypeScript from "eslint-config-next/typescript";
 
 const eslintConfig = [
   // Generated / build artifacts — not hand-authored, never lint them.
-  { ignores: [".next/**", "node_modules/**", "public/**", "src/db/migrations/**", "scripts/**"] },
+  { ignores: [".next/**", "node_modules/**", "public/**", "src/db/migrations/**"] },
   ...nextCoreWebVitals,
   ...nextTypeScript,
   {

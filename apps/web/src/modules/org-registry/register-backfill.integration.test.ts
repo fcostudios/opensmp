@@ -1,6 +1,10 @@
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import pg from "pg";
 
 import {
@@ -20,6 +24,10 @@ import {
 } from "@smp/db/schema";
 import { createPostgresFixture, type PostgresFixture } from "@smp/db/testing/postgres-container";
 import * as schema from "@smp/db/schema";
+import {
+  parseCredentialEnvelope,
+  serializeCredentialEnvelope,
+} from "@smp/domain";
 
 import {
   dryRunGoLiveImport,
@@ -29,7 +37,8 @@ import {
 import {
   GO_LIVE_OPERATOR_ACTOR_BOOTSTRAP_ACTION,
   runLockedGoLiveOperatorImport,
-} from "./go-live-operator";
+} from "./go-live-operator-transaction";
+import { verifyGoLiveFixture } from "./go-live-fixture-verification";
 
 const actorId = "00000000-0000-4000-8000-000000000701";
 const operatorActor = {
@@ -81,6 +90,45 @@ const credentialSeeds = [
     plaintext: "sk-ant-analytics-synthetic",
   },
 ];
+const fixtureCredentialEnvironment = {
+  ANTHROPIC_CORPORATIVO_TEAMS_ADMIN_KEY: "synthetic-corp-admin",
+  ANTHROPIC_CORPORATIVO_TEAMS_ANALYTICS_KEY: "synthetic-corp-analytics",
+  ANTHROPIC_CENTROHUB_TEAMS_ADMIN_KEY: "synthetic-centro-admin",
+  ANTHROPIC_CENTROHUB_TEAMS_ANALYTICS_KEY: "synthetic-centro-analytics",
+} as const;
+const fixtureCredentialSeeds = [
+  {
+    vendorOrgRef: "corporativo-teams",
+    kind: "admin_scoped" as const,
+    plaintext: fixtureCredentialEnvironment.ANTHROPIC_CORPORATIVO_TEAMS_ADMIN_KEY,
+    scopes: "read:members write:members",
+  },
+  {
+    vendorOrgRef: "corporativo-teams",
+    kind: "analytics" as const,
+    plaintext: fixtureCredentialEnvironment.ANTHROPIC_CORPORATIVO_TEAMS_ANALYTICS_KEY,
+  },
+  {
+    vendorOrgRef: "centrohub-teams",
+    kind: "admin_scoped" as const,
+    plaintext: fixtureCredentialEnvironment.ANTHROPIC_CENTROHUB_TEAMS_ADMIN_KEY,
+    scopes: "read:members write:members",
+  },
+  {
+    vendorOrgRef: "centrohub-teams",
+    kind: "analytics" as const,
+    plaintext: fixtureCredentialEnvironment.ANTHROPIC_CENTROHUB_TEAMS_ANALYTICS_KEY,
+  },
+];
+
+async function readCommittedFixture() {
+  const [companiesCsv, membersCsv, capacityCsv] = await Promise.all([
+    readFile(new URL("../../../../../data/imports/fixtures/us007/companies.csv", import.meta.url), "utf8"),
+    readFile(new URL("../../../../../data/imports/fixtures/us007/member-backfill.csv", import.meta.url), "utf8"),
+    readFile(new URL("../../../../../data/imports/fixtures/us007/capacity.csv", import.meta.url), "utf8"),
+  ]);
+  return { companiesCsv, membersCsv, capacityCsv };
+}
 
 describe("US-007 go-live import", () => {
   let fixture: PostgresFixture;
@@ -409,6 +457,258 @@ describe("US-007 go-live import", () => {
           note: "US-007 local operator actor bootstrap",
         }),
       ]);
+  });
+
+  it("serializes concurrent operator bootstrap and import into one creation", async () => {
+    const input = {
+      actorUserId: operatorActor.id,
+      companiesCsv,
+      membersCsv,
+      capacityCsv,
+      occurredAt: now,
+      credentials: credentialSeeds,
+      kek: testKek,
+      randomBytes: deterministicBytes,
+    };
+
+    const results = await Promise.all([
+      runLockedGoLiveOperatorImport(database, input, operatorActor),
+      runLockedGoLiveOperatorImport(database, input, operatorActor),
+    ]);
+
+    expect(results.map((result) => result.created.companies).sort()).toEqual([
+      0,
+      baselineCompanyCount,
+    ]);
+    expect(results.reduce(
+      (sum, result) => sum + result.created.assignments,
+      0,
+    )).toBe(2);
+    expect(await database
+      .select()
+      .from(userAccount)
+      .where(eq(userAccount.id, operatorActor.id))).toHaveLength(1);
+    expect(await database
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, GO_LIVE_OPERATOR_ACTOR_BOOTSTRAP_ACTION)))
+      .toHaveLength(1);
+    expect(await database.select().from(company)).toHaveLength(baselineCompanyCount);
+    expect(await database.select().from(licenseAssignment)).toHaveLength(2);
+  });
+
+  it("verifies the committed fixture and ignores unrelated imported-shaped rows", async () => {
+    const csvInput = await readCommittedFixture();
+    const privateRoot = await mkdtemp(join(tmpdir(), "ledger-verify-"));
+    const kekFile = join(privateRoot, "kek");
+    await writeFile(
+      kekFile,
+      `${Buffer.from(testKek).toString("base64")}\n`,
+      { mode: 0o400 },
+    );
+    await chmod(kekFile, 0o400);
+    try {
+      await runLockedGoLiveOperatorImport(database, {
+        ...csvInput,
+        actorUserId: operatorActor.id,
+        occurredAt: now,
+        credentials: fixtureCredentialSeeds,
+        kek: testKek,
+        randomBytes: deterministicBytes,
+      }, operatorActor);
+      const verificationInput = {
+        csvInput,
+        actorUserId: operatorActor.id,
+        privateRoot,
+        kekFile,
+        environment: fixtureCredentialEnvironment,
+      };
+
+      expect(await verifyGoLiveFixture(database, verificationInput)).toEqual({
+        status: "ok",
+        counts: {
+          companies: 6,
+          vendorAccounts: 2,
+          licenseTypes: 1,
+          people: 12,
+          requests: 12,
+          assignments: 12,
+          capacities: 2,
+          credentials: 4,
+          companyRoleAssignments: 12,
+          importedAudits: 12,
+          completionAudits: 1,
+        },
+        mapping: {
+          assignmentsByCompany: {
+            CORP: 2,
+            PPM: 2,
+            FOCUS: 2,
+            MULLEN: 2,
+            RAM: 2,
+            CENTROHUB: 2,
+          },
+          capacityByVendorOrg: {
+            "corporativo-teams": 15,
+            "centrohub-teams": 3,
+          },
+        },
+      });
+
+      const [corp] = await database
+        .select()
+        .from(company)
+        .where(eq(company.code, "CORP"));
+      const [account] = await database
+        .select()
+        .from(vendorAccount)
+        .where(eq(vendorAccount.vendorOrgRef, "corporativo-teams"));
+      const [teams] = await database
+        .select()
+        .from(licenseType)
+        .where(eq(licenseType.name, "Teams"));
+      const [unrelatedPerson] = await database.insert(person).values({
+        email: "unrelated.fixture@ledger.invalid",
+        fullName: "Unrelated Fixture",
+        companyId: corp.id,
+        status: "active",
+        createdAt: now,
+        createdBy: operatorActor.id,
+      }).returning();
+      const [unrelatedRequest] = await database.insert(licenseRequest).values({
+        requestNo: "IMP-UNRELATED-FIXTURE",
+        personId: unrelatedPerson.id,
+        companyId: corp.id,
+        vendorAccountId: account.id,
+        licenseTypeId: teams.id,
+        state: "active",
+        justification: "unrelated",
+        createdAt: now,
+      }).returning();
+      const [unrelatedAssignment] = await database.insert(licenseAssignment).values({
+        personId: unrelatedPerson.id,
+        companyId: corp.id,
+        vendorAccountId: account.id,
+        licenseTypeId: teams.id,
+        startedOn: "2026-07-01",
+        sourceRequestId: unrelatedRequest.id,
+        sourceKind: "import",
+        createdAt: now,
+      }).returning();
+      await database
+        .update(licenseRequest)
+        .set({ licenseAssignmentId: unrelatedAssignment.id })
+        .where(eq(licenseRequest.id, unrelatedRequest.id));
+      const [unrelatedAccount] = await database.insert(userAccount).values({
+        email: "unrelated.grant@ledger.invalid",
+        status: "disabled",
+        createdAt: now,
+        createdBy: operatorActor.id,
+      }).returning();
+      await database.insert(companyRoleAssignment).values({
+        userAccountId: unrelatedAccount.id,
+        companyId: corp.id,
+        role: "viewer",
+        uniqueGrant: `${unrelatedAccount.id}:${corp.id}:viewer`,
+        createdAt: now,
+        createdBy: operatorActor.id,
+      });
+      await database.insert(auditLog).values({
+        actorUserId: null,
+        action: "license_assignment.imported",
+        entityType: "LicenseAssignment",
+        entityId: unrelatedAssignment.id,
+        companyId: corp.id,
+        note: "unrelated",
+        occurredAt: now,
+      });
+
+      const afterUnrelated = await verifyGoLiveFixture(database, verificationInput);
+      expect(afterUnrelated.status).toBe("ok");
+      expect(afterUnrelated.counts.assignments).toBe(12);
+      expect(afterUnrelated.counts.companyRoleAssignments).toBe(12);
+      expect(afterUnrelated.counts.importedAudits).toBe(12);
+    } finally {
+      await rm(privateRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a mismatched expected fixture credential without disclosing it", async () => {
+    const csvInput = await readCommittedFixture();
+    const privateRoot = await mkdtemp(join(tmpdir(), "ledger-verify-mismatch-"));
+    const kekFile = join(privateRoot, "kek");
+    await writeFile(
+      kekFile,
+      `${Buffer.from(testKek).toString("base64")}\n`,
+      { mode: 0o400 },
+    );
+    await chmod(kekFile, 0o400);
+    try {
+      await runLockedGoLiveOperatorImport(database, {
+        ...csvInput,
+        actorUserId: operatorActor.id,
+        occurredAt: now,
+        credentials: fixtureCredentialSeeds,
+        kek: testKek,
+        randomBytes: deterministicBytes,
+      }, operatorActor);
+      const mismatched = "synthetic-mismatched-secret";
+      const error = await verifyGoLiveFixture(database, {
+        csvInput,
+        actorUserId: operatorActor.id,
+        privateRoot,
+        kekFile,
+        environment: {
+          ...fixtureCredentialEnvironment,
+          ANTHROPIC_CORPORATIVO_TEAMS_ADMIN_KEY: mismatched,
+        },
+      }).then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe(
+        "Fixture credential authentication failed",
+      );
+      expect((error as Error).message).not.toContain(mismatched);
+
+      const [credential] = await database
+        .select()
+        .from(integrationCredential)
+        .where(and(
+          eq(integrationCredential.kind, "admin_scoped"),
+          eq(integrationCredential.status, "active"),
+        ))
+        .limit(1);
+      const envelope = parseCredentialEnvelope(credential.encryptedSecret);
+      const finalCharacter = envelope.ciphertext.at(-1);
+      await database
+        .update(integrationCredential)
+        .set({
+          encryptedSecret: serializeCredentialEnvelope({
+            ...envelope,
+            ciphertext: `${envelope.ciphertext.slice(0, -1)}${finalCharacter === "A" ? "B" : "A"}`,
+          }),
+        })
+        .where(eq(integrationCredential.id, credential.id));
+      const tamperError = await verifyGoLiveFixture(database, {
+        csvInput,
+        actorUserId: operatorActor.id,
+        privateRoot,
+        kekFile,
+        environment: fixtureCredentialEnvironment,
+      }).then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+      expect(tamperError).toBeInstanceOf(Error);
+      expect((tamperError as Error).message).toBe(
+        "Fixture credential authentication failed",
+      );
+    } finally {
+      await rm(privateRoot, { recursive: true, force: true });
+    }
   });
 
   it("reports changed natural-key rows and conflicting member identities", async () => {
