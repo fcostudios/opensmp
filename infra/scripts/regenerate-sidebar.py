@@ -86,6 +86,17 @@ SECTION_IDS = {
     "FINANZAS": "finance",
     "ADMINISTRACIÓN": "administration",
 }
+# Keep this explicit allow-list aligned with LedgerRole in
+# apps/web/src/lib/auth/auth-types.ts. Do not derive it from the nav map: doing
+# so would legitimize misspelled or otherwise unrecognized auth roles.
+LEDGER_ROLES = frozenset({
+    "employee",
+    "approver",
+    "company_finance",
+    "central_finance",
+    "group_admin",
+    "viewer",
+})
 
 
 def load_valid_exports() -> frozenset[str]:
@@ -116,6 +127,47 @@ def load_nav_map() -> dict:
 
 def _sidebar_items(nav: dict) -> list[dict]:
     return nav["app_shell"]["sidebar"]["items"]
+
+
+def validate_sidebar_contract(nav: dict) -> None:
+    sidebar = nav["app_shell"]["sidebar"]
+    sections = sidebar["sections"]
+    duplicates = sorted({
+        section for section in sections if sections.count(section) > 1
+    })
+    if duplicates:
+        raise ValueError(
+            f"Duplicate sidebar section(s): {', '.join(duplicates)}"
+        )
+
+    unknown_sections = sorted(set(sections) - set(SECTION_IDS))
+    if unknown_sections:
+        raise ValueError(
+            "Unknown declared sidebar section(s): "
+            + ", ".join(unknown_sections)
+        )
+
+    declared_sections = set(sections)
+    for item in sidebar["items"]:
+        unknown_roles = sorted(
+            set(item.get("roles", [])) - LEDGER_ROLES - {"all"}
+        )
+        if unknown_roles:
+            raise ValueError(
+                f"{item['id']}: unknown sidebar role(s): "
+                + ", ".join(unknown_roles)
+            )
+
+        section = item.get("section")
+        if section not in SECTION_IDS:
+            raise ValueError(
+                f"Unknown sidebar section {section!r} for {item['id']}"
+            )
+        if section not in declared_sections:
+            raise ValueError(
+                f"{item['id']}: sidebar section {section!r} is not declared "
+                "in app_shell.sidebar.sections"
+            )
 
 
 def declared_fallbacks(nav: dict, valid: frozenset[str] | None = None) -> list[tuple[str, str]]:
@@ -197,6 +249,7 @@ def build_sidebar_array(items: list[dict], valid: frozenset[str]) -> tuple[list[
 def generate_ts(nav: dict, valid: frozenset[str] | None = None) -> str:
     if valid is None:
         valid = load_valid_exports()
+    validate_sidebar_contract(nav)
     sidebar_items = _sidebar_items(nav)
     icons, lines = build_sidebar_array(sidebar_items, valid)
 
@@ -220,9 +273,9 @@ def generate_ts(nav: dict, valid: frozenset[str] | None = None) -> str:
     # `@/hooks/useAuth`, a module the generator NEVER emits → `tsc` TS2307
     # ("Cannot find module"). `nav-items.gen.ts` is the SOLE referencer of
     # UserRole, so we DEFINE it locally as a deterministic union of the actual
-    # nav-map roles (uppercased to the dev-package convention) instead of
-    # importing a non-existent hook. The emitted values retain the nav map's
-    # domain vocabulary. Sorted for HR-3 determinism.
+    # validated nav-map roles instead of importing a non-existent hook. The
+    # emitted values retain the lowercase LedgerRole vocabulary. Sorted for
+    # HR-3 determinism.
     role_set: set[str] = set()
     for it in sidebar_items:
         for r in (it.get("roles") or []):
