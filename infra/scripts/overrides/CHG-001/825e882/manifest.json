@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "paths": {
+    "AGENTS.md": {
+      "source_sha256": "d2782700ca42502e9380bf2a69186c609721e8051bad65f3ede885fa4e1f85b6",
+      "desired_sha256": "bb1ea10060b98594128d2d00ad1df403dbcde007e0aefb76970edecafe6d999a"
+    },
+    "CLAUDE.md": {
+      "source_sha256": "efdbf2e5161bfe56f865bbeb812fd5e7f8019c81528f74c098198530582e2145",
+      "desired_sha256": "b325297a3b0aa9ce6747ce34aa8418adfed2ad7b458bb80d96bc3adaf9acd3f9"
+    },
+    "docs/dev-guide/DEFINITION_OF_DONE.md": {
+      "source_sha256": "c061aeeb58cc4fd07c9a1037f752c590a647398f07d2e2709ebccf26b58acde8",
+      "desired_sha256": "b96bf4aaf1a2e7f6a22c1342eba1854b29170060d895e07eb8d9ea4f07fcf473"
+    },
+    "docs/dev-guide/FRONTEND.md": {
+      "source_sha256": "d9619cd66bb95fa07794cf6eaf91622e7097ce21674709906bb2b11625e89fad",
+      "desired_sha256": "56f88f133a16818fdfb04657ecaa95067c87f07257c4506f78bc1852143afc9f"
+    },
+    "docs/dev-guide/SECURITY.md": {
+      "source_sha256": "80d1779962abf2f896fd3c97457ac6453cbd6500136093f4b0fa177e4dfed892",
+      "desired_sha256": "1763ca67252b66a65e2dfce6b6e88664b2fe5e8f6dbd89d6802de1500ad4b967"
+    },
+    "docs/dev-guide/STANDARDS.md": {
+      "source_sha256": "16429f91911bf0e03f923711bce38d9f0e5bd3eb3cb86ca4ef7962cae88b6ed2",
+      "desired_sha256": "a9ca2719450f411227839d79b14a680c7462e2c67e40211b1707ee2ef5d7fa61"
+    },
+    "docs/dev-guide/TESTING.md": {
+      "source_sha256": "8f218b4376b01cb5e4ea91f5cca9c7d1979d58caf399a327f34755d992d6ec7b",
+      "desired_sha256": "e5c00acf265c253f4c43d34bb4ce6d151102ee2e18a2bfe9ee702d5f4829c50a"
+    },
+    "docs/stories/CHANGES.md": {
+      "source_sha256": "b6b9140fe8dbe904ba063e6379b0131a593962eb6533dcc0988f959ab523a633",
+      "desired_sha256": "65c39f8b8b4f7c3fcd4b7e7cf1f8920245d367b99428a4f37ad9c9f0df24bf66"
+    },
+    "testing/critical-paths.md": {
+      "source_sha256": "89bb5f4270ddc9797fcd63ee8a1f4f6497c357d53af84d61c31fb627402ff9d2",
+      "desired_sha256": "d732ebd619ef101cea47ce120cfe38551a8da36b4624959f13094daab5d66973"
+    }
+  }
+}
+

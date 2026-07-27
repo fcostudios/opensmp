@@ -14,11 +14,12 @@ fails an assertion rather than raising an infrastructure or syntax error.
 
 | Mutant | Safeguard removed | Killing behavior test |
 |---|---|---|
-| M01 | Duplicate stale/expected occurrence rejection | `test_duplicate_governed_text_fails_without_writing` |
-| M02 | Validate-all-before-write ordering | `test_later_validation_failure_cannot_leave_partial_writes` |
-| M03 | Global forbidden-guidance scan | `test_forbidden_guidance_aborts_all_planned_writes` |
-| M04 | Exact CLAUDE mirror parity | `test_reconcile_enforces_exact_mirror_parity_and_complete_change_notes` |
-| M05 | Preview no-write guarantee | `test_preview_shows_effective_changes_without_writing` |
-| M06 | Check-mode drift failure | `test_check_reports_exact_mirror_drift_without_writing` |
-| M07 | Atomic application of a validated plan | `test_reconcile_enforces_exact_mirror_parity_and_complete_change_notes` |
-| M08 | Exact known-substrate transformations | `test_reconciles_known_825e882_substrate_to_authoritative_guidance` |
+| M01 | Pinned source-hash migration branch | `test_reconciles_known_source_hash_to_pinned_desired_artifacts` |
+| M02 | Pinned desired-hash no-op branch | `test_desired_hash_is_noop_and_claude_drives_mirrors` |
+| M03 | Unknown-state rejection | `test_unknown_pinned_hash_fails_without_writing` |
+| M04 | Source artifact hash verification | `test_source_artifact_hash_mismatch_fails_without_writing` |
+| M05 | Desired artifact hash verification | `test_manifest_artifact_hash_mismatch_fails_without_writing` |
+| M06 | Desired CLAUDE mirror data flow | `test_desired_hash_is_noop_and_claude_drives_mirrors` |
+| M07 | Global forbidden-guidance scan | `test_forbidden_unpinned_guidance_aborts_all_planned_writes` |
+| M08 | Preview no-write guarantee | `test_preview_shows_pinned_changes_without_writing` |
+| M09 | Atomic application of a validated pinned plan | `test_reconciles_known_source_hash_to_pinned_desired_artifacts` |

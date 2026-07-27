@@ -28,31 +28,83 @@ class Mutation:
 MUTATIONS = (
     Mutation(
         "M01",
-        "weaken exact occurrence validation so duplicates bypass the count guard",
-        """            elif (stale_count, expected_count) != (0, 1):
+        "disable the pinned source-hash migration branch",
+        """        if current_hash == source_hash:
 """,
-        """            elif stale_count == 0 and expected_count == 0:
+        """        if False and current_hash == source_hash:
 """,
         (
             "ReconciliationBehaviorTests."
-            "test_duplicate_governed_text_fails_without_writing"
+            "test_reconciles_known_source_hash_to_pinned_desired_artifacts"
         ),
     ),
     Mutation(
         "M02",
-        "write each replacement during validation, reintroducing partial writes",
-        """        desired[path] = updated
+        "disable the pinned desired-hash no-op branch",
+        """        elif current_hash == desired_hash:
 """,
-        """        atomic_write(path, updated)
-        desired[path] = updated
+        """        elif False and current_hash == desired_hash:
 """,
         (
             "ReconciliationBehaviorTests."
-            "test_later_validation_failure_cannot_leave_partial_writes"
+            "test_desired_hash_is_noop_and_claude_drives_mirrors"
         ),
     ),
     Mutation(
         "M03",
+        "accept an unknown generated guidance hash",
+        """        else:
+            errors.append(
+                f"{relative_path}: unknown generated guidance state "
+                f"(sha256={current_hash}); review and pin a new migration"
+            )
+""",
+        """        else:
+            desired[path] = current_text
+""",
+        (
+            "ReconciliationBehaviorTests."
+            "test_unknown_pinned_hash_fails_without_writing"
+        ),
+    ),
+    Mutation(
+        "M04",
+        "disable pinned source-artifact hash verification",
+        """        if sha256(source_bytes) != source_hash:
+""",
+        """        if False and sha256(source_bytes) != source_hash:
+""",
+        (
+            "ReconciliationBehaviorTests."
+            "test_source_artifact_hash_mismatch_fails_without_writing"
+        ),
+    ),
+    Mutation(
+        "M05",
+        "disable desired override-artifact hash verification",
+        """        if sha256(desired_bytes) != desired_hash:
+""",
+        """        if False and sha256(desired_bytes) != desired_hash:
+""",
+        (
+            "ReconciliationBehaviorTests."
+            "test_manifest_artifact_hash_mismatch_fails_without_writing"
+        ),
+    ),
+    Mutation(
+        "M06",
+        "preserve stale mirrors instead of copying desired CLAUDE data",
+        """        desired[path] = claude
+""",
+        """        desired[path] = original[path]
+""",
+        (
+            "ReconciliationBehaviorTests."
+            "test_desired_hash_is_noop_and_claude_drives_mirrors"
+        ),
+    ),
+    Mutation(
+        "M07",
         "disable the global forbidden-guidance postcondition",
         """            if match:
 """,
@@ -60,24 +112,12 @@ MUTATIONS = (
 """,
         (
             "ReconciliationBehaviorTests."
-            "test_forbidden_guidance_aborts_all_planned_writes"
+            "test_forbidden_unpinned_guidance_aborts_all_planned_writes"
         ),
     ),
     Mutation(
-        "M04",
-        "preserve stale mirrors instead of copying CLAUDE.md exactly",
-        """        desired[path] = claude
-""",
-        """        desired[path] = original[path]
-""",
-        (
-            "ReconciliationBehaviorTests."
-            "test_reconcile_enforces_exact_mirror_parity_and_complete_change_notes"
-        ),
-    ),
-    Mutation(
-        "M05",
-        "make preview mode apply its plan before rendering the diff",
+        "M08",
+        "make preview mode write its pinned plan",
         """def preview_plan(plan: dict[Path, str], root: Path) -> None:
     if not plan:
 """,
@@ -87,46 +127,19 @@ MUTATIONS = (
 """,
         (
             "ReconciliationBehaviorTests."
-            "test_preview_shows_effective_changes_without_writing"
+            "test_preview_shows_pinned_changes_without_writing"
         ),
     ),
     Mutation(
-        "M06",
-        "make parity check mode return successfully despite drift",
-        """def check_plan(plan: dict[Path, str], root: Path) -> None:
-    if not plan:
-""",
-        """def check_plan(plan: dict[Path, str], root: Path) -> None:
-    return
-    if not plan:
-""",
-        (
-            "ReconciliationBehaviorTests."
-            "test_check_reports_exact_mirror_drift_without_writing"
-        ),
-    ),
-    Mutation(
-        "M07",
-        "skip atomic replacement after a valid plan is built",
+        "M09",
+        "skip atomic application of a valid pinned plan",
         """        atomic_write(path, text)
 """,
         """        # mutant: validated output is never committed
 """,
         (
             "ReconciliationBehaviorTests."
-            "test_reconcile_enforces_exact_mirror_parity_and_complete_change_notes"
-        ),
-    ),
-    Mutation(
-        "M08",
-        "disable exact known-substrate transformations",
-        """            if (stale_count, expected_count) == (1, 0):
-""",
-        """            if False and (stale_count, expected_count) == (1, 0):
-""",
-        (
-            "ReconciliationBehaviorTests."
-            "test_reconciles_known_825e882_substrate_to_authoritative_guidance"
+            "test_reconciles_known_source_hash_to_pinned_desired_artifacts"
         ),
     ),
 )
