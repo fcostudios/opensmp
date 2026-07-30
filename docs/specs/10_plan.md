@@ -52,7 +52,7 @@ Capacity model: 2 FTEs, AI-assisted; target ≈ 30–40 SP/week-sprint (velocity
 | Story | Title | SP | Blocked By |
 |---|---|---|---|
 | US-011 | Users, roles and delegation-ready grants | 3 | US-005 |
-| US-018 | Anthropic connector client | 3 | US-003, US-045 |
+| US-018 | Anthropic connector client | 3 | US-003, US-045, US-025 |
 | US-019 | Automated provisioning: invite ≤ 15 min → Active | 5 | US-018, US-014, US-046, US-042 |
 | US-021 | Invite hygiene | 2 | US-019, US-042 |
 | US-023 | Blocked-no-seat + purchase-or-reclaim flow | 3 | US-022, US-042 |

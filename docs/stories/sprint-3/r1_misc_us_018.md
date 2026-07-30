@@ -22,13 +22,13 @@ As a Group Admin (persona_01), I want to talk to the vendor API safely so that
 | Server Actions | — |
 | Entities | ProvisioningAction (C) |
 | Business Rules | — |
-| Blocked By | US-003, US-045 |
-
+| Blocked By | US-003, US-025, US-045 |
 ## Acceptance Criteria
 
-- [ ] AC1: Client wraps User Management + Analytics APIs: rate limits (100/min UM, 60/min analytics, 1200 invites/h), retries with backoff, anthropic-version + beta header pinned in ONE module
-- [ ] AC2: Every call persists ProvisioningAction/sync raw_request+raw_response
+- [ ] AC1: Client wraps User Management + Analytics APIs with endpoint-specific header policy, documented rate limits (100/min UM, 60/min Analytics, 1200 invites/h), and bounded retry/backoff; Admin and Analytics credentials are distinct and fail closed when routed to the wrong capability
+- [ ] AC2: Every call persists a sanitized canonical ProvisioningAction/sync request+response summary; credentials, authorization headers, raw PII, full provider identifiers, and raw provider bodies are forbidden
 - [ ] AC3: Connector implements the Connector capability interface (US-045) — nothing Claude-specific outside it (DEC-SMP-008); capability descriptor semantics per US-025
+- [ ] AC4: Every deterministic Anthropic network fixture is backed by a passing Pact consumer contract; live credential-scope, organization-binding, pagination, rate-limit, invite-create, and invite-cleanup acceptance remains gated by the authorized US-054 provider run
 
 ## Notes
 

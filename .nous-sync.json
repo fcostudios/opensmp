@@ -1,9 +1,9 @@
 {
-  "synced_at": "2026-07-27T10:33:39.996137+00:00",
+  "synced_at": "2026-07-30T11:35:12.943489+00:00",
   "project_id": "fcostudios__smp",
   "files": {
     "docs/stories/SPRINT_PLAN.md": {
-      "hash": "7607cf0b5ad39fd6",
+      "hash": "a14b2490bf465f09",
       "source": "generated"
     },
     "docs/stories/CHANGES.md": {
@@ -19,7 +19,7 @@
       "source": "generated"
     },
     ".nous-project.json": {
-      "hash": "b52def8cbcf55512",
+      "hash": "39b812745e689e70",
       "source": "generated"
     },
     "docs/stories/INDEX.md": {
@@ -79,8 +79,8 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_013.md"
     },
     "docs/stories/sprint-2/r1_misc_us_014.md": {
-      "hash": "c7084ceb2f99bfcb",
-      "source": "/Users/fcolomas/Projects/nous-smp-sprint2/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_014.md"
+      "hash": "440b65dd2e589609",
+      "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_014.md"
     },
     "docs/stories/sprint-2/r1_misc_us_015.md": {
       "hash": "3880dc41c7a718de",
@@ -91,11 +91,11 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_016.md"
     },
     "docs/stories/sprint-2/r1_misc_us_017.md": {
-      "hash": "e7fed05dfe5be0db",
+      "hash": "800962db74e055f8",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_017.md"
     },
     "docs/stories/sprint-3/r1_misc_us_018.md": {
-      "hash": "7c4180665ce0d92c",
+      "hash": "3107c1dc714c5395",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_018.md"
     },
     "docs/stories/sprint-3/r1_misc_us_019.md": {
@@ -104,7 +104,7 @@
     },
     "docs/stories/sprint-2/r1_misc_us_020.md": {
       "hash": "5cd2ccd5eebdfeef",
-      "source": "/Users/fcolomas/Projects/nous-smp-sprint2/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_020.md"
+      "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_020.md"
     },
     "docs/stories/sprint-3/r1_misc_us_021.md": {
       "hash": "14a05e9d9ecc7f83",
@@ -192,7 +192,7 @@
     },
     "docs/stories/sprint-2/r1_misc_us_042.md": {
       "hash": "3caaa3ffed31d39a",
-      "source": "/Users/fcolomas/Projects/nous-smp-sprint2/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_042.md"
+      "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_042.md"
     },
     "docs/stories/sprint-3/r1_misc_us_043.md": {
       "hash": "e0c8e7345188b363",
@@ -203,7 +203,7 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_044.md"
     },
     "docs/stories/sprint-2/r1_misc_us_045.md": {
-      "hash": "56c69f89ae580ede",
+      "hash": "9dad25a1cc8b1ac9",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_045.md"
     },
     "docs/stories/sprint-1/r1_misc_us_046.md": {
@@ -260,7 +260,7 @@
     },
     "docs/specs/04_er_model.md": {
       "hash": "5dbe54e9d433c099",
-      "source": "/Users/fcolomas/Projects/nous-smp-sprint2/Nous/Specs/fcostudios/smp/v1/04_er_model.md"
+      "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/04_er_model.md"
     },
     "docs/specs/05_brand.md": {
       "hash": "ede62becc5345920",
@@ -283,16 +283,16 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/07c_navigation_map.json"
     },
     "docs/specs/08_scope.md": {
-      "hash": "731e31cd581f60df",
-      "source": "/Users/fcolomas/Projects/nous-smp-sprint2/Nous/Specs/fcostudios/smp/v1/08_scope.md"
+      "hash": "a2e5ee6bf7eff05f",
+      "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/08_scope.md"
     },
     "docs/specs/09_architecture.md": {
       "hash": "9ab872749296722a",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/09_architecture.md"
     },
     "docs/specs/10_plan.md": {
-      "hash": "9b56ecce26c05273",
-      "source": "/Users/fcolomas/Projects/nous-smp-sprint2/Nous/Specs/fcostudios/smp/v1/10_plan.md"
+      "hash": "d3d8bc531f316472",
+      "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/10_plan.md"
     },
     "docs/specs/11_estimates.md": {
       "hash": "f6ec981a3d853fd8",
@@ -547,12 +547,12 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/html_mocks/journey_player.html"
     },
     "infra/scripts/allowed_lucide_icons.json": {
-      "hash": "22b70a44a0b99f10",
-      "source": "/Users/fcolomas/Projects/nous-smp-sprint2/Nous/dev_package_staging/infra/scripts/allowed_lucide_icons.json"
+      "hash": "94af24606e1df103",
+      "source": "/Users/fcolomas/Projects/nous/Nous/dev_package_staging/infra/scripts/allowed_lucide_icons.json"
     },
     "infra/scripts/regenerate-sidebar.py": {
-      "hash": "89571eec73b94992",
-      "source": "/Users/fcolomas/Projects/nous-smp-sprint2/Nous/dev_package_staging/infra/scripts/regenerate-sidebar.py"
+      "hash": "4feeffbf986a8d78",
+      "source": "/Users/fcolomas/Projects/nous/Nous/dev_package_staging/infra/scripts/regenerate-sidebar.py"
     }
   }
 }
