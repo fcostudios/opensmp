@@ -492,10 +492,8 @@ export async function compareDatabaseStructures(migrationUrl, pushUrl) {
 
 async function dropDisposableDatabase(admin, databaseName) {
   await admin.query(
-    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
-    [databaseName],
+    `DROP DATABASE IF EXISTS ${quotedIdentifier(databaseName)} WITH (FORCE)`,
   );
-  await admin.query(`DROP DATABASE IF EXISTS ${quotedIdentifier(databaseName)}`);
 }
 
 export async function checkMigrationParity({
