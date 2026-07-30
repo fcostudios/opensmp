@@ -5,6 +5,7 @@ import * as schema from "./schema";
 
 const expectedTables = [
   "alertEvent",
+  "alertNotificationDelivery",
   "alertRule",
   "activityRecord",
   "auditLog",
@@ -16,6 +17,8 @@ const expectedTables = [
   "licenseAssignment",
   "licenseRequest",
   "licenseType",
+  "lifecycleNotification",
+  "lifecycleNotificationDelivery",
   "person",
   "provisioningAction",
   "rateCard",
@@ -33,7 +36,7 @@ const expectedTables = [
 ] as const;
 
 describe("US-003 schema contract", () => {
-  test("exports the complete 26-entity Drizzle schema", () => {
+  test("exports the complete domain and durable-notification Drizzle schema", () => {
     expect(
       Object.entries(schema)
         .filter(([, exported]) => isTable(exported))

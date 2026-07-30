@@ -34,11 +34,27 @@ import {
 export { SYSTEM_USER_EMAIL, SYSTEM_USER_ID } from "@smp/db/system-ids";
 export * from "./imports";
 export * from "./locale";
+export * from "./people";
+export * from "./register";
+export * from "./request-workflow";
+export * from "./requests";
 
 export const insertAlertRuleSchema = createInsertSchema(alertRule);
 export const selectAlertRuleSchema = createSelectSchema(alertRule);
 export const insertAlertEventSchema = createInsertSchema(alertEvent);
 export const selectAlertEventSchema = createSelectSchema(alertEvent);
+export {
+  ALERT_TYPES,
+  alertEvaluationSchema,
+  alertRuleContractSchema,
+  alertSubjectRefSchema,
+  alertThresholdSchema,
+  alertTypeSchema,
+  type AlertEvaluation,
+  type AlertRuleContract,
+  type AlertSubjectRef,
+  type AlertType,
+} from "./alerts";
 export const insertSystemSettingSchema = createInsertSchema(systemSetting);
 export const selectSystemSettingSchema = createSelectSchema(systemSetting);
 export const insertAuditLogSchema = createInsertSchema(auditLog);

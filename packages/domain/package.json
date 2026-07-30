@@ -7,8 +7,13 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./alerts": "./src/alerts/evaluate.ts",
     "./audit": "./src/audit/port.ts",
-    "./identity-access": "./src/identity-access/authorization.ts"
+    "./identity-access": "./src/identity-access/authorization.ts",
+    "./jobs/schedule": "./src/jobs/schedule.ts",
+    "./request-workflow": "./src/request-workflow/lifecycle.ts",
+    "./request-workflow/business-time": "./src/request-workflow/business-time.ts",
+    "./vendor-catalog/pool-math": "./src/vendor-catalog/pool-math.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",
@@ -17,10 +22,10 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@smp/contracts": "workspace:*",
-    "@smp/db": "workspace:*"
+    "@smp/contracts": "workspace:*"
   },
   "devDependencies": {
+    "fast-check": "^4.9.0",
     "typescript": "^5.7.0",
     "vitest": "^4.1.0",
     "@vitest/coverage-v8": "^4.1.0"

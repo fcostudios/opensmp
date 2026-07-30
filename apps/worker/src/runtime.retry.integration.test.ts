@@ -2,10 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { successfulJob } from "@smp/domain";
 import pg from "pg";
 
+import { once } from "node:events";
+
+import { createSmtpMailer } from "@smp/notifications";
 import {
   createPostgresFixture,
   type PostgresFixture,
 } from "../../../packages/db/src/testing/postgres-container.js";
+import { SMTPServer } from "smtp-server";
 import { createWorkerRuntime, type WorkerRuntime } from "./runtime.js";
 
 let fixture: PostgresFixture;
@@ -45,11 +49,18 @@ afterAll(async () => {
 
 describe("US-046 pg-boss retry behavior", () => {
   it("records the operational alert once and reaches completed state after a real retry", async () => {
-    await queryAsOwner(
-      `INSERT INTO alert_rule (id, type, scope_kind, channel, enabled, created_at, created_by)
-       VALUES ('00000000-0000-0000-0000-000000000701', 'credential_failure', 'global', 'email', true, now(),
-       '00000000-0000-0000-0000-000000000001')`,
-    );
+    const smtp = new SMTPServer({
+      authOptional: true,
+      disabledCommands: ["AUTH", "STARTTLS"],
+      onData(stream, _session, callback) {
+        stream.on("data", () => undefined);
+        stream.on("end", callback);
+      },
+    });
+    smtp.listen(0, "127.0.0.1");
+    await once(smtp.server, "listening");
+    const address = smtp.server.address();
+    if (!address || typeof address === "string") throw new Error("SMTP port unavailable");
     const logs: object[] = [];
     let attempts = 0;
     let runtime: WorkerRuntime | undefined;
@@ -64,6 +75,7 @@ describe("US-046 pg-boss retry behavior", () => {
           },
         },
         logger: { write: (entry) => logs.push(entry) },
+        notificationMailer: createSmtpMailer(`smtp://127.0.0.1:${address.port}`),
       });
       await runtime.start();
       const jobId = await runtime.enqueue("analyticsSync", new Date("2026-07-25T14:00:00.000Z"), {
@@ -87,6 +99,9 @@ describe("US-046 pg-boss retry behavior", () => {
       expect(logs).toContainEqual(expect.objectContaining({ attempt: 2, processed: 1, status: "succeeded" }));
     } finally {
       await runtime?.stop();
+      await new Promise<void>((resolve, reject) => {
+        smtp.close((error) => (error ? reject(error) : resolve()));
+      });
     }
   }, 45_000);
 });

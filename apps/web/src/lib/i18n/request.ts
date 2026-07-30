@@ -1,6 +1,7 @@
 import { getRequestConfig } from "next-intl/server";
 
 import { auth } from "@/lib/auth/auth-config";
+import { loadAppMessages } from "@/lib/i18n/messages";
 import { localeService } from "@/modules/identity-access/locale";
 
 export default getRequestConfig(async () => {
@@ -8,10 +9,7 @@ export default getRequestConfig(async () => {
   const locale = await localeService.resolveLocale(
     session?.user?.uiLanguage ?? null,
   );
-  const messages =
-    locale === "en-US"
-      ? (await import("../../../messages/en-US.json")).default
-      : (await import("../../../messages/es-EC.json")).default;
+  const messages = await loadAppMessages(locale);
 
   return { locale, messages, timeZone: "America/Guayaquil" };
 });

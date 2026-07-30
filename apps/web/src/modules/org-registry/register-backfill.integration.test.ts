@@ -282,7 +282,20 @@ describe("US-007 go-live import", () => {
     expect(await database.select().from(requestTransition)).toHaveLength(2);
     expect(await database.select().from(licenseAssignment)).toHaveLength(2);
     expect(await database.select().from(vendorAccountCapacity)).toHaveLength(1);
-    expect(await database.select().from(auditLog)).not.toHaveLength(0);
+    expect(await database.select().from(auditLog)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actorUserId: null,
+          action: "request.active",
+          entityType: "LicenseRequest",
+          companyId: savedCompany!.id,
+          note: "importación inicial",
+          before: { state: null },
+          after: { state: "active" },
+          occurredAt: now,
+        }),
+      ]),
+    );
   });
 
   it("creates nothing on an identical second run", async () => {
@@ -1262,6 +1275,11 @@ describe("US-007 go-live import", () => {
     expect(new Set(assignmentAudits.map((row) => row.entityId)).size).toBe(2);
     expect(audits.filter((row) => row.action === "go_live_import.completed"))
       .toHaveLength(2);
-    expect(audits).toHaveLength(4);
+    const requestAudits = audits.filter(
+      (row) => row.action === "request.active",
+    );
+    expect(requestAudits).toHaveLength(2);
+    expect(new Set(requestAudits.map((row) => row.entityId)).size).toBe(2);
+    expect(audits).toHaveLength(6);
   });
 });

@@ -2,9 +2,29 @@
   "meta": {
     "generated": "auto",
     "description": "API contract registry — all endpoints from TOON dataSource + story specs.",
-    "endpoint_count": 0,
-    "scaffold": true,
-    "scaffold_note": "No endpoints declared by the screens yet (0 of 28 screens declare a REST dataSource/endpoint). This is a SCAFFOLD, not an empty contract: reads run inline in Server Components and mutations go through server actions, so most features need no route handler. Populate this when a real external REST contract (cron / webhook / third-party) appears."
+    "endpoint_count": 2,
+    "scaffold": false
   },
-  "endpoints": {}
+  "endpoints": {
+    "GET /api/health": {
+      "method": "GET",
+      "url": "/api/health",
+      "sources": [
+        {
+          "type": "architecture",
+          "ref": "deployment health check"
+        }
+      ]
+    },
+    "GET /api/exports/register": {
+      "method": "GET",
+      "url": "/api/exports/register",
+      "sources": [
+        {
+          "type": "story",
+          "ref": "US-033"
+        }
+      ]
+    }
+  }
 }

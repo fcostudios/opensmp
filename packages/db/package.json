@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema.ts",
+    "./pool-snapshots": "./src/pool-snapshots.ts",
     "./system-ids": "./src/system-ids.ts",
     "./testing/pglite": "./src/testing/pglite.ts",
     "./testing/postgres-container": "./src/testing/postgres-container.ts",

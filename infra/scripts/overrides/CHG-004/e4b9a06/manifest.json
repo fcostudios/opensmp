@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "paths": {
+    "docs/stories/CHANGES.md": {
+      "source_path": "overrides/CHG-001/825e882/docs/stories/CHANGES.md",
+      "source_sha256": "497f881891a7461d0b25dbce214cf454c0090f9f6e73e7a2e17429dffd944223",
+      "desired_sha256": "646b39d559efc890db5d5ebab96dc2b0c2f78eb35ab204ef34f335a2a282c96e"
+    },
+    "testing/critical-paths.md": {
+      "source_path": "overrides/CHG-001/825e882/testing/critical-paths.md",
+      "source_sha256": "d732ebd619ef101cea47ce120cfe38551a8da36b4624959f13094daab5d66973",
+      "desired_sha256": "fb0d9c5d94224dbfa96b02db67194f67f07077ecf6aae449edbd59e35364b73e"
+    }
+  }
+}

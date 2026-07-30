@@ -1,9 +1,16 @@
 import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 import nextTypeScript from "eslint-config-next/typescript";
+import sharedPreset from "../../packages/config/eslint-preset.mjs";
+
+const providerRestrictedImports =
+  sharedPreset[0].rules["no-restricted-imports"];
+const providerRestrictedPatterns =
+  providerRestrictedImports[1].patterns;
 
 const eslintConfig = [
   // Generated / build artifacts — not hand-authored, never lint them.
   { ignores: [".next/**", "node_modules/**", "public/**", "src/db/migrations/**"] },
+  ...sharedPreset,
   ...nextCoreWebVitals,
   ...nextTypeScript,
   {
@@ -37,6 +44,7 @@ const eslintConfig = [
               message:
                 "Company data access belongs in repositories or transaction services.",
             },
+            ...providerRestrictedPatterns,
           ],
         },
       ],
@@ -60,7 +68,9 @@ const eslintConfig = [
       "src/modules/audit/with-audit.ts",
     ],
     rules: {
-      "no-restricted-imports": "off",
+      // These files are exempt from direct DB import restrictions, but remain
+      // vendor-neutral and therefore keep the shared provider boundary.
+      "no-restricted-imports": providerRestrictedImports,
     },
   },
 ];

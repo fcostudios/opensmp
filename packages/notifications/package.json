@@ -1,0 +1,34 @@
+{
+  "name": "@smp/notifications",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./catalog": "./src/catalog.ts",
+    "./lifecycle-dispatcher": "./src/lifecycle-dispatcher.ts",
+    "./mailer": "./src/mailer.ts",
+    "./outbox": "./src/outbox.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "echo 'no lint'",
+    "test": "vitest run --passWithNoTests",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@smp/contracts": "workspace:*",
+    "@smp/domain": "workspace:*",
+    "nodemailer": "^7.0.10",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@smp/db": "workspace:*",
+    "@types/nodemailer": "^7.0.4",
+    "@types/pg": "^8.11.10",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.0"
+  }
+}

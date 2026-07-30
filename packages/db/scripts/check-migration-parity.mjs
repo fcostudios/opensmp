@@ -346,10 +346,111 @@ async function describeStructure(connectionString) {
         AND namespace.nspname = 'public'
       ORDER BY source.relname, columns, target.relname, referenced_columns
     `);
+    const enums = await client.query(`
+      SELECT
+        enum_type.typname AS enum_name,
+        array_agg(
+          enum_value.enumlabel::text
+          ORDER BY enum_value.enumsortorder
+        )
+          AS labels
+      FROM pg_type AS enum_type
+      JOIN pg_namespace AS namespace ON namespace.oid = enum_type.typnamespace
+      JOIN pg_enum AS enum_value ON enum_value.enumtypid = enum_type.oid
+      WHERE namespace.nspname = 'public'
+      GROUP BY enum_type.typname
+      ORDER BY enum_type.typname
+    `);
+    const governedUniqueObjects = await client.query(`
+      SELECT
+        index_relation.relname AS index_name,
+        table_relation.relname AS table_name,
+        index_state.indisunique AS is_unique,
+        index_state.indisvalid AS is_valid,
+        index_state.indisready AS is_ready,
+        index_state.indimmediate AS is_immediate,
+        index_state.indnkeyatts AS key_count,
+        index_state.indnatts AS attribute_count,
+        access_method.amname AS access_method,
+        ARRAY(
+          SELECT pg_get_indexdef(
+            index_state.indexrelid,
+            key_position,
+            true
+          )
+          FROM generate_series(
+            1,
+            index_state.indnkeyatts
+          ) AS key_position
+        ) AS key_expressions,
+        pg_get_expr(
+          index_state.indpred,
+          index_state.indrelid,
+          true
+        ) AS predicate,
+        constraint_row.contype AS constraint_type,
+        constraint_row.condeferrable AS constraint_deferrable,
+        constraint_row.condeferred AS constraint_initially_deferred
+      FROM pg_index AS index_state
+      JOIN pg_class AS index_relation
+        ON index_relation.oid = index_state.indexrelid
+      JOIN pg_namespace AS index_namespace
+        ON index_namespace.oid = index_relation.relnamespace
+      JOIN pg_class AS table_relation
+        ON table_relation.oid = index_state.indrelid
+      JOIN pg_namespace AS table_namespace
+        ON table_namespace.oid = table_relation.relnamespace
+      JOIN pg_am AS access_method
+        ON access_method.oid = index_relation.relam
+      LEFT JOIN pg_constraint AS constraint_row
+        ON constraint_row.conindid = index_state.indexrelid
+      WHERE index_namespace.nspname = 'public'
+        AND table_namespace.nspname = 'public'
+        AND index_relation.relname IN (
+          'uq_alert_event_dedupe_key',
+          'idx_alert_notification_delivery_claim_fence',
+          'uq_alert_notification_delivery_attempt_phase',
+          'uq_alert_notification_delivery_succeeded',
+          'uq_alert_rule_global_type',
+          'uq_license_request_requester_client_request',
+          'uq_license_request_request_no',
+          'uq_person_lower_email',
+          'uq_provisioning_action_orchestration_checklist_operation',
+          'uq_provisioning_action_pending_remove_request'
+        )
+      ORDER BY index_relation.relname
+    `);
+    const governedCheckConstraints = await client.query(`
+      SELECT
+        constraint_row.conname AS constraint_name,
+        regexp_replace(
+          regexp_replace(
+            lower(pg_get_constraintdef(constraint_row.oid, true)),
+            '::[a-z_][a-z0-9_]*',
+            '',
+            'g'
+          ),
+          '\\s+',
+          '',
+          'g'
+        ) AS definition,
+        constraint_row.convalidated AS is_validated
+      FROM pg_constraint AS constraint_row
+      WHERE constraint_row.conrelid =
+          'public.alert_notification_delivery'::regclass
+        AND constraint_row.conname IN (
+          'ck_alert_notification_delivery_claim_fence',
+          'ck_alert_notification_delivery_recipient'
+        )
+      ORDER BY constraint_row.conname
+    `);
     return {
       tables: tables.rows,
       columns: columns.rows,
       foreignKeys: foreignKeys.rows,
+      enums: enums.rows,
+      governedCheckConstraints: governedCheckConstraints.rows,
+      governedUniqueObjects: governedUniqueObjects.rows,
     };
   } finally {
     await client.end();
@@ -455,7 +556,10 @@ async function main() {
   console.log(
     `✓ committed migrations match drizzle-kit push: ` +
       `${structure.tables.length} table(s), ${structure.columns.length} column(s), ` +
-      `${structure.foreignKeys.length} foreign key(s)`,
+      `${structure.foreignKeys.length} foreign key(s), ` +
+      `${structure.enums.length} enum(s), ` +
+      `${structure.governedCheckConstraints.length} governed check constraint(s), ` +
+      `${structure.governedUniqueObjects.length} governed unique object(s)`,
   );
 }
 

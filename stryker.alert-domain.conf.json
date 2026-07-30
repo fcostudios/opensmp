@@ -1,0 +1,29 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "reporters": ["clear-text"],
+  "coverageAnalysis": "perTest",
+  "vitest": { "related": true },
+  "concurrency": 4,
+  "timeoutMS": 60000,
+  "timeoutFactor": 4,
+  "ignorePatterns": ["docs/**", ".tmp/**"],
+  "mutate": [
+    "packages/domain/src/jobs/schedule.ts:39-40",
+    "packages/domain/src/jobs/schedule.ts:75-160",
+    "packages/domain/src/alerts/evaluate.ts:16-16",
+    "packages/domain/src/alerts/evaluate.ts:72-78",
+    "packages/domain/src/alerts/evaluate.ts:105-109",
+    "packages/contracts/src/alerts.ts:67-74",
+    "packages/domain/src/vendor-catalog/pool.ts"
+  ],
+  "testFiles": [
+    "packages/domain/src/jobs/schedule.test.ts",
+    "packages/domain/src/alerts/evaluate.test.ts",
+    "packages/contracts/src/alerts.test.ts",
+    "packages/domain/src/vendor-catalog/pool.test.ts"
+  ],
+  "thresholds": { "high": 100, "low": 100, "break": 100 }
+}

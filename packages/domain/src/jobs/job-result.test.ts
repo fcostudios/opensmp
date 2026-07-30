@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dependencyNotDelivered, successfulJob } from "./job-result.js";
+import { dependencyNotDelivered, failedJob, successfulJob } from "./job-result.js";
 
 describe("US-046 job outcomes", () => {
   it("makes an unavailable later-sprint handler visible as skipped rather than successful work", () => {
@@ -14,5 +14,14 @@ describe("US-046 job outcomes", () => {
 
   it("records meaningful processed work only as a success", () => {
     expect(successfulJob(3)).toEqual({ processed: 3, status: "succeeded" });
+  });
+
+  it("returns a structured alert-rule failure for the worker retry boundary", () => {
+    expect(failedJob("rule-042", "SMTP_REJECTED", 2)).toEqual({
+      alertRuleId: "rule-042",
+      errorCode: "SMTP_REJECTED",
+      processed: 2,
+      status: "failed",
+    });
   });
 });

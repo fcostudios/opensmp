@@ -35,6 +35,8 @@ type JobKeyInput = {
 };
 
 const VENDOR_SCOPED_JOBS = new Set<JobName>(["analyticsSync", "memberSync", "invitePoll"]);
+// Mainland Ecuador (America/Guayaquil) is permanently UTC-05:00.
+const ECUADOR_OFFSET_MS = 18_000_000;
 
 export function createJobIdempotencyKey(job: JobName, input: JobKeyInput): string {
   const date = requireValidDate(input.at);
@@ -68,23 +70,93 @@ export function createScheduledJobIdempotencyKey(job: JobName, input: Pick<JobKe
 
 export function isThirdBusinessDay(date: Date, calendar: EcuadorBusinessCalendar): boolean {
   const target = requireValidDate(date);
-  const year = target.getUTCFullYear();
-  const month = target.getUTCMonth();
-  const targetDay = target.getUTCDate();
+  const operatingDate = ecuadorOperatingDate(target);
+  const [year, month, targetDay] = operatingDate.split("-").map(Number) as [
+    number,
+    number,
+    number,
+  ];
   let businessDays = 0;
 
   for (let day = 1; day <= targetDay; day += 1) {
-    const candidate = new Date(Date.UTC(year, month, day));
+    const candidate = isoDate(year, month, day);
     if (!isBusinessDay(candidate, calendar)) continue;
     businessDays += 1;
   }
 
-  return isBusinessDay(target, calendar) && businessDays === 3;
+  return isBusinessDay(operatingDate, calendar) && businessDays === 3;
 }
 
-function isBusinessDay(date: Date, calendar: EcuadorBusinessCalendar): boolean {
-  const weekday = date.getUTCDay();
-  return weekday !== 0 && weekday !== 6 && !calendar.holidays.has(utcDate(date));
+export function businessDaysElapsedInMonth(
+  date: Date,
+  calendar: EcuadorBusinessCalendar,
+): number {
+  const target = requireValidDate(date);
+  const operatingDate = ecuadorOperatingDate(target);
+  const [year, month, targetDay] = operatingDate.split("-").map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  let elapsed = 0;
+  for (let day = 1; day <= targetDay; day += 1) {
+    if (isBusinessDay(isoDate(year, month, day), calendar)) elapsed += 1;
+  }
+  return elapsed;
+}
+
+export function businessDaysBetween(
+  from: Date,
+  through: Date,
+  calendar: EcuadorBusinessCalendar,
+): number {
+  const start = requireValidDate(from);
+  const end = requireValidDate(through);
+  // Stryker disable next-line EqualityOperator,ConditionalExpression:
+  // @equivalent Same instant/date traverses no candidate days and also yields zero.
+  if (end.getTime() <= start.getTime()) return 0;
+  let elapsed = 0;
+  let candidate = nextIsoDate(ecuadorOperatingDate(start));
+  const finalDate = ecuadorOperatingDate(end);
+  while (candidate <= finalDate) {
+    if (isBusinessDay(candidate, calendar)) elapsed += 1;
+    candidate = nextIsoDate(candidate);
+  }
+  return elapsed;
+}
+
+function isBusinessDay(iso: string, calendar: EcuadorBusinessCalendar): boolean {
+  const weekday = new Date(`${iso}T00:00:00.000Z`).getUTCDay();
+  return weekday !== 0 && weekday !== 6 && !calendar.holidays.has(iso);
+}
+
+export function ecuadorOperatingDate(date: Date): string {
+  requireValidDate(date);
+  return utcDate(new Date(date.getTime() - ECUADOR_OFFSET_MS));
+}
+
+export function isEcuadorBusinessDayDeadlineOverdue(
+  startedAt: Date,
+  evaluatedAt: Date,
+  calendar: EcuadorBusinessCalendar,
+): boolean {
+  requireValidDate(startedAt);
+  requireValidDate(evaluatedAt);
+  let deadlineDate = ecuadorOperatingDate(startedAt);
+  while (!isBusinessDay(deadlineDate, calendar)) {
+    deadlineDate = nextIsoDate(deadlineDate);
+  }
+  return ecuadorOperatingDate(evaluatedAt) > deadlineDate;
+}
+
+function isoDate(year: number, month: number, day: number): string {
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function nextIsoDate(iso: string): string {
+  const date = new Date(`${iso}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return utcDate(date);
 }
 
 function requireVendorAccountId(value: string | undefined): string {

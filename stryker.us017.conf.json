@@ -1,0 +1,41 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "reporters": ["clear-text"],
+  "coverageAnalysis": "perTest",
+  "vitest": {
+    "configFile": "apps/web/vitest.us017.config.ts",
+    "related": false
+  },
+  "concurrency": 4,
+  "timeoutMS": 120000,
+  "timeoutFactor": 4,
+  "ignorePatterns": ["docs/**", ".tmp/**"],
+  "mutate": [
+    "packages/domain/src/alerts/approval-aging.ts",
+    "packages/contracts/src/alerts.ts:61-101",
+    "apps/worker/src/alerts/evaluate-alerts.ts:80-631",
+    "packages/notifications/src/catalog.ts:50-71",
+    "packages/notifications/src/outbox.ts:69-69",
+    "packages/notifications/src/outbox.ts:67-135",
+    "packages/notifications/src/outbox.ts:140-149",
+    "packages/notifications/src/outbox.ts:160-169",
+    "packages/notifications/src/outbox.ts:180-238",
+    "packages/notifications/src/outbox.ts:242-307",
+    "packages/notifications/src/outbox.ts:342-342",
+    "apps/web/src/modules/alerts/repository.ts:42-100"
+  ],
+  "testFiles": [
+    "packages/domain/src/alerts/approval-aging.test.ts",
+    "packages/contracts/src/alerts.test.ts",
+    "apps/worker/src/alerts/approval-aging.integration.test.ts",
+    "apps/worker/src/alerts/approval-aging-hardening.integration.test.ts",
+    "apps/worker/src/alerts/evaluate-alerts.integration.test.ts",
+    "packages/notifications/src/catalog.test.ts",
+    "packages/notifications/src/outbox.integration.test.ts",
+    "apps/web/src/modules/alerts/repository.integration.test.ts"
+  ],
+  "thresholds": { "high": 100, "low": 100, "break": 100 }
+}

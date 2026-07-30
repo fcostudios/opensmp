@@ -66,6 +66,7 @@ services:
       PGUSER: ledger_app
       PGPASSWORD: ${LEDGER_APP_PASSWORD:?set LEDGER_APP_PASSWORD in .env}
       PGDATABASE: ledger
+      DATABASE_URL: postgresql://ledger_app:${LEDGER_APP_PASSWORD:?set LEDGER_APP_PASSWORD in .env}@postgres:5432/ledger
       KEYCLOAK_ISSUER: ${KEYCLOAK_PUBLIC_ORIGIN:?set KEYCLOAK_PUBLIC_ORIGIN in .env}/realms/corporativo
       KEYCLOAK_ADMIN_BASE_URL: http://keycloak:${KEYCLOAK_PUBLIC_PORT:-8180}
       KEYCLOAK_CLIENT_ID: smp-web
@@ -100,6 +101,8 @@ services:
       PGPASSWORD: ${LEDGER_APP_PASSWORD:?set LEDGER_APP_PASSWORD in .env}
       PGDATABASE: ledger
       ECUADOR_HOLIDAYS: ${ECUADOR_HOLIDAYS:-}
+      LEDGER_PUBLIC_URL: ${LEDGER_PUBLIC_URL:-http://localhost:3000}
+      SMTP_URL: smtp://smtp-relay:1025
     depends_on:
       postgres:
         condition: service_healthy

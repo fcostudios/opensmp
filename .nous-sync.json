@@ -1,13 +1,13 @@
 {
-  "synced_at": "2026-07-27T04:39:45.503484+00:00",
+  "synced_at": "2026-07-27T10:33:39.996137+00:00",
   "project_id": "fcostudios__smp",
   "files": {
     "docs/stories/SPRINT_PLAN.md": {
-      "hash": "af76fe07f3473db5",
+      "hash": "7607cf0b5ad39fd6",
       "source": "generated"
     },
     "docs/stories/CHANGES.md": {
-      "hash": "e047f665e846de81",
+      "hash": "646b39d559efc890",
       "source": "generated"
     },
     "docs/stories/ASSIGNMENTS.md": {
@@ -15,11 +15,11 @@
       "source": "generated"
     },
     "testing/critical-paths.md": {
-      "hash": "89bb5f4270ddc979",
+      "hash": "fb0d9c5d94224dbf",
       "source": "generated"
     },
     ".nous-project.json": {
-      "hash": "0cbce58e5a8a9da1",
+      "hash": "b52def8cbcf55512",
       "source": "generated"
     },
     "docs/stories/INDEX.md": {
@@ -79,8 +79,8 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_013.md"
     },
     "docs/stories/sprint-2/r1_misc_us_014.md": {
-      "hash": "5bb4bfdaf0e67897",
-      "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_014.md"
+      "hash": "c7084ceb2f99bfcb",
+      "source": "/Users/fcolomas/Projects/nous-smp-sprint2/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_014.md"
     },
     "docs/stories/sprint-2/r1_misc_us_015.md": {
       "hash": "3880dc41c7a718de",
@@ -103,8 +103,8 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_019.md"
     },
     "docs/stories/sprint-2/r1_misc_us_020.md": {
-      "hash": "fa14596dff7a7590",
-      "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_020.md"
+      "hash": "5cd2ccd5eebdfeef",
+      "source": "/Users/fcolomas/Projects/nous-smp-sprint2/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_020.md"
     },
     "docs/stories/sprint-3/r1_misc_us_021.md": {
       "hash": "14a05e9d9ecc7f83",
@@ -191,8 +191,8 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_041.md"
     },
     "docs/stories/sprint-2/r1_misc_us_042.md": {
-      "hash": "f78ddd83c60d8b07",
-      "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_042.md"
+      "hash": "3caaa3ffed31d39a",
+      "source": "/Users/fcolomas/Projects/nous-smp-sprint2/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_042.md"
     },
     "docs/stories/sprint-3/r1_misc_us_043.md": {
       "hash": "e0c8e7345188b363",
@@ -259,8 +259,8 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/03_cx_journeys.md"
     },
     "docs/specs/04_er_model.md": {
-      "hash": "23a4240a814f4b12",
-      "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/04_er_model.md"
+      "hash": "5dbe54e9d433c099",
+      "source": "/Users/fcolomas/Projects/nous-smp-sprint2/Nous/Specs/fcostudios/smp/v1/04_er_model.md"
     },
     "docs/specs/05_brand.md": {
       "hash": "ede62becc5345920",
@@ -283,16 +283,16 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/07c_navigation_map.json"
     },
     "docs/specs/08_scope.md": {
-      "hash": "a7aaf42e4eb307e2",
-      "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/08_scope.md"
+      "hash": "731e31cd581f60df",
+      "source": "/Users/fcolomas/Projects/nous-smp-sprint2/Nous/Specs/fcostudios/smp/v1/08_scope.md"
     },
     "docs/specs/09_architecture.md": {
       "hash": "9ab872749296722a",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/09_architecture.md"
     },
     "docs/specs/10_plan.md": {
-      "hash": "13a29799fb670b11",
-      "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/10_plan.md"
+      "hash": "9b56ecce26c05273",
+      "source": "/Users/fcolomas/Projects/nous-smp-sprint2/Nous/Specs/fcostudios/smp/v1/10_plan.md"
     },
     "docs/specs/11_estimates.md": {
       "hash": "f6ec981a3d853fd8",
@@ -548,11 +548,11 @@
     },
     "infra/scripts/allowed_lucide_icons.json": {
       "hash": "22b70a44a0b99f10",
-      "source": "/Users/fcolomas/Projects/nous/Nous/dev_package_staging/infra/scripts/allowed_lucide_icons.json"
+      "source": "/Users/fcolomas/Projects/nous-smp-sprint2/Nous/dev_package_staging/infra/scripts/allowed_lucide_icons.json"
     },
     "infra/scripts/regenerate-sidebar.py": {
       "hash": "89571eec73b94992",
-      "source": "/Users/fcolomas/Projects/nous/Nous/dev_package_staging/infra/scripts/regenerate-sidebar.py"
+      "source": "/Users/fcolomas/Projects/nous-smp-sprint2/Nous/dev_package_staging/infra/scripts/regenerate-sidebar.py"
     }
   }
 }

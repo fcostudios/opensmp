@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "reporters": ["clear-text"],
+  "coverageAnalysis": "perTest",
+  "vitest": { "related": true },
+  "concurrency": 4,
+  "timeoutMS": 60000,
+  "timeoutFactor": 4,
+  "ignorePatterns": ["docs/**", ".tmp/**"],
+  "mutate": [
+    "apps/worker/src/alerts/evaluate-alerts.ts:88-111",
+    "apps/worker/src/alerts/evaluate-alerts.ts:117-151",
+    "apps/worker/src/alerts/evaluate-alerts.ts:190-200",
+    "apps/worker/src/alerts/evaluate-alerts.ts:206-207",
+    "apps/worker/src/alerts/evaluate-alerts.ts:253-410",
+    "apps/worker/src/alerts/evaluate-alerts.ts:453-477",
+    "apps/worker/src/alerts/report-job-failure.ts:21-36",
+    "apps/worker/src/alerts/report-job-failure.ts:57-68",
+    "apps/worker/src/alerts/report-job-failure.ts:104-132",
+    "apps/worker/src/alerts/report-job-failure.ts:136-166",
+    "apps/worker/src/alerts/report-job-failure.ts:216-245"
+  ],
+  "testFiles": [
+    "apps/worker/src/alerts/evaluate-alerts.integration.test.ts",
+    "apps/worker/src/alerts/job-failure.test.ts",
+    "apps/worker/src/alerts/report-job-failure.integration.test.ts"
+  ],
+  "thresholds": { "high": 100, "low": 100, "break": 100 }
+}

@@ -12,7 +12,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = resolve(process.cwd(), "../..");
-const composeProject = "ledger-us004-e2e";
+const composeProject = "ledger-sprint2";
 const ownerUrl =
   "postgresql://ledger_owner:change-me-owner@127.0.0.1:15434/ledger";
 const appUrl =
@@ -254,6 +254,276 @@ export default async function setupAuthEnvironment() {
           now(),
           now()
         )
+      `);
+      await owner.query(`
+        UPDATE company
+        SET budget_monthly_usd = 10000.00
+        WHERE id = '20000000-0000-0000-0000-000000000451';
+
+        INSERT INTO company (
+          id, name, code, type, status, budget_monthly_usd, created_at, created_by
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000480',
+          'Out of Scope Company',
+          'OUT-SCOPE',
+          'internal',
+          'active',
+          10000.00,
+          '2026-07-01T12:00:00Z',
+          '00000000-0000-0000-0000-000000000001'
+        );
+
+        INSERT INTO vendor (
+          id, name, connector_type, provisioning_protocol, can_provision,
+          can_deprovision, has_usage_data, has_cost_data, identity_matching,
+          status, created_at, created_by
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000470',
+          'Sprint 2 Orchestration Vendor',
+          'orchestration',
+          'none',
+          false,
+          false,
+          false,
+          false,
+          'email',
+          'active',
+          '2026-07-01T12:00:00Z',
+          '00000000-0000-0000-0000-000000000001'
+        );
+        INSERT INTO vendor_account (
+          id, vendor_id, name, mode, low_pool_floor, status,
+          created_at, created_by
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000471',
+          '20000000-0000-0000-0000-000000000470',
+          'Sprint 2 Orchestration Pool',
+          'orchestration',
+          1,
+          'active',
+          '2026-07-01T12:00:00Z',
+          '00000000-0000-0000-0000-000000000001'
+        );
+        INSERT INTO license_type (
+          id, vendor_id, name, unit, status, created_at, created_by
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000472',
+          '20000000-0000-0000-0000-000000000470',
+          'Sprint 2 Seat',
+          'seat',
+          'active',
+          '2026-07-01T12:00:00Z',
+          '00000000-0000-0000-0000-000000000001'
+        );
+        INSERT INTO vendor_account_capacity (
+          id, vendor_account_id, license_type_id, purchased_qty, effective_from,
+          note, created_at, created_by
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000473',
+          '20000000-0000-0000-0000-000000000471',
+          '20000000-0000-0000-0000-000000000472',
+          5,
+          '2026-01-01',
+          'Deterministic Sprint 2 E2E capacity',
+          '2026-07-01T12:00:00Z',
+          '00000000-0000-0000-0000-000000000001'
+        );
+
+        INSERT INTO person (
+          id, email, full_name, company_id, status, created_at, created_by
+        ) VALUES
+          (
+            '20000000-0000-0000-0000-000000000481',
+            'foreign.employee@scope.test',
+            'Foreign Scope Employee',
+            '20000000-0000-0000-0000-000000000480',
+            'active',
+            '2026-07-01T12:00:00Z',
+            '00000000-0000-0000-0000-000000000001'
+          ),
+          (
+            '20000000-0000-0000-0000-000000000483',
+            'rejection.fixture@auth.test',
+            'Rejection Fixture',
+            '20000000-0000-0000-0000-000000000451',
+            'active',
+            '2026-07-01T12:00:00Z',
+            '00000000-0000-0000-0000-000000000001'
+          ),
+          (
+            '20000000-0000-0000-0000-000000000485',
+            'mismatch.fixture@auth.test',
+            'Mismatch Fixture',
+            '20000000-0000-0000-0000-000000000451',
+            'active',
+            '2026-07-01T12:00:00Z',
+            '00000000-0000-0000-0000-000000000001'
+          );
+
+        INSERT INTO license_request (
+          id, request_no, person_id, company_id, vendor_account_id,
+          license_type_id, state, justification, requested_by, created_at,
+          created_by, updated_at
+        ) VALUES
+          (
+            '20000000-0000-0000-0000-000000000482',
+            'SOL-E2E-SCOPE',
+            '20000000-0000-0000-0000-000000000481',
+            '20000000-0000-0000-0000-000000000480',
+            '20000000-0000-0000-0000-000000000471',
+            '20000000-0000-0000-0000-000000000472',
+            'pending_approval',
+            'Cross-company approval scope fixture',
+            '20000000-0000-0000-0000-000000000005',
+            '2026-07-28T12:00:00Z',
+            '00000000-0000-0000-0000-000000000001',
+            '2026-07-28T12:00:00Z'
+          ),
+          (
+            '20000000-0000-0000-0000-000000000484',
+            'SOL-E2E-REJECT',
+            '20000000-0000-0000-0000-000000000483',
+            '20000000-0000-0000-0000-000000000451',
+            '20000000-0000-0000-0000-000000000471',
+            '20000000-0000-0000-0000-000000000472',
+            'pending_approval',
+            'Rejection comment fixture',
+            '20000000-0000-0000-0000-000000000005',
+            '2026-07-28T12:01:00Z',
+            '00000000-0000-0000-0000-000000000001',
+            '2026-07-28T12:01:00Z'
+          ),
+          (
+            '20000000-0000-0000-0000-000000000486',
+            'SOL-E2E-MISMATCH',
+            '20000000-0000-0000-0000-000000000485',
+            '20000000-0000-0000-0000-000000000451',
+            '20000000-0000-0000-0000-000000000471',
+            '20000000-0000-0000-0000-000000000472',
+            'active',
+            'Later verification mismatch fixture',
+            '20000000-0000-0000-0000-000000000005',
+            '2026-07-20T12:00:00Z',
+            '00000000-0000-0000-0000-000000000001',
+            '2026-07-21T12:00:00Z'
+          );
+
+        INSERT INTO license_assignment (
+          id, person_id, company_id, vendor_account_id, license_type_id,
+          started_on, source_request_id, source_kind, note, created_at, created_by
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000487',
+          '20000000-0000-0000-0000-000000000485',
+          '20000000-0000-0000-0000-000000000451',
+          '20000000-0000-0000-0000-000000000471',
+          '20000000-0000-0000-0000-000000000472',
+          '2026-07-20',
+          '20000000-0000-0000-0000-000000000486',
+          'request',
+          'Assignment retained after member-sync mismatch',
+          '2026-07-20T12:00:00Z',
+          '20000000-0000-0000-0000-000000000005'
+        );
+        UPDATE license_request
+        SET license_assignment_id = '20000000-0000-0000-0000-000000000487'
+        WHERE id = '20000000-0000-0000-0000-000000000486';
+
+        INSERT INTO provisioning_action (
+          id, request_id, vendor_account_id, kind, mode, status, failure_reason,
+          raw_request, sent_at, resolved_at, created_at
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000488',
+          '20000000-0000-0000-0000-000000000486',
+          '20000000-0000-0000-0000-000000000471',
+          'checklist',
+          'orchestration',
+          'verification_failed',
+          'checklist_assignment_missing|Member synchronization did not find the attested active assignment.',
+          '{
+            "version": 1,
+            "operation": "provision",
+            "protocol": "none",
+            "context": {"companyId": "20000000-0000-0000-0000-000000000451"},
+            "instruction": {
+              "requestId": "20000000-0000-0000-0000-000000000486",
+              "vendorAccountId": "20000000-0000-0000-0000-000000000471",
+              "personEmail": "mismatch.fixture@auth.test",
+              "licenseTypeName": "Sprint 2 Seat"
+            },
+            "checklistSteps": [{
+              "messageKey": "connector.manual.confirm_execution",
+              "params": {
+                "personEmail": "mismatch.fixture@auth.test",
+                "licenseTypeName": "Sprint 2 Seat"
+              },
+              "targets": {
+                "requestId": "20000000-0000-0000-0000-000000000486",
+                "vendorAccountId": "20000000-0000-0000-0000-000000000471",
+                "personId": "20000000-0000-0000-0000-000000000485",
+                "licenseId": "20000000-0000-0000-0000-000000000472"
+              }
+            }]
+          }'::jsonb,
+          '2026-07-20T12:05:00Z',
+          '2026-07-21T12:00:00Z',
+          '2026-07-20T12:05:00Z'
+        );
+
+        INSERT INTO alert_event (
+          id, alert_rule_id, fired_at, subject_ref, notified, dedupe_key
+        )
+        SELECT
+          '20000000-0000-0000-0000-000000000489',
+          rule.id,
+          '2026-07-21T12:00:00Z',
+          '{
+            "actionId": "20000000-0000-0000-0000-000000000488",
+            "companyId": "20000000-0000-0000-0000-000000000451",
+            "exception": "checklist_verification_failed",
+            "source": "member_sync"
+          }'::jsonb,
+          '{"status": "pending"}'::jsonb,
+          'sprint2-e2e-mismatch'
+        FROM alert_rule rule
+        WHERE rule.type = 'provisioning_failure'
+          AND rule.scope_kind = 'global';
+
+        INSERT INTO audit_log (
+          id, actor_user_id, action, entity_type, entity_id, company_id,
+          before, after, occurred_at
+        ) VALUES
+          (
+            '20000000-0000-0000-0000-000000000490',
+            '20000000-0000-0000-0000-000000000005',
+            'orchestration.checklist_confirmed',
+            'ProvisioningAction',
+            '20000000-0000-0000-0000-000000000488',
+            '20000000-0000-0000-0000-000000000451',
+            '{"status": "pending"}'::jsonb,
+            '{
+              "status": "confirmed",
+              "assignmentId": "20000000-0000-0000-0000-000000000487",
+              "confirmationId": "sprint2-e2e-confirmation"
+            }'::jsonb,
+            '2026-07-20T12:10:00Z'
+          ),
+          (
+            '20000000-0000-0000-0000-000000000491',
+            NULL,
+            'orchestration.checklist_observed',
+            'ProvisioningAction',
+            '20000000-0000-0000-0000-000000000488',
+            '20000000-0000-0000-0000-000000000451',
+            '{"status": "confirmed"}'::jsonb,
+            '{
+              "status": "verification_failed",
+              "source": "member_sync",
+              "observationId": "sprint2-e2e-observation",
+              "observedAssigned": false,
+              "observedAt": "2026-07-21T12:00:00.000Z"
+            }'::jsonb,
+            '2026-07-21T12:00:00Z'
+          );
       `);
     } finally {
       await owner.end();

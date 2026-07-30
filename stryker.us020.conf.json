@@ -1,0 +1,40 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "vitest": { "configFile": "apps/web/vitest.us020.config.ts", "related": false },
+  "ignorePatterns": ["docs/**", ".stryker-tmp/**", ".tmp/**"],
+  "inPlace": false,
+  "testFiles": [
+    "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+    "apps/web/src/modules/request-workflow/orchestration-contract.test.ts",
+    "apps/web/src/modules/request-workflow/approval-repository.integration.test.ts",
+    "apps/web/src/modules/request-workflow/member-sync-checklist-observation.test.ts",
+    "apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts",
+    "apps/web/src/components/requests/checklist-controller.test.ts",
+    "apps/web/src/components/requests/checklist-exception-presenter.test.ts",
+    "apps/web/src/components/requests/checklist-panel.test.tsx",
+    "apps/web/src/components/requests/checklist-exceptions-list.test.tsx"
+  ],
+  "coverageAnalysis": "off",
+  "reporters": ["clear-text", "json"],
+  "mutate": [
+    "apps/web/src/modules/request-workflow/orchestration-contract.ts",
+    "apps/web/src/modules/request-workflow/orchestration.ts",
+    "apps/web/src/modules/request-workflow/checklist-failure-reason.ts",
+    "apps/web/src/modules/request-workflow/approval/repository.ts:203:4-228:5",
+    "apps/web/src/modules/request-workflow/actions/checklist-action-transaction.ts",
+    "apps/web/src/modules/request-workflow/member-sync-checklist-observation.ts",
+    "apps/web/src/components/requests/checklist-controller.ts",
+    "apps/web/src/components/requests/checklist-exception-presenter.ts",
+    "apps/web/src/components/requests/checklist-panel.tsx:128:6-135:6",
+    "apps/web/src/components/requests/checklist-panel.tsx:152:6-159:6"
+  ],
+  "concurrency": 1,
+  "maxTestRunnerReuse": 1,
+  "timeoutMS": 15000,
+  "timeoutFactor": 2,
+  "thresholds": { "high": 100, "low": 100, "break": 100 },
+  "tempDirName": ".tmp/stryker-us020"
+}

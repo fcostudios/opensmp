@@ -28,7 +28,7 @@ As a Group Admin (persona_01), I want to execute vendor steps manually with the 
 
 - [ ] AC1: Orgs with mode=orchestration route provision/deprovision to a checklist ProvisioningAction (steps in raw_request) — via the connector-interface dispatch (US-045), independent of the API client (US-018): the PRD's week-2 milestone ships on this path alone
 - [ ] AC2: SCR-request-detail pending-checklist panel renders steps + 'Confirmar ejecución' / 'Marcar no completada' (group_admin)
-- [ ] AC3: Next member sync verifies; mismatch → status verification_failed + exception surfaced; identical states/audit as automated mode
+- [ ] AC3: `confirmChecklistDone` is the Group Admin's audited attestation and advances the request immediately through the same lifecycle transition as automated execution; the next member sync verifies later. A mismatch changes only the ProvisioningAction to `verification_failed` and surfaces an exception for remediation—it does not retroactively erase the attested lifecycle transition.
 
 ## Notes
 

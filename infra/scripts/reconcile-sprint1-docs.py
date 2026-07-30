@@ -27,6 +27,19 @@ PINNED_PATHS = (
 
 SECTION_PINNED_PATHS = ("docs/stories/CHANGES.md",)
 REVIEWED_PATHS = (*PINNED_PATHS, *SECTION_PINNED_PATHS)
+CHG004_PATHS = {
+    "docs/stories/CHANGES.md": (
+        "overrides/CHG-001/825e882/docs/stories/CHANGES.md"
+    ),
+    "testing/critical-paths.md": (
+        "overrides/CHG-001/825e882/testing/critical-paths.md"
+    ),
+}
+CHG005_PATHS = {
+    "docs/stories/sprint-2/r1_misc_us_014.md",
+    "docs/stories/sprint-2/r1_misc_us_017.md",
+    "docs/stories/sprint-2/r1_misc_us_045.md",
+}
 
 SEMANTIC_REPLACEMENTS = {
     "docs/dev-guide/PACKAGE_MAP.md": (
@@ -82,6 +95,40 @@ def read_text(path: Path) -> str:
 
 def sha256(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
+
+
+def validate_sha256(value: object, description: str) -> str:
+    if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
+        raise ReconciliationError(f"{description}: invalid SHA-256")
+    return value
+
+
+def contained_manifest_path(
+    root: Path,
+    relative_path: object,
+    description: str,
+) -> Path:
+    if (
+        not isinstance(relative_path, str)
+        or not relative_path
+        or "\\" in relative_path
+        or Path(relative_path).is_absolute()
+        or any(part in ("", ".", "..") for part in Path(relative_path).parts)
+    ):
+        raise ReconciliationError(f"{description}: invalid relative path")
+    resolved_root = root.resolve()
+    resolved_path = (root / relative_path).resolve()
+    if not resolved_path.is_relative_to(resolved_root):
+        raise ReconciliationError(f"{description}: path escapes its manifest root")
+    return resolved_path
+
+
+def project_output_path(root: Path, relative_path: str) -> Path:
+    return contained_manifest_path(
+        root,
+        relative_path,
+        f"{relative_path}: generated project path",
+    )
 
 
 def load_pinned_overrides() -> dict[str, tuple[str, str, str, str]]:
@@ -164,6 +211,166 @@ def load_pinned_overrides() -> dict[str, tuple[str, str, str, str]]:
     return pinned
 
 
+def load_latest_overrides() -> dict[str, tuple[str, str, str, str]]:
+    data_root = Path(
+        os.environ.get("RECONCILER_DATA_ROOT", Path(__file__).resolve().parent)
+    )
+    override_root = data_root / "overrides/CHG-004/e4b9a06"
+    manifest_path = override_root / "manifest.json"
+    try:
+        manifest = json.loads(
+            read_bytes(manifest_path, "CHG-004 override manifest").decode("utf-8")
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ReconciliationError(
+            f"CHG-004 override manifest is not valid UTF-8 JSON: {manifest_path}"
+        ) from error
+    entries = manifest.get("paths") if isinstance(manifest, dict) else None
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("version") != 1
+        or not isinstance(entries, dict)
+    ):
+        raise ReconciliationError("CHG-004 override manifest must declare version 1")
+    if set(entries) != set(CHG004_PATHS):
+        raise ReconciliationError(
+            "CHG-004 override manifest paths do not match the allowed path set"
+        )
+
+    pinned: dict[str, tuple[str, str, str, str]] = {}
+    for relative_path, metadata in entries.items():
+        if not isinstance(metadata, dict) or set(metadata) != {
+            "source_path",
+            "source_sha256",
+            "desired_sha256",
+        }:
+            raise ReconciliationError(
+                f"{relative_path}: invalid CHG-004 override metadata"
+            )
+        source_path = metadata["source_path"]
+        if source_path != CHG004_PATHS[relative_path]:
+            raise ReconciliationError(
+                f"{relative_path}: invalid CHG-004 source path"
+            )
+        source_hash = validate_sha256(
+            metadata["source_sha256"],
+            f"{relative_path}: CHG-004 source hash",
+        )
+        desired_hash = validate_sha256(
+            metadata["desired_sha256"],
+            f"{relative_path}: CHG-004 desired hash",
+        )
+        source_artifact = contained_manifest_path(
+            data_root,
+            source_path,
+            f"{relative_path}: CHG-004 source path",
+        )
+        desired_artifact = contained_manifest_path(
+            override_root,
+            relative_path,
+            f"{relative_path}: CHG-004 desired path",
+        )
+        source_bytes = read_bytes(
+            source_artifact,
+            f"{relative_path}: CHG-004 pinned source artifact",
+        )
+        desired_bytes = read_bytes(
+            desired_artifact,
+            f"{relative_path}: CHG-004 desired override artifact",
+        )
+        if sha256(source_bytes) != source_hash:
+            raise ReconciliationError(
+                f"{relative_path}: CHG-004 source artifact hash mismatch"
+            )
+        if sha256(desired_bytes) != desired_hash:
+            raise ReconciliationError(
+                f"{relative_path}: CHG-004 desired artifact hash mismatch"
+            )
+        try:
+            source_text = source_bytes.decode("utf-8")
+            desired_text = desired_bytes.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise ReconciliationError(
+                f"{relative_path}: CHG-004 artifact is not UTF-8"
+            ) from error
+        pinned[relative_path] = (
+            source_hash,
+            desired_hash,
+            source_text,
+            desired_text,
+        )
+    return pinned
+
+
+def load_chg005_story_overrides() -> dict[str, tuple[str, str, str]]:
+    data_root = Path(
+        os.environ.get("RECONCILER_DATA_ROOT", Path(__file__).resolve().parent)
+    )
+    override_root = data_root / "overrides/CHG-005/277b64e"
+    manifest_path = override_root / "manifest.json"
+    try:
+        manifest = json.loads(
+            read_bytes(manifest_path, "CHG-005 override manifest").decode("utf-8")
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ReconciliationError(
+            f"CHG-005 override manifest is not valid UTF-8 JSON: {manifest_path}"
+        ) from error
+    entries = manifest.get("paths") if isinstance(manifest, dict) else None
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("version") != 1
+        or not isinstance(entries, dict)
+    ):
+        raise ReconciliationError("CHG-005 override manifest must declare version 1")
+    if set(entries) != CHG005_PATHS:
+        raise ReconciliationError(
+            "CHG-005 override manifest paths do not match the allowed path set"
+        )
+    pinned: dict[str, tuple[str, str, str]] = {}
+    for relative_path, metadata in entries.items():
+        if not isinstance(metadata, dict) or set(metadata) != {
+            "source_sha256",
+            "desired_sha256",
+        }:
+            raise ReconciliationError(
+                f"{relative_path}: invalid CHG-005 override metadata"
+            )
+        source_hash = validate_sha256(
+            metadata["source_sha256"],
+            f"{relative_path}: CHG-005 source hash",
+        )
+        desired_hash = validate_sha256(
+            metadata["desired_sha256"],
+            f"{relative_path}: CHG-005 desired hash",
+        )
+        desired_artifact = contained_manifest_path(
+            override_root,
+            relative_path,
+            f"{relative_path}: CHG-005 desired path",
+        )
+        desired_bytes = read_bytes(
+            desired_artifact,
+            f"{relative_path}: CHG-005 desired override artifact",
+        )
+        if sha256(desired_bytes) != desired_hash:
+            raise ReconciliationError(
+                f"{relative_path}: CHG-005 desired artifact hash mismatch"
+            )
+        try:
+            desired_text = desired_bytes.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise ReconciliationError(
+                f"{relative_path}: CHG-005 artifact is not UTF-8"
+            ) from error
+        pinned[relative_path] = (
+            source_hash,
+            desired_hash,
+            desired_text,
+        )
+    return pinned
+
+
 def governed_guidance_paths(root: Path) -> tuple[Path, ...]:
     paths = [root / relative_path for relative_path in AGENT_GUIDANCE]
     paths.extend(sorted((root / "docs/dev-guide").glob("*.md")))
@@ -177,13 +384,26 @@ def reviewed_section(
     start_marker: str,
     end_marker: str,
 ) -> str:
-    if text.count(start_marker) != 1 or text.count(end_marker) != 1:
+    reviewed_heading = "### CHG-001:"
+    heading_start = text.find(reviewed_heading)
+    if heading_start < 0:
         raise ReconciliationError(
             f"{relative_path}: reviewed section markers changed; "
             "review and pin a new migration"
         )
-    start = text.index(start_marker)
-    end = text.index(end_marker, start)
+    next_heading = text.find("\n### CHG-", heading_start + len(reviewed_heading))
+    heading_end = len(text) if next_heading < 0 else next_heading
+    reviewed_change = text[heading_start:heading_end]
+    if (
+        reviewed_change.count(start_marker) != 1
+        or reviewed_change.count(end_marker) != 1
+    ):
+        raise ReconciliationError(
+            f"{relative_path}: reviewed section markers changed; "
+            "review and pin a new migration"
+        )
+    start = heading_start + reviewed_change.index(start_marker)
+    end = heading_start + reviewed_change.index(end_marker, start - heading_start)
     return text[start:end]
 
 
@@ -194,9 +414,10 @@ def build_plan(root: Path) -> dict[Path, str]:
     errors: list[str] = []
 
     pinned = load_pinned_overrides()
+    latest = load_latest_overrides()
     for relative_path in PINNED_PATHS:
         source_hash, desired_hash, _, desired_text = pinned[relative_path]
-        path = root / relative_path
+        path = project_output_path(root, relative_path)
         current_bytes = read_bytes(path, "required generated file")
         current_hash = sha256(current_bytes)
         try:
@@ -206,19 +427,36 @@ def build_plan(root: Path) -> dict[Path, str]:
                 f"{relative_path}: generated guidance is not UTF-8"
             ) from error
         original[path] = current_text
+        latest_override = latest.get(relative_path)
         if current_hash == source_hash:
-            desired[path] = desired_text
+            candidate = desired_text
         elif current_hash == desired_hash:
-            desired[path] = current_text
+            candidate = current_text
+        elif latest_override and current_hash == latest_override[1]:
+            candidate = current_text
         else:
             errors.append(
                 f"{relative_path}: unknown generated guidance state "
                 f"(sha256={current_hash}); review and pin a new migration"
             )
+            continue
+        if latest_override:
+            latest_source_hash, latest_desired_hash, _, latest_desired_text = (
+                latest_override
+            )
+            candidate_hash = sha256(candidate.encode("utf-8"))
+            if candidate_hash == latest_source_hash:
+                candidate = latest_desired_text
+            elif candidate_hash != latest_desired_hash:
+                errors.append(
+                    f"{relative_path}: unknown CHG-004 guidance state "
+                    f"(sha256={candidate_hash}); review and pin a new migration"
+                )
+        desired[path] = candidate
 
     for relative_path in SECTION_PINNED_PATHS:
         _, _, source_text, desired_text = pinned[relative_path]
-        path = root / relative_path
+        path = project_output_path(root, relative_path)
         current_text = read_text(path)
         original[path] = current_text
         source_section = reviewed_section(
@@ -239,22 +477,81 @@ def build_plan(root: Path) -> dict[Path, str]:
             "**Notes:**",
             "**Feedback:**",
         )
+        latest_override = latest.get(relative_path)
+        latest_desired_section = (
+            reviewed_section(
+                latest_override[3],
+                relative_path,
+                "**Notes:**",
+                "**Feedback:**",
+            )
+            if latest_override
+            else None
+        )
         if current_section == source_section:
-            desired[path] = current_text.replace(
+            candidate = current_text.replace(
                 source_section,
                 desired_section,
                 1,
             )
         elif current_section == desired_section:
-            desired[path] = current_text
+            candidate = current_text
+        elif latest_desired_section and current_section == latest_desired_section:
+            candidate = current_text
         else:
             errors.append(
                 f"{relative_path}: unknown reviewed guidance section; "
                 "review and pin a new migration"
             )
+            continue
+        if latest_override:
+            latest_source_section = reviewed_section(
+                latest_override[2],
+                relative_path,
+                "**Notes:**",
+                "**Feedback:**",
+            )
+            candidate_section = reviewed_section(
+                candidate,
+                relative_path,
+                "**Notes:**",
+                "**Feedback:**",
+            )
+            if candidate_section == latest_source_section:
+                candidate = candidate.replace(
+                    latest_source_section,
+                    latest_desired_section,
+                    1,
+                )
+            elif candidate_section != latest_desired_section:
+                errors.append(
+                    f"{relative_path}: unknown CHG-004 reviewed guidance "
+                    "section; review and pin a new migration"
+                )
+        desired[path] = candidate
+
+    for relative_path, (
+        source_hash,
+        desired_hash,
+        desired_text,
+    ) in load_chg005_story_overrides().items():
+        path = project_output_path(root, relative_path)
+        if not path.exists():
+            continue
+        current_text = original.setdefault(path, read_text(path))
+        current_hash = sha256(current_text.encode("utf-8"))
+        if current_hash == source_hash:
+            desired[path] = desired_text
+        elif current_hash == desired_hash:
+            desired[path] = current_text
+        else:
+            errors.append(
+                f"{relative_path}: unknown CHG-005 generated story state "
+                f"(sha256={current_hash}); review and pin a new migration"
+            )
 
     for relative_path, replacements in SEMANTIC_REPLACEMENTS.items():
-        path = root / relative_path
+        path = project_output_path(root, relative_path)
         text = original.setdefault(path, read_text(path))
         updated = text
         for stale, expected in replacements:
@@ -270,14 +567,18 @@ def build_plan(root: Path) -> dict[Path, str]:
                 )
         desired[path] = updated
 
-    claude_path = root / "CLAUDE.md"
+    claude_path = project_output_path(root, "CLAUDE.md")
     claude = desired[claude_path]
     for relative_path in MIRRORS:
-        path = root / relative_path
+        path = project_output_path(root, relative_path)
         original[path] = read_text(path)
         desired[path] = claude
 
     for path in governed_guidance_paths(root):
+        if not path.resolve().is_relative_to(root.resolve()):
+            raise ReconciliationError(
+                f"{path}: governed guidance path escapes the project root"
+            )
         text = desired.get(path)
         if text is None:
             text = original.setdefault(path, read_text(path))

@@ -2,12 +2,13 @@
 // Tables + columns (types/enums/money/uniqueness) + FK/company_id derive
 // from the project's 04_entity_catalog entity_attributes.
 import { sql } from "drizzle-orm";
-import { boolean, date, integer, jsonb, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, date, index, integer, jsonb, numeric, pgEnum, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 export const alert_rule_channel_enum = pgEnum("alert_rule_channel_enum", ["email", "slack", "teams"]);
 export const alert_rule_scope_kind_enum = pgEnum("alert_rule_scope_kind_enum", ["global", "company", "vendor_account"]);
-export const alert_rule_type_enum = pgEnum("alert_rule_type_enum", ["approval_aging", "provisioning_failure", "blocked_no_seat", "low_pool", "invite_unaccepted", "sync_stale", "credential_failure", "register_drift"]);
+export const alert_rule_type_enum = pgEnum("alert_rule_type_enum", ["approval_aging", "provisioning_failure", "blocked_no_seat", "low_pool", "invite_unaccepted", "sync_stale", "credential_failure", "register_drift", "deprovision_overdue", "close_missed"]);
+export const alert_notification_delivery_phase_enum = pgEnum("alert_notification_delivery_phase_enum", ["pending", "claimed", "succeeded", "failed"]);
 export const close_run_status_enum = pgEnum("close_run_status_enum", ["running", "succeeded", "failed"]);
 export const company_role_assignment_role_enum = pgEnum("company_role_assignment_role_enum", ["approver", "finance", "viewer"]);
 export const company_statement_language_enum = pgEnum("company_statement_language_enum", ["es", "en"]);
@@ -19,6 +20,7 @@ export const integration_credential_status_enum = pgEnum("integration_credential
 export const license_assignment_end_reason_enum = pgEnum("license_assignment_end_reason_enum", ["left_company", "inactive", "reallocated"]);
 export const license_assignment_source_kind_enum = pgEnum("license_assignment_source_kind_enum", ["request", "import", "reconciliation"]);
 export const license_request_state_enum = pgEnum("license_request_state_enum", ["submitted", "pending_approval", "approved", "blocked_no_seat", "provisioning", "failed", "invited", "active", "flagged_inactive", "offboarding", "deprovisioned", "rejected"]);
+export const lifecycle_notification_kind_enum = pgEnum("lifecycle_notification_kind_enum", ["submission", "new_request_to_approver", "decision", "provisioning_complete"]);
 export const license_type_status_enum = pgEnum("license_type_status_enum", ["active", "inactive"]);
 export const license_type_unit_enum = pgEnum("license_type_unit_enum", ["seat", "license"]);
 export const person_status_enum = pgEnum("person_status_enum", ["active", "departed"]);
@@ -51,7 +53,11 @@ export const alertRule = pgTable("alert_rule", {
   enabled: boolean("enabled").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   createdBy: uuid("created_by").references((): AnyPgColumn => userAccount.id).notNull(),
-});
+}, (table) => ({
+  globalTypeUnique: uniqueIndex("uq_alert_rule_global_type")
+    .on(table.type)
+    .where(sql`${table.scopeKind} = 'global'`),
+}));
 
 export const alertEvent = pgTable("alert_event", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),
@@ -61,7 +67,95 @@ export const alertEvent = pgTable("alert_event", {
   notified: jsonb("notified").notNull(),
   acknowledgedBy: uuid("acknowledged_by").references((): AnyPgColumn => userAccount.id),
   acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
-});
+  dedupeKey: text("dedupe_key"),
+}, (table) => ({
+  dedupeKeyUnique: uniqueIndex("uq_alert_event_dedupe_key")
+    .on(table.dedupeKey)
+    .where(sql`${table.dedupeKey} IS NOT NULL`),
+}));
+
+/**
+ * Append-only notification outbox journal. AlertEvent is immutable except for
+ * acknowledgement, so delivery progress is represented as new rows here.
+ */
+export const alertNotificationDelivery = pgTable("alert_notification_delivery", {
+  id: uuid("id").primaryKey().defaultRandom().notNull(),
+  alertEventId: uuid("alert_event_id").references((): AnyPgColumn => alertEvent.id).notNull(),
+  attempt: integer("attempt").notNull(),
+  phase: alert_notification_delivery_phase_enum("phase").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  workerId: text("worker_id"),
+  providerMessageId: text("provider_message_id"),
+  accepted: jsonb("accepted"),
+  errorCode: text("error_code"),
+  claimToken: uuid("claim_token"),
+  recipientKey: text("recipient_key").default("default").notNull(),
+  recipientUserAccountId: uuid("recipient_user_account_id").references((): AnyPgColumn => userAccount.id),
+  recipientEmail: text("recipient_email"),
+  recipientLocale: user_account_ui_language_enum("recipient_locale"),
+}, (table) => ({
+  alertEventIndex: index("idx_alert_notification_delivery_alert_event_id")
+    .on(table.alertEventId),
+  attemptPhaseUnique: uniqueIndex("uq_alert_notification_delivery_attempt_phase")
+    .on(table.alertEventId, table.recipientKey, table.attempt, table.phase),
+  succeededUnique: uniqueIndex("uq_alert_notification_delivery_succeeded")
+    .on(table.alertEventId, table.recipientKey)
+    .where(sql`${table.phase} = 'succeeded'`),
+  claimFenceIndex: index("idx_alert_notification_delivery_claim_fence")
+    .on(table.alertEventId, table.recipientKey, table.attempt, table.claimToken),
+  claimFenceCheck: check(
+    "ck_alert_notification_delivery_claim_fence",
+    sql`(${table.phase} = 'pending' AND ${table.claimToken} IS NULL)
+      OR (${table.phase} IN ('claimed', 'succeeded', 'failed')
+          AND ${table.claimToken} IS NOT NULL)`,
+  ),
+  recipientCheck: check(
+    "ck_alert_notification_delivery_recipient",
+    sql`btrim(${table.recipientKey}) <> ''
+      AND (${table.phase} <> 'pending'
+        OR ${table.recipientEmail} IS NULL
+        OR btrim(${table.recipientEmail}) <> '')`,
+  ),
+}));
+
+export const lifecycleNotification = pgTable("lifecycle_notification", {
+  id: uuid("id").primaryKey().defaultRandom().notNull(),
+  requestId: uuid("request_id").references((): AnyPgColumn => licenseRequest.id).notNull(),
+  companyId: uuid("company_id").references((): AnyPgColumn => company.id).notNull(),
+  kind: lifecycle_notification_kind_enum("kind").notNull(),
+  recipientUserAccountId: uuid("recipient_user_account_id").references((): AnyPgColumn => userAccount.id),
+  recipientEmail: text("recipient_email").notNull(),
+  recipientLocale: user_account_ui_language_enum("recipient_locale"),
+  requestState: license_request_state_enum("request_state").notNull(),
+  dedupeKey: text("dedupe_key").notNull().unique("lifecycle_notification_dedupe_key_key"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+}, (table) => ({
+  requestIndex: index("idx_lifecycle_notification_request")
+    .on(table.requestId, table.createdAt, table.id),
+}));
+
+export const lifecycleNotificationDelivery = pgTable("lifecycle_notification_delivery", {
+  id: uuid("id").primaryKey().defaultRandom().notNull(),
+  notificationId: uuid("notification_id").references((): AnyPgColumn => lifecycleNotification.id).notNull(),
+  attempt: integer("attempt").notNull(),
+  phase: alert_notification_delivery_phase_enum("phase").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  workerId: text("worker_id"),
+  providerMessageId: text("provider_message_id"),
+  accepted: jsonb("accepted"),
+  errorCode: text("error_code"),
+  claimToken: uuid("claim_token"),
+}, (table) => ({
+  attemptPhaseUnique: uniqueIndex("uq_lifecycle_notification_delivery_attempt_phase")
+    .on(table.notificationId, table.attempt, table.phase),
+  succeededUnique: uniqueIndex("uq_lifecycle_notification_delivery_succeeded")
+    .on(table.notificationId)
+    .where(sql`${table.phase} = 'succeeded'`),
+  claimIndex: index("idx_lifecycle_notification_delivery_claim")
+    .on(table.notificationId, table.attempt, table.claimToken),
+}));
 
 export const systemSetting = pgTable("system_setting", {
   key: text("key").primaryKey().notNull(),
@@ -70,18 +164,32 @@ export const systemSetting = pgTable("system_setting", {
   updatedBy: uuid("updated_by").references((): AnyPgColumn => userAccount.id).notNull(),
 });
 
-export const auditLog = pgTable("audit_log", {
-  id: uuid("id").primaryKey().defaultRandom().notNull(),
-  actorUserId: uuid("actor_user_id").references((): AnyPgColumn => userAccount.id),
-  action: text("action").notNull(),
-  entityType: text("entity_type").notNull(),
-  entityId: uuid("entity_id").notNull(),
-  companyId: uuid("company_id").references((): AnyPgColumn => company.id),
-  note: text("note"),
-  before: jsonb("before"),
-  after: jsonb("after"),
-  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
-});
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom().notNull(),
+    actorUserId: uuid("actor_user_id").references(
+      (): AnyPgColumn => userAccount.id,
+    ),
+    action: text("action").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: uuid("entity_id").notNull(),
+    companyId: uuid("company_id").references((): AnyPgColumn => company.id),
+    note: text("note"),
+    before: jsonb("before"),
+    after: jsonb("after"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  },
+  (table) => ({
+    crossOrgMoveClientRequestUnique: uniqueIndex(
+      "uq_cross_org_move_client_request",
+    )
+      .on(table.entityId, sql`(${table.after}->>'clientRequestId')`)
+      .where(
+        sql`${table.entityType} = 'CrossOrgMove' AND ${table.after}->>'clientRequestId' IS NOT NULL`,
+      ),
+  }),
+);
 
 export const rateCard = pgTable("rate_card", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),
@@ -186,7 +294,10 @@ export const person = pgTable("person", {
   createdBy: uuid("created_by").references((): AnyPgColumn => userAccount.id).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }),
   updatedBy: uuid("updated_by").references((): AnyPgColumn => userAccount.id),
-});
+}, (table) => ({
+  lowerEmailUnique: uniqueIndex("uq_person_lower_email")
+    .on(sql`lower(${table.email})`),
+}));
 
 export const userAccount = pgTable("user_account", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),
@@ -245,7 +356,23 @@ export const provisioningAction = pgTable("provisioning_action", {
   sentAt: timestamp("sent_at", { withTimezone: true }),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-});
+}, (table) => ({
+  orchestrationChecklistOperationUnique: uniqueIndex(
+    "uq_provisioning_action_orchestration_checklist_operation",
+  )
+    .on(table.requestId, sql`(${table.rawRequest} ->> 'operation')`)
+    .where(
+      sql`${table.kind} = 'checklist' AND ${table.mode} = 'orchestration'
+          AND ${table.rawRequest} ->> 'operation' IN ('provision', 'deprovision')`,
+    ),
+  pendingRemoveRequestUnique: uniqueIndex(
+    "uq_provisioning_action_pending_remove_request",
+  )
+    .on(table.requestId)
+    .where(
+      sql`${table.kind} = 'remove' AND ${table.status} = 'pending'`,
+    ),
+}));
 
 export const reclamationProposal = pgTable("reclamation_proposal", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),
@@ -261,7 +388,7 @@ export const reclamationProposal = pgTable("reclamation_proposal", {
 
 export const licenseRequest = pgTable("license_request", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),
-  requestNo: text("request_no").notNull(),
+  requestNo: text("request_no").notNull().unique("uq_license_request_request_no"),
   personId: uuid("person_id").references((): AnyPgColumn => person.id).notNull(),
   companyId: uuid("company_id").references((): AnyPgColumn => company.id).notNull(),
   vendorAccountId: uuid("vendor_account_id").references((): AnyPgColumn => vendorAccount.id).notNull(),
@@ -277,7 +404,12 @@ export const licenseRequest = pgTable("license_request", {
   createdBy: uuid("created_by").references((): AnyPgColumn => userAccount.id),
   updatedAt: timestamp("updated_at", { withTimezone: true }),
   licenseAssignmentId: uuid("license_assignment_id").references((): AnyPgColumn => licenseAssignment.id),
-});
+  clientRequestId: uuid("client_request_id").defaultRandom().notNull(),
+}, (table) => ({
+  requesterClientRequestUnique: unique(
+    "uq_license_request_requester_client_request",
+  ).on(table.requestedBy, table.clientRequestId),
+}));
 
 export const requestTransition = pgTable("request_transition", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),
@@ -339,6 +471,10 @@ export const vendorAccount = pgTable("vendor_account", {
   updatedAt: timestamp("updated_at", { withTimezone: true }),
   updatedBy: uuid("updated_by").references((): AnyPgColumn => userAccount.id),
 }, (table) => ({
+  lowPoolFloorNonnegative: check(
+    "vendor_account_low_pool_floor_nonnegative",
+    sql`${table.lowPoolFloor} >= 0`,
+  ),
   vendorOrgRefUnique: uniqueIndex("uq_vendor_account_vendor_id_vendor_org_ref")
     .on(table.vendorId, table.vendorOrgRef)
     .where(sql`${table.vendorOrgRef} IS NOT NULL`),
@@ -353,7 +489,12 @@ export const vendorAccountCapacity = pgTable("vendor_account_capacity", {
   note: text("note"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   createdBy: uuid("created_by").references((): AnyPgColumn => userAccount.id).notNull(),
-});
+}, (table) => ({
+  purchasedQtyNonnegative: check(
+    "vendor_account_capacity_purchased_qty_nonnegative",
+    sql`${table.purchasedQty} >= 0`,
+  ),
+}));
 
 export const licenseType = pgTable("license_type", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),

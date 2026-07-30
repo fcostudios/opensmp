@@ -12,6 +12,13 @@ scope), so operators can use these local equivalents when checking a run:
 | Alert evaluation | `7,22,37,52 * * * *` | `7,22,37,52 * * * *` |
 | Close precheck | `30 10 * * 1-5` | `30 5 * * 1-5` |
 
+Lifecycle email delivery is a separate durable outbox drain, not a pg-boss
+business queue. It runs immediately after worker startup and every 60 seconds,
+claims at most 100 ready messages per pass, and never overlaps a previous pass.
+`LEDGER_PUBLIC_URL` supplies server-owned request links and `SMTP_URL` supplies
+the relay. Delivery failures remain journaled for bounded retry; revoked or
+disabled recipients are terminally suppressed.
+
 ## Close-precheck calendar
 
 `ECUADOR_HOLIDAYS` is required configuration. The deployment operator owns its
@@ -30,8 +37,9 @@ deployment secret or `.env` before bringing the service up.
 
 The worker has no HTTP server and no file heartbeat. On startup it creates the
 five non-partitioned queues, registers their workers, reconciles their
-schedules, and asks pg-boss to supervise them once before reporting ready. It
-then writes an instance-scoped row to `pgboss.worker_runtime_health`.
+schedules, asks pg-boss to supervise them, and starts the lifecycle outbox
+drain before reporting ready. It then writes an instance-scoped row to
+`pgboss.worker_runtime_health`.
 
 The Compose healthcheck resolves the current container's instance ID and
 requires that exact row to remain `healthy`, `scheduler_ready`, registered with

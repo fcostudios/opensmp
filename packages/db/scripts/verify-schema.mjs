@@ -24,6 +24,20 @@ const expectedAppendOnlyTriggers = [
       "BEGIN RAISE EXCEPTION 'append_only: % is forbidden on audit_log', TG_OP; END;",
   },
   {
+    tableName: "lifecycle_notification",
+    triggerName: "trg_lifecycle_notification_append_only",
+    functionName: "prevent_lifecycle_notification_mutation",
+    functionSource:
+      "BEGIN RAISE EXCEPTION 'lifecycle notification records are append-only' USING ERRCODE = '55000'; END;",
+  },
+  {
+    tableName: "lifecycle_notification_delivery",
+    triggerName: "trg_lifecycle_notification_delivery_append_only",
+    functionName: "prevent_lifecycle_notification_mutation",
+    functionSource:
+      "BEGIN RAISE EXCEPTION 'lifecycle notification records are append-only' USING ERRCODE = '55000'; END;",
+  },
+  {
     tableName: "request_transition",
     triggerName: "request_transition_no_mutate",
     functionName: "request_transition_append_only",
@@ -35,6 +49,7 @@ const expectedAppendOnlyTriggers = [
 const coreTableNames = [
   "activity_record",
   "alert_event",
+  "alert_notification_delivery",
   "alert_rule",
   "audit_log",
   "close_run",
@@ -45,6 +60,8 @@ const coreTableNames = [
   "license_assignment",
   "license_request",
   "license_type",
+  "lifecycle_notification",
+  "lifecycle_notification_delivery",
   "person",
   "provisioning_action",
   "rate_card",
@@ -81,7 +98,9 @@ const normallyUpdateableTableNames = [
 
 const expectedRuntimeTableGrants = [
   ...coreTableNames.flatMap((tableName) => [
-    { tableName, privilege: "INSERT" },
+    ...(["alert_notification_delivery", "lifecycle_notification_delivery"].includes(tableName)
+      ? []
+      : [{ tableName, privilege: "INSERT" }]),
     { tableName, privilege: "SELECT" },
   ]),
   ...normallyUpdateableTableNames.map((tableName) => ({
@@ -98,6 +117,7 @@ const expectedAppendOnlyColumnUpdates = [
   { tableName: "alert_event", columnName: "acknowledged_by" },
   { tableName: "license_assignment", columnName: "end_reason" },
   { tableName: "license_assignment", columnName: "ended_on" },
+  { tableName: "provisioning_action", columnName: "failure_reason" },
   { tableName: "provisioning_action", columnName: "resolved_at" },
   { tableName: "provisioning_action", columnName: "sent_at" },
   { tableName: "provisioning_action", columnName: "status" },
@@ -397,39 +417,33 @@ export async function verifyMigratedSchema({
       );
     }
 
-    const sourceRequestUniqueness = await owner.query(`
+    const sourceRequestLookupIndex = await owner.query(`
       SELECT
-        constraint_row.contype AS constraint_type,
         index_definition.indisunique AS index_is_unique,
-        index_definition.indnullsnotdistinct AS nulls_not_distinct,
-        array_agg(attribute.attname::text ORDER BY constraint_key.ordinality) AS column_names
-      FROM pg_constraint AS constraint_row
+        array_agg(attribute.attname::text ORDER BY index_key.ordinality) AS column_names
+      FROM pg_class AS index_relation
       JOIN pg_index AS index_definition
-        ON index_definition.indexrelid = constraint_row.conindid
-      JOIN LATERAL unnest(constraint_row.conkey) WITH ORDINALITY
-        AS constraint_key(attnum, ordinality) ON true
+        ON index_definition.indexrelid = index_relation.oid
+      JOIN LATERAL unnest(index_definition.indkey::smallint[]) WITH ORDINALITY
+        AS index_key(attnum, ordinality) ON true
       JOIN pg_attribute AS attribute
-        ON attribute.attrelid = constraint_row.conrelid
-        AND attribute.attnum = constraint_key.attnum
-      WHERE constraint_row.conrelid = 'public.license_assignment'::regclass
-        AND constraint_row.conname = 'uq_license_assignment_source_request_id'
+        ON attribute.attrelid = index_definition.indrelid
+        AND attribute.attnum = index_key.attnum
+      WHERE index_definition.indrelid = 'public.license_assignment'::regclass
+        AND index_relation.relname = 'idx_license_assignment_source_request_id'
       GROUP BY
-        constraint_row.oid,
-        constraint_row.contype,
-        index_definition.indisunique,
-        index_definition.indnullsnotdistinct
+        index_relation.oid,
+        index_definition.indisunique
     `);
-    const sourceRequestUnique = sourceRequestUniqueness.rows[0];
+    const sourceRequestIndex = sourceRequestLookupIndex.rows[0];
     if (
-      sourceRequestUniqueness.rows.length !== 1 ||
-      sourceRequestUnique.constraint_type !== "u" ||
-      !sourceRequestUnique.index_is_unique ||
-      sourceRequestUnique.nulls_not_distinct ||
-      JSON.stringify(sourceRequestUnique.column_names) !==
+      sourceRequestLookupIndex.rows.length !== 1 ||
+      sourceRequestIndex.index_is_unique ||
+      JSON.stringify(sourceRequestIndex.column_names) !==
         JSON.stringify(["source_request_id"])
     ) {
       throw new Error(
-        `source-request uniqueness integrity mismatch: ${JSON.stringify(sourceRequestUniqueness.rows)}`,
+        `source-request lookup index integrity mismatch: ${JSON.stringify(sourceRequestLookupIndex.rows)}`,
       );
     }
 
@@ -563,6 +577,809 @@ export async function verifyMigratedSchema({
       );
     }
 
+    const pendingRemoveIndex = await owner.query(`
+      SELECT
+        index_relation.relname AS index_name,
+        table_relation.relname AS table_name,
+        index_state.indisunique AS is_unique,
+        index_state.indisvalid AS is_valid,
+        index_state.indisready AS is_ready,
+        index_state.indimmediate AS is_immediate,
+        index_state.indnkeyatts AS key_count,
+        index_state.indnatts AS attribute_count,
+        access_method.amname AS access_method,
+        ARRAY(
+          SELECT pg_get_indexdef(
+            index_state.indexrelid,
+            key_position,
+            true
+          )
+          FROM generate_series(
+            1,
+            index_state.indnkeyatts
+          ) AS key_position
+        ) AS key_expressions,
+        pg_get_expr(
+          index_state.indpred,
+          index_state.indrelid,
+          true
+        ) AS predicate,
+        constraint_row.contype AS constraint_type,
+        constraint_row.condeferrable AS constraint_deferrable,
+        constraint_row.condeferred AS constraint_initially_deferred
+      FROM pg_index AS index_state
+      JOIN pg_class AS index_relation
+        ON index_relation.oid = index_state.indexrelid
+      JOIN pg_namespace AS index_namespace
+        ON index_namespace.oid = index_relation.relnamespace
+      JOIN pg_class AS table_relation
+        ON table_relation.oid = index_state.indrelid
+      JOIN pg_namespace AS table_namespace
+        ON table_namespace.oid = table_relation.relnamespace
+      JOIN pg_am AS access_method
+        ON access_method.oid = index_relation.relam
+      LEFT JOIN pg_constraint AS constraint_row
+        ON constraint_row.conindid = index_state.indexrelid
+      WHERE index_namespace.nspname = 'public'
+        AND table_namespace.nspname = 'public'
+        AND index_relation.relname =
+          'uq_provisioning_action_pending_remove_request'
+    `);
+    const pendingRemove = pendingRemoveIndex.rows[0];
+    if (
+      pendingRemoveIndex.rows.length !== 1 ||
+      pendingRemove.index_name !==
+        "uq_provisioning_action_pending_remove_request" ||
+      pendingRemove.table_name !== "provisioning_action" ||
+      !pendingRemove.is_unique ||
+      !pendingRemove.is_valid ||
+      !pendingRemove.is_ready ||
+      !pendingRemove.is_immediate ||
+      pendingRemove.key_count !== 1 ||
+      pendingRemove.attribute_count !== 1 ||
+      pendingRemove.access_method !== "btree" ||
+      JSON.stringify(pendingRemove.key_expressions) !==
+        JSON.stringify(["request_id"]) ||
+      normalizeSqlDefinition(pendingRemove.predicate ?? "") !==
+        "kind='remove'andstatus='pending'" ||
+      pendingRemove.constraint_type !== null ||
+      pendingRemove.constraint_deferrable !== null ||
+      pendingRemove.constraint_initially_deferred !== null
+    ) {
+      throw new Error(
+        `pending-remove index integrity mismatch: ${JSON.stringify(pendingRemoveIndex.rows)}`,
+      );
+    }
+
+    const orchestrationChecklistIndex = await owner.query(`
+      SELECT
+        index_state.indisunique AS is_unique,
+        index_state.indisvalid AS is_valid,
+        index_state.indisready AS is_ready,
+        index_state.indnkeyatts AS key_count,
+        index_state.indnatts AS attribute_count,
+        ARRAY(
+          SELECT pg_get_indexdef(index_state.indexrelid, key_position, true)
+          FROM generate_series(1, index_state.indnkeyatts) AS key_position
+          ORDER BY key_position
+        ) AS key_expressions,
+        pg_get_expr(index_state.indpred, index_state.indrelid, true) AS predicate,
+        to_regclass(
+          'public.uq_provisioning_action_orchestration_checklist_request'
+        )::text AS legacy_index
+      FROM pg_index AS index_state
+      JOIN pg_class AS index_relation
+        ON index_relation.oid = index_state.indexrelid
+      JOIN pg_namespace AS index_namespace
+        ON index_namespace.oid = index_relation.relnamespace
+      WHERE index_namespace.nspname = 'public'
+        AND index_relation.relname =
+          'uq_provisioning_action_orchestration_checklist_operation'
+    `);
+    const orchestrationChecklist = orchestrationChecklistIndex.rows[0];
+    if (
+      orchestrationChecklistIndex.rows.length !== 1 ||
+      !orchestrationChecklist.is_unique ||
+      !orchestrationChecklist.is_valid ||
+      !orchestrationChecklist.is_ready ||
+      orchestrationChecklist.key_count !== 2 ||
+      orchestrationChecklist.attribute_count !== 2 ||
+      JSON.stringify(
+        orchestrationChecklist.key_expressions.map(normalizeSqlDefinition),
+      ) !==
+        JSON.stringify(["request_id", "(raw_request->>'operation')"]) ||
+      normalizeSqlDefinition(orchestrationChecklist.predicate ?? "")
+        .replaceAll("(", "")
+        .replaceAll(")", "") !==
+        "kind='checklist'andmode='orchestration'andraw_request->>'operation'=anyarray['provision','deprovision']" ||
+      orchestrationChecklist.legacy_index !== null
+    ) {
+      throw new Error(
+        `orchestration-checklist index integrity mismatch: ${JSON.stringify(orchestrationChecklistIndex.rows)}`,
+      );
+    }
+
+    const requestIdempotencyColumn = await owner.query(`
+      SELECT
+        data_type,
+        is_nullable,
+        column_default
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'license_request'
+        AND column_name = 'client_request_id'
+    `);
+    const requestIdempotencyIndex = await owner.query(`
+      SELECT
+        index_relation.relname AS index_name,
+        table_relation.relname AS table_name,
+        index_state.indisunique AS is_unique,
+        index_state.indisvalid AS is_valid,
+        index_state.indisready AS is_ready,
+        index_state.indimmediate AS is_immediate,
+        index_state.indnkeyatts AS key_count,
+        index_state.indnatts AS attribute_count,
+        access_method.amname AS access_method,
+        ARRAY(
+          SELECT pg_get_indexdef(
+            index_state.indexrelid,
+            key_position,
+            true
+          )
+          FROM generate_series(
+            1,
+            index_state.indnkeyatts
+          ) AS key_position
+        ) AS key_expressions,
+        pg_get_expr(
+          index_state.indpred,
+          index_state.indrelid,
+          true
+        ) AS predicate,
+        constraint_row.contype AS constraint_type,
+        constraint_row.condeferrable AS constraint_deferrable,
+        constraint_row.condeferred AS constraint_initially_deferred
+      FROM pg_index AS index_state
+      JOIN pg_class AS index_relation
+        ON index_relation.oid = index_state.indexrelid
+      JOIN pg_class AS table_relation
+        ON table_relation.oid = index_state.indrelid
+      JOIN pg_namespace AS table_namespace
+        ON table_namespace.oid = table_relation.relnamespace
+      JOIN pg_am AS access_method
+        ON access_method.oid = index_relation.relam
+      LEFT JOIN pg_constraint AS constraint_row
+        ON constraint_row.conindid = index_state.indexrelid
+      WHERE table_namespace.nspname = 'public'
+        AND index_relation.relname =
+          'uq_license_request_requester_client_request'
+    `);
+    const requestIdempotency = requestIdempotencyIndex.rows[0];
+    if (
+      requestIdempotencyColumn.rows.length !== 1 ||
+      requestIdempotencyColumn.rows[0].data_type !== "uuid" ||
+      requestIdempotencyColumn.rows[0].is_nullable !== "NO" ||
+      requestIdempotencyColumn.rows[0].column_default !== "gen_random_uuid()" ||
+      requestIdempotencyIndex.rows.length !== 1 ||
+      requestIdempotency.index_name !==
+        "uq_license_request_requester_client_request" ||
+      requestIdempotency.table_name !== "license_request" ||
+      !requestIdempotency.is_unique ||
+      !requestIdempotency.is_valid ||
+      !requestIdempotency.is_ready ||
+      !requestIdempotency.is_immediate ||
+      requestIdempotency.key_count !== 2 ||
+      requestIdempotency.attribute_count !== 2 ||
+      requestIdempotency.access_method !== "btree" ||
+      JSON.stringify(requestIdempotency.key_expressions) !==
+        JSON.stringify(["requested_by", "client_request_id"]) ||
+      requestIdempotency.predicate !== null ||
+      requestIdempotency.constraint_type !== "u" ||
+      requestIdempotency.constraint_deferrable !== false ||
+      requestIdempotency.constraint_initially_deferred !== false
+    ) {
+      throw new Error(
+        "request-idempotency integrity mismatch: " +
+          JSON.stringify({
+            column: requestIdempotencyColumn.rows,
+            index: requestIdempotencyIndex.rows,
+          }),
+      );
+    }
+
+    const alertDeliveryIndexes = await owner.query(`
+      SELECT
+        index_relation.relname AS index_name,
+        index_state.indisunique AS is_unique,
+        ARRAY(
+          SELECT pg_get_indexdef(index_state.indexrelid, position, true)
+          FROM generate_series(1, index_state.indnkeyatts) AS position
+        ) AS key_expressions,
+        pg_get_expr(index_state.indpred, index_state.indrelid, true) AS predicate
+      FROM pg_index AS index_state
+      JOIN pg_class AS index_relation
+        ON index_relation.oid = index_state.indexrelid
+      WHERE index_state.indrelid IN (
+          'public.alert_rule'::regclass,
+          'public.alert_notification_delivery'::regclass
+        )
+        AND index_relation.relname IN (
+          'uq_alert_rule_global_type',
+          'idx_alert_notification_delivery_claim_fence',
+          'uq_alert_notification_delivery_attempt_phase',
+          'uq_alert_notification_delivery_succeeded'
+        )
+      ORDER BY index_relation.relname
+    `);
+    if (
+      JSON.stringify(alertDeliveryIndexes.rows) !==
+      JSON.stringify([
+        {
+          index_name: "idx_alert_notification_delivery_claim_fence",
+          is_unique: false,
+          key_expressions: [
+            "alert_event_id",
+            "recipient_key",
+            "attempt",
+            "claim_token",
+          ],
+          predicate: null,
+        },
+        {
+          index_name: "uq_alert_notification_delivery_attempt_phase",
+          is_unique: true,
+          key_expressions: [
+            "alert_event_id",
+            "recipient_key",
+            "attempt",
+            "phase",
+          ],
+          predicate: null,
+        },
+        {
+          index_name: "uq_alert_notification_delivery_succeeded",
+          is_unique: true,
+          key_expressions: ["alert_event_id", "recipient_key"],
+          predicate:
+            "phase = 'succeeded'::alert_notification_delivery_phase_enum",
+        },
+        {
+          index_name: "uq_alert_rule_global_type",
+          is_unique: true,
+          key_expressions: ["type"],
+          predicate:
+            "scope_kind = 'global'::alert_rule_scope_kind_enum",
+        },
+      ])
+    ) {
+      throw new Error(
+        `alert delivery/seed index integrity mismatch: ${JSON.stringify(alertDeliveryIndexes.rows)}`,
+      );
+    }
+
+    const alertDeliveryClaimFenceConstraint = await owner.query(`
+      SELECT
+        constraint_row.contype AS constraint_type,
+        constraint_row.convalidated AS validated,
+        pg_get_constraintdef(constraint_row.oid, true) AS definition
+      FROM pg_constraint AS constraint_row
+      WHERE constraint_row.conrelid =
+          'public.alert_notification_delivery'::regclass
+        AND constraint_row.conname =
+          'ck_alert_notification_delivery_claim_fence'
+    `);
+    if (
+      alertDeliveryClaimFenceConstraint.rows.length !== 1 ||
+      alertDeliveryClaimFenceConstraint.rows[0].constraint_type !== "c" ||
+      !alertDeliveryClaimFenceConstraint.rows[0].validated ||
+      normalizeSqlDefinition(
+        alertDeliveryClaimFenceConstraint.rows[0].definition,
+      ) !==
+        "check(phase='pending'andclaim_tokenisnullor(phase=any(array['claimed','succeeded','failed']))andclaim_tokenisnotnull)"
+    ) {
+      throw new Error(
+        `alert delivery claim-fence constraint mismatch: ${JSON.stringify(alertDeliveryClaimFenceConstraint.rows)}`,
+      );
+    }
+
+    const alertDeliveryRecipientConstraint = await owner.query(`
+      SELECT
+        constraint_row.contype AS constraint_type,
+        constraint_row.convalidated AS validated,
+        pg_get_constraintdef(constraint_row.oid, true) AS definition
+      FROM pg_constraint AS constraint_row
+      WHERE constraint_row.conrelid =
+          'public.alert_notification_delivery'::regclass
+        AND constraint_row.conname =
+          'ck_alert_notification_delivery_recipient'
+    `);
+    if (
+      alertDeliveryRecipientConstraint.rows.length !== 1 ||
+      alertDeliveryRecipientConstraint.rows[0].constraint_type !== "c" ||
+      !alertDeliveryRecipientConstraint.rows[0].validated ||
+      normalizeSqlDefinition(
+        alertDeliveryRecipientConstraint.rows[0].definition,
+      ) !==
+        "check(btrim(recipient_key)<>''and(phase<>'pending'orrecipient_emailisnullorbtrim(recipient_email)<>''))"
+    ) {
+      throw new Error(
+        "recipient alert delivery constraint integrity mismatch: " +
+          JSON.stringify(alertDeliveryRecipientConstraint.rows),
+      );
+    }
+
+    const alertDeliveryFunctions = await owner.query(`
+      SELECT
+        function_row.proname AS function_name,
+        pg_get_function_identity_arguments(function_row.oid)
+          AS identity_arguments,
+        pg_get_userbyid(function_row.proowner) AS function_owner,
+        function_row.prosecdef AS security_definer,
+        coalesce(function_row.proconfig, ARRAY[]::text[])
+          AS function_configuration,
+        EXISTS (
+          SELECT 1
+          FROM aclexplode(coalesce(
+            function_row.proacl,
+            acldefault('f', function_row.proowner)
+          )) direct_acl
+          WHERE direct_acl.grantee = (SELECT oid FROM pg_roles WHERE rolname='ledger_app')
+            AND direct_acl.privilege_type = 'EXECUTE'
+        ) AS app_can_execute,
+        EXISTS (
+          SELECT 1
+          FROM aclexplode(coalesce(
+            function_row.proacl,
+            acldefault('f', function_row.proowner)
+          )) direct_acl
+          WHERE direct_acl.grantee = 0
+            AND direct_acl.privilege_type = 'EXECUTE'
+        ) AS public_can_execute,
+        ARRAY(
+          SELECT concat(
+            CASE
+              WHEN function_acl.grantee = 0 THEN 'PUBLIC'
+              ELSE pg_get_userbyid(function_acl.grantee)
+            END,
+            ':',
+            function_acl.privilege_type,
+            ':',
+            function_acl.is_grantable::text
+          )
+          FROM aclexplode(coalesce(
+            function_row.proacl,
+            acldefault('f', function_row.proowner)
+          )) AS function_acl(
+            grantor, grantee, privilege_type, is_grantable
+          )
+          ORDER BY 1
+        ) AS function_acl,
+        CASE function_row.proname
+          WHEN 'append_alert_delivery_pending' THEN
+            position('pg_advisory_xact_lock' in function_row.prosrc) > 0
+            AND position('INSERT INTO public.alert_notification_delivery'
+              in function_row.prosrc) > 0
+          WHEN 'claim_alert_delivery' THEN
+            position('pg_advisory_xact_lock' in function_row.prosrc) > 0
+            AND position('gen_random_uuid' in function_row.prosrc) > 0
+            AND position('INSERT INTO public.alert_notification_delivery'
+              in function_row.prosrc) > 0
+          WHEN 'complete_alert_delivery' THEN
+            position('pg_advisory_xact_lock' in function_row.prosrc) > 0
+            AND position('INSERT INTO public.alert_notification_delivery'
+              in function_row.prosrc) > 0
+        END AS body_guard_present
+      FROM pg_proc AS function_row
+      JOIN pg_namespace AS namespace
+        ON namespace.oid = function_row.pronamespace
+      WHERE namespace.nspname = 'public'
+        AND function_row.proname IN (
+          'append_alert_delivery_pending',
+          'claim_alert_delivery',
+          'complete_alert_delivery'
+        )
+      ORDER BY function_row.proname
+    `);
+    if (
+      JSON.stringify(alertDeliveryFunctions.rows) !==
+      JSON.stringify([
+        {
+          function_name: "append_alert_delivery_pending",
+          identity_arguments:
+            "p_alert_event_id uuid, p_occurred_at timestamp with time zone",
+          function_owner: "ledger_owner",
+          security_definer: true,
+          function_configuration: ["search_path=pg_catalog, public"],
+          app_can_execute: true,
+          public_can_execute: false,
+          function_acl: [
+            "ledger_app:EXECUTE:false",
+            "ledger_owner:EXECUTE:false",
+          ],
+          body_guard_present: true,
+        },
+        {
+          function_name: "claim_alert_delivery",
+          identity_arguments:
+            "p_alert_event_id uuid, p_occurred_at timestamp with time zone, p_lease_expires_at timestamp with time zone, p_worker_id text",
+          function_owner: "ledger_owner",
+          security_definer: true,
+          function_configuration: ["search_path=pg_catalog, public"],
+          app_can_execute: true,
+          public_can_execute: false,
+          function_acl: [
+            "ledger_app:EXECUTE:false",
+            "ledger_owner:EXECUTE:false",
+          ],
+          body_guard_present: true,
+        },
+        {
+          function_name: "complete_alert_delivery",
+          identity_arguments:
+            "p_alert_event_id uuid, p_attempt integer, p_claim_token uuid, p_occurred_at timestamp with time zone, p_phase alert_notification_delivery_phase_enum, p_provider_message_id text, p_accepted jsonb, p_error_code text",
+          function_owner: "ledger_owner",
+          security_definer: true,
+          function_configuration: ["search_path=pg_catalog, public"],
+          app_can_execute: true,
+          public_can_execute: false,
+          function_acl: [
+            "ledger_app:EXECUTE:false",
+            "ledger_owner:EXECUTE:false",
+          ],
+          body_guard_present: true,
+        },
+      ])
+    ) {
+      throw new Error(
+        `alert delivery function integrity mismatch: ${JSON.stringify(alertDeliveryFunctions.rows)}`,
+      );
+    }
+
+    const recipientAlertDeliveryFunctions = await owner.query(`
+      SELECT
+        function_row.proname AS function_name,
+        pg_get_function_identity_arguments(function_row.oid)
+          AS identity_arguments,
+        pg_get_userbyid(function_row.proowner) AS function_owner,
+        function_row.prosecdef AS security_definer,
+        coalesce(function_row.proconfig, ARRAY[]::text[])
+          AS function_configuration,
+        EXISTS (
+          SELECT 1
+          FROM aclexplode(coalesce(
+            function_row.proacl,
+            acldefault('f', function_row.proowner)
+          )) direct_acl
+          WHERE direct_acl.grantee =
+              (SELECT oid FROM pg_roles WHERE rolname = 'ledger_app')
+            AND direct_acl.privilege_type = 'EXECUTE'
+        ) AS app_can_execute,
+        EXISTS (
+          SELECT 1
+          FROM aclexplode(coalesce(
+            function_row.proacl,
+            acldefault('f', function_row.proowner)
+          )) direct_acl
+          WHERE direct_acl.grantee = 0
+            AND direct_acl.privilege_type = 'EXECUTE'
+        ) AS public_can_execute,
+        ARRAY(
+          SELECT concat(
+            CASE
+              WHEN function_acl.grantee = 0 THEN 'PUBLIC'
+              ELSE pg_get_userbyid(function_acl.grantee)
+            END,
+            ':',
+            function_acl.privilege_type,
+            ':',
+            function_acl.is_grantable::text
+          )
+          FROM aclexplode(coalesce(
+            function_row.proacl,
+            acldefault('f', function_row.proowner)
+          )) AS function_acl(
+            grantor, grantee, privilege_type, is_grantable
+          )
+          ORDER BY 1
+        ) AS function_acl,
+        CASE function_row.proname
+          WHEN 'append_alert_recipient_pending' THEN
+            position('p_recipient_key' in function_row.prosrc) > 0
+            AND position('pg_advisory_xact_lock'
+              in function_row.prosrc) > 0
+            AND position('recipient_user_account_id'
+              in function_row.prosrc) > 0
+            AND position('recipient_email' in function_row.prosrc) > 0
+            AND position('recipient_locale' in function_row.prosrc) > 0
+            AND position(
+              'alert_event_id, recipient_key, recipient_user_account_id'
+              in function_row.prosrc
+            ) > 0
+            AND position('INSERT INTO public.alert_notification_delivery'
+              in function_row.prosrc) > 0
+          WHEN 'claim_alert_recipient_delivery' THEN
+            position('p_lease_expires_at <= p_occurred_at'
+              in function_row.prosrc) > 0
+            AND position('btrim(p_recipient_key)' in function_row.prosrc) > 0
+            AND position('pg_advisory_xact_lock'
+              in function_row.prosrc) > 0
+            AND position('delivery.recipient_key = p_recipient_key'
+              in function_row.prosrc) > 0
+            AND position('gen_random_uuid' in function_row.prosrc) > 0
+            AND position(
+              'alert_event_id, recipient_key, attempt, phase'
+              in function_row.prosrc
+            ) > 0
+            AND position('INSERT INTO public.alert_notification_delivery'
+              in function_row.prosrc) > 0
+          WHEN 'complete_alert_recipient_delivery' THEN
+            position('p_phase NOT IN' in function_row.prosrc) > 0
+            AND position('p_recipient_key' in function_row.prosrc) > 0
+            AND position('pg_advisory_xact_lock'
+              in function_row.prosrc) > 0
+            AND position(
+              'alert_event_id, recipient_key, attempt, phase'
+              in function_row.prosrc
+            ) > 0
+            AND position('INSERT INTO public.alert_notification_delivery'
+              in function_row.prosrc) > 0
+        END AS body_guard_present
+      FROM pg_proc AS function_row
+      JOIN pg_namespace AS namespace
+        ON namespace.oid = function_row.pronamespace
+      WHERE namespace.nspname = 'public'
+        AND function_row.proname IN (
+          'append_alert_recipient_pending',
+          'claim_alert_recipient_delivery',
+          'complete_alert_recipient_delivery'
+        )
+      ORDER BY function_row.proname
+    `);
+    if (
+      JSON.stringify(recipientAlertDeliveryFunctions.rows) !==
+      JSON.stringify([
+        {
+          function_name: "append_alert_recipient_pending",
+          identity_arguments:
+            "p_alert_event_id uuid, p_recipient_key text, p_recipient_user_account_id uuid, p_recipient_email text, p_recipient_locale user_account_ui_language_enum, p_occurred_at timestamp with time zone",
+          function_owner: "ledger_owner",
+          security_definer: true,
+          function_configuration: ["search_path=pg_catalog, public"],
+          app_can_execute: true,
+          public_can_execute: false,
+          function_acl: [
+            "ledger_app:EXECUTE:false",
+            "ledger_owner:EXECUTE:false",
+          ],
+          body_guard_present: true,
+        },
+        {
+          function_name: "claim_alert_recipient_delivery",
+          identity_arguments:
+            "p_alert_event_id uuid, p_recipient_key text, p_occurred_at timestamp with time zone, p_lease_expires_at timestamp with time zone, p_worker_id text",
+          function_owner: "ledger_owner",
+          security_definer: true,
+          function_configuration: ["search_path=pg_catalog, public"],
+          app_can_execute: true,
+          public_can_execute: false,
+          function_acl: [
+            "ledger_app:EXECUTE:false",
+            "ledger_owner:EXECUTE:false",
+          ],
+          body_guard_present: true,
+        },
+        {
+          function_name: "complete_alert_recipient_delivery",
+          identity_arguments:
+            "p_alert_event_id uuid, p_recipient_key text, p_attempt integer, p_claim_token uuid, p_occurred_at timestamp with time zone, p_phase alert_notification_delivery_phase_enum, p_provider_message_id text, p_accepted jsonb, p_error_code text",
+          function_owner: "ledger_owner",
+          security_definer: true,
+          function_configuration: ["search_path=pg_catalog, public"],
+          app_can_execute: true,
+          public_can_execute: false,
+          function_acl: [
+            "ledger_app:EXECUTE:false",
+            "ledger_owner:EXECUTE:false",
+          ],
+          body_guard_present: true,
+        },
+      ])
+    ) {
+      throw new Error(
+        "recipient alert delivery function integrity mismatch: " +
+          JSON.stringify(recipientAlertDeliveryFunctions.rows),
+      );
+    }
+
+    const lifecycleDeliveryFunctions = await owner.query(`
+      SELECT
+        function_row.proname AS function_name,
+        pg_get_function_identity_arguments(function_row.oid)
+          AS identity_arguments,
+        pg_get_userbyid(function_row.proowner) AS function_owner,
+        function_row.prosecdef AS security_definer,
+        coalesce(function_row.proconfig, ARRAY[]::text[])
+          AS function_configuration,
+        EXISTS (
+          SELECT 1
+          FROM aclexplode(coalesce(
+            function_row.proacl,
+            acldefault('f', function_row.proowner)
+          )) direct_acl
+          WHERE direct_acl.grantee = (SELECT oid FROM pg_roles WHERE rolname='ledger_app')
+            AND direct_acl.privilege_type = 'EXECUTE'
+        ) AS app_can_execute,
+        EXISTS (
+          SELECT 1
+          FROM aclexplode(coalesce(
+            function_row.proacl,
+            acldefault('f', function_row.proowner)
+          )) direct_acl
+          WHERE direct_acl.grantee = 0
+            AND direct_acl.privilege_type = 'EXECUTE'
+        ) AS public_can_execute,
+        ARRAY(
+          SELECT concat(
+            CASE
+              WHEN function_acl.grantee = 0 THEN 'PUBLIC'
+              ELSE pg_get_userbyid(function_acl.grantee)
+            END,
+            ':',
+            function_acl.privilege_type,
+            ':',
+            function_acl.is_grantable::text
+          )
+          FROM aclexplode(coalesce(
+            function_row.proacl,
+            acldefault('f', function_row.proowner)
+          )) AS function_acl(
+            grantor, grantee, privilege_type, is_grantable
+          )
+          ORDER BY 1
+        ) AS function_acl,
+        CASE function_row.proname
+          WHEN 'initialize_lifecycle_notification_delivery' THEN
+            position('INSERT INTO public.lifecycle_notification_delivery'
+              in function_row.prosrc) > 0
+          WHEN 'claim_lifecycle_notification' THEN
+            position('pg_advisory_xact_lock' in function_row.prosrc) > 0
+            AND position('gen_random_uuid' in function_row.prosrc) > 0
+            AND position('lease_expires_at > p_occurred_at'
+              in function_row.prosrc) > 0
+            AND position('INSERT INTO public.lifecycle_notification_delivery'
+              in function_row.prosrc) > 0
+          WHEN 'complete_lifecycle_notification' THEN
+            position('pg_advisory_xact_lock' in function_row.prosrc) > 0
+            AND position('delivery.claim_token = p_claim_token'
+              in function_row.prosrc) > 0
+            AND position('claim.lease_expires_at <= p_occurred_at'
+              in function_row.prosrc) > 0
+            AND position('INSERT INTO public.lifecycle_notification_delivery'
+              in function_row.prosrc) > 0
+        END AS body_guard_present
+      FROM pg_proc AS function_row
+      JOIN pg_namespace AS namespace
+        ON namespace.oid = function_row.pronamespace
+      WHERE namespace.nspname = 'public'
+        AND function_row.proname IN (
+          'initialize_lifecycle_notification_delivery',
+          'claim_lifecycle_notification',
+          'complete_lifecycle_notification'
+        )
+      ORDER BY function_row.proname
+    `);
+    if (
+      JSON.stringify(lifecycleDeliveryFunctions.rows) !==
+      JSON.stringify([
+        {
+          function_name: "claim_lifecycle_notification",
+          identity_arguments:
+            "p_notification_id uuid, p_occurred_at timestamp with time zone, p_lease_expires_at timestamp with time zone, p_worker_id text",
+          function_owner: "ledger_owner",
+          security_definer: true,
+          function_configuration: ["search_path=pg_catalog, public"],
+          app_can_execute: true,
+          public_can_execute: false,
+          function_acl: [
+            "ledger_app:EXECUTE:false",
+            "ledger_owner:EXECUTE:false",
+          ],
+          body_guard_present: true,
+        },
+        {
+          function_name: "complete_lifecycle_notification",
+          identity_arguments:
+            "p_notification_id uuid, p_attempt integer, p_claim_token uuid, p_occurred_at timestamp with time zone, p_phase alert_notification_delivery_phase_enum, p_provider_message_id text, p_accepted jsonb, p_error_code text",
+          function_owner: "ledger_owner",
+          security_definer: true,
+          function_configuration: ["search_path=pg_catalog, public"],
+          app_can_execute: true,
+          public_can_execute: false,
+          function_acl: [
+            "ledger_app:EXECUTE:false",
+            "ledger_owner:EXECUTE:false",
+          ],
+          body_guard_present: true,
+        },
+        {
+          function_name: "initialize_lifecycle_notification_delivery",
+          identity_arguments: "",
+          function_owner: "ledger_owner",
+          security_definer: true,
+          function_configuration: ["search_path=pg_catalog, public"],
+          app_can_execute: false,
+          public_can_execute: false,
+          function_acl: ["ledger_owner:EXECUTE:false"],
+          body_guard_present: true,
+        },
+      ])
+    ) {
+      throw new Error(
+        "lifecycle notification function integrity mismatch: " +
+          JSON.stringify(lifecycleDeliveryFunctions.rows),
+      );
+    }
+
+    const alertDeliveryInsertTrigger = await owner.query(`
+      SELECT
+        trigger_row.tgenabled AS enabled,
+        trigger_row.tgtype::int AS trigger_type,
+        function_row.proname AS function_name,
+        pg_get_userbyid(function_row.proowner) AS function_owner,
+        function_row.prosecdef AS security_definer,
+        coalesce(function_row.proconfig, ARRAY[]::text[])
+          AS function_configuration,
+        ARRAY(
+          SELECT concat(
+            CASE
+              WHEN function_acl.grantee = 0 THEN 'PUBLIC'
+              ELSE pg_get_userbyid(function_acl.grantee)
+            END,
+            ':',
+            function_acl.privilege_type,
+            ':',
+            function_acl.is_grantable::text
+          )
+          FROM aclexplode(coalesce(
+            function_row.proacl,
+            acldefault('f', function_row.proowner)
+          )) AS function_acl(
+            grantor, grantee, privilege_type, is_grantable
+          )
+          ORDER BY 1
+        ) AS function_acl,
+        position('matching_claim.lease_expires_at <= NEW.occurred_at'
+          in function_row.prosrc) > 0
+          AND position('delivery.claim_token = NEW.claim_token'
+            in function_row.prosrc) > 0 AS body_guard_present
+      FROM pg_trigger AS trigger_row
+      JOIN pg_proc AS function_row ON function_row.oid = trigger_row.tgfoid
+      WHERE trigger_row.tgrelid =
+          'public.alert_notification_delivery'::regclass
+        AND trigger_row.tgname =
+          'trg_alert_notification_delivery_validate_insert'
+        AND NOT trigger_row.tgisinternal
+    `);
+    if (
+      JSON.stringify(alertDeliveryInsertTrigger.rows) !==
+      JSON.stringify([
+        {
+          enabled: "O",
+          trigger_type: 7,
+          function_name: "validate_alert_delivery_insert",
+          function_owner: "ledger_owner",
+          security_definer: false,
+          function_configuration: ["search_path=pg_catalog, public"],
+          function_acl: ["ledger_owner:EXECUTE:false"],
+          body_guard_present: true,
+        },
+      ])
+    ) {
+      throw new Error(
+        `alert delivery transition trigger mismatch: ${JSON.stringify(alertDeliveryInsertTrigger.rows)}`,
+      );
+    }
+
     const systemDefaults = await owner.query(`
       SELECT
         setting.key,
@@ -615,6 +1432,36 @@ export async function verifyMigratedSchema({
     ) {
       throw new Error(
         `system-default integrity mismatch: ${JSON.stringify(systemDefaults.rows)}`,
+      );
+    }
+
+    const globalAlertDefaults = await owner.query(`
+      SELECT
+        type::text AS type,
+        threshold,
+        channel::text AS channel,
+        enabled
+      FROM alert_rule
+      WHERE scope_kind = 'global'
+      ORDER BY type
+    `);
+    if (
+      JSON.stringify(globalAlertDefaults.rows) !==
+      JSON.stringify([
+        { type: "approval_aging", threshold: { hours: 24, escalationHours: 48 }, channel: "email", enabled: true },
+        { type: "blocked_no_seat", threshold: { businessDays: 1 }, channel: "email", enabled: true },
+        { type: "close_missed", threshold: { businessDays: 3 }, channel: "email", enabled: true },
+        { type: "credential_failure", threshold: { failures: 1 }, channel: "email", enabled: true },
+        { type: "deprovision_overdue", threshold: { businessDays: 0 }, channel: "email", enabled: true },
+        { type: "invite_unaccepted", threshold: { hours: 168 }, channel: "email", enabled: true },
+        { type: "low_pool", threshold: { floor: 5 }, channel: "email", enabled: true },
+        { type: "provisioning_failure", threshold: { failures: 1 }, channel: "email", enabled: true },
+        { type: "register_drift", threshold: { mismatches: 1 }, channel: "email", enabled: true },
+        { type: "sync_stale", threshold: { hours: 48 }, channel: "email", enabled: true },
+      ])
+    ) {
+      throw new Error(
+        `global alert semantic defaults mismatch: ${JSON.stringify(globalAlertDefaults.rows)}`,
       );
     }
   } finally {
@@ -758,7 +1605,10 @@ export async function verifyMigratedSchema({
     `);
     const expectedColumnPrivileges = applicationColumns.rows.flatMap(
       ({ table_name, column_name }) => {
-        const privileges = ['INSERT', 'SELECT'];
+        const privileges = [
+          ...(["alert_notification_delivery", "lifecycle_notification_delivery"].includes(table_name) ? [] : ["INSERT"]),
+          "SELECT",
+        ];
         if (normallyUpdateableTableNames.includes(table_name)) {
           privileges.push('UPDATE');
         } else if (

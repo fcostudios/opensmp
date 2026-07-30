@@ -337,7 +337,7 @@ describe("US-003 register integrity migration", () => {
     }
   }, 150_000);
 
-  test("rejects duplicate pending proposals and duplicate request materializations", async () => {
+  test("rejects duplicate pending proposals and allows one request to materialize multiple assignments", async () => {
     const fixture = await createPostgresFixture();
     fixtures.push(fixture);
     await fixture.migrate();
@@ -377,16 +377,18 @@ describe("US-003 register integrity migration", () => {
         ["00000000-0000-0000-0000-000000000208"],
       );
       expect(proposals.rows).toEqual([{ count: "3" }]);
-      await expect(
-        insertAssignment(app, {
-          id: "00000000-0000-0000-0000-000000000211",
-          sourceRequestId: ids.licenseRequestA,
-          startedOn: "2026-02-01",
-        }),
-      ).rejects.toMatchObject({
-        code: "23505",
-        constraint: "uq_license_assignment_source_request_id",
+      await insertAssignment(app, {
+        id: "00000000-0000-0000-0000-000000000211",
+        sourceRequestId: ids.licenseRequestA,
+        startedOn: "2026-02-01",
       });
+      const materializations = await app.query<{ count: string }>(
+        `SELECT count(*)::text AS count
+         FROM license_assignment
+         WHERE source_request_id = $1`,
+        [ids.licenseRequestA],
+      );
+      expect(materializations.rows).toEqual([{ count: "2" }]);
     } finally {
       await Promise.all([app.end(), owner.end()]);
     }

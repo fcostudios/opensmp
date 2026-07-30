@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "vitest": { "configFile": "apps/web/vitest.us033.config.ts", "related": false },
+  "ignorePatterns": ["docs/**", ".stryker-tmp/**", ".tmp/**"],
+  "inPlace": true,
+  "testFiles": [
+    "apps/web/src/modules/register/repository.integration.test.ts",
+    "apps/web/src/components/register/register-surface.test.tsx"
+  ],
+  "coverageAnalysis": "off",
+  "reporters": ["clear-text", "json"],
+  "mutate": [
+    "packages/contracts/src/register.ts",
+    "apps/web/src/modules/register/repository.ts",
+    "apps/web/src/modules/register/export-boundary.ts",
+    "apps/web/src/modules/register/actions.ts"
+  ],
+  "concurrency": 1,
+  "timeoutMS": 15000,
+  "timeoutFactor": 2,
+  "thresholds": { "high": 100, "low": 100, "break": 100 },
+  "tempDirName": ".tmp/stryker-us033"
+}

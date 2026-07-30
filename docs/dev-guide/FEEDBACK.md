@@ -18,6 +18,8 @@ story status, add annotations, and register decisions.
 | `ac_verify` | Adversarial verification of one AC | `story`, `event`, `ac`, `method`, `pass`, `notes` |
 | `build_pass` | type-check + lint + build pass | `story`, `event`, `notes` |
 | `done` | Story complete, all AC + build passing | `story`, `event` |
+| `evidence_superseded` | Retire one unique earlier AC/build/terminal event without rewriting history | `story`, `event`, `ref`, `target`, `reason` |
+| `revalidated` | Replace a superseded event after a decided change | `story`, `event`, `ref`, `change`, `as_event`, plus the replacement event's evidence fields |
 | `blocked` | Can't proceed | `story`, `event`, `reason`, `needs` |
 | `deviation` | Spec divergence | `story`, `event`, `notes` |
 | `decision` | Technical decision made | `story`, `event`, `id`, `text`, `reason` |
@@ -36,6 +38,25 @@ story status, add annotations, and register decisions.
 
 For `feedback` events, save images under a `screenshots/` folder at the repo root
 and list their repo-relative paths in `images`.
+
+### Append-only evidence correction
+
+Never edit an earlier evidence record to make its chronology look newer. Append
+`evidence_superseded` with a unique `ref` and a `target` containing `story`,
+`event`, and `ac` when the target is an AC. The target must identify exactly one
+earlier event. Then append exactly one `revalidated` record using that `ref`
+after both the supersession and a `decision` on the named `change`.
+
+To supersede evidence that was itself projected by an earlier revalidation,
+use `target: {"ref":"THE-EARLIER-REVALIDATION-REF"}`. The referenced
+revalidation must exist uniquely, precede the new supersession, and not already
+be superseded.
+
+The validator projects the revalidation as `as_event`; the superseded raw
+record remains audit history but is excluded from the canonical lifecycle.
+Superseded build and terminal evidence must therefore be revalidated in order:
+replacement `build_pass`, then replacement terminal event. Missing, duplicate,
+ambiguous, out-of-order, or event-kind-mismatched references fail closed.
 
 ## AC Verification Protocol (MANDATORY before `done`)
 
@@ -98,7 +119,7 @@ Canonical event vocabulary (single source: `feedback_schemas`). Unknown event na
 
 - **Lifecycle (flip story status):** `started`, `done`, `verified`
 - **Terminal-with-deferral (→ dev_done + deferral note; prefer plain `done`):** `done_with_deferral`, `done_with_external_deferral`
-- **Annotation (recorded, no status change):** `ac_pass`, `ac_verify`, `blocked`, `blocker`, `deviation`, `ac_fail`, `ac_unverifiable`, `test_report`, `feedback`, `nav_gap`
+- **Annotation (recorded, no status change):** `ac_pass`, `ac_verify`, `blocked`, `blocker`, `deviation`, `ac_fail`, `ac_unverifiable`, `test_report`, `feedback`, `nav_gap`, `evidence_superseded`, `revalidated`
 - **Decision (registered):** `decision`
 - **Sprint-level marker (project audit trail, never flips a story):** `closed_with_deferrals`, `adversarial_review`, `deferred_memory_saved`, `closure_hygiene`, `implemented_with_external_verification`
 - **Informational (counted, not persisted):** `build_pass`

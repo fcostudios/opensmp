@@ -1,0 +1,34 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": [
+    "@stryker-mutator/vitest-runner"
+  ],
+  "vitest": {
+    "configFile": "apps/web/vitest.us010.config.ts",
+    "related": false
+  },
+  "coverageAnalysis": "perTest",
+  "reporters": [
+    "clear-text"
+  ],
+  "ignorePatterns": [
+    ".tmp/**",
+    ".stryker-tmp/**",
+    "reports/**"
+  ],
+  "mutate": [
+    "apps/web/src/modules/org-registry/repository.ts",
+    "apps/web/src/modules/org-registry/people-action-core.ts"
+  ],
+  "concurrency": 1,
+  "timeoutMS": 120000,
+  "timeoutFactor": 4,
+  "thresholds": {
+    "high": 80,
+    "low": 60,
+    "break": 80
+  },
+  "tempDirName": ".tmp/stryker-us010"
+}

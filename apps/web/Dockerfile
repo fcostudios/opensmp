@@ -5,9 +5,11 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY apps/web/package.json apps/web/package.json
 COPY apps/worker/package.json apps/worker/package.json
 COPY packages/config/package.json packages/config/package.json
+COPY packages/connectors/package.json packages/connectors/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY packages/domain/package.json packages/domain/package.json
+COPY packages/notifications/package.json packages/notifications/package.json
 COPY packages/ui/package.json packages/ui/package.json
 RUN --mount=type=cache,id=ledger-pnpm-store,target=/pnpm/store \
     pnpm config set store-dir /pnpm/store && \

@@ -88,7 +88,7 @@ export function createAuthorizationRepository(database: Database) {
     async load({
       subject,
     }: {
-      readonly subject: string;
+      readonly subject: string | null;
     }): Promise<LedgerAuthorization | null> {
       const [account] = await database
         .select({
@@ -100,7 +100,9 @@ export function createAuthorizationRepository(database: Database) {
         })
         .from(userAccount)
         .leftJoin(person, eq(userAccount.personId, person.id))
-        .where(eq(userAccount.idpSubject, subject))
+        .where(
+          subject === null ? sql`false` : eq(userAccount.idpSubject, subject),
+        )
         .limit(1);
       if (
         !account ||
@@ -179,14 +181,17 @@ export function createAuthorizationRepository(database: Database) {
     }: {
       readonly actorUserId: string | null;
       readonly capability: Capability;
-      readonly companyId: string;
+      readonly companyId: string | null;
       readonly errorCode: AuthorizationErrorCode;
     }): Promise<void> {
-      const [existingCompany] = await database
-        .select({ id: company.id })
-        .from(company)
-        .where(eq(company.id, companyId))
-        .limit(1);
+      const [existingCompany] =
+        companyId === null
+          ? []
+          : await database
+              .select({ id: company.id })
+              .from(company)
+              .where(eq(company.id, companyId))
+              .limit(1);
       await database.insert(auditLog).values({
         actorUserId,
         action: "authorization.denied",
@@ -196,7 +201,9 @@ export function createAuthorizationRepository(database: Database) {
         before: null,
         after: existingCompany
           ? { capability, errorCode }
-          : { capability, errorCode, attemptedCompanyId: companyId },
+          : companyId === null
+            ? { capability, errorCode }
+            : { capability, errorCode, attemptedCompanyId: companyId },
         occurredAt: sql`CURRENT_TIMESTAMP`,
       });
     },

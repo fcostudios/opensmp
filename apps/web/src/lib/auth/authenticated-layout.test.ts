@@ -60,17 +60,38 @@ describe("authenticated layout authorization", () => {
     ).toBeNull();
   });
 
-  test("the authenticated layout wires Auth.js and the proxy pathname into the secure decision", () => {
-    const source = readFileSync(
+  test("the persistent authenticated layout performs identity admission only", () => {
+    const layoutSource = readFileSync(
       new URL("../../app/(authenticated)/layout.tsx", import.meta.url),
       "utf8",
     );
 
-    expect(source).toContain("await auth()");
-    expect(source).toContain('get("x-ledger-pathname")');
-    expect(source).toContain("authenticatedRouteRedirect");
-    expect(source).toContain("dynamicBreadcrumbRepository.resolve");
-    expect(source).toContain("dynamicBreadcrumbLabels=");
-    expect(source).toContain("redirect(destination)");
+    expect(layoutSource).toContain("await auth()");
+    expect(layoutSource).toContain('redirect("/login")');
+    expect(layoutSource).not.toContain("x-ledger-pathname");
+    expect(layoutSource).not.toContain("dynamicBreadcrumbRepository");
+    expect(layoutSource).not.toContain("ApplicationShell");
+  });
+
+  test("the authenticated template owns every route-sensitive shell decision", () => {
+    const templateSource = readFileSync(
+      new URL("../../app/(authenticated)/template.tsx", import.meta.url),
+      "utf8",
+    );
+    const appShellSource = readFileSync(
+      new URL("../../components/layout/app-shell.tsx", import.meta.url),
+      "utf8",
+    );
+
+    expect(templateSource).toContain("await auth()");
+    expect(templateSource).toContain('get("x-ledger-pathname")');
+    expect(templateSource).toContain("authenticatedRouteRedirect");
+    expect(templateSource).toContain("dynamicBreadcrumbRepository.resolve");
+    expect(templateSource).toContain("dynamicBreadcrumbLabels=");
+    expect(templateSource).toContain("redirect(destination)");
+    expect(templateSource).toContain("ApplicationShell");
+    expect(templateSource).toContain("pathname={pathname}");
+    expect(appShellSource).not.toContain("usePathname");
+    expect(appShellSource).toContain("readonly pathname: string");
   });
 });

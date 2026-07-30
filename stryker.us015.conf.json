@@ -1,0 +1,39 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "vitest": { "configFile": "apps/web/vitest.us015.config.ts", "related": false },
+  "ignorePatterns": ["docs/**", ".stryker-tmp/**", ".tmp/**"],
+  "inPlace": false,
+  "testFiles": [
+    "packages/contracts/src/request-workflow.test.ts",
+    "packages/domain/src/request-workflow/business-time.test.ts",
+    "packages/domain/src/request-workflow/lifecycle.test.ts",
+    "apps/web/src/components/requests/approval-queue.test.tsx",
+    "apps/web/src/components/requests/decision-settlement.test.ts",
+    "apps/web/src/components/requests/decision-retry-focus.test.tsx",
+    "apps/web/src/modules/request-workflow/approval/money.test.ts",
+    "apps/web/src/modules/request-workflow/approval-repository.integration.test.ts"
+  ],
+  "coverageAnalysis": "off",
+  "reporters": ["clear-text", "json"],
+  "mutate": [
+    "packages/contracts/src/request-workflow.ts",
+    "packages/domain/src/request-workflow/business-time.ts",
+    "packages/domain/src/request-workflow/lifecycle.ts:38:0-46:1",
+    "apps/web/src/components/requests/approval-aging.ts",
+    "apps/web/src/components/requests/decision-dialog-error.tsx",
+    "apps/web/src/components/requests/decision-settlement.ts",
+    "apps/web/src/components/requests/decision-retry-focus.ts",
+    "apps/web/src/modules/request-workflow/actions/decide-request-policy.ts",
+    "apps/web/src/modules/request-workflow/approval/money.ts",
+    "apps/web/src/modules/request-workflow/approval/repository.ts",
+    "apps/web/src/modules/request-workflow/service.ts:83:0-100:1"
+  ],
+  "concurrency": 1,
+  "timeoutMS": 15000,
+  "timeoutFactor": 2,
+  "thresholds": { "high": 100, "low": 100, "break": 100 },
+  "tempDirName": ".tmp/stryker-us015"
+}

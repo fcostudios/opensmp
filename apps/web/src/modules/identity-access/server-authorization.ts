@@ -30,3 +30,24 @@ export async function authorizeCompanyRequest(input: {
     capability: input.capability,
   });
 }
+
+export async function loadCurrentLedgerAuthorization() {
+  const session = await auth();
+  if (!session?.user?.idpSubject) return null;
+  return loadLedgerAuthorizationForSubject(session.user.idpSubject);
+}
+
+/** Route handlers already holding a verified OIDC subject use this DB-backed lookup. */
+export async function loadLedgerAuthorizationForSubject(
+  subject: string | null,
+) {
+  return authorizationRepository.load({ subject });
+}
+
+export async function recordLedgerAuthorizationFailure(
+  input: Parameters<
+    typeof authorizationRepository.recordAuthorizationFailure
+  >[0],
+) {
+  return authorizationRepository.recordAuthorizationFailure(input);
+}

@@ -22,6 +22,8 @@ SCRIPT_DATA_ROOT = Path(__file__).parents[1]
 SYNC_SCRIPT = SCRIPT_DATA_ROOT / "sync-from-nous.sh"
 KNOWN_SUBSTRATE_ROOT = Path(__file__).parent / "fixtures/825e882"
 PINNED_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-001/825e882"
+LATEST_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-004/e4b9a06"
+STORY_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-005/277b64e"
 PINNED_GUIDES = (
     "AGENTS.md",
     "CLAUDE.md",
@@ -66,11 +68,16 @@ def desired_guide(relative_path: str) -> bytes:
     return (PINNED_OVERRIDE_ROOT / relative_path).read_bytes()
 
 
+def latest_desired_guide(relative_path: str) -> bytes:
+    latest = LATEST_OVERRIDE_ROOT / relative_path
+    return latest.read_bytes() if latest.is_file() else desired_guide(relative_path)
+
+
 def create_project(root: Path) -> None:
     for relative_path in PINNED_GUIDES:
         path = root / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(desired_guide(relative_path))
+        path.write_bytes(latest_desired_guide(relative_path))
     claude = desired_guide("CLAUDE.md").decode()
     stale_mirror = "<!-- stale generated mirror -->\n" + claude
     write(root, "CODEX.md", stale_mirror)
@@ -103,6 +110,14 @@ def copy_reconciler_data(root: Path) -> Path:
     shutil.copytree(
         PINNED_OVERRIDE_ROOT,
         data_root / "overrides/CHG-001/825e882",
+    )
+    shutil.copytree(
+        LATEST_OVERRIDE_ROOT,
+        data_root / "overrides/CHG-004/e4b9a06",
+    )
+    shutil.copytree(
+        STORY_OVERRIDE_ROOT,
+        data_root / "overrides/CHG-005/277b64e",
     )
     return data_root
 
@@ -175,7 +190,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                     continue
                 self.assertEqual(
                     (root / relative_path).read_bytes(),
-                    desired_guide(relative_path),
+                    latest_desired_guide(relative_path),
                     relative_path,
                 )
             changes = (root / "docs/stories/CHANGES.md").read_text(encoding="utf-8")
@@ -185,10 +200,10 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 changes,
             )
             self.assertIn(
-                "**Notes:** CHG-001 reconciles Sprint 1 guidance with",
+                "**Notes:**\n> # CHG-001 — Reconcile Sprint 1 execution contract",
                 changes,
             )
-            self.assertNotIn("## Required changes", changes)
+            self.assertIn("> ## Required changes", changes)
             critical_paths = (
                 root / "testing/critical-paths.md"
             ).read_text(encoding="utf-8")
@@ -214,7 +229,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             for relative_path in PINNED_GUIDES:
                 self.assertEqual(
                     (root / relative_path).read_bytes(),
-                    desired_guide(relative_path),
+                    latest_desired_guide(relative_path),
                     relative_path,
                 )
             for mirror in (
@@ -252,11 +267,9 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             changes = root / "docs/stories/CHANGES.md"
             changes.write_text(
                 changes.read_text(encoding="utf-8").replace(
-                    "**Notes:** CHG-001 reconciles Sprint 1 guidance with "
-                    "[DEC-SMP-017](../decisions/"
-                    "DEC-SMP-017-sprint-1-execution-contract.md): "
-                    "`company_id` scoping, Keycloak/Auth.js redirect-based "
-                    "OIDC, and Docker Compose self-hosting.",
+                    "> Sprint 1 readiness review found generator-owned guidance "
+                    "that contradicts the\n"
+                    "> authoritative ER model and architecture.",
                     "**Notes:** unreviewed but superficially harmless guidance",
                 ),
                 encoding="utf-8",
@@ -268,8 +281,89 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(snapshot(root), before)
             self.assertIn("docs/stories/CHANGES.md", result.stderr)
-            self.assertIn("unknown reviewed guidance section", result.stderr)
+            self.assertIn("reviewed section markers changed", result.stderr)
             self.assertIn("review and pin a new migration", result.stderr)
+
+    def test_later_generated_change_markers_do_not_drift_reviewed_section(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_project(root)
+            changes = root / "docs/stories/CHANGES.md"
+            changes.write_text(
+                changes.read_text(encoding="utf-8")
+                + "\n### CHG-002: Later generated change\n\n"
+                + "**Status:** 🟡 `proposed`\n"
+                + "**Notes:**\n"
+                + "> Independent generated change notes.\n",
+                encoding="utf-8",
+            )
+            before = changes.read_bytes()
+
+            result = run_reconciler(root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(changes.read_bytes(), before)
+
+    def test_chg005_pins_canonical_sprint2_story_corrections(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_project(root)
+            us014_path = "docs/stories/sprint-2/r1_misc_us_014.md"
+            us017_path = "docs/stories/sprint-2/r1_misc_us_017.md"
+            us045_path = "docs/stories/sprint-2/r1_misc_us_045.md"
+            desired014 = (STORY_OVERRIDE_ROOT / us014_path).read_text(encoding="utf-8")
+            desired017 = (STORY_OVERRIDE_ROOT / us017_path).read_text(encoding="utf-8")
+            desired045 = (STORY_OVERRIDE_ROOT / us045_path).read_text(encoding="utf-8")
+            source014 = desired014.replace(
+                "| `blocked_no_seat` | `rejected` | Authorized owner cancels the blocked request |\n",
+                "",
+            ).replace(
+                "| `offboarding` | `failed` | Connector or checklist removal fails |\n",
+                "",
+            )
+            source017 = desired017.replace(
+                "- [ ] AC1: The 15-min alert-eval job (US-046) evaluates the approver reminder at 24h pending and the Group-Admin escalation at 48h (thresholds from AlertRule), on the first run after each threshold. Concurrent workers create exactly one AlertEvent/delivery stream per breach stage. SMTP delivery is at-least-once across an SMTP-success/DB-crash ambiguity and uses a stable Message-ID so the provider can deduplicate retries; it is not falsely described as exactly-once.",
+                "- [ ] AC1: The 15-min alert-eval job (US-046) sends the approver reminder at 24h pending and the Group-Admin escalation at 48h (thresholds from AlertRule); each fires exactly once per breach (dedupe), on the first run after threshold",
+            ).replace(
+                "- AC1 is reconciled by CHG-005 with the actual SMTP/outbox crash semantics; edit the canonical source and regenerate.",
+                "- ACs are copied verbatim from `08_scope.md` (generated 10b pass, 2026-07-22) — the scope is the single source; edit there and regenerate.",
+            )
+            source045 = desired045.replace(
+                "- [ ] AC1: Connector interface: capabilities() + provision/deprovision/syncMembers/syncActivity/syncCost; the Sprint 2 `none` connector routes unsupported provision/deprovision operations to the orchestration checklist (US-020). Unsupported sync operations remain explicit until the CSV/manual ingestion path lands in US-055; the orchestration milestone is independent of the API client (US-018).",
+                "- [ ] AC1: Connector interface: capabilities() + provision/deprovision/syncMembers/syncActivity/syncCost; 'unsupported' routes provisioning steps to orchestration mode (US-020) and sync steps to the CSV-import/manual ingestion path (US-055, DEC-SMP-018); ships BEFORE any concrete connector (US-018 implements it) — the orchestration path (US-020) runs against the interface alone",
+            ).replace(
+                "- [ ] AC2: Dispatch reads Vendor.provisioning_protocol (rest/scim/none); Sprint 2 registers only the `none` connector. US-018 provides the first concrete Anthropic connector after the US-054 probe gate.",
+                "- [ ] AC2: Dispatch reads Vendor.provisioning_protocol (rest/scim/none); Anthropic connector registered as #1",
+            ).replace(
+                "- ACs are reconciled by CHG-005 with the fixed Sprint 2 execution plan; edit the canonical source and regenerate.",
+                "- ACs are copied verbatim from `08_scope.md` (generated 10b pass, 2026-07-22) — the scope is the single source; edit there and regenerate.",
+            )
+            manifest = json.loads(
+                (STORY_OVERRIDE_ROOT / "manifest.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                hashlib.sha256(source014.encode()).hexdigest(),
+                manifest["paths"][us014_path]["source_sha256"],
+            )
+            self.assertEqual(
+                hashlib.sha256(source045.encode()).hexdigest(),
+                manifest["paths"][us045_path]["source_sha256"],
+            )
+            self.assertEqual(
+                hashlib.sha256(source017.encode()).hexdigest(),
+                manifest["paths"][us017_path]["source_sha256"],
+            )
+            write(root, us014_path, source014)
+            write(root, us017_path, source017)
+            write(root, us045_path, source045)
+
+            result = run_reconciler(root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((root / us014_path).read_text(encoding="utf-8"), desired014)
+            self.assertEqual((root / us017_path).read_text(encoding="utf-8"), desired017)
+            self.assertEqual((root / us045_path).read_text(encoding="utf-8"), desired045)
+            self.assertEqual(run_reconciler(root, "--check").returncode, 0)
 
     def test_manifest_artifact_hash_mismatch_fails_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -333,6 +427,109 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             self.assertEqual(snapshot(root), before)
             self.assertIn("docs/dev-guide/SECURITY.md", result.stderr)
             self.assertIn("desired override artifact hash mismatch", result.stderr)
+
+    def test_chg004_and_chg005_manifests_reject_unsafe_schema_before_writes(
+        self,
+    ) -> None:
+        cases = (
+            ("CHG-004", "output", "/tmp/escape.md"),
+            ("CHG-004", "output", "../escape.md"),
+            ("CHG-004", "output", "CLAUDE.md"),
+            ("CHG-004", "source", "/tmp/source.md"),
+            ("CHG-004", "source", "../source.md"),
+            (
+                "CHG-004",
+                "source",
+                "overrides/CHG-001/825e882/CLAUDE.md",
+            ),
+            ("CHG-004", "source_sha256", "A" * 64),
+            ("CHG-004", "desired_sha256", "not-a-sha256"),
+            ("CHG-005", "output", "/tmp/escape.md"),
+            ("CHG-005", "output", "../escape.md"),
+            ("CHG-005", "output", "docs/stories/sprint-2/other.md"),
+            ("CHG-005", "source_sha256", "A" * 64),
+            ("CHG-005", "desired_sha256", "not-a-sha256"),
+        )
+        for change, field, malicious in cases:
+            with (
+                self.subTest(change=change, field=field, malicious=malicious),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                root = Path(directory) / "project"
+                create_project(root)
+                data_root = copy_reconciler_data(Path(directory))
+                if change == "CHG-004":
+                    manifest_path = (
+                        data_root / "overrides/CHG-004/e4b9a06/manifest.json"
+                    )
+                else:
+                    manifest_path = (
+                        data_root / "overrides/CHG-005/277b64e/manifest.json"
+                    )
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                relative_path = next(iter(manifest["paths"]))
+                if field == "output":
+                    metadata = manifest["paths"].pop(relative_path)
+                    manifest["paths"][malicious] = metadata
+                elif field == "source":
+                    manifest["paths"][relative_path]["source_path"] = malicious
+                else:
+                    manifest["paths"][relative_path][field] = malicious
+                manifest_path.write_text(
+                    json.dumps(manifest, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                before = snapshot(root)
+
+                result = run_reconciler(root, data_root=data_root)
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(snapshot(root), before)
+                self.assertIn(change, result.stderr)
+                self.assertRegex(
+                    result.stderr,
+                    r"invalid|path set",
+                )
+
+    def test_manifest_source_symlink_cannot_escape_data_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "project"
+            create_project(root)
+            data_root = copy_reconciler_data(base)
+            source = (
+                data_root
+                / "overrides/CHG-001/825e882/docs/stories/CHANGES.md"
+            )
+            external = base / "outside-source.md"
+            external.write_bytes(source.read_bytes())
+            source.unlink()
+            source.symlink_to(external)
+            before = snapshot(root)
+
+            result = run_reconciler(root, data_root=data_root)
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(snapshot(root), before)
+            self.assertIn("path escapes its manifest root", result.stderr)
+
+    def test_manifest_output_symlink_cannot_escape_project_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "project"
+            create_project(root)
+            data_root = copy_reconciler_data(base)
+            sprint_stories = root / "docs/stories/sprint-2"
+            external = base / "outside-project"
+            external.mkdir()
+            sprint_stories.symlink_to(external, target_is_directory=True)
+            before = snapshot(root)
+
+            result = run_reconciler(root, data_root=data_root)
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(snapshot(root), before)
+            self.assertIn("path escapes its manifest root", result.stderr)
 
     def test_forbidden_unpinned_guidance_aborts_all_planned_writes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -439,12 +636,12 @@ class SyncIntegrationTests(unittest.TestCase):
                     continue
                 self.assertEqual(
                     (root / relative_path).read_bytes(),
-                    desired_guide(relative_path),
+                    latest_desired_guide(relative_path),
                     relative_path,
                 )
             changes = (root / "docs/stories/CHANGES.md").read_text(encoding="utf-8")
             self.assertIn(
-                "**Notes:** CHG-001 reconciles Sprint 1 guidance with",
+                "**Notes:**\n> # CHG-001 — Reconcile Sprint 1 execution contract",
                 changes,
             )
             self.assertIn(

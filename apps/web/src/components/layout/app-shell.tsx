@@ -1,6 +1,5 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
@@ -20,18 +19,19 @@ export function ApplicationShell({
   children,
   dynamicBreadcrumbLabels = {},
   displayName,
+  pathname,
   roles,
   updateLocaleAction,
 }: {
   readonly children: ReactNode;
   readonly dynamicBreadcrumbLabels?: DynamicBreadcrumbLabels;
   readonly displayName: string;
+  readonly pathname: string;
   readonly roles: readonly LedgerRole[];
   readonly updateLocaleAction: (input: {
     locale: StoredLocale;
   }) => Promise<void>;
 }) {
-  const pathname = usePathname();
   const t = useTranslations();
   const routeContext = shellRouteContext(pathname, dynamicBreadcrumbLabels);
   if (!routeContext) return null;

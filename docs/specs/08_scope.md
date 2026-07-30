@@ -57,7 +57,7 @@
 | US-039 | Consolidated rollup + export | Central Finance | FEAT-028, FEAT-030 | SCR-close |
 | US-040 | Cross-company admin dashboard | Group Admin | FEAT-032 | SCR-admin-dashboard |
 | US-041 | Scoped per-company experience | Company Finance | FEAT-033 | SCR-company-detail, SCR-statements, SCR-my-requests |
-| US-042 | Alert engine: 8 P0 types | Group Admin | FEAT-034 | (jobs), SCR-alerts |
+| US-042 | Alert engine: 10 P0 types | Group Admin | FEAT-034 | (jobs), SCR-alerts |
 | US-043 | Alert log + acknowledgment | Group Admin | FEAT-035 | SCR-alerts |
 | US-044 | Operational settings | Group Admin | FEAT-044 | SCR-settings |
 | US-045 | Connector interface + orchestration routing | Group Admin | FEAT-041 | (architecture seam) |
@@ -275,7 +275,7 @@
 - **As**: Group Admin (persona_01) | **Want to**: execute vendor steps manually with the same guarantees | **So that**: beta-API failure degrades speed, never blocks (DEC-SMP-007)
 - **AC1**: Orgs with mode=orchestration route provision/deprovision to a checklist ProvisioningAction (steps in raw_request) — via the connector-interface dispatch (US-045), independent of the API client (US-018): the PRD's week-2 milestone ships on this path alone
 - **AC2**: SCR-request-detail pending-checklist panel renders steps + 'Confirmar ejecución' / 'Marcar no completada' (group_admin)
-- **AC3**: Next member sync verifies; mismatch → status verification_failed + exception surfaced; identical states/audit as automated mode
+- **AC3**: `confirmChecklistDone` is the Group Admin's audited attestation and advances the request immediately through the same lifecycle transition as automated execution; the next member sync verifies later. A mismatch changes only the ProvisioningAction to `verification_failed` and surfaces an exception for remediation—it does not retroactively erase the attested lifecycle transition.
 - **Prerequisites**: US-014, US-045
 - **Feature**: FEAT-013 | **Journey**: J1 S3, J2 | **Release**: R1
 - **Screens**: SCR-request-detail, SCR-exceptions
@@ -512,10 +512,10 @@
 - **Screens**: SCR-company-detail, SCR-statements, SCR-my-requests
 - **Entities (CRUD)**: (scoped reads)
 
-### US-042 — Alert engine: 8 P0 types
+### US-042 — Alert engine: 10 P0 types
 - **As**: Group Admin (persona_01) | **Want to**: get email alerts for every failure class | **So that**: nothing fails silently (Module G)
 - **AC1**: AlertRule seed: approval_aging, provisioning_failure, blocked_no_seat, low_pool, invite_unaccepted, sync_stale, credential_failure, register_drift, deprovision_overdue, close_missed (enabled, thresholds)
-- **AC2**: 15-min evaluation job fires AlertEvent + email (sender from SystemSetting); dedupe within window
+- **AC2**: 15-min evaluation job fires AlertEvent + email (sender from SystemSetting); `dedupe_key = alert_rule_id + alert stage + stable subject identity + breach-window start` is UNIQUE, and retries use insert-on-conflict/no-op so each breach stage fires once
 - **AC3**: subject_ref carries the target for per-type link dispatch
 - **Prerequisites**: US-046, US-003
 - **Feature**: FEAT-034 | **Journey**: J4 | **Release**: R1

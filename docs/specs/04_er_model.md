@@ -520,14 +520,14 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 ### `AlertRule`
 
 - **Domain:** `alerts_context`
-- **Business purpose.** Configurable alert definitions (Module G): pending-approval aging, provisioning failure, blocked-no-seat, low pool, invite unaccepted 7d, sync staleness, credential failure, drift; thresholds + channel.
-- **Lifecycle.** Seeded with the 8 P0 alert types; edited by Group Admin; budget-threshold rules 🟡. `channel` members `slack`/`teams` are 🟡 R2 (Module G P1 webhooks) — R1 uses `email` only.
+- **Business purpose.** Configurable alert definitions (Module G): pending-approval aging, provisioning failure, blocked-no-seat, low pool, invite unaccepted 7d, sync staleness, credential failure, register drift, overdue deprovisioning, and missed close; thresholds + channel.
+- **Lifecycle.** Seeded with the 10 P0 alert types; edited by Group Admin; budget-threshold rules 🟡. `channel` members `slack`/`teams` are 🟡 R2 (Module G P1 webhooks) — R1 uses `email` only.
 - **Flags.** `requires_versioning: no` · `has_soft_delete: via enabled flag` · `audit_required: yes` · `multi_tenant_scoped: scope-dependent`
 
 | Attribute | Type | PK/FK/IDX | Nullable | Description | Example | Source(s) |
 |---|---|---|---|---|---|---|
 | `id` | `uuid` (v7) | PK | no |  |  | A-ER-1 |
-| `type` | `text` (enum) |  | no | `approval_aging / provisioning_failure / blocked_no_seat / low_pool / invite_unaccepted / sync_stale / credential_failure / register_drift` | `low_pool` | [SRC:RAW] Module G |
+| `type` | `text` (enum) |  | no | `approval_aging / provisioning_failure / blocked_no_seat / low_pool / invite_unaccepted / sync_stale / credential_failure / register_drift / deprovision_overdue / close_missed` | `low_pool` | [SRC:RAW] Module G + Step 8 |
 | `scope_kind` | `text` (enum) |  | no | `global / company / vendor_account` | `vendor_account` | [SRC:RAW] §14 |
 | `company_id` | `uuid` | FK => Company.id | yes | When scope is a company | … | [SRC:RAW] §14 |
 | `vendor_account_id` | `uuid` | FK => VendorAccount.id | yes | When scope is an account | … | [SRC:RAW] §14 |
@@ -550,6 +550,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `alert_rule_id` | `uuid` | FK => AlertRule.id, IDX | no |  |  | [SRC:RAW] |
 | `fired_at` | `timestamptz` | IDX | no |  |  | [SRC:RAW] §14 |
 | `subject_ref` | `jsonb` |  | yes | What it is about (request id, account id, person id) | `{"request_id":"…"}` | [ASSUMPTION] |
+| `dedupe_key` | `text` | UNIQUE | no | Stable `alert_rule_id + alert stage + subject identity + breach-window start`; retry inserts use ON CONFLICT/no-op so one AlertEvent exists per breach stage | `rule:approval_aging:48h:request:…:2026-07-27T00:00Z` | [SRC:CJ] US-017/US-042 |
 | `notified` | `jsonb` |  | no | Recipients notified | `["gm@ram.ec"]` | [SRC:RAW] §14 |
 | `acknowledged_by` | `uuid` | FK => UserAccount.id | yes |  |  | [SRC:RAW] §14 |
 | `acknowledged_at` | `timestamptz` |  | yes |  |  | [SRC:RAW] §14 |

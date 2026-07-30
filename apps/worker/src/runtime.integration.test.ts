@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import pg from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   createPostgresFixture,
@@ -40,10 +40,87 @@ async function waitFor(assertion: () => Promise<void>, timeoutMs = 8_000): Promi
   throw lastError;
 }
 
+async function seedLifecycleNotification(): Promise<string> {
+  await queryAsOwner(
+    `INSERT INTO user_account
+       (id,email,idp_subject,global_role,ui_language,status,created_at)
+     VALUES
+       ('46000000-0000-4000-8000-000000000001','runtime-admin@ledger.test',
+        'runtime-admin','group_admin','en','active','2026-07-29T12:00:00Z'),
+       ('46000000-0000-4000-8000-000000000002','runtime-requester@ledger.test',
+        'runtime-requester',NULL,'en','active','2026-07-29T12:00:00Z');
+     INSERT INTO company
+       (id,name,code,type,status,statement_language,created_at,created_by)
+     VALUES ('46000000-0000-4000-8000-000000000003','Runtime Company','RUN',
+             'internal','active','en','2026-07-29T12:00:00Z',
+             '46000000-0000-4000-8000-000000000001');
+     INSERT INTO person
+       (id,email,full_name,company_id,status,created_at,created_by)
+     VALUES ('46000000-0000-4000-8000-000000000004',
+             'runtime-requester@ledger.test','Runtime Requester',
+             '46000000-0000-4000-8000-000000000003','active',
+             '2026-07-29T12:00:00Z','46000000-0000-4000-8000-000000000001');
+     UPDATE user_account
+     SET person_id='46000000-0000-4000-8000-000000000004'
+     WHERE id='46000000-0000-4000-8000-000000000002';
+     INSERT INTO vendor
+       (id,name,connector_type,provisioning_protocol,can_provision,
+        can_deprovision,has_usage_data,has_cost_data,identity_matching,status,
+        created_at,created_by)
+     VALUES ('46000000-0000-4000-8000-000000000005','Runtime Vendor',
+             'orchestration','none',false,false,false,false,'email','active',
+             '2026-07-29T12:00:00Z','46000000-0000-4000-8000-000000000001');
+     INSERT INTO vendor_account
+       (id,vendor_id,name,mode,low_pool_floor,status,created_at,created_by)
+     VALUES ('46000000-0000-4000-8000-000000000006',
+             '46000000-0000-4000-8000-000000000005','Runtime Account',
+             'orchestration',1,'active','2026-07-29T12:00:00Z',
+             '46000000-0000-4000-8000-000000000001');
+     INSERT INTO license_type
+       (id,vendor_id,name,unit,status,created_at,created_by)
+     VALUES ('46000000-0000-4000-8000-000000000007',
+             '46000000-0000-4000-8000-000000000005','Runtime Seat','seat',
+             'active','2026-07-29T12:00:00Z',
+             '46000000-0000-4000-8000-000000000001');
+     INSERT INTO license_request
+       (id,request_no,person_id,company_id,vendor_account_id,license_type_id,
+        state,justification,requested_by,created_at,created_by,updated_at)
+     VALUES ('46000000-0000-4000-8000-000000000008','SOL-RUNTIME',
+             '46000000-0000-4000-8000-000000000004',
+             '46000000-0000-4000-8000-000000000003',
+             '46000000-0000-4000-8000-000000000006',
+             '46000000-0000-4000-8000-000000000007','pending_approval',
+             'Runtime assurance','46000000-0000-4000-8000-000000000002',
+             '2026-07-29T12:00:00Z','46000000-0000-4000-8000-000000000001',
+             '2026-07-29T12:00:00Z');
+     INSERT INTO system_setting (key,value,updated_at,updated_by)
+     VALUES ('notif_sender_email','"notifications@ledger.test"'::jsonb,
+             '2026-07-29T12:00:00Z','46000000-0000-4000-8000-000000000001')
+     ON CONFLICT (key) DO NOTHING;
+     INSERT INTO lifecycle_notification
+       (id,request_id,company_id,kind,recipient_user_account_id,recipient_email,
+        recipient_locale,request_state,dedupe_key,created_at)
+     VALUES ('46000000-0000-4000-8000-000000000009',
+             '46000000-0000-4000-8000-000000000008',
+             '46000000-0000-4000-8000-000000000003','submission',
+             '46000000-0000-4000-8000-000000000002',
+             'runtime-requester@ledger.test','en','pending_approval',
+             'runtime:submission','2026-07-29T12:00:00Z')`,
+  );
+  return "46000000-0000-4000-8000-000000000009";
+}
+
 beforeAll(async () => {
   fixture = await createPostgresFixture();
   await fixture.migrate();
   appConnectionString = fixture.appUrl;
+  await queryAsOwner(
+    `INSERT INTO close_run (period, status, started_at, finished_at, created_at)
+     VALUES
+       ('2026-06', 'succeeded', '2026-07-03T15:00:00Z', '2026-07-03T15:01:00Z', '2026-07-03T15:00:00Z'),
+       ('2026-08', 'succeeded', '2026-09-03T15:00:00Z', '2026-09-03T15:01:00Z', '2026-09-03T15:00:00Z'),
+       ('2026-09', 'succeeded', '2026-10-05T15:00:00Z', '2026-10-05T15:01:00Z', '2026-10-05T15:00:00Z')`,
+  );
 }, 120_000);
 
 afterAll(async () => {
@@ -104,7 +181,7 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
     }
   });
 
-  it("runs exactly one deferred job for a repeated idempotency key and logs the skipped dependency", async () => {
+  it("runs exactly one implemented alert job for a repeated idempotency key", async () => {
     const logs: object[] = [];
     const runtime = createWorkerRuntime({
       connectionString: appConnectionString,
@@ -125,9 +202,7 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
             errorCode: null,
             jobName: "alert-evaluation",
             processed: 0,
-            reason: "dependency_not_delivered",
-            status: "skipped",
-            story: "US-042",
+            status: "succeeded",
           }),
         );
       });
@@ -334,8 +409,16 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
       await waitFor(async () => {
         for (const jobId of jobIds) {
           expect(logs.filter((entry) => entry.jobId === jobId)).toHaveLength(1);
-          expect(logs).toContainEqual(expect.objectContaining({ jobId, processed: 0, status: "skipped" }));
         }
+        expect(logs).toContainEqual(expect.objectContaining({
+          jobId: jobIds[3],
+          processed: 0,
+          status: "succeeded",
+        }));
+        expect(
+          logs.filter(({ jobId, status }) =>
+            jobId !== jobIds[3] && status === "skipped"),
+        ).toHaveLength(4);
       });
     } finally {
       await runtime.stop();
@@ -391,12 +474,68 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
     }
   });
 
+  it("constructs one production lifecycle drain and closes its real PostgreSQL pool on normal shutdown", async () => {
+    const notificationId = await seedLifecycleNotification();
+    const lifecyclePool = new pg.Pool({ connectionString: appConnectionString });
+    const send = vi.fn(async () => ({
+      accepted: ["runtime-requester@ledger.test"],
+      providerMessageId: "runtime-message",
+    }));
+    let clearCount = 0;
+    let scheduleCount = 0;
+    const runtime = createWorkerRuntime({
+      connectionString: appConnectionString,
+      lifecycleNotificationPool: lifecyclePool,
+      lifecycleNotificationDrain: {
+        clearIntervalFn: (() => {
+          clearCount += 1;
+        }) as typeof clearInterval,
+        setIntervalFn: (() => {
+          scheduleCount += 1;
+          return 1 as unknown as ReturnType<typeof setInterval>;
+        }) as typeof setInterval,
+      },
+      notificationMailer: { send },
+      publicOrigin: "https://ledger.test",
+    });
+
+    try {
+      await runtime.start();
+      await runtime.start();
+      await waitFor(async () => {
+        const deliveries = await queryAsOwner<{ phase: string }>(
+          `SELECT phase::text
+           FROM lifecycle_notification_delivery
+           WHERE notification_id=$1 AND phase='succeeded'`,
+          [notificationId],
+        );
+        expect(deliveries.rows).toEqual([{ phase: "succeeded" }]);
+      });
+      expect(scheduleCount).toBe(1);
+      expect(send).toHaveBeenCalledOnce();
+    } finally {
+      await runtime.stop();
+    }
+
+    await expect(lifecyclePool.query("SELECT 1")).rejects.toThrow(
+      "Cannot use a pool after calling end on the pool",
+    );
+    expect(clearCount).toBe(1);
+  });
+
   it("closes pg-boss after a partial startup failure before rethrowing", async () => {
     await queryAsOwner("REVOKE EXECUTE ON FUNCTION pgboss.create_queue(text, jsonb) FROM ledger_app");
-    const runtime = createWorkerRuntime({ connectionString: appConnectionString });
+    const lifecyclePool = new pg.Pool({ connectionString: appConnectionString });
+    const runtime = createWorkerRuntime({
+      connectionString: appConnectionString,
+      lifecycleNotificationPool: lifecyclePool,
+    });
     try {
       await expect(runtime.start()).rejects.toThrow("permission denied");
       await runtime.stop();
+      await expect(lifecyclePool.query("SELECT 1")).rejects.toThrow(
+        "Cannot use a pool after calling end on the pool",
+      );
 
       await waitFor(async () => {
         const sessions = await queryAsOwner<{ count: string }>(

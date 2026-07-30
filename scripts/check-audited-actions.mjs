@@ -457,6 +457,71 @@ function serviceTargetIsAudited(
     );
 }
 
+function auditedServiceAssignment(
+  statement,
+  owner,
+  imports,
+  sourceFilePath,
+) {
+  if (
+    !ts.isVariableStatement(statement) ||
+    statement.declarationList.declarations.length !== 1
+  ) {
+    return false;
+  }
+  const [declaration] = statement.declarationList.declarations;
+  return !!declaration.initializer &&
+    serviceTargetIsAudited(
+      declaration.initializer,
+      owner,
+      imports,
+      sourceFilePath,
+    );
+}
+
+function safeRedirectCall(expression, owner, imports) {
+  const target = callTarget(expression);
+  if (
+    !target ||
+    target.member !== null ||
+    shadowsBinding(owner, target.root)
+  ) {
+    return false;
+  }
+  const imported = imports.get(target.root);
+  return imported?.importedName === "redirect" &&
+    imported.specifier === "next/navigation" &&
+    target.call.arguments.every((argument) =>
+      isNonMutatingExpression(argument, owner, imports),
+    );
+}
+
+function safePostAuditStatement(statement, owner, imports) {
+  if (ts.isBlock(statement)) {
+    return statement.statements.every((nested) =>
+      safePostAuditStatement(nested, owner, imports),
+    );
+  }
+  if (ts.isReturnStatement(statement)) {
+    return !statement.expression ||
+      isNonMutatingExpression(statement.expression, owner, imports);
+  }
+  if (ts.isExpressionStatement(statement)) {
+    return safeRedirectCall(statement.expression, owner, imports);
+  }
+  if (ts.isIfStatement(statement)) {
+    return isNonMutatingExpression(
+      statement.expression,
+      owner,
+      imports,
+    ) &&
+      safePostAuditStatement(statement.thenStatement, owner, imports) &&
+      (!statement.elseStatement ||
+        safePostAuditStatement(statement.elseStatement, owner, imports));
+  }
+  return ts.isEmptyStatement(statement);
+}
+
 function wholeBodyUsesAudit(
   owner,
   imports,
@@ -485,6 +550,25 @@ function wholeBodyUsesAudit(
       )
     ) {
       auditedStatements += 1;
+      continue;
+    }
+    if (
+      allowOneHop &&
+      auditedStatements === 0 &&
+      auditedServiceAssignment(
+        statement,
+        owner,
+        imports,
+        sourceFilePath,
+      )
+    ) {
+      auditedStatements += 1;
+      continue;
+    }
+    if (
+      auditedStatements === 1 &&
+      safePostAuditStatement(statement, owner, imports)
+    ) {
       continue;
     }
     const expression = statementExpression(statement);

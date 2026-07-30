@@ -126,3 +126,136 @@ jobs:
 
       - name: Compare committed migrations with drizzle-kit push
         run: pnpm --filter @smp/db db:parity
+
+  mutation:
+    name: Critical-path mutation gate
+    needs:
+      - verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      CI: "true"
+      TESTCONTAINERS_RYUK_DISABLED: "true"
+      POSTGRES_SUPERUSER_PASSWORD: ci-superuser-password
+      LEDGER_OWNER_PASSWORD: ci-owner-password
+      LEDGER_APP_PASSWORD: ci-app-password
+      DATABASE_ADMIN_URL: postgresql://ledger_owner:ci-owner-password@127.0.0.1:5432/ledger_ci
+      DATABASE_URL: postgresql://ledger_app:ci-app-password@127.0.0.1:5432/ledger_ci
+      DB_DRIVER: pg
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-superuser-password
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready --username=postgres --dbname=postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
+        with:
+          version: 9.15.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.12.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Provision mutation database roles
+        env:
+          PGPASSWORD: ${{ env.POSTGRES_SUPERUSER_PASSWORD }}
+        run: |
+          psql --host=127.0.0.1 --username=postgres --dbname=postgres \
+            --set=ON_ERROR_STOP=1 \
+            --set=owner_role=ledger_owner \
+            --set=owner_password="$LEDGER_OWNER_PASSWORD" \
+            --set=application_role=ledger_app \
+            --set=application_password="$LEDGER_APP_PASSWORD" \
+            --set=database_name=ledger_ci \
+            --file=packages/db/scripts/ci-bootstrap.sql
+
+      - name: Apply committed migrations for mutation tests
+        run: pnpm --filter @smp/db db:migrate
+
+      - name: Run critical-path mutation gate
+        run: pnpm test:mutation
+
+      - name: Upload mutation failure reports
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: critical-path-mutation-reports
+          path: |
+            reports/
+            apps/web/reports/
+            scripts/probes/anthropic/reports/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  sprint2-orchestration-e2e:
+    name: Sprint 2 orchestration E2E
+    needs:
+      - mutation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
+        with:
+          version: 9.15.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.12.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm --dir apps/web exec playwright install --with-deps chromium
+
+      - name: Run Sprint 2 orchestration journey
+        run: >-
+          pnpm --dir apps/web exec playwright test
+          e2e/sprint2-orchestration.spec.ts
+
+      - name: Upload Playwright failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: sprint2-orchestration-playwright
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Tear down Sprint 2 Compose environment
+        if: always()
+        run: >-
+          docker compose
+          --env-file .env.example
+          --file infra/docker-compose.yml
+          --file infra/docker-compose.test.yml
+          --project-name ledger-sprint2
+          down --volumes --remove-orphans

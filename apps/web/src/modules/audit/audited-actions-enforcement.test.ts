@@ -65,6 +65,67 @@ describe("audited server action enforcement", () => {
     });
   });
 
+  test("accepts a trusted redirect after an audited service result", async () => {
+    const root = await fixture({
+      "src/app/actions.ts": `"use server";
+        import { redirect } from "next/navigation";
+        import { requestService } from "../modules/request-service";
+        export async function confirm(input) {
+          const result = await requestService.confirm(input);
+          if (result.ok) redirect(\`/requests/\${result.requestId}?tab=assignment\`);
+          return result;
+        }`,
+      "src/modules/request-service.ts": `import { withAudit } from "@/modules/audit/with-audit";
+        export const requestService = {
+          confirm(input) {
+            return withAudit(db, async (transaction) => ({
+              value: input,
+              audit: evidence,
+            }));
+          },
+        };`,
+      "src/modules/audit/with-audit.ts":
+        `export function withAudit(...args) { return args; }`,
+    });
+
+    await expect(
+      execFileAsync(process.execPath, [script, root]),
+    ).resolves.toMatchObject({
+      stdout: expect.stringContaining(
+        "Audited server action enforcement passed",
+      ),
+    });
+  });
+
+  test("rejects a mutation after an audited service result", async () => {
+    const root = await fixture({
+      "src/app/actions.ts": `"use server";
+        import { requestService } from "../modules/request-service";
+        export async function unsafeSecondMutation(input) {
+          const result = await requestService.confirm(input);
+          await database.update(result);
+          return result;
+        }`,
+      "src/modules/request-service.ts": `import { withAudit } from "@/modules/audit/with-audit";
+        export const requestService = {
+          confirm(input) {
+            return withAudit(db, async (transaction) => ({
+              value: input,
+              audit: evidence,
+            }));
+          },
+        };`,
+      "src/modules/audit/with-audit.ts":
+        `export function withAudit(...args) { return args; }`,
+    });
+
+    await expect(
+      execFileAsync(process.execPath, [script, root]),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining("unsafeSecondMutation"),
+    });
+  });
+
   test("accepts an aliased import from the real audit boundary", async () => {
     const root = await fixture({
       "src/app/actions.ts": `"use server";

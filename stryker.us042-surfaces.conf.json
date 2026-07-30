@@ -1,0 +1,42 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "vitest": {
+    "configFile": "apps/web/vitest.us042-surfaces.config.ts",
+    "related": false
+  },
+  "ignorePatterns": ["docs/**", ".stryker-tmp/**", ".tmp/**"],
+  "inPlace": false,
+  "testFiles": [
+    "apps/web/src/components/alerts/alert-list.test.tsx",
+    "apps/web/src/components/alerts/alert-page-boundaries.test.ts",
+    "apps/web/src/components/exceptions/blocked-requests-table.test.tsx",
+    "apps/web/src/components/exceptions/exception-page-boundaries.test.ts",
+    "apps/web/src/components/requests/checklist-exceptions-list.test.tsx",
+    "apps/web/src/modules/operational-alert-read.integration.test.ts",
+    "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+    "apps/web/src/modules/request-workflow/read-repository.integration.test.ts",
+    "packages/ui/src/organisms/alert-list.test.tsx"
+  ],
+  "coverageAnalysis": "perTest",
+  "reporters": ["clear-text"],
+  "mutate": [
+    "apps/web/src/components/alerts/alert-list.tsx:9-52",
+    "apps/web/src/components/exceptions/blocked-requests-table.tsx:27-40",
+    "apps/web/src/components/requests/checklist-exceptions-list.tsx:151-178",
+    "apps/web/src/modules/operational-alert-read.ts:37-42",
+    "apps/web/src/modules/request-workflow/orchestration.ts:290-381",
+    "apps/web/src/modules/request-workflow/read-repository.ts:48-62",
+    "apps/web/src/modules/request-workflow/read-repository.ts:201-237",
+    "apps/web/src/modules/request-workflow/read-repository.ts:196-267",
+    "packages/ui/src/organisms/alert-list.tsx:74-94",
+    "packages/ui/src/organisms/alert-list.tsx:155-166"
+  ],
+  "concurrency": 4,
+  "timeoutMS": 120000,
+  "timeoutFactor": 2,
+  "thresholds": { "high": 100, "low": 100, "break": 100 },
+  "tempDirName": ".tmp/stryker-us042-surfaces"
+}

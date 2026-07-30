@@ -10,7 +10,14 @@ export type SkippedJob = {
   story: `US-${string}`;
 };
 
-export type JobResult = SuccessfulJob | SkippedJob;
+export type FailedJob = {
+  alertRuleId: string;
+  errorCode: string;
+  processed: number;
+  status: "failed";
+};
+
+export type JobResult = FailedJob | SuccessfulJob | SkippedJob;
 
 export function successfulJob(processed: number): SuccessfulJob {
   if (!Number.isInteger(processed) || processed < 0) {
@@ -31,4 +38,18 @@ export function dependencyNotDelivered(story: `US-${string}`): SkippedJob {
     status: "skipped",
     story,
   };
+}
+
+export function failedJob(
+  alertRuleId: string,
+  errorCode: string,
+  processed: number,
+): FailedJob {
+  if (!alertRuleId.trim() || !errorCode.trim()) {
+    throw new TypeError("failed job identity is required");
+  }
+  if (!Number.isInteger(processed) || processed < 0) {
+    throw new RangeError("processed must be a non-negative integer");
+  }
+  return { alertRuleId, errorCode, processed, status: "failed" };
 }

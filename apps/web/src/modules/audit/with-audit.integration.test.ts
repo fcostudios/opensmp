@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 
 import {
   createPostgresFixture,
@@ -52,10 +52,14 @@ afterAll(async () => {
 describe("withAudit", () => {
   test("commits the mutation and exact evidence in one transaction", async () => {
     const database = drizzle(appPool, { schema });
+    const emitWarning = vi
+      .spyOn(process, "emitWarning")
+      .mockImplementation(() => undefined);
 
-    const value = await withAudit(
-      database,
-      async (transaction) => {
+    try {
+      const value = await withAudit(
+        database,
+        async (transaction) => {
         await transaction
           .update(userAccount)
           .set({ uiLanguage: "en" })
@@ -74,10 +78,14 @@ describe("withAudit", () => {
           },
         };
       },
-      { occurredAt: changedAt },
-    );
+        { occurredAt: changedAt },
+      );
 
-    expect(value).toBe("updated");
+      expect(value).toBe("updated");
+      expect(emitWarning).not.toHaveBeenCalled();
+    } finally {
+      emitWarning.mockRestore();
+    }
     const account = await owner.query(
       "SELECT ui_language FROM user_account WHERE id = $1",
       [actorId],
@@ -105,8 +113,194 @@ describe("withAudit", () => {
     ]);
   });
 
+  test("returns the committed result and handles a rejected post-commit callback once", async () => {
+    const database = drizzle(appPool, { schema });
+    const observed: Array<{ auditCount: number; locale: string }> = [];
+    const onAfterCommitFailure = vi.fn(async () => undefined);
+
+    await expect(
+      withAudit(
+        database,
+        async (transaction) => {
+          await transaction
+            .update(userAccount)
+            .set({ uiLanguage: "en" })
+            .where(eq(userAccount.id, actorId));
+          return {
+            value: "committed",
+            audit: {
+              actorUserId: actorId,
+              action: "user_account.post_commit_test",
+              entityType: "UserAccount",
+              entityId: actorId,
+              companyId,
+              note: null,
+              before: { ui_language: "es" },
+              after: { ui_language: "en" },
+            },
+          };
+        },
+        {
+          occurredAt: changedAt,
+          afterCommit: async () => {
+            const state = await owner.query<{
+              audit_count: number;
+              ui_language: string;
+            }>(
+              `SELECT account.ui_language,
+                      count(audit.id)::int AS audit_count
+               FROM user_account account
+               LEFT JOIN audit_log audit
+                 ON audit.entity_id=account.id
+                AND audit.action='user_account.post_commit_test'
+               WHERE account.id=$1
+               GROUP BY account.ui_language`,
+              [actorId],
+            );
+            observed.push({
+              auditCount: state.rows[0]!.audit_count,
+              locale: state.rows[0]!.ui_language,
+            });
+            throw new Error("post-commit delivery failed");
+          },
+          onAfterCommitFailure,
+        },
+      ),
+    ).resolves.toBe("committed");
+
+    expect(observed).toEqual([{ auditCount: 1, locale: "en" }]);
+    expect(onAfterCommitFailure).toHaveBeenCalledOnce();
+    expect(onAfterCommitFailure).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "post-commit delivery failed" }),
+      "committed",
+    );
+    const committed = await owner.query(
+      "SELECT ui_language FROM user_account WHERE id=$1",
+      [actorId],
+    );
+    expect(committed.rows).toEqual([{ ui_language: "en" }]);
+  });
+
+  test("runs a successful post-commit callback once and does not invoke its failure handler", async () => {
+    const database = drizzle(appPool, { schema });
+    const afterCommit = vi.fn(async () => undefined);
+    const onAfterCommitFailure = vi.fn(async () => undefined);
+
+    await expect(
+      withAudit(
+        database,
+        async () => ({
+          value: "committed",
+          audit: {
+            actorUserId: actorId,
+            action: "user_account.post_commit_success_test",
+            entityType: "UserAccount",
+            entityId: actorId,
+            companyId,
+            note: null,
+            before: null,
+            after: null,
+          },
+        }),
+        {
+          occurredAt: changedAt,
+          afterCommit,
+          onAfterCommitFailure,
+        },
+      ),
+    ).resolves.toBe("committed");
+
+    expect(afterCommit).toHaveBeenCalledOnce();
+    expect(afterCommit).toHaveBeenCalledWith("committed");
+    expect(onAfterCommitFailure).not.toHaveBeenCalled();
+  });
+
+  test("contains and reports a post-commit failure-handler rejection", async () => {
+    const database = drizzle(appPool, { schema });
+    const reportFailure = vi.fn();
+
+    await expect(
+      withAudit(
+        database,
+        async () => ({
+          value: "committed",
+          audit: {
+            actorUserId: actorId,
+            action: "user_account.post_commit_handler_test",
+            entityType: "UserAccount",
+            entityId: actorId,
+            companyId,
+            note: null,
+            before: null,
+            after: null,
+          },
+        }),
+        {
+          occurredAt: changedAt,
+          afterCommit: async () => {
+            throw new Error("callback failed");
+          },
+          onAfterCommitFailure: async () => {
+            throw new Error("handler failed");
+          },
+          reportAfterCommitFailureHandlerError: reportFailure,
+        },
+      ),
+    ).resolves.toBe("committed");
+
+    expect(reportFailure).toHaveBeenCalledOnce();
+    expect(reportFailure).toHaveBeenCalledWith(
+      "POST_COMMIT_FAILURE_HANDLER_FAILED",
+    );
+  });
+
+  test("reports a failure-handler rejection through the default sanitized warning seam", async () => {
+    const database = drizzle(appPool, { schema });
+    const emitWarning = vi
+      .spyOn(process, "emitWarning")
+      .mockImplementation(() => undefined);
+
+    try {
+      await expect(
+        withAudit(
+          database,
+          async () => ({
+            value: "committed",
+            audit: {
+              actorUserId: actorId,
+              action: "user_account.post_commit_default_report_test",
+              entityType: "UserAccount",
+              entityId: actorId,
+              companyId,
+              note: null,
+              before: null,
+              after: null,
+            },
+          }),
+          {
+            occurredAt: changedAt,
+            afterCommit: async () => {
+              throw new Error("callback failed");
+            },
+            onAfterCommitFailure: async () => {
+              throw new Error("handler failed");
+            },
+          },
+        ),
+      ).resolves.toBe("committed");
+      expect(emitWarning).toHaveBeenCalledOnce();
+      expect(emitWarning).toHaveBeenCalledWith(
+        "POST_COMMIT_FAILURE_HANDLER_FAILED",
+      );
+    } finally {
+      emitWarning.mockRestore();
+    }
+  });
+
   test("rolls back the domain mutation when the audit insert fails", async () => {
     const database = drizzle(appPool, { schema });
+    const afterCommit = vi.fn(async () => undefined);
+    const onAfterCommitFailure = vi.fn(async () => undefined);
     await owner.query(`
       CREATE FUNCTION reject_shared_audit() RETURNS trigger AS $$
       BEGIN
@@ -123,25 +317,29 @@ describe("withAudit", () => {
 
     try {
       await expect(
-        withAudit(database, async (transaction) => {
-          await transaction
-            .update(userAccount)
-            .set({ uiLanguage: "en" })
-            .where(eq(userAccount.id, rollbackActorId));
-          return {
-            value: undefined,
-            audit: {
-              actorUserId: rollbackActorId,
-              action: "user_account.ui_language.updated",
-              entityType: "UserAccount",
-              entityId: rollbackActorId,
-              companyId: null,
-              note: null,
-              before: { ui_language: "es" },
-              after: { ui_language: "en" },
-            },
-          };
-        }),
+        withAudit(
+          database,
+          async (transaction) => {
+            await transaction
+              .update(userAccount)
+              .set({ uiLanguage: "en" })
+              .where(eq(userAccount.id, rollbackActorId));
+            return {
+              value: undefined,
+              audit: {
+                actorUserId: rollbackActorId,
+                action: "user_account.ui_language.updated",
+                entityType: "UserAccount",
+                entityId: rollbackActorId,
+                companyId: null,
+                note: null,
+                before: { ui_language: "es" },
+                after: { ui_language: "en" },
+              },
+            };
+          },
+          { afterCommit, onAfterCommitFailure },
+        ),
       ).rejects.toThrow("forced shared audit failure");
 
       const account = await owner.query(
@@ -149,6 +347,8 @@ describe("withAudit", () => {
         [rollbackActorId],
       );
       expect(account.rows).toEqual([{ ui_language: "es" }]);
+      expect(afterCommit).not.toHaveBeenCalled();
+      expect(onAfterCommitFailure).not.toHaveBeenCalled();
     } finally {
       await owner.query(`
         DROP TRIGGER reject_shared_audit ON audit_log;

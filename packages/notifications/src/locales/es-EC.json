@@ -1,0 +1,56 @@
+{
+  "alert": {
+    "subject": "Alerta de Ledger: {type}",
+    "text": "Ledger detectó {type} para {subject}. Abre Ledger para revisarla.",
+    "html": "<p>Ledger detectó <strong>{type}</strong> para {subject}.</p><p>Abre Ledger para revisarla.</p>"
+  },
+  "approvalAging": {
+    "unassignedApprover": "sin aprobador actual de la compañía",
+    "reminder": {
+      "subject": "Recordatorio de aprobación: {requestNo}",
+      "text": "La solicitud {requestNo} para {companyName} espera la aprobación de {approverName} desde hace 24 horas hábiles. Abre Ledger para revisarla.",
+      "html": "<p>La solicitud <strong>{requestNo}</strong> para {companyName} espera la aprobación de {approverName} desde hace <strong>24 horas hábiles</strong>.</p><p>Abre Ledger para revisarla.</p>"
+    },
+    "escalation": {
+      "subject": "Escalación de aprobación: {requestNo}",
+      "text": "La solicitud {requestNo} para {companyName} espera la aprobación de {approverName} desde hace 48 horas hábiles. Abre Ledger para revisarla.",
+      "html": "<p>La solicitud <strong>{requestNo}</strong> para {companyName} espera la aprobación de {approverName} desde hace <strong>48 horas hábiles</strong>.</p><p>Abre Ledger para revisarla.</p>"
+    }
+  },
+  "lifecycle": {
+    "submission": {
+      "subject": "Solicitud recibida: {requestNo}",
+      "text": "Hola {requesterName}. Recibimos tu solicitud {requestNo} para {companyName}. Estado: {state}. Revísala en {url}",
+      "html": "<p>Hola {requesterName}.</p><p>Recibimos tu solicitud <strong>{requestNo}</strong> para {companyName}. Estado: <strong>{state}</strong>.</p><p><a href=\"{url}\">Ver solicitud</a></p>"
+    },
+    "new_request_to_approver": {
+      "subject": "Nueva solicitud por aprobar: {requestNo}",
+      "text": "La solicitud {requestNo} de {requesterName} para {companyName} está {state}. Revísala en {url}",
+      "html": "<p>La solicitud <strong>{requestNo}</strong> de {requesterName} para {companyName} está <strong>{state}</strong>.</p><p><a href=\"{url}\">Revisar solicitud</a></p>"
+    },
+    "decision": {
+      "subject": "Decisión de tu solicitud: {requestNo}",
+      "text": "Hola {requesterName}. Tu solicitud {requestNo} ahora está {state}. Revisa el detalle en {url}",
+      "html": "<p>Hola {requesterName}.</p><p>Tu solicitud <strong>{requestNo}</strong> ahora está <strong>{state}</strong>.</p><p><a href=\"{url}\">Ver detalle</a></p>"
+    },
+    "provisioning_complete": {
+      "subject": "Tu acceso está listo: {requestNo}",
+      "text": "Hola {requesterName}. Tu solicitud {requestNo} está {state}. Para comenzar, abre Ledger y revisa los datos de tu acceso: {url}",
+      "html": "<p>Hola {requesterName}.</p><p>Tu solicitud <strong>{requestNo}</strong> está <strong>{state}</strong>.</p><p>Para comenzar, abre Ledger y revisa los datos de tu acceso.</p><p><a href=\"{url}\">Ver solicitud</a></p>"
+    }
+  },
+  "status": {
+    "submitted": "Enviada",
+    "pending_approval": "Pendiente de aprobación",
+    "approved": "Aprobada",
+    "blocked_no_seat": "Bloqueada: sin licencia disponible",
+    "provisioning": "Aprovisionando",
+    "failed": "Fallida",
+    "invited": "Invitación enviada",
+    "active": "Activa",
+    "flagged_inactive": "Marcada inactiva",
+    "offboarding": "En retiro",
+    "deprovisioned": "Retirada",
+    "rejected": "Rechazada"
+  }
+}

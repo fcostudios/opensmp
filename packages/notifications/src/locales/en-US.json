@@ -1,0 +1,56 @@
+{
+  "alert": {
+    "subject": "Ledger alert: {type}",
+    "text": "Ledger detected {type} for {subject}. Open Ledger to review it.",
+    "html": "<p>Ledger detected <strong>{type}</strong> for {subject}.</p><p>Open Ledger to review it.</p>"
+  },
+  "approvalAging": {
+    "unassignedApprover": "no current company approver",
+    "reminder": {
+      "subject": "Approval reminder: {requestNo}",
+      "text": "Request {requestNo} for {companyName} has awaited approval from {approverName} for 24 business hours. Open Ledger to review it.",
+      "html": "<p>Request <strong>{requestNo}</strong> for {companyName} has awaited approval from {approverName} for <strong>24 business hours</strong>.</p><p>Open Ledger to review it.</p>"
+    },
+    "escalation": {
+      "subject": "Approval escalation: {requestNo}",
+      "text": "Request {requestNo} for {companyName} has awaited approval from {approverName} for 48 business hours. Open Ledger to review it.",
+      "html": "<p>Request <strong>{requestNo}</strong> for {companyName} has awaited approval from {approverName} for <strong>48 business hours</strong>.</p><p>Open Ledger to review it.</p>"
+    }
+  },
+  "lifecycle": {
+    "submission": {
+      "subject": "Request received: {requestNo}",
+      "text": "Hello {requesterName}. We received request {requestNo} for {companyName}. Status: {state}. Review it at {url}",
+      "html": "<p>Hello {requesterName}.</p><p>We received request <strong>{requestNo}</strong> for {companyName}. Status: <strong>{state}</strong>.</p><p><a href=\"{url}\">View request</a></p>"
+    },
+    "new_request_to_approver": {
+      "subject": "New request to approve: {requestNo}",
+      "text": "Request {requestNo} from {requesterName} for {companyName} is {state}. Review it at {url}",
+      "html": "<p>Request <strong>{requestNo}</strong> from {requesterName} for {companyName} is <strong>{state}</strong>.</p><p><a href=\"{url}\">Review request</a></p>"
+    },
+    "decision": {
+      "subject": "Decision on your request: {requestNo}",
+      "text": "Hello {requesterName}. Your request {requestNo} is now {state}. Review the details at {url}",
+      "html": "<p>Hello {requesterName}.</p><p>Your request <strong>{requestNo}</strong> is now <strong>{state}</strong>.</p><p><a href=\"{url}\">View details</a></p>"
+    },
+    "provisioning_complete": {
+      "subject": "Your access is ready: {requestNo}",
+      "text": "Hello {requesterName}. Your request {requestNo} is {state}. For getting started, open Ledger and review your access details: {url}",
+      "html": "<p>Hello {requesterName}.</p><p>Your request <strong>{requestNo}</strong> is <strong>{state}</strong>.</p><p>For getting started, open Ledger and review your access details.</p><p><a href=\"{url}\">View request</a></p>"
+    }
+  },
+  "status": {
+    "submitted": "Submitted",
+    "pending_approval": "Pending approval",
+    "approved": "Approved",
+    "blocked_no_seat": "Blocked: no license available",
+    "provisioning": "Provisioning",
+    "failed": "Failed",
+    "invited": "Invitation sent",
+    "active": "Active",
+    "flagged_inactive": "Flagged inactive",
+    "offboarding": "Offboarding",
+    "deprovisioned": "Deprovisioned",
+    "rejected": "Rejected"
+  }
+}

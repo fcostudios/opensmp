@@ -1,0 +1,35 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "vitest": { "configFile": "apps/web/vitest.us012.config.ts", "related": false },
+  "ignorePatterns": ["docs/**", ".stryker-tmp/**", ".tmp/**"],
+  "inPlace": true,
+  "testFiles": [
+    "packages/contracts/src/requests.test.ts",
+    "apps/web/src/components/requests/domain-suggestion.test.ts",
+    "apps/web/src/components/requests/request-detail-feedback.test.tsx",
+    "apps/web/src/components/requests/request-submission-client.test.ts",
+    "apps/web/src/components/requests/request-submission-controller.integration.test.tsx",
+    "apps/web/src/modules/request-workflow/budget-math.test.ts",
+    "apps/web/src/modules/request-workflow/repository.integration.test.ts"
+  ],
+  "coverageAnalysis": "off",
+  "reporters": ["clear-text", "json"],
+  "mutate": [
+    "packages/contracts/src/requests.ts",
+    "apps/web/src/components/requests/domain-suggestion.ts",
+    "apps/web/src/components/requests/request-detail-feedback.tsx",
+    "apps/web/src/components/requests/request-submission-client.ts",
+    "apps/web/src/components/requests/request-submission-controller.ts",
+    "apps/web/src/modules/request-workflow/budget-math.ts",
+    "apps/web/src/modules/request-workflow/actions/submit-request-policy.ts",
+    "apps/web/src/modules/request-workflow/repository.ts"
+  ],
+  "concurrency": 1,
+  "timeoutMS": 15000,
+  "timeoutFactor": 2,
+  "thresholds": { "high": 100, "low": 100, "break": 100 },
+  "tempDirName": ".tmp/stryker-us012"
+}

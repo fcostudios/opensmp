@@ -9,6 +9,7 @@ const fixtures: PostgresFixture[] = [];
 const expectedTables = [
   "activity_record",
   "alert_event",
+  "alert_notification_delivery",
   "alert_rule",
   "audit_log",
   "close_run",
@@ -19,6 +20,8 @@ const expectedTables = [
   "license_assignment",
   "license_request",
   "license_type",
+  "lifecycle_notification",
+  "lifecycle_notification_delivery",
   "person",
   "provisioning_action",
   "rate_card",
@@ -40,7 +43,7 @@ afterEach(async () => {
 });
 
 describe("US-003 physical schema parity", () => {
-  test("materializes exactly 26 domain tables and the documented company scope", async () => {
+  test("materializes the domain plus durable-notification tables and documented company scope", async () => {
     const fixture = await createPostgresFixture();
     fixtures.push(fixture);
     await fixture.migrate();
@@ -103,6 +106,7 @@ describe("US-003 physical schema parity", () => {
             'company_role_assignment',
             'license_assignment',
             'license_request',
+            'lifecycle_notification',
             'person',
             'statement'
           )
@@ -116,6 +120,7 @@ describe("US-003 physical schema parity", () => {
         { table_name: "company_role_assignment", is_nullable: "NO" },
         { table_name: "license_assignment", is_nullable: "NO" },
         { table_name: "license_request", is_nullable: "NO" },
+        { table_name: "lifecycle_notification", is_nullable: "NO" },
         { table_name: "person", is_nullable: "NO" },
         { table_name: "statement", is_nullable: "NO" },
       ]);
@@ -127,6 +132,7 @@ describe("US-003 physical schema parity", () => {
         { source_table: "company_role_assignment", target_table: "company" },
         { source_table: "license_assignment", target_table: "company" },
         { source_table: "license_request", target_table: "company" },
+        { source_table: "lifecycle_notification", target_table: "company" },
         { source_table: "person", target_table: "company" },
         { source_table: "statement", target_table: "company" },
       ]);

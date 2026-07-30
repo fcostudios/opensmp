@@ -1,5 +1,16 @@
-import { Pool, type PoolClient } from "pg";
-import type { JobName } from "@smp/domain";
+import { Pool } from "pg";
+import {
+  alertSubjectDestination,
+  type JobName,
+} from "@smp/domain";
+import {
+  createAlertNotificationOutbox,
+  createSmtpMailer,
+  createStableMessageId,
+  renderAlertNotification,
+  type NotificationLocale,
+  type NotificationMailer,
+} from "@smp/notifications";
 
 export type OperationalAlertType = "credential_failure" | "sync_stale";
 
@@ -8,14 +19,20 @@ type CodedError = {
 };
 
 export function classifyJobFailure(error: unknown): OperationalAlertType | null {
-  const code = error && typeof error === "object" ? (error as CodedError).code : undefined;
-  if (typeof code !== "string") return null;
-
-  if (["AUTH_FAILED", "CREDENTIAL_FAILURE", "INVALID_CREDENTIALS", "UNAUTHORIZED"].includes(code)) {
-    return "credential_failure";
+  const code = (error as CodedError | null | undefined)?.code;
+  switch (code) {
+    case "AUTH_FAILED":
+    case "CREDENTIAL_FAILURE":
+    case "INVALID_CREDENTIALS":
+    case "UNAUTHORIZED":
+      return "credential_failure";
+    case "ETIMEDOUT":
+    case "SYNC_STALE":
+    case "TIMEOUT":
+      return "sync_stale";
+    default:
+      return null;
   }
-  if (["ETIMEDOUT", "SYNC_STALE", "TIMEOUT"].includes(code)) return "sync_stale";
-  return null;
 }
 
 export type JobFailureAlertInput = {
@@ -29,6 +46,7 @@ export type JobFailureAlertInput = {
 export type JobFailureAlertResult =
   | { status: "created" }
   | { status: "deduplicated" }
+  | { status: "invalid_scope" }
   | { status: "no_matching_rule" };
 
 export type JobFailureAlertReporter = {
@@ -36,23 +54,24 @@ export type JobFailureAlertReporter = {
   report(input: JobFailureAlertInput): Promise<JobFailureAlertResult>;
 };
 
+export function operationalAlertErrorCode(
+  originalCode: string,
+  outcome: JobFailureAlertResult,
+): string {
+  if (outcome.status === "no_matching_rule") {
+    return `${originalCode}_alert_rule_not_found`;
+  }
+  if (outcome.status === "invalid_scope") {
+    return `${originalCode}_alert_invalid_scope`;
+  }
+  return originalCode;
+}
+
 type AlertRuleRow = {
   id: string;
 };
 
-type AlertEventRow = {
-  id: string;
-};
-
-type FailureSubject = {
-  bucket: string;
-  companyId: string | null;
-  failureType: OperationalAlertType;
-  jobName: JobName;
-  vendorAccountId: string | null;
-};
-
-const FIFTEEN_MINUTES_MS = 15 * 60 * 1_000;
+const FIFTEEN_MINUTES_MS = 900_000;
 
 /**
  * Reports operational worker failures through the seeded, enabled AlertRule.
@@ -62,70 +81,136 @@ const FIFTEEN_MINUTES_MS = 15 * 60 * 1_000;
  * report idempotent for that type/scope/subject/15-minute bucket even when
  * pg-boss retries it concurrently.
  */
-export function createJobFailureAlertReporter(connectionString: string): JobFailureAlertReporter {
+export function createJobFailureAlertReporter(
+  options: {
+    connectionString: string;
+    mailer?: NotificationMailer;
+    smtpUrl?: string;
+    workerId: string;
+  },
+): JobFailureAlertReporter {
   const pool = new Pool({
     application_name: "ledger-worker",
-    connectionString,
+    connectionString: options.connectionString,
   });
+  const outbox = createAlertNotificationOutbox(options.connectionString);
+  let mailer = options.mailer;
 
   return {
     close: async () => {
-      await pool.end();
+      await Promise.all([pool.end(), outbox.close()]);
     },
 
     async report(input): Promise<JobFailureAlertResult> {
-      const subject = createFailureSubject(input);
-      const client = await pool.connect();
+      if (!input.vendorAccountId?.trim()) return { status: "invalid_scope" };
+      const subject = { vendorAccountId: input.vendorAccountId };
+      alertSubjectDestination(input.failureType, subject);
+      const rule = await findMatchingRule(pool, input);
+      if (!rule) return { status: "no_matching_rule" };
+      const bucket = createFailureTimeBucket(input.occurredAt);
+      const dedupeKey =
+        `${rule.id}:worker-failure:${input.failureType}:${input.vendorAccountId}:${bucket}`;
+      const event = await outbox.enqueue({
+        alertRuleId: rule.id,
+        dedupeKey,
+        firedAt: new Date(bucket),
+        subjectRef: subject,
+      });
+      const claim = await outbox.claim({
+        alertEventId: event.id,
+        at: input.occurredAt,
+        leaseMs: 5 * 60_000,
+        workerId: options.workerId,
+      });
+      if (claim.status !== "claimed") return { status: "deduplicated" };
       try {
-        await client.query("BEGIN");
-        await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
-          `worker-alert:${JSON.stringify(subject)}`,
-        ]);
-
-        const rule = await findMatchingRule(client, input);
-        if (!rule) {
-          await client.query("COMMIT");
-          return { status: "no_matching_rule" };
-        }
-
-        const existing = await client.query<AlertEventRow>(
-          `SELECT id
-           FROM alert_event
-           WHERE alert_rule_id = $1
-             AND subject_ref = $2::jsonb
-           FOR UPDATE`,
-          [rule.id, JSON.stringify(subject)],
+        const settings = await loadSettings(pool);
+        const rendered = renderAlertNotification(
+          settings.locale,
+          input.failureType,
+          subject,
         );
-        if (existing.rowCount) {
-          await client.query("COMMIT");
-          return { status: "deduplicated" };
-        }
-
-        await client.query(
-          `INSERT INTO alert_event (alert_rule_id, fired_at, subject_ref, notified)
-           VALUES ($1, $2, $3::jsonb, '[]'::jsonb)`,
-          [rule.id, input.occurredAt, JSON.stringify(subject)],
+        mailer ??= createSmtpMailer(
+          options.smtpUrl ?? process.env.SMTP_URL ?? "",
         );
-        await client.query("COMMIT");
-        return { status: "created" };
+        const sent = await mailer.send({
+          from: settings.from,
+          html: rendered.html,
+          messageId: createStableMessageId(dedupeKey),
+          subject: rendered.subject,
+          text: rendered.text,
+          to: settings.to,
+        });
+        await outbox.completeSuccess({
+          accepted: sent.accepted,
+          alertEventId: event.id,
+          at: input.occurredAt,
+          attempt: claim.attempt,
+          claimToken: claim.claimToken,
+          providerMessageId: sent.providerMessageId,
+          workerId: options.workerId,
+        });
+        return {
+          status: event.status === "created" ? "created" : "deduplicated",
+        };
       } catch (error) {
-        await client.query("ROLLBACK").catch(() => undefined);
+        await outbox.completeFailure({
+          alertEventId: event.id,
+          at: input.occurredAt,
+          attempt: claim.attempt,
+          claimToken: claim.claimToken,
+          errorCode: errorCode(error),
+          workerId: options.workerId,
+        });
         throw error;
-      } finally {
-        client.release();
       }
     },
   };
 }
 
-export function createFailureSubject(input: JobFailureAlertInput): FailureSubject {
+type AlertSettings = {
+  from: string;
+  locale: NotificationLocale;
+  to: readonly string[];
+};
+
+async function loadSettings(pool: Pool): Promise<AlertSettings> {
+  const result = await pool.query<{ key: string; value: unknown }>(
+    `SELECT key, value
+     FROM system_setting
+     WHERE key = ANY($1)`,
+    [[
+      "notif_sender_email",
+      "notif_escalation_email",
+      "default_language",
+    ]],
+  );
+  const settings = new Map(result.rows.map(({ key, value }) => [key, value]));
+  const from = settings.get("notif_sender_email");
+  const escalation = settings.get("notif_escalation_email");
+  if (typeof from !== "string" || typeof escalation !== "string") {
+    throw Object.assign(new Error("notification settings are invalid"), {
+      code: "NOTIFICATION_SETTINGS_INVALID",
+    });
+  }
   return {
-    bucket: createFailureTimeBucket(input.occurredAt),
-    companyId: input.companyId ?? null,
-    failureType: input.failureType,
-    jobName: input.jobName,
-    vendorAccountId: input.vendorAccountId ?? null,
+    from,
+    locale: settings.get("default_language") === "en" ? "en-US" : "es-EC",
+    to: [escalation],
   };
+}
+
+function errorCode(error: unknown): string {
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    typeof error.code === "string"
+  ) {
+    return error.code.replaceAll(/[^A-Za-z0-9_-]/g, "_").slice(0, 64) ||
+      "ALERT_DELIVERY_FAILED";
+  }
+  return "ALERT_DELIVERY_FAILED";
 }
 
 export function createFailureTimeBucket(occurredAt: Date): string {
@@ -135,7 +220,7 @@ export function createFailureTimeBucket(occurredAt: Date): string {
 }
 
 async function findMatchingRule(
-  client: PoolClient,
+  client: Pool,
   input: JobFailureAlertInput,
 ): Promise<AlertRuleRow | undefined> {
   const result = await client.query<AlertRuleRow>(

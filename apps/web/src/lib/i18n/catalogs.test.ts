@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
 
-import enUs from "../../../messages/en-US.json";
-import esEc from "../../../messages/es-EC.json";
+import enUsRaw from "../../../messages/en-US.json";
+import esEcRaw from "../../../messages/es-EC.json";
+import { loadAppMessages } from "./messages";
 
 function leafPaths(value: unknown, prefix = ""): string[] {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -13,7 +14,11 @@ function leafPaths(value: unknown, prefix = ""): string[] {
 }
 
 describe("message catalogs", () => {
-  test("have recursive key parity and cover every shared workspace vocabulary", () => {
+  test("have recursive key parity and cover every shared workspace vocabulary", async () => {
+    const [enUs, esEc] = await Promise.all([
+      loadAppMessages("en-US"),
+      loadAppMessages("es-EC"),
+    ]);
     expect(leafPaths(esEc).sort()).toEqual(leafPaths(enUs).sort());
     expect(Object.keys(esEc)).toEqual(
       expect.arrayContaining([
@@ -23,6 +28,7 @@ describe("message catalogs", () => {
         "errors",
         "freshness",
         "loading",
+        "lifecycle",
         "money",
         "nav",
         "pages",
@@ -33,7 +39,8 @@ describe("message catalogs", () => {
     expect(Object.keys(esEc.status)).toHaveLength(12);
   });
 
-  test("locks the Ecuadorian Spanish request-state vocabulary", () => {
+  test("locks the Ecuadorian Spanish request-state vocabulary", async () => {
+    const esEc = await loadAppMessages("es-EC");
     expect(esEc.status).toEqual({
       submitted: "Enviada",
       pending_approval: "Pendiente de aprobación",
@@ -50,8 +57,26 @@ describe("message catalogs", () => {
     });
   });
 
+  test("localizes the stable checklist assignment-missing failure code", () => {
+    expect(enUsRaw.orchestration.exceptionAssignmentMissing).toBe(
+      "Member synchronization did not find the attested active assignment.",
+    );
+    expect(esEcRaw.orchestration.exceptionAssignmentMissing).toBe(
+      "La sincronización de miembros no encontró la asignación activa atestada.",
+    );
+  });
+
+  test("states only the register guarantees enforced by the database", () => {
+    expect(enUsRaw.register.integrityContent).toBe(
+      "The database prevents overlapping assignments and requires reallocation moves to remain contiguous. Review register-drift alerts when another attribution gap needs investigation.",
+    );
+    expect(esEcRaw.register.integrityContent).toBe(
+      "La base de datos impide asignaciones solapadas y exige continuidad en los movimientos por reasignación. Revisa las alertas de desvío del registro cuando otra brecha de atribución requiera investigación.",
+    );
+  });
+
   test("locks the complete bilingual shell vocabulary", () => {
-    expect(esEc.shell).toEqual({
+    expect(esEcRaw.shell).toEqual({
       administration: "ADMINISTRACIÓN",
       breadcrumbs: "Migas de pan",
       closeMenu: "Cerrar menú",
@@ -64,7 +89,7 @@ describe("message catalogs", () => {
       skipToContent: "Saltar al contenido",
       userMenu: "Cuenta de usuario",
     });
-    expect(enUs.shell).toEqual({
+    expect(enUsRaw.shell).toEqual({
       administration: "ADMINISTRATION",
       breadcrumbs: "Breadcrumbs",
       closeMenu: "Close menu",

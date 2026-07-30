@@ -39,7 +39,7 @@ Capacity model: 2 FTEs, AI-assisted; target ≈ 30–40 SP/week-sprint (velocity
 | US-015 | Approval queue: one-minute decisions | 3 | US-014 |
 | US-016 | Lifecycle notifications (email) | 2 | US-012, US-003 |
 | US-033 | The register surface + export | 3 | US-007 |
-| US-042 | Alert engine: 8 P0 types | 3 | US-046, US-003 |
+| US-042 | Alert engine: 10 P0 types | 3 | US-046, US-003 |
 | US-017 | Approval aging: reminder + escalation job | 2 | US-015, US-042, US-046 |
 | US-022 | Per-org pool tracking + low-pool alert | 3 | US-007, US-042 |
 | US-045 | Connector interface + orchestration routing | 3 | US-003 |

@@ -1,6 +1,13 @@
 import { execFile, spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -16,6 +23,13 @@ const runnerPath = join(packageRoot, "scripts/apply-migrations.mjs");
 const parityPath = join(packageRoot, "scripts/check-migration-parity.mjs");
 const verifyPath = join(packageRoot, "scripts/verify-schema.mjs");
 const bootstrapPath = join(packageRoot, "scripts/ci-bootstrap.sql");
+const committedMigrationsPath = join(packageRoot, "src/migrations");
+const pendingRemoveVerifierFilename =
+  "V20260727095000__verify_pending_remove_idempotency.sql";
+const pendingRemoveVerifierError =
+  "Pending remove idempotency verifier failed: uq_provisioning_action_pending_remove_request exact index";
+const crossOrgPrivilegeVerifierFilename =
+  "V20260728125700__verify_cross_org_move_runtime_privileges.sql";
 
 let container: StartedPostgreSqlContainer;
 let clusterAdminUrl: string;
@@ -180,6 +194,28 @@ async function runCiBootstrap({
 
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+async function copyCommittedMigrationPrefix(
+  destination: string,
+  lastFilename: string,
+): Promise<void> {
+  const filenames = (await readdir(committedMigrationsPath))
+    .filter(
+      (filename) =>
+        filename.startsWith("V") &&
+        filename.endsWith(".sql") &&
+        filename.localeCompare(lastFilename) <= 0,
+    )
+    .sort((left, right) => left.localeCompare(right));
+  await Promise.all(
+    filenames.map((filename) =>
+      copyFile(
+        join(committedMigrationsPath, filename),
+        join(destination, filename),
+      ),
+    ),
+  );
 }
 
 async function waitForConcurrentAdvisoryLocks(databaseName: string): Promise<boolean> {
@@ -586,6 +622,607 @@ describe("committed migration release path", () => {
     }
   }, 30_000);
 
+  test("enforces one pending remove per request without blocking other action states or kinds", async () => {
+    const database = await createDatabase();
+    const client = new pg.Client({ connectionString: database.ownerUrl });
+    const systemUserId = "00000000-0000-0000-0000-000000000001";
+    const companyId = "00000000-0000-0000-0000-000000000401";
+    const personId = "00000000-0000-0000-0000-000000000402";
+    const vendorId = "00000000-0000-0000-0000-000000000403";
+    const vendorAccountId = "00000000-0000-0000-0000-000000000404";
+    const licenseTypeId = "00000000-0000-0000-0000-000000000405";
+    const requestId = "00000000-0000-0000-0000-000000000406";
+    try {
+      await migrate(database.ownerUrl);
+      await client.connect();
+      await client.query(
+        `INSERT INTO company
+           (id, name, code, type, status, created_at, created_by)
+         VALUES ($1, 'Boundary Company', 'BOUNDARY', 'internal', 'active', now(), $2)`,
+        [companyId, systemUserId],
+      );
+      await client.query(
+        `INSERT INTO person
+           (id, email, full_name, company_id, status, created_at, created_by)
+         VALUES ($1, 'boundary@example.com', 'Boundary Person', $2, 'active', now(), $3)`,
+        [personId, companyId, systemUserId],
+      );
+      await client.query(
+        `INSERT INTO vendor
+           (id, name, connector_type, provisioning_protocol,
+            can_provision, can_deprovision, has_usage_data, has_cost_data,
+            identity_matching, status, created_at, created_by)
+         VALUES ($1, 'Boundary Vendor', 'orchestration', 'none',
+                 false, true, false, false, 'email', 'active', now(), $2)`,
+        [vendorId, systemUserId],
+      );
+      await client.query(
+        `INSERT INTO vendor_account
+           (id, vendor_id, name, mode, low_pool_floor, status, created_at, created_by)
+         VALUES ($1, $2, 'Boundary Account', 'orchestration', 0, 'active', now(), $3)`,
+        [vendorAccountId, vendorId, systemUserId],
+      );
+      await client.query(
+        `INSERT INTO license_type
+           (id, vendor_id, name, unit, status, created_at, created_by)
+         VALUES ($1, $2, 'Boundary License', 'seat', 'active', now(), $3)`,
+        [licenseTypeId, vendorId, systemUserId],
+      );
+      await client.query(
+        `INSERT INTO license_request
+           (id, request_no, person_id, company_id, vendor_account_id,
+            license_type_id, state, justification, created_at, created_by)
+         VALUES ($1, 'BOUNDARY-REMOVE-1', $2, $3, $4, $5,
+                 'offboarding', 'boundary test', now(), $6)`,
+        [
+          requestId,
+          personId,
+          companyId,
+          vendorAccountId,
+          licenseTypeId,
+          systemUserId,
+        ],
+      );
+
+      const first = await client.query(
+        `INSERT INTO provisioning_action
+           (id, request_id, vendor_account_id, kind, mode, status, created_at)
+         VALUES
+           ('00000000-0000-0000-0000-000000000407', $1, $2,
+            'remove', 'orchestration', 'pending', now())`,
+        [requestId, vendorAccountId],
+      );
+      expect(first.rowCount).toBe(1);
+
+      await expect(
+        client.query(
+          `INSERT INTO provisioning_action
+             (id, request_id, vendor_account_id, kind, mode, status, created_at)
+           VALUES
+             ('00000000-0000-0000-0000-000000000408', $1, $2,
+              'remove', 'orchestration', 'pending', now())`,
+          [requestId, vendorAccountId],
+        ),
+      ).rejects.toMatchObject({
+        code: "23505",
+        constraint: "uq_provisioning_action_pending_remove_request",
+      });
+
+      await client.query(
+        `INSERT INTO provisioning_action
+           (id, request_id, vendor_account_id, kind, mode, status, created_at)
+         VALUES
+           ('00000000-0000-0000-0000-000000000409', $1, $2,
+            'remove', 'orchestration', 'sent', now()),
+           ('00000000-0000-0000-0000-000000000410', $1, $2,
+            'invite', 'orchestration', 'pending', now())`,
+        [requestId, vendorAccountId],
+      );
+      const allowed = await client.query(
+        `SELECT id::text, kind, status
+           FROM provisioning_action
+          WHERE request_id = $1
+          ORDER BY id`,
+        [requestId],
+      );
+      expect(allowed.rows).toEqual([
+        {
+          id: "00000000-0000-0000-0000-000000000407",
+          kind: "remove",
+          status: "pending",
+        },
+        {
+          id: "00000000-0000-0000-0000-000000000409",
+          kind: "remove",
+          status: "sent",
+        },
+        {
+          id: "00000000-0000-0000-0000-000000000410",
+          kind: "invite",
+          status: "pending",
+        },
+      ]);
+    } finally {
+      await client.end().catch(() => undefined);
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test("allows one provision and one deprovision checklist while rejecting same-operation duplicates", async () => {
+    const database = await createDatabase();
+    const client = new pg.Client({ connectionString: database.ownerUrl });
+    const systemUserId = "00000000-0000-0000-0000-000000000001";
+    const companyId = "00000000-0000-4000-8000-000000000801";
+    const personId = "00000000-0000-4000-8000-000000000802";
+    const vendorId = "00000000-0000-4000-8000-000000000803";
+    const vendorAccountId = "00000000-0000-4000-8000-000000000804";
+    const licenseTypeId = "00000000-0000-4000-8000-000000000805";
+    const requestId = "00000000-0000-4000-8000-000000000806";
+    try {
+      await migrate(database.ownerUrl);
+      await client.connect();
+      await client.query(
+        `INSERT INTO company
+           (id,name,code,type,status,created_at,created_by)
+         VALUES ($1,'Operation Company','OP-COMPANY','internal','active',now(),$2)`,
+        [companyId, systemUserId],
+      );
+      await client.query(
+        `INSERT INTO person
+           (id,email,full_name,company_id,status,created_at,created_by)
+         VALUES ($1,'operation@example.test','Operation Person',$2,'active',now(),$3)`,
+        [personId, companyId, systemUserId],
+      );
+      await client.query(
+        `INSERT INTO vendor
+           (id,name,connector_type,provisioning_protocol,can_provision,
+            can_deprovision,has_usage_data,has_cost_data,identity_matching,
+            status,created_at,created_by)
+         VALUES ($1,'Operation Vendor','orchestration','none',false,false,
+                 false,false,'email','active',now(),$2)`,
+        [vendorId, systemUserId],
+      );
+      await client.query(
+        `INSERT INTO vendor_account
+           (id,vendor_id,name,mode,low_pool_floor,status,created_at,created_by)
+         VALUES ($1,$2,'Operation Account','orchestration',0,'active',now(),$3)`,
+        [vendorAccountId, vendorId, systemUserId],
+      );
+      await client.query(
+        `INSERT INTO license_type
+           (id,vendor_id,name,unit,status,created_at,created_by)
+         VALUES ($1,$2,'Operation License','seat','active',now(),$3)`,
+        [licenseTypeId, vendorId, systemUserId],
+      );
+      await client.query(
+        `INSERT INTO license_request
+           (id,request_no,person_id,company_id,vendor_account_id,license_type_id,
+            state,justification,created_at,created_by)
+         VALUES ($1,'OPERATION-1',$2,$3,$4,$5,'provisioning','operation test',
+                 now(),$6)`,
+        [
+          requestId,
+          personId,
+          companyId,
+          vendorAccountId,
+          licenseTypeId,
+          systemUserId,
+        ],
+      );
+      await client.query(
+        `INSERT INTO provisioning_action
+           (id,request_id,vendor_account_id,kind,mode,status,raw_request,created_at)
+         VALUES
+           ('00000000-0000-4000-8000-000000000807',$1,$2,'checklist',
+            'orchestration','pending','{"operation":"provision"}',now()),
+           ('00000000-0000-4000-8000-000000000808',$1,$2,'checklist',
+            'orchestration','pending','{"operation":"deprovision"}',now()),
+           ('00000000-0000-4000-8000-000000000809',$1,$2,'remove',
+            'orchestration','pending','{"operation":"deprovision"}',now())`,
+        [requestId, vendorAccountId],
+      );
+      await expect(
+        client.query(
+          `INSERT INTO provisioning_action
+             (id,request_id,vendor_account_id,kind,mode,status,raw_request,created_at)
+           VALUES
+             ('00000000-0000-4000-8000-000000000810',$1,$2,'checklist',
+              'orchestration','pending','{"operation":"provision"}',now())`,
+          [requestId, vendorAccountId],
+        ),
+      ).rejects.toMatchObject({
+        code: "23505",
+        constraint:
+          "uq_provisioning_action_orchestration_checklist_operation",
+      });
+      await expect(
+        client.query(
+          `INSERT INTO provisioning_action
+             (id,request_id,vendor_account_id,kind,mode,status,raw_request,created_at)
+           VALUES
+             ('00000000-0000-4000-8000-000000000811',$1,$2,'remove',
+              'orchestration','pending','{"operation":"deprovision"}',now())`,
+          [requestId, vendorAccountId],
+        ),
+      ).rejects.toMatchObject({
+        code: "23505",
+        constraint: "uq_provisioning_action_pending_remove_request",
+      });
+    } finally {
+      await client.end().catch(() => undefined);
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test("deterministically backfills request idempotency keys before enforcing uniqueness", async () => {
+    const database = await createDatabase();
+    const prefixMigrations = await mkdtemp(
+      join(tmpdir(), "ledger-request-idempotency-prefix-"),
+    );
+    const client = new pg.Client({ connectionString: database.ownerUrl });
+    const systemUserId = "00000000-0000-0000-0000-000000000001";
+    const companyId = "00000000-0000-4000-8000-000000000701";
+    const personId = "00000000-0000-4000-8000-000000000702";
+    const vendorId = "00000000-0000-4000-8000-000000000703";
+    const vendorAccountId = "00000000-0000-4000-8000-000000000704";
+    const licenseTypeId = "00000000-0000-4000-8000-000000000705";
+    const requestId = "00000000-0000-4000-8000-000000000706";
+    try {
+      await copyCommittedMigrationPrefix(
+        prefixMigrations,
+        "V20260728125700__verify_cross_org_move_runtime_privileges.sql",
+      );
+      const prefixResult = await runNode(runnerPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+        MIGRATIONS_DIR: prefixMigrations,
+      });
+      expect(prefixResult.code, prefixResult.stderr).toBe(0);
+
+      await client.connect();
+      await client.query(
+        `INSERT INTO company
+           (id, name, code, type, status, created_at, created_by)
+         VALUES ($1, 'Idempotency Company', 'IDEMPOTENCY', 'internal',
+                 'active', now(), $2)`,
+        [companyId, systemUserId],
+      );
+      await client.query(
+        `INSERT INTO person
+           (id, email, full_name, company_id, status, created_at, created_by)
+         VALUES ($1, 'idempotency@example.test', 'Idempotency Person', $2,
+                 'active', now(), $3)`,
+        [personId, companyId, systemUserId],
+      );
+      await client.query(
+        `INSERT INTO vendor
+           (id, name, connector_type, provisioning_protocol,
+            can_provision, can_deprovision, has_usage_data, has_cost_data,
+            identity_matching, status, created_at, created_by)
+         VALUES ($1, 'Idempotency Vendor', 'orchestration', 'none',
+                 false, false, false, false, 'email', 'active', now(), $2)`,
+        [vendorId, systemUserId],
+      );
+      await client.query(
+        `INSERT INTO vendor_account
+           (id, vendor_id, name, mode, low_pool_floor, status, created_at, created_by)
+         VALUES ($1, $2, 'Idempotency Account', 'orchestration', 0,
+                 'active', now(), $3)`,
+        [vendorAccountId, vendorId, systemUserId],
+      );
+      await client.query(
+        `INSERT INTO license_type
+           (id, vendor_id, name, unit, status, created_at, created_by)
+         VALUES ($1, $2, 'Idempotency License', 'seat', 'active', now(), $3)`,
+        [licenseTypeId, vendorId, systemUserId],
+      );
+      await client.query(
+        `INSERT INTO license_request
+           (id, request_no, person_id, company_id, vendor_account_id,
+            license_type_id, state, justification, requested_by,
+            created_at, created_by)
+         VALUES ($1, 'IDEMPOTENCY-LEGACY-1', $2, $3, $4, $5, 'submitted',
+                 'legacy request', $6, now(), $6)`,
+        [
+          requestId,
+          personId,
+          companyId,
+          vendorAccountId,
+          licenseTypeId,
+          systemUserId,
+        ],
+      );
+
+      const upgrade = await runNode(runnerPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+      });
+      expect(upgrade.code, upgrade.stderr).toBe(0);
+
+      const backfilled = await client.query<{
+        client_request_id: string;
+        is_nullable: string;
+      }>(
+        `SELECT request.client_request_id::text,
+                column_state.is_nullable
+           FROM license_request request
+           JOIN information_schema.columns column_state
+             ON column_state.table_schema = 'public'
+            AND column_state.table_name = 'license_request'
+            AND column_state.column_name = 'client_request_id'
+          WHERE request.id = $1`,
+        [requestId],
+      );
+      expect(backfilled.rows).toEqual([
+        { client_request_id: requestId, is_nullable: "NO" },
+      ]);
+
+      await expect(
+        client.query(
+          `INSERT INTO license_request
+             (id, request_no, person_id, company_id, vendor_account_id,
+              license_type_id, state, justification, requested_by,
+              client_request_id, created_at, created_by)
+           VALUES (
+             '00000000-0000-4000-8000-000000000707',
+             'IDEMPOTENCY-DUPLICATE-1', $1, $2, $3, $4, 'submitted',
+             'duplicate request', $5, $6, now(), $5
+           )`,
+          [
+            personId,
+            companyId,
+            vendorAccountId,
+            licenseTypeId,
+            systemUserId,
+            requestId,
+          ],
+        ),
+      ).rejects.toMatchObject({
+        code: "23505",
+        constraint: "uq_license_request_requester_client_request",
+      });
+    } finally {
+      await client.end().catch(() => undefined);
+      await rm(prefixMigrations, { recursive: true, force: true });
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test.each([
+    {
+      name: "workflow enum values in a non-canonical order",
+      injectedSql: `
+        ALTER TYPE alert_rule_type_enum ADD VALUE 'close_missed';
+        ALTER TYPE alert_rule_type_enum ADD VALUE 'deprovision_overdue';
+      `,
+      expectedError:
+        "Sprint 2 workflow guard verification failed: alert_rule_type_enum labels/order",
+      expectedPreviousVerificationCount: "0",
+    },
+    {
+      name: "an incompatible dedupe column",
+      injectedSql:
+        "ALTER TABLE alert_event ADD COLUMN dedupe_key varchar(20) DEFAULT 'unexpected'",
+      expectedError:
+        "Sprint 2 workflow guard verification failed: alert_event.dedupe_key column",
+      expectedPreviousVerificationCount: "0",
+    },
+    {
+      name: "an incompatible alert dedupe index",
+      injectedSql: `
+        ALTER TABLE alert_event ADD COLUMN dedupe_key text;
+        CREATE UNIQUE INDEX uq_alert_event_dedupe_key
+          ON alert_event (id)
+          WHERE id IS NOT NULL;
+      `,
+      expectedError:
+        "Sprint 2 workflow guard verification failed: uq_alert_event_dedupe_key index",
+      expectedPreviousVerificationCount: "0",
+    },
+    {
+      name: "an incompatible person email index",
+      injectedSql:
+        "CREATE UNIQUE INDEX uq_person_lower_email ON person (email)",
+      expectedError:
+        "Sprint 2 workflow guard verification failed: uq_person_lower_email index",
+      expectedPreviousVerificationCount: "0",
+    },
+    {
+      name: "an incompatible request number unique object",
+      injectedSql: `
+        ALTER TABLE license_request
+          DROP CONSTRAINT uq_license_request_request_no;
+        CREATE UNIQUE INDEX uq_license_request_request_no
+          ON license_request (id);
+      `,
+      expectedError:
+        "Sprint 2 workflow guard verification failed: uq_license_request_request_no constraint",
+      expectedPreviousVerificationCount: "0",
+    },
+    {
+      name: "a deferrable initially-deferred request number constraint",
+      injectedSql: `
+        ALTER TABLE license_request
+          DROP CONSTRAINT uq_license_request_request_no;
+        ALTER TABLE license_request
+          ADD CONSTRAINT uq_license_request_request_no
+          UNIQUE (request_no)
+          DEFERRABLE INITIALLY DEFERRED;
+      `,
+      expectedError:
+        "Sprint 2 request number verification failed: uq_license_request_request_no must be immediate",
+      expectedPreviousVerificationCount: "1",
+    },
+  ])(
+    "fails closed after the original guard migration encounters $name",
+    async ({
+      injectedSql,
+      expectedError,
+      expectedPreviousVerificationCount,
+    }) => {
+      const database = await createDatabase();
+      const prefixMigrations = await mkdtemp(
+        join(tmpdir(), "ledger-sprint2-prefix-"),
+      );
+      const client = new pg.Client({ connectionString: database.ownerUrl });
+      try {
+        await copyCommittedMigrationPrefix(
+          prefixMigrations,
+          "V20260726002000__vendor_import_natural_keys.sql",
+        );
+        const prefixResult = await runNode(runnerPath, {
+          DATABASE_ADMIN_URL: database.ownerUrl,
+          MIGRATIONS_DIR: prefixMigrations,
+        });
+        expect(prefixResult.code, prefixResult.stderr).toBe(0);
+
+        await client.connect();
+        await client.query(injectedSql);
+
+        const upgradeResult = await runNode(runnerPath, {
+          DATABASE_ADMIN_URL: database.ownerUrl,
+        });
+        expect(upgradeResult.code).not.toBe(0);
+        expect(upgradeResult.stderr).toContain(expectedError);
+
+        const ledger = await client.query<{
+          guard_count: string;
+          previous_verification_count: string;
+          immediate_verification_count: string;
+        }>(
+          `
+            SELECT
+              count(*) FILTER (
+                WHERE filename = 'V20260727090000__sprint2_workflow_guards.sql'
+              )::text AS guard_count,
+              count(*) FILTER (
+                WHERE filename = 'V20260727091000__verify_sprint2_workflow_guards.sql'
+              )::text AS previous_verification_count,
+              count(*) FILTER (
+                WHERE filename = 'V20260727092000__verify_request_number_immediacy.sql'
+              )::text AS immediate_verification_count
+            FROM ledger_schema_migrations
+          `,
+        );
+        expect(ledger.rows).toEqual([
+          {
+            guard_count: "1",
+            previous_verification_count: expectedPreviousVerificationCount,
+            immediate_verification_count: "0",
+          },
+        ]);
+      } finally {
+        await client.end().catch(() => undefined);
+        await rm(prefixMigrations, { recursive: true, force: true });
+        await dropDatabase(database.name);
+      }
+    },
+    30_000,
+  );
+
+  test("rejects semantic global alert threshold drift without consulting rule IDs", async () => {
+    const database = await createDatabase();
+    const owner = new pg.Client({ connectionString: database.ownerUrl });
+    try {
+      await migrate(database.ownerUrl);
+      await owner.connect();
+      await owner.query(
+        `UPDATE alert_rule
+         SET threshold = '{"floor":999}'::jsonb
+         WHERE type = 'low_pool' AND scope_kind = 'global'`,
+      );
+      const result = await runNode(verifyPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+        DATABASE_URL: database.appUrl,
+      });
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain("global alert semantic defaults mismatch");
+    } finally {
+      await owner.end().catch(() => undefined);
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test.each([
+    {
+      name: "a missing pending-remove index",
+      injectedSql:
+        "DROP INDEX uq_provisioning_action_pending_remove_request",
+    },
+    {
+      name: "a wrong pending-remove index key",
+      injectedSql: `
+        DROP INDEX uq_provisioning_action_pending_remove_request;
+        CREATE UNIQUE INDEX uq_provisioning_action_pending_remove_request
+          ON provisioning_action (id)
+          WHERE kind = 'remove' AND status = 'pending';
+      `,
+    },
+    {
+      name: "a wrong pending-remove predicate",
+      injectedSql: `
+        DROP INDEX uq_provisioning_action_pending_remove_request;
+        CREATE UNIQUE INDEX uq_provisioning_action_pending_remove_request
+          ON provisioning_action (request_id)
+          WHERE kind = 'remove';
+      `,
+    },
+  ])(
+    "fails closed and leaves the verifier unrecorded after $name",
+    async ({ injectedSql }) => {
+      const database = await createDatabase();
+      const prefixMigrations = await mkdtemp(
+        join(tmpdir(), "ledger-pending-remove-prefix-"),
+      );
+      const client = new pg.Client({ connectionString: database.ownerUrl });
+      try {
+        await copyCommittedMigrationPrefix(
+          prefixMigrations,
+          "V20260727094000__pending_remove_idempotency.sql",
+        );
+        const prefixResult = await runNode(runnerPath, {
+          DATABASE_ADMIN_URL: database.ownerUrl,
+          MIGRATIONS_DIR: prefixMigrations,
+        });
+        expect(prefixResult.code, prefixResult.stderr).toBe(0);
+
+        await client.connect();
+        await client.query(injectedSql);
+
+        const upgradeResult = await runNode(runnerPath, {
+          DATABASE_ADMIN_URL: database.ownerUrl,
+        });
+        expect(upgradeResult.code).not.toBe(0);
+        expect(upgradeResult.stderr).toContain(pendingRemoveVerifierError);
+
+        const verifierSql = await readFile(
+          join(committedMigrationsPath, pendingRemoveVerifierFilename),
+          "utf8",
+        );
+        await expect(client.query(verifierSql)).rejects.toMatchObject({
+          code: "23514",
+          constraint:
+            "uq_provisioning_action_pending_remove_request",
+          message: pendingRemoveVerifierError,
+        });
+
+        const ledger = await client.query<{ verifier_count: string }>(
+          `
+            SELECT count(*) FILTER (
+              WHERE filename = $1
+            )::text AS verifier_count
+            FROM ledger_schema_migrations
+          `,
+          [pendingRemoveVerifierFilename],
+        );
+        expect(ledger.rows).toEqual([{ verifier_count: "0" }]);
+      } finally {
+        await client.end().catch(() => undefined);
+        await rm(prefixMigrations, { recursive: true, force: true });
+        await dropDatabase(database.name);
+      }
+    },
+    30_000,
+  );
+
   test("rolls back migration SQL and its ledger record together", async () => {
     const database = await createDatabase();
     const migrations = await mkdtemp(join(tmpdir(), "ledger-migrations-"));
@@ -740,6 +1377,414 @@ describe("committed migration release path", () => {
     }
   }, 30_000);
 
+  test("fails the cross-org verifier when any required runtime privilege is revoked", async () => {
+    const database = await createDatabase();
+    const client = new pg.Client({ connectionString: database.ownerUrl });
+    const requiredPrivileges = [
+      ["license_request", "SELECT"],
+      ["license_request", "INSERT"],
+      ["license_request", "UPDATE"],
+      ["request_transition", "SELECT"],
+      ["request_transition", "INSERT"],
+      ["provisioning_action", "SELECT"],
+      ["provisioning_action", "INSERT"],
+      ["audit_log", "SELECT"],
+      ["audit_log", "INSERT"],
+      ["license_assignment", "SELECT"],
+      ["person", "SELECT"],
+      ["company", "SELECT"],
+      ["vendor_account", "SELECT"],
+      ["vendor", "SELECT"],
+      ["license_type", "SELECT"],
+    ] as const;
+    try {
+      const migrated = await runNode(runnerPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+      });
+      expect(migrated.code, migrated.stderr).toBe(0);
+      await client.connect();
+      const verifierSql = await readFile(
+        join(
+          committedMigrationsPath,
+          crossOrgPrivilegeVerifierFilename,
+        ),
+        "utf8",
+      );
+
+      for (const [tableName, privilege] of requiredPrivileges) {
+        await client.query(
+          `REVOKE ${privilege} ON TABLE "${tableName}" FROM ledger_app`,
+        );
+        try {
+          await expect(client.query(verifierSql)).rejects.toMatchObject({
+            code: "42501",
+            message:
+              `cross-org move runtime privilege verification failed: ${tableName} ${privilege}`,
+          });
+        } finally {
+          await client.query(
+            `GRANT ${privilege} ON TABLE "${tableName}" TO ledger_app`,
+          );
+        }
+      }
+      await expect(client.query(verifierSql)).resolves.toMatchObject({
+        command: "DO",
+      });
+    } finally {
+      await client.end().catch(() => undefined);
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test("upgrades a pre-Sprint-2 semantic global alert row without losing its AlertEvent", async () => {
+    const database = await createDatabase();
+    const prefixMigrations = await mkdtemp(
+      join(tmpdir(), "ledger-alert-seed-prefix-"),
+    );
+    const legacyRuleId = "00000000-0000-4000-8000-000000009999";
+    const legacyEventId = "00000000-0000-4000-8000-000000009998";
+    const client = new pg.Client({ connectionString: database.ownerUrl });
+    try {
+      await copyCommittedMigrationPrefix(
+        prefixMigrations,
+        "V20260726002000__vendor_import_natural_keys.sql",
+      );
+      const prefixResult = await runNode(runnerPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+        MIGRATIONS_DIR: prefixMigrations,
+      });
+      expect(prefixResult.code, prefixResult.stderr).toBe(0);
+
+      await client.connect();
+      await client.query(
+        `INSERT INTO alert_rule
+           (id, type, scope_kind, threshold, channel, enabled, created_at, created_by)
+         VALUES
+           ($1, 'low_pool', 'global', '{"floor":2}', 'email', false,
+            '2025-01-01T00:00:00Z', '00000000-0000-0000-0000-000000000001')`,
+        [legacyRuleId],
+      );
+      await client.query(
+        `INSERT INTO alert_event
+           (id, alert_rule_id, fired_at, subject_ref, notified)
+         VALUES
+           ($1, $2, '2025-01-02T00:00:00Z', '{"vendorAccountId":"legacy"}',
+            '{"status":"pending"}')`,
+        [legacyEventId, legacyRuleId],
+      );
+
+      const upgrade = await runNode(runnerPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+      });
+      expect(upgrade.code, upgrade.stderr).toBe(0);
+      const rerun = await runNode(runnerPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+      });
+      expect(rerun.code, rerun.stderr).toBe(0);
+
+      const state = await client.query<{
+        global_count: number;
+        threshold: unknown;
+        enabled: boolean;
+        event_count: number;
+        event_rule_matches: boolean;
+      }>(
+        `SELECT
+           (SELECT count(*)::int FROM alert_rule WHERE scope_kind = 'global')
+             AS global_count,
+           rule.threshold,
+           rule.enabled,
+           count(event.id)::int AS event_count,
+           bool_and(event.alert_rule_id = rule.id) AS event_rule_matches
+         FROM alert_rule rule
+         JOIN alert_event event ON event.id = $1
+         WHERE rule.type = 'low_pool' AND rule.scope_kind = 'global'
+         GROUP BY rule.id, rule.threshold, rule.enabled`,
+        [legacyEventId],
+      );
+      expect(state.rows).toEqual([
+        {
+          enabled: true,
+          event_count: 1,
+          event_rule_matches: true,
+          global_count: 10,
+          threshold: { floor: 5 },
+        },
+      ]);
+    } finally {
+      await client.end().catch(() => undefined);
+      await rm(prefixMigrations, { recursive: true, force: true });
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test("upgrades legacy deprovision thresholds to the same-business-day shape", async () => {
+    const database = await createDatabase();
+    const prefixMigrations = await mkdtemp(
+      join(tmpdir(), "ledger-deprovision-prefix-"),
+    );
+    const client = new pg.Client({ connectionString: database.ownerUrl });
+    try {
+      await copyCommittedMigrationPrefix(
+        prefixMigrations,
+        "V20260727101003__verify_alert_delivery_journal_hardening.sql",
+      );
+      const prefixResult = await runNode(runnerPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+        MIGRATIONS_DIR: prefixMigrations,
+      });
+      expect(prefixResult.code, prefixResult.stderr).toBe(0);
+
+      await client.connect();
+      await client.query(
+        `INSERT INTO company
+           (id, name, code, type, status, created_at, created_by)
+         VALUES
+           ('00000000-0000-4000-8000-000000008201', 'Legacy deadline',
+            'LEGACY-DEADLINE', 'internal', 'active', now(),
+            '00000000-0000-0000-0000-000000000001');
+         INSERT INTO alert_rule
+           (id, type, scope_kind, company_id, threshold, channel, enabled,
+            created_at, created_by)
+         VALUES
+           ('00000000-0000-4000-8000-000000008202', 'deprovision_overdue',
+            'company', '00000000-0000-4000-8000-000000008201',
+            '{"hours":24}', 'email', true, now(),
+            '00000000-0000-0000-0000-000000000001')`,
+      );
+
+      const upgrade = await runNode(runnerPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+      });
+      expect(upgrade.code, upgrade.stderr).toBe(0);
+      const thresholds = await client.query<{ threshold: unknown }>(
+        `SELECT threshold
+         FROM alert_rule
+         WHERE type = 'deprovision_overdue'
+         ORDER BY scope_kind, id`,
+      );
+      expect(thresholds.rows).toEqual([
+        { threshold: { businessDays: 0 } },
+        { threshold: { businessDays: 0 } },
+      ]);
+    } finally {
+      await client.end().catch(() => undefined);
+      await rm(prefixMigrations, { recursive: true, force: true });
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test("upgrades only canonical legacy approval-aging defaults", async () => {
+    const database = await createDatabase();
+    const prefixMigrations = await mkdtemp(
+      join(tmpdir(), "ledger-approval-aging-prefix-"),
+    );
+    const client = new pg.Client({ connectionString: database.ownerUrl });
+    try {
+      await copyCommittedMigrationPrefix(
+        prefixMigrations,
+        "V20260728140000__lifecycle_notification_outbox.sql",
+      );
+      const prefixResult = await runNode(runnerPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+        MIGRATIONS_DIR: prefixMigrations,
+      });
+      expect(prefixResult.code, prefixResult.stderr).toBe(0);
+
+      await client.connect();
+      await client.query(
+        `INSERT INTO company
+           (id, name, code, type, status, created_at, created_by)
+         VALUES
+           ('00000000-0000-4000-8000-000000008211', 'Legacy approval',
+            'LEGACY-APPROVAL', 'internal', 'active', now(),
+            '00000000-0000-0000-0000-000000000001');
+         INSERT INTO alert_rule
+           (id, type, scope_kind, company_id, threshold, channel, enabled,
+            created_at, created_by)
+         VALUES
+           ('00000000-0000-4000-8000-000000008212', 'approval_aging',
+            'company', '00000000-0000-4000-8000-000000008211',
+            '{"hours":24}', 'email', true, now(),
+           '00000000-0000-0000-0000-000000000001'),
+           ('00000000-0000-4000-8000-000000008213', 'approval_aging',
+            'company', '00000000-0000-4000-8000-000000008211',
+            '{"hours":12}', 'email', true, now(),
+            '00000000-0000-0000-0000-000000000001')`,
+      );
+
+      const upgrade = await runNode(runnerPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+      });
+      expect(upgrade.code, upgrade.stderr).toBe(0);
+      const thresholds = await client.query<{
+        id: string;
+        threshold: unknown;
+      }>(
+        `SELECT id::text, threshold
+         FROM alert_rule
+         WHERE id IN (
+           '00000000-0000-4000-8000-000000004201',
+           '00000000-0000-4000-8000-000000008212',
+           '00000000-0000-4000-8000-000000008213'
+         )
+         ORDER BY id`,
+      );
+      expect(thresholds.rows).toEqual([
+        {
+          id: "00000000-0000-4000-8000-000000004201",
+          threshold: { hours: 24, escalationHours: 48 },
+        },
+        {
+          id: "00000000-0000-4000-8000-000000008212",
+          threshold: { hours: 24, escalationHours: 48 },
+        },
+        {
+          id: "00000000-0000-4000-8000-000000008213",
+          threshold: { hours: 12 },
+        },
+      ]);
+    } finally {
+      await client.end().catch(() => undefined);
+      await rm(prefixMigrations, { recursive: true, force: true });
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test("schema verification detects legacy deprovision threshold drift", async () => {
+    const database = await createDatabase();
+    const client = new pg.Client({ connectionString: database.ownerUrl });
+    try {
+      await migrate(database.ownerUrl);
+      await client.connect();
+      await client.query(
+        `UPDATE alert_rule
+         SET threshold = '{"hours":24}'::jsonb
+         WHERE type = 'deprovision_overdue' AND scope_kind = 'global'`,
+      );
+      const verified = await runNode(verifyPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+        DATABASE_URL: database.appUrl,
+      });
+      expect(verified.code).not.toBe(0);
+      expect(verified.stderr).toContain(
+        "global alert semantic defaults mismatch",
+      );
+    } finally {
+      await client.end().catch(() => undefined);
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test("fences alert delivery journal transitions behind controlled functions", async () => {
+    const database = await createDatabase();
+    const owner = new pg.Client({ connectionString: database.ownerUrl });
+    const application = new pg.Client({ connectionString: database.appUrl });
+    const eventId = "00000000-0000-4000-8000-000000008001";
+    try {
+      await migrate(database.ownerUrl);
+      await Promise.all([owner.connect(), application.connect()]);
+      await owner.query(
+        `INSERT INTO alert_event
+           (id, alert_rule_id, fired_at, subject_ref, notified, dedupe_key)
+         SELECT $1, id, '2026-07-27T12:00:00Z',
+                '{"requestId":"fenced"}', '{"status":"pending"}', 'fenced-event'
+         FROM alert_rule
+         WHERE type = 'approval_aging' AND scope_kind = 'global'`,
+        [eventId],
+      );
+
+      await expect(
+        application.query(
+          `INSERT INTO alert_notification_delivery
+             (alert_event_id, attempt, phase, occurred_at)
+           VALUES ($1, 0, 'pending', '2026-07-27T12:00:00Z')`,
+          [eventId],
+        ),
+      ).rejects.toMatchObject({ code: "42501" });
+
+      await application.query(
+        "SELECT append_alert_delivery_pending($1, '2026-07-27T12:00:00Z')",
+        [eventId],
+      );
+      await expect(
+        application.query(
+          `SELECT complete_alert_delivery(
+             $1, 1, '00000000-0000-4000-8000-000000008098',
+             '2026-07-27T12:00:01Z',
+             'failed', NULL, NULL, 'forged')`,
+          [eventId],
+        ),
+      ).rejects.toMatchObject({ code: "55000" });
+
+      const claim = await application.query<{
+        attempt: number;
+        claim_token: string;
+      }>(
+        `SELECT * FROM claim_alert_delivery(
+           $1, '2026-07-27T12:00:01Z', '2026-07-27T12:01:01Z', 'worker-a')`,
+        [eventId],
+      );
+      expect(claim.rows).toEqual([
+        { attempt: 1, claim_token: expect.any(String) },
+      ]);
+      const claimToken = claim.rows[0]!.claim_token;
+
+      await expect(
+        application.query(
+          `SELECT complete_alert_delivery(
+             $1, 1, $2, '2026-07-27T12:00:02Z',
+             'failed', NULL, NULL, 'forged')`,
+          [eventId, "00000000-0000-4000-8000-000000008099"],
+        ),
+      ).rejects.toMatchObject({ code: "55000" });
+      await expect(
+        application.query(
+          `SELECT claim_alert_delivery(
+             $1, '2026-07-27T12:00:03Z', '2026-07-27T12:01:03Z', 'worker-b')`,
+          [eventId],
+        ),
+      ).rejects.toMatchObject({ code: "55000" });
+
+      await application.query(
+        `SELECT complete_alert_delivery(
+           $1, 1, $2, '2026-07-27T12:00:04Z',
+           'succeeded', 'smtp-fenced', '["admin@corporativo.ec"]', NULL)`,
+        [eventId, claimToken],
+      );
+      await expect(
+        application.query(
+          `SELECT complete_alert_delivery(
+             $1, 1, $2, '2026-07-27T12:00:05Z',
+             'failed', NULL, NULL, 'late-forgery')`,
+          [eventId, claimToken],
+        ),
+      ).rejects.toMatchObject({ code: "55000" });
+
+      const journal = await owner.query<{
+        attempt: number;
+        phase: string;
+      }>(
+        `SELECT attempt, phase::text
+         FROM alert_notification_delivery
+         WHERE alert_event_id = $1
+         ORDER BY attempt, occurred_at`,
+        [eventId],
+      );
+      expect(journal.rows).toEqual([
+        { attempt: 0, phase: "pending" },
+        { attempt: 1, phase: "claimed" },
+        { attempt: 1, phase: "succeeded" },
+      ]);
+    } finally {
+      await Promise.all([
+        owner.end().catch(() => undefined),
+        application.end().catch(() => undefined),
+      ]);
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
   test("requires ledger_owner and ledger_app identities and both URLs", async () => {
     const database = await createDatabase();
     try {
@@ -776,6 +1821,7 @@ describe("committed migration release path", () => {
   }, 30_000);
 
   test.each([
+    ["INSERT", "alert_notification_delivery"],
     ["DELETE", "company"],
     ["UPDATE", "audit_log"],
     ["UPDATE", "license_assignment"],
@@ -804,6 +1850,95 @@ describe("committed migration release path", () => {
       await dropDatabase(database.name);
     }
   }, 30_000);
+
+  test.each([
+    [
+      "function security",
+      "ALTER FUNCTION append_alert_delivery_pending(uuid, timestamptz) SET search_path = public",
+      "alert delivery function integrity mismatch",
+    ],
+    [
+      "function body",
+      `CREATE OR REPLACE FUNCTION append_alert_delivery_pending(
+         p_alert_event_id uuid, p_occurred_at timestamptz
+       )
+       RETURNS void LANGUAGE plpgsql SECURITY DEFINER
+       SET search_path = pg_catalog, public
+       AS $$ BEGIN RETURN; END; $$`,
+      "alert delivery function integrity mismatch",
+    ],
+    [
+      "function PUBLIC execute",
+      "GRANT EXECUTE ON FUNCTION append_alert_delivery_pending(uuid, timestamptz) TO PUBLIC",
+      "alert delivery function integrity mismatch",
+    ],
+    [
+      "recipient function body",
+      `CREATE OR REPLACE FUNCTION claim_alert_recipient_delivery(
+         p_alert_event_id uuid,
+         p_recipient_key text,
+         p_occurred_at timestamptz,
+         p_lease_expires_at timestamptz,
+         p_worker_id text
+       )
+       RETURNS TABLE(attempt integer, claim_token uuid)
+       LANGUAGE plpgsql SECURITY DEFINER
+       SET search_path = pg_catalog, public
+       AS $$ BEGIN RETURN; END; $$`,
+      "recipient alert delivery function integrity mismatch",
+    ],
+    [
+      "transition trigger",
+      "ALTER TABLE alert_notification_delivery DISABLE TRIGGER trg_alert_notification_delivery_validate_insert",
+      "alert delivery transition trigger mismatch",
+    ],
+    [
+      "claim fence index",
+      "DROP INDEX idx_alert_notification_delivery_claim_fence",
+      "alert delivery/seed index integrity mismatch",
+    ],
+    [
+      "claim fence constraint",
+      "ALTER TABLE alert_notification_delivery DROP CONSTRAINT ck_alert_notification_delivery_claim_fence",
+      "alert delivery claim-fence constraint mismatch",
+    ],
+    [
+      "recipient constraint",
+      "ALTER TABLE alert_notification_delivery DROP CONSTRAINT ck_alert_notification_delivery_recipient",
+      "recipient alert delivery constraint integrity mismatch",
+    ],
+    [
+      "recipient attempt-phase index",
+      "DROP INDEX uq_alert_notification_delivery_attempt_phase",
+      "alert delivery/seed index integrity mismatch",
+    ],
+    [
+      "recipient succeeded index",
+      "DROP INDEX uq_alert_notification_delivery_succeeded",
+      "alert delivery/seed index integrity mismatch",
+    ],
+  ])(
+    "rejects alert delivery $name drift",
+    async (_name, mutationSql, expectedError) => {
+      const database = await createDatabase();
+      const owner = new pg.Client({ connectionString: database.ownerUrl });
+      try {
+        await migrate(database.ownerUrl);
+        await owner.connect();
+        await owner.query(mutationSql);
+        const result = await runNode(verifyPath, {
+          DATABASE_ADMIN_URL: database.ownerUrl,
+          DATABASE_URL: database.appUrl,
+        });
+        expect(result.code).not.toBe(0);
+        expect(result.stderr).toContain(expectedError);
+      } finally {
+        await owner.end().catch(() => undefined);
+        await dropDatabase(database.name);
+      }
+    },
+    30_000,
+  );
 
   test("rejects a forbidden ledger_app column privilege", async () => {
     const database = await createDatabase();
@@ -975,20 +2110,18 @@ describe("committed migration release path", () => {
       "register exclusion integrity mismatch",
     ],
     [
-      "the source-request uniqueness constraint",
-      "ALTER TABLE license_assignment DROP CONSTRAINT uq_license_assignment_source_request_id",
-      "source-request uniqueness integrity mismatch",
+      "the source-request lookup index",
+      "DROP INDEX idx_license_assignment_source_request_id",
+      "source-request lookup index integrity mismatch",
     ],
     [
-      "source-request nullable uniqueness semantics",
+      "source-request lookup index uniqueness",
       `
-        ALTER TABLE license_assignment
-          DROP CONSTRAINT uq_license_assignment_source_request_id;
-        ALTER TABLE license_assignment
-          ADD CONSTRAINT uq_license_assignment_source_request_id
-          UNIQUE NULLS NOT DISTINCT (source_request_id);
+        DROP INDEX idx_license_assignment_source_request_id;
+        CREATE UNIQUE INDEX idx_license_assignment_source_request_id
+          ON license_assignment (source_request_id);
       `,
-      "source-request uniqueness integrity mismatch",
+      "source-request lookup index integrity mismatch",
     ],
     [
       "the register exclusion range boundary",
@@ -1154,6 +2287,52 @@ describe("committed migration release path", () => {
       "the pending-proposal partial index",
       "DROP INDEX reclamation_proposal_one_pending_per_assignment",
       "reclamation pending-index integrity mismatch",
+    ],
+    [
+      "the pending-remove partial index",
+      "DROP INDEX uq_provisioning_action_pending_remove_request",
+      "pending-remove index integrity mismatch",
+    ],
+    [
+      "the pending-remove partial index key",
+      `
+        DROP INDEX uq_provisioning_action_pending_remove_request;
+        CREATE UNIQUE INDEX uq_provisioning_action_pending_remove_request
+          ON provisioning_action (id)
+          WHERE kind = 'remove' AND status = 'pending';
+      `,
+      "pending-remove index integrity mismatch",
+    ],
+    [
+      "the pending-remove partial index predicate",
+      `
+        DROP INDEX uq_provisioning_action_pending_remove_request;
+        CREATE UNIQUE INDEX uq_provisioning_action_pending_remove_request
+          ON provisioning_action (request_id)
+          WHERE kind = 'remove';
+      `,
+      "pending-remove index integrity mismatch",
+    ],
+    [
+      "the request idempotency column nullability",
+      "ALTER TABLE license_request ALTER COLUMN client_request_id DROP NOT NULL",
+      "request-idempotency integrity mismatch",
+    ],
+    [
+      "the request idempotency compatibility default",
+      "ALTER TABLE license_request ALTER COLUMN client_request_id DROP DEFAULT",
+      "request-idempotency integrity mismatch",
+    ],
+    [
+      "the request idempotency key order",
+      `
+        ALTER TABLE license_request
+          DROP CONSTRAINT uq_license_request_requester_client_request;
+        ALTER TABLE license_request
+          ADD CONSTRAINT uq_license_request_requester_client_request
+          UNIQUE (client_request_id, requested_by);
+      `,
+      "request-idempotency integrity mismatch",
     ],
     [
       "the seeded system defaults",
@@ -1360,8 +2539,307 @@ describe("migration parity", () => {
       databaseAdminUrl: ownerAdminUrl,
       applicationUrl: appAdminUrl,
     });
-    expect(structure.tables).toHaveLength(26);
-    expect(structure.foreignKeys).toHaveLength(70);
+    expect(structure.tables).toHaveLength(29);
+    expect(structure.foreignKeys).toHaveLength(76);
+    expect(
+      structure.enums.find(
+        ({ enum_name }: { enum_name: string }) =>
+          enum_name === "alert_rule_type_enum",
+      ),
+    ).toEqual({
+      enum_name: "alert_rule_type_enum",
+      labels: [
+        "approval_aging",
+        "provisioning_failure",
+        "blocked_no_seat",
+        "low_pool",
+        "invite_unaccepted",
+        "sync_stale",
+        "credential_failure",
+        "register_drift",
+        "deprovision_overdue",
+        "close_missed",
+      ],
+    });
+    expect(structure.governedCheckConstraints).toEqual([
+      {
+        constraint_name: "ck_alert_notification_delivery_claim_fence",
+        definition:
+          "check(phase='pending'andclaim_tokenisnullor(phase=any(array['claimed','succeeded','failed']))andclaim_tokenisnotnull)",
+        is_validated: true,
+      },
+      {
+        constraint_name: "ck_alert_notification_delivery_recipient",
+        definition:
+          "check(btrim(recipient_key)<>''and(phase<>'pending'orrecipient_emailisnullorbtrim(recipient_email)<>''))",
+        is_validated: true,
+      },
+    ]);
+    expect(structure.governedUniqueObjects).toEqual([
+      {
+        index_name: "idx_alert_notification_delivery_claim_fence",
+        table_name: "alert_notification_delivery",
+        is_unique: false,
+        is_valid: true,
+        is_ready: true,
+        is_immediate: true,
+        key_count: 4,
+        attribute_count: 4,
+        access_method: "btree",
+        key_expressions: [
+          "alert_event_id",
+          "recipient_key",
+          "attempt",
+          "claim_token",
+        ],
+        predicate: null,
+        constraint_type: null,
+        constraint_deferrable: null,
+        constraint_initially_deferred: null,
+      },
+      {
+        index_name: "uq_alert_event_dedupe_key",
+        table_name: "alert_event",
+        is_unique: true,
+        is_valid: true,
+        is_ready: true,
+        is_immediate: true,
+        key_count: 1,
+        attribute_count: 1,
+        access_method: "btree",
+        key_expressions: ["dedupe_key"],
+        predicate: "dedupe_key IS NOT NULL",
+        constraint_type: null,
+        constraint_deferrable: null,
+        constraint_initially_deferred: null,
+      },
+      {
+        index_name: "uq_alert_notification_delivery_attempt_phase",
+        table_name: "alert_notification_delivery",
+        is_unique: true,
+        is_valid: true,
+        is_ready: true,
+        is_immediate: true,
+        key_count: 4,
+        attribute_count: 4,
+        access_method: "btree",
+        key_expressions: [
+          "alert_event_id",
+          "recipient_key",
+          "attempt",
+          "phase",
+        ],
+        predicate: null,
+        constraint_type: null,
+        constraint_deferrable: null,
+        constraint_initially_deferred: null,
+      },
+      {
+        index_name: "uq_alert_notification_delivery_succeeded",
+        table_name: "alert_notification_delivery",
+        is_unique: true,
+        is_valid: true,
+        is_ready: true,
+        is_immediate: true,
+        key_count: 2,
+        attribute_count: 2,
+        access_method: "btree",
+        key_expressions: ["alert_event_id", "recipient_key"],
+        predicate:
+          "phase = 'succeeded'::alert_notification_delivery_phase_enum",
+        constraint_type: null,
+        constraint_deferrable: null,
+        constraint_initially_deferred: null,
+      },
+      {
+        index_name: "uq_alert_rule_global_type",
+        table_name: "alert_rule",
+        is_unique: true,
+        is_valid: true,
+        is_ready: true,
+        is_immediate: true,
+        key_count: 1,
+        attribute_count: 1,
+        access_method: "btree",
+        key_expressions: ["type"],
+        predicate:
+          "scope_kind = 'global'::alert_rule_scope_kind_enum",
+        constraint_type: null,
+        constraint_deferrable: null,
+        constraint_initially_deferred: null,
+      },
+      {
+        index_name: "uq_license_request_request_no",
+        table_name: "license_request",
+        is_unique: true,
+        is_valid: true,
+        is_ready: true,
+        is_immediate: true,
+        key_count: 1,
+        attribute_count: 1,
+        access_method: "btree",
+        key_expressions: ["request_no"],
+        predicate: null,
+        constraint_type: "u",
+        constraint_deferrable: false,
+        constraint_initially_deferred: false,
+      },
+      {
+        index_name: "uq_license_request_requester_client_request",
+        table_name: "license_request",
+        is_unique: true,
+        is_valid: true,
+        is_ready: true,
+        is_immediate: true,
+        key_count: 2,
+        attribute_count: 2,
+        access_method: "btree",
+        key_expressions: ["requested_by", "client_request_id"],
+        predicate: null,
+        constraint_type: "u",
+        constraint_deferrable: false,
+        constraint_initially_deferred: false,
+      },
+      {
+        index_name: "uq_person_lower_email",
+        table_name: "person",
+        is_unique: true,
+        is_valid: true,
+        is_ready: true,
+        is_immediate: true,
+        key_count: 1,
+        attribute_count: 1,
+        access_method: "btree",
+        key_expressions: ["lower(email)"],
+        predicate: null,
+        constraint_type: null,
+        constraint_deferrable: null,
+        constraint_initially_deferred: null,
+      },
+      {
+        index_name:
+          "uq_provisioning_action_orchestration_checklist_operation",
+        table_name: "provisioning_action",
+        is_unique: true,
+        is_valid: true,
+        is_ready: true,
+        is_immediate: true,
+        key_count: 2,
+        attribute_count: 2,
+        access_method: "btree",
+        key_expressions: [
+          "request_id",
+          "(raw_request ->> 'operation'::text)",
+        ],
+        predicate:
+          "kind = 'checklist'::provisioning_action_kind_enum AND mode = 'orchestration'::provisioning_action_mode_enum AND ((raw_request ->> 'operation'::text) = ANY (ARRAY['provision'::text, 'deprovision'::text]))",
+        constraint_type: null,
+        constraint_deferrable: null,
+        constraint_initially_deferred: null,
+      },
+      {
+        index_name: "uq_provisioning_action_pending_remove_request",
+        table_name: "provisioning_action",
+        is_unique: true,
+        is_valid: true,
+        is_ready: true,
+        is_immediate: true,
+        key_count: 1,
+        attribute_count: 1,
+        access_method: "btree",
+        key_expressions: ["request_id"],
+        predicate:
+          "kind = 'remove'::provisioning_action_kind_enum AND status = 'pending'::provisioning_action_status_enum",
+        constraint_type: null,
+        constraint_deferrable: null,
+        constraint_initially_deferred: null,
+      },
+    ]);
+  }, 120_000);
+
+  test.each([
+    {
+      name: "enum-label drift",
+      driftSql:
+        "ALTER TYPE alert_rule_type_enum ADD VALUE 'parity_extra_value'",
+    },
+    {
+      name: "unique-index expression drift",
+      driftSql: `
+        DROP INDEX uq_person_lower_email;
+        CREATE UNIQUE INDEX uq_person_lower_email ON person (email);
+      `,
+    },
+    {
+      name: "partial-index predicate drift",
+      driftSql: `
+        DROP INDEX uq_alert_event_dedupe_key;
+        CREATE UNIQUE INDEX uq_alert_event_dedupe_key
+          ON alert_event (dedupe_key)
+          WHERE true;
+      `,
+    },
+    {
+      name: "deferrable request-number constraint drift",
+      driftSql: `
+        ALTER TABLE license_request
+          DROP CONSTRAINT uq_license_request_request_no;
+        ALTER TABLE license_request
+          ADD CONSTRAINT uq_license_request_request_no
+          UNIQUE (request_no)
+          DEFERRABLE INITIALLY DEFERRED;
+      `,
+    },
+    {
+      name: "request-idempotency key-order drift",
+      driftSql: `
+        ALTER TABLE license_request
+          DROP CONSTRAINT uq_license_request_requester_client_request;
+        ALTER TABLE license_request
+          ADD CONSTRAINT uq_license_request_requester_client_request
+          UNIQUE (client_request_id, requested_by);
+      `,
+    },
+    {
+      name: "pending-remove key drift",
+      driftSql: `
+        DROP INDEX uq_provisioning_action_pending_remove_request;
+        CREATE UNIQUE INDEX uq_provisioning_action_pending_remove_request
+          ON provisioning_action (id)
+          WHERE kind = 'remove' AND status = 'pending';
+      `,
+    },
+    {
+      name: "pending-remove predicate drift",
+      driftSql: `
+        DROP INDEX uq_provisioning_action_pending_remove_request;
+        CREATE UNIQUE INDEX uq_provisioning_action_pending_remove_request
+          ON provisioning_action (request_id)
+          WHERE kind = 'remove';
+      `,
+    },
+    {
+      name: "missing pending-remove index",
+      driftSql:
+        "DROP INDEX uq_provisioning_action_pending_remove_request",
+    },
+  ])("rejects $name", async ({ driftSql }) => {
+    const imported = await import(pathToFileURL(parityPath).href);
+    await expect(
+      imported.checkMigrationParity({
+        databaseAdminUrl: ownerAdminUrl,
+        applicationUrl: appAdminUrl,
+        beforeCompare: async ({ migrationUrl }: { migrationUrl: string }) => {
+          const client = new pg.Client({ connectionString: migrationUrl });
+          await client.connect();
+          try {
+            await client.query(driftSql);
+          } finally {
+            await client.end();
+          }
+        },
+      }),
+    ).rejects.toThrow("database schema parity mismatch");
   }, 120_000);
 
   test("disposable push URL wins over a conflicting local env file", async () => {
@@ -1382,7 +2860,7 @@ describe("migration parity", () => {
         }: {
           pushUrl: string;
         }) => {
-          expect(await applicationTableCount(pushUrl)).toBe(26);
+          expect(await applicationTableCount(pushUrl)).toBe(29);
           expect(await applicationTableCount(conflicting.ownerUrl)).toBe(0);
         },
       });

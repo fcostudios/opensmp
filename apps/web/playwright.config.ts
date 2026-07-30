@@ -2,7 +2,12 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: ["auth.spec.ts", "shell.spec.ts", "audit.spec.ts"],
+  testMatch: [
+    "auth.spec.ts",
+    "shell.spec.ts",
+    "audit.spec.ts",
+    "sprint2-orchestration.spec.ts",
+  ],
   globalSetup: "./e2e/auth.setup.ts",
   fullyParallel: false,
   workers: 1,

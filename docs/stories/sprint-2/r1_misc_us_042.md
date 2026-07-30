@@ -1,4 +1,4 @@
-# US-042: Alert engine: 8 P0 types
+# US-042: Alert engine: 10 P0 types
 
 > **Sprint 2** | **P0** | **3 SP** | **R1**
 
@@ -27,7 +27,7 @@ As a Group Admin (persona_01), I want to get email alerts for every failure clas
 ## Acceptance Criteria
 
 - [ ] AC1: AlertRule seed: approval_aging, provisioning_failure, blocked_no_seat, low_pool, invite_unaccepted, sync_stale, credential_failure, register_drift, deprovision_overdue, close_missed (enabled, thresholds)
-- [ ] AC2: 15-min evaluation job fires AlertEvent + email (sender from SystemSetting); dedupe within window
+- [ ] AC2: 15-min evaluation job fires AlertEvent + email (sender from SystemSetting); `dedupe_key = alert_rule_id + alert stage + stable subject identity + breach-window start` is UNIQUE, and retries use insert-on-conflict/no-op so each breach stage fires once
 - [ ] AC3: subject_ref carries the target for per-type link dispatch
 
 ## Notes

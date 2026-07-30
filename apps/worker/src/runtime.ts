@@ -6,16 +6,24 @@ import {
   type JobName,
   type JobResult,
 } from "@smp/domain";
+import {
+  createLifecycleNotificationDispatcher,
+  type LifecycleNotificationDispatcher,
+  type NotificationMailer,
+} from "@smp/notifications";
+import pg from "pg";
 import { PgBoss, type JobWithMetadata, type WorkOptions } from "pg-boss";
 
 import {
   classifyJobFailure,
   createJobFailureAlertReporter,
+  operationalAlertErrorCode,
   type JobFailureAlertReporter,
 } from "./alerts/report-job-failure.js";
 import { createDeferredJobHandlers } from "./jobs/deferred.js";
 import { createJobIdempotencyBoundary } from "./idempotency.js";
 import { createJobLogger, type JobLogger } from "./logger.js";
+import { createLifecycleNotificationDrainLoop } from "./lifecycle-notification-drain.js";
 import {
   createWorkerRuntimeHealth,
   WORKER_HEALTH_HEARTBEAT_INTERVAL_MS,
@@ -90,19 +98,61 @@ export type WorkerRuntimeOptions = {
   fatalHealthWriteTimeoutMs?: number;
   instanceId?: string;
   logger?: JobLogger;
+  lifecycleNotificationDrain?: {
+    batchSize?: number;
+    clearIntervalFn?: typeof clearInterval;
+    intervalMs?: number;
+    setIntervalFn?: typeof setInterval;
+  };
+  lifecycleNotificationPool?: pg.Pool;
+  notificationMailer?: NotificationMailer;
   now?: () => Date;
   onFatalError?: (error: unknown) => Promise<void> | void;
+  publicOrigin?: string;
+  smtpUrl?: string;
 };
 
 export function createWorkerRuntime(options: WorkerRuntimeOptions): WorkerRuntime {
   const logger = options.logger ?? createJobLogger();
   const now = options.now ?? (() => new Date());
-  const failureReporter = options.failureReporter ?? createJobFailureAlertReporter(options.connectionString);
-  const idempotency = createJobIdempotencyBoundary(options.connectionString);
   const instanceId = options.instanceId ?? workerInstanceIdFromEnvironment();
+  const failureReporter = options.failureReporter ??
+    createJobFailureAlertReporter({
+      connectionString: options.connectionString,
+      mailer: options.notificationMailer,
+      workerId: instanceId,
+    });
+  const idempotency = createJobIdempotencyBoundary(options.connectionString);
   const health = createWorkerRuntimeHealth(options.connectionString, instanceId);
+  const lifecycleDrain = createRuntimeLifecycleNotificationDrain({
+    ...options.lifecycleNotificationDrain,
+    connectionString: options.connectionString,
+    mailer: options.notificationMailer,
+    pool: options.lifecycleNotificationPool,
+    publicOrigin: options.publicOrigin,
+    smtpUrl: options.smtpUrl,
+    workerId: instanceId,
+    onError: (error) => {
+      const occurredAt = now();
+      logger.write({
+        attempt: 0,
+        durationMs: 0,
+        errorCode: redactErrorCode(error),
+        finishedAt: occurredAt.toISOString(),
+        jobId: "lifecycle-notification-drain",
+        jobName: "lifecycle-notification-drain",
+        processed: 0,
+        startedAt: occurredAt.toISOString(),
+        status: "failed",
+      });
+    },
+  });
   const handlers = {
-    ...createDeferredJobHandlers(options.calendar),
+    ...createDeferredJobHandlers(options.calendar, {
+      connectionString: options.connectionString,
+      mailer: options.notificationMailer,
+      workerId: instanceId,
+    }),
     ...options.handlers,
   } as Record<JobName, WorkerJobHandler>;
   const boss = new PgBoss({
@@ -207,12 +257,14 @@ export function createWorkerRuntime(options: WorkerRuntimeOptions): WorkerRuntim
             void health.touch(now()).catch((error) => latchFatalError(error));
           }, WORKER_HEALTH_HEARTBEAT_INTERVAL_MS);
           running = true;
+          lifecycleDrain.start();
         } catch (error) {
           await Promise.all([
             closeAfterFailedStart(boss, logger, now),
             failureReporter.close(),
             idempotency.close(),
             health.close(),
+            lifecycleDrain.stop(),
           ]);
           bossOpen = false;
           throw error;
@@ -241,7 +293,53 @@ export function createWorkerRuntime(options: WorkerRuntimeOptions): WorkerRuntim
         failureReporter.close(),
         idempotency.close(),
         health.close(),
+        lifecycleDrain.stop(),
       ]);
+    },
+  };
+}
+
+function createRuntimeLifecycleNotificationDrain(options: {
+  batchSize?: number;
+  clearIntervalFn?: typeof clearInterval;
+  connectionString: string;
+  intervalMs?: number;
+  mailer?: NotificationMailer;
+  onError: (error: unknown) => void;
+  pool?: pg.Pool;
+  publicOrigin?: string;
+  setIntervalFn?: typeof setInterval;
+  smtpUrl?: string;
+  workerId: string;
+}) {
+  const ownedPool =
+    options.pool ?? new pg.Pool({ connectionString: options.connectionString });
+  const dispatcher = createLifecycleNotificationDispatcher({
+    mailer: options.mailer,
+    pool: ownedPool,
+    publicOrigin: options.publicOrigin,
+    smtpUrl: options.smtpUrl,
+    workerId: options.workerId,
+  });
+  const drain = createLifecycleNotificationDrainLoop({
+    batchSize: options.batchSize,
+    clearIntervalFn: options.clearIntervalFn,
+    dispatcher,
+    intervalMs: options.intervalMs,
+    onError: options.onError,
+    setIntervalFn: options.setIntervalFn,
+  });
+
+  return {
+    start(): void {
+      drain.start();
+    },
+    async stop(): Promise<void> {
+      try {
+        await drain.stop();
+      } finally {
+        await ownedPool.end();
+      }
     },
   };
 }
@@ -330,6 +428,12 @@ async function runJob({
       execution.replayed && execution.result.status === "succeeded"
         ? { processed: 0, status: "succeeded" }
         : execution.result;
+    if (result.status === "failed") {
+      throw Object.assign(
+        new Error(`alert rule ${result.alertRuleId} failed`),
+        { code: result.errorCode },
+      );
+    }
     writeResultLog({ job, jobName, logger, result, startedAt, now });
   } catch (error) {
     const finishedAt = now();
@@ -380,7 +484,7 @@ async function reportOperationalFailure({
       jobName,
       occurredAt: finishedAt,
     });
-    return outcome.status === "no_matching_rule" ? `${originalCode}_alert_rule_not_found` : originalCode;
+    return operationalAlertErrorCode(originalCode, outcome);
   } catch {
     return `${originalCode}_alert_report_failed`;
   }

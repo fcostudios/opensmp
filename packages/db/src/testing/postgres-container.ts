@@ -49,6 +49,76 @@ export async function createPostgresFixture(
     onContainerStarted,
   }: PostgresFixtureOptions = {},
 ): Promise<PostgresFixture> {
+  const mutationAppUrl = process.env.US017_MUTATION_DATABASE_URL;
+  const mutationOwnerUrl = process.env.US017_MUTATION_DATABASE_ADMIN_URL;
+  if (mutationAppUrl || mutationOwnerUrl) {
+    if (!mutationAppUrl || !mutationOwnerUrl) {
+      throw new Error("US-017 mutation harness requires both database URLs");
+    }
+    const templateDatabase = new URL(mutationOwnerUrl).pathname.slice(1);
+    if (!/^[a-z0-9_]+$/.test(templateDatabase)) {
+      throw new Error("US-017 mutation template database name is invalid");
+    }
+    const databaseName =
+      `ledger_us017_${randomUUID().replaceAll("-", "")}`;
+    const maintenanceUrl = new URL(mutationOwnerUrl);
+    maintenanceUrl.pathname = "/postgres";
+    const maintenance = new pg.Client({
+      connectionString: maintenanceUrl.toString(),
+    });
+    await maintenance.connect();
+    try {
+      await maintenance.query(
+        `CREATE DATABASE "${databaseName}"
+         WITH TEMPLATE "${templateDatabase}" OWNER ledger_owner`,
+      );
+    } finally {
+      await maintenance.end();
+    }
+    const appUrlValue = new URL(mutationAppUrl);
+    appUrlValue.pathname = `/${databaseName}`;
+    const appUrl = appUrlValue.toString();
+    const ownerUrlValue = new URL(mutationOwnerUrl);
+    ownerUrlValue.pathname = `/${databaseName}`;
+    const ownerUrl = ownerUrlValue.toString();
+    let stopped = false;
+    return {
+      appUrl,
+      databaseName,
+      ownerUrl,
+      async connectAsApp() {
+        const client = new pg.Client({ connectionString: appUrl });
+        await client.connect();
+        return client;
+      },
+      async connectAsOwner() {
+        const client = new pg.Client({ connectionString: ownerUrl });
+        await client.connect();
+        return client;
+      },
+      async migrate() {},
+      async stop() {
+        if (stopped) return;
+        stopped = true;
+        const client = new pg.Client({
+          connectionString: maintenanceUrl.toString(),
+        });
+        await client.connect();
+        try {
+          await client.query(
+            `SELECT pg_terminate_backend(pid)
+             FROM pg_stat_activity
+             WHERE datname = $1 AND pid <> pg_backend_pid()`,
+            [databaseName],
+          );
+          await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
+        } finally {
+          await client.end();
+        }
+      },
+    };
+  }
+
   const container = await new PostgreSqlContainer(POSTGRES_16_ALPINE_IMAGE)
     .withStartupTimeout(120_000)
     .start();

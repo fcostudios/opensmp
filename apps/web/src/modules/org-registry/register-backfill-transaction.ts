@@ -529,6 +529,17 @@ export class AuditedGoLiveImportBoundary {
           note: "importación inicial",
           occurredAt,
         });
+        await transaction.insert(auditLog).values({
+          actorUserId: null,
+          action: "request.active",
+          entityType: "LicenseRequest",
+          entityId: request.id,
+          companyId: targetCompany.id,
+          note: "importación inicial",
+          before: { state: null },
+          after: { state: "active" },
+          occurredAt,
+        });
       }
       let [assignment] = await transaction
         .select()
