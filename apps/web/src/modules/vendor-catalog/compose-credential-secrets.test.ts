@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -23,7 +23,7 @@ type ComposeConfig = {
         source: string;
         target: string;
         read_only: boolean;
-        bind: { create_host_path: boolean };
+        bind?: { create_host_path?: boolean };
       }>;
     };
   };
@@ -115,22 +115,33 @@ test("injects dynamic credential variables and read-only artifacts through the i
         "/run/ledger-secrets/integration-credential.kek",
     });
     expect(config.services.app.user).toBe("1001:1001");
-    expect(config.services.app.volumes ?? []).toEqual(expect.arrayContaining([
+    const mounts = config.services.app.volumes ?? [];
+    for (const expected of [
       {
-        type: "bind",
         source: "/srv/ledger/secrets/go-live-credential-manifest.json",
         target: "/run/ledger-secrets/go-live-credential-manifest.json",
-        read_only: true,
-        bind: { create_host_path: false },
       },
       {
-        type: "bind",
         source: "/srv/ledger/secrets/integration-credential.kek",
         target: "/run/ledger-secrets/integration-credential.kek",
-        read_only: true,
-        bind: { create_host_path: false },
       },
-    ]));
+    ]) {
+      const mount = mounts.find(
+        (candidate) => candidate.target === expected.target,
+      );
+      expect(mount).toMatchObject({
+        type: "bind",
+        source: expected.source,
+        target: expected.target,
+        read_only: true,
+      });
+      expect(mount?.bind?.create_host_path ?? false).toBe(false);
+    }
+    const overlay = await readFile(
+      join(repositoryRoot, "infra/docker-compose.import.yml"),
+      "utf8",
+    );
+    expect(overlay.match(/create_host_path:\s*false/gu)).toHaveLength(2);
   } finally {
     await rm(privateDirectory, { recursive: true, force: true });
   }
