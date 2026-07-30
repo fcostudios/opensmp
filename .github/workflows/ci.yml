@@ -96,6 +96,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Verify third-party contracts
+        run: pnpm test:contract
+
       - name: Build
         run: pnpm build
 
