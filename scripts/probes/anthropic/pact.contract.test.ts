@@ -24,12 +24,6 @@ const contractPath = join(
   pactDirectory,
   "ledger-anthropic-probe-anthropic-enterprise-api.json",
 );
-const provider = new PactV3({
-  consumer: "ledger-anthropic-probe",
-  provider: "anthropic-enterprise-api",
-  dir: pactDirectory,
-  logLevel: "error",
-});
 
 type KeyKind = "admin" | "analytics";
 
@@ -52,6 +46,12 @@ async function executeContract(input: {
   response: V3Response;
   verify?: (body: unknown, response: Response) => void;
 }): Promise<void> {
+  const provider = new PactV3({
+    consumer: "ledger-anthropic-probe",
+    provider: "anthropic-enterprise-api",
+    dir: pactDirectory,
+    logLevel: "error",
+  });
   provider.addInteraction({
     uponReceiving: input.description,
     withRequest: {
