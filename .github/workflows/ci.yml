@@ -131,9 +131,41 @@ jobs:
         run: pnpm --filter @smp/db db:parity
 
   mutation:
-    name: Critical-path mutation gate
+    name: Critical-path mutation gate (${{ matrix.slice }})
     needs:
       - verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slice: core
+            command: test:mutation:core
+          - slice: us007
+            command: test:mutation:us007
+          - slice: us010
+            command: test:mutation:us010
+          - slice: us012
+            command: test:mutation:us012
+          - slice: us013
+            command: test:mutation:us013
+          - slice: us015
+            command: test:mutation:us015
+          - slice: us016
+            command: test:mutation:us016
+          - slice: us017
+            command: test:mutation:us017
+          - slice: us020
+            command: test:mutation:us020
+          - slice: us022
+            command: test:mutation:us022
+          - slice: us033
+            command: test:mutation:us033
+          - slice: us042-surfaces
+            command: test:mutation:us042-surfaces
+          - slice: probe
+            command: test:mutation:probe
+          - slice: infra
+            command: test:mutation:infra
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
@@ -195,13 +227,13 @@ jobs:
         run: pnpm --filter @smp/db db:migrate
 
       - name: Run critical-path mutation gate
-        run: pnpm test:mutation
+        run: pnpm run ${{ matrix.command }}
 
       - name: Upload mutation failure reports
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: critical-path-mutation-reports
+          name: critical-path-mutation-reports-${{ matrix.slice }}
           path: |
             reports/
             apps/web/reports/
