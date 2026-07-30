@@ -152,12 +152,16 @@ export function ChecklistExceptionsList({
                   {failure.vendorRef ?? labels.noData}
                 </td>
                 <td className="px-3 py-3 text-text-secondary">
-                  {failure.sentAt
-                    ? new Intl.DateTimeFormat(locale, {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      }).format(new Date(failure.sentAt))
-                    : labels.noData}
+                  {failure.sentAt ? (
+                    <time dateTime={failure.sentAt}>
+                        {new Intl.DateTimeFormat(locale, {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        }).format(new Date(failure.sentAt))}
+                    </time>
+                  ) : (
+                    labels.noData
+                  )}
                 </td>
                 <td
                   className="px-3 py-3 font-semibold text-text-primary"

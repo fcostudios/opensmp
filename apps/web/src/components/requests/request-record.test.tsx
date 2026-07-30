@@ -5,6 +5,7 @@ import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, test } from "vitest";
 
 import type { RequestRecordProjection } from "@/modules/request-workflow/read-repository";
+import { normalizeIntlWhitespace } from "@/test-support/intl";
 import {
   formatTimelineDateTime,
   RequestRecord,
@@ -217,12 +218,12 @@ describe("RequestRecord", () => {
 
   test("localizes timeline instants in Ecuador across a UTC date boundary", () => {
     const instant = "2026-07-28T04:30:00.000Z";
-    expect(formatTimelineDateTime(instant, "es-EC")).toBe(
-      "27 jul 2026, 11:30 p. m.",
-    );
-    expect(formatTimelineDateTime(instant, "en-US")).toBe(
-      "Jul 27, 2026, 11:30 PM",
-    );
+    expect(
+      normalizeIntlWhitespace(formatTimelineDateTime(instant, "es-EC")),
+    ).toBe("27 jul 2026, 11:30 p. m.");
+    expect(
+      normalizeIntlWhitespace(formatTimelineDateTime(instant, "en-US")),
+    ).toBe("Jul 27, 2026, 11:30 PM");
     const html = renderToStaticMarkup(
       <RequestRecord
         activeTab="actions"
