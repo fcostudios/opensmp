@@ -87,6 +87,10 @@ async function terminateProcessTree(child, signal) {
   }
 }
 
+function isJavaScriptCli(path) {
+  return /\.(?:c|m)?js$/iu.test(path);
+}
+
 export function resolvePnpmInvocation(
   args,
   {
@@ -100,13 +104,27 @@ export function resolvePnpmInvocation(
     packageManagerCli &&
     basename(packageManagerCli).toLowerCase().includes("pnpm")
   ) {
+    if (isJavaScriptCli(packageManagerCli)) {
+      return {
+        command: execPath,
+        args: [packageManagerCli, ...args],
+      };
+    }
+    if (platform === "win32") {
+      return {
+        command: env.ComSpec ?? "cmd.exe",
+        args: ["/d", "/s", "/c", packageManagerCli, ...args],
+      };
+    }
+  }
+  if (platform === "win32") {
     return {
-      command: execPath,
-      args: [packageManagerCli, ...args],
+      command: env.ComSpec ?? "cmd.exe",
+      args: ["/d", "/s", "/c", "pnpm.cmd", ...args],
     };
   }
   return {
-    command: platform === "win32" ? "pnpm.cmd" : "pnpm",
+    command: "pnpm",
     args,
   };
 }
@@ -474,10 +492,8 @@ export async function compareDatabaseStructures(migrationUrl, pushUrl) {
 
 async function dropDisposableDatabase(admin, databaseName) {
   await admin.query(
-    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
-    [databaseName],
+    `DROP DATABASE IF EXISTS ${quotedIdentifier(databaseName)} WITH (FORCE)`,
   );
-  await admin.query(`DROP DATABASE IF EXISTS ${quotedIdentifier(databaseName)}`);
 }
 
 export async function checkMigrationParity({

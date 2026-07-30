@@ -1,7 +1,11 @@
+import { fileURLToPath } from "node:url";
+
 const config = {
+  root: fileURLToPath(new URL(".", import.meta.url)),
   test: {
     environment: "node",
-    include: ["**/*.test.ts"],
+    exclude: ["**/*.contract.test.ts"],
+    include: ["probe.test.ts"],
   },
 };
 

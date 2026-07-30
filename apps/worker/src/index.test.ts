@@ -8,12 +8,14 @@ import {
 describe("worker lifecycle", () => {
   it("encodes libpq environment variables into a pg-boss connection string without exposing raw credentials", () => {
     const original = {
+      DATABASE_URL: process.env.DATABASE_URL,
       PGDATABASE: process.env.PGDATABASE,
       PGHOST: process.env.PGHOST,
       PGPASSWORD: process.env.PGPASSWORD,
       PGPORT: process.env.PGPORT,
       PGUSER: process.env.PGUSER,
     };
+    delete process.env.DATABASE_URL;
     process.env.PGHOST = "postgres";
     process.env.PGPORT = "5432";
     process.env.PGUSER = "ledger_app";

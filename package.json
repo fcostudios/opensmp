@@ -20,8 +20,9 @@
     "test:infra": "python3 -B -m unittest infra.scripts.tests.test_reconcile_sprint1_docs infra.scripts.tests.test_sync_from_nous_config infra.scripts.tests.test_regenerate_sidebar infra.scripts.tests.test_nous_api_reconcile -v",
     "test:infra:integration": "python3 -B -m unittest infra.scripts.tests.test_sync_from_nous_integration -v",
     "test:probe": "./apps/web/node_modules/.bin/vitest run --root . --config scripts/probes/anthropic/vitest.config.ts",
+    "test:contract": "./apps/web/node_modules/.bin/vitest run --root . --config scripts/probes/anthropic/vitest.contract.config.ts",
     "test:mutation:infra": "python3 -B infra/scripts/tests/run_reconcile_mutation_evidence.py && python3 -B infra/scripts/tests/run_api_reconcile_mutation_evidence.py",
-    "test:mutation": "pnpm run test:mutation:core && pnpm run test:mutation:us007 && pnpm run test:mutation:us012 && pnpm run test:mutation:us013 && pnpm run test:mutation:us015 && pnpm run test:mutation:us016 && pnpm run test:mutation:us017 && pnpm run test:mutation:us020 && pnpm run test:mutation:us022 && pnpm run test:mutation:us033 && pnpm run test:mutation:us042-surfaces && pnpm run test:mutation:probe && pnpm run test:mutation:infra",
+    "test:mutation": "pnpm run test:mutation:core && pnpm run test:mutation:us007 && pnpm run test:mutation:us010 && pnpm run test:mutation:us012 && pnpm run test:mutation:us013 && pnpm run test:mutation:us015 && pnpm run test:mutation:us016 && pnpm run test:mutation:us017 && pnpm run test:mutation:us020 && pnpm run test:mutation:us022 && pnpm run test:mutation:us033 && pnpm run test:mutation:us042-surfaces && pnpm run test:mutation:probe && pnpm run test:mutation:infra",
     "test:mutation:core": "stryker run stryker.conf.json",
     "test:mutation:us007": "stryker run stryker.us007.conf.json",
     "test:mutation:us010": "stryker run stryker.us010.conf.json",
@@ -42,11 +43,12 @@
     "lint:tests": "node scripts/check-test-mocks.mjs . && node scripts/check-test-oracles.mjs ."
   },
   "devDependencies": {
+    "@pact-foundation/pact": "17.0.1",
+    "@stryker-mutator/core": "^9.0.0",
+    "@stryker-mutator/vitest-runner": "^9.0.0",
     "@typescript-eslint/parser": "^8.65.0",
-    "turbo": "^2.3.3",
     "eslint": "^9.17.0",
     "tsx": "4.23.1",
-    "@stryker-mutator/core": "^9.0.0",
-    "@stryker-mutator/vitest-runner": "^9.0.0"
+    "turbo": "^2.3.3"
   }
 }

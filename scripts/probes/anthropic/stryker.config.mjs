@@ -29,7 +29,7 @@ const config = {
     low: 80,
     break: 80,
   },
-  tempDirName: "../../../.stryker-tmp/anthropic-probe",
+  tempDirName: ".stryker-tmp",
 };
 
 export default config;

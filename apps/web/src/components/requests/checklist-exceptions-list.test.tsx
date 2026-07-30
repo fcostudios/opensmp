@@ -2,6 +2,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 
+import { normalizeIntlWhitespace } from "@/test-support/intl";
 import { ChecklistExceptionsList } from "./checklist-exceptions-list";
 
 afterEach(cleanup);
@@ -102,14 +103,16 @@ it("renders failed and verification-failed action evidence with TOON ids and saf
   expect(within(table).getByTestId("vendor_ref").textContent).toBe("Referencia");
   expect(within(table).getByTestId("enviada").textContent).toBe("Enviada");
   expect(within(table).getByText("inv_9f27")).toBeTruthy();
-  expect(
-    within(table).getByText(
+  const sentAt = table.querySelector("time");
+  expect(sentAt?.getAttribute("datetime")).toBe("2026-07-18T12:00:00.000Z");
+  expect(normalizeIntlWhitespace(sentAt?.textContent ?? "")).toBe(
+    normalizeIntlWhitespace(
       new Intl.DateTimeFormat("es-EC", {
         dateStyle: "medium",
         timeStyle: "short",
       }).format(new Date("2026-07-18T12:00:00.000Z")),
     ),
-  ).toBeTruthy();
+  );
   expect(within(table).getByText("Disponible en Sprint 3")).toBeTruthy();
   const retry = screen.getByTestId("btn_retry_provisioning");
   expect(retry).toHaveProperty("disabled", true);

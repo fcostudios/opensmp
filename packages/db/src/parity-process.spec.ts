@@ -14,11 +14,24 @@ describe("bounded parity child process", () => {
     const imported = await import(pathToFileURL(parityPath).href);
     const invocation = imported.resolvePnpmInvocation(["--version"]);
     if (process.env.npm_execpath?.toLowerCase().includes("pnpm")) {
-      expect(invocation.command).toBe(process.execPath);
-      expect(invocation.args[0]).toBe(process.env.npm_execpath);
+      if (/\.(?:c|m)?js$/iu.test(process.env.npm_execpath)) {
+        expect(invocation.command).toBe(process.execPath);
+        expect(invocation.args[0]).toBe(process.env.npm_execpath);
+      } else if (process.platform === "win32") {
+        expect(invocation.command).toBe(process.env.ComSpec ?? "cmd.exe");
+        expect(invocation.args).toEqual([
+          "/d",
+          "/s",
+          "/c",
+          process.env.npm_execpath,
+          "--version",
+        ]);
+      }
     } else {
       expect(invocation.command).toBe(
-        process.platform === "win32" ? "pnpm.cmd" : "pnpm",
+        process.platform === "win32"
+          ? process.env.ComSpec ?? "cmd.exe"
+          : "pnpm",
       );
     }
 
@@ -37,6 +50,19 @@ describe("bounded parity child process", () => {
     const imported = await import(pathToFileURL(parityPath).href);
     expect(
       imported.resolvePnpmInvocation(["--version"], {
+        env: {
+          ComSpec: "C:\\Windows\\System32\\cmd.exe",
+          npm_execpath: "C:\\tools\\pnpm.CMD",
+        },
+        platform: "win32",
+        execPath: "C:\\node\\node.exe",
+      }),
+    ).toEqual({
+      command: "C:\\Windows\\System32\\cmd.exe",
+      args: ["/d", "/s", "/c", "C:\\tools\\pnpm.CMD", "--version"],
+    });
+    expect(
+      imported.resolvePnpmInvocation(["--version"], {
         env: { npm_execpath: "C:\\tools\\pnpm.cjs" },
         platform: "win32",
         execPath: "C:\\node\\node.exe",
@@ -51,8 +77,8 @@ describe("bounded parity child process", () => {
         platform: "win32",
       }),
     ).toEqual({
-      command: "pnpm.cmd",
-      args: ["--version"],
+      command: "cmd.exe",
+      args: ["/d", "/s", "/c", "pnpm.cmd", "--version"],
     });
     expect(
       imported.resolvePnpmInvocation(["--version"], {
