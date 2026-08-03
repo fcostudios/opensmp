@@ -1,7 +1,16 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   requireRoutedTestFiles,
   routedTestFiles,
@@ -45,22 +54,50 @@ assert.throws(
   /mutatable source has no responsible Vitest test route: src\/orphan\.ts/,
 );
 
-const base = execFileSync("git", ["rev-parse", "HEAD^"], {
-  encoding: "utf8",
-}).trim();
+const fixtureRoot = mkdtempSync(join(tmpdir(), "smp-mutation-scope-"));
+const source = "apps/web/src/modules/identity-access/users-roles-page.tsx";
+const responsibleTest = "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts";
+const writeFixture = (path, contents) => {
+  const absolutePath = join(fixtureRoot, path);
+  mkdirSync(dirname(absolutePath), { recursive: true });
+  writeFileSync(absolutePath, contents, "utf8");
+};
 
-execFileSync(process.execPath, ["scripts/mutation-scope.mjs"], {
-  env: {
-    ...process.env,
-    MUTATION_BASE: base,
-    MUTATION_SCOPE_DRY: "1",
-  },
-  stdio: "pipe",
-});
+let generated;
+try {
+  execFileSync("git", ["init", "--quiet"], { cwd: fixtureRoot });
+  execFileSync("git", ["config", "user.email", "mutation-scope@example.invalid"], { cwd: fixtureRoot });
+  execFileSync("git", ["config", "user.name", "Mutation Scope Test"], { cwd: fixtureRoot });
+  writeFixture("stryker.conf.json", JSON.stringify({ testFiles: [] }));
+  writeFixture("vitest.mutation.config.mjs", "export default {};\n");
+  writeFixture(source, "export const version = 1;\n");
+  writeFixture(responsibleTest, "export {};\n");
+  execFileSync("git", ["add", "."], { cwd: fixtureRoot });
+  execFileSync("git", ["commit", "--quiet", "-m", "fixture base"], { cwd: fixtureRoot });
+  const base = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: fixtureRoot,
+    encoding: "utf8",
+  }).trim();
+  writeFixture(source, "export const version = 2;\n");
 
-const generated = JSON.parse(
-  readFileSync(".tmp/stryker.generated.conf.json", "utf8"),
-);
+  execFileSync(process.execPath, [
+    fileURLToPath(new URL("./mutation-scope.mjs", import.meta.url)),
+  ], {
+    cwd: fixtureRoot,
+    env: {
+      ...process.env,
+      MUTATION_BASE: base,
+      MUTATION_SCOPE_DRY: "1",
+    },
+    stdio: "pipe",
+  });
+
+  generated = JSON.parse(
+    readFileSync(join(fixtureRoot, ".tmp/stryker.generated.conf.json"), "utf8"),
+  );
+} finally {
+  rmSync(fixtureRoot, { force: true, recursive: true });
+}
 
 assert.equal(generated.coverageAnalysis, "off");
 assert.deepEqual(generated.vitest, {
@@ -69,9 +106,5 @@ assert.deepEqual(generated.vitest, {
 });
 assert.equal(generated.concurrency, 1);
 assert.deepEqual(generated.testFiles, [...generated.testFiles].sort());
-assert.ok(generated.testFiles.includes(
-  "apps/web/src/components/users/users-roles-panel.test.tsx",
-));
-assert.ok(generated.mutate.includes(
-  "apps/web/src/modules/identity-access/users-roles-page.tsx",
-));
+assert.deepEqual(generated.testFiles, [responsibleTest]);
+assert.deepEqual(generated.mutate, [source]);
