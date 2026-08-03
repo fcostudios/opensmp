@@ -3,9 +3,11 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { db } from "@smp/db";
 import * as schema from "@smp/db/schema";
 
-import { auth } from "@/lib/auth/auth-config";
 import type { Capability } from "@smp/domain/identity-access";
-import { createAuthorizationRepository } from "./authorization";
+import {
+  createAuthorizationRepository,
+  type AuthorizationRepository,
+} from "./authorization";
 import {
   authorizeCompanyRequestWithSession,
   type CompanyRequestAuthorization,
@@ -17,6 +19,59 @@ const authorizationRepository = createAuthorizationRepository(
   db as unknown as NodePgDatabase<typeof schema>,
 );
 
+type LedgerSession = {
+  readonly user?: { readonly idpSubject?: string };
+} | null;
+
+async function loadProductionSession(): Promise<LedgerSession> {
+  const { auth } = await import("@/lib/auth/auth-config");
+  return auth();
+}
+
+export function createServerAuthorizationEntrypoints(dependencies: {
+  readonly loadSession: () => Promise<LedgerSession>;
+  readonly repository: AuthorizationRepository;
+}) {
+  return {
+    async authorizeCompanyRequest(input: {
+      readonly companyId: string;
+      readonly capability: Capability;
+    }): Promise<CompanyRequestAuthorization> {
+      const session = await dependencies.loadSession();
+      return authorizeCompanyRequestWithSession(
+        session?.user?.idpSubject
+          ? { user: { idpSubject: session.user.idpSubject } }
+          : null,
+        dependencies.repository,
+        input,
+      );
+    },
+
+    async loadCurrentLedgerAuthorization() {
+      const session = await dependencies.loadSession();
+      if (!session?.user?.idpSubject) return null;
+      return dependencies.repository.load({
+        subject: session.user.idpSubject,
+      });
+    },
+
+    loadLedgerAuthorizationForSubject(subject: string | null) {
+      return dependencies.repository.load({ subject });
+    },
+
+    recordLedgerAuthorizationFailure(
+      input: Parameters<AuthorizationRepository["recordAuthorizationFailure"]>[0],
+    ) {
+      return dependencies.repository.recordAuthorizationFailure(input);
+    },
+  };
+}
+
+const serverAuthorization = createServerAuthorizationEntrypoints({
+  loadSession: loadProductionSession,
+  repository: authorizationRepository,
+});
+
 /**
  * Secure DAL entry point for every company-scoped Route Handler or Server
  * Action. Call it immediately before the scoped query/mutation and return
@@ -26,24 +81,18 @@ export async function authorizeCompanyRequest(input: {
   readonly companyId: string;
   readonly capability: Capability;
 }): Promise<CompanyRequestAuthorization> {
-  const session = await auth();
-  return authorizeCompanyRequestWithSession(session, authorizationRepository, {
-    companyId: input.companyId,
-    capability: input.capability,
-  });
+  return serverAuthorization.authorizeCompanyRequest(input);
 }
 
 export async function loadCurrentLedgerAuthorization() {
-  const session = await auth();
-  if (!session?.user?.idpSubject) return null;
-  return loadLedgerAuthorizationForSubject(session.user.idpSubject);
+  return serverAuthorization.loadCurrentLedgerAuthorization();
 }
 
 /** Route handlers already holding a verified OIDC subject use this DB-backed lookup. */
 export async function loadLedgerAuthorizationForSubject(
   subject: string | null,
 ) {
-  return authorizationRepository.load({ subject });
+  return serverAuthorization.loadLedgerAuthorizationForSubject(subject);
 }
 
 export async function recordLedgerAuthorizationFailure(
@@ -51,7 +100,7 @@ export async function recordLedgerAuthorizationFailure(
     typeof authorizationRepository.recordAuthorizationFailure
   >[0],
 ) {
-  return authorizationRepository.recordAuthorizationFailure(input);
+  return serverAuthorization.recordLedgerAuthorizationFailure(input);
 }
 
 export function createProductionUserAdminService() {

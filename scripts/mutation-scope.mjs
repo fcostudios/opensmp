@@ -16,8 +16,9 @@
 //   MUTATION_SCOPE_DRY=1  write + print the generated config, do NOT run Stryker
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const BASE_CONFIG = "stryker.conf.json";
 const GENERATED_CONFIG = join(".tmp", "stryker.generated.conf.json");
@@ -26,12 +27,18 @@ const GENERATED_CONFIG = join(".tmp", "stryker.generated.conf.json");
 // This is a FILE-TYPE filter, not a critical-set narrowing — a changed `.md` or
 // `.json` has no mutants, so excluding it removes nothing real.
 const MUTATABLE_EXT = /\.(ts|tsx)$/;
+const GENERATED_ARTIFACT = [
+  /(^|\/)\.tmp\//,
+  /(^|\/)\.next\//,
+  /(^|\/)(coverage|dist|reports)\//,
+];
 const EXCLUDED = [
   /\.(test|spec)\.tsx?$/,
   /\.d\.ts$/,
   /(^|\/)migrations\//,
   /(^|\/)testing\//,
   /(^|\/)node_modules\//,
+  ...GENERATED_ARTIFACT,
 ];
 
 function git(args) {
@@ -97,9 +104,19 @@ function changedFiles(base) {
     fail(`no merge base between HEAD and ${base}`,
          "unshallow the clone (git fetch --unshallow) or set MUTATION_BASE=<ref>");
   }
+  // Diff directly from the merge base so committed, staged, and unstaged
+  // changes are all visible. Git diff does not report untracked files, so add
+  // every non-ignored untracked path explicitly. Otherwise a newly created
+  // production module can silently escape the pre-commit mutation gate.
   // ACMR excludes deletions: Stryker cannot mutate a file that is gone.
-  const out = git(["diff", "--name-only", "--diff-filter=ACMR", `${mergeBase}..HEAD`]);
-  return out ? out.split("\n").filter(Boolean) : [];
+  const tracked = git(["diff", "--name-only", "--diff-filter=ACMR", mergeBase]);
+  const untracked = git(["ls-files", "--others", "--exclude-standard"]);
+  return [...new Set(
+    [tracked, untracked]
+      .flatMap((value) => value ? value.split("\n") : [])
+      .filter(Boolean)
+      .filter((path) => !GENERATED_ARTIFACT.some((pattern) => pattern.test(path))),
+  )].sort();
 }
 
 function mutatable(files) {
@@ -107,6 +124,77 @@ function mutatable(files) {
     .filter((f) => MUTATABLE_EXT.test(f))
     .filter((f) => !EXCLUDED.some((re) => re.test(f)))
     .sort();  // deterministic: the generated config must be byte-stable
+}
+
+const TEST_FILE = /\.(test|spec)\.(ts|tsx)$/;
+const ADJACENT_TEST_SUFFIXES = [
+  ".test.ts",
+  ".test.tsx",
+  ".integration.test.ts",
+  ".integration.test.tsx",
+  ".pact.test.ts",
+  ".spec.ts",
+  ".spec.tsx",
+];
+
+// Thin composition roots and config/barrel files deliberately do not have an
+// adjacent test. Their behavior is owned by these contract tests. Keeping the
+// exceptional routes explicit prevents a changed source from silently riding
+// along merely because some unrelated story test also changed.
+const DIRECT_TEST_ROUTES = {
+  "apps/web/src/app/(authenticated)/usuarios/page.tsx": [
+    "apps/web/src/components/users/users-roles-panel.test.tsx",
+    "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts",
+  ],
+  "apps/web/src/modules/identity-access/actions/manage-users.ts": [
+    "apps/web/src/components/users/users-roles-panel.test.tsx",
+    "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts",
+  ],
+  "apps/web/src/modules/identity-access/server-authorization.ts": [
+    "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts",
+  ],
+  "apps/web/src/modules/identity-access/users-roles-page.tsx": [
+    "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts",
+  ],
+  "apps/web/vitest.config.ts": [
+    "apps/web/src/modules/identity-access/keycloak-admin.pact.test.ts",
+  ],
+  "packages/contracts/src/index.ts": [
+    "packages/contracts/src/identity-access.test.ts",
+  ],
+  "scripts/probes/anthropic/vitest.contract.config.ts": [
+    "apps/web/src/modules/identity-access/keycloak-admin.pact.test.ts",
+  ],
+};
+
+function testsForSource(source, fileExists, directRoutes) {
+  const responsible = new Set();
+  const stem = source.replace(/\.(ts|tsx)$/, "");
+  for (const suffix of ADJACENT_TEST_SUFFIXES) {
+    const candidate = `${stem}${suffix}`;
+    if (fileExists(candidate)) responsible.add(candidate);
+  }
+  for (const candidate of directRoutes[source] ?? []) {
+    if (fileExists(candidate)) responsible.add(candidate);
+  }
+  return [...responsible].sort();
+}
+
+export function routedTestFiles(changed, mutate, fileExists = existsSync, directRoutes = DIRECT_TEST_ROUTES) {
+  const routed = new Set(changed.filter((file) => TEST_FILE.test(file)));
+  for (const source of mutate) {
+    for (const candidate of testsForSource(source, fileExists, directRoutes)) routed.add(candidate);
+  }
+  return [...routed].sort();
+}
+
+export function requireRoutedTestFiles(changed, mutate, fileExists = existsSync, directRoutes = DIRECT_TEST_ROUTES) {
+  for (const source of mutate) {
+    if (testsForSource(source, fileExists, directRoutes).length === 0) {
+      throw new Error(`mutatable source has no responsible Vitest test route: ${source}`);
+    }
+  }
+  return routedTestFiles(changed, mutate, fileExists, directRoutes);
 }
 
 function main() {
@@ -128,6 +216,17 @@ function main() {
     fail(`cannot read ${BASE_CONFIG}`, "run from the repository root");
   }
 
+  const testFiles = [
+    ...new Set([
+      ...(baseConf.testFiles ?? []),
+      ...requireRoutedTestFiles(changed, mutate),
+    ]),
+  ].sort();
+  if (testFiles.length === 0) {
+    fail("mutatable files exist but no responsible Vitest tests were routed",
+         "add a changed story test or a conventional adjacent test for the changed source");
+  }
+
   // tempDirName is derived from the SCOPE, not the clock: two runs on the same
   // diff must produce a byte-identical config, and two runs on different scopes
   // must not collide.
@@ -140,6 +239,12 @@ function main() {
     // generated defaults: a real DB fixture makes perTest coverage analysis
     // unsound, and parallel runners race on shared database state.
     coverageAnalysis: "off",
+    vitest: {
+      ...baseConf.vitest,
+      related: false,
+      configFile: "vitest.mutation.config.mjs",
+    },
+    testFiles,
     concurrency: 1,
     maxTestRunnerReuse: 1,
     timeoutFactor: 2,
@@ -166,4 +271,4 @@ function main() {
   }
 }
 
-main();
+if (import.meta.url === pathToFileURL(process.argv[1]).href) main();

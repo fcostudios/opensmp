@@ -10,6 +10,7 @@ import * as schema from "@smp/db/schema";
 
 import {
   createIdentityAccessRepository,
+  createUserAdministrationRepository,
   IdentityLinkError,
 } from "./repository";
 
@@ -76,6 +77,39 @@ afterAll(async () => {
 }, 150_000);
 
 describe("identity-access repository", () => {
+  test("identity-link errors preserve their exact public code, name, and sanitized message", () => {
+    const error = new IdentityLinkError(
+      "missing_identity_claim",
+      "00000000-0000-0000-0000-000000000490",
+    );
+    expect(error).toMatchObject({
+      actorUserId: "00000000-0000-0000-0000-000000000490",
+      code: "missing_identity_claim",
+      message: "OIDC login rejected: missing_identity_claim",
+      name: "IdentityLinkError",
+    });
+  });
+
+  test.each([
+    { email: "claim-subject@example.com", subject: "   " },
+    { email: "   ", subject: "claim-email" },
+  ])("rejects an individually blank OIDC claim before account lookup", async ({ email, subject }) => {
+    const repository = createIdentityAccessRepository(
+      drizzle(appPool, { schema }),
+    );
+    await expect(repository.completeOidcLogin({
+      provider: "keycloak",
+      subject,
+      email,
+      emailVerified: true,
+      loginAt,
+    })).rejects.toMatchObject({
+      code: "missing_identity_claim",
+      message: "OIDC login rejected: missing_identity_claim",
+      name: "IdentityLinkError",
+    });
+  });
+
   test("atomically links a verified email and records the exact tenant-scoped account diff", async () => {
     const accountId = "00000000-0000-0000-0000-000000000461";
     const personId = "00000000-0000-0000-0000-000000000471";
@@ -107,7 +141,7 @@ describe("identity-access repository", () => {
     const account = await repository.completeOidcLogin({
       provider: "keycloak",
       subject: "keycloak-first-login",
-      email: "first.login@corporativo.example",
+      email: "  first.login@corporativo.example  ",
       emailVerified: true,
       loginAt,
     });
@@ -130,7 +164,7 @@ describe("identity-access repository", () => {
     ]);
     const audit = await owner.query(
       `SELECT actor_user_id, action, entity_type, entity_id, company_id,
-              before, after, note
+              before, after, note, occurred_at
        FROM audit_log
        WHERE action = 'authentication.oidc.succeeded'
          AND actor_user_id = $1`,
@@ -152,11 +186,53 @@ describe("identity-access repository", () => {
           last_login_at: loginAt.toISOString(),
         },
         note: null,
+        occurred_at: loginAt,
       },
     ]);
     expect(JSON.stringify(audit.rows[0])).not.toMatch(
       /provider|client_secret|token/i,
     );
+  });
+
+  test("accepts a repeat callback only when the existing subject is identical", async () => {
+    const accountId = "00000000-0000-0000-0000-000000000491";
+    const previousLoginAt = new Date("2026-07-24T13:00:00.000Z");
+    await seedAccount({
+      id: accountId,
+      email: "repeat-login@corporativo.example",
+      idpSubject: "repeat-login-subject",
+      lastLoginAt: previousLoginAt,
+    });
+    const repository = createIdentityAccessRepository(
+      drizzle(appPool, { schema }),
+    );
+
+    await expect(repository.completeOidcLogin({
+      provider: "keycloak",
+      subject: "repeat-login-subject",
+      email: "repeat-login@corporativo.example",
+      emailVerified: true,
+      loginAt,
+    })).resolves.toMatchObject({
+      id: accountId,
+      idpSubject: "repeat-login-subject",
+    });
+    const audit = await owner.query(
+      `SELECT before, after
+       FROM audit_log
+       WHERE action = 'authentication.oidc.succeeded' AND entity_id = $1`,
+      [accountId],
+    );
+    expect(audit.rows).toEqual([{
+      before: {
+        idp_subject: "repeat-login-subject",
+        last_login_at: previousLoginAt.toISOString(),
+      },
+      after: {
+        idp_subject: "repeat-login-subject",
+        last_login_at: loginAt.toISOString(),
+      },
+    }]);
   });
 
   test.each([
@@ -491,5 +567,46 @@ describe("identity-access repository", () => {
       ],
       uiLanguage: "es",
     });
+  });
+
+  test("session loading rejects unknown and disabled accounts and falls back to the Ledger email for a blank name", async () => {
+    const disabledId = "00000000-0000-0000-0000-000000000478";
+    const fallbackId = "00000000-0000-0000-0000-000000000479";
+    await seedAccount({ id: disabledId, email: "session-disabled@example.com", idpSubject: "session-disabled", status: "disabled" });
+    await seedAccount({ id: fallbackId, email: "session-fallback@example.com", idpSubject: "session-fallback", globalRole: "group_admin" });
+    const repository = createIdentityAccessRepository(drizzle(appPool, { schema }));
+
+    await expect(repository.loadSessionUser({ subject: "missing-subject", name: "Missing" })).resolves.toBeNull();
+    await expect(repository.loadSessionUser({ subject: "session-disabled", name: "Disabled" })).resolves.toBeNull();
+    await expect(repository.loadSessionUser({ subject: "session-fallback", name: "   " })).resolves.toMatchObject({
+      id: fallbackId,
+      idpSubject: "session-fallback",
+      email: "session-fallback@example.com",
+      name: "session-fallback@example.com",
+      globalRole: "group_admin",
+      roles: ["group_admin"],
+    });
+  });
+
+  test("available-person reads require active, unlinked people inside the requested company set", async () => {
+    const availableId = "00000000-0000-0000-0000-000000000481";
+    const linkedId = "00000000-0000-0000-0000-000000000482";
+    const otherCompanyId = "00000000-0000-0000-0000-000000000483";
+    const inactiveId = "00000000-0000-0000-0000-000000000484";
+    await owner.query(
+      `INSERT INTO person (id, email, full_name, company_id, status, created_at, created_by)
+       VALUES ($1, 'available@example.com', 'Available Person', $5, 'active', now(), $6),
+              ($2, 'linked@example.com', 'Linked Person', $5, 'active', now(), $6),
+              ($3, 'other@example.com', 'Other Company Person', $7, 'active', now(), $6),
+              ($4, 'inactive@example.com', 'Inactive Person', $5, 'departed', now(), $6)`,
+      [availableId, linkedId, otherCompanyId, inactiveId, companyA, systemUserId, companyB],
+    );
+    const linkedAccountId = "00000000-0000-0000-0000-000000000485";
+    await seedAccount({ id: linkedAccountId, email: "linked-account@example.com", idpSubject: "linked-account" });
+    await owner.query("UPDATE user_account SET person_id = $1 WHERE id = $2", [linkedId, linkedAccountId]);
+    const repository = createUserAdministrationRepository(drizzle(appPool, { schema }));
+
+    await expect(repository.listAvailablePeople([companyA])).resolves.toEqual([{ id: availableId, fullName: "Available Person" }]);
+    await expect(repository.listAvailablePeople([companyB])).resolves.toEqual([{ id: otherCompanyId, fullName: "Other Company Person" }]);
   });
 });

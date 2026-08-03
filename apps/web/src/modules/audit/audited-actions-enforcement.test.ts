@@ -2,14 +2,15 @@ import { execFile } from "node:child_process";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, test } from "vitest";
 
 const execFileAsync = promisify(execFile);
-const script = resolve(
-  process.cwd(),
-  "../../scripts/check-audited-actions.mjs",
+const script = fileURLToPath(
+  new URL("../../../../../scripts/check-audited-actions.mjs", import.meta.url),
 );
+const applicationRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const fixtures: string[] = [];
 
 afterEach(async () => {
@@ -340,7 +341,7 @@ describe("audited server action enforcement", () => {
 
   test("the current application tree has no unaudited server action", async () => {
     await expect(
-      execFileAsync(process.execPath, [script, process.cwd()]),
+      execFileAsync(process.execPath, [script, applicationRoot]),
     ).resolves.toMatchObject({
       stdout: expect.stringContaining(
         "Audited server action enforcement passed",

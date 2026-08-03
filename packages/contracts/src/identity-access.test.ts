@@ -80,15 +80,54 @@ describe("identity-access privileged command contracts", () => {
   });
 
   test("rejects a role grant whose validity ends before it begins", () => {
-    expect(
-      grantCompanyRoleInputSchema.safeParse({
+    const result = grantCompanyRoleInputSchema.safeParse({
         userAccountId,
         companyId,
         role: "viewer",
         validFrom: "2026-08-04",
         validTo: "2026-08-03",
         note: "Temporary access",
-      }).success,
-    ).toBe(false);
+      });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(expect.objectContaining({
+        message: "validTo cannot precede validFrom",
+        path: ["validTo"],
+      }));
+    }
+  });
+
+  test.each([
+    [null, "2026-08-03"],
+    ["2026-08-03", null],
+    [null, null],
+    ["2026-08-03", "2026-08-03"],
+  ] as const)("accepts the inclusive and open validity interval %s to %s", (validFrom, validTo) => {
+    expect(grantCompanyRoleInputSchema.safeParse({
+      userAccountId,
+      companyId,
+      role: "viewer",
+      validFrom,
+      validTo,
+      note: "Boundary contract",
+    }).success).toBe(true);
+  });
+
+  test("normalizes account email/display name and enforces display-name boundaries", () => {
+    expect(createUserAccountInputSchema.parse({
+      email: "  ADMIN@EXAMPLE.COM  ",
+      displayName: "  Admin User  ",
+      note: "Provisioning approved",
+    })).toMatchObject({ email: "admin@example.com", displayName: "Admin User" });
+    expect(createUserAccountInputSchema.safeParse({
+      email: "admin@example.com",
+      displayName: "x".repeat(201),
+      note: "Provisioning approved",
+    }).success).toBe(false);
+    expect(createUserAccountInputSchema.safeParse({
+      email: "admin@example.com",
+      displayName: "   ",
+      note: "Provisioning approved",
+    }).success).toBe(false);
   });
 });
