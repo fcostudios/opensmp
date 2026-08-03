@@ -39,6 +39,41 @@ async function seedCompany(client: QueryClient): Promise<void> {
 }
 
 describe("CompanyRoleAssignment revoke mutation", () => {
+  test("fails closed on a blank note and exposes no legacy null-note overload", async () => {
+    const fixture = await createPostgresFixture();
+    fixtures.push(fixture);
+    await fixture.migrate();
+    const owner = await fixture.connectAsOwner();
+    const app = await fixture.connectAsApp();
+    const grantId = "00000000-0000-0000-0000-000000000409";
+    try {
+      await seedCompany(owner);
+      await createGrant(owner, grantId, "grant-note-required");
+      await expect(
+        deleteCompanyRoleAssignmentWithAudit(app, {
+          actorUserId: systemUserId,
+          assignmentId: grantId,
+          companyId,
+          note: "   ",
+        }),
+      ).rejects.toMatchObject({ code: "22023" });
+      await expect(
+        app.query(
+          "SELECT * FROM public.revoke_company_role_assignment($1, $2, $3)",
+          [grantId, companyId, systemUserId],
+        ),
+      ).rejects.toMatchObject({ code: "42883" });
+      await expect(
+        owner.query("SELECT id FROM public.company_role_assignment WHERE id = $1", [grantId]),
+      ).resolves.toMatchObject({ rows: [{ id: grantId }] });
+      await expect(
+        owner.query("SELECT id FROM public.audit_log WHERE entity_id = $1", [grantId]),
+      ).resolves.toMatchObject({ rows: [] });
+    } finally {
+      await Promise.all([app.end(), owner.end()]);
+    }
+  }, 150_000);
+
   test("does not revoke or audit a grant when its company scope does not match", async () => {
     const fixture = await createPostgresFixture();
     fixtures.push(fixture);
@@ -55,6 +90,7 @@ describe("CompanyRoleAssignment revoke mutation", () => {
           actorUserId: systemUserId,
           assignmentId: grantId,
           companyId: otherCompanyId,
+          note: "Wrong company",
         }),
       ).resolves.toBeNull();
       await expect(
@@ -83,6 +119,7 @@ describe("CompanyRoleAssignment revoke mutation", () => {
         actorUserId: systemUserId,
         assignmentId: grantId,
         companyId,
+        note: "Access no longer required",
       });
       const state = await owner.query<{
         after: unknown;
@@ -90,18 +127,21 @@ describe("CompanyRoleAssignment revoke mutation", () => {
         company_id: string;
         entity_id: string;
       }>(`
-        SELECT before, after, company_id, entity_id
+        SELECT actor_user_id, action, before, after, company_id, entity_id, note
         FROM public.audit_log
-        WHERE action = 'company_role_assignment.revoked'
+        WHERE action = 'identity.company_role.removed'
       `);
 
       expect(deleted).toMatchObject({ id: grantId, unique_grant: "grant-success" });
       expect(state.rows).toEqual([
         {
           after: null,
+          action: "identity.company_role.removed",
+          actor_user_id: systemUserId,
           before: expect.objectContaining({ id: grantId, unique_grant: "grant-success" }),
           company_id: companyId,
           entity_id: grantId,
+          note: "Access no longer required",
         },
       ]);
       await expect(
@@ -134,6 +174,7 @@ describe("CompanyRoleAssignment revoke mutation", () => {
           actorUserId: systemUserId,
           assignmentId: grantId,
           companyId,
+          note: "Transaction-owned removal",
         }),
       ).resolves.toMatchObject({ id: grantId });
       await expect(
@@ -194,6 +235,7 @@ describe("CompanyRoleAssignment revoke mutation", () => {
           actorUserId: systemUserId,
           assignmentId: grantId,
           companyId,
+          note: "Shadow-table defense",
         }),
       ).resolves.toMatchObject({ id: grantId, unique_grant: "grant-public-shadowed" });
       await expect(
@@ -201,7 +243,7 @@ describe("CompanyRoleAssignment revoke mutation", () => {
       ).resolves.toMatchObject({ rows: [] });
       await expect(
         owner.query(
-          "SELECT entity_id FROM public.audit_log WHERE action = 'company_role_assignment.revoked'",
+          "SELECT entity_id FROM public.audit_log WHERE action = 'identity.company_role.removed'",
         ),
       ).resolves.toMatchObject({ rows: [{ entity_id: grantId }] });
     } finally {
@@ -236,6 +278,7 @@ describe("CompanyRoleAssignment revoke mutation", () => {
           actorUserId: systemUserId,
           assignmentId: grantId,
           companyId,
+          note: "Protected delete fixture",
         }),
       ).rejects.toThrow("company-role assignment disappeared while locked");
       await expect(
@@ -267,7 +310,7 @@ describe("CompanyRoleAssignment revoke mutation", () => {
       await owner.query(`
         CREATE FUNCTION public.reject_role_revoke_audit() RETURNS trigger AS $$
         BEGIN
-          IF NEW.action = 'company_role_assignment.revoked' THEN
+          IF NEW.action = 'identity.company_role.removed' THEN
             RAISE EXCEPTION 'audit fixture rejection';
           END IF;
           RETURN NEW;
@@ -283,6 +326,7 @@ describe("CompanyRoleAssignment revoke mutation", () => {
           actorUserId: systemUserId,
           assignmentId: grantId,
           companyId,
+          note: "Audit rollback fixture",
         }),
       ).rejects.toMatchObject({ message: expect.stringContaining("audit fixture rejection") });
       await expect(

@@ -180,6 +180,20 @@ describe("Keycloak Admin API consumer contract", () => {
     });
   });
 
+  test("deletes a newly created user for Ledger persistence compensation", async () => {
+    await executeContract({
+      description: "deletes a Keycloak user",
+      request: {
+        method: "DELETE",
+        path: `/admin/realms/${realm}/users/${idpSubject}`,
+      },
+      response: { status: 204 },
+      exercise: async (baseUrl) => {
+        await client(baseUrl).deleteUser(idpSubject);
+      },
+    });
+  });
+
   test("lists only OTP credentials", async () => {
     await executeContract({
       description: "lists a user's Keycloak credentials",
@@ -410,17 +424,14 @@ describe("in-memory Keycloak admin client", () => {
       }),
     ).resolves.toEqual({ idpSubject: "in-memory-user-1" });
     await inMemoryClient.disableUser("in-memory-user-1");
+    await inMemoryClient.deleteUser("in-memory-user-1");
     await expect(
       inMemoryClient.listOtpCredentials("seed-user"),
     ).resolves.toEqual([{ id: "otp-seed-1" }]);
     await inMemoryClient.removeOtpCredential("seed-user", "otp-seed-1");
     await inMemoryClient.addRequiredAction("seed-user", "CONFIGURE_TOTP");
 
-    expect(state.users.get("in-memory-user-1")).toMatchObject({
-      email: "new@example.com",
-      displayName: "New User",
-      enabled: false,
-    });
+    expect(state.users.has("in-memory-user-1")).toBe(false);
     expect(state.users.get("seed-user")?.otpCredentials).toEqual([]);
     expect(state.users.get("seed-user")?.requiredActions).toEqual(
       new Set(["CONFIGURE_TOTP"]),
@@ -439,6 +450,7 @@ afterAll(() => {
     expect.arrayContaining([
         "creates an enabled Keycloak user",
         "disables a Keycloak user",
+        "deletes a Keycloak user",
         "lists a user's Keycloak credentials",
         "removes a user's Keycloak OTP credential",
         "requires TOTP configuration for a Keycloak user",

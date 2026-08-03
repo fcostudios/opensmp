@@ -4,6 +4,7 @@ export interface DeleteCompanyRoleAssignmentInput {
   actorUserId: string;
   assignmentId: string;
   companyId: string;
+  note: string;
 }
 
 export interface DeletedCompanyRoleAssignment {
@@ -22,12 +23,12 @@ type QueryClient = Pick<pg.Client, "query">;
  */
 export async function deleteCompanyRoleAssignmentWithAudit(
   client: QueryClient,
-  { actorUserId, assignmentId, companyId }: DeleteCompanyRoleAssignmentInput,
+  { actorUserId, assignmentId, companyId, note }: DeleteCompanyRoleAssignmentInput,
 ): Promise<DeletedCompanyRoleAssignment | null> {
   const revoked = await client.query<DeletedCompanyRoleAssignment>(
     `SELECT id, user_account_id, company_id, role, unique_grant
-     FROM public.revoke_company_role_assignment($1, $2, $3)`,
-    [assignmentId, companyId, actorUserId],
+     FROM public.revoke_company_role_assignment($1, $2, $3, $4)`,
+    [assignmentId, companyId, actorUserId, note],
   );
   return revoked.rows[0] ?? null;
 }

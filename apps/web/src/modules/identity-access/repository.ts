@@ -2,12 +2,19 @@ import {
   and,
   asc,
   eq,
+  inArray,
   isNull,
+  or,
   sql,
 } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-import { person, userAccount } from "@smp/db/schema";
+import {
+  company,
+  companyRoleAssignment,
+  person,
+  userAccount,
+} from "@smp/db/schema";
 import * as schema from "@smp/db/schema";
 
 import type {
@@ -53,6 +60,7 @@ export interface LoadSessionUserInput {
 }
 
 type Database = NodePgDatabase<typeof schema>;
+export type IdentityAccessDatabase = Database;
 type AccountRow = {
   id: string;
   email: string;
@@ -251,3 +259,231 @@ export function createIdentityAccessRepository(database: Database) {
 export type IdentityAccessRepository = ReturnType<
   typeof createIdentityAccessRepository
 >;
+
+export type CompanyRole = "approver" | "finance" | "viewer";
+export type GlobalRole = "group_admin" | "central_finance" | null;
+
+export function createUserAdministrationRepository(database: Database) {
+  return {
+    async listUsers(companyIds: readonly string[]) {
+      return database
+        .select({
+          id: userAccount.id,
+          email: userAccount.email,
+          globalRole: userAccount.globalRole,
+          idpSubject: userAccount.idpSubject,
+          lastLoginAt: userAccount.lastLoginAt,
+          linkedPerson: person.fullName,
+          personId: userAccount.personId,
+          companyId: person.companyId,
+          status: userAccount.status,
+        })
+        .from(userAccount)
+        .leftJoin(person, eq(userAccount.personId, person.id))
+        .where(and(
+          sql`${userAccount.idpSubject} IS NOT NULL`,
+          or(isNull(person.companyId), inArray(person.companyId, [...companyIds])),
+        ))
+        .orderBy(asc(userAccount.email));
+    },
+
+    async listCompanyRoles(companyIds: readonly string[]) {
+      return database
+        .select({
+          id: companyRoleAssignment.id,
+          userAccountId: companyRoleAssignment.userAccountId,
+          userEmail: userAccount.email,
+          companyId: companyRoleAssignment.companyId,
+          companyName: company.name,
+          role: companyRoleAssignment.role,
+          validFrom: companyRoleAssignment.validFrom,
+          validTo: companyRoleAssignment.validTo,
+        })
+        .from(companyRoleAssignment)
+        .innerJoin(userAccount, eq(companyRoleAssignment.userAccountId, userAccount.id))
+        .innerJoin(company, eq(companyRoleAssignment.companyId, company.id))
+        .where(inArray(companyRoleAssignment.companyId, [...companyIds]))
+        .orderBy(asc(userAccount.email), asc(company.name), asc(companyRoleAssignment.role));
+    },
+
+    async listCompanies(companyIds: readonly string[]) {
+      return database
+        .select({ id: company.id, name: company.name })
+        .from(company)
+        .where(and(eq(company.status, "active"), inArray(company.id, [...companyIds])))
+        .orderBy(asc(company.name));
+    },
+
+    async listAvailablePeople(companyIds: readonly string[]) {
+      return database
+        .select({ id: person.id, fullName: person.fullName })
+        .from(person)
+        .leftJoin(userAccount, eq(userAccount.personId, person.id))
+        .where(and(
+          eq(person.status, "active"),
+          isNull(userAccount.id),
+          inArray(person.companyId, [...companyIds]),
+        ))
+        .orderBy(asc(person.fullName));
+    },
+
+    async createUserAccount(input: {
+      actorUserId: string;
+      email: string;
+      globalRole: GlobalRole;
+      idpSubject: string;
+      note: string;
+      personId: string | null;
+      permittedCompanyIds: readonly string[];
+      occurredAt: Date;
+    }) {
+      return withAudit(database, async (transaction) => {
+        const [linkedPerson] = input.personId
+          ? await transaction
+              .select({ companyId: person.companyId })
+              .from(person)
+              .where(and(
+                eq(person.id, input.personId),
+                inArray(person.companyId, [...input.permittedCompanyIds]),
+              ))
+              .limit(1)
+          : [];
+        if (input.personId && !linkedPerson) throw new Error("cross_company_target");
+        const [created] = await transaction
+          .insert(userAccount)
+          .values({
+            createdAt: input.occurredAt,
+            createdBy: input.actorUserId,
+            email: input.email,
+            globalRole: input.globalRole,
+            idpSubject: input.idpSubject,
+            personId: input.personId,
+            status: "active",
+          })
+          .returning({ id: userAccount.id, idpSubject: userAccount.idpSubject });
+        if (!created) throw new Error("user_create_failed");
+        return {
+          value: created,
+          audit: {
+            actorUserId: input.actorUserId,
+            action: "identity.user.created",
+            entityType: "UserAccount",
+            entityId: created.id,
+            companyId: linkedPerson?.companyId ?? null,
+            note: input.note,
+            before: null,
+            after: { email: input.email, globalRole: input.globalRole, idpSubject: input.idpSubject, personId: input.personId },
+          },
+        };
+      }, { occurredAt: input.occurredAt });
+    },
+
+    async mutateUser(input: {
+      action: "identity.user.disabled" | "identity.user.two_factor_reset";
+      actorUserId: string;
+      companyId?: string | null;
+      note: string;
+      occurredAt: Date;
+      userAccountId: string;
+      mutateProvider: (idpSubject: string) => Promise<void>;
+    }) {
+      return withAudit(database, async (transaction) => {
+        const [target] = await transaction
+          .select({
+            companyId: person.companyId,
+            id: userAccount.id,
+            idpSubject: userAccount.idpSubject,
+            status: userAccount.status,
+          })
+          .from(userAccount)
+          .leftJoin(person, eq(userAccount.personId, person.id))
+          .where(eq(userAccount.id, input.userAccountId))
+          .limit(1)
+          .for("update", { of: userAccount });
+        if (!target?.idpSubject) throw new Error("user_not_found");
+        if (input.companyId !== undefined && target.companyId !== input.companyId) throw new Error("cross_company_target");
+        await input.mutateProvider(target.idpSubject);
+        if (input.action === "identity.user.disabled") {
+          await transaction
+            .update(userAccount)
+            .set({ status: "disabled" })
+            .where(eq(userAccount.id, target.id));
+        }
+        return {
+          value: target,
+          audit: {
+            actorUserId: input.actorUserId,
+            action: input.action,
+            entityType: "UserAccount",
+            entityId: target.id,
+            companyId: target.companyId,
+            note: input.note,
+            before: { status: target.status },
+            after: input.action === "identity.user.disabled" ? { status: "disabled" } : { twoFactorStatus: "pending" },
+          },
+        };
+      }, { occurredAt: input.occurredAt });
+    },
+
+    async grantCompanyRole(input: {
+      actorUserId: string;
+      companyId: string;
+      note: string;
+      occurredAt: Date;
+      role: CompanyRole;
+      userAccountId: string;
+      validFrom: string | null;
+      validTo: string | null;
+    }) {
+      return withAudit(database, async (transaction) => {
+        const [targetCompany] = await transaction.select({ id: company.id }).from(company).where(eq(company.id, input.companyId)).limit(1);
+        const [targetUser] = await transaction.select({ id: userAccount.id }).from(userAccount).where(eq(userAccount.id, input.userAccountId)).limit(1);
+        if (!targetCompany || !targetUser) throw new Error("cross_company_target");
+        const [created] = await transaction.insert(companyRoleAssignment).values({
+          companyId: input.companyId,
+          createdAt: input.occurredAt,
+          createdBy: input.actorUserId,
+          role: input.role,
+          uniqueGrant: `${input.userAccountId}:${input.companyId}:${input.role}`,
+          userAccountId: input.userAccountId,
+          validFrom: input.validFrom,
+          validTo: input.validTo,
+        }).returning({ id: companyRoleAssignment.id });
+        if (!created) throw new Error("role_grant_failed");
+        return {
+          value: created,
+          audit: {
+            actorUserId: input.actorUserId,
+            action: "identity.company_role.granted",
+            entityType: "CompanyRoleAssignment",
+            entityId: created.id,
+            companyId: input.companyId,
+            note: input.note,
+            before: null,
+            after: { role: input.role, userAccountId: input.userAccountId, validFrom: input.validFrom, validTo: input.validTo },
+          },
+        };
+      }, { occurredAt: input.occurredAt });
+    },
+
+    async removeCompanyRole(input: {
+      actorUserId: string;
+      assignmentId: string;
+      companyId: string;
+      note: string;
+    }) {
+      return database.transaction(async (transaction) => {
+        const result = await transaction.execute(sql`
+          SELECT id, user_account_id, company_id, role, unique_grant
+          FROM public.revoke_company_role_assignment(
+            ${input.assignmentId}::uuid,
+            ${input.companyId}::uuid,
+            ${input.actorUserId}::uuid,
+            ${input.note}::text
+          )
+        `);
+        return result.rows[0] ?? null;
+      });
+    },
+  };
+}

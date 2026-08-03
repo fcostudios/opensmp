@@ -160,6 +160,10 @@ DECLARE
   assignment_row public.company_role_assignment%ROWTYPE;
   deleted_assignment public.company_role_assignment%ROWTYPE;
 BEGIN
+  IF p_note IS NULL OR btrim(p_note) = '' THEN
+    RAISE EXCEPTION 'role revocation note is required' USING ERRCODE = '22023';
+  END IF;
+
   SELECT *
   INTO assignment_row
   FROM public.company_role_assignment AS role_assignment
@@ -183,11 +187,11 @@ BEGIN
     occurred_at
   ) VALUES (
     p_actor_user_id,
-    'company_role_assignment.revoked',
+    'identity.company_role.removed',
     'CompanyRoleAssignment',
     assignment_row.id,
     assignment_row.company_id,
-    NULL,
+    p_note,
     to_jsonb(assignment_row),
     NULL,
     now()
@@ -524,12 +528,12 @@ export async function verifyMigratedSchema({
       JOIN pg_namespace AS namespace ON namespace.oid = function_row.pronamespace
       WHERE namespace.nspname = 'public'
         AND function_row.proname = 'revoke_company_role_assignment'
-        AND pg_get_function_arguments(function_row.oid) =
-          'p_assignment_id uuid, p_company_id uuid, p_actor_user_id uuid'
     `);
     const revocation = roleRevocationFunction.rows[0];
     if (
       roleRevocationFunction.rows.length !== 1 ||
+      revocation.function_arguments !==
+        'p_assignment_id uuid, p_company_id uuid, p_actor_user_id uuid, p_note text' ||
       !revocation.security_definer ||
       revocation.function_owner !== 'ledger_owner' ||
       JSON.stringify(revocation.function_configuration) !==

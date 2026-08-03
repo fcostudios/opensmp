@@ -2040,8 +2040,17 @@ describe("committed migration release path", () => {
 
   test.each([
     [
+      "a legacy null-note overload",
+      `
+        CREATE FUNCTION public.revoke_company_role_assignment(uuid, uuid, uuid)
+        RETURNS SETOF public.company_role_assignment
+        LANGUAGE sql
+        AS $$ SELECT * FROM public.company_role_assignment WHERE false $$
+      `,
+    ],
+    [
       "an unsafe search path",
-      "ALTER FUNCTION public.revoke_company_role_assignment(uuid, uuid, uuid) SET search_path = public",
+      "ALTER FUNCTION public.revoke_company_role_assignment(uuid, uuid, uuid, text) SET search_path = public",
     ],
     [
       "a rewritten function body",
@@ -2049,7 +2058,8 @@ describe("committed migration release path", () => {
         CREATE OR REPLACE FUNCTION public.revoke_company_role_assignment(
           p_assignment_id uuid,
           p_company_id uuid,
-          p_actor_user_id uuid
+          p_actor_user_id uuid,
+          p_note text
         )
         RETURNS TABLE (id uuid, user_account_id uuid, company_id uuid,
           role company_role_assignment_role_enum, unique_grant text)
@@ -2060,15 +2070,15 @@ describe("committed migration release path", () => {
     ],
     [
       "PUBLIC execute",
-      "GRANT EXECUTE ON FUNCTION public.revoke_company_role_assignment(uuid, uuid, uuid) TO PUBLIC",
+      "GRANT EXECUTE ON FUNCTION public.revoke_company_role_assignment(uuid, uuid, uuid, text) TO PUBLIC",
     ],
     [
       "ledger_app execute with grant option",
-      "GRANT EXECUTE ON FUNCTION public.revoke_company_role_assignment(uuid, uuid, uuid) TO ledger_app WITH GRANT OPTION",
+      "GRANT EXECUTE ON FUNCTION public.revoke_company_role_assignment(uuid, uuid, uuid, text) TO ledger_app WITH GRANT OPTION",
     ],
     [
       "an arbitrary login role execute",
-      `GRANT EXECUTE ON FUNCTION public.revoke_company_role_assignment(uuid, uuid, uuid) TO "${"postgres"}"`,
+      `GRANT EXECUTE ON FUNCTION public.revoke_company_role_assignment(uuid, uuid, uuid, text) TO "${"postgres"}"`,
     ],
   ])("rejects %s on the role-revocation function", async (_kind, mutationSql) => {
     const database = await createDatabase();

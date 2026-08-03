@@ -10,6 +10,8 @@ import {
   authorizeCompanyRequestWithSession,
   type CompanyRequestAuthorization,
 } from "./authorization-response";
+import { keycloakUserAdminFromEnvironment } from "./keycloak-admin";
+import { createUserAdminService } from "./user-admin-service";
 
 const authorizationRepository = createAuthorizationRepository(
   db as unknown as NodePgDatabase<typeof schema>,
@@ -50,4 +52,11 @@ export async function recordLedgerAuthorizationFailure(
   >[0],
 ) {
   return authorizationRepository.recordAuthorizationFailure(input);
+}
+
+export function createProductionUserAdminService() {
+  return createUserAdminService({
+    database: db as unknown as NodePgDatabase<typeof schema>,
+    keycloak: keycloakUserAdminFromEnvironment(),
+  });
 }

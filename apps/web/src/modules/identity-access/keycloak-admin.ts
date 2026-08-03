@@ -11,6 +11,7 @@ export interface KeycloakAdminClient {
     displayName: string;
   }): Promise<{ idpSubject: string }>;
   disableUser(idpSubject: string): Promise<void>;
+  deleteUser(idpSubject: string): Promise<void>;
   listOtpCredentials(
     idpSubject: string,
   ): Promise<readonly { id: string }[]>;
@@ -99,6 +100,14 @@ export function createKeycloakAdminHttpClient({
       );
     },
 
+    async deleteUser(idpSubject) {
+      await transport.request(
+        "delete-user",
+        `/users/${encodeURIComponent(idpSubject)}`,
+        { method: "DELETE" },
+      );
+    },
+
     async listOtpCredentials(idpSubject) {
       const response = await transport.request(
         "list-otp-credentials",
@@ -174,6 +183,20 @@ export function createKeycloakAdminHttpClient({
   };
 }
 
+export function keycloakUserAdminFromEnvironment(): KeycloakAdminClient {
+  const baseUrl = process.env.KEYCLOAK_ADMIN_BASE_URL;
+  const clientSecret = process.env.KEYCLOAK_ADMIN_CLIENT_SECRET;
+  if (!baseUrl || !clientSecret) {
+    throw new Error("Keycloak user-administration service is not configured");
+  }
+  return createKeycloakAdminHttpClient({
+    baseUrl,
+    realm: process.env.KEYCLOAK_REALM ?? "corporativo",
+    clientId: process.env.KEYCLOAK_ADMIN_CLIENT_ID ?? "smp-keycloak-admin",
+    clientSecret,
+  });
+}
+
 export interface InMemoryKeycloakAdminUser {
   readonly email: string;
   readonly displayName: string;
@@ -216,6 +239,11 @@ export function createInMemoryKeycloakAdminClient(
 
     async disableUser(idpSubject) {
       user(idpSubject).enabled = false;
+    },
+
+    async deleteUser(idpSubject) {
+      user(idpSubject);
+      state.users.delete(idpSubject);
     },
 
     async listOtpCredentials(idpSubject) {
