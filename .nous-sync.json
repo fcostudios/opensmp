@@ -1,13 +1,13 @@
 {
-  "synced_at": "2026-07-30T11:35:12.943489+00:00",
+  "synced_at": "2026-08-03T03:05:25.857637+00:00",
   "project_id": "fcostudios__smp",
   "files": {
     "docs/stories/SPRINT_PLAN.md": {
-      "hash": "a14b2490bf465f09",
+      "hash": "6d4369b4239df4dc",
       "source": "generated"
     },
     "docs/stories/CHANGES.md": {
-      "hash": "646b39d559efc890",
+      "hash": "56f308f0eeca5dbb",
       "source": "generated"
     },
     "docs/stories/ASSIGNMENTS.md": {
@@ -15,11 +15,11 @@
       "source": "generated"
     },
     "testing/critical-paths.md": {
-      "hash": "fb0d9c5d94224dbf",
+      "hash": "e765dfe6daa2ac1c",
       "source": "generated"
     },
     ".nous-project.json": {
-      "hash": "39b812745e689e70",
+      "hash": "62244990f664c2e2",
       "source": "generated"
     },
     "docs/stories/INDEX.md": {
@@ -91,7 +91,7 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_016.md"
     },
     "docs/stories/sprint-2/r1_misc_us_017.md": {
-      "hash": "800962db74e055f8",
+      "hash": "c3318e9ae711de11",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_017.md"
     },
     "docs/stories/sprint-3/r1_misc_us_018.md": {
@@ -203,7 +203,7 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_044.md"
     },
     "docs/stories/sprint-2/r1_misc_us_045.md": {
-      "hash": "9dad25a1cc8b1ac9",
+      "hash": "7cab944f15795a76",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_045.md"
     },
     "docs/stories/sprint-1/r1_misc_us_046.md": {
@@ -283,7 +283,7 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/07c_navigation_map.json"
     },
     "docs/specs/08_scope.md": {
-      "hash": "a2e5ee6bf7eff05f",
+      "hash": "3c475f99cc4ae595",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/08_scope.md"
     },
     "docs/specs/09_architecture.md": {
@@ -553,6 +553,10 @@
     "infra/scripts/regenerate-sidebar.py": {
       "hash": "4feeffbf986a8d78",
       "source": "/Users/fcolomas/Projects/nous/Nous/dev_package_staging/infra/scripts/regenerate-sidebar.py"
+    },
+    "scripts/mutation-scope.mjs": {
+      "hash": "27d6fdc5405297e1",
+      "source": "toolchain"
     }
   }
 }

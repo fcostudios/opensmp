@@ -22,7 +22,7 @@
     "test:probe": "./apps/web/node_modules/.bin/vitest run --root . --config scripts/probes/anthropic/vitest.config.ts",
     "test:contract": "./apps/web/node_modules/.bin/vitest run --root . --config scripts/probes/anthropic/vitest.contract.config.ts",
     "test:mutation:infra": "python3 -B infra/scripts/tests/run_reconcile_mutation_evidence.py && python3 -B infra/scripts/tests/run_api_reconcile_mutation_evidence.py",
-    "test:mutation": "pnpm run test:mutation:core && pnpm run test:mutation:us007 && pnpm run test:mutation:us010 && pnpm run test:mutation:us012 && pnpm run test:mutation:us013 && pnpm run test:mutation:us015 && pnpm run test:mutation:us016 && pnpm run test:mutation:us017 && pnpm run test:mutation:us020 && pnpm run test:mutation:us022 && pnpm run test:mutation:us033 && pnpm run test:mutation:us042-surfaces && pnpm run test:mutation:probe && pnpm run test:mutation:infra",
+    "test:mutation": "node scripts/mutation-scope.mjs",
     "test:mutation:core": "stryker run stryker.conf.json",
     "test:mutation:us007": "stryker run stryker.us007.conf.json",
     "test:mutation:us010": "stryker run stryker.us010.conf.json",

@@ -2,7 +2,7 @@
   "version": 1,
   "paths": {
     "docs/stories/sprint-2/r1_misc_us_017.md": {
-      "source_sha256": "e7fed05dfe5be0db145229f9ece50cb3fda56bafdfd8540e10d0d1e92598bf8e",
+      "source_sha256": "c3318e9ae711de110ad043bf800521c32a1107d1214eeb4ed0874dc458fc8b00",
       "desired_sha256": "800962db74e055f86f6eed359ea028289fd485b783af873b0cf20fb7b6afa964"
     },
     "docs/stories/sprint-2/r1_misc_us_014.md": {
@@ -10,7 +10,7 @@
       "desired_sha256": "440b65dd2e589609093fb0c8a32d3ba8d2c1d962aa6d3631996d55c7253530c9"
     },
     "docs/stories/sprint-2/r1_misc_us_045.md": {
-      "source_sha256": "56c69f89ae580edefdfc7d7f51eadd51b36b475db73f26156a9ddfbba27d66e7",
+      "source_sha256": "7cab944f15795a76175660759382f8966fcab88fbe86084303caeebc3b72b107",
       "desired_sha256": "9dad25a1cc8b1ac9aab797bc28a848674aeafc08ec20917f5b7b019ee13709f5"
     }
   }

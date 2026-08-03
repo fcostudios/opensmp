@@ -322,19 +322,10 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 "",
             )
             source017 = desired017.replace(
-                "- [ ] AC1: The 15-min alert-eval job (US-046) evaluates the approver reminder at 24h pending and the Group-Admin escalation at 48h (thresholds from AlertRule), on the first run after each threshold. Concurrent workers create exactly one AlertEvent/delivery stream per breach stage. SMTP delivery is at-least-once across an SMTP-success/DB-crash ambiguity and uses a stable Message-ID so the provider can deduplicate retries; it is not falsely described as exactly-once.",
-                "- [ ] AC1: The 15-min alert-eval job (US-046) sends the approver reminder at 24h pending and the Group-Admin escalation at 48h (thresholds from AlertRule); each fires exactly once per breach (dedupe), on the first run after threshold",
-            ).replace(
                 "- AC1 is reconciled by CHG-005 with the actual SMTP/outbox crash semantics; edit the canonical source and regenerate.",
                 "- ACs are copied verbatim from `08_scope.md` (generated 10b pass, 2026-07-22) — the scope is the single source; edit there and regenerate.",
             )
             source045 = desired045.replace(
-                "- [ ] AC1: Connector interface: capabilities() + provision/deprovision/syncMembers/syncActivity/syncCost; the Sprint 2 `none` connector routes unsupported provision/deprovision operations to the orchestration checklist (US-020). Unsupported sync operations remain explicit until the CSV/manual ingestion path lands in US-055; the orchestration milestone is independent of the API client (US-018).",
-                "- [ ] AC1: Connector interface: capabilities() + provision/deprovision/syncMembers/syncActivity/syncCost; 'unsupported' routes provisioning steps to orchestration mode (US-020) and sync steps to the CSV-import/manual ingestion path (US-055, DEC-SMP-018); ships BEFORE any concrete connector (US-018 implements it) — the orchestration path (US-020) runs against the interface alone",
-            ).replace(
-                "- [ ] AC2: Dispatch reads Vendor.provisioning_protocol (rest/scim/none); Sprint 2 registers only the `none` connector. US-018 provides the first concrete Anthropic connector after the US-054 probe gate.",
-                "- [ ] AC2: Dispatch reads Vendor.provisioning_protocol (rest/scim/none); Anthropic connector registered as #1",
-            ).replace(
                 "- ACs are reconciled by CHG-005 with the fixed Sprint 2 execution plan; edit the canonical source and regenerate.",
                 "- ACs are copied verbatim from `08_scope.md` (generated 10b pass, 2026-07-22) — the scope is the single source; edit there and regenerate.",
             )
