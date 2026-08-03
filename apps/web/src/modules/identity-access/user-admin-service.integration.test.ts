@@ -600,7 +600,7 @@ describe("US-011 user administration", () => {
     const notes = await owner.query(
       `SELECT actor_user_id, action, entity_type, entity_id, company_id,
               before, after, note, occurred_at
-       FROM audit_log WHERE entity_id = $1 ORDER BY occurred_at, action`,
+       FROM audit_log WHERE entity_id = $1 ORDER BY action DESC`,
       [grant.id],
     );
     expect(notes.rows).toEqual([
