@@ -338,8 +338,13 @@ describe("US-011 user administration", () => {
         ["read-b-us011", { email: "read-b-us011@example.com", displayName: "Read B", enabled: true, otpCredentials: [], requiredActions: new Set() }],
       ]),
     };
-    expect((await repository.listUsers([companyA])).map(({ id }) => id)).toContain(userA);
-    expect((await repository.listUsers([companyA])).map(({ id }) => id)).not.toContain(userB);
+    const scopedUsers = await repository.listUsers([companyA]);
+    expect(scopedUsers.find(({ id }) => id === userA)).toMatchObject({
+      id: userA,
+      linkedPerson: "read-a-us011@example.com",
+      personId: "00000000-0000-0000-0000-000000009131",
+    });
+    expect(scopedUsers.map(({ id }) => id)).not.toContain(userB);
     expect([...new Set((await repository.listCompanyRoles([companyA])).map(({ companyId }) => companyId))]).toEqual([companyA]);
     expect((await repository.listCompanies([companyA])).map(({ id }) => id)).toEqual([companyA]);
     expect([...new Set((await service().listCompanyRoles("admin-us011")).map(({ companyId }) => companyId))]).toEqual([companyA, companyB]);
