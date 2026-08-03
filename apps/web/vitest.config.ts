@@ -15,6 +15,7 @@ export default defineConfig({
     environment: "node",
     passWithNoTests: true,
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    exclude: ["**/*.pact.test.ts"],
     hookTimeout: 120_000,
     testTimeout: 120_000,
   },

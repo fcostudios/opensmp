@@ -33,6 +33,7 @@ import {
 
 export { SYSTEM_USER_EMAIL, SYSTEM_USER_ID } from "@smp/db/system-ids";
 export * from "./imports";
+export * from "./identity-access";
 export * from "./locale";
 export * from "./people";
 export * from "./register";
