@@ -131,8 +131,8 @@ describe("SCR-users-roles", () => {
     dialog = screen.getByRole("dialog");
     expect(dialog.textContent).toContain("linked@example.com");
     expect(dialog.textContent).toContain("Company A");
-    expect(within(dialog).getByDisplayValue(grantId).getAttribute("name")).toBe("assignmentId");
-    expect(within(dialog).getByDisplayValue(companyId).getAttribute("name")).toBe("companyId");
+    expect(within(dialog).getByDisplayValue(grantId).getAttribute("name")).toBe("roleAssignmentId");
+    expect(dialog.querySelector('input[name="companyId"]')).toBeNull();
     fireEvent(dialog, new Event("cancel", { cancelable: true }));
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).toBeNull();
@@ -173,7 +173,7 @@ describe("SCR-users-roles", () => {
     const dialog = screen.getByRole("dialog");
     expect(dialog.getAttribute("open")).toBe("");
 
-    const first = within(dialog).getByTestId("email");
+    const first = within(dialog).getByTestId("display_name");
     const last = within(dialog).getByTestId("btn_create_account");
     last.focus();
     expect(document.activeElement).toBe(last);
@@ -333,7 +333,10 @@ describe("SCR-users-roles", () => {
       "account_note",
       "btn_create_account",
       labels.createSuccess,
-      async () => user.type(screen.getByTestId("email"), "new@example.com"),
+      async () => {
+        await user.type(screen.getByTestId("display_name"), "New User");
+        await user.type(screen.getByTestId("email"), "new@example.com");
+      },
     );
     await settle(within(linkedRow()).getByTestId("btn_reset_2fa"), "reset_note", "btn_confirm_reset_2fa", labels.resetSuccess);
     await settle(within(linkedRow()).getByTestId("btn_disable_account"), "disable_note", "btn_confirm_disable", labels.disableSuccess);
@@ -342,11 +345,11 @@ describe("SCR-users-roles", () => {
     await settle(screen.getByTestId("btn_remove_role"), "remove_note", "btn_confirm_remove_role", labels.removeRoleSuccess);
 
     expect(calls).toEqual([
-      { kind: "create", entries: { email: "new@example.com", personId: "", globalRole: "", note: "Exact audit reason" } },
+      { kind: "create", entries: { displayName: "New User", email: "new@example.com", personId: "", globalRole: "", note: "Exact audit reason" } },
       { kind: "reset", entries: { userAccountId: linkedUserId, note: "Exact audit reason" } },
-      { kind: "disable", entries: { userAccountId: linkedUserId, companyId, note: "Exact audit reason" } },
+      { kind: "disable", entries: { userAccountId: linkedUserId, note: "Exact audit reason" } },
       { kind: "grant", entries: { userAccountId: linkedUserId, companyId, role: "approver", validFrom: "", validTo: "", note: "Exact audit reason" } },
-      { kind: "remove", entries: { assignmentId: grantId, companyId, note: "Exact audit reason" } },
+      { kind: "remove", entries: { roleAssignmentId: grantId, note: "Exact audit reason" } },
     ]);
     expect(navigation.refresh).toHaveBeenCalledTimes(5);
   });
@@ -364,7 +367,7 @@ describe("SCR-users-roles", () => {
 
     await user.click(screen.getByTestId("btn_new_account"));
     let dialog = screen.getByTestId("modal_new_account");
-    for (const id of ["email", "person_id", "global_role", "account_note", "btn_create_account", "btn_cancel_new_account"]) {
+    for (const id of ["display_name", "email", "person_id", "global_role", "account_note", "btn_create_account", "btn_cancel_new_account"]) {
       expect(within(dialog).getByTestId(id)).toBeTruthy();
     }
     await user.click(within(dialog).getByTestId("btn_cancel_new_account"));
@@ -494,7 +497,6 @@ describe("SCR-users-roles", () => {
     await user.click(within(dialog).getByTestId("btn_cancel_new_account"));
 
     const resetIds: string[] = [];
-    const disableCompanies: string[] = [];
     for (const row of userRows) {
       await user.click(within(row).getByTestId("btn_reset_2fa"));
       dialog = screen.getByRole("dialog");
@@ -502,11 +504,10 @@ describe("SCR-users-roles", () => {
       await user.click(within(dialog).getByTestId("btn_cancel_reset_2fa"));
       await user.click(within(row).getByTestId("btn_disable_account"));
       dialog = screen.getByRole("dialog");
-      disableCompanies.push((dialog.querySelector('input[name="companyId"]') as HTMLInputElement).value);
+      expect(dialog.querySelector('input[name="companyId"]')).toBeNull();
       await user.click(within(dialog).getByTestId("btn_cancel_disable"));
     }
     expect(resetIds).toEqual(["user-a", "user-b", "user-c"]);
-    expect(disableCompanies).toEqual(["company-a", "", ""]);
 
     await user.click(screen.getByTestId("tab_roles"));
     const rolesTable = within(screen.getByTestId("roles_table"));
@@ -538,16 +539,14 @@ describe("SCR-users-roles", () => {
     ]);
     await user.click(within(dialog).getByTestId("btn_cancel_add_role"));
     const assignmentIds: string[] = [];
-    const assignmentCompanies: string[] = [];
     for (const button of rolesTable.getAllByTestId("btn_remove_role")) {
       await user.click(button);
       dialog = screen.getByRole("dialog");
-      assignmentIds.push((dialog.querySelector('input[name="assignmentId"]') as HTMLInputElement).value);
-      assignmentCompanies.push((dialog.querySelector('input[name="companyId"]') as HTMLInputElement).value);
+      assignmentIds.push((dialog.querySelector('input[name="roleAssignmentId"]') as HTMLInputElement).value);
+      expect(dialog.querySelector('input[name="companyId"]')).toBeNull();
       await user.click(within(dialog).getByTestId("btn_cancel_remove_role"));
     }
     expect(assignmentIds).toEqual(["grant-a", "grant-b", "grant-c"]);
-    expect(assignmentCompanies).toEqual(["company-a", "company-a", "company-a"]);
 
     rerender(<UsersRolesPanel actions={{ createUser: noOp, disableUser: noOp, resetTwoFactor: noOp, grantRole: noOp, removeRole: noOp }} companies={[]} grants={[]} labels={labels} locale="es-EC" users={[]} />);
     expect(within(screen.getByTestId("roles_table")).getAllByRole("row")).toHaveLength(2);

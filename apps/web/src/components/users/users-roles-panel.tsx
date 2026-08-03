@@ -26,6 +26,7 @@ export interface UsersRolesLabels {
   readonly newAccount: string;
   readonly addRole: string;
   readonly email: string;
+  readonly displayName: string;
   readonly globalRole: string;
   readonly linkedPerson: string;
   readonly twoFactor: string;
@@ -509,6 +510,10 @@ export function UsersRolesPanel({
             {dialog.kind === "new_account" ? (
               <>
                 <label className="block space-y-1 text-sm">
+                  <span>{labels.displayName}</span>
+                  <input className={fieldClass} data-testid="display_name" name="displayName" required />
+                </label>
+                <label className="block space-y-1 text-sm">
                   <span>{labels.email}</span>
                   <input className={fieldClass} data-testid="email" name="email" placeholder={labels.emailPlaceholder} required type="email" />
                 </label>
@@ -543,7 +548,6 @@ export function UsersRolesPanel({
             {dialog.kind === "disable_account" ? (
               <>
                 <input name="userAccountId" type="hidden" value={dialog.user.id} />
-                <input name="companyId" type="hidden" value={dialog.user.companyId ?? ""} />
                 <NoteField id="disable_note" label={labels.disableNote} placeholder={labels.disablePlaceholder} />
               </>
             ) : null}
@@ -586,8 +590,7 @@ export function UsersRolesPanel({
 
             {dialog.kind === "remove_role" ? (
               <>
-                <input name="assignmentId" type="hidden" value={dialog.grant.id} />
-                <input name="companyId" type="hidden" value={dialog.grant.companyId} />
+                <input name="roleAssignmentId" type="hidden" value={dialog.grant.id} />
                 <NoteField id="remove_note" label={labels.removeNote} placeholder={labels.removePlaceholder} />
               </>
             ) : null}

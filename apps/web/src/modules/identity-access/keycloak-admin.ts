@@ -9,8 +9,15 @@ export interface KeycloakAdminClient {
   createUser(input: {
     email: string;
     displayName: string;
+    provisioningOperationId: string;
   }): Promise<{ idpSubject: string }>;
+  findUserByEmail(email: string): Promise<{
+    idpSubject: string;
+    provisioningOperationId: string | null;
+  } | null>;
   disableUser(idpSubject: string): Promise<void>;
+  revokeSessions(idpSubject: string): Promise<void>;
+  addUserToPlatformAdmin(idpSubject: string): Promise<void>;
   deleteUser(idpSubject: string): Promise<void>;
   listOtpCredentials(
     idpSubject: string,
@@ -70,9 +77,40 @@ export function createKeycloakAdminHttpClient({
     clientSecret,
     now,
   });
+  let platformAdminGroupId: string | null = null;
+
+  async function groupId(): Promise<string> {
+    if (platformAdminGroupId) return platformAdminGroupId;
+    const response = await transport.request("resolve-platform-admin-group", "/group-by-path/platform-admin");
+    const payload = await readKeycloakJson(response, "resolve-platform-admin-group");
+    if (!isRecord(payload) || typeof payload.id !== "string" || !payload.id.trim()) {
+      throw new KeycloakAdminError("resolve-platform-admin-group", response.status);
+    }
+    platformAdminGroupId = payload.id;
+    return payload.id;
+  }
 
   return {
-    async createUser({ email, displayName }) {
+    async findUserByEmail(email) {
+      const query = new URLSearchParams({ email, exact: "true" });
+      const response = await transport.request("find-user-by-email", `/users?${query}`);
+      const payload = await readKeycloakJson(response, "find-user-by-email");
+      if (!Array.isArray(payload) || payload.length > 1) throw new KeycloakAdminError("find-user-by-email", response.status);
+      if (payload.length === 0) return null;
+      const candidate = payload[0];
+      if (!isRecord(candidate) || typeof candidate.id !== "string" || !candidate.id.trim()) {
+        throw new KeycloakAdminError("find-user-by-email", response.status);
+      }
+      const attributes = candidate.attributes;
+      const marker = isRecord(attributes) ? attributes.ledgerProvisioningOperationId : undefined;
+      let provisioningOperationId: string | null = null;
+      if (marker !== undefined && (!Array.isArray(marker) || marker.length !== 1 || typeof marker[0] !== "string" || !marker[0])) {
+        throw new KeycloakAdminError("find-user-by-email", response.status);
+      }
+      if (Array.isArray(marker)) provisioningOperationId = marker[0] as string;
+      return { idpSubject: candidate.id, provisioningOperationId };
+    },
+    async createUser({ email, displayName, provisioningOperationId }) {
       const response = await transport.request("create-user", "/users", {
         method: "POST",
         body: JSON.stringify({
@@ -80,6 +118,7 @@ export function createKeycloakAdminHttpClient({
           email,
           firstName: displayName,
           enabled: true,
+          attributes: { ledgerProvisioningOperationId: [provisioningOperationId] },
         }),
       });
       const idpSubject = idpSubjectFromLocation(
@@ -100,12 +139,28 @@ export function createKeycloakAdminHttpClient({
       );
     },
 
-    async deleteUser(idpSubject) {
+    async revokeSessions(idpSubject) {
+      await transport.request("revoke-user-sessions", `/users/${encodeURIComponent(idpSubject)}/logout`, { method: "POST" });
+    },
+
+    async addUserToPlatformAdmin(idpSubject) {
       await transport.request(
-        "delete-user",
-        `/users/${encodeURIComponent(idpSubject)}`,
-        { method: "DELETE" },
+        "add-platform-admin-membership",
+        `/users/${encodeURIComponent(idpSubject)}/groups/${encodeURIComponent(await groupId())}`,
+        { method: "PUT" },
       );
+    },
+
+    async deleteUser(idpSubject) {
+      try {
+        await transport.request(
+          "delete-user",
+          `/users/${encodeURIComponent(idpSubject)}`,
+          { method: "DELETE" },
+        );
+      } catch (error) {
+        if (!(error instanceof KeycloakAdminError) || error.status !== 404) throw error;
+      }
     },
 
     async listOtpCredentials(idpSubject) {
@@ -203,6 +258,9 @@ export interface InMemoryKeycloakAdminUser {
   enabled: boolean;
   otpCredentials: Array<{ id: string }>;
   requiredActions: Set<"CONFIGURE_TOTP">;
+  platformAdmin?: boolean;
+  provisioningOperationId?: string;
+  sessionsRevoked?: number;
 }
 
 export interface InMemoryKeycloakAdminState {
@@ -225,13 +283,22 @@ export function createInMemoryKeycloakAdminClient(
   }
 
   return {
-    async createUser({ email, displayName }) {
+    async findUserByEmail(email) {
+      for (const [idpSubject, candidate] of state.users) {
+        if (candidate.email === email) {
+          return { idpSubject, provisioningOperationId: candidate.provisioningOperationId ?? null };
+        }
+      }
+      return null;
+    },
+    async createUser({ email, displayName, provisioningOperationId }) {
       const idpSubject = `in-memory-user-${state.nextSubject++}`;
       state.users.set(idpSubject, {
         email,
         displayName,
         enabled: true,
         otpCredentials: [],
+        provisioningOperationId,
         requiredActions: new Set(),
       });
       return { idpSubject };
@@ -241,8 +308,16 @@ export function createInMemoryKeycloakAdminClient(
       user(idpSubject).enabled = false;
     },
 
+    async revokeSessions(idpSubject) {
+      const existing = user(idpSubject);
+      existing.sessionsRevoked = (existing.sessionsRevoked ?? 0) + 1;
+    },
+
+    async addUserToPlatformAdmin(idpSubject) {
+      user(idpSubject).platformAdmin = true;
+    },
+
     async deleteUser(idpSubject) {
-      user(idpSubject);
       state.users.delete(idpSubject);
     },
 

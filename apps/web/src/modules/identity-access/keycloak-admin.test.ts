@@ -108,7 +108,7 @@ describe("Keycloak admin HTTP response validation", () => {
       if (location !== undefined) response.setHeader("location", location);
       response.end();
     });
-    await expect(admin.createUser({ email: "user@example.com", displayName: "User Name" }))
+    await expect(admin.createUser({ email: "user@example.com", displayName: "User Name", provisioningOperationId: "operation-1" }))
       .rejects.toMatchObject({ operation: "create-user", status: 201 });
   });
 
@@ -128,17 +128,88 @@ describe("Keycloak admin HTTP response validation", () => {
       });
     });
 
-    await expect(admin.createUser({ email: "user@example.com", displayName: "User Name" })).resolves.toEqual({ idpSubject: "subject ñ" });
+    await expect(admin.createUser({ email: "user@example.com", displayName: "User Name", provisioningOperationId: "operation-1" })).resolves.toEqual({ idpSubject: "subject ñ" });
     await admin.disableUser("subject / ñ");
     await admin.deleteUser("subject / ñ");
     await admin.removeOtpCredential("subject / ñ", "otp / ñ");
 
     expect(requests).toEqual([
-      { method: "POST", url: "/admin/realms/contract/users", body: "{\"username\":\"user@example.com\",\"email\":\"user@example.com\",\"firstName\":\"User Name\",\"enabled\":true}" },
+      { method: "POST", url: "/admin/realms/contract/users", body: "{\"username\":\"user@example.com\",\"email\":\"user@example.com\",\"firstName\":\"User Name\",\"enabled\":true,\"attributes\":{\"ledgerProvisioningOperationId\":[\"operation-1\"]}}" },
       { method: "PUT", url: "/admin/realms/contract/users/subject%20%2F%20%C3%B1", body: "{\"enabled\":false}" },
       { method: "DELETE", url: "/admin/realms/contract/users/subject%20%2F%20%C3%B1", body: "" },
       { method: "DELETE", url: "/admin/realms/contract/users/subject%20%2F%20%C3%B1/credentials/otp%20%2F%20%C3%B1", body: "" },
     ]);
+  });
+
+  test.each([
+    ["owned", { id: "user-1", attributes: { ledgerProvisioningOperationId: ["operation-1"] } }, { idpSubject: "user-1", provisioningOperationId: "operation-1" }],
+    ["unmarked", { id: "user-2" }, { idpSubject: "user-2", provisioningOperationId: null }],
+  ])("reads an exact %s provisioning marker from a Keycloak user", async (_case, representation, expected) => {
+    const requests: string[] = [];
+    const admin = await clientFor((request, response) => {
+      requests.push(request.url ?? "");
+      response.statusCode = 200;
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify([representation]));
+    });
+    await expect(admin.findUserByEmail("owner+marker@example.com")).resolves.toEqual(expected);
+    expect(requests).toEqual(["/admin/realms/contract/users?email=owner%2Bmarker%40example.com&exact=true"]);
+  });
+
+  test("rejects a malformed provisioning marker", async () => {
+    const admin = await clientFor((_request, response) => {
+      response.statusCode = 200;
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify([{ id: "user-1", attributes: { ledgerProvisioningOperationId: ["one", "two"] } }]));
+    });
+    await expect(admin.findUserByEmail("user@example.com"))
+      .rejects.toMatchObject({ operation: "find-user-by-email", status: 200 });
+  });
+
+  test("resolves and caches platform-admin membership and revokes sessions through exact routes", async () => {
+    const requests: Array<{ method: string | undefined; url: string | undefined }> = [];
+    const admin = await clientFor((request, response) => {
+      requests.push({ method: request.method, url: request.url });
+      if (request.url?.endsWith("/group-by-path/platform-admin")) {
+        response.statusCode = 200;
+        response.setHeader("content-type", "application/json");
+        response.end(JSON.stringify({ id: "platform/admin group" }));
+        return;
+      }
+      response.statusCode = 204;
+      response.end();
+    });
+
+    await admin.addUserToPlatformAdmin("subject / one");
+    await admin.addUserToPlatformAdmin("subject / two");
+    await admin.revokeSessions("subject / one");
+    expect(requests).toEqual([
+      { method: "GET", url: "/admin/realms/contract/group-by-path/platform-admin" },
+      { method: "PUT", url: "/admin/realms/contract/users/subject%20%2F%20one/groups/platform%2Fadmin%20group" },
+      { method: "PUT", url: "/admin/realms/contract/users/subject%20%2F%20two/groups/platform%2Fadmin%20group" },
+      { method: "POST", url: "/admin/realms/contract/users/subject%20%2F%20one/logout" },
+    ]);
+  });
+
+  test.each([null, [], {}, { id: " " }, { id: 7 }])(
+    "rejects malformed platform-admin group payload %#",
+    async (payload) => {
+      const admin = await clientFor((_request, response) => {
+        response.statusCode = 200;
+        response.setHeader("content-type", "application/json");
+        response.end(JSON.stringify(payload));
+      });
+      await expect(admin.addUserToPlatformAdmin("subject"))
+        .rejects.toMatchObject({ operation: "resolve-platform-admin-group", status: 200 });
+    },
+  );
+
+  test("treats an exact provider 404 delete as an idempotent success", async () => {
+    const admin = await clientFor((_request, response) => {
+      response.statusCode = 404;
+      response.end();
+    });
+    await expect(admin.deleteUser("already-deleted")).resolves.toBeUndefined();
   });
 
   test.each([
@@ -213,32 +284,36 @@ describe("Keycloak admin HTTP response validation", () => {
 describe("in-memory Keycloak admin failure and state contracts", () => {
   test("uses deterministic default state and rejects every operation for an unknown subject", async () => {
     const admin = createInMemoryKeycloakAdminClient();
-    await expect(admin.createUser({ email: "one@example.com", displayName: "One" })).resolves.toEqual({ idpSubject: "in-memory-user-1" });
-    await expect(admin.createUser({ email: "two@example.com", displayName: "Two" })).resolves.toEqual({ idpSubject: "in-memory-user-2" });
+    await expect(admin.createUser({ email: "one@example.com", displayName: "One", provisioningOperationId: "operation-1" })).resolves.toEqual({ idpSubject: "in-memory-user-1" });
+    await expect(admin.createUser({ email: "two@example.com", displayName: "Two", provisioningOperationId: "operation-2" })).resolves.toEqual({ idpSubject: "in-memory-user-2" });
     for (const operation of [
       admin.disableUser("missing"),
-      admin.deleteUser("missing"),
       admin.listOtpCredentials("missing"),
       admin.removeOtpCredential("missing", "otp"),
       admin.addRequiredAction("missing", "CONFIGURE_TOTP"),
     ]) {
       await expect(operation).rejects.toEqual(expect.objectContaining({ name: "KeycloakAdminError", operation: "resolve-in-memory-user", status: 404 }));
     }
+    await expect(admin.deleteUser("missing")).resolves.toBeUndefined();
   });
 
   test("mutates only the selected credential and keeps exact created values", async () => {
     const state: InMemoryKeycloakAdminState = { nextSubject: 8, users: new Map() };
     const admin = createInMemoryKeycloakAdminClient(state);
-    const created = await admin.createUser({ email: " exact@example.com ", displayName: " Exact Name " });
+    const created = await admin.createUser({ email: " exact@example.com ", displayName: " Exact Name ", provisioningOperationId: "operation-8" });
     expect(created).toEqual({ idpSubject: "in-memory-user-8" });
     expect(state.nextSubject).toBe(9);
-    expect(state.users.get(created.idpSubject)).toEqual({ email: " exact@example.com ", displayName: " Exact Name ", enabled: true, otpCredentials: [], requiredActions: new Set() });
+    expect(state.users.get(created.idpSubject)).toEqual({ email: " exact@example.com ", displayName: " Exact Name ", enabled: true, otpCredentials: [], provisioningOperationId: "operation-8", requiredActions: new Set() });
     state.users.get(created.idpSubject)!.otpCredentials = [{ id: "otp-1" }, { id: "otp-2" }];
 
     await admin.removeOtpCredential(created.idpSubject, "otp-1");
     expect(await admin.listOtpCredentials(created.idpSubject)).toEqual([{ id: "otp-2" }]);
     await admin.disableUser(created.idpSubject);
     expect(state.users.get(created.idpSubject)?.enabled).toBe(false);
+    await admin.revokeSessions(created.idpSubject);
+    expect(state.users.get(created.idpSubject)?.sessionsRevoked).toBe(1);
+    await admin.addUserToPlatformAdmin(created.idpSubject);
+    expect(state.users.get(created.idpSubject)?.platformAdmin).toBe(true);
     await admin.addRequiredAction(created.idpSubject, "CONFIGURE_TOTP");
     expect(state.users.get(created.idpSubject)?.requiredActions).toEqual(new Set(["CONFIGURE_TOTP"]));
     await admin.deleteUser(created.idpSubject);

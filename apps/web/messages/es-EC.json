@@ -281,6 +281,7 @@
     "assigned": "Asignadas", "attention": "Bajo el piso mínimo", "automated": "Automatizado", "available": "Disponibles", "dashboardTitle": "Capacidad de cupos", "detailEyebrow": "Organización del proveedor", "discrepancy": "Sobreasignación de", "emptyDescription": "Un cupo aparece después de registrar su primera capacidad vigente.", "emptyTitle": "No hay capacidad registrada", "eyebrow": "Operación de cupos", "floor": "Piso mínimo", "freshness": "Capacidad al {date} (Ecuador)", "loadError": "No pudimos cargar la capacidad de los cupos.", "loading": "Cargando cupos…", "mode": "Modo", "orchestration": "Orquestación", "pending": "Invitaciones pendientes", "purchased": "Compradas", "renewal": "Renovación del contrato", "retry": "Intentar de nuevo", "subtitle": "Compradas, asignadas, invitaciones pendientes y disponibles en cada organización del proveedor.", "title": "Cupos por organización"
   },
   "usersRoles": {
+    "displayName": "Nombre visible",
     "accountDescription": "Crea una cuenta de acceso y vincúlala a una persona del directorio. La persona recibirá un correo para configurar su contraseña y su 2FA.",
     "addRoleDescription": "Otorga un rol de aprobación, finanzas o lectura sobre una compañía. La ventana de vigencia es opcional.",
     "addRoleSuccess": "Rol agregado.",

@@ -145,6 +145,7 @@ describe("Keycloak Admin API consumer contract", () => {
           email: "admin@example.com",
           firstName: "Admin Example",
           enabled: true,
+          attributes: { ledgerProvisioningOperationId: ["operation-1"] },
         },
       },
       response: {
@@ -158,6 +159,7 @@ describe("Keycloak Admin API consumer contract", () => {
           client(baseUrl).createUser({
             email: "admin@example.com",
             displayName: "Admin Example",
+            provisioningOperationId: "operation-1",
           }),
         ).resolves.toEqual({ idpSubject });
       },
@@ -178,6 +180,31 @@ describe("Keycloak Admin API consumer contract", () => {
         await client(baseUrl).disableUser(idpSubject);
       },
     });
+  });
+
+  test("revokes every session after disabling a user", async () => {
+    await executeContract({
+      description: "revokes all Keycloak user sessions",
+      request: { method: "POST", path: `/admin/realms/${realm}/users/${idpSubject}/logout` },
+      response: { status: 204 },
+      exercise: async (baseUrl) => client(baseUrl).revokeSessions(idpSubject),
+    });
+  });
+
+  test("adds both Ledger privileged global roles through the platform-admin group boundary", async () => {
+    for (const role of ["group_admin", "central_finance"] as const) {
+      await executeContract({
+        description: `resolves platform-admin for ${role}`,
+        request: { method: "GET", path: `/admin/realms/${realm}/group-by-path/platform-admin` },
+        response: { status: 200, headers: { "content-type": "application/json" }, body: { id: like("platform-admin-group") } },
+        additionalInteractions: [{
+          description: `adds ${role} user to platform-admin`,
+          request: { method: "PUT", path: `/admin/realms/${realm}/users/${idpSubject}/groups/platform-admin-group` },
+          response: { status: 204 },
+        }],
+        exercise: async (baseUrl) => client(baseUrl).addUserToPlatformAdmin(idpSubject),
+      });
+    }
   });
 
   test("deletes a newly created user for Ledger persistence compensation", async () => {
@@ -352,6 +379,7 @@ describe("Keycloak Admin API consumer contract", () => {
           email: "admin@example.com",
           firstName: "Admin Example",
           enabled: true,
+          attributes: { ledgerProvisioningOperationId: ["operation-1"] },
         },
       },
       response: {
@@ -363,6 +391,7 @@ describe("Keycloak Admin API consumer contract", () => {
           client(baseUrl).createUser({
             email: "admin@example.com",
             displayName: "Admin Example",
+            provisioningOperationId: "operation-1",
           }),
         );
         expect(error).toBeInstanceOf(KeycloakAdminError);
@@ -421,6 +450,7 @@ describe("in-memory Keycloak admin client", () => {
       inMemoryClient.createUser({
         email: "new@example.com",
         displayName: "New User",
+        provisioningOperationId: "operation-1",
       }),
     ).resolves.toEqual({ idpSubject: "in-memory-user-1" });
     await inMemoryClient.disableUser("in-memory-user-1");

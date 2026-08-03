@@ -12,6 +12,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import {
   company,
   companyRoleAssignment,
+  identityProviderOperation,
   person,
   userAccount,
 } from "@smp/db/schema";
@@ -265,6 +266,21 @@ export type GlobalRole = "group_admin" | "central_finance" | null;
 
 export function createUserAdministrationRepository(database: Database) {
   return {
+    async findUserByEmail(email: string) {
+      const [account] = await database.select({ id: userAccount.id, idpSubject: userAccount.idpSubject })
+        .from(userAccount).where(eq(userAccount.email, email)).limit(1);
+      return account ?? null;
+    },
+    async resolveUserTarget(userAccountId: string) {
+      const [target] = await database.select({
+        companyId: person.companyId,
+        id: userAccount.id,
+        idpSubject: userAccount.idpSubject,
+        status: userAccount.status,
+      }).from(userAccount).leftJoin(person, eq(userAccount.personId, person.id))
+        .where(eq(userAccount.id, userAccountId)).limit(1);
+      return target?.idpSubject ? { ...target, idpSubject: target.idpSubject } : null;
+    },
     async listUsers(companyIds: readonly string[]) {
       return database
         .select({
@@ -333,6 +349,7 @@ export function createUserAdministrationRepository(database: Database) {
       globalRole: GlobalRole;
       idpSubject: string;
       note: string;
+      operationId?: string;
       personId: string | null;
       permittedCompanyIds: readonly string[];
       occurredAt: Date;
@@ -362,6 +379,10 @@ export function createUserAdministrationRepository(database: Database) {
           })
           .returning({ id: userAccount.id, idpSubject: userAccount.idpSubject });
         if (!created) throw new Error("user_create_failed");
+        if (input.operationId) {
+          await transaction.update(identityProviderOperation).set({ completedAt: input.occurredAt, status: "completed" })
+            .where(eq(identityProviderOperation.id, input.operationId));
+        }
         return {
           value: created,
           audit: {
@@ -378,47 +399,32 @@ export function createUserAdministrationRepository(database: Database) {
       }, { occurredAt: input.occurredAt });
     },
 
-    async mutateUser(input: {
+    async finalizeUserMutation(input: {
       action: "identity.user.disabled" | "identity.user.two_factor_reset";
       actorUserId: string;
-      companyId?: string | null;
+      companyId: string | null;
       note: string;
+      operationId: string;
       occurredAt: Date;
+      statusBefore: "active" | "disabled";
       userAccountId: string;
-      mutateProvider: (idpSubject: string) => Promise<void>;
     }) {
       return withAudit(database, async (transaction) => {
-        const [target] = await transaction
-          .select({
-            companyId: person.companyId,
-            id: userAccount.id,
-            idpSubject: userAccount.idpSubject,
-            status: userAccount.status,
-          })
-          .from(userAccount)
-          .leftJoin(person, eq(userAccount.personId, person.id))
-          .where(eq(userAccount.id, input.userAccountId))
-          .limit(1)
-          .for("update", { of: userAccount });
-        if (!target?.idpSubject) throw new Error("user_not_found");
-        if (input.companyId !== undefined && target.companyId !== input.companyId) throw new Error("cross_company_target");
-        await input.mutateProvider(target.idpSubject);
         if (input.action === "identity.user.disabled") {
-          await transaction
-            .update(userAccount)
-            .set({ status: "disabled" })
-            .where(eq(userAccount.id, target.id));
+          await transaction.update(userAccount).set({ status: "disabled" }).where(eq(userAccount.id, input.userAccountId));
         }
+        await transaction.update(identityProviderOperation).set({ completedAt: input.occurredAt, status: "completed" })
+          .where(eq(identityProviderOperation.id, input.operationId));
         return {
-          value: target,
+          value: { id: input.userAccountId },
           audit: {
             actorUserId: input.actorUserId,
             action: input.action,
             entityType: "UserAccount",
-            entityId: target.id,
-            companyId: target.companyId,
+            entityId: input.userAccountId,
+            companyId: input.companyId,
             note: input.note,
-            before: { status: target.status },
+            before: { status: input.statusBefore },
             after: input.action === "identity.user.disabled" ? { status: "disabled" } : { twoFactorStatus: "pending" },
           },
         };
@@ -468,16 +474,22 @@ export function createUserAdministrationRepository(database: Database) {
 
     async removeCompanyRole(input: {
       actorUserId: string;
-      assignmentId: string;
-      companyId: string;
+      roleAssignmentId: string;
+      permittedCompanyIds: readonly string[];
       note: string;
     }) {
       return database.transaction(async (transaction) => {
+        const [assignment] = await transaction.select({ companyId: companyRoleAssignment.companyId })
+          .from(companyRoleAssignment).where(and(
+            eq(companyRoleAssignment.id, input.roleAssignmentId),
+            inArray(companyRoleAssignment.companyId, [...input.permittedCompanyIds]),
+          )).limit(1);
+        if (!assignment) return null;
         const result = await transaction.execute(sql`
           SELECT id, user_account_id, company_id, role, unique_grant
           FROM public.revoke_company_role_assignment(
-            ${input.assignmentId}::uuid,
-            ${input.companyId}::uuid,
+            ${input.roleAssignmentId}::uuid,
+            ${assignment.companyId}::uuid,
             ${input.actorUserId}::uuid,
             ${input.note}::text
           )

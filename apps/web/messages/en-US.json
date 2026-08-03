@@ -281,6 +281,7 @@
     "assigned": "Assigned", "attention": "Below the minimum floor", "automated": "Automated", "available": "Available", "dashboardTitle": "Pool capacity", "detailEyebrow": "Vendor organization", "discrepancy": "Oversubscribed by", "emptyDescription": "A pool appears after its first effective capacity record.", "emptyTitle": "No pool capacity recorded", "eyebrow": "Pool operations", "floor": "Minimum floor", "freshness": "Capacity as of {date} (Ecuador)", "loadError": "We couldn't load pool capacity.", "loading": "Loading pools…", "mode": "Mode", "orchestration": "Orchestration", "pending": "Pending invites", "purchased": "Purchased", "renewal": "Contract renewal", "retry": "Try again", "subtitle": "Purchased, assigned, pending invitations, and available capacity for each vendor organization.", "title": "Pools by organization"
   },
   "usersRoles": {
+    "displayName": "Display name",
     "accountDescription": "Create an access account and link it to a person in the directory. The person will receive an email to configure their password and 2FA.",
     "addRoleDescription": "Grant an approval, finance, or read-only role for one company. The validity window is optional.",
     "addRoleSuccess": "Role added.",

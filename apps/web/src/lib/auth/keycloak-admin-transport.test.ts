@@ -32,6 +32,26 @@ async function listen(
 }
 
 describe("Keycloak admin client-credentials transport", () => {
+  test("coalesces concurrent service-token acquisition", async () => {
+    let tokenRequests = 0;
+    const baseUrl = await listen((request, response) => {
+      if (request.url?.endsWith("/protocol/openid-connect/token")) {
+        tokenRequests += 1;
+        setTimeout(() => {
+          response.setHeader("content-type", "application/json");
+          response.end(JSON.stringify({ access_token: "shared", expires_in: 60 }));
+        }, 20);
+        return;
+      }
+      response.statusCode = 204;
+      response.end();
+    });
+    const transport = createKeycloakAdminTransport({ baseUrl, realm: "realm", clientId: "client", clientSecret: "secret" });
+
+    await Promise.all(Array.from({ length: 12 }, (_, index) => transport.request(`request-${index}`, `/users/${index}`)));
+
+    expect(tokenRequests).toBe(1);
+  });
   test("reports sanitized operation and status details", () => {
     const providerError = new KeycloakAdminError("create-user", 503);
     expect(providerError).toBeInstanceOf(Error);

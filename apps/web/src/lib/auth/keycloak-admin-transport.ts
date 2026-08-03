@@ -57,6 +57,7 @@ export function createKeycloakAdminTransport({
   const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
   const realmPath = encodeURIComponent(realm);
   let tokenState: TokenState | null = null;
+  let tokenRequest: Promise<string> | null = null;
 
   async function accessToken(forceRefresh = false): Promise<string> {
     if (
@@ -66,6 +67,10 @@ export function createKeycloakAdminTransport({
     ) {
       return tokenState.accessToken;
     }
+
+    if (tokenRequest) return tokenRequest;
+
+    const request = (async () => {
 
     let response: Response;
     try {
@@ -107,6 +112,13 @@ export function createKeycloakAdminTransport({
       expiresAt: now() + expiresIn * 1_000,
     };
     return tokenState.accessToken;
+    })();
+    tokenRequest = request;
+    try {
+      return await request;
+    } finally {
+      if (tokenRequest === request) tokenRequest = null;
+    }
   }
 
   return {

@@ -191,6 +191,29 @@ export const auditLog = pgTable(
   }),
 );
 
+export const identityProviderOperation = pgTable("identity_provider_operation", {
+  id: uuid("id").primaryKey().defaultRandom().notNull(),
+  idempotencyKey: text("idempotency_key").notNull().unique(),
+  kind: text("kind").notNull(),
+  status: text("status").notNull(),
+  actorUserId: uuid("actor_user_id").references((): AnyPgColumn => userAccount.id).notNull(),
+  targetUserAccountId: uuid("target_user_account_id").references((): AnyPgColumn => userAccount.id),
+  companyId: uuid("company_id").references((): AnyPgColumn => company.id),
+  providerSubject: text("provider_subject"),
+  payload: jsonb("payload").notNull(),
+  attemptCount: integer("attempt_count").default(0).notNull(),
+  lastAttemptedAt: timestamp("last_attempted_at", { withTimezone: true }),
+  nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
+  originalFailure: text("original_failure"),
+  cleanupFailure: text("cleanup_failure"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+}, (table) => ({
+  retryIndex: index("idx_identity_provider_operation_retry")
+    .on(table.nextRetryAt, table.createdAt)
+    .where(sql`${table.status} IN ('pending', 'provider_applied', 'cleanup_pending')`),
+}));
+
 export const rateCard = pgTable("rate_card", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),
   vendorAccountId: uuid("vendor_account_id").references((): AnyPgColumn => vendorAccount.id).notNull(),

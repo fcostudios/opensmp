@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
@@ -18,6 +19,7 @@ import {
 import {
   createUserAdminService,
 } from "./user-admin-service";
+import { createProviderOperationRepository } from "./provider-operation-repository";
 import { createUserAdministrationRepository } from "./repository";
 import { createManageUserActionHandlers } from "./actions/manage-users";
 import { createAuthorizationRepository } from "./authorization";
@@ -29,6 +31,10 @@ const companyA = "00000000-0000-0000-0000-000000001111";
 const companyB = "00000000-0000-0000-0000-000000001112";
 const unauthorizedCompany = "00000000-0000-0000-0000-000000001119";
 const now = new Date("2026-08-03T15:00:00.000Z");
+
+function expectedOperationKey(parts: readonly (string | null)[]) {
+  return createHash("sha256").update(JSON.stringify(parts)).digest("hex");
+}
 
 let fixture: PostgresFixture;
 let owner: pg.Client;
@@ -115,6 +121,7 @@ describe("US-011 user administration", () => {
 
     await handlers.createUserAccount(form({
       email: "action-user-us011@example.com",
+      displayName: "Action User",
       globalRole: " group_admin ",
       personId: actionPersonId,
       note: "Created from account action",
@@ -123,7 +130,7 @@ describe("US-011 user administration", () => {
     const userId = created.rows[0]!.id;
     expect(created.rows[0]!.global_role).toBe("group_admin");
     expect(created.rows[0]!.person_id).toBe(actionPersonId);
-    expect(state.users.get("in-memory-user-81")).toMatchObject({ email: "action-user-us011@example.com", displayName: "action-user-us011@example.com" });
+    expect(state.users.get("in-memory-user-81")).toMatchObject({ email: "action-user-us011@example.com", displayName: "Action User", platformAdmin: true });
     const createdAudit = await owner.query(
       `SELECT company_id, after
        FROM audit_log
@@ -154,11 +161,13 @@ describe("US-011 user administration", () => {
     expect(financeDates.rows).toEqual([{ valid_from: "2027-01-01", valid_to: "2027-10-31" }]);
     await handlers.createUserAccount(form({
       email: "action-finance-us011@example.com",
+      displayName: "Action Finance",
       globalRole: "central_finance",
       personId: "",
       note: "Central finance action",
     }));
-    const blobPerson = form({ email: "action-blob-us011@example.com", globalRole: "", note: "Binary person ignored" });
+    expect(state.users.get("in-memory-user-82")?.platformAdmin).toBe(true);
+    const blobPerson = form({ email: "action-blob-us011@example.com", displayName: "Action Blob", globalRole: "", note: "Binary person ignored" });
     blobPerson.set("personId", new Blob(["not-a-person"]));
     await handlers.createUserAccount(blobPerson);
     for (const role of ["approver", "viewer"] as const) {
@@ -172,7 +181,7 @@ describe("US-011 user administration", () => {
       }));
     }
     await handlers.resetTwoFactor(form({ userAccountId: userId, note: "Reset from action" }));
-    await handlers.removeCompanyRole(form({ assignmentId, companyId: companyA, note: "Removed from action" }));
+    await handlers.removeCompanyRole(form({ roleAssignmentId: assignmentId, companyId: unauthorizedCompany, note: "Removed from action" }));
     await handlers.disableUserAccount(form({ userAccountId: userId, companyId: companyA, note: "Disabled from action" }));
 
     expect(revalidated).toEqual(Array(9).fill("/usuarios"));
@@ -372,6 +381,7 @@ describe("US-011 user administration", () => {
     expect(state.users.get("in-memory-user-41")).toMatchObject({
       displayName: "Created User",
       email: "created-us011@example.com",
+      platformAdmin: true,
     });
     const normalized = await owner.query("SELECT email FROM user_account WHERE id = $1", [created.id]);
     expect(normalized.rows).toEqual([{ email: "created-us011@example.com" }]);
@@ -399,6 +409,249 @@ describe("US-011 user administration", () => {
         occurred_at: now,
       },
     ]);
+    const saga = await owner.query(
+      `SELECT status, provider_subject, attempt_count, idempotency_key FROM identity_provider_operation
+       WHERE payload->>'email' = 'created-us011@example.com'`,
+    );
+    expect(saga.rows).toEqual([{
+      status: "completed",
+      provider_subject: "in-memory-user-41",
+      attempt_count: 1,
+      idempotency_key: expectedOperationKey([
+        "create_user",
+        "admin-us011",
+        "created-us011@example.com",
+        "Approved access request AR-41",
+      ]),
+    }]);
+    const intentAudit = await owner.query(
+      `SELECT action, entity_type, note FROM audit_log
+       WHERE entity_id = (SELECT id FROM identity_provider_operation WHERE payload->>'email' = 'created-us011@example.com')`,
+    );
+    expect(intentAudit.rows).toEqual([{ action: "identity.provider_operation.requested", entity_type: "IdentityProviderOperation", note: "Approved access request AR-41" }]);
+    const replay = await service().createUser("admin-us011", {
+      email: "  CREATED-US011@EXAMPLE.COM  ",
+      displayName: "  Created User  ",
+      globalRole: "central_finance",
+      personId: null,
+      note: "Approved access request AR-41",
+    });
+    expect(replay.id).toBe(created.id);
+    expect(state.users.size).toBe(1);
+  });
+
+  test("commits the audited intent before invoking Keycloak", async () => {
+    state = { nextSubject: 45, users: new Map() };
+    const base = createInMemoryKeycloakAdminClient(state);
+    const ordered = createUserAdminService({
+      database: drizzle(appPool, { schema }),
+      keycloak: {
+        ...base,
+        async createUser(input) {
+          const durable = await owner.query(
+            `SELECT operation.status, audit.action
+             FROM identity_provider_operation operation
+             JOIN audit_log audit ON audit.entity_id = operation.id
+             WHERE operation.payload->>'note' = 'Intent ordering proof'`,
+          );
+          expect(durable.rows).toEqual([{ status: "pending", action: "identity.provider_operation.requested" }]);
+          return base.createUser(input);
+        },
+      },
+      now: () => now,
+    });
+    await ordered.createUser("admin-us011", {
+      email: "intent-order-us011@example.com", displayName: "Intent Order", globalRole: null,
+      personId: null, note: "Intent ordering proof",
+    });
+  });
+
+  test("preserves an existing provider account not owned by the durable operation", async () => {
+    state = {
+      nextSubject: 51,
+      users: new Map([["legitimate-provider-user", {
+        email: "provider-existing-us011@example.com",
+        displayName: "Existing Provider User",
+        enabled: true,
+        otpCredentials: [],
+        requiredActions: new Set(),
+      }]]),
+    };
+
+    await expect(service().createUser("admin-us011", {
+      email: "provider-existing-us011@example.com",
+      displayName: "Must Not Replace",
+      globalRole: null,
+      personId: null,
+      note: "Provider ownership conflict",
+    })).rejects.toMatchObject({ code: "provider_email_conflict", name: "UserAdminError" });
+
+    expect(state.users).toEqual(new Map([["legitimate-provider-user", {
+      email: "provider-existing-us011@example.com",
+      displayName: "Existing Provider User",
+      enabled: true,
+      otpCredentials: [],
+      requiredActions: new Set(),
+    }]]));
+    const ledgerUser = await owner.query("SELECT id FROM user_account WHERE email = $1", ["provider-existing-us011@example.com"]);
+    expect(ledgerUser.rows).toEqual([]);
+  });
+
+  test("recovers a provider create whose response was lost before the provider checkpoint", async () => {
+    state = { nextSubject: 52, users: new Map() };
+    const base = createInMemoryKeycloakAdminClient(state);
+    const responseLost = createUserAdminService({
+      database: drizzle(appPool, { schema }),
+      keycloak: {
+        ...base,
+        async createUser(input) {
+          await base.createUser(input);
+          throw new Error("provider response lost");
+        },
+      },
+      now: () => now,
+    });
+    const command = {
+      email: "recover-create-us011@example.com",
+      displayName: "Recover Create",
+      globalRole: null,
+      personId: null,
+      note: "Recover response-loss create",
+    } as const;
+
+    await expect(responseLost.createUser("admin-us011", command)).rejects.toThrow("provider response lost");
+    const pending = await owner.query(
+      `SELECT id, status, provider_subject FROM identity_provider_operation
+       WHERE payload->>'email' = 'recover-create-us011@example.com'`,
+    );
+    expect(pending.rows).toEqual([{ id: expect.any(String), status: "pending", provider_subject: null }]);
+    expect(state.users.get("in-memory-user-52")?.provisioningOperationId).toBe(pending.rows[0]?.id);
+
+    const recovered = await service().createUser("admin-us011", command);
+    expect(recovered.idpSubject).toBe("in-memory-user-52");
+    expect(state.users.size).toBe(1);
+    const completed = await owner.query(
+      `SELECT status, provider_subject FROM identity_provider_operation WHERE id = $1`,
+      [pending.rows[0]?.id],
+    );
+    expect(completed.rows).toEqual([{ status: "completed", provider_subject: "in-memory-user-52" }]);
+  });
+
+  test("resumes a provider-applied privileged create without recreating the provider user or repeating group sync", async () => {
+    state = { nextSubject: 53, users: new Map() };
+    const database = drizzle(appPool, { schema });
+    const operations = createProviderOperationRepository(database);
+    const command = {
+      email: "provider-applied-us011@example.com",
+      displayName: "Provider Applied",
+      globalRole: "central_finance" as const,
+      personId: null,
+      note: "Resume provider-applied create",
+    };
+    const operation = await operations.request({
+      actorUserId: actorId,
+      companyId: null,
+      idempotencyKey: expectedOperationKey([
+        "create_user",
+        "admin-us011",
+        command.email,
+        command.note,
+      ]),
+      kind: "create_user",
+      occurredAt: now,
+      payload: command,
+      targetUserAccountId: null,
+    });
+    await operations.checkpointProviderApplied(
+      operation.id,
+      "provider-applied-subject-us011",
+      now,
+    );
+
+    const created = await service().createUser("admin-us011", command);
+
+    expect(created.idpSubject).toBe("provider-applied-subject-us011");
+    expect(state.users).toEqual(new Map());
+    const persistedOperation = await owner.query(
+      "SELECT status, provider_subject, attempt_count FROM identity_provider_operation WHERE id = $1",
+      [operation.id],
+    );
+    expect(persistedOperation.rows).toEqual([{
+      status: "completed",
+      provider_subject: "provider-applied-subject-us011",
+      attempt_count: 1,
+    }]);
+  });
+
+  test.each(["failed", "compensated"] as const)(
+    "does not retry a terminal %s provider create operation",
+    async (status) => {
+      state = { nextSubject: 54, users: new Map() };
+      const database = drizzle(appPool, { schema });
+      const operations = createProviderOperationRepository(database);
+      const command = {
+        email: `terminal-${status}-us011@example.com`,
+        displayName: `Terminal ${status}`,
+        globalRole: null,
+        personId: null,
+        note: `Terminal ${status} operation`,
+      };
+      const operation = await operations.request({
+        actorUserId: actorId,
+        companyId: null,
+        idempotencyKey: expectedOperationKey([
+          "create_user",
+          "admin-us011",
+          command.email,
+          command.note,
+        ]),
+        kind: "create_user",
+        occurredAt: now,
+        payload: command,
+        targetUserAccountId: null,
+      });
+      await owner.query(
+        "UPDATE identity_provider_operation SET status = $1, original_failure = $2 WHERE id = $3",
+        [status, `terminal ${status} failure`, operation.id],
+      );
+
+      await expect(service().createUser("admin-us011", command))
+        .rejects.toThrow(`terminal ${status} failure`);
+      expect(state.users).toEqual(new Map());
+      const ledgerUser = await owner.query(
+        "SELECT id FROM user_account WHERE email = $1",
+        [command.email],
+      );
+      expect(ledgerUser.rows).toEqual([]);
+    },
+  );
+
+  test("accepts an exact 1000-character audit note and rejects 1001 characters before provider mutation", async () => {
+    state = { nextSubject: 55, users: new Map() };
+    const acceptedNote = "a".repeat(1_000);
+    const rejectedNote = "b".repeat(1_001);
+
+    const created = await service().createUser("admin-us011", {
+      email: "note-boundary-us011@example.com",
+      displayName: "Note Boundary",
+      globalRole: null,
+      personId: null,
+      note: acceptedNote,
+    });
+    await expect(service().createUser("admin-us011", {
+      email: "note-too-long-us011@example.com",
+      displayName: "Note Too Long",
+      globalRole: null,
+      personId: null,
+      note: rejectedNote,
+    })).rejects.toMatchObject({ code: "note_required" });
+
+    const audit = await owner.query(
+      "SELECT note FROM audit_log WHERE entity_id = $1 AND action = 'identity.user.created'",
+      [created.id],
+    );
+    expect(audit.rows).toEqual([{ note: acceptedNote }]);
+    expect(state.users.size).toBe(1);
   });
 
   test("create compensates Keycloak when Ledger rejects persistence (kills orphan-provider-user mutant)", async () => {
@@ -412,6 +665,57 @@ describe("US-011 user administration", () => {
         note: "Duplicate must be rejected",
       }),
     ).rejects.toBeInstanceOf(Error);
+    expect(state.users.size).toBe(0);
+  });
+
+  test("create preserves Ledger and cleanup failures in a durable cleanup-pending operation", async () => {
+    state = { nextSubject: 61, users: new Map() };
+    const base = createInMemoryKeycloakAdminClient(state);
+    const failingCleanup = createUserAdminService({
+      database: drizzle(appPool, { schema }),
+      keycloak: { ...base, deleteUser: async () => { throw new Error("cleanup unavailable"); } },
+      now: () => now,
+    });
+
+    const error = await failingCleanup.createUser("admin-us011", {
+      email: "created-us011@example.com",
+      displayName: "Duplicate with cleanup failure",
+      globalRole: null,
+      personId: null,
+      note: "Durable cleanup retry",
+    }).then(() => null, (failure: unknown) => failure);
+
+    expect(error).toBeInstanceOf(AggregateError);
+    expect((error as AggregateError).errors.map(String)).toEqual([
+      expect.stringContaining("duplicate key"),
+      "Error: cleanup unavailable",
+    ]);
+    const operation = await owner.query(
+      `SELECT status, provider_subject, original_failure, cleanup_failure,
+              attempt_count, next_retry_at
+       FROM identity_provider_operation
+       WHERE payload->>'note' = 'Durable cleanup retry'`,
+    );
+    expect(operation.rows).toEqual([expect.objectContaining({
+      status: "cleanup_pending",
+      provider_subject: "in-memory-user-61",
+      original_failure: expect.stringContaining("duplicate key"),
+      cleanup_failure: "Error: cleanup unavailable",
+      attempt_count: 1,
+      next_retry_at: new Date(now.getTime() + 60_000),
+    })]);
+    await expect(service().createUser("admin-us011", {
+      email: "created-us011@example.com",
+      displayName: "Duplicate with cleanup failure",
+      globalRole: null,
+      personId: null,
+      note: "Durable cleanup retry",
+    })).rejects.toThrowError(/duplicate key/);
+    const reconciled = await owner.query(
+      `SELECT status, cleanup_failure FROM identity_provider_operation
+       WHERE payload->>'note' = 'Durable cleanup retry'`,
+    );
+    expect(reconciled.rows).toEqual([{ status: "compensated", cleanup_failure: "Error: cleanup unavailable" }]);
     expect(state.users.size).toBe(0);
   });
 
@@ -456,6 +760,49 @@ describe("US-011 user administration", () => {
     expect(users.find(({ id }) => id === configuredId)?.twoFactorStatus).toBe("configured");
   });
 
+  test("bounds Keycloak credential reads to eight concurrent requests while preserving result order", async () => {
+    const subjects = await owner.query<{ email: string; idp_subject: string }>(
+      "SELECT email, idp_subject FROM user_account WHERE idp_subject IS NOT NULL ORDER BY email",
+    );
+    state = {
+      nextSubject: 1,
+      users: new Map(subjects.rows.map((row) => [row.idp_subject, {
+        email: row.email,
+        displayName: row.email,
+        enabled: true,
+        otpCredentials: [],
+        requiredActions: new Set<"CONFIGURE_TOTP">(),
+      }])),
+    };
+    const base = createInMemoryKeycloakAdminClient(state);
+    let active = 0;
+    let maximumActive = 0;
+    let started = 0;
+    let release!: () => void;
+    const firstLaneBarrier = new Promise<void>((resolve) => { release = resolve; });
+    const bounded = createUserAdminService({
+      database: drizzle(appPool, { schema }),
+      keycloak: {
+        ...base,
+        async listOtpCredentials() {
+          started += 1;
+          active += 1;
+          maximumActive = Math.max(maximumActive, active);
+          if (started === 8) release();
+          await firstLaneBarrier;
+          active -= 1;
+          return [];
+        },
+      },
+      now: () => now,
+    });
+
+    const users = await bounded.listUsers("admin-us011");
+    expect(started).toBe(subjects.rows.length);
+    expect(maximumActive).toBe(8);
+    expect(users.map(({ idpSubject }) => idpSubject)).toEqual(subjects.rows.map(({ idp_subject }) => idp_subject));
+  });
+
   test("reset removes every OTP credential, requires CONFIGURE_TOTP, and audits exact note (kills first-only/no-action mutants)", async () => {
     const userId = "00000000-0000-0000-0000-000000001123";
     await insertUser({ id: userId, email: "reset-us011@example.com", subject: "reset-us011" });
@@ -464,6 +811,30 @@ describe("US-011 user administration", () => {
       users: new Map([["reset-us011", { email: "reset-us011@example.com", displayName: "Reset", enabled: true, otpCredentials: [{ id: "otp-a" }, { id: "otp-b" }], requiredActions: new Set() }]]),
     };
 
+    await service().resetTwoFactor("admin-us011", {
+      userAccountId: userId,
+      note: "Phone replaced after loss",
+    });
+
+    const operation = await owner.query(
+      `SELECT idempotency_key, kind, payload, target_user_account_id
+       FROM identity_provider_operation
+       WHERE payload->>'note' = 'Phone replaced after loss'`,
+    );
+    expect(operation.rows).toEqual([{
+      idempotency_key: expectedOperationKey([
+        "reset_two_factor",
+        "admin-us011",
+        userId,
+        "Phone replaced after loss",
+      ]),
+      kind: "reset_two_factor",
+      payload: {
+        userAccountId: userId,
+        note: "Phone replaced after loss",
+      },
+      target_user_account_id: userId,
+    }]);
     await service().resetTwoFactor("admin-us011", {
       userAccountId: userId,
       note: "Phone replaced after loss",
@@ -490,7 +861,23 @@ describe("US-011 user administration", () => {
     }]);
   });
 
-  test("disable rejects a mismatched company context without touching either company (kills unscoped-id update mutant)", async () => {
+  test("reset rejects a missing target before creating a provider operation", async () => {
+    state = { nextSubject: 1, users: new Map() };
+    const missingId = "00000000-0000-0000-0000-000000009996";
+
+    await expect(service().resetTwoFactor("admin-us011", {
+      userAccountId: missingId,
+      note: "Missing reset target",
+    })).rejects.toMatchObject({ code: "target_not_found", name: "UserAdminError" });
+
+    const operations = await owner.query(
+      "SELECT id FROM identity_provider_operation WHERE target_user_account_id = $1",
+      [missingId],
+    );
+    expect(operations.rows).toEqual([]);
+  });
+
+  test("disable derives company scope, rejects a missing target, and revokes sessions (kills unscoped-id update mutant)", async () => {
     const userId = "00000000-0000-0000-0000-000000001124";
     await insertUser({ id: userId, email: "scoped-us011@example.com", subject: "scoped-us011", companyId: companyA });
     state = {
@@ -499,31 +886,36 @@ describe("US-011 user administration", () => {
     };
 
     await expect(service().disableUser("admin-us011", {
-      userAccountId: userId,
-      companyId: unauthorizedCompany,
-      note: "Wrong company target",
-    })).rejects.toMatchObject({ code: "cross_company_target" });
-    expect(state.users.get("scoped-us011")?.enabled).toBe(true);
-    const row = await owner.query("SELECT status FROM user_account WHERE id = $1", [userId]);
-    expect(row.rows).toEqual([{ status: "active" }]);
-
-    await expect(service().disableUser("admin-us011", {
-      userAccountId: userId,
-      companyId: companyB,
-      note: "Authorized company but mismatched target",
-    })).rejects.toMatchObject({ code: "cross_company_target", name: "UserAdminError" });
-    await expect(service().disableUser("admin-us011", {
       userAccountId: "00000000-0000-0000-0000-000000009999",
-      companyId: companyA,
       note: "Missing user target",
     })).rejects.toMatchObject({ code: "target_not_found", name: "UserAdminError" });
 
     await service().disableUser("admin-us011", {
       userAccountId: userId,
-      companyId: companyA,
+      note: "Employment ended",
+    });
+    await service().disableUser("admin-us011", {
+      userAccountId: userId,
       note: "Employment ended",
     });
     expect(state.users.get("scoped-us011")?.enabled).toBe(false);
+    expect(state.users.get("scoped-us011")?.sessionsRevoked).toBe(1);
+    const operation = await owner.query(
+      `SELECT idempotency_key, kind, payload, target_user_account_id
+       FROM identity_provider_operation
+       WHERE payload->>'note' = 'Employment ended'`,
+    );
+    expect(operation.rows).toEqual([{
+      idempotency_key: expectedOperationKey([
+        "disable_user",
+        "admin-us011",
+        userId,
+        "Employment ended",
+      ]),
+      kind: "disable_user",
+      payload: { userAccountId: userId, note: "Employment ended" },
+      target_user_account_id: userId,
+    }]);
     const disabled = await owner.query("SELECT status FROM user_account WHERE id = $1", [userId]);
     expect(disabled.rows).toEqual([{ status: "disabled" }]);
     const audit = await owner.query(
@@ -542,6 +934,63 @@ describe("US-011 user administration", () => {
       after: { status: "disabled" },
       note: "Employment ended",
       occurred_at: now,
+    }]);
+  });
+
+  test("disable keeps a provider-applied retry record when Ledger finalization fails", async () => {
+    const userId = "00000000-0000-0000-0000-000000001134";
+    await insertUser({ id: userId, email: "disable-retry-us011@example.com", subject: "disable-retry-us011", companyId: companyA });
+    state = { nextSubject: 1, users: new Map([["disable-retry-us011", {
+      email: "disable-retry-us011@example.com", displayName: "Retry", enabled: true,
+      otpCredentials: [], requiredActions: new Set(),
+    }]]) };
+    await owner.query("REVOKE UPDATE ON user_account FROM ledger_app");
+    try {
+      await expect(service().disableUser("admin-us011", { userAccountId: userId, note: "Durable disable retry" }))
+        .rejects.toBeInstanceOf(Error);
+    } finally {
+      await owner.query("GRANT UPDATE ON user_account TO ledger_app");
+    }
+    expect(state.users.get("disable-retry-us011")).toMatchObject({ enabled: false, sessionsRevoked: 1 });
+    const ledger = await owner.query("SELECT status FROM user_account WHERE id = $1", [userId]);
+    expect(ledger.rows).toEqual([{ status: "active" }]);
+    const operation = await owner.query(
+      `SELECT status, provider_subject, attempt_count FROM identity_provider_operation
+       WHERE payload->>'note' = 'Durable disable retry'`,
+    );
+    expect(operation.rows).toEqual([{ status: "provider_applied", provider_subject: "disable-retry-us011", attempt_count: 1 }]);
+  });
+
+  test("disable records a deterministic retry without changing Ledger when the provider rejects", async () => {
+    const userId = "00000000-0000-0000-0000-000000001135";
+    await insertUser({ id: userId, email: "disable-provider-failure-us011@example.com", subject: "disable-provider-failure-us011", companyId: companyA });
+    state = { nextSubject: 1, users: new Map([["disable-provider-failure-us011", {
+      email: "disable-provider-failure-us011@example.com", displayName: "Provider Failure", enabled: true,
+      otpCredentials: [], requiredActions: new Set(),
+    }]]) };
+    const base = createInMemoryKeycloakAdminClient(state);
+    const providerFailure = createUserAdminService({
+      database: drizzle(appPool, { schema }),
+      keycloak: { ...base, disableUser: async () => { throw new Error("provider disable unavailable"); } },
+      now: () => now,
+    });
+
+    await expect(providerFailure.disableUser("admin-us011", {
+      userAccountId: userId,
+      note: "Retry provider disable",
+    })).rejects.toThrow("provider disable unavailable");
+    expect(state.users.get("disable-provider-failure-us011")).toMatchObject({ enabled: true });
+    const ledger = await owner.query("SELECT status FROM user_account WHERE id = $1", [userId]);
+    expect(ledger.rows).toEqual([{ status: "active" }]);
+    const operation = await owner.query(
+      `SELECT status, attempt_count, original_failure, next_retry_at FROM identity_provider_operation
+       WHERE payload->>'note' = 'Retry provider disable'`,
+    );
+    expect(operation.rows).toEqual([{
+      status: "pending",
+      attempt_count: 1,
+      original_failure: "Error: provider disable unavailable",
+      next_retry_at: new Date(now.getTime() + 60_000),
     }]);
   });
 
@@ -592,14 +1041,8 @@ describe("US-011 user administration", () => {
       validTo: null,
     })).rejects.toThrowError("cross_company_target");
 
-    await expect(service().removeCompanyRole("admin-us011", {
-      assignmentId: grant.id,
-      companyId: unauthorizedCompany,
-      note: "Wrong tenant removal",
-    })).rejects.toMatchObject({ code: "cross_company_target" });
     await service().removeCompanyRole("admin-us011", {
-      assignmentId: grant.id,
-      companyId: companyA,
+      roleAssignmentId: grant.id,
       note: "Coverage period cancelled",
     });
     const notes = await owner.query(
@@ -705,8 +1148,7 @@ describe("US-011 user administration", () => {
     expect(openFinishStored.rows).toEqual([{ valid_from: "2028-01-01", valid_to: null }]);
 
     await expect(service().removeCompanyRole("admin-us011", {
-      assignmentId: "00000000-0000-0000-0000-000000009998",
-      companyId: companyA,
+      roleAssignmentId: "00000000-0000-0000-0000-000000009998",
       note: "Missing assignment",
     })).rejects.toMatchObject({ code: "cross_company_target", name: "UserAdminError" });
   });
