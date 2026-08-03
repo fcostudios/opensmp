@@ -14,6 +14,7 @@ import {
   createKeycloakAdminHttpClient,
   type InMemoryKeycloakAdminState,
 } from "./keycloak-admin";
+import { KeycloakAdminError } from "../../lib/auth/keycloak-admin-transport";
 
 const { like } = MatchersV3;
 const pactDirectory = mkdtempSync(join(tmpdir(), "ledger-keycloak-pacts-"));
@@ -30,6 +31,11 @@ async function executeContract(input: {
   description: string;
   request: V3Request;
   response: V3Response;
+  additionalInteractions?: Array<{
+    description: string;
+    request: V3Request;
+    response: V3Response;
+  }>;
   exercise: (baseUrl: string) => Promise<void>;
 }): Promise<void> {
   const provider = new PactV3({
@@ -65,10 +71,56 @@ async function executeContract(input: {
     },
     willRespondWith: input.response,
   });
+  for (const interaction of input.additionalInteractions ?? []) {
+    provider.addInteraction({
+      uponReceiving: interaction.description,
+      withRequest: {
+        ...interaction.request,
+        headers: {
+          authorization: "Bearer contract-access-token",
+          ...interaction.request.headers,
+        },
+      },
+      willRespondWith: interaction.response,
+    });
+  }
 
   await provider.executeTest(async ({ url }) => {
     await input.exercise(url);
   });
+}
+
+async function executeTokenContract(input: {
+  description: string;
+  response: V3Response;
+  exercise: (baseUrl: string) => Promise<void>;
+}): Promise<void> {
+  const provider = new PactV3({
+    consumer: "ledger-identity-access",
+    provider: "keycloak-admin-api",
+    dir: pactDirectory,
+    logLevel: "error",
+  });
+  provider.addInteraction({
+    uponReceiving: input.description,
+    withRequest: {
+      method: "POST",
+      path: `/realms/${realm}/protocol/openid-connect/token`,
+      headers: {
+        "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
+      },
+      body: `client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`,
+    },
+    willRespondWith: input.response,
+  });
+  await provider.executeTest(async ({ url }) => input.exercise(url));
+}
+
+async function rejected(promise: Promise<unknown>): Promise<unknown> {
+  return promise.then(
+    () => null,
+    (error: unknown) => error,
+  );
 }
 
 function client(baseUrl: string) {
@@ -170,19 +222,163 @@ describe("Keycloak Admin API consumer contract", () => {
 
   test("adds the configure-TOTP required action", async () => {
     await executeContract({
-      description: "requires TOTP configuration for a Keycloak user",
+      description: "reads a user's existing Keycloak required actions",
       request: {
-        method: "PUT",
+        method: "GET",
         path: `/admin/realms/${realm}/users/${idpSubject}`,
-        headers: { "content-type": "application/json" },
-        body: { requiredActions: ["CONFIGURE_TOTP"] },
       },
-      response: { status: 204 },
+      response: {
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: {
+          id: idpSubject,
+          username: "admin@example.com",
+          email: "admin@example.com",
+          enabled: true,
+          requiredActions: ["VERIFY_EMAIL", "CONFIGURE_TOTP"],
+        },
+      },
+      additionalInteractions: [
+        {
+          description: "requires TOTP configuration for a Keycloak user",
+          request: {
+            method: "PUT",
+            path: `/admin/realms/${realm}/users/${idpSubject}`,
+            headers: { "content-type": "application/json" },
+            body: {
+              requiredActions: ["VERIFY_EMAIL", "CONFIGURE_TOTP"],
+            },
+          },
+          response: { status: 204 },
+        },
+      ],
       exercise: async (baseUrl) => {
         await client(baseUrl).addRequiredAction(
           idpSubject,
           "CONFIGURE_TOTP",
         );
+      },
+    });
+  });
+
+  test("rejects a null token payload with a sanitized error", async () => {
+    await executeTokenContract({
+      description: "returns a malformed null service-token payload",
+      response: {
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: null,
+      },
+      exercise: async (baseUrl) => {
+        const error = await rejected(client(baseUrl).disableUser(idpSubject));
+        expect(error).toBeInstanceOf(KeycloakAdminError);
+        expect(error).toMatchObject({
+          operation: "obtain-service-token",
+          status: 200,
+        });
+        expect(String(error)).not.toContain(clientSecret);
+      },
+    });
+  });
+
+  test("rejects a blank access token before an admin request", async () => {
+    await executeTokenContract({
+      description: "returns a blank Keycloak service token",
+      response: {
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: { access_token: "   ", expires_in: 60 },
+      },
+      exercise: async (baseUrl) => {
+        const error = await rejected(client(baseUrl).disableUser(idpSubject));
+        expect(error).toBeInstanceOf(KeycloakAdminError);
+        expect(error).toMatchObject({
+          operation: "obtain-service-token",
+          status: 200,
+        });
+      },
+    });
+  });
+
+  test("rejects malformed credential entries instead of dropping them", async () => {
+    await executeContract({
+      description: "returns a malformed Keycloak credential entry",
+      request: {
+        method: "GET",
+        path: `/admin/realms/${realm}/users/${idpSubject}/credentials`,
+      },
+      response: {
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: [null],
+      },
+      exercise: async (baseUrl) => {
+        const error = await rejected(
+          client(baseUrl).listOtpCredentials(idpSubject),
+        );
+        expect(error).toBeInstanceOf(KeycloakAdminError);
+        expect(error).toMatchObject({
+          operation: "list-otp-credentials",
+          status: 200,
+        });
+        expect(String(error)).not.toContain("admin@example.com");
+      },
+    });
+  });
+
+  test("rejects a non-Keycloak Location without returning a forged subject", async () => {
+    await executeContract({
+      description: "returns a malformed Keycloak user Location",
+      request: {
+        method: "POST",
+        path: `/admin/realms/${realm}/users`,
+        headers: { "content-type": "application/json" },
+        body: {
+          username: "admin@example.com",
+          email: "admin@example.com",
+          firstName: "Admin Example",
+          enabled: true,
+        },
+      },
+      response: {
+        status: 201,
+        headers: { location: "not-a-keycloak-location/forged-subject" },
+      },
+      exercise: async (baseUrl) => {
+        const error = await rejected(
+          client(baseUrl).createUser({
+            email: "admin@example.com",
+            displayName: "Admin Example",
+          }),
+        );
+        expect(error).toBeInstanceOf(KeycloakAdminError);
+        expect(error).toMatchObject({ operation: "create-user", status: 201 });
+        expect(String(error)).not.toContain("admin@example.com");
+      },
+    });
+  });
+
+  test("redacts provider bodies and credentials from non-success errors", async () => {
+    await executeTokenContract({
+      description: "rejects a Keycloak service-token request",
+      response: {
+        status: 401,
+        headers: { "content-type": "application/json" },
+        body: {
+          error: "invalid_client",
+          error_description: `${clientSecret}: admin@example.com`,
+        },
+      },
+      exercise: async (baseUrl) => {
+        const error = await rejected(client(baseUrl).disableUser(idpSubject));
+        expect(error).toBeInstanceOf(KeycloakAdminError);
+        expect(error).toMatchObject({
+          operation: "obtain-service-token",
+          status: 401,
+        });
+        expect(JSON.stringify(error)).not.toContain(clientSecret);
+        expect(String(error)).not.toContain("admin@example.com");
+        expect(String(error)).not.toContain("invalid_client");
       },
     });
   });

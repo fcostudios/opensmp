@@ -1,4 +1,9 @@
-import { KeycloakAdminError } from "../../lib/auth/keycloak-admin";
+import {
+  createKeycloakAdminTransport,
+  KeycloakAdminError,
+  readKeycloakJson,
+  type KeycloakAdminTransportOptions,
+} from "../../lib/auth/keycloak-admin-transport";
 
 export interface KeycloakAdminClient {
   createUser(input: {
@@ -19,11 +24,35 @@ export interface KeycloakAdminClient {
   ): Promise<void>;
 }
 
-export interface KeycloakAdminHttpClientOptions {
-  readonly baseUrl: string;
-  readonly realm: string;
-  readonly clientId: string;
-  readonly clientSecret: string;
+export interface KeycloakAdminHttpClientOptions
+  extends KeycloakAdminTransportOptions {}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function idpSubjectFromLocation(
+  location: string | null,
+  realm: string,
+): string | null {
+  if (!location) return null;
+  try {
+    const url = new URL(location);
+    const segments = url.pathname.split("/").filter(Boolean);
+    if (
+      segments.length !== 5 ||
+      segments[0] !== "admin" ||
+      segments[1] !== "realms" ||
+      decodeURIComponent(segments[2] ?? "") !== realm ||
+      segments[3] !== "users"
+    ) {
+      return null;
+    }
+    const idpSubject = decodeURIComponent(segments[4] ?? "").trim();
+    return idpSubject.length > 0 ? idpSubject : null;
+  } catch {
+    return null;
+  }
 }
 
 export function createKeycloakAdminHttpClient({
@@ -31,74 +60,19 @@ export function createKeycloakAdminHttpClient({
   realm,
   clientId,
   clientSecret,
+  now,
 }: KeycloakAdminHttpClientOptions): KeycloakAdminClient {
-  const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
-  const realmPath = encodeURIComponent(realm);
-
-  async function accessToken(): Promise<string> {
-    let response: Response;
-    try {
-      response = await fetch(
-        `${normalizedBaseUrl}/realms/${realmPath}/protocol/openid-connect/token`,
-        {
-          method: "POST",
-          body: new URLSearchParams({
-            client_id: clientId,
-            client_secret: clientSecret,
-            grant_type: "client_credentials",
-          }),
-        },
-      );
-    } catch {
-      throw new KeycloakAdminError("obtain-service-token", null);
-    }
-    if (!response.ok) {
-      throw new KeycloakAdminError("obtain-service-token", response.status);
-    }
-
-    let payload: { access_token?: unknown };
-    try {
-      payload = (await response.json()) as typeof payload;
-    } catch {
-      throw new KeycloakAdminError("obtain-service-token", response.status);
-    }
-    if (typeof payload.access_token !== "string") {
-      throw new KeycloakAdminError("obtain-service-token", response.status);
-    }
-    return payload.access_token;
-  }
-
-  async function adminRequest(
-    operation: string,
-    path: string,
-    init: RequestInit = {},
-  ): Promise<Response> {
-    const token = await accessToken();
-    let response: Response;
-    try {
-      response = await fetch(
-        `${normalizedBaseUrl}/admin/realms/${realmPath}${path}`,
-        {
-          ...init,
-          headers: {
-            Authorization: `Bearer ${token}`,
-            ...(init.body ? { "Content-Type": "application/json" } : {}),
-            ...init.headers,
-          },
-        },
-      );
-    } catch {
-      throw new KeycloakAdminError(operation, null);
-    }
-    if (!response.ok) {
-      throw new KeycloakAdminError(operation, response.status);
-    }
-    return response;
-  }
+  const transport = createKeycloakAdminTransport({
+    baseUrl,
+    realm,
+    clientId,
+    clientSecret,
+    now,
+  });
 
   return {
     async createUser({ email, displayName }) {
-      const response = await adminRequest("create-user", "/users", {
+      const response = await transport.request("create-user", "/users", {
         method: "POST",
         body: JSON.stringify({
           username: email,
@@ -107,8 +81,10 @@ export function createKeycloakAdminHttpClient({
           enabled: true,
         }),
       });
-      const location = response.headers.get("location");
-      const idpSubject = location?.split("/").at(-1);
+      const idpSubject = idpSubjectFromLocation(
+        response.headers.get("location"),
+        realm,
+      );
       if (!idpSubject) {
         throw new KeycloakAdminError("create-user", response.status);
       }
@@ -116,7 +92,7 @@ export function createKeycloakAdminHttpClient({
     },
 
     async disableUser(idpSubject) {
-      await adminRequest(
+      await transport.request(
         "disable-user",
         `/users/${encodeURIComponent(idpSubject)}`,
         { method: "PUT", body: JSON.stringify({ enabled: false }) },
@@ -124,34 +100,40 @@ export function createKeycloakAdminHttpClient({
     },
 
     async listOtpCredentials(idpSubject) {
-      const response = await adminRequest(
+      const response = await transport.request(
         "list-otp-credentials",
         `/users/${encodeURIComponent(idpSubject)}/credentials`,
       );
-      let credentials: Array<{ id?: unknown; type?: unknown }>;
-      try {
-        credentials = (await response.json()) as typeof credentials;
-      } catch {
+      const payload = await readKeycloakJson(response, "list-otp-credentials");
+      if (!Array.isArray(payload)) {
         throw new KeycloakAdminError(
           "list-otp-credentials",
           response.status,
         );
       }
-      if (!Array.isArray(credentials)) {
-        throw new KeycloakAdminError(
-          "list-otp-credentials",
-          response.status,
-        );
+      const credentials: Array<{ id: string; type: string }> = [];
+      for (const credential of payload) {
+        if (
+          !isRecord(credential) ||
+          typeof credential.id !== "string" ||
+          credential.id.trim().length === 0 ||
+          typeof credential.type !== "string" ||
+          credential.type.trim().length === 0
+        ) {
+          throw new KeycloakAdminError(
+            "list-otp-credentials",
+            response.status,
+          );
+        }
+        credentials.push({ id: credential.id, type: credential.type });
       }
-      return credentials.flatMap((credential) =>
-        credential.type === "otp" && typeof credential.id === "string"
-          ? [{ id: credential.id }]
-          : [],
+      return credentials.flatMap(({ id, type }) =>
+        type === "otp" ? [{ id }] : [],
       );
     },
 
     async removeOtpCredential(idpSubject, credentialId) {
-      await adminRequest(
+      await transport.request(
         "remove-otp-credential",
         `/users/${encodeURIComponent(idpSubject)}/credentials/${encodeURIComponent(credentialId)}`,
         { method: "DELETE" },
@@ -159,12 +141,33 @@ export function createKeycloakAdminHttpClient({
     },
 
     async addRequiredAction(idpSubject, action) {
-      await adminRequest(
+      const path = `/users/${encodeURIComponent(idpSubject)}`;
+      const response = await transport.request("read-required-actions", path);
+      const payload = await readKeycloakJson(response, "read-required-actions");
+      if (!isRecord(payload) || !Array.isArray(payload.requiredActions)) {
+        throw new KeycloakAdminError("read-required-actions", response.status);
+      }
+      const requiredActions: string[] = [];
+      for (const requiredAction of payload.requiredActions) {
+        if (
+          typeof requiredAction !== "string" ||
+          requiredAction.trim().length === 0
+        ) {
+          throw new KeycloakAdminError(
+            "read-required-actions",
+            response.status,
+          );
+        }
+        requiredActions.push(requiredAction);
+      }
+      await transport.request(
         "add-required-action",
-        `/users/${encodeURIComponent(idpSubject)}`,
+        path,
         {
           method: "PUT",
-          body: JSON.stringify({ requiredActions: [action] }),
+          body: JSON.stringify({
+            requiredActions: [...new Set([...requiredActions, action])],
+          }),
         },
       );
     },
