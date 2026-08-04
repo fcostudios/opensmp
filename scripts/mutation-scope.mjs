@@ -21,11 +21,8 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const BASE_CONFIG = "stryker.conf.json";
-const GENERATED_CONFIG = join(".tmp", "stryker.generated.conf.json");
-const GENERATED_SCHEMA_STATIC_CONFIG = join(
-  ".tmp",
-  "stryker.schema-static.generated.conf.json",
-);
+const GENERATED_SHARD_DIR = join(".tmp", "stryker-shards");
+const GENERATED_MANIFEST = join(GENERATED_SHARD_DIR, "manifest.json");
 const SCHEMA_STATIC_SOURCE = "packages/db/src/schema.ts";
 
 // Mirrors stryker.conf.json's mutate globs: which files can carry mutants.
@@ -170,6 +167,32 @@ export function mutationSourceFiles(targets) {
   )].sort();
 }
 
+export function groupRoutedMutationTargets(targets, routeTestsForSource) {
+  const groups = new Map();
+  for (const source of mutationSourceFiles(targets)) {
+    const testFiles = [...new Set(routeTestsForSource(source))].sort();
+    if (testFiles.length === 0) {
+      throw new Error(`mutatable source has no responsible Vitest test route: ${source}`);
+    }
+    const key = JSON.stringify(testFiles);
+    const group = groups.get(key) ?? { mutate: [], sources: [], testFiles };
+    group.sources.push(source);
+    group.mutate.push(
+      ...targets.filter((target) => target.replace(/:\d+-\d+$/, "") === source),
+    );
+    groups.set(key, group);
+  }
+  return [...groups.values()]
+    .map((group) => ({
+      mutate: [...new Set(group.mutate)].sort(),
+      sources: [...new Set(group.sources)].sort(),
+      testFiles: group.testFiles,
+    }))
+    .sort((left, right) =>
+      JSON.stringify(left.sources).localeCompare(JSON.stringify(right.sources)) ||
+      JSON.stringify(left.testFiles).localeCompare(JSON.stringify(right.testFiles)));
+}
+
 function mutationTargets(base, sourceFiles) {
   if (sourceFiles.length === 0) return [];
   const mergeBase = mergeBaseFor(base);
@@ -307,8 +330,7 @@ function main() {
   const allMutate = mutationTargets(base, changedSources);
   const schemaStaticMutate = allMutate.filter((target) =>
     target.replace(/:\d+-\d+$/, "") === SCHEMA_STATIC_SOURCE);
-  const mutate = allMutate.filter((target) => !schemaStaticMutate.includes(target));
-  const routedSources = mutationSourceFiles(mutate);
+  const routedMutate = allMutate.filter((target) => !schemaStaticMutate.includes(target));
 
   console.log(
     `mutation-scope: base=${base} changed=${changed.length} ` +
@@ -328,83 +350,102 @@ function main() {
     fail(`cannot read ${BASE_CONFIG}`, "run from the repository root");
   }
 
-  const testFiles = mutationCompatibleTestFiles([
-    ...new Set([
-      ...(baseConf.testFiles ?? []),
-      ...requireRoutedTestFiles(changed, routedSources),
-    ]),
-  ]).sort();
-  if (testFiles.length === 0) {
-    fail("mutatable files exist but no responsible Vitest tests were routed",
-         "add a changed story test or a conventional adjacent test for the changed source");
+  let routedGroups;
+  try {
+    routedGroups = groupRoutedMutationTargets(routedMutate, (source) =>
+      mutationCompatibleTestFiles(testsForSource(source, existsSync, DIRECT_TEST_ROUTES)));
+  } catch (error) {
+    fail(error.message, "add a conventional adjacent test or an explicit accountable route");
   }
 
-  // tempDirName is derived from the SCOPE, not the clock: two runs on the same
-  // diff must produce a byte-identical config, and two runs on different scopes
-  // must not collide.
-  const digest = createHash("sha256").update(mutate.join("\n")).digest("hex").slice(0, 12);
-
-  const conf = {
-    ...baseConf,
-    mutate,
-    // Settings the hand-rolled per-story configs converged on empirically, now
-    // generated defaults: a real DB fixture makes perTest coverage analysis
-    // unsound, and parallel runners race on shared database state.
-    coverageAnalysis: "off",
-    vitest: {
-      ...baseConf.vitest,
-      related: false,
-      configFile: "vitest.mutation.config.mjs",
-    },
-    testFiles,
-    concurrency: 1,
-    maxTestRunnerReuse: 1,
-    timeoutFactor: 2,
-    tempDirName: join(".tmp", `stryker-${digest}`),
-  };
-
-  mkdirSync(dirname(GENERATED_CONFIG), { recursive: true });
-  writeFileSync(GENERATED_CONFIG, `${JSON.stringify(conf, null, 2)}\n`, "utf8");
-  console.log(`mutation-scope: wrote ${GENERATED_CONFIG}`);
-
-  let schemaStaticConf = null;
+  const shardSpecs = routedGroups.map((group) => ({ kind: "vitest", ...group }));
   if (schemaStaticMutate.length > 0) {
     requireRoutedTestFiles(
       changed,
       mutationSourceFiles(schemaStaticMutate),
     );
-    const {
-      testFiles: _testFiles,
-      vitest: _vitest,
-      ...commandBaseConf
-    } = baseConf;
-    const schemaDigest = createHash("sha256")
-      .update(schemaStaticMutate.join("\n"))
+    shardSpecs.push({
+      kind: "schema-static",
+      mutate: schemaStaticMutate,
+      sources: [SCHEMA_STATIC_SOURCE],
+      testFiles: ["packages/db/src/schema.test.ts"],
+    });
+  }
+
+  const {
+    commandRunner: _commandRunner,
+    htmlReporter: _htmlReporter,
+    mutate: _baseMutate,
+    tempDirName: _tempDirName,
+    testFiles: _baseTestFiles,
+    vitest: _baseVitest,
+    ...sharedBaseConf
+  } = baseConf;
+  const shards = shardSpecs.map((spec) => {
+    const digest = createHash("sha256")
+      .update([spec.kind, ...spec.sources, ...spec.testFiles, ...spec.mutate].join("\n"))
       .digest("hex")
       .slice(0, 12);
-    schemaStaticConf = {
-      ...commandBaseConf,
-      mutate: schemaStaticMutate,
-      testRunner: "command",
+    const id = `${spec.kind}-${digest}`;
+    const configPath = join(GENERATED_SHARD_DIR, `${id}.json`);
+    const tempDirName = join(".tmp", `stryker-${id}`);
+    const reportPath = join("reports", "mutation", `${id}.html`);
+    const common = {
+      ...sharedBaseConf,
+      mutate: spec.mutate,
       coverageAnalysis: "off",
-      commandRunner: {
-        command: "./apps/web/node_modules/.bin/vitest run --root packages/db --config vitest.config.ts src/schema.test.ts",
-      },
       concurrency: 1,
       maxTestRunnerReuse: 1,
       timeoutFactor: 2,
-      tempDirName: join(".tmp", `stryker-schema-static-${schemaDigest}`),
-      htmlReporter: {
-        fileName: "reports/mutation/schema-static.html",
+      tempDirName,
+      htmlReporter: { fileName: reportPath },
+      thresholds: {
+        ...baseConf.thresholds,
+        high: 80,
+        break: 80,
       },
     };
-    writeFileSync(
-      GENERATED_SCHEMA_STATIC_CONFIG,
-      `${JSON.stringify(schemaStaticConf, null, 2)}\n`,
-      "utf8",
-    );
-    console.log(`mutation-scope: wrote ${GENERATED_SCHEMA_STATIC_CONFIG}`);
+    const config = spec.kind === "schema-static"
+      ? {
+          ...common,
+          testRunner: "command",
+          commandRunner: {
+            command: "./apps/web/node_modules/.bin/vitest run --root packages/db --config vitest.config.ts src/schema.test.ts",
+          },
+        }
+      : {
+          ...common,
+          testRunner: "vitest",
+          vitest: {
+            ...baseConf.vitest,
+            related: false,
+            configFile: "vitest.mutation.config.mjs",
+          },
+          testFiles: spec.testFiles,
+        };
+    return {
+      config,
+      configPath,
+      id,
+      kind: spec.kind,
+      mutate: spec.mutate,
+      reportPath,
+      sources: spec.sources,
+      tempDirName,
+      testFiles: spec.testFiles,
+    };
+  }).sort((left, right) => left.id.localeCompare(right.id));
+
+  mkdirSync(GENERATED_SHARD_DIR, { recursive: true });
+  for (const shard of shards) {
+    writeFileSync(shard.configPath, `${JSON.stringify(shard.config, null, 2)}\n`, "utf8");
   }
+  writeFileSync(
+    GENERATED_MANIFEST,
+    `${JSON.stringify({ base, shards: shards.map(({ config, ...shard }) => shard) }, null, 2)}\n`,
+    "utf8",
+  );
+  console.log(`mutation-scope: wrote ${shards.length} shards + ${GENERATED_MANIFEST}`);
 
   if (process.env.MUTATION_SCOPE_DRY === "1") {
     console.log("mutation-scope: MUTATION_SCOPE_DRY=1 — not running Stryker");
@@ -412,13 +453,11 @@ function main() {
   }
 
   try {
-    if (mutate.length > 0) {
-      execFileSync("pnpm", ["exec", "stryker", "run", GENERATED_CONFIG], { stdio: "inherit" });
-    }
-    if (schemaStaticConf) {
+    for (const shard of shards) {
+      console.log(`mutation-scope: running ${shard.id} (${shard.mutate.length} ranges)`);
       execFileSync(
         "pnpm",
-        ["exec", "stryker", "run", GENERATED_SCHEMA_STATIC_CONFIG],
+        ["exec", "stryker", "run", shard.configPath],
         { stdio: "inherit" },
       );
     }

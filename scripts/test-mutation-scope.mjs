@@ -13,6 +13,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   DIRECT_TEST_ROUTES,
+  groupRoutedMutationTargets,
   mutationCompatibleTestFiles,
   requireRoutedTestFiles,
   routedTestFiles,
@@ -57,6 +58,10 @@ assert.ok(
   mutationVitestConfig.test.projects.includes("packages/domain/vitest.config.ts"),
   "the aggregate mutation runner must execute accountable domain tests",
 );
+assert.ok(
+  mutationVitestConfig.test.projects.includes("packages/connectors/vitest.config.ts"),
+  "the mutation runner must execute accountable connector tests",
+);
 
 const syntheticExists = (path) => new Set([
   "src/account.test.ts",
@@ -77,6 +82,28 @@ assert.deepEqual(
 assert.throws(
   () => requireRoutedTestFiles(["src/account.ts"], ["src/account.ts"], () => false),
   /mutatable source has no responsible Vitest test route: src\/account\.ts/,
+);
+assert.deepEqual(
+  groupRoutedMutationTargets(
+    ["src/a.ts:1-2", "src/a.ts:5-5", "src/b.ts:3-3", "src/c.ts:4-4"],
+    (source) => source === "src/c.ts" ? ["src/c.test.ts"] : ["src/shared.test.ts"],
+  ),
+  [
+    {
+      mutate: ["src/a.ts:1-2", "src/a.ts:5-5", "src/b.ts:3-3"],
+      sources: ["src/a.ts", "src/b.ts"],
+      testFiles: ["src/shared.test.ts"],
+    },
+    {
+      mutate: ["src/c.ts:4-4"],
+      sources: ["src/c.ts"],
+      testFiles: ["src/c.test.ts"],
+    },
+  ],
+);
+assert.throws(
+  () => groupRoutedMutationTargets(["src/orphan.ts:1-1"], () => []),
+  /mutatable source has no responsible Vitest test route: src\/orphan\.ts/,
 );
 assert.deepEqual(
   requireRoutedTestFiles(
@@ -111,6 +138,9 @@ const writeFixture = (path, contents) => {
 
 let generated;
 let generatedStatic;
+let manifest;
+let manifestText;
+let configs;
 try {
   execFileSync("git", ["init", "--quiet"], { cwd: fixtureRoot });
   execFileSync("git", ["config", "user.email", "mutation-scope@example.invalid"], { cwd: fixtureRoot });
@@ -170,11 +200,30 @@ try {
     stdio: "pipe",
   });
 
-  generated = JSON.parse(
-    readFileSync(join(fixtureRoot, ".tmp/stryker.generated.conf.json"), "utf8"),
+  manifestText = readFileSync(
+    join(fixtureRoot, ".tmp/stryker-shards/manifest.json"),
+    "utf8",
   );
-  generatedStatic = JSON.parse(
-    readFileSync(join(fixtureRoot, ".tmp/stryker.schema-static.generated.conf.json"), "utf8"),
+  manifest = JSON.parse(manifestText);
+  configs = manifest.shards.map(({ configPath }) => JSON.parse(
+    readFileSync(join(fixtureRoot, configPath), "utf8"),
+  ));
+  generated = configs.find(({ testFiles }) => testFiles?.includes(responsibleTest));
+  generatedStatic = configs.find(({ testRunner }) => testRunner === "command");
+  execFileSync(process.execPath, [
+    fileURLToPath(new URL("./mutation-scope.mjs", import.meta.url)),
+  ], {
+    cwd: fixtureRoot,
+    env: {
+      ...process.env,
+      MUTATION_BASE: base,
+      MUTATION_SCOPE_DRY: "1",
+    },
+    stdio: "pipe",
+  });
+  assert.equal(
+    readFileSync(join(fixtureRoot, ".tmp/stryker-shards/manifest.json"), "utf8"),
+    manifestText,
   );
 } finally {
   rmSync(fixtureRoot, { force: true, recursive: true });
@@ -186,18 +235,56 @@ assert.deepEqual(generated.vitest, {
   related: false,
 });
 assert.equal(generated.concurrency, 1);
+assert.equal(generated.maxTestRunnerReuse, 1);
+assert.equal(generated.thresholds.high, 80);
+assert.equal(generated.thresholds.break, 80);
 assert.deepEqual(generated.testFiles, [...generated.testFiles].sort());
 assert.deepEqual(generated.testFiles, [
   responsibleTest,
-  newSourceTest,
 ]);
 assert.deepEqual(generated.mutate, [
   `${source}:2-2`,
   `${source}:5-5`,
-  `${newSource}:1-2`,
 ]);
+assert.equal(manifest.shards.length, 3);
+for (const [index, shard] of manifest.shards.entries()) {
+  const config = configs[index];
+  assert.equal(config.coverageAnalysis, "off");
+  assert.equal(config.concurrency, 1);
+  assert.equal(config.maxTestRunnerReuse, 1);
+  assert.equal(config.thresholds.high, 80);
+  assert.equal(config.thresholds.break, 80);
+  assert.deepEqual(config.mutate, shard.mutate);
+  if (shard.kind === "vitest") {
+    assert.deepEqual(config.testFiles, shard.testFiles);
+  } else {
+    assert.equal("testFiles" in config, false);
+  }
+}
+const assignedRanges = manifest.shards.flatMap(({ mutate }) => mutate);
+assert.equal(new Set(assignedRanges).size, assignedRanges.length);
+assert.deepEqual(
+  assignedRanges.sort(),
+  [
+    `${source}:2-2`,
+    `${source}:5-5`,
+    `${newSource}:1-2`,
+    "packages/db/src/schema.ts:2-2",
+  ].sort(),
+);
+assert.equal(new Set(manifest.shards.map(({ configPath }) => configPath)).size, 3);
+assert.equal(new Set(manifest.shards.map(({ tempDirName }) => tempDirName)).size, 3);
+assert.equal(new Set(manifest.shards.map(({ reportPath }) => reportPath)).size, 3);
+assert.deepEqual(
+  manifest.shards.map(({ id }) => id),
+  [...manifest.shards.map(({ id }) => id)].sort(),
+);
 assert.equal(generatedStatic.testRunner, "command");
 assert.equal(generatedStatic.coverageAnalysis, "off");
+assert.equal(generatedStatic.concurrency, 1);
+assert.equal(generatedStatic.maxTestRunnerReuse, 1);
+assert.equal(generatedStatic.thresholds.high, 80);
+assert.equal(generatedStatic.thresholds.break, 80);
 assert.equal("testFiles" in generatedStatic, false);
 assert.deepEqual(generatedStatic.mutate, ["packages/db/src/schema.ts:2-2"]);
 assert.equal(
