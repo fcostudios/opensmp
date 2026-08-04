@@ -622,4 +622,25 @@ describe("US-023 capacity recovery with real PostgreSQL", () => {
       await owner.query("DROP FUNCTION IF EXISTS replace_capacity_recovery_lease_for_test()");
     }
   });
+
+  it("closes its application database pool", async () => {
+    const job = createCapacityRecoveryJob({ connectionString: fixture.appUrl, now: () => at });
+    await job.drain();
+    await job.close();
+
+    try {
+      const connections = await owner.query<{ count: number }>(
+        `SELECT count(*)::int AS count FROM pg_stat_activity
+         WHERE datname=$1 AND usename='ledger_app'`,
+        [fixture.databaseName],
+      );
+      expect(connections.rows).toEqual([{ count: 0 }]);
+    } finally {
+      await owner.query(
+        `SELECT pg_terminate_backend(pid) FROM pg_stat_activity
+         WHERE datname=$1 AND usename='ledger_app'`,
+        [fixture.databaseName],
+      );
+    }
+  });
 });
