@@ -22,6 +22,7 @@ import {
   projectionEvidencePathForShard,
   readFreshMutationReport,
   requireNonzeroMutationReport,
+  requireNonzeroStaticShard,
   requireRoutedTestFiles,
   routedTestFiles,
   runVerificationCommands,
@@ -608,6 +609,14 @@ assert.throws(
   () => requireNonzeroMutationReport({ files: { "src/a.ts": { mutants: [{ id: "1", status: "Ignored" }] } } }, "ignored"),
   /scored mutation shard ignored has zero testable mutants/,
 );
+for (const kind of ["schema-static", "vitest-config-static"]) {
+  assert.throws(
+    () => requireNonzeroStaticShard(kind, 0, `${kind}-empty`),
+    new RegExp(`scored mutation shard ${kind}-empty instrumented zero mutants`),
+  );
+  assert.equal(requireNonzeroStaticShard(kind, 1, `${kind}-nonzero`), undefined);
+}
+assert.equal(requireNonzeroStaticShard("vitest", 0, "ordinary-zero"), undefined);
 assert.deepEqual(
   readFreshMutationReport("report.json", 100, () => ({ mtimeMs: 101 }), () => '{"files":{}}'),
   { files: {} },
@@ -830,7 +839,8 @@ const writeFixture = (path, contents) => {
 };
 
 let generated;
-let generatedStatic;
+let generatedSchemaStatic;
+let generatedVitestStatic;
 let manifest;
 let manifestText;
 let configs;
@@ -859,6 +869,13 @@ try {
   writeFixture(deletionOnlyTest, "export {};\n");
   writeFixture("packages/db/src/schema.ts", "export const retained = 1;\nexport const capacity = 2;\n");
   writeFixture("packages/db/src/schema.test.ts", "export {};\n");
+  writeFixture("apps/web/vitest.config.ts", [
+    ...Array.from({ length: 20 }, (_, index) => `// config line ${index + 1}`),
+    'export const include = ["src/**/*.{test,spec}.{ts,tsx}"];',
+    "",
+  ].join("\n"));
+  writeFixture("apps/web/next.config.test.ts", "export {};\n");
+  writeFixture("apps/web/vitest.static-contract.config.mjs", "export default {};\n");
   execFileSync("git", ["add", "."], { cwd: fixtureRoot });
   execFileSync("git", ["commit", "--quiet", "-m", "fixture base"], { cwd: fixtureRoot });
   const base = execFileSync("git", ["rev-parse", "HEAD"], {
@@ -882,6 +899,11 @@ try {
     "",
   ].join("\n"));
   writeFixture("packages/db/src/schema.ts", "export const retained = 1;\nexport const capacity = 20;\n");
+  writeFixture("apps/web/vitest.config.ts", [
+    ...Array.from({ length: 20 }, (_, index) => `// config line ${index + 1}`),
+    'export const include = ["src/**/*.{test,spec}.{ts,tsx}", "next.config.test.ts"];',
+    "",
+  ].join("\n"));
 
   execFileSync(process.execPath, [
     fileURLToPath(new URL("./mutation-scope.mjs", import.meta.url)),
@@ -904,7 +926,10 @@ try {
     readFileSync(join(fixtureRoot, configPath), "utf8"),
   ));
   generated = configs.find(({ testFiles }) => testFiles?.includes(responsibleTest));
-  generatedStatic = configs.find(({ testRunner }) => testRunner === "command");
+  generatedSchemaStatic = configs.find(({ commandRunner }) =>
+    commandRunner?.command.includes("--root packages/db"));
+  generatedVitestStatic = configs.find(({ commandRunner }) =>
+    commandRunner?.command.includes("vitest.static-contract.config.mjs"));
   execFileSync(process.execPath, [
     fileURLToPath(new URL("./mutation-scope.mjs", import.meta.url)),
   ], {
@@ -941,7 +966,7 @@ assert.deepEqual(generated.mutate, [
   `${source}:2-2`,
   `${source}:5-5`,
 ]);
-assert.equal(manifest.shards.length, 3);
+assert.equal(manifest.shards.length, 4);
 assert.equal(manifest.base, fixtureBase);
 assert.match(manifest.head, /^[0-9a-f]{40}$/);
 assert.match(manifest.worktreeHash, /^[0-9a-f]{64}$/);
@@ -980,26 +1005,45 @@ assert.deepEqual(
     `${source}:2-2`,
     `${source}:5-5`,
     `${newSource}:1-2`,
+    "apps/web/vitest.config.ts:21-21",
     "packages/db/src/schema.ts:2-2",
   ].sort(),
 );
-assert.equal(new Set(manifest.shards.map(({ configPath }) => configPath)).size, 3);
-assert.equal(new Set(manifest.shards.map(({ tempDirName }) => tempDirName)).size, 3);
-assert.equal(new Set(manifest.shards.map(({ reportPath }) => reportPath)).size, 3);
-assert.equal(new Set(manifest.shards.map(({ jsonReportPath }) => jsonReportPath)).size, 3);
+assert.equal(new Set(manifest.shards.map(({ configPath }) => configPath)).size, 4);
+assert.equal(new Set(manifest.shards.map(({ tempDirName }) => tempDirName)).size, 4);
+assert.equal(new Set(manifest.shards.map(({ reportPath }) => reportPath)).size, 4);
+assert.equal(new Set(manifest.shards.map(({ jsonReportPath }) => jsonReportPath)).size, 4);
 assert.deepEqual(
   manifest.shards.map(({ id }) => id),
   [...manifest.shards.map(({ id }) => id)].sort(),
 );
-assert.equal(generatedStatic.testRunner, "command");
-assert.equal(generatedStatic.coverageAnalysis, "off");
-assert.equal(generatedStatic.concurrency, 1);
-assert.equal(generatedStatic.maxTestRunnerReuse, 1);
-assert.equal(generatedStatic.thresholds.high, 80);
-assert.equal(generatedStatic.thresholds.break, 80);
-assert.equal("testFiles" in generatedStatic, false);
-assert.deepEqual(generatedStatic.mutate, ["packages/db/src/schema.ts:2-2"]);
+assert.equal(generatedSchemaStatic.testRunner, "command");
+assert.equal(generatedSchemaStatic.coverageAnalysis, "off");
+assert.equal(generatedSchemaStatic.concurrency, 1);
+assert.equal(generatedSchemaStatic.maxTestRunnerReuse, 1);
+assert.equal(generatedSchemaStatic.thresholds.high, 80);
+assert.equal(generatedSchemaStatic.thresholds.break, 80);
+assert.equal("testFiles" in generatedSchemaStatic, false);
+assert.deepEqual(generatedSchemaStatic.mutate, ["packages/db/src/schema.ts:2-2"]);
 assert.equal(
-  generatedStatic.commandRunner.command,
+  generatedSchemaStatic.commandRunner.command,
   "./apps/web/node_modules/.bin/vitest run --root packages/db --config vitest.config.ts src/schema.test.ts",
 );
+assert.equal(generatedVitestStatic.testRunner, "command");
+assert.equal(generatedVitestStatic.coverageAnalysis, "off");
+assert.equal(generatedVitestStatic.concurrency, 1);
+assert.equal(generatedVitestStatic.maxTestRunnerReuse, 1);
+assert.equal(generatedVitestStatic.thresholds.high, 80);
+assert.equal(generatedVitestStatic.thresholds.break, 80);
+assert.equal("testFiles" in generatedVitestStatic, false);
+assert.deepEqual(generatedVitestStatic.mutate, ["apps/web/vitest.config.ts:21-21"]);
+assert.equal(
+  generatedVitestStatic.commandRunner.command,
+  "./apps/web/node_modules/.bin/vitest run --root apps/web --config vitest.static-contract.config.mjs next.config.test.ts",
+);
+const vitestStaticShard = manifest.shards.find(({ kind }) => kind === "vitest-config-static");
+assert.deepEqual(vitestStaticShard.sources, ["apps/web/vitest.config.ts"]);
+assert.deepEqual(vitestStaticShard.testFiles, ["apps/web/next.config.test.ts"]);
+assert.deepEqual(vitestStaticShard.mutate, ["apps/web/vitest.config.ts:21-21"]);
+assert.match(vitestStaticShard.contentHashes["apps/web/vitest.config.ts"], /^[0-9a-f]{64}$/);
+assert.match(vitestStaticShard.provenance.runHash, /^[0-9a-f]{64}$/);

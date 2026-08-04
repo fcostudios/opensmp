@@ -1,10 +1,16 @@
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import nextConfig from "./next.config";
-import vitestConfig from "./vitest.config";
+
+let vitestConfig: typeof import("./vitest.config").default;
 
 describe("Next webpack workspace resolution", () => {
+  beforeEach(async () => {
+    vi.resetModules();
+    vitestConfig = (await import("./vitest.config")).default;
+  });
+
   it("preserves existing resolution while mapping NodeNext .js specifiers to TS source", () => {
     expect(typeof nextConfig.webpack).toBe("function");
     const webpackConfig = {
@@ -26,6 +32,9 @@ describe("Next webpack workspace resolution", () => {
   });
 
   it("keeps this adjacent contract test in the web test project", () => {
-    expect(vitestConfig.test?.include).toContain("next.config.test.ts");
+    expect(vitestConfig.test?.include).toEqual([
+      "src/**/*.{test,spec}.{ts,tsx}",
+      "next.config.test.ts",
+    ]);
   });
 });

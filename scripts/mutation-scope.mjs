@@ -25,6 +25,9 @@ const BASE_CONFIG = "stryker.conf.json";
 const GENERATED_SHARD_DIR = join(".tmp", "stryker-shards");
 const GENERATED_MANIFEST = join(GENERATED_SHARD_DIR, "manifest.json");
 const SCHEMA_STATIC_SOURCE = "packages/db/src/schema.ts";
+const VITEST_CONFIG_STATIC_SOURCE = "apps/web/vitest.config.ts";
+const VITEST_CONFIG_STATIC_RANGE = `${VITEST_CONFIG_STATIC_SOURCE}:21-21`;
+const SCORED_STATIC_KINDS = new Set(["schema-static", "vitest-config-static"]);
 
 // Mirrors stryker.conf.json's mutate globs: which files can carry mutants.
 // This is a FILE-TYPE filter, not a critical-set narrowing — a changed `.md` or
@@ -894,6 +897,12 @@ export function requireNonzeroMutationReport(report, shardId) {
   return testable.length;
 }
 
+export function requireNonzeroStaticShard(kind, mutantCount, shardId) {
+  if (SCORED_STATIC_KINDS.has(kind) && mutantCount === 0) {
+    throw new Error(`scored mutation shard ${shardId} instrumented zero mutants`);
+  }
+}
+
 function mutationReportMutants(report) {
   return report?.files && typeof report.files === "object"
     ? Object.values(report.files).flatMap((file) =>
@@ -1272,7 +1281,19 @@ function main() {
   };
   const schemaStaticMutate = allMutate.filter((target) =>
     target.replace(/:\d+-\d+$/, "") === SCHEMA_STATIC_SOURCE);
-  const routedMutate = allMutate.filter((target) => !schemaStaticMutate.includes(target));
+  const vitestConfigStaticMutate = allMutate.filter((target) =>
+    target.replace(/:\d+-\d+$/, "") === VITEST_CONFIG_STATIC_SOURCE);
+  if (vitestConfigStaticMutate.length > 0 && (
+    vitestConfigStaticMutate.length !== 1 ||
+    vitestConfigStaticMutate[0] !== VITEST_CONFIG_STATIC_RANGE
+  )) {
+    fail(
+      `vitest config static shard must contain exactly ${VITEST_CONFIG_STATIC_RANGE}`,
+      `found: ${vitestConfigStaticMutate.join(", ")}`,
+    );
+  }
+  const staticMutate = new Set([...schemaStaticMutate, ...vitestConfigStaticMutate]);
+  const routedMutate = allMutate.filter((target) => !staticMutate.has(target));
 
   console.log(
     `mutation-scope: base=${resolvedBase} changed=${changed.length} ` +
@@ -1311,6 +1332,18 @@ function main() {
       mutate: schemaStaticMutate,
       sources: [SCHEMA_STATIC_SOURCE],
       testFiles: ["packages/db/src/schema.test.ts"],
+    });
+  }
+  if (vitestConfigStaticMutate.length > 0) {
+    requireRoutedTestFiles(
+      changed,
+      [VITEST_CONFIG_STATIC_SOURCE],
+    );
+    shardSpecs.push({
+      kind: "vitest-config-static",
+      mutate: vitestConfigStaticMutate,
+      sources: [VITEST_CONFIG_STATIC_SOURCE],
+      testFiles: ["apps/web/next.config.test.ts"],
     });
   }
 
@@ -1357,12 +1390,14 @@ function main() {
         break: 80,
       },
     };
-    const config = spec.kind === "schema-static"
+    const config = SCORED_STATIC_KINDS.has(spec.kind)
       ? {
           ...common,
           testRunner: "command",
           commandRunner: {
-            command: "./apps/web/node_modules/.bin/vitest run --root packages/db --config vitest.config.ts src/schema.test.ts",
+            command: spec.kind === "schema-static"
+              ? "./apps/web/node_modules/.bin/vitest run --root packages/db --config vitest.config.ts src/schema.test.ts"
+              : "./apps/web/node_modules/.bin/vitest run --root apps/web --config vitest.static-contract.config.mjs next.config.test.ts",
           },
         }
       : {
@@ -1451,9 +1486,7 @@ function main() {
         if (result.status !== 0) {
           throw new Error(`zero-mutant shard ${shard.id} exited ${result.status}`);
         }
-        if (shard.kind === "schema-static") {
-          throw new Error(`scored mutation shard ${shard.id} instrumented zero mutants`);
-        }
+        requireNonzeroStaticShard(shard.kind, mutants.length, shard.id);
         const audits = verificationAuditsForReport(report, shard, allHunks);
         const projectionEvidencePath = projectionEvidencePathForShard(shard);
         const commands = verificationCommandsForSources(
