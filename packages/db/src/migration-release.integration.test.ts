@@ -30,8 +30,17 @@ const pendingRemoveVerifierError =
   "Pending remove idempotency verifier failed: uq_provisioning_action_pending_remove_request exact index";
 const crossOrgPrivilegeVerifierFilename =
   "V20260728125700__verify_cross_org_move_runtime_privileges.sql";
-const identityProviderVerifierFilename =
-  "V20260803130300__verify_identity_provider_operation_leases.sql";
+
+async function readLatestIdentityProviderVerifier(): Promise<string> {
+  const filenames = (await readdir(committedMigrationsPath))
+    .filter((filename) => filename.includes("__verify_identity_provider_operation"))
+    .sort();
+  const filename = filenames.at(-1);
+  if (!filename) {
+    throw new Error("identity-provider operation verifier migration is missing");
+  }
+  return await readFile(join(committedMigrationsPath, filename), "utf8");
+}
 
 let container: StartedPostgreSqlContainer;
 let clusterAdminUrl: string;
@@ -1398,10 +1407,7 @@ describe("committed migration release path", () => {
         "identity_provider_operation constraint contract mismatch",
       );
 
-      const migrationVerification = await readFile(
-        join(committedMigrationsPath, identityProviderVerifierFilename),
-        "utf8",
-      );
+      const migrationVerification = await readLatestIdentityProviderVerifier();
       await expect(client.query(migrationVerification)).rejects.toMatchObject({
         code: "P0001",
         message: expect.stringContaining(
@@ -1413,6 +1419,59 @@ describe("committed migration release path", () => {
       await dropDatabase(database.name);
     }
   }, 30_000);
+
+  test.each([
+    {
+      drift: "a missing primary-key constraint",
+      tamper:
+        "ALTER TABLE identity_provider_operation DROP CONSTRAINT identity_provider_operation_pkey",
+      expectedContract: "constraint",
+    },
+    {
+      drift: "a missing idempotency-key unique constraint",
+      tamper:
+        "ALTER TABLE identity_provider_operation DROP CONSTRAINT identity_provider_operation_idempotency_key_key",
+      expectedContract: "constraint",
+    },
+    {
+      drift: "an unexpected index",
+      tamper:
+        "CREATE INDEX idx_identity_provider_operation_unexpected ON identity_provider_operation (created_at)",
+      expectedContract: "index",
+    },
+  ])(
+    "rejects identity-provider operation drift from $drift in both schema verifiers",
+    async ({ tamper, expectedContract }) => {
+      const database = await createDatabase();
+      const client = new pg.Client({ connectionString: database.ownerUrl });
+      try {
+        await migrate(database.ownerUrl);
+        await client.connect();
+        await client.query(tamper);
+
+        const runtimeVerification = await runNode(verifyPath, {
+          DATABASE_ADMIN_URL: database.ownerUrl,
+          DATABASE_URL: database.appUrl,
+        });
+        const migrationVerification = await readLatestIdentityProviderVerifier();
+
+        expect.soft(runtimeVerification.code).not.toBe(0);
+        expect.soft(runtimeVerification.stderr).toContain(
+          `identity_provider_operation ${expectedContract} contract mismatch`,
+        );
+        await expect.soft(client.query(migrationVerification)).rejects.toMatchObject({
+          code: "P0001",
+          message: expect.stringContaining(
+            `identity provider operation ${expectedContract} contract mismatch`,
+          ),
+        });
+      } finally {
+        await client.end().catch(() => undefined);
+        await dropDatabase(database.name);
+      }
+    },
+    30_000,
+  );
 
   test("fails the cross-org verifier when any required runtime privilege is revoked", async () => {
     const database = await createDatabase();

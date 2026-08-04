@@ -352,15 +352,16 @@ export async function verifyMigratedSchema({
         pg_get_constraintdef(constraint_row.oid) AS definition
       FROM pg_constraint AS constraint_row
       WHERE constraint_row.conrelid = 'public.identity_provider_operation'::regclass
-        AND constraint_row.contype IN ('c', 'f')
       ORDER BY constraint_row.conname
     `);
     const expectedIdentityProviderConstraints = [
       ["identity_provider_operation_actor_user_id_fkey", "f", ["actor_user_id"], "user_account", ["id"], "a", "a", true, "FOREIGN KEY (actor_user_id) REFERENCES user_account(id)"],
       ["identity_provider_operation_attempt_count_check", "c", ["attempt_count"], null, null, " ", " ", true, "CHECK ((attempt_count >= 0))"],
       ["identity_provider_operation_company_id_fkey", "f", ["company_id"], "company", ["id"], "a", "a", true, "FOREIGN KEY (company_id) REFERENCES company(id)"],
+      ["identity_provider_operation_idempotency_key_key", "u", ["idempotency_key"], null, null, " ", " ", true, "UNIQUE (idempotency_key)"],
       ["identity_provider_operation_kind_check", "c", ["kind"], null, null, " ", " ", true, "CHECK ((kind = ANY (ARRAY['create_user'::text, 'disable_user'::text, 'reset_two_factor'::text])))"],
       ["identity_provider_operation_lease_pair_check", "c", ["lease_token", "lease_expires_at"], null, null, " ", " ", true, "CHECK ((((lease_token IS NULL) AND (lease_expires_at IS NULL)) OR ((lease_token IS NOT NULL) AND (lease_expires_at IS NOT NULL))))"],
+      ["identity_provider_operation_pkey", "p", ["id"], null, null, " ", " ", true, "PRIMARY KEY (id)"],
       ["identity_provider_operation_status_check", "c", ["status"], null, null, " ", " ", true, "CHECK ((status = ANY (ARRAY['pending'::text, 'provider_applied'::text, 'cleanup_pending'::text, 'compensated'::text, 'completed'::text, 'failed'::text])))"],
       ["identity_provider_operation_target_user_account_id_fkey", "f", ["target_user_account_id"], "user_account", ["id"], "a", "a", true, "FOREIGN KEY (target_user_account_id) REFERENCES user_account(id)"],
     ];
@@ -374,8 +375,10 @@ export async function verifyMigratedSchema({
       );
     }
 
-    const identityProviderIndex = await owner.query(`
+    const identityProviderIndexes = await owner.query(`
       SELECT
+        index_relation.relname AS name,
+        index_state.indisunique AS unique,
         index_state.indisready AS ready,
         index_state.indisvalid AS valid,
         ARRAY(
@@ -390,17 +393,37 @@ export async function verifyMigratedSchema({
       FROM pg_index AS index_state
       JOIN pg_class AS index_relation ON index_relation.oid = index_state.indexrelid
       WHERE index_state.indrelid = 'public.identity_provider_operation'::regclass
-        AND index_relation.relname = 'idx_identity_provider_operation_retry'
+      ORDER BY index_relation.relname
     `);
-    const expectedIdentityProviderIndex = [{
-      ready: true,
-      valid: true,
-      columns: ["next_retry_at", "created_at"],
-      predicate: "(status = ANY (ARRAY['pending'::text, 'provider_applied'::text, 'cleanup_pending'::text]))",
-    }];
-    if (JSON.stringify(identityProviderIndex.rows) !== JSON.stringify(expectedIdentityProviderIndex)) {
+    const expectedIdentityProviderIndexes = [
+      {
+        name: "identity_provider_operation_idempotency_key_key",
+        unique: true,
+        ready: true,
+        valid: true,
+        columns: ["idempotency_key"],
+        predicate: null,
+      },
+      {
+        name: "identity_provider_operation_pkey",
+        unique: true,
+        ready: true,
+        valid: true,
+        columns: ["id"],
+        predicate: null,
+      },
+      {
+        name: "idx_identity_provider_operation_retry",
+        unique: false,
+        ready: true,
+        valid: true,
+        columns: ["next_retry_at", "created_at"],
+        predicate: "(status = ANY (ARRAY['pending'::text, 'provider_applied'::text, 'cleanup_pending'::text]))",
+      },
+    ];
+    if (JSON.stringify(identityProviderIndexes.rows) !== JSON.stringify(expectedIdentityProviderIndexes)) {
       throw new Error(
-        `identity_provider_operation retry-index contract mismatch: ${JSON.stringify(identityProviderIndex.rows)}`,
+        `identity_provider_operation index contract mismatch: ${JSON.stringify(identityProviderIndexes.rows)}`,
       );
     }
 
