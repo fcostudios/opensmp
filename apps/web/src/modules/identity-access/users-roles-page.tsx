@@ -24,6 +24,7 @@ export async function renderUsersRolesPage(input: {
   if (!authorization || authorization.globalRole !== "group_admin") {
     input.redirectToAccessDenied();
   }
+  await input.service.recoverDueOperations(authorization.idpSubject);
   const [users, grants, companies, people] = await Promise.all([
     input.service.listUsers(authorization.idpSubject),
     input.service.listCompanyRoles(authorization.idpSubject),

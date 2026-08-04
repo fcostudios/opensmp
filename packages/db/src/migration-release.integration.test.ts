@@ -30,6 +30,8 @@ const pendingRemoveVerifierError =
   "Pending remove idempotency verifier failed: uq_provisioning_action_pending_remove_request exact index";
 const crossOrgPrivilegeVerifierFilename =
   "V20260728125700__verify_cross_org_move_runtime_privileges.sql";
+const identityProviderVerifierFilename =
+  "V20260803130300__verify_identity_provider_operation_leases.sql";
 
 let container: StartedPostgreSqlContainer;
 let clusterAdminUrl: string;
@@ -1373,6 +1375,41 @@ describe("committed migration release path", () => {
         "ledger_app has the exact least-privilege runtime grant matrix",
       );
     } finally {
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test("rejects identity-provider operation constraint drift in both schema verifiers", async () => {
+    const database = await createDatabase();
+    const client = new pg.Client({ connectionString: database.ownerUrl });
+    try {
+      await migrate(database.ownerUrl);
+      await client.connect();
+      await client.query(
+        "ALTER TABLE identity_provider_operation DROP CONSTRAINT identity_provider_operation_lease_pair_check",
+      );
+
+      const runtimeVerification = await runNode(verifyPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+        DATABASE_URL: database.appUrl,
+      });
+      expect(runtimeVerification.code).not.toBe(0);
+      expect(runtimeVerification.stderr).toContain(
+        "identity_provider_operation constraint contract mismatch",
+      );
+
+      const migrationVerification = await readFile(
+        join(committedMigrationsPath, identityProviderVerifierFilename),
+        "utf8",
+      );
+      await expect(client.query(migrationVerification)).rejects.toMatchObject({
+        code: "P0001",
+        message: expect.stringContaining(
+          "identity provider operation constraint contract mismatch",
+        ),
+      });
+    } finally {
+      await client.end().catch(() => undefined);
       await dropDatabase(database.name);
     }
   }, 30_000);

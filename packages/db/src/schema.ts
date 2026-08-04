@@ -208,7 +208,25 @@ export const identityProviderOperation = pgTable("identity_provider_operation", 
   cleanupFailure: text("cleanup_failure"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   completedAt: timestamp("completed_at", { withTimezone: true }),
+  leaseToken: uuid("lease_token"),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
 }, (table) => ({
+  kindCheck: check(
+    "identity_provider_operation_kind_check",
+    sql`${table.kind} IN ('create_user', 'disable_user', 'reset_two_factor')`,
+  ),
+  statusCheck: check(
+    "identity_provider_operation_status_check",
+    sql`${table.status} IN ('pending', 'provider_applied', 'cleanup_pending', 'compensated', 'completed', 'failed')`,
+  ),
+  attemptCountCheck: check(
+    "identity_provider_operation_attempt_count_check",
+    sql`${table.attemptCount} >= 0`,
+  ),
+  leasePairCheck: check(
+    "identity_provider_operation_lease_pair_check",
+    sql`(${table.leaseToken} IS NULL AND ${table.leaseExpiresAt} IS NULL) OR (${table.leaseToken} IS NOT NULL AND ${table.leaseExpiresAt} IS NOT NULL)`,
+  ),
   retryIndex: index("idx_identity_provider_operation_retry")
     .on(table.nextRetryAt, table.createdAt)
     .where(sql`${table.status} IN ('pending', 'provider_applied', 'cleanup_pending')`),

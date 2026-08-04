@@ -13,6 +13,7 @@ import {
   createUserAdministrationRepository,
   IdentityLinkError,
 } from "./repository";
+import { createProviderOperationRepository } from "./provider-operation-repository";
 
 const systemUserId = "00000000-0000-0000-0000-000000000001";
 const companyA = "00000000-0000-0000-0000-000000000451";
@@ -77,6 +78,221 @@ afterAll(async () => {
 }, 150_000);
 
 describe("identity-access repository", () => {
+  test("claims and transitions provider operations only with the exact trusted company scope and lease", async () => {
+    const repository = createProviderOperationRepository(drizzle(appPool, { schema }));
+    const claimedAt = new Date("2026-08-03T17:00:00.000Z");
+    const leaseExpiresAt = new Date("2026-08-03T17:05:00.000Z");
+    const leaseToken = "00000000-0000-4000-8000-000000000481";
+    const operation = await repository.request({
+      actorUserId: systemUserId,
+      companyId: companyA,
+      idempotencyKey: "scope-a-operation-us011",
+      kind: "disable_user",
+      occurredAt: claimedAt,
+      payload: { userAccountId: systemUserId, note: "Scoped operation" },
+      targetUserAccountId: systemUserId,
+    });
+
+    await expect(repository.claimById({
+      id: operation.id,
+      companyId: companyB,
+      claimedAt,
+      leaseExpiresAt,
+      leaseToken,
+    })).resolves.toBeNull();
+    await expect(repository.claimById({
+      id: operation.id,
+      companyId: null,
+      claimedAt,
+      leaseExpiresAt,
+      leaseToken,
+    })).resolves.toBeNull();
+    const claimed = await repository.claimById({
+      id: operation.id,
+      companyId: companyA,
+      claimedAt,
+      leaseExpiresAt,
+      leaseToken,
+    });
+    expect(claimed).toMatchObject({
+      id: operation.id,
+      companyId: companyA,
+      leaseToken,
+      leaseExpiresAt,
+      status: "pending",
+    });
+
+    await expect(repository.checkpointProviderApplied({
+      id: operation.id,
+      companyId: companyB,
+      leaseToken,
+      providerSubject: "scoped-provider-subject",
+      attemptedAt: claimedAt,
+    })).rejects.toThrow("provider_operation_not_claimed");
+    await expect(repository.checkpointProviderApplied({
+      id: operation.id,
+      companyId: companyA,
+      leaseToken: "00000000-0000-4000-8000-000000000482",
+      providerSubject: "scoped-provider-subject",
+      attemptedAt: claimedAt,
+    })).rejects.toThrow("provider_operation_not_claimed");
+    await expect(repository.checkpointProviderApplied({
+      id: operation.id,
+      companyId: companyA,
+      leaseToken,
+      providerSubject: "scoped-provider-subject",
+      attemptedAt: claimedAt,
+    })).resolves.toMatchObject({
+      companyId: companyA,
+      providerSubject: "scoped-provider-subject",
+      status: "provider_applied",
+    });
+  });
+
+  test("rejects idempotency-key reuse unless the stored request metadata and payload are identical", async () => {
+    const repository = createProviderOperationRepository(drizzle(appPool, { schema }));
+    const occurredAt = new Date("2026-08-03T17:10:00.000Z");
+    const alternateUserId = "00000000-0000-0000-0000-000000000487";
+    await seedAccount({
+      id: alternateUserId,
+      email: "idempotency-alternate-us011@example.com",
+      idpSubject: "idempotency-alternate-us011",
+    });
+    const request = {
+      actorUserId: systemUserId,
+      companyId: companyA,
+      idempotencyKey: "payload-contract-operation-us011",
+      kind: "disable_user" as const,
+      occurredAt,
+      payload: { actorSubject: "system-us011", userAccountId: systemUserId, note: "Original note" },
+      targetUserAccountId: systemUserId,
+    };
+    const original = await repository.request(request);
+
+    await expect(repository.request({
+      ...request,
+      payload: { ...request.payload, note: "Changed note" },
+    })).rejects.toThrow("provider_operation_idempotency_mismatch");
+    await expect(repository.request({ ...request, companyId: companyB }))
+      .rejects.toThrow("provider_operation_idempotency_mismatch");
+    await expect(repository.request({ ...request, actorUserId: alternateUserId }))
+      .rejects.toThrow("provider_operation_idempotency_mismatch");
+    await expect(repository.request({ ...request, kind: "reset_two_factor" }))
+      .rejects.toThrow("provider_operation_idempotency_mismatch");
+    await expect(repository.request({ ...request, targetUserAccountId: alternateUserId }))
+      .rejects.toThrow("provider_operation_idempotency_mismatch");
+    await expect(repository.request(request)).resolves.toMatchObject({ id: original.id });
+  });
+
+  test("due claims include global and authorized-company work but never another company", async () => {
+    const repository = createProviderOperationRepository(drizzle(appPool, { schema }));
+    const occurredAt = new Date("2026-08-03T17:01:00.000Z");
+    const requests = await Promise.all([
+      repository.request({
+        actorUserId: systemUserId,
+        companyId: null,
+        idempotencyKey: "due-global-operation-us011",
+        kind: "reset_two_factor",
+        occurredAt,
+        payload: { actorSubject: "system-us011", userAccountId: systemUserId, note: "Global due" },
+        targetUserAccountId: systemUserId,
+      }),
+      repository.request({
+        actorUserId: systemUserId,
+        companyId: companyA,
+        idempotencyKey: "due-company-a-operation-us011",
+        kind: "disable_user",
+        occurredAt: new Date(occurredAt.getTime() + 1),
+        payload: { actorSubject: "system-us011", userAccountId: systemUserId, note: "Company A due" },
+        targetUserAccountId: systemUserId,
+      }),
+      repository.request({
+        actorUserId: systemUserId,
+        companyId: companyB,
+        idempotencyKey: "due-company-b-operation-us011",
+        kind: "disable_user",
+        occurredAt: new Date(occurredAt.getTime() + 2),
+        payload: { actorSubject: "system-us011", userAccountId: systemUserId, note: "Company B due" },
+        targetUserAccountId: systemUserId,
+      }),
+    ]);
+    const claimedAt = new Date("2026-08-03T17:02:00.000Z");
+
+    const first = await repository.claimDue({
+      companyIds: [companyA],
+      claimedAt,
+      leaseExpiresAt: new Date(claimedAt.getTime() + 300_000),
+      leaseToken: "00000000-0000-4000-8000-000000000483",
+    });
+    const second = await repository.claimDue({
+      companyIds: [companyA],
+      claimedAt,
+      leaseExpiresAt: new Date(claimedAt.getTime() + 300_000),
+      leaseToken: "00000000-0000-4000-8000-000000000484",
+    });
+    const third = await repository.claimDue({
+      companyIds: [companyA],
+      claimedAt,
+      leaseExpiresAt: new Date(claimedAt.getTime() + 300_000),
+      leaseToken: "00000000-0000-4000-8000-000000000485",
+    });
+
+    expect([first?.id, second?.id]).toEqual([requests[0]?.id, requests[1]?.id]);
+    expect(third).toBeNull();
+    expect(requests[2]?.companyId).toBe(companyB);
+  });
+
+  test("Ledger finalization cannot cross a company scope or treat global NULL as a wildcard", async () => {
+    const database = drizzle(appPool, { schema });
+    const operations = createProviderOperationRepository(database);
+    const repository = createUserAdministrationRepository(database);
+    const occurredAt = new Date("2026-08-03T17:20:00.000Z");
+    const leaseToken = "00000000-0000-4000-8000-000000000486";
+    const operation = await operations.request({
+      actorUserId: systemUserId,
+      companyId: companyA,
+      idempotencyKey: "finalization-scope-operation-us011",
+      kind: "reset_two_factor",
+      occurredAt,
+      payload: { actorSubject: "system-us011", userAccountId: systemUserId, note: "Exact finalization scope" },
+      targetUserAccountId: systemUserId,
+    });
+    await operations.claimById({
+      id: operation.id,
+      companyId: companyA,
+      claimedAt: occurredAt,
+      leaseExpiresAt: new Date(occurredAt.getTime() + 300_000),
+      leaseToken,
+    });
+    await operations.checkpointProviderApplied({
+      id: operation.id,
+      companyId: companyA,
+      leaseToken,
+      providerSubject: "system",
+      attemptedAt: occurredAt,
+    });
+    const finalize = (companyId: string | null) => repository.finalizeUserMutation({
+      action: "identity.user.two_factor_reset",
+      actorUserId: systemUserId,
+      companyId,
+      leaseToken,
+      note: "Exact finalization scope",
+      operationId: operation.id,
+      occurredAt,
+      statusBefore: "active",
+      userAccountId: systemUserId,
+    });
+
+    await expect(finalize(companyB)).rejects.toThrow("provider_operation_not_claimed");
+    await expect(finalize(null)).rejects.toThrow("provider_operation_not_claimed");
+    await expect(finalize(companyA)).resolves.toEqual({ id: systemUserId });
+    const persisted = await owner.query(
+      "SELECT company_id, status FROM identity_provider_operation WHERE id = $1",
+      [operation.id],
+    );
+    expect(persisted.rows).toEqual([{ company_id: companyA, status: "completed" }]);
+  });
+
   test("identity-link errors preserve their exact public code, name, and sanitized message", () => {
     const error = new IdentityLinkError(
       "missing_identity_claim",

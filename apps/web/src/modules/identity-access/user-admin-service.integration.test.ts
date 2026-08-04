@@ -421,6 +421,9 @@ describe("US-011 user administration", () => {
         "create_user",
         "admin-us011",
         "created-us011@example.com",
+        "Created User",
+        "central_finance",
+        null,
         "Approved access request AR-41",
       ]),
     }]);
@@ -537,8 +540,355 @@ describe("US-011 user administration", () => {
     expect(completed.rows).toEqual([{ status: "completed", provider_subject: "in-memory-user-52" }]);
   });
 
-  test("resumes a provider-applied privileged create without recreating the provider user or repeating group sync", async () => {
-    state = { nextSubject: 53, users: new Map() };
+  test("serializes identical concurrent creates without deleting the committed provider user or regressing completion", async () => {
+    state = { nextSubject: 56, users: new Map() };
+    const base = createInMemoryKeycloakAdminClient(state);
+    let releaseCreated!: () => void;
+    let releaseFirstCreate!: () => void;
+    const created = new Promise<void>((resolve) => { releaseCreated = resolve; });
+    const continueFirstCreate = new Promise<void>((resolve) => { releaseFirstCreate = resolve; });
+    const concurrent = createUserAdminService({
+      database: drizzle(appPool, { schema }),
+      keycloak: {
+        ...base,
+        async createUser(input) {
+          const providerUser = await base.createUser(input);
+          releaseCreated();
+          await continueFirstCreate;
+          return providerUser;
+        },
+      },
+      now: () => now,
+    });
+    const command = {
+      email: "concurrent-create-us011@example.com",
+      displayName: "Concurrent Create",
+      globalRole: null,
+      personId: null,
+      note: "One durable concurrent create",
+    } as const;
+
+    const first = concurrent.createUser("admin-us011", command);
+    await created;
+    const second = await concurrent.createUser("admin-us011", command).then(
+      (value) => ({ status: "fulfilled" as const, value }),
+      (reason: unknown) => ({ status: "rejected" as const, reason }),
+    );
+    releaseFirstCreate();
+    await expect(first).resolves.toMatchObject({ idpSubject: "in-memory-user-56" });
+    expect(second).toMatchObject({
+      status: "rejected",
+      reason: { code: "operation_in_progress", name: "UserAdminError" },
+    });
+    const account = await owner.query(
+      "SELECT idp_subject, status FROM user_account WHERE email = $1",
+      [command.email],
+    );
+    expect(account.rows).toEqual([{
+      idp_subject: "in-memory-user-56",
+      status: "active",
+    }]);
+    expect(state.users.get("in-memory-user-56")).toMatchObject({
+      email: command.email,
+      enabled: true,
+    });
+    const operation = await owner.query(
+      `SELECT status, provider_subject, completed_at IS NOT NULL AS completed
+       FROM identity_provider_operation WHERE payload->>'email' = $1`,
+      [command.email],
+    );
+    expect(operation.rows).toEqual([{
+      status: "completed",
+      provider_subject: "in-memory-user-56",
+      completed: true,
+    }]);
+  });
+
+  test("admin page drains due create recovery from stored payload while preserving the original audit actor and note", async () => {
+    state = { nextSubject: 58, users: new Map() };
+    const base = createInMemoryKeycloakAdminClient(state);
+    let clock = now;
+    const responseLost = createUserAdminService({
+      database: drizzle(appPool, { schema }),
+      keycloak: {
+        ...base,
+        async createUser(input) {
+          await base.createUser(input);
+          throw new Error("lost provider response before recovery");
+        },
+      },
+      now: () => clock,
+    });
+    const command = {
+      email: "page-recovery-us011@example.com",
+      displayName: "Page Recovery",
+      globalRole: "group_admin" as const,
+      personId: null,
+      note: "Recover from admin page",
+    };
+    await expect(responseLost.createUser("admin-us011", command))
+      .rejects.toThrow("lost provider response before recovery");
+    clock = new Date(now.getTime() + 60_000);
+    const recovering = createUserAdminService({
+      database: drizzle(appPool, { schema }),
+      keycloak: base,
+      now: () => clock,
+    });
+    const existingAccounts = await owner.query<{ email: string; idp_subject: string }>(
+      "SELECT email, idp_subject FROM user_account WHERE idp_subject IS NOT NULL",
+    );
+    for (const account of existingAccounts.rows) {
+      if (!state.users.has(account.idp_subject)) {
+        state.users.set(account.idp_subject, {
+          email: account.email,
+          displayName: account.email,
+          enabled: true,
+          otpCredentials: [],
+          requiredActions: new Set(),
+        });
+      }
+    }
+
+    const page = await renderUsersRolesPage({
+      authorization: { globalRole: "group_admin", idpSubject: "admin-us011" },
+      locale: "es-EC",
+      messages: esMessages,
+      redirectToAccessDenied: () => { throw new Error("unexpected access denial"); },
+      service: recovering,
+    });
+
+    const [, panel] = page.props.children as Array<{ props: Record<string, unknown> }>;
+    expect((panel?.props.users as Array<{ email: string }>).map(({ email }) => email))
+      .toContain(command.email);
+    expect(state.users.get("in-memory-user-58")).toMatchObject({
+      email: command.email,
+      platformAdmin: true,
+    });
+    const operation = await owner.query(
+      `SELECT status, provider_subject, lease_token, lease_expires_at
+       FROM identity_provider_operation WHERE payload->>'email' = $1`,
+      [command.email],
+    );
+    expect(operation.rows).toEqual([{
+      status: "completed",
+      provider_subject: "in-memory-user-58",
+      lease_token: null,
+      lease_expires_at: null,
+    }]);
+    const audit = await owner.query(
+      `SELECT actor_user_id, note
+       FROM audit_log
+       WHERE action = 'identity.user.created'
+         AND after->>'email' = $1`,
+      [command.email],
+    );
+    expect(audit.rows).toEqual([{ actor_user_id: actorId, note: command.note }]);
+  });
+
+  test("due recovery terminally rejects malformed stored payloads without mutating the provider", async () => {
+    state = { nextSubject: 59, users: new Map() };
+    const database = drizzle(appPool, { schema });
+    const operations = createProviderOperationRepository(database);
+    const malformed = await Promise.all([
+      operations.request({
+        actorUserId: actorId,
+        companyId: null,
+        idempotencyKey: "malformed-create-payload-us011",
+        kind: "create_user",
+        occurredAt: new Date(now.getTime() - 2),
+        payload: {
+          actorSubject: "",
+          displayName: "Malformed Create",
+          email: "malformed-create-us011@example.com",
+          globalRole: null,
+          note: "Reject malformed create payload",
+          personId: null,
+        },
+        targetUserAccountId: null,
+      }),
+      operations.request({
+        actorUserId: actorId,
+        companyId: null,
+        idempotencyKey: "malformed-disable-payload-us011",
+        kind: "disable_user",
+        occurredAt: new Date(now.getTime() - 1),
+        payload: { userAccountId: actorId, note: "Reject malformed disable payload" },
+        targetUserAccountId: actorId,
+      }),
+      operations.request({
+        actorUserId: actorId,
+        companyId: null,
+        idempotencyKey: "malformed-create-actor-type-us011",
+        kind: "create_user",
+        occurredAt: new Date(now.getTime() - 6),
+        payload: {
+          actorSubject: 123,
+          displayName: "Malformed Actor Type",
+          email: "malformed-actor-type-us011@example.com",
+          globalRole: null,
+          note: "Reject malformed actor type",
+          personId: null,
+        },
+        targetUserAccountId: null,
+      }),
+      operations.request({
+        actorUserId: actorId,
+        companyId: null,
+        idempotencyKey: "malformed-disable-actor-type-us011",
+        kind: "disable_user",
+        occurredAt: new Date(now.getTime() - 5),
+        payload: { actorSubject: 123, userAccountId: actorId, note: "Reject actor type" },
+        targetUserAccountId: actorId,
+      }),
+      operations.request({
+        actorUserId: actorId,
+        companyId: null,
+        idempotencyKey: "malformed-disable-target-type-us011",
+        kind: "disable_user",
+        occurredAt: new Date(now.getTime() - 4),
+        payload: { actorSubject: "admin-us011", userAccountId: 123, note: "Reject target type" },
+        targetUserAccountId: actorId,
+      }),
+      operations.request({
+        actorUserId: actorId,
+        companyId: null,
+        idempotencyKey: "malformed-disable-note-type-us011",
+        kind: "disable_user",
+        occurredAt: new Date(now.getTime() - 3),
+        payload: { actorSubject: "admin-us011", userAccountId: actorId, note: 123 },
+        targetUserAccountId: actorId,
+      }),
+      operations.request({
+        actorUserId: actorId,
+        companyId: null,
+        idempotencyKey: "malformed-reset-payload-us011",
+        kind: "reset_two_factor",
+        occurredAt: now,
+        payload: { actorSubject: "admin-us011", userAccountId: actorId, note: "Will be replaced" },
+        targetUserAccountId: actorId,
+      }),
+    ]);
+    await owner.query(
+      "UPDATE identity_provider_operation SET payload = $1::jsonb WHERE id = $2",
+      [JSON.stringify("invalid payload"), malformed[6]?.id],
+    );
+
+    await expect(service().recoverDueOperations("admin-us011")).resolves.toBe(malformed.length);
+    expect(state.users).toEqual(new Map());
+    const persisted = await owner.query(
+      `SELECT status, original_failure, lease_token, next_retry_at
+       FROM identity_provider_operation
+       WHERE id = ANY($1::uuid[])
+       ORDER BY created_at`,
+      [malformed.map(({ id }) => id)],
+    );
+    expect(persisted.rows).toEqual(Array.from({ length: malformed.length }, () => ({
+      status: "failed",
+      original_failure: "provider_operation_payload_invalid",
+      lease_token: null,
+      next_retry_at: null,
+    })));
+  });
+
+  test("due recovery advances provider failures to a deterministic retry instead of terminal failure", async () => {
+    state = { nextSubject: 60, users: new Map() };
+    const database = drizzle(appPool, { schema });
+    const operations = createProviderOperationRepository(database);
+    const operation = await operations.request({
+      actorUserId: actorId,
+      companyId: null,
+      idempotencyKey: "due-provider-retry-us011",
+      kind: "create_user",
+      occurredAt: now,
+      payload: {
+        actorSubject: "admin-us011",
+        displayName: "Due Provider Retry",
+        email: "due-provider-retry-us011@example.com",
+        globalRole: null,
+        note: "Retry due provider failure",
+        personId: null,
+      },
+      targetUserAccountId: null,
+    });
+    const base = createInMemoryKeycloakAdminClient(state);
+    const recovering = createUserAdminService({
+      database,
+      keycloak: {
+        ...base,
+        async createUser() { throw new Error("recovery provider unavailable"); },
+      },
+      now: () => now,
+    });
+
+    await expect(recovering.recoverDueOperations("admin-us011")).resolves.toBe(1);
+    const persisted = await owner.query(
+      `SELECT status, attempt_count, original_failure, lease_token, next_retry_at
+       FROM identity_provider_operation WHERE id = $1`,
+      [operation.id],
+    );
+    expect(persisted.rows).toEqual([{
+      status: "pending",
+      attempt_count: 1,
+      original_failure: "Error: recovery provider unavailable",
+      lease_token: null,
+      next_retry_at: new Date(now.getTime() + 60_000),
+    }]);
+    expect(state.users).toEqual(new Map());
+  });
+
+  test("due recovery dispatches a stored user mutation and preserves its original actor and note", async () => {
+    const userId = "00000000-0000-0000-0000-000000001159";
+    await insertUser({ id: userId, email: "due-disable-us011@example.com", subject: "due-disable-us011" });
+    state = {
+      nextSubject: 61,
+      users: new Map([["due-disable-us011", {
+        email: "due-disable-us011@example.com",
+        displayName: "Due Disable",
+        enabled: true,
+        otpCredentials: [],
+        requiredActions: new Set(),
+      }]]),
+    };
+    const database = drizzle(appPool, { schema });
+    const operations = createProviderOperationRepository(database);
+    const note = "Recover stored disable mutation";
+    const operation = await operations.request({
+      actorUserId: actorId,
+      companyId: null,
+      idempotencyKey: "due-disable-operation-us011",
+      kind: "disable_user",
+      occurredAt: now,
+      payload: { actorSubject: "admin-us011", userAccountId: userId, note },
+      targetUserAccountId: userId,
+    });
+
+    await expect(service().recoverDueOperations("admin-us011")).resolves.toBe(1);
+    expect(state.users.get("due-disable-us011")).toMatchObject({ enabled: false, sessionsRevoked: 1 });
+    const persisted = await owner.query(
+      "SELECT status, lease_token FROM identity_provider_operation WHERE id = $1",
+      [operation.id],
+    );
+    expect(persisted.rows).toEqual([{ status: "completed", lease_token: null }]);
+    const audit = await owner.query(
+      `SELECT actor_user_id, note FROM audit_log
+       WHERE action = 'identity.user.disabled' AND entity_id = $1`,
+      [userId],
+    );
+    expect(audit.rows).toEqual([{ actor_user_id: actorId, note }]);
+  });
+
+  test("due recovery resumes a provider-applied privileged create without recreating the provider user or repeating group sync", async () => {
+    state = {
+      nextSubject: 53,
+      users: new Map([["provider-applied-subject-us011", {
+        email: "provider-applied-us011@example.com",
+        displayName: "Provider Applied",
+        enabled: true,
+        otpCredentials: [],
+        platformAdmin: true,
+        requiredActions: new Set(),
+      }]]),
+    };
     const database = drizzle(appPool, { schema });
     const operations = createProviderOperationRepository(database);
     const command = {
@@ -555,23 +905,45 @@ describe("US-011 user administration", () => {
         "create_user",
         "admin-us011",
         command.email,
+        command.displayName,
+        command.globalRole,
+        command.personId,
         command.note,
       ]),
       kind: "create_user",
       occurredAt: now,
-      payload: command,
+      payload: { actorSubject: "admin-us011", ...command },
       targetUserAccountId: null,
     });
-    await operations.checkpointProviderApplied(
-      operation.id,
-      "provider-applied-subject-us011",
-      now,
+    const leaseToken = "00000000-0000-4000-8000-000000001153";
+    await operations.claimById({
+      id: operation.id,
+      companyId: null,
+      claimedAt: now,
+      leaseExpiresAt: new Date(now.getTime() + 300_000),
+      leaseToken,
+    });
+    await operations.checkpointProviderApplied({
+      id: operation.id,
+      companyId: null,
+      leaseToken,
+      providerSubject: "provider-applied-subject-us011",
+      attemptedAt: now,
+    });
+    await owner.query(
+      "UPDATE identity_provider_operation SET lease_expires_at = $1 WHERE id = $2",
+      [now, operation.id],
     );
 
-    const created = await service().createUser("admin-us011", command);
+    const recoveredCount = await service().recoverDueOperations("admin-us011");
+    const created = await owner.query(
+      "SELECT idp_subject FROM user_account WHERE email = $1",
+      [command.email],
+    );
 
-    expect(created.idpSubject).toBe("provider-applied-subject-us011");
-    expect(state.users).toEqual(new Map());
+    expect(recoveredCount).toBe(1);
+    expect(created.rows).toEqual([{ idp_subject: "provider-applied-subject-us011" }]);
+    expect(state.users.get("provider-applied-subject-us011")?.platformAdmin).toBe(true);
     const persistedOperation = await owner.query(
       "SELECT status, provider_subject, attempt_count FROM identity_provider_operation WHERE id = $1",
       [operation.id],
@@ -603,11 +975,14 @@ describe("US-011 user administration", () => {
           "create_user",
           "admin-us011",
           command.email,
+          command.displayName,
+          command.globalRole,
+          command.personId,
           command.note,
         ]),
         kind: "create_user",
         occurredAt: now,
-        payload: command,
+        payload: { actorSubject: "admin-us011", ...command },
         targetUserAccountId: null,
       });
       await owner.query(
@@ -652,6 +1027,50 @@ describe("US-011 user administration", () => {
     );
     expect(audit.rows).toEqual([{ note: acceptedNote }]);
     expect(state.users.size).toBe(1);
+  });
+
+  test("treats display name, privilege, and person changes as distinct create commands", async () => {
+    state = { nextSubject: 57, users: new Map() };
+    const personId = "00000000-0000-0000-0000-000000001157";
+    await owner.query(
+      `INSERT INTO person (id, email, full_name, company_id, status, created_at, created_by)
+       VALUES ($1, 'idempotency-person-us011@example.com', 'Idempotency Person', $2, 'active', $3, $4)`,
+      [personId, companyA, now, systemUserId],
+    );
+    const original = {
+      email: "normalized-command-us011@example.com",
+      displayName: "Original Display",
+      globalRole: null,
+      personId: null,
+      note: "Complete create identity",
+    } as const;
+    await service().createUser("admin-us011", original);
+
+    for (const changed of [
+      { ...original, displayName: "Different Display" },
+      { ...original, globalRole: "central_finance" as const },
+      { ...original, personId },
+    ]) {
+      await expect(service().createUser("admin-us011", changed)).rejects.toMatchObject({
+        code: "provider_email_conflict",
+        name: "UserAdminError",
+      });
+    }
+
+    const operations = await owner.query(
+      `SELECT idempotency_key, payload
+       FROM identity_provider_operation
+       WHERE payload->>'email' = $1
+       ORDER BY payload->>'displayName', payload->>'globalRole', payload->>'personId'`,
+      [original.email],
+    );
+    expect(new Set(operations.rows.map(({ idempotency_key }) => idempotency_key)).size).toBe(4);
+    expect(operations.rows.map(({ payload }) => payload)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ displayName: "Original Display", globalRole: null, personId: null }),
+      expect.objectContaining({ displayName: "Different Display", globalRole: null, personId: null }),
+      expect.objectContaining({ displayName: "Original Display", globalRole: "central_finance", personId: null }),
+      expect.objectContaining({ displayName: "Original Display", globalRole: null, personId }),
+    ]));
   });
 
   test("create compensates Keycloak when Ledger rejects persistence (kills orphan-provider-user mutant)", async () => {
@@ -761,6 +1180,14 @@ describe("US-011 user administration", () => {
   });
 
   test("bounds Keycloak credential reads to eight concurrent requests while preserving result order", async () => {
+    for (let index = 0; index < 9; index += 1) {
+      const suffix = String(1300 + index).padStart(4, "0");
+      await insertUser({
+        id: `00000000-0000-0000-0000-00000000${suffix}`,
+        email: `bounded-${index}-us011@example.com`,
+        subject: `bounded-${index}-us011`,
+      });
+    }
     const subjects = await owner.query<{ email: string; idp_subject: string }>(
       "SELECT email, idp_subject FROM user_account WHERE idp_subject IS NOT NULL ORDER BY email",
     );
@@ -830,6 +1257,7 @@ describe("US-011 user administration", () => {
       ]),
       kind: "reset_two_factor",
       payload: {
+        actorSubject: "admin-us011",
         userAccountId: userId,
         note: "Phone replaced after loss",
       },
@@ -913,7 +1341,7 @@ describe("US-011 user administration", () => {
         "Employment ended",
       ]),
       kind: "disable_user",
-      payload: { userAccountId: userId, note: "Employment ended" },
+      payload: { actorSubject: "admin-us011", userAccountId: userId, note: "Employment ended" },
       target_user_account_id: userId,
     }]);
     const disabled = await owner.query("SELECT status FROM user_account WHERE id = $1", [userId]);

@@ -349,12 +349,24 @@ export function createUserAdministrationRepository(database: Database) {
       globalRole: GlobalRole;
       idpSubject: string;
       note: string;
-      operationId?: string;
+      operationId: string;
+      operationCompanyId: string | null;
+      leaseToken: string;
       personId: string | null;
       permittedCompanyIds: readonly string[];
       occurredAt: Date;
     }) {
       return withAudit(database, async (transaction) => {
+        const [claimedOperation] = await transaction.select({ id: identityProviderOperation.id })
+          .from(identityProviderOperation)
+          .where(and(
+            eq(identityProviderOperation.id, input.operationId),
+            sql`${identityProviderOperation.companyId} IS NOT DISTINCT FROM ${input.operationCompanyId}`,
+            eq(identityProviderOperation.leaseToken, input.leaseToken),
+            eq(identityProviderOperation.status, "provider_applied"),
+          ))
+          .limit(1);
+        if (!claimedOperation) throw new Error("provider_operation_not_claimed");
         const [linkedPerson] = input.personId
           ? await transaction
               .select({ companyId: person.companyId })
@@ -379,10 +391,19 @@ export function createUserAdministrationRepository(database: Database) {
           })
           .returning({ id: userAccount.id, idpSubject: userAccount.idpSubject });
         if (!created) throw new Error("user_create_failed");
-        if (input.operationId) {
-          await transaction.update(identityProviderOperation).set({ completedAt: input.occurredAt, status: "completed" })
-            .where(eq(identityProviderOperation.id, input.operationId));
-        }
+        const [completedOperation] = await transaction.update(identityProviderOperation).set({
+          completedAt: input.occurredAt,
+          leaseExpiresAt: null,
+          leaseToken: null,
+          nextRetryAt: null,
+          status: "completed",
+        }).where(and(
+          eq(identityProviderOperation.id, input.operationId),
+          sql`${identityProviderOperation.companyId} IS NOT DISTINCT FROM ${input.operationCompanyId}`,
+          eq(identityProviderOperation.leaseToken, input.leaseToken),
+          eq(identityProviderOperation.status, "provider_applied"),
+        )).returning({ id: identityProviderOperation.id });
+        if (!completedOperation) throw new Error("provider_operation_not_claimed");
         return {
           value: created,
           audit: {
@@ -405,16 +426,38 @@ export function createUserAdministrationRepository(database: Database) {
       companyId: string | null;
       note: string;
       operationId: string;
+      leaseToken: string;
       occurredAt: Date;
       statusBefore: "active" | "disabled";
       userAccountId: string;
     }) {
       return withAudit(database, async (transaction) => {
+        const [claimedOperation] = await transaction.select({ id: identityProviderOperation.id })
+          .from(identityProviderOperation)
+          .where(and(
+            eq(identityProviderOperation.id, input.operationId),
+            sql`${identityProviderOperation.companyId} IS NOT DISTINCT FROM ${input.companyId}`,
+            eq(identityProviderOperation.leaseToken, input.leaseToken),
+            eq(identityProviderOperation.status, "provider_applied"),
+          ))
+          .limit(1);
+        if (!claimedOperation) throw new Error("provider_operation_not_claimed");
         if (input.action === "identity.user.disabled") {
           await transaction.update(userAccount).set({ status: "disabled" }).where(eq(userAccount.id, input.userAccountId));
         }
-        await transaction.update(identityProviderOperation).set({ completedAt: input.occurredAt, status: "completed" })
-          .where(eq(identityProviderOperation.id, input.operationId));
+        const [completedOperation] = await transaction.update(identityProviderOperation).set({
+          completedAt: input.occurredAt,
+          leaseExpiresAt: null,
+          leaseToken: null,
+          nextRetryAt: null,
+          status: "completed",
+        }).where(and(
+          eq(identityProviderOperation.id, input.operationId),
+          sql`${identityProviderOperation.companyId} IS NOT DISTINCT FROM ${input.companyId}`,
+          eq(identityProviderOperation.leaseToken, input.leaseToken),
+          eq(identityProviderOperation.status, "provider_applied"),
+        )).returning({ id: identityProviderOperation.id });
+        if (!completedOperation) throw new Error("provider_operation_not_claimed");
         return {
           value: { id: input.userAccountId },
           audit: {
