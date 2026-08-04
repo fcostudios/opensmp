@@ -17,6 +17,7 @@ import {
   requireRoutedTestFiles,
   routedTestFiles,
 } from "./mutation-scope.mjs";
+import mutationVitestConfig from "../vitest.mutation.config.mjs";
 
 assert.deepEqual(
   mutationCompatibleTestFiles([
@@ -39,6 +40,22 @@ assert.deepEqual(
 assert.deepEqual(
   DIRECT_TEST_ROUTES["apps/web/src/modules/request-workflow/approval/repository.ts"],
   ["apps/web/src/modules/request-workflow/approval-repository.integration.test.ts"],
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["apps/web/src/modules/vendor-catalog/actions/manage-capacity.ts"],
+  ["apps/web/src/modules/vendor-catalog/actions/manage-capacity.test.ts"],
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["packages/db/src/provisioning-routing.ts"],
+  ["packages/db/src/provisioning-routing.test.ts"],
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["packages/db/src/schema.ts"],
+  ["packages/db/src/schema.test.ts"],
+);
+assert.ok(
+  mutationVitestConfig.test.projects.includes("packages/domain/vitest.config.ts"),
+  "the aggregate mutation runner must execute accountable domain tests",
 );
 
 const syntheticExists = (path) => new Set([
@@ -93,6 +110,7 @@ const writeFixture = (path, contents) => {
 };
 
 let generated;
+let generatedStatic;
 try {
   execFileSync("git", ["init", "--quiet"], { cwd: fixtureRoot });
   execFileSync("git", ["config", "user.email", "mutation-scope@example.invalid"], { cwd: fixtureRoot });
@@ -115,6 +133,8 @@ try {
     "",
   ].join("\n"));
   writeFixture(deletionOnlyTest, "export {};\n");
+  writeFixture("packages/db/src/schema.ts", "export const retained = 1;\nexport const capacity = 2;\n");
+  writeFixture("packages/db/src/schema.test.ts", "export {};\n");
   execFileSync("git", ["add", "."], { cwd: fixtureRoot });
   execFileSync("git", ["commit", "--quiet", "-m", "fixture base"], { cwd: fixtureRoot });
   const base = execFileSync("git", ["rev-parse", "HEAD"], {
@@ -136,6 +156,7 @@ try {
     "export const tail = 3;",
     "",
   ].join("\n"));
+  writeFixture("packages/db/src/schema.ts", "export const retained = 1;\nexport const capacity = 20;\n");
 
   execFileSync(process.execPath, [
     fileURLToPath(new URL("./mutation-scope.mjs", import.meta.url)),
@@ -151,6 +172,9 @@ try {
 
   generated = JSON.parse(
     readFileSync(join(fixtureRoot, ".tmp/stryker.generated.conf.json"), "utf8"),
+  );
+  generatedStatic = JSON.parse(
+    readFileSync(join(fixtureRoot, ".tmp/stryker.schema-static.generated.conf.json"), "utf8"),
   );
 } finally {
   rmSync(fixtureRoot, { force: true, recursive: true });
@@ -172,3 +196,11 @@ assert.deepEqual(generated.mutate, [
   `${source}:5-5`,
   `${newSource}:1-2`,
 ]);
+assert.equal(generatedStatic.testRunner, "command");
+assert.equal(generatedStatic.coverageAnalysis, "off");
+assert.equal("testFiles" in generatedStatic, false);
+assert.deepEqual(generatedStatic.mutate, ["packages/db/src/schema.ts:2-2"]);
+assert.equal(
+  generatedStatic.commandRunner.command,
+  "./apps/web/node_modules/.bin/vitest run --root packages/db --config vitest.config.ts src/schema.test.ts",
+);

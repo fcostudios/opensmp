@@ -7,6 +7,7 @@ export default defineConfig({
       "apps/worker/vitest.config.mjs",
       "packages/contracts/vitest.config.ts",
       "packages/db/vitest.config.ts",
+      "packages/domain/vitest.config.ts",
     ],
   },
 });

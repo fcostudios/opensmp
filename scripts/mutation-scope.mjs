@@ -22,6 +22,11 @@ import { pathToFileURL } from "node:url";
 
 const BASE_CONFIG = "stryker.conf.json";
 const GENERATED_CONFIG = join(".tmp", "stryker.generated.conf.json");
+const GENERATED_SCHEMA_STATIC_CONFIG = join(
+  ".tmp",
+  "stryker.schema-static.generated.conf.json",
+);
+const SCHEMA_STATIC_SOURCE = "packages/db/src/schema.ts";
 
 // Mirrors stryker.conf.json's mutate globs: which files can carry mutants.
 // This is a FILE-TYPE filter, not a critical-set narrowing — a changed `.md` or
@@ -227,6 +232,9 @@ export const DIRECT_TEST_ROUTES = {
   "apps/web/src/modules/vendor-catalog/actions/manage-capacity-operations.ts": [
     "apps/web/src/modules/vendor-catalog/actions/manage-capacity.test.ts",
   ],
+  "apps/web/src/modules/vendor-catalog/actions/manage-capacity.ts": [
+    "apps/web/src/modules/vendor-catalog/actions/manage-capacity.test.ts",
+  ],
   "apps/web/vitest.config.ts": [
     "apps/web/src/modules/identity-access/keycloak-admin.pact.test.ts",
   ],
@@ -238,11 +246,10 @@ export const DIRECT_TEST_ROUTES = {
     "packages/connectors/src/dispatch.test.ts",
   ],
   "packages/db/src/provisioning-routing.ts": [
-    "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
-    "apps/worker/src/jobs/capacity-recovery.integration.test.ts",
+    "packages/db/src/provisioning-routing.test.ts",
   ],
   "packages/db/src/schema.ts": [
-    "packages/db/src/physical-schema.test.ts",
+    "packages/db/src/schema.test.ts",
   ],
   "scripts/probes/anthropic/vitest.contract.config.ts": [
     "apps/web/src/modules/identity-access/keycloak-admin.pact.test.ts",
@@ -297,15 +304,19 @@ function main() {
   const base = resolveBase();
   const changed = changedFiles(base);
   const changedSources = mutatable(changed);
-  const mutate = mutationTargets(base, changedSources);
+  const allMutate = mutationTargets(base, changedSources);
+  const schemaStaticMutate = allMutate.filter((target) =>
+    target.replace(/:\d+-\d+$/, "") === SCHEMA_STATIC_SOURCE);
+  const mutate = allMutate.filter((target) => !schemaStaticMutate.includes(target));
   const routedSources = mutationSourceFiles(mutate);
 
   console.log(
     `mutation-scope: base=${base} changed=${changed.length} ` +
-      `mutatable=${routedSources.length} ranges=${mutate.length}`,
+      `mutatable=${mutationSourceFiles(allMutate).length} ranges=${allMutate.length} ` +
+      `schemaStaticRanges=${schemaStaticMutate.length}`,
   );
 
-  if (mutate.length === 0) {
+  if (allMutate.length === 0) {
     console.log("mutation-scope: no mutatable files in diff — nothing to mutate");
     process.exit(0);
   }
@@ -356,13 +367,61 @@ function main() {
   writeFileSync(GENERATED_CONFIG, `${JSON.stringify(conf, null, 2)}\n`, "utf8");
   console.log(`mutation-scope: wrote ${GENERATED_CONFIG}`);
 
+  let schemaStaticConf = null;
+  if (schemaStaticMutate.length > 0) {
+    requireRoutedTestFiles(
+      changed,
+      mutationSourceFiles(schemaStaticMutate),
+    );
+    const {
+      testFiles: _testFiles,
+      vitest: _vitest,
+      ...commandBaseConf
+    } = baseConf;
+    const schemaDigest = createHash("sha256")
+      .update(schemaStaticMutate.join("\n"))
+      .digest("hex")
+      .slice(0, 12);
+    schemaStaticConf = {
+      ...commandBaseConf,
+      mutate: schemaStaticMutate,
+      testRunner: "command",
+      coverageAnalysis: "off",
+      commandRunner: {
+        command: "./apps/web/node_modules/.bin/vitest run --root packages/db --config vitest.config.ts src/schema.test.ts",
+      },
+      concurrency: 1,
+      maxTestRunnerReuse: 1,
+      timeoutFactor: 2,
+      tempDirName: join(".tmp", `stryker-schema-static-${schemaDigest}`),
+      htmlReporter: {
+        fileName: "reports/mutation/schema-static.html",
+      },
+    };
+    writeFileSync(
+      GENERATED_SCHEMA_STATIC_CONFIG,
+      `${JSON.stringify(schemaStaticConf, null, 2)}\n`,
+      "utf8",
+    );
+    console.log(`mutation-scope: wrote ${GENERATED_SCHEMA_STATIC_CONFIG}`);
+  }
+
   if (process.env.MUTATION_SCOPE_DRY === "1") {
     console.log("mutation-scope: MUTATION_SCOPE_DRY=1 — not running Stryker");
     process.exit(0);
   }
 
   try {
-    execFileSync("pnpm", ["exec", "stryker", "run", GENERATED_CONFIG], { stdio: "inherit" });
+    if (mutate.length > 0) {
+      execFileSync("pnpm", ["exec", "stryker", "run", GENERATED_CONFIG], { stdio: "inherit" });
+    }
+    if (schemaStaticConf) {
+      execFileSync(
+        "pnpm",
+        ["exec", "stryker", "run", GENERATED_SCHEMA_STATIC_CONFIG],
+        { stdio: "inherit" },
+      );
+    }
   } catch (err) {
     // A non-zero Stryker exit IS the gate failing — propagate the code, but not
     // execFileSync's exception: an uncaught throw prints a JS stack trace after

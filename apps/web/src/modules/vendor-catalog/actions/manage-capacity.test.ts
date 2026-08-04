@@ -9,6 +9,7 @@ import {
 } from "@smp/db/testing/postgres-container";
 
 import { createAuthorizationRepository } from "../../identity-access/authorization";
+import { createCapacityServerActions } from "./manage-capacity";
 import { createManageCapacityActions } from "./manage-capacity-operations";
 
 const id = (suffix: string) =>
@@ -85,5 +86,59 @@ describe("US-023 capacity server actions", () => {
       { effective_from: "2026-08-12", purchased_qty: 5, reason: "correction" },
       { effective_from: "2026-08-13", purchased_qty: 6, reason: "correction" },
     ]);
+  });
+
+  it("production wiring authorizes every entry point before mutation and revalidates both capacity views", async () => {
+    const database = drizzle(pool, { schema });
+    const authorizationRepository = createAuthorizationRepository(database);
+    const authorization = await authorizationRepository.load({ subject: "capacity-actions" });
+    if (!authorization) throw new Error("capacity action authorization missing");
+    const operations = createManageCapacityActions({ database, now: () => now });
+    const revalidated: string[] = [];
+    const actions = createCapacityServerActions({
+      actions: operations,
+      loadAuthorization: async () => authorization,
+      revalidate: (path) => { revalidated.push(path); },
+    });
+    const form = (effectiveFrom: string, purchasedQty: string) => {
+      const input = new FormData();
+      input.set("effectiveFrom", effectiveFrom);
+      input.set("licenseTypeId", id("4"));
+      input.set("purchasedQty", purchasedQty);
+      input.set("vendorAccountId", id("3"));
+      return input;
+    };
+
+    await actions.registerPurchase(form("2026-08-14", "7"));
+    await actions.addCapacity(form("2026-08-15", "8"));
+    await actions.saveVendorAccountCapacity(form("2026-08-16", "9"));
+
+    expect(revalidated).toEqual([
+      "/cupos", "/excepciones",
+      "/cupos", "/excepciones",
+      "/cupos", "/excepciones",
+    ]);
+    const evidence = await owner.query(
+      `SELECT purchased_qty,effective_from::text
+       FROM vendor_account_capacity
+       WHERE effective_from BETWEEN '2026-08-14' AND '2026-08-16'
+       ORDER BY effective_from`,
+    );
+    expect(evidence.rows).toEqual([
+      { effective_from: "2026-08-14", purchased_qty: 7 },
+      { effective_from: "2026-08-15", purchased_qty: 8 },
+      { effective_from: "2026-08-16", purchased_qty: 9 },
+    ]);
+
+    const forbiddenRevalidations: string[] = [];
+    const forbidden = createCapacityServerActions({
+      actions: operations,
+      loadAuthorization: async () => null,
+      revalidate: (path) => { forbiddenRevalidations.push(path); },
+    });
+    await expect(forbidden.addCapacity(form("2026-08-17", "10"))).rejects.toThrow(
+      "CAPACITY_ACCESS_FORBIDDEN",
+    );
+    expect(forbiddenRevalidations).toEqual([]);
   });
 });
