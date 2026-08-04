@@ -1,20 +1,28 @@
 import { randomUUID } from "node:crypto";
 
 import pg from "pg";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createPostgresFixture,
   type PostgresFixture,
 } from "../../../packages/db/src/testing/postgres-container.js";
-import {
-  createWorkerRuntime,
-  PG_BOSS_RUNTIME_SECURITY,
-  type WorkerRuntime,
-} from "./runtime.js";
+import type { WorkerRuntime } from "./runtime.js";
+
+type RuntimeModule = typeof import("./runtime.js");
+
+let createWorkerRuntime: RuntimeModule["createWorkerRuntime"];
+let PG_BOSS_RUNTIME_SECURITY: RuntimeModule["PG_BOSS_RUNTIME_SECURITY"];
 
 let fixture: PostgresFixture;
 let appConnectionString: string;
+
+beforeEach(async () => {
+  // Runtime schedules are initialized at module load, so load them after
+  // Stryker activates the current static mutant.
+  vi.resetModules();
+  ({ createWorkerRuntime, PG_BOSS_RUNTIME_SECURITY } = await import("./runtime.js"));
+});
 
 async function queryAsOwner<T extends pg.QueryResultRow>(text: string, values?: unknown[]): Promise<pg.QueryResult<T>> {
   const client = await fixture.connectAsOwner();
