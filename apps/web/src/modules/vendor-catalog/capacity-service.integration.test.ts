@@ -164,6 +164,27 @@ describe("US-023 canonical capacity transaction", () => {
         status: "pending",
       },
     ]);
+    const audit = await owner.query(
+      `SELECT action,entity_type,entity_id::text,actor_user_id::text,note,before,after
+       FROM audit_log WHERE entity_id=$1`,
+      [result.id],
+    );
+    expect(audit.rows).toEqual([
+      {
+        action: "capacity.changed",
+        actor_user_id: ids.admin,
+        after: expect.objectContaining({
+          effectiveFrom: "2026-08-04",
+          id: result.id,
+          purchasedQty: 3,
+          reason: "purchase",
+        }),
+        before: null,
+        entity_id: result.id,
+        entity_type: "VendorAccountCapacity",
+        note: "purchase",
+      },
+    ]);
     await expect(
       service.changeCapacity(authorization, {
         effectiveFrom: "2026-08-05",
@@ -359,6 +380,82 @@ describe("US-023 canonical capacity transaction", () => {
       recipients: 2,
       transitions: 1,
     });
+    const transition = await owner.query(
+      `SELECT from_state,to_state,actor_user_id::text,note,occurred_at
+       FROM request_transition WHERE request_id=$1`,
+      [requestId],
+    );
+    expect(transition.rows).toEqual([
+      {
+        actor_user_id: "00000000-0000-0000-0000-000000000001",
+        from_state: "approved",
+        note: source,
+        occurred_at: now,
+        to_state: "blocked_no_seat",
+      },
+    ]);
+    const audit = await owner.query(
+      `SELECT action,entity_type,entity_id::text,company_id::text,note,before,after,occurred_at
+       FROM audit_log WHERE entity_id=$1 AND action='request.blocked_no_seat'`,
+      [requestId],
+    );
+    expect(audit.rows).toEqual([
+      {
+        action: "request.blocked_no_seat",
+        after: { state: "blocked_no_seat" },
+        before: { state: "approved" },
+        company_id: ids.companyA,
+        entity_id: requestId,
+        entity_type: "LicenseRequest",
+        note: source,
+        occurred_at: now,
+      },
+    ]);
+    const alert = await owner.query(
+      `SELECT subject_ref,notified FROM alert_event
+       WHERE subject_ref->>'requestId'=$1`,
+      [requestId],
+    );
+    expect(alert.rows).toEqual([
+      {
+        notified: { status: "pending" },
+        subject_ref: { requestId },
+      },
+    ]);
+    const deliveries = await owner.query(
+      `SELECT recipient_key,recipient_email,recipient_locale
+       FROM alert_notification_delivery delivery
+       JOIN alert_event event ON event.id=delivery.alert_event_id
+       WHERE event.subject_ref->>'requestId'=$1 AND delivery.phase='pending'
+       ORDER BY recipient_key`,
+      [requestId],
+    );
+    expect(deliveries.rows).toEqual([
+      {
+        recipient_locale: "es",
+        recipient_email: "admin@capacity.test",
+        recipient_key: `user:${ids.admin}`,
+      },
+      {
+        recipient_locale: "en",
+        recipient_email: "requester@capacity.test",
+        recipient_key: `user:${ids.requester}`,
+      },
+    ].sort((left, right) => left.recipient_key.localeCompare(right.recipient_key)));
+    const recovery = await owner.query(
+      `SELECT idempotency_key,source,status
+       FROM capacity_recovery_work WHERE idempotency_key=$1`,
+      [`blocked-request:${requestId}`],
+    );
+    expect(recovery.rows).toEqual(
+      source === "provider_400"
+        ? [{
+            idempotency_key: `blocked-request:${requestId}`,
+            source: "capacity_change",
+            status: "pending",
+          }]
+        : [],
+    );
   });
 
   it("kills accepting client tenant scope on a trusted no-seat observation", async () => {
