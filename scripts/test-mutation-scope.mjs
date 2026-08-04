@@ -13,10 +13,16 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   DIRECT_TEST_ROUTES,
+  classifyVerificationOnlyHunk,
   groupRoutedMutationTargets,
   mutationCompatibleTestFiles,
+  readFreshMutationReport,
+  requireNonzeroMutationReport,
   requireRoutedTestFiles,
   routedTestFiles,
+  runVerificationCommands,
+  verificationCommandsForSources,
+  verificationAuditsForReport,
 } from "./mutation-scope.mjs";
 import mutationVitestConfig from "../vitest.mutation.config.mjs";
 
@@ -53,6 +59,13 @@ assert.deepEqual(
 assert.deepEqual(
   DIRECT_TEST_ROUTES["packages/db/src/schema.ts"],
   ["packages/db/src/schema.test.ts"],
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["packages/contracts/src/index.ts"],
+  [
+    "packages/contracts/src/capacity.test.ts",
+    "packages/contracts/src/identity-access.test.ts",
+  ],
 );
 assert.ok(
   mutationVitestConfig.test.projects.includes("packages/domain/vitest.config.ts"),
@@ -105,6 +118,116 @@ assert.throws(
   () => groupRoutedMutationTargets(["src/orphan.ts:1-1"], () => []),
   /mutatable source has no responsible Vitest test route: src\/orphan\.ts/,
 );
+const importChange = {
+  source: "src/entry.ts",
+  oldContents: 'import { value } from "./value";\n',
+  newContents: 'import { value } from "./value.js";\n',
+  oldStart: 1,
+  oldLines: ['import { value } from "./value";'],
+  newStart: 1,
+  newLines: ['import { value } from "./value.js";'],
+};
+assert.deepEqual(
+  classifyVerificationOnlyHunk(importChange, (path) => path === "src/value.ts"),
+  {
+    newFingerprint: "a18db7c61535ab83126eae98b1413e87f4d8de2b37be8e001da4c4f82b30f9e0",
+    oldFingerprint: "2ca666ee56905b8939db0ea6e3a3207b1c7b4248239578b3982824618390bf77",
+    range: "src/entry.ts:1-1",
+    reason: "relative-import-appends-js",
+    resolvedTarget: "src/value.ts",
+  },
+);
+assert.equal(
+  classifyVerificationOnlyHunk({
+    source: "src/index.ts",
+    oldContents: "",
+    newContents: 'export * from "./capacity";\n',
+    oldStart: 1,
+    oldLines: [],
+    newStart: 1,
+    newLines: ['export * from "./capacity";'],
+  }, (path) => path === "src/capacity.ts").reason,
+  "new-relative-export-star",
+);
+assert.throws(
+  () => classifyVerificationOnlyHunk({
+    ...importChange,
+    newContents: 'import { changedBinding } from "./value.js";\n',
+    newLines: ['import { changedBinding } from "./value.js";'],
+  }, (path) => path === "src/value.ts"),
+  /must solely append \.js/,
+);
+assert.throws(
+  () => classifyVerificationOnlyHunk(importChange, () => false),
+  /resolves 0 targets/,
+);
+assert.throws(
+  () => classifyVerificationOnlyHunk(importChange, () => true),
+  /resolves 4 targets/,
+);
+assert.throws(
+  () => classifyVerificationOnlyHunk({
+    ...importChange,
+    newLines: [importChange.newLines[0], "export const mixed = true;"],
+  }, (path) => path === "src/value.ts"),
+  /mixed or spans unsupported lines/,
+);
+assert.equal(requireNonzeroMutationReport({ files: { "src/a.ts": { mutants: [{ id: "1" }] } } }, "good"), 1);
+assert.throws(
+  () => requireNonzeroMutationReport({ files: { "src/a.ts": { mutants: [] } } }, "empty"),
+  /scored mutation shard empty instrumented zero mutants/,
+);
+assert.throws(
+  () => requireNonzeroMutationReport({ files: { "src/a.ts": { mutants: [{ id: "1", status: "Ignored" }] } } }, "ignored"),
+  /scored mutation shard ignored has zero testable mutants/,
+);
+assert.deepEqual(
+  readFreshMutationReport("report.json", 100, () => ({ mtimeMs: 101 }), () => '{"files":{}}'),
+  { files: {} },
+);
+assert.throws(
+  () => readFreshMutationReport("report.json", 100, () => ({ mtimeMs: 99 }), () => "{}"),
+  /stale mutation report/,
+);
+assert.throws(
+  () => readFreshMutationReport("report.json", 100, () => ({ mtimeMs: 101 }), () => "{"),
+  /malformed mutation report/,
+);
+assert.throws(() => runVerificationCommands([], () => ({ status: 0 })), /has no commands/);
+assert.throws(
+  () => runVerificationCommands([["tool", ["test"]]], () => ({ status: 1 })),
+  /verification command failed/,
+);
+assert.equal(
+  runVerificationCommands([["tool", ["test"]]], () => ({ status: 0 })),
+  1,
+);
+let downgradeClassifierCalls = 0;
+assert.throws(
+  () => verificationAuditsForReport(
+    { files: { "src/a.ts": { mutants: [{ id: "1" }] } } },
+    { id: "nonzero", mutate: ["src/a.ts:1-1"] },
+    [],
+    () => { downgradeClassifierCalls += 1; },
+  ),
+  /nonzero mutation shard nonzero cannot downgrade/,
+);
+assert.equal(downgradeClassifierCalls, 0);
+const connectorVerification = verificationCommandsForSources(
+  ["packages/connectors/src/action-planner.ts"],
+  ["packages/connectors/src/action-planner.test.ts"],
+);
+assert.match(connectorVerification[2][1][2], /ERR_MODULE_NOT_FOUND/);
+assert.match(connectorVerification[2][1][2], /dist\/module-wiring\/action-planner\.js/);
+const contractsVerification = verificationCommandsForSources(
+  ["packages/contracts/src/index.ts"],
+  ["packages/contracts/src/capacity.test.ts"],
+);
+assert.deepEqual(contractsVerification[0], [
+  "pnpm",
+  ["--filter", "@smp/contracts", "build"],
+]);
+assert.ok(contractsVerification.at(-1)[1].includes("packages/contracts/src/capacity.test.ts"));
 assert.deepEqual(
   requireRoutedTestFiles(
     ["src/story.test.ts", "src/entry.ts"],
@@ -255,6 +378,8 @@ for (const [index, shard] of manifest.shards.entries()) {
   assert.equal(config.thresholds.high, 80);
   assert.equal(config.thresholds.break, 80);
   assert.deepEqual(config.mutate, shard.mutate);
+  assert.ok(config.reporters.includes("json"));
+  assert.equal(config.jsonReporter.fileName, shard.jsonReportPath);
   if (shard.kind === "vitest") {
     assert.deepEqual(config.testFiles, shard.testFiles);
   } else {
@@ -275,6 +400,7 @@ assert.deepEqual(
 assert.equal(new Set(manifest.shards.map(({ configPath }) => configPath)).size, 3);
 assert.equal(new Set(manifest.shards.map(({ tempDirName }) => tempDirName)).size, 3);
 assert.equal(new Set(manifest.shards.map(({ reportPath }) => reportPath)).size, 3);
+assert.equal(new Set(manifest.shards.map(({ jsonReportPath }) => jsonReportPath)).size, 3);
 assert.deepEqual(
   manifest.shards.map(({ id }) => id),
   [...manifest.shards.map(({ id }) => id)].sort(),

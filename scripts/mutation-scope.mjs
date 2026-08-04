@@ -14,11 +14,12 @@
 // Env overrides:
 //   MUTATION_BASE=<ref>   compare against this ref instead of the default branch
 //   MUTATION_SCOPE_DRY=1  write + print the generated config, do NOT run Stryker
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import ts from "../apps/web/node_modules/typescript/lib/typescript.js";
 
 const BASE_CONFIG = "stryker.conf.json";
 const GENERATED_SHARD_DIR = join(".tmp", "stryker-shards");
@@ -161,6 +162,44 @@ export function mutationTargetsFromPatch(patch, untracked = new Map()) {
   return [...new Set(targets)].sort();
 }
 
+export function mutationHunksFromPatch(patch, contentsForSource) {
+  const hunks = [];
+  let source = null;
+  let current = null;
+  const finish = () => {
+    if (current) hunks.push({
+      ...current,
+      oldContents: contentsForSource(current.source).oldContents,
+      newContents: contentsForSource(current.source).newContents,
+    });
+    current = null;
+  };
+  for (const line of patch.split("\n")) {
+    if (line.startsWith("+++ ")) {
+      source = line.slice(4).replace(/^b\//, "");
+      continue;
+    }
+    if (line.startsWith("@@ ")) {
+      finish();
+      const header = /-(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))?/.exec(line);
+      if (!header || !source) throw new Error(`cannot parse mutation hunk: ${line}`);
+      current = {
+        source,
+        oldStart: Number(header[1]),
+        oldLines: [],
+        newStart: Number(header[3]),
+        newLines: [],
+      };
+      continue;
+    }
+    if (!current) continue;
+    if (line.startsWith("-") && !line.startsWith("---")) current.oldLines.push(line.slice(1));
+    if (line.startsWith("+") && !line.startsWith("+++")) current.newLines.push(line.slice(1));
+  }
+  finish();
+  return hunks;
+}
+
 export function mutationSourceFiles(targets) {
   return [...new Set(
     targets.map((target) => target.replace(/:\d+-\d+$/, "")),
@@ -193,6 +232,214 @@ export function groupRoutedMutationTargets(targets, routeTestsForSource) {
       JSON.stringify(left.testFiles).localeCompare(JSON.stringify(right.testFiles)));
 }
 
+function parseModule(source, contents) {
+  const parsed = ts.createSourceFile(
+    source,
+    contents,
+    ts.ScriptTarget.Latest,
+    true,
+    source.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  if (parsed.parseDiagnostics.length > 0) {
+    throw new Error(`verification-only candidate has parse errors: ${source}`);
+  }
+  return parsed;
+}
+
+function relativeModuleTarget(source, specifier, fileExists) {
+  if (!specifier.startsWith("./") && !specifier.startsWith("../")) {
+    throw new Error(`verification-only module specifier is not relative: ${specifier}`);
+  }
+  const unresolved = join(dirname(source), specifier.replace(/\.js$/, ""));
+  const candidates = [
+    `${unresolved}.ts`,
+    `${unresolved}.tsx`,
+    join(unresolved, "index.ts"),
+    join(unresolved, "index.tsx"),
+  ].filter(fileExists);
+  if (candidates.length !== 1) {
+    throw new Error(
+      `verification-only module specifier resolves ${candidates.length} targets: ${specifier}`,
+    );
+  }
+  return candidates[0];
+}
+
+function moduleDeclarations(parsed) {
+  return parsed.statements.filter((node) =>
+    (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+    node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier));
+}
+
+function declarationOnLine(parsed, lineNumber, predicate) {
+  const matches = moduleDeclarations(parsed).filter((node) => {
+    if (!predicate(node)) return false;
+    const token = node.moduleSpecifier;
+    const start = parsed.getLineAndCharacterOfPosition(token.getStart(parsed)).line + 1;
+    const end = parsed.getLineAndCharacterOfPosition(token.getEnd()).line + 1;
+    return start === lineNumber && end === lineNumber;
+  });
+  if (matches.length !== 1) {
+    throw new Error(`verification-only hunk has ${matches.length} exact module declarations`);
+  }
+  return matches[0];
+}
+
+function fingerprint(lines) {
+  return createHash("sha256").update(lines.join("\n")).digest("hex");
+}
+
+/** Classify only the two AST shapes that are inherently non-mutatable:
+ * an existing relative import whose sole token edit appends `.js`, or a newly
+ * added exact `export * from` declaration. Any mixed, unresolved, ambiguous,
+ * or parse-invalid hunk throws instead of silently escaping mutation. */
+export function classifyVerificationOnlyHunk(change, fileExists = existsSync) {
+  const {
+    source, oldContents, newContents,
+    oldStart, oldLines, newStart, newLines,
+  } = change;
+  const oldParsed = parseModule(source, oldContents);
+  const newParsed = parseModule(source, newContents);
+  let reason;
+  let specifier;
+
+  if (oldLines.length === 1 && newLines.length === 1) {
+    const oldNode = declarationOnLine(oldParsed, oldStart, ts.isImportDeclaration);
+    const newNode = declarationOnLine(newParsed, newStart, ts.isImportDeclaration);
+    const oldSpecifier = oldNode.moduleSpecifier.text;
+    specifier = newNode.moduleSpecifier.text;
+    const oldToken = oldNode.moduleSpecifier.getText(oldParsed);
+    const newToken = newNode.moduleSpecifier.getText(newParsed);
+    if (
+      specifier !== `${oldSpecifier}.js` || oldSpecifier.endsWith(".js") ||
+      oldLines[0].replace(oldToken, "<module>") !==
+        newLines[0].replace(newToken, "<module>")
+    ) {
+      throw new Error("verification-only import must solely append .js to its module token");
+    }
+    reason = "relative-import-appends-js";
+  } else if (oldLines.length === 0 && newLines.length === 1) {
+    const node = declarationOnLine(
+      newParsed,
+      newStart,
+      (candidate) => ts.isExportDeclaration(candidate) &&
+        candidate.exportClause === undefined && !candidate.isTypeOnly,
+    );
+    const exactNodeText = node.getText(newParsed);
+    if (newLines[0].trim() !== exactNodeText) {
+      throw new Error("verification-only re-export hunk must contain one exact export declaration");
+    }
+    specifier = node.moduleSpecifier.text;
+    reason = "new-relative-export-star";
+  } else {
+    throw new Error("verification-only hunk is mixed or spans unsupported lines");
+  }
+
+  const resolvedTarget = relativeModuleTarget(source, specifier, fileExists);
+  return {
+    newFingerprint: fingerprint(newLines),
+    oldFingerprint: fingerprint(oldLines),
+    range: `${source}:${newStart}-${newStart + newLines.length - 1}`,
+    reason,
+    resolvedTarget,
+  };
+}
+
+export function requireNonzeroMutationReport(report, shardId) {
+  const mutants = mutationReportMutants(report);
+  if (mutants.length === 0) {
+    throw new Error(`scored mutation shard ${shardId} instrumented zero mutants`);
+  }
+  const testable = mutants.filter((mutant) => mutant.status !== "Ignored");
+  if (testable.length === 0) {
+    throw new Error(`scored mutation shard ${shardId} has zero testable mutants`);
+  }
+  return testable.length;
+}
+
+function mutationReportMutants(report) {
+  return report?.files && typeof report.files === "object"
+    ? Object.values(report.files).flatMap((file) =>
+        Array.isArray(file?.mutants) ? file.mutants : [])
+    : [];
+}
+
+export function verificationAuditsForReport(
+  report,
+  shard,
+  allHunks,
+  classify = classifyVerificationOnlyHunk,
+) {
+  if (mutationReportMutants(report).length > 0) {
+    throw new Error(`nonzero mutation shard ${shard.id} cannot downgrade to verification-only`);
+  }
+  return shard.mutate.map((range) => {
+    const change = allHunks.find((candidate) =>
+      `${candidate.source}:${candidate.newStart}-${candidate.newStart + candidate.newLines.length - 1}` === range);
+    if (!change) throw new Error(`no exact diff hunk for zero-mutant range: ${range}`);
+    return classify(change);
+  });
+}
+
+export function readFreshMutationReport(
+  reportPath,
+  startedAt,
+  fileStat = statSync,
+  fileRead = (path) => readFileSync(path, "utf8"),
+) {
+  let metadata;
+  try {
+    metadata = fileStat(reportPath);
+  } catch {
+    throw new Error(`missing mutation report: ${reportPath}`);
+  }
+  if (metadata.mtimeMs < startedAt) {
+    throw new Error(`stale mutation report: ${reportPath}`);
+  }
+  try {
+    return JSON.parse(fileRead(reportPath));
+  } catch {
+    throw new Error(`malformed mutation report: ${reportPath}`);
+  }
+}
+
+export function runVerificationCommands(commands, run = spawnSync) {
+  if (commands.length === 0) throw new Error("verification-only result has no commands");
+  for (const [command, args] of commands) {
+    const result = run(command, args, { stdio: "inherit" });
+    if (result.status !== 0) {
+      throw new Error(`verification command failed: ${command} ${args.join(" ")}`);
+    }
+  }
+  return commands.length;
+}
+
+export function verificationCommandsForSources(sources, testFiles) {
+  const commands = [];
+  if (sources.some((source) => source.startsWith("packages/connectors/"))) {
+    commands.push(["node", ["--eval", 'require("node:fs").rmSync("packages/connectors/dist/module-wiring", { recursive: true, force: true })']]);
+    commands.push(["pnpm", [
+      "--filter", "@smp/connectors", "exec", "tsc",
+      "--outDir", "dist/module-wiring", "--noEmit", "false",
+      "--declaration", "false", "--composite", "false",
+    ]]);
+    commands.push(["node", ["--input-type=module", "--eval", [
+      'const module = await import("./packages/connectors/dist/module-wiring/action-planner.js");',
+      'if (typeof module.planProvisioningAction !== "function") throw new Error("missing planner export");',
+      'try { await import("./packages/connectors/dist/module-wiring/contracts"); throw new Error("extensionless negative control resolved"); }',
+      'catch (error) { if (error.code !== "ERR_MODULE_NOT_FOUND") throw error; }',
+    ].join(" ")]]);
+  }
+  if (sources.some((source) => source.startsWith("packages/contracts/"))) {
+    commands.push(["pnpm", ["--filter", "@smp/contracts", "build"]]);
+  }
+  commands.push([
+    "./apps/web/node_modules/.bin/vitest",
+    ["run", "--config", "vitest.mutation.config.mjs", ...testFiles],
+  ]);
+  return commands;
+}
+
 function mutationTargets(base, sourceFiles) {
   if (sourceFiles.length === 0) return [];
   const mergeBase = mergeBaseFor(base);
@@ -211,6 +458,29 @@ function mutationTargets(base, sourceFiles) {
       .map((path) => [path, lineCount(readFileSync(path, "utf8"))]),
   );
   return mutationTargetsFromPatch(patch, untracked);
+}
+
+function mutationHunks(base, sourceFiles) {
+  if (sourceFiles.length === 0) return [];
+  const mergeBase = mergeBaseFor(base);
+  const patch = git([
+    "-c", "core.quotepath=false", "diff", "--no-ext-diff", "--no-renames",
+    "--unified=0", "--diff-filter=ACMR", mergeBase, "--", ...sourceFiles,
+  ]);
+  const cache = new Map();
+  const contentsForSource = (source) => {
+    if (!cache.has(source)) {
+      let oldContents = "";
+      try {
+        oldContents = execFileSync("git", ["show", `${mergeBase}:${source}`], {
+          encoding: "utf8", stdio: ["ignore", "pipe", "ignore"],
+        });
+      } catch { /* added file */ }
+      cache.set(source, { oldContents, newContents: readFileSync(source, "utf8") });
+    }
+    return cache.get(source);
+  };
+  return mutationHunksFromPatch(patch, contentsForSource);
 }
 
 const TEST_FILE = /\.(test|spec)\.(ts|tsx)$/;
@@ -262,6 +532,7 @@ export const DIRECT_TEST_ROUTES = {
     "apps/web/src/modules/identity-access/keycloak-admin.pact.test.ts",
   ],
   "packages/contracts/src/index.ts": [
+    "packages/contracts/src/capacity.test.ts",
     "packages/contracts/src/identity-access.test.ts",
   ],
   "packages/connectors/src/index.ts": [
@@ -328,6 +599,7 @@ function main() {
   const changed = changedFiles(base);
   const changedSources = mutatable(changed);
   const allMutate = mutationTargets(base, changedSources);
+  const allHunks = mutationHunks(base, changedSources);
   const schemaStaticMutate = allMutate.filter((target) =>
     target.replace(/:\d+-\d+$/, "") === SCHEMA_STATIC_SOURCE);
   const routedMutate = allMutate.filter((target) => !schemaStaticMutate.includes(target));
@@ -390,6 +662,7 @@ function main() {
     const configPath = join(GENERATED_SHARD_DIR, `${id}.json`);
     const tempDirName = join(".tmp", `stryker-${id}`);
     const reportPath = join("reports", "mutation", `${id}.html`);
+    const jsonReportPath = join("reports", "mutation", `${id}.json`);
     const common = {
       ...sharedBaseConf,
       mutate: spec.mutate,
@@ -399,6 +672,8 @@ function main() {
       timeoutFactor: 2,
       tempDirName,
       htmlReporter: { fileName: reportPath },
+      jsonReporter: { fileName: jsonReportPath },
+      reporters: [...new Set([...(sharedBaseConf.reporters ?? []), "json"])],
       thresholds: {
         ...baseConf.thresholds,
         high: 80,
@@ -428,6 +703,7 @@ function main() {
       configPath,
       id,
       kind: spec.kind,
+      jsonReportPath,
       mutate: spec.mutate,
       reportPath,
       sources: spec.sources,
@@ -455,19 +731,54 @@ function main() {
   try {
     for (const shard of shards) {
       console.log(`mutation-scope: running ${shard.id} (${shard.mutate.length} ranges)`);
-      execFileSync(
-        "pnpm",
-        ["exec", "stryker", "run", shard.configPath],
-        { stdio: "inherit" },
+      rmSync(shard.jsonReportPath, { force: true });
+      const startedAt = Date.now();
+      const result = spawnSync(
+        "pnpm", ["exec", "stryker", "run", shard.configPath], { stdio: "inherit" },
       );
+      const report = readFreshMutationReport(shard.jsonReportPath, startedAt);
+      const mutants = mutationReportMutants(report);
+      if (mutants.length === 0) {
+        if (result.status !== 0) {
+          throw new Error(`zero-mutant shard ${shard.id} exited ${result.status}`);
+        }
+        if (shard.kind === "schema-static") {
+          throw new Error(`scored mutation shard ${shard.id} instrumented zero mutants`);
+        }
+        const audits = verificationAuditsForReport(report, shard, allHunks);
+        const commands = verificationCommandsForSources(shard.sources, shard.testFiles);
+        runVerificationCommands(commands);
+        shard.result = {
+          audits,
+          commands: commands.map(([command, args]) => [command, ...args]),
+          classification: "verification-only",
+          mutantCount: 0,
+          tests: shard.testFiles,
+          toolVersions: {
+            node: process.version,
+            stryker: execFileSync("pnpm", ["exec", "stryker", "--version"], { encoding: "utf8" }).trim(),
+            typescript: ts.version,
+          },
+        };
+        writeFileSync(
+          GENERATED_MANIFEST,
+          `${JSON.stringify({ base, shards: shards.map(({ config, ...entry }) => entry) }, null, 2)}\n`,
+          "utf8",
+        );
+        console.log(`mutation-scope: verified non-mutatable module wiring ${shard.id}`);
+        continue;
+      }
+      requireNonzeroMutationReport(report, shard.id);
+      if (result.status !== 0) process.exit(result.status ?? 1);
     }
   } catch (err) {
     // A non-zero Stryker exit IS the gate failing — propagate the code, but not
     // execFileSync's exception: an uncaught throw prints a JS stack trace after
     // Stryker's own report, which reads as "the tool is broken" rather than
     // "your mutation score is short".
+    if (err?.message) console.error(`mutation-scope: ${err.message}`);
     process.exit(typeof err?.status === "number" ? err.status : 1);
   }
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

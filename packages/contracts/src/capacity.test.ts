@@ -5,6 +5,11 @@ import {
   capacityDecisionEvidenceSchema,
   capacityRecoveryJobSchema,
 } from "./capacity";
+import {
+  capacityChangeSchema as publicCapacityChangeSchema,
+  capacityDecisionEvidenceSchema as publicCapacityDecisionEvidenceSchema,
+  capacityRecoveryJobSchema as publicCapacityRecoveryJobSchema,
+} from "./index";
 
 const ids = {
   account: "23000000-0000-4000-8000-000000000001",
@@ -12,6 +17,15 @@ const ids = {
 };
 
 describe("US-023 capacity contracts", () => {
+  it("publishes the exact capacity contracts from the public barrel", () => {
+    expect(publicCapacityChangeSchema).toBe(capacityChangeSchema);
+    expect(publicCapacityDecisionEvidenceSchema).toBe(capacityDecisionEvidenceSchema);
+    expect(publicCapacityRecoveryJobSchema).toBe(capacityRecoveryJobSchema);
+    expect(publicCapacityChangeSchema.safeParse({ purchasedQty: 1 }).success).toBe(
+      false,
+    );
+  });
+
   it("kills accepting negative or fractional purchased totals and a missing license type", () => {
     const base = {
       effectiveFrom: "2026-08-04",
