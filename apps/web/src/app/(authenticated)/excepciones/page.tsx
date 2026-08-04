@@ -9,11 +9,14 @@ import { createOrchestrationService } from "@/modules/request-workflow/orchestra
 import { requestReadRepository } from "@/modules/request-workflow/repository";
 import { formatOperationalBadgeCount } from "@/modules/operational-alert-read";
 
+import {
+  createBlockedRequestsLabels,
+  toBlockedRequestItem,
+} from "./labels";
+
 const tabs = ["blocked", "failed", "drift", "expiredInvites"] as const;
 type ExceptionTab = (typeof tabs)[number];
 
-// Stryker disable all: This Server Component only composes already-tested
-// authorization, request projections, and exception table components.
 function activeTab(value: string | undefined): ExceptionTab {
   return tabs.find((tab) => tab === value) ?? "blocked";
 }
@@ -118,42 +121,8 @@ export default async function ScrExceptionsPage({
 
         {selected === "blocked" ? (
           <BlockedRequestsTable
-            items={blocked.items.map((request) => ({
-              companyName: request.companyName,
-              daysBlocked: request.daysBlocked,
-              decisionEvidence: request.decisionEvidence,
-              escalated: request.escalated,
-              id: request.id,
-              licenseTypeId: request.licenseTypeId,
-              licenseTypeName: request.licenseTypeName,
-              neededBy: request.neededBy,
-              personName: request.personName,
-              requestNo: request.requestNo,
-              vendorAccountName: request.vendorAccountName,
-              vendorAccountId: request.vendorAccountId,
-            }))}
-            labels={{
-              addCapacity: t("blocked.addCapacity"),
-              company: t("blocked.company"),
-              daysBlocked: t("blocked.daysBlocked"),
-              empty: t("blocked.empty"),
-              effectiveFrom: t("blocked.effectiveFrom"),
-              escalated: t("blocked.escalated"),
-              lastActive: t("blocked.lastActive"),
-              monthlyCost: t("blocked.monthlyCost"),
-              neededBy: t("blocked.neededBy"),
-              noDate: t("blocked.noDate"),
-              noUsageData: t("blocked.noUsageData"),
-              organization: t("blocked.organization"),
-              purchasedQty: t("blocked.purchasedQty"),
-              prorationNote: t("blocked.prorationNote"),
-              reclaimCandidates: t("blocked.reclaimCandidates"),
-              request: t("blocked.request"),
-              status: t("blocked.status"),
-              statusBlocked: t("blocked.statusBlocked"),
-              saveCapacity: t("blocked.saveCapacity"),
-              viewPools: t("blocked.viewPools"),
-            }}
+            items={blocked.items.map(toBlockedRequestItem)}
+            labels={createBlockedRequestsLabels(t)}
             locale={locale as "en-US" | "es-EC"}
           />
         ) : null}
@@ -222,4 +191,3 @@ export default async function ScrExceptionsPage({
     </main>
   );
 }
-// Stryker restore all

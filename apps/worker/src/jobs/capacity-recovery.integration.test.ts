@@ -34,10 +34,64 @@ const ids = {
   capacityConfirm: id("20"),
   requestConfirm: id("21"),
   requestWaiting: id("22"),
+  accountFailure: id("23"),
+  licenseFailure: id("24"),
+  capacityFailure: id("25"),
+  requestFailure: id("26"),
+  accountLease: id("27"),
+  licenseLease: id("28"),
+  capacityLease: id("29"),
+  requestLease: id("30"),
 };
 const at = new Date("2026-08-04T15:00:00.000Z");
 let fixture: PostgresFixture;
 let owner: pg.Client;
+
+async function seedBlockedCapacityPool(input: {
+  accountId: string;
+  capacityId: string;
+  licenseId: string;
+  name: string;
+  requestId: string;
+  requestNo: string;
+}): Promise<void> {
+  await owner.query(
+    `INSERT INTO vendor_account
+       (id,vendor_id,name,mode,low_pool_floor,status,created_at,created_by)
+     VALUES ($1,$2,$3,'orchestration',1,'active',$4,$5)`,
+    [input.accountId, ids.vendor, input.name, at, ids.admin],
+  );
+  await owner.query(
+    `INSERT INTO license_type
+       (id,vendor_id,name,unit,status,created_at,created_by)
+     VALUES ($1,$2,$3,'seat','active',$4,$5)`,
+    [input.licenseId, ids.vendor, `${input.name} seat`, at, ids.admin],
+  );
+  await owner.query(
+    `INSERT INTO vendor_account_capacity
+       (id,vendor_account_id,license_type_id,purchased_qty,effective_from,created_at,created_by)
+     VALUES ($1,$2,$3,1,'2026-08-04',$4,$5)`,
+    [input.capacityId, input.accountId, input.licenseId, at, ids.admin],
+  );
+  await owner.query(
+    `INSERT INTO license_request
+       (id,request_no,person_id,company_id,vendor_account_id,license_type_id,
+        state,justification,created_at,created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,'blocked_no_seat','recovery evidence',$7,$8)`,
+    [input.requestId, input.requestNo, ids.personA, ids.companyA,
+      input.accountId, input.licenseId, at, ids.admin],
+  );
+  await owner.query(
+    `INSERT INTO request_transition
+       (request_id,from_state,to_state,actor_user_id,note,occurred_at)
+     VALUES ($1,'approved','blocked_no_seat',$2,'empty',$3)`,
+    [input.requestId, ids.admin, at],
+  );
+  await owner.query(
+    `SELECT enqueue_capacity_recovery($1,$2,$3,'2026-08-04','capacity_change',$4)`,
+    [input.capacityId, input.accountId, input.licenseId, at],
+  );
+}
 
 beforeAll(async () => {
   fixture = await createPostgresFixture();
@@ -478,5 +532,94 @@ describe("US-023 capacity recovery with real PostgreSQL", () => {
     )).resolves.toMatchObject({
       rows: [{ assignments: 1, waiting_state: "blocked_no_seat" }],
     });
+  });
+
+  it("returns failed recovery work to pending and retries it without losing the request", async () => {
+    await seedBlockedCapacityPool({
+      accountId: ids.accountFailure,
+      capacityId: ids.capacityFailure,
+      licenseId: ids.licenseFailure,
+      name: "Failure account",
+      requestId: ids.requestFailure,
+      requestNo: "REC-FAILURE",
+    });
+    await owner.query("UPDATE vendor_account SET status='inactive' WHERE id=$1", [ids.accountFailure]);
+    const job = createCapacityRecoveryJob({ connectionString: fixture.appUrl, now: () => at });
+    try {
+      await expect(job.drain()).rejects.toThrow("PROVISIONING_REQUEST_NOT_FOUND");
+      await expect(owner.query(
+        `SELECT status,attempt_count,last_error FROM capacity_recovery_work
+         WHERE capacity_id=$1`,
+        [ids.capacityFailure],
+      )).resolves.toMatchObject({
+        rows: [{ attempt_count: 1, last_error: "Error: PROVISIONING_REQUEST_NOT_FOUND", status: "pending" }],
+      });
+      await expect(owner.query("SELECT state FROM license_request WHERE id=$1", [ids.requestFailure]))
+        .resolves.toMatchObject({ rows: [{ state: "blocked_no_seat" }] });
+
+      await owner.query("UPDATE vendor_account SET status='active' WHERE id=$1", [ids.accountFailure]);
+      await expect(job.drain()).resolves.toEqual({ processed: 1 });
+      await expect(owner.query(
+        `SELECT work.status,work.attempt_count,request.state,transition.note
+         FROM capacity_recovery_work work
+         JOIN license_request request ON request.id=$2
+         JOIN request_transition transition ON transition.request_id=request.id
+           AND transition.to_state='provisioning'
+         WHERE work.capacity_id=$1`,
+        [ids.capacityFailure, ids.requestFailure],
+      )).resolves.toMatchObject({
+        rows: [{
+          attempt_count: 2,
+          note: "Capacity became available",
+          state: "provisioning",
+          status: "completed",
+        }],
+      });
+    } finally {
+      await job.close();
+    }
+  });
+
+  it("does not count work completed after its lease token is replaced", async () => {
+    const replacementLease = id("999");
+    await seedBlockedCapacityPool({
+      accountId: ids.accountLease,
+      capacityId: ids.capacityLease,
+      licenseId: ids.licenseLease,
+      name: "Lease account",
+      requestId: ids.requestLease,
+      requestNo: "REC-LEASE",
+    });
+    await owner.query(
+      `CREATE OR REPLACE FUNCTION replace_capacity_recovery_lease_for_test()
+       RETURNS trigger LANGUAGE plpgsql AS $$
+       BEGIN
+         IF NEW.id='${ids.requestLease}'::uuid AND NEW.state='provisioning' THEN
+           UPDATE capacity_recovery_work SET lease_token='${replacementLease}'::uuid
+           WHERE capacity_id='${ids.capacityLease}'::uuid AND status='processing';
+         END IF;
+         RETURN NEW;
+       END $$`,
+    );
+    await owner.query(
+      `CREATE TRIGGER replace_capacity_recovery_lease_for_test
+       AFTER UPDATE ON license_request FOR EACH ROW
+       EXECUTE FUNCTION replace_capacity_recovery_lease_for_test()`,
+    );
+    const job = createCapacityRecoveryJob({ connectionString: fixture.appUrl, now: () => at });
+    try {
+      await expect(job.drain()).resolves.toEqual({ processed: 0 });
+      await expect(owner.query(
+        `SELECT status,attempt_count,lease_token::text AS lease_token
+         FROM capacity_recovery_work WHERE capacity_id=$1`,
+        [ids.capacityLease],
+      )).resolves.toMatchObject({
+        rows: [{ attempt_count: 1, lease_token: replacementLease, status: "processing" }],
+      });
+    } finally {
+      await job.close();
+      await owner.query("DROP TRIGGER IF EXISTS replace_capacity_recovery_lease_for_test ON license_request");
+      await owner.query("DROP FUNCTION IF EXISTS replace_capacity_recovery_lease_for_test()");
+    }
   });
 });

@@ -367,6 +367,86 @@ describe("approval queue repository", () => {
     ]);
   });
 
+  test("does not acquire the capacity-pool lock for a rejected decision", async () => {
+    await owner.query("BEGIN");
+    await owner.query(
+      `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+      [`capacity-pool:${vendorAccountId}:${licenseTypeId}`],
+    );
+    const client = await pool.connect();
+    await client.query(`SET lock_timeout = '100ms'`);
+    const lockAwareRepository = createApprovalRepository(
+      drizzle(client, { schema }),
+    );
+    try {
+      await lockAwareRepository.decide(approver, {
+        requestId: rejectRequest,
+        decision: "rejected",
+        decisionComment: "No procede",
+      }, decidedAt);
+    } finally {
+      client.release();
+      await owner.query("ROLLBACK");
+    }
+
+    const request = await owner.query(
+      `SELECT state, decision_comment FROM license_request WHERE id = $1`,
+      [rejectRequest],
+    );
+    expect(request.rows).toEqual([{
+      decision_comment: "No procede",
+      state: "rejected",
+    }]);
+  });
+
+  test("acquires the capacity-pool lock before persisting an approval", async () => {
+    await owner.query(
+      `CREATE OR REPLACE FUNCTION reject_unlocked_approval() RETURNS trigger
+       LANGUAGE plpgsql AS $$
+       BEGIN
+         RAISE EXCEPTION 'approval reached transition before pool lock';
+       END;
+       $$;
+       CREATE TRIGGER reject_unlocked_approval
+       BEFORE UPDATE ON license_request
+       FOR EACH ROW EXECUTE FUNCTION reject_unlocked_approval()`,
+    );
+    await owner.query("BEGIN");
+    await owner.query(
+      `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+      [`capacity-pool:${vendorAccountId}:${licenseTypeId}`],
+    );
+    const client = await pool.connect();
+    await client.query(`SET lock_timeout = '100ms'`);
+    const lockAwareRepository = createApprovalRepository(
+      drizzle(client, { schema }),
+    );
+    try {
+      await expect(
+        lockAwareRepository.decide(approver, {
+          requestId: requestA,
+          decision: "approved",
+        }, decidedAt),
+      ).rejects.toMatchObject({ code: "55P03" });
+    } finally {
+      client.release();
+      await owner.query("ROLLBACK");
+      await owner.query(
+        `DROP TRIGGER reject_unlocked_approval ON license_request;
+         DROP FUNCTION reject_unlocked_approval()`,
+      );
+    }
+
+    const request = await owner.query(
+      `SELECT state, decided_by FROM license_request WHERE id = $1`,
+      [requestA],
+    );
+    expect(request.rows).toEqual([{
+      decided_by: null,
+      state: "pending_approval",
+    }]);
+  });
+
   test("scopes an approver to granted companies and enforces company equality in joins", async () => {
     const items = await repository.listPending(
       approver,

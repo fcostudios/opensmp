@@ -1,14 +1,13 @@
 import { redirect } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 
-import { PoolCards, type PoolCardsLabels } from "@/components/pools/pool-cards";
+import { PoolCards } from "@/components/pools/pool-cards";
 import { loadCurrentLedgerAuthorization } from "@/modules/identity-access/server-authorization";
 import { getPoolRepository } from "@/modules/vendor-catalog/production-pool-repository";
 import { poolOperatingDate } from "@/modules/vendor-catalog/pool-repository";
 
-// Stryker disable all: This Server Component is a thin composition root. Its
-// authorization/query behavior is owned by repository integration tests and
-// its rendered capacity behavior by PoolCards mutation tests.
+import { createPoolCardsLabels } from "./labels";
+
 export default async function ScrPoolsPage() {
   const authorization = await loadCurrentLedgerAuthorization();
   if (!authorization || authorization.globalRole !== "group_admin") {
@@ -21,33 +20,7 @@ export default async function ScrPoolsPage() {
     getLocale(),
     getTranslations("pools"),
   ]);
-  const labels: PoolCardsLabels = {
-    addCapacity: t("addCapacity"),
-    assigned: t("assigned"),
-    attention: t("attention"),
-    automated: t("automated"),
-    candidateTitle: t("candidateTitle"),
-    available: t("available"),
-    discrepancy: t("discrepancy"),
-    emptyDescription: t("emptyDescription"),
-    emptyTitle: t("emptyTitle"),
-    effectiveFrom: t("effectiveFrom"),
-    effectiveFromField: t("effectiveFromField"),
-    escalated: t("escalated"),
-    floor: t("floor"),
-    lastActive: t("lastActive"),
-    monthlyCost: t("monthlyCost"),
-    mode: t("mode"),
-    noUsageData: t("noUsageData"),
-    note: t("note"),
-    orchestration: t("orchestration"),
-    pending: t("pending"),
-    prorationNote: t("prorationNote"),
-    purchased: t("purchased"),
-    purchasedQty: t("purchasedQty"),
-    renewal: t("renewal"),
-    saveCapacity: t("saveCapacity"),
-  };
+  const labels = createPoolCardsLabels(t);
 
   return (
     <main className="space-y-6 p-4 sm:p-6">
@@ -71,4 +44,3 @@ export default async function ScrPoolsPage() {
     </main>
   );
 }
-// Stryker restore all

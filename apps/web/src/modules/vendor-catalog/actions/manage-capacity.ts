@@ -10,42 +10,9 @@ import * as schema from "@smp/db/schema";
 
 import { loadCurrentLedgerAuthorization } from "../../identity-access/server-authorization";
 import { createManageCapacityActions } from "./manage-capacity-operations";
+import { createCapacityServerActions } from "./manage-capacity-server-actions-factory";
 
 const database = db as unknown as NodePgDatabase<typeof schema>;
-type CapacityActions = ReturnType<typeof createManageCapacityActions>;
-
-export function createCapacityServerActions({
-  actions,
-  loadAuthorization,
-  revalidate,
-}: {
-  readonly actions: CapacityActions;
-  readonly loadAuthorization: typeof loadCurrentLedgerAuthorization;
-  readonly revalidate: typeof revalidatePath;
-}) {
-  async function execute(
-    operation: keyof CapacityActions,
-    input: unknown,
-  ): Promise<void> {
-    const authorization = await loadAuthorization();
-    if (!authorization) throw new Error("CAPACITY_ACCESS_FORBIDDEN");
-    await actions[operation](authorization, input);
-    revalidate("/cupos");
-    revalidate("/excepciones");
-  }
-
-  return {
-    addCapacity(input: unknown): Promise<void> {
-      return execute("addCapacity", input);
-    },
-    registerPurchase(input: unknown): Promise<void> {
-      return execute("registerPurchase", input);
-    },
-    saveVendorAccountCapacity(input: unknown): Promise<void> {
-      return execute("saveVendorAccountCapacity", input);
-    },
-  };
-}
 
 const actions = createCapacityServerActions({
   actions: createManageCapacityActions({ database }),

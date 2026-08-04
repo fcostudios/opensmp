@@ -70,6 +70,18 @@ describe("US-023 capacity contracts", () => {
         capacityChangeSchema.safeParse({ ...base, effectiveFrom }).success,
       ).toBe(false);
     }
+    const invalidCalendarDate = capacityChangeSchema.safeParse({
+      ...base,
+      effectiveFrom: "2026-02-30",
+    });
+    expect(invalidCalendarDate.success).toBe(false);
+    if (!invalidCalendarDate.success) {
+      expect(invalidCalendarDate.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ message: "Invalid calendar date" }),
+        ]),
+      );
+    }
     expect(
       capacityChangeSchema.safeParse({ ...base, vendorAccountId: "not-a-uuid" })
         .success,
@@ -84,6 +96,13 @@ describe("US-023 capacity contracts", () => {
       capacityChangeSchema.safeParse({ ...base, note: "x".repeat(1_001) })
         .success,
     ).toBe(false);
+    expect(capacityChangeSchema.parse({ ...base, note: "ok" }).note).toBe("ok");
+    expect(
+      capacityChangeSchema.parse({ ...base, note: "x".repeat(999) }).note,
+    ).toHaveLength(999);
+    expect(
+      capacityChangeSchema.parse({ ...base, note: "x".repeat(1_000) }).note,
+    ).toHaveLength(1_000);
     expect(capacityChangeSchema.parse({ ...base, note: "  ordered  " }).note).toBe(
       "ordered",
     );
@@ -128,6 +147,17 @@ describe("US-023 capacity contracts", () => {
         publishedAt: "2026-08-04T15:00:00",
       }).success,
     ).toBe(false);
+    for (const [field, value] of [
+      ["capacityId", "not-a-uuid"],
+      ["effectiveFrom", "2026-02-30"],
+      ["licenseTypeId", "not-a-uuid"],
+      ["vendorAccountId", "not-a-uuid"],
+    ] as const) {
+      expect(
+        capacityRecoveryJobSchema.safeParse({ ...payload, [field]: value })
+          .success,
+      ).toBe(false);
+    }
   });
 
   it("kills manufacturing zero-valued analytics candidates before US-027", () => {
@@ -156,6 +186,28 @@ describe("US-023 capacity contracts", () => {
       capacityDecisionEvidenceSchema.safeParse({ type: "candidates", items: [] })
         .success,
     ).toBe(false);
+    expect(
+      capacityDecisionEvidenceSchema.safeParse({ type: "no_data", items: [] })
+        .success,
+    ).toBe(false);
+    expect(
+      capacityDecisionEvidenceSchema.safeParse({
+        type: "candidates",
+        items: [{ ...candidate, unexpected: true }],
+      }).success,
+    ).toBe(false);
+    for (const invalidCandidate of [
+      { ...candidate, assignmentId: "not-a-uuid" },
+      { ...candidate, lastActiveOn: "2026-02-30" },
+      { ...candidate, monthlyCostUsd: -1 },
+    ]) {
+      expect(
+        capacityDecisionEvidenceSchema.safeParse({
+          type: "candidates",
+          items: [invalidCandidate],
+        }).success,
+      ).toBe(false);
+    }
     expect(capacityDecisionEvidenceSchema.safeParse({ type: "unknown" }).success).toBe(
       false,
     );

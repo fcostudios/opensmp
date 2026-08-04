@@ -513,6 +513,75 @@ describe("US-020 orchestration checklist", () => {
     ).rejects.toThrow("CHECKLIST_REQUEST_NOT_APPROVED");
   });
 
+  it("blocks an approved request instead of issuing an action when the pool has no free seat", async () => {
+    await owner.query(
+      `INSERT INTO user_account
+         (id,email,idp_subject,global_role,ui_language,status,created_at)
+       VALUES ('00000000-0000-0000-0000-000000000001','system@ledger.invalid',
+               'ledger-system',NULL,'en','active',$1)`,
+      [occurredAt],
+    );
+    await owner.query(
+      `UPDATE vendor_account_capacity SET purchased_qty=0
+       WHERE vendor_account_id=$1 AND license_type_id=$2`,
+      [ids.account, ids.licenseType],
+    );
+
+    await expect(
+      service.routeApprovedRequest(authorization, ids.request),
+    ).resolves.toEqual({
+      requestId: ids.request,
+      status: "blocked_no_seat",
+    });
+    const evidence = await owner.query(
+      `SELECT request.state,
+              (SELECT count(*)::int FROM provisioning_action action
+               WHERE action.request_id=request.id) AS actions,
+              (SELECT note FROM request_transition transition
+               WHERE transition.request_id=request.id
+                 AND transition.to_state='blocked_no_seat') AS note
+       FROM license_request request WHERE request.id=$1`,
+      [ids.request],
+    );
+    expect(evidence.rows).toEqual([{
+      actions: 0,
+      note: "pool_empty",
+      state: "blocked_no_seat",
+    }]);
+  });
+
+  it("rejects confirmation when the reserved action no longer has an available seat", async () => {
+    const action = await service.routeApprovedRequest(authorization, ids.request);
+    await owner.query(
+      `UPDATE vendor_account_capacity SET purchased_qty=0
+       WHERE vendor_account_id=$1 AND license_type_id=$2`,
+      [ids.account, ids.licenseType],
+    );
+    await expect(
+      service.confirmChecklistDone(authorization, {
+        actionId: action.id,
+        confirmationId: "capacity-lost-before-confirmation",
+      }),
+    ).rejects.toThrow("CHECKLIST_CAPACITY_UNAVAILABLE");
+    const state = await owner.query(
+      `SELECT request.state,action.status
+       FROM license_request request
+       JOIN provisioning_action action ON action.request_id=request.id
+       WHERE action.id=$1`,
+      [action.id],
+    );
+    expect(state.rows).toEqual([{ state: "provisioning", status: "pending" }]);
+  });
+
+  it("rejects a valid but unknown checklist action identifier", async () => {
+    await expect(
+      service.confirmChecklistDone(authorization, {
+        actionId: ids.action,
+        confirmationId: "unknown-action",
+      }),
+    ).rejects.toThrow("CHECKLIST_ACTION_NOT_PENDING");
+  });
+
   it("routes an approved unsupported request to one canonical checklist and provisioning", async () => {
     const routed = await Promise.all(
       Array.from({ length: 12 }, () =>

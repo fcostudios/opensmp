@@ -28,6 +28,7 @@ const ids = {
   personCorrupt: id("13"),
   personApiA: id("14"),
   personApiB: id("15"),
+  inactiveStandardAssignment: id("16"),
   vendor: id("7"),
   accountLow: id("8"),
   accountEqual: id("9"),
@@ -177,15 +178,15 @@ beforeAll(async () => {
   );
   await owner.query(
      `INSERT INTO license_assignment
-       (person_id,company_id,vendor_account_id,license_type_id,started_on,ended_on,
+       (id,person_id,company_id,vendor_account_id,license_type_id,started_on,ended_on,
         source_kind,created_at,created_by)
      VALUES
-       ($1,$3,$5,$6,'2026-01-01',NULL,'import',$8,$9),
-       ($2,$4,$5,$6,'2026-01-01',NULL,'import',$8,$9),
-       ($1,$3,$5,$6,'2025-01-01','2025-12-31','import',$8,$9),
-       ($10,$4,$5,$6,'2026-01-01',NULL,'import',$8,$9),
-       ($11,$3,$5,$7,'2026-01-01',NULL,'import',$8,$9),
-       ($12,$4,$5,$7,'2026-01-01',NULL,'import',$8,$9)`,
+       ($13,$1,$3,$5,$6,'2026-01-01',NULL,'import',$8,$9),
+       (DEFAULT,$2,$4,$5,$6,'2026-01-01',NULL,'import',$8,$9),
+       (DEFAULT,$1,$3,$5,$6,'2025-01-01','2025-12-31','import',$8,$9),
+       (DEFAULT,$10,$4,$5,$6,'2026-01-01',NULL,'import',$8,$9),
+       (DEFAULT,$11,$3,$5,$7,'2026-01-01',NULL,'import',$8,$9),
+       (DEFAULT,$12,$4,$5,$7,'2026-01-01',NULL,'import',$8,$9)`,
     [
       ids.personA,
       ids.personB,
@@ -199,6 +200,7 @@ beforeAll(async () => {
       ids.personCorrupt,
       ids.personApiA,
       ids.personApiB,
+      ids.inactiveStandardAssignment,
     ],
   );
   await owner.query(
@@ -342,11 +344,165 @@ describe("US-022 pool repository with real PostgreSQL", () => {
     expect(parseVendorAccountId("not-a-uuid")).toBeNull();
   });
 
-  it("uses latest effective capacity, open assignments, and automated pending invites only", async () => {
-    const snapshots = await repository.listSnapshots(
-      adminAuthorization,
-      evaluatedAt,
+  it("maps blocked requests and inactive candidates to only their scoped pool", async () => {
+    await owner.query(
+      `UPDATE license_request
+          SET state = 'blocked_no_seat'
+        WHERE id = ANY($1::uuid[])`,
+      [[id("101"), id("102"), id("106")]],
     );
+    await owner.query(
+      `INSERT INTO request_transition
+         (request_id,from_state,to_state,occurred_at)
+       VALUES
+         ($1,'approved','blocked_no_seat','2026-07-27T12:00:00Z'),
+         ($2,'approved','blocked_no_seat','2026-07-23T12:00:00Z'),
+         ($3,'approved','blocked_no_seat','2026-07-27T12:00:00Z')`,
+      [id("101"), id("102"), id("106")],
+    );
+    await owner.query(
+      `INSERT INTO activity_record
+         (vendor_account_id,person_id,activity_date,counters,synced_at)
+       VALUES
+         ($1,$2,'2026-05-15','{}',$4),
+         ($1,$3,'2026-05-16','{}',$4)`,
+      [ids.accountLow, ids.personApiA, ids.personApiB, evaluatedAt],
+    );
+    await owner.query(
+      `INSERT INTO cost_record
+         (vendor_account_id,person_id,cost_date,amount_usd,synced_at)
+       VALUES
+         ($1,$2,'2026-07-10',10,$4),
+         ($1,$3,'2026-07-11',20,$4)`,
+      [ids.accountLow, ids.personApiA, ids.personApiB, evaluatedAt],
+    );
+
+    const previousHolidays = process.env.ECUADOR_HOLIDAYS;
+    try {
+      process.env.ECUADOR_HOLIDAYS = " , 2026-07-27 , ";
+      const snapshots = await repository.listSnapshots(
+        adminAuthorization,
+        evaluatedAt,
+      );
+
+      const standard = snapshots.find(
+        ({ vendorAccountId, licenseTypeId }) =>
+          vendorAccountId === ids.accountLow &&
+          licenseTypeId === ids.licenseStandard,
+      );
+      expect(standard).toMatchObject({
+        assigned: 2,
+        blockedRequests: expect.arrayContaining([
+          {
+            businessDaysBlocked: 1,
+            escalated: false,
+            id: id("101"),
+            requestNo: "POOL-1",
+          },
+          {
+            businessDaysBlocked: 2,
+            escalated: true,
+            id: id("102"),
+            requestNo: "POOL-2",
+          },
+        ]),
+        decisionEvidence: {
+          type: "candidates",
+          items: [
+            {
+              assignmentId: ids.inactiveStandardAssignment,
+              lastActiveOn: "2026-06-01",
+              monthlyCostUsd: 42.5,
+            },
+          ],
+        },
+        free: 8,
+        isLow: true,
+        pendingInvites: 2,
+        purchased: 12,
+      });
+      expect(standard?.blockedRequests).toHaveLength(2);
+
+      const api = snapshots.find(
+        ({ vendorAccountId, licenseTypeId }) =>
+          vendorAccountId === ids.accountLow && licenseTypeId === ids.licenseApi,
+      );
+      expect(api).toMatchObject({
+        assigned: 2,
+        blockedRequests: [
+          {
+            businessDaysBlocked: 1,
+            escalated: false,
+            id: id("106"),
+            requestNo: "POOL-6",
+          },
+        ],
+        free: -2,
+        isLow: true,
+        pendingInvites: 1,
+        purchased: 1,
+      });
+      expect(api?.decisionEvidence).toMatchObject({
+        type: "candidates",
+        items: expect.arrayContaining([
+          expect.objectContaining({
+            lastActiveOn: "2026-05-15",
+            monthlyCostUsd: 10,
+          }),
+          expect.objectContaining({
+            lastActiveOn: "2026-05-16",
+            monthlyCostUsd: 20,
+          }),
+        ]),
+      });
+      expect(
+        api?.decisionEvidence.type === "candidates" &&
+          api.decisionEvidence.items,
+      ).toHaveLength(2);
+
+      expect(
+        snapshots.find(
+          ({ vendorAccountId }) => vendorAccountId === ids.accountEqual,
+        ),
+      ).toMatchObject({
+        assigned: 0,
+        blockedRequests: [],
+        decisionEvidence: { type: "no_data" },
+        free: 5,
+        isLow: false,
+        pendingInvites: 0,
+        purchased: 5,
+      });
+    } finally {
+      if (previousHolidays === undefined) delete process.env.ECUADOR_HOLIDAYS;
+      else process.env.ECUADOR_HOLIDAYS = previousHolidays;
+    }
+
+    const companyAOnly = await repository.listSnapshots(
+      { ...adminAuthorization, companyIds: [ids.companyA] },
+      evaluatedAt,
+      ids.accountLow,
+    );
+    const companyAStandard = companyAOnly.find(
+      ({ licenseTypeId }) => licenseTypeId === ids.licenseStandard,
+    );
+    expect(companyAStandard?.blockedRequests.map(({ id: requestId }) => requestId)).toEqual([
+      id("101"),
+    ]);
+    const companyAApi = companyAOnly.find(
+      ({ licenseTypeId }) => licenseTypeId === ids.licenseApi,
+    );
+    expect(companyAApi?.decisionEvidence).toMatchObject({
+      type: "candidates",
+      items: [
+        expect.objectContaining({ lastActiveOn: "2026-05-15", monthlyCostUsd: 10 }),
+      ],
+    });
+    expect(companyAOnly.every(({ vendorAccountId }) => vendorAccountId === ids.accountLow)).toBe(true);
+  });
+
+  it("uses latest effective capacity, open assignments, and automated pending invites only", async () => {
+    const snapshots = await repository.listSnapshots(adminAuthorization, evaluatedAt);
 
     expect(snapshots).toEqual([
       expect.objectContaining({

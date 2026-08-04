@@ -1,3 +1,7 @@
+import {
+  createPostgresFixture,
+  type PostgresFixture,
+} from "@smp/db/testing/postgres-container";
 import { describe, expect, it } from "vitest";
 
 import { createDeferredJobHandlers } from "./deferred.js";
@@ -58,4 +62,39 @@ describe("US-046 deferred job handlers", () => {
       }),
     ).resolves.toMatchObject({ reason: "dependency_not_delivered", status: "skipped", story: "US-034" });
   });
+
+  it("runs capacity recovery and closes its real PostgreSQL pool", async () => {
+    let fixture: PostgresFixture | undefined;
+    try {
+      fixture = await createPostgresFixture();
+      await fixture.migrate();
+      const handlers = createDeferredJobHandlers(
+        { holidays: new Set() },
+        {
+          connectionString: fixture.appUrl,
+          workerId: "deferred-capacity-recovery-test",
+        },
+      );
+
+      await expect(handlers.capacityRecovery({
+        at: new Date("2026-08-05T10:30:00.000Z"),
+        idempotencyKey: "capacity-recovery:2026-08-05T10:30",
+        jobId: "capacity-recovery-test-job",
+        jobName: "capacityRecovery",
+      })).resolves.toEqual({ processed: 0, status: "succeeded" });
+
+      const owner = await fixture.connectAsOwner();
+      try {
+        await expect(owner.query<{ count: number }>(
+          `SELECT count(*)::int AS count FROM pg_stat_activity
+           WHERE datname=$1 AND usename='ledger_app'`,
+          [fixture.databaseName],
+        )).resolves.toMatchObject({ rows: [{ count: 0 }] });
+      } finally {
+        await owner.end();
+      }
+    } finally {
+      await fixture?.stop();
+    }
+  }, 120_000);
 });

@@ -258,6 +258,32 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
     }
   }, 15_000);
 
+  it("persists capacity-recovery singleton slots on exact five-minute boundaries", async () => {
+    const runtime = createWorkerRuntime({ connectionString: appConnectionString });
+    try {
+      await runtime.start();
+      const jobId = await runtime.enqueue(
+        "capacityRecovery",
+        new Date("2026-09-17T16:47:00.000Z"),
+      );
+      expect(jobId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      );
+
+      await expect(
+        queryAsOwner<{ slot_remainder: number }>(
+          `SELECT mod(extract(epoch FROM singleton_on)::bigint, 300)::int AS slot_remainder
+           FROM pgboss.job WHERE id=$1`,
+          [jobId],
+        ),
+      ).resolves.toEqual(expect.objectContaining({
+        rows: [{ slot_remainder: 0 }],
+      }));
+    } finally {
+      await runtime.stop();
+    }
+  });
+
   it("uses one durable idempotency boundary across two runtimes and after singleton expiry", async () => {
     let releaseFirst: (() => void) | undefined;
     let signalEntered: (() => void) | undefined;

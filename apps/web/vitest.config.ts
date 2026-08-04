@@ -18,7 +18,7 @@ export default defineConfig({
   test: {
     environment: "node",
     passWithNoTests: true,
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "next.config.test.ts"],
     exclude: focusedPactRun ? [] : ["**/*.pact.test.ts"],
     hookTimeout: 120_000,
     testTimeout: 120_000,

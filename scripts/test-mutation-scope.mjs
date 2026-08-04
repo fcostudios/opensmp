@@ -14,6 +14,8 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   DIRECT_TEST_ROUTES,
+  classifyPageWiringBundle,
+  classifyPoolSnapshotProjectionBundle,
   classifyVerificationOnlyHunk,
   groupRoutedMutationTargets,
   mutationCompatibleTestFiles,
@@ -38,6 +40,261 @@ assert.deepEqual(
   ]),
   ["apps/web/src/modules/vendor-catalog/actions/manage-capacity.test.ts"],
 );
+
+const poolProjectionSource = "packages/db/src/pool-snapshots.ts";
+const poolProjectionNew = readFileSync(poolProjectionSource, "utf8");
+const poolProjectionOld = poolProjectionNew
+  .replace("  readonly effectiveFrom: string;\n", "")
+  .replace("  effective_from: string;\n", "")
+  .replace("            capacity.effective_from::text AS effective_from,\n", "")
+  .replace(
+    "              vac.license_type_id, vac.purchased_qty, vac.effective_from",
+    "              vac.license_type_id, vac.purchased_qty",
+  )
+  .replace("    effectiveFrom: row.effective_from,\n", "");
+const poolProjectionChanges = [
+  [6, [], ["  readonly effectiveFrom: string;"]],
+  [22, [], ["  effective_from: string;"]],
+  [51, [], ["            capacity.effective_from::text AS effective_from,"]],
+  [57, ["              vac.license_type_id, vac.purchased_qty"], [
+    "              vac.license_type_id, vac.purchased_qty, vac.effective_from",
+  ]],
+  [107, [], ["    effectiveFrom: row.effective_from,"]],
+].map(([newStart, oldLines, newLines]) => ({
+  source: poolProjectionSource,
+  oldContents: poolProjectionOld,
+  newContents: poolProjectionNew,
+  oldStart: newStart,
+  oldLines,
+  newStart,
+  newLines,
+}));
+assert.deepEqual(
+  classifyPoolSnapshotProjectionBundle(poolProjectionChanges),
+  {
+    faultIds: [
+      "outer-projection-removed-or-renamed",
+      "lateral-field-removed",
+      "row-mapping-wrong",
+      "operating-date-input-replaced",
+      "operating-date-constant",
+    ],
+    ranges: [
+      `${poolProjectionSource}:6-6`,
+      `${poolProjectionSource}:22-22`,
+      `${poolProjectionSource}:51-51`,
+      `${poolProjectionSource}:57-57`,
+      `${poolProjectionSource}:107-107`,
+    ],
+    reason: "verification-only:database-projection-bundle",
+    source: poolProjectionSource,
+  },
+);
+const poolProjectionRanges = poolProjectionChanges.map((change) =>
+  `${change.source}:${change.newStart}-${change.newStart + change.newLines.length - 1}`);
+assert.equal(
+  verificationAuditsForReport(
+    { files: {} },
+    {
+      id: "pool-projection",
+      mutate: poolProjectionRanges,
+      sources: [poolProjectionSource],
+    },
+    poolProjectionChanges,
+  )[0].reason,
+  "verification-only:database-projection-bundle",
+);
+assert.throws(
+  () => verificationAuditsForReport(
+    { files: {} },
+    {
+      id: "pool-projection-incomplete",
+      mutate: poolProjectionRanges.slice(1),
+      sources: [poolProjectionSource],
+    },
+    poolProjectionChanges,
+  ),
+  /incomplete or extra mutation range set/,
+);
+for (const mutate of [
+  ["incomplete", (changes) => changes.slice(1)],
+  ["duplicate", (changes) => [...changes, changes[0]]],
+  ["cast", (changes) => changes.map((change) => ({
+    ...change,
+    newContents: change.newContents.replace(
+      "capacity.effective_from::text AS effective_from",
+      "capacity.effective_from AS effective_from",
+    ),
+  }))],
+  ["default", (changes) => changes.map((change) => ({
+    ...change,
+    newContents: change.newContents.replace(
+      "effectiveFrom: row.effective_from",
+      "effectiveFrom: row.effective_from ?? '2026-08-01'",
+    ),
+  }))],
+  ["interpolation", (changes) => changes.map((change) => ({
+    ...change,
+    newContents: change.newContents.replace(
+      "capacity.effective_from::text AS effective_from",
+      "${effectiveFromProjection}",
+    ),
+  }))],
+  ["wrong scope", (changes) => changes.map((change) => ({
+    ...change,
+    source: "packages/db/src/other.ts",
+  }))],
+].map(([, mutate]) => mutate)) {
+  assert.throws(
+    () => classifyPoolSnapshotProjectionBundle(mutate(poolProjectionChanges)),
+    /database projection/,
+  );
+}
+
+const pageBundle = (source, deltas) => {
+  const newContents = readFileSync(source, "utf8");
+  let oldContents = newContents;
+  for (const delta of [...deltas].reverse()) {
+    oldContents = oldContents.replace(
+      `${delta.newLines.join("\n")}\n`,
+      delta.oldLines.length === 0 ? "" : `${delta.oldLines.join("\n")}\n`,
+    );
+  }
+  return deltas.map((delta) => ({
+    source,
+    oldContents,
+    newContents,
+    oldLines: delta.oldLines,
+    oldStart: delta.line,
+    newLines: delta.newLines,
+    newStart: delta.line,
+  }));
+};
+const poolsPageSource = "apps/web/src/app/(authenticated)/cupos/page.tsx";
+const poolsPageChanges = pageBundle(poolsPageSource, [
+  {
+    line: 4,
+    oldLines: ['import { PoolCards, type PoolCardsLabels } from "@/components/pools/pool-cards";'],
+    newLines: ['import { PoolCards } from "@/components/pools/pool-cards";'],
+  },
+  {
+    line: 9,
+    oldLines: [],
+    newLines: ['import { createPoolCardsLabels } from "./labels";', ""],
+  },
+  {
+    line: 23,
+    oldLines: [
+      "  const labels: PoolCardsLabels = {",
+      '    assigned: t("assigned"),',
+      '    attention: t("attention"),',
+      '    automated: t("automated"),',
+      '    available: t("available"),',
+      '    discrepancy: t("discrepancy"),',
+      '    emptyDescription: t("emptyDescription"),',
+      '    emptyTitle: t("emptyTitle"),',
+      '    floor: t("floor"),',
+      '    mode: t("mode"),',
+      '    orchestration: t("orchestration"),',
+      '    pending: t("pending"),',
+      '    purchased: t("purchased"),',
+      '    renewal: t("renewal"),',
+      "  };",
+    ],
+    newLines: ["  const labels = createPoolCardsLabels(t);"],
+  },
+]);
+const exceptionsPageSource = "apps/web/src/app/(authenticated)/excepciones/page.tsx";
+const exceptionsPageChanges = pageBundle(exceptionsPageSource, [
+  {
+    line: 12,
+    oldLines: [],
+    newLines: [
+      "import {",
+      "  createBlockedRequestsLabels,",
+      "  toBlockedRequestItem,",
+      '} from "./labels";',
+      "",
+    ],
+  },
+  {
+    line: 124,
+    oldLines: [
+      "            items={blocked.items.map((request) => ({",
+      "              companyName: request.companyName,",
+      "              daysBlocked: request.daysBlocked,",
+      "              id: request.id,",
+      "              licenseTypeName: request.licenseTypeName,",
+      "              neededBy: request.neededBy,",
+      "              personName: request.personName,",
+      "              requestNo: request.requestNo,",
+      "              vendorAccountName: request.vendorAccountName,",
+      "            }))}",
+      "            labels={{",
+      '              company: t("blocked.company"),',
+      '              daysBlocked: t("blocked.daysBlocked"),',
+      '              empty: t("blocked.empty"),',
+      '              neededBy: t("blocked.neededBy"),',
+      '              noDate: t("blocked.noDate"),',
+      '              organization: t("blocked.organization"),',
+      '              request: t("blocked.request"),',
+      '              status: t("blocked.status"),',
+      '              statusBlocked: t("blocked.statusBlocked"),',
+      '              viewPools: t("blocked.viewPools"),',
+      "            }}",
+    ],
+    newLines: [
+      "            items={blocked.items.map(toBlockedRequestItem)}",
+      "            labels={createBlockedRequestsLabels(t)}",
+    ],
+  },
+]);
+for (const changes of [poolsPageChanges, exceptionsPageChanges]) {
+  assert.equal(
+    classifyPageWiringBundle(changes).reason,
+    "verification-only:page-wiring-bundle",
+  );
+  const ranges = changes.map((change) =>
+    `${change.source}:${change.newStart}-${change.newStart + change.newLines.length - 1}`);
+  assert.equal(
+    verificationAuditsForReport(
+      { files: {} },
+      { id: "page", mutate: ranges, sources: [changes[0].source] },
+      changes,
+    )[0].source,
+    changes[0].source,
+  );
+}
+for (const [before, after] of [
+  ['from "./labels"', 'from "./wrong-labels"'],
+  ["createPoolCardsLabels(t)", "createPoolCardsLabels(locale)"],
+  ["const labels =", "const wrongLabels ="],
+  ["labels={labels}", "labels={wrongLabels}"],
+]) {
+  assert.throws(
+    () => classifyPageWiringBundle(poolsPageChanges.map((change) => ({
+      ...change,
+      newContents: change.newContents.replace(before, after),
+      newLines: change.newLines.map((line) => line.replace(before, after)),
+    }))),
+    /page wiring/,
+  );
+}
+for (const [before, after] of [
+  ["toBlockedRequestItem", "wrongRequestAdapter"],
+  ["createBlockedRequestsLabels(t)", "createBlockedRequestsLabels(locale)"],
+  ["items={blocked.items.map(toBlockedRequestItem)}", "items={blocked.items}"],
+  ["labels={createBlockedRequestsLabels(t)}", "labels={undefined}"],
+]) {
+  assert.throws(
+    () => classifyPageWiringBundle(exceptionsPageChanges.map((change) => ({
+      ...change,
+      newContents: change.newContents.replaceAll(before, after),
+      newLines: change.newLines.map((line) => line.replaceAll(before, after)),
+    }))),
+    /page wiring/,
+  );
+}
 assert.throws(
   () => classifyVerificationOnlyHunk({
     source: "src/index.ts",
@@ -56,6 +313,14 @@ assert.deepEqual(
   ["apps/web/src/modules/vendor-catalog/capacity-service.integration.test.ts"],
 );
 assert.deepEqual(
+  DIRECT_TEST_ROUTES["apps/web/src/app/(authenticated)/cupos/labels.ts"],
+  ["apps/web/src/app/(authenticated)/cupos/labels.test.ts"],
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["apps/web/src/app/(authenticated)/excepciones/labels.ts"],
+  ["apps/web/src/app/(authenticated)/excepciones/labels.test.ts"],
+);
+assert.deepEqual(
   DIRECT_TEST_ROUTES["apps/web/src/modules/vendor-catalog/no-seat-observation.ts"],
   ["apps/web/src/modules/vendor-catalog/capacity-service.integration.test.ts"],
 );
@@ -65,6 +330,10 @@ assert.deepEqual(
 );
 assert.deepEqual(
   DIRECT_TEST_ROUTES["apps/web/src/modules/vendor-catalog/actions/manage-capacity.ts"],
+  ["apps/web/src/modules/vendor-catalog/actions/manage-capacity.test.ts"],
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["apps/web/src/modules/vendor-catalog/actions/manage-capacity-server-actions-factory.ts"],
   ["apps/web/src/modules/vendor-catalog/actions/manage-capacity.test.ts"],
 );
 assert.deepEqual(
@@ -453,6 +722,43 @@ assert.deepEqual(contractsVerification[0], [
 ]);
 assert.match(contractsVerification[1][1][2], /negative control did not fail/);
 assert.ok(contractsVerification.at(-1)[1].includes("packages/contracts/src/capacity.test.ts"));
+assert.deepEqual(
+  verificationCommandsForSources(
+    [poolProjectionSource],
+    ["packages/db/src/pool-snapshots.test.ts"],
+    { evidencePath: ".tmp/pool-evidence.json" },
+  ),
+  [[
+    "node",
+    ["scripts/verify-pool-snapshot-projection.mjs", ".tmp/pool-evidence.json"],
+  ]],
+);
+assert.throws(
+  () => verificationCommandsForSources(
+    [poolProjectionSource],
+    ["packages/db/src/pool-snapshots.test.ts"],
+  ),
+  /requires an evidence path/,
+);
+assert.deepEqual(
+  verificationCommandsForSources(
+    [poolsPageSource],
+    ["apps/web/src/app/(authenticated)/cupos/page.test.ts"],
+  ),
+  [
+    [
+      "./apps/web/node_modules/.bin/vitest",
+      [
+        "run",
+        "--config",
+        "vitest.mutation.config.mjs",
+        "apps/web/src/app/(authenticated)/cupos/page.test.ts",
+      ],
+    ],
+    ["pnpm", ["--filter", "smp-web", "type-check"]],
+    ["pnpm", ["--filter", "smp-web", "build"]],
+  ],
+);
 assert.equal(
   verifyContractsBarrelSource([
     'export * from "./capacity";',

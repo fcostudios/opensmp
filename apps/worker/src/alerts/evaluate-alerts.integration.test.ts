@@ -1009,25 +1009,132 @@ describe("US-042 alert evaluation worker", () => {
       await job.run(new Date("2026-08-11T05:07:00Z"));
       const afterWeekendDeadline = await fixture.connectAsOwner();
       try {
-        await expect(
-          afterWeekendDeadline.query(
-            `SELECT DISTINCT subject_ref
-             FROM alert_event
-             WHERE alert_rule_id = $1
-             ORDER BY subject_ref`,
-            [ids.rule],
-          ),
-        ).resolves.toMatchObject({
-          rows: [
-            { subject_ref: { requestId: ids.fridayRequest } },
-            { subject_ref: { requestId: ids.weekendRequest } },
-          ],
-        });
+        const events = await afterWeekendDeadline.query<{
+          dedupe_key: string;
+          subject_ref: { requestId: string };
+        }>(
+          `SELECT dedupe_key,subject_ref
+           FROM alert_event
+           WHERE alert_rule_id = $1
+           ORDER BY dedupe_key`,
+          [ids.rule],
+        );
+        expect(events.rows).toEqual([
+          {
+            dedupe_key:
+              `${ids.rule}:breach:deprovision_overdue:${ids.fridayRequest}:2026-08-08T05:00:00.000Z`,
+            subject_ref: { requestId: ids.fridayRequest },
+          },
+          {
+            dedupe_key:
+              `${ids.rule}:breach:deprovision_overdue:${ids.fridayRequest}:2026-08-11T04:45:00.000Z`,
+            subject_ref: { requestId: ids.fridayRequest },
+          },
+          {
+            dedupe_key:
+              `${ids.rule}:breach:deprovision_overdue:${ids.fridayRequest}:2026-08-11T05:00:00.000Z`,
+            subject_ref: { requestId: ids.fridayRequest },
+          },
+          {
+            dedupe_key:
+              `${ids.rule}:breach:deprovision_overdue:${ids.weekendRequest}:2026-08-11T05:00:00.000Z`,
+            subject_ref: { requestId: ids.weekendRequest },
+          },
+        ]);
       } finally {
         await afterWeekendDeadline.end();
       }
     } finally {
       await job.close();
+    }
+  }, 30_000);
+
+  it("fails and journals a blocked-seat escalation when no active Group Admin exists", async () => {
+    const ids = {
+      company: "00000000-0000-4000-8000-000000004601",
+      person: "00000000-0000-4000-8000-000000004602",
+      request: "00000000-0000-4000-8000-000000004603",
+      rule: "00000000-0000-4000-8000-000000004604",
+    };
+    const blockedAt = new Date("2026-08-03T15:00:00.000Z");
+    await ownerQuery("UPDATE alert_rule SET enabled=false");
+    await ownerQuery("UPDATE user_account SET status='disabled' WHERE global_role='group_admin'");
+    await ownerQuery(
+      `INSERT INTO company (id,name,code,type,status,created_at,created_by)
+       VALUES ($1,'No Admin Company','NOADMIN042','internal','active',$2,
+               '00000000-0000-0000-0000-000000000001')`,
+      [ids.company, blockedAt],
+    );
+    await ownerQuery(
+      `INSERT INTO person (id,email,full_name,company_id,status,created_at,created_by)
+       VALUES ($1,'no-admin-requester@example.com','No Admin Requester',$2,'active',$3,
+               '00000000-0000-0000-0000-000000000001')`,
+      [ids.person, ids.company, blockedAt],
+    );
+    await ownerQuery(
+      `INSERT INTO license_request
+         (id,request_no,person_id,company_id,vendor_account_id,license_type_id,
+          state,justification,created_at,created_by)
+       VALUES ($1,'REQ-NO-ADMIN-042',$2,$3,
+               '00000000-0000-4000-8000-000000004252',
+               '00000000-0000-4000-8000-000000004253',
+               'blocked_no_seat','missing recipient evidence',$4,
+               '00000000-0000-0000-0000-000000000001')`,
+      [ids.request, ids.person, ids.company, blockedAt],
+    );
+    await ownerQuery(
+      `INSERT INTO request_transition (request_id,from_state,to_state,occurred_at)
+       VALUES ($1,'approved','blocked_no_seat',$2)`,
+      [ids.request, blockedAt],
+    );
+    await ownerQuery(
+      `INSERT INTO alert_rule
+         (id,type,scope_kind,company_id,threshold,channel,enabled,created_at,created_by)
+       VALUES ($1,'blocked_no_seat','company',$2,'{"businessDays":1}',
+               'email',true,$3,'00000000-0000-0000-0000-000000000001')`,
+      [ids.rule, ids.company, blockedAt],
+    );
+    const at = new Date("2026-08-05T15:07:00.000Z");
+    const job = createAlertEvaluationJob({
+      calendar: { holidays: new Set() },
+      connectionString: fixture.appUrl,
+      workerId: "worker-missing-group-admin-042",
+    });
+    try {
+      await expect(job.run(at)).resolves.toEqual({
+        alertRuleId: ids.rule,
+        errorCode: "BLOCKED_ALERT_RECIPIENT_MISSING",
+        processed: 0,
+        status: "failed",
+      });
+      const owner = await fixture.connectAsOwner();
+      try {
+        await expect(owner.query(
+          `SELECT event.dedupe_key,event.subject_ref,
+                  array_agg(delivery.phase::text ORDER BY delivery.attempt,delivery.phase) AS phases,
+                  max(delivery.error_code) FILTER (WHERE delivery.phase='failed') AS error_code
+           FROM alert_event event
+           JOIN alert_notification_delivery delivery ON delivery.alert_event_id=event.id
+           WHERE event.alert_rule_id=$1
+           GROUP BY event.id`,
+          [ids.rule],
+        )).resolves.toMatchObject({
+          rows: [{
+            dedupe_key: `${ids.rule}:breach:blocked_no_seat:${ids.request}:escalation`,
+            error_code: "BLOCKED_ALERT_RECIPIENT_MISSING",
+            phases: ["pending", "claimed", "failed"],
+            subject_ref: { requestId: ids.request },
+          }],
+        });
+      } finally {
+        await owner.end();
+      }
+    } finally {
+      await job.close();
+      await ownerQuery(
+        `UPDATE user_account SET status='active'
+         WHERE id='00000000-0000-4000-8000-000000004271'`,
+      );
     }
   }, 30_000);
 });

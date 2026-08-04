@@ -100,4 +100,51 @@ describe("BlockedRequestsTable", () => {
 
     expect(html).toContain("Not available");
   });
+
+  it("renders every reclaim candidate with localized activity and USD cost evidence", () => {
+    const html = renderToStaticMarkup(
+      <BlockedRequestsTable
+        items={[
+          {
+            companyName: "Company A",
+            daysBlocked: 2,
+            decisionEvidence: {
+              items: [
+                {
+                  assignmentId: "00000000-0000-4000-8000-000000000011",
+                  lastActiveOn: "2026-08-01",
+                  monthlyCostUsd: 25.5,
+                },
+                {
+                  assignmentId: "00000000-0000-4000-8000-000000000012",
+                  lastActiveOn: "2026-07-15",
+                  monthlyCostUsd: 10,
+                },
+              ],
+              type: "candidates",
+            },
+            escalated: false,
+            id: "00000000-0000-4000-8000-000000000001",
+            licenseTypeId: "00000000-0000-4000-8000-000000000002",
+            licenseTypeName: "Enterprise",
+            neededBy: "2026-08-05",
+            personName: "Ana",
+            requestNo: "REQ-1",
+            vendorAccountName: "Vendor A",
+            vendorAccountId: "00000000-0000-4000-8000-000000000003",
+          },
+        ]}
+        labels={labels}
+        locale="en-US"
+      />,
+    );
+
+    expect(html).toContain("Reclaim candidates");
+    expect(html).toContain("Last active: Aug 1, 2026");
+    expect(html).toContain("Last active: Jul 15, 2026");
+    expect(html).toContain("Monthly cost: $25.50");
+    expect(html).toContain("Monthly cost: $10.00");
+    expect((html.match(/<li/g) ?? [])).toHaveLength(2);
+    expect(html).not.toContain("No usage data");
+  });
 });

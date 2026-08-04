@@ -401,6 +401,111 @@ describe("request read repository", () => {
     });
   });
 
+  test("projects pool-specific inactive evidence without leaking another tenant", async () => {
+    const alternateLicenseType = "13000000-0000-0000-0000-000000000027";
+    const alternateAssignment = "13000000-0000-0000-0000-000000000028";
+    const tenantBAssignment = "13000000-0000-0000-0000-000000000029";
+    await owner.query(
+      `INSERT INTO license_type
+         (id,vendor_id,name,unit,status,created_at,created_by)
+       VALUES ($1,$2,'Claude Analysis','seat','active',$3,$4)`,
+      [alternateLicenseType, ids.vendor, "2026-07-20T12:00:00.000Z", ids.admin],
+    );
+    await owner.query(
+      `UPDATE license_request
+          SET state = 'blocked_no_seat', license_type_id = $2, person_id = $3
+        WHERE id = $1`,
+      [ids.requestA2, alternateLicenseType, ids.personA],
+    );
+    await owner.query(
+      `INSERT INTO request_transition
+         (id,request_id,from_state,to_state,occurred_at)
+       VALUES ($1,$2,'approved','blocked_no_seat','2026-07-29T12:00:00Z')`,
+      ["13000000-0000-0000-0000-000000000030", ids.requestA2],
+    );
+    await owner.query(
+      `INSERT INTO license_assignment
+         (id,person_id,company_id,vendor_account_id,license_type_id,started_on,
+          source_kind,created_at,created_by)
+       VALUES
+         ($1,$2,$3,$4,$5,'2026-01-01','import',$8,$9),
+         ($6,$7,$10,$4,$11,'2026-01-01','import',$8,$9)`,
+      [
+        alternateAssignment,
+        ids.personA2,
+        ids.companyA,
+        ids.vendorAccount,
+        alternateLicenseType,
+        tenantBAssignment,
+        ids.personB,
+        "2026-07-20T12:00:00.000Z",
+        ids.admin,
+        ids.companyB,
+        ids.licenseType,
+      ],
+    );
+    await owner.query(
+      `INSERT INTO activity_record
+         (vendor_account_id,person_id,activity_date,counters,synced_at)
+       VALUES
+         ($1,$2,'2026-05-01','{}',$4),
+         ($1,$3,'2026-05-02','{}',$4)`,
+      [ids.vendorAccount, ids.personA2, ids.personB, "2026-07-30T12:00:00.000Z"],
+    );
+    await owner.query(
+      `INSERT INTO cost_record
+         (vendor_account_id,person_id,cost_date,amount_usd,synced_at)
+       VALUES
+         ($1,$2,'2026-07-01',11,$4),
+         ($1,$3,'2026-07-01',99,$4)`,
+      [ids.vendorAccount, ids.personA2, ids.personB, "2026-07-30T12:00:00.000Z"],
+    );
+
+    const previousHolidays = process.env.ECUADOR_HOLIDAYS;
+    try {
+      process.env.ECUADOR_HOLIDAYS = " , 2026-07-29 , ";
+      const repository = createRequestReadRepository(database, () =>
+        new Date("2026-07-30T12:00:00.000Z"),
+      );
+      const employeePage = await repository.listBlockedExceptions(
+        await authorization("read-employee-a"),
+        { limit: 10 },
+      );
+
+      expect(employeePage.items).toHaveLength(2);
+      const standard = employeePage.items.find(({ id }) => id === ids.requestA);
+      expect(standard).toMatchObject({
+        daysBlocked: 1,
+        decisionEvidence: { type: "no_data" },
+        escalated: false,
+        licenseTypeId: ids.licenseType,
+      });
+      const alternate = employeePage.items.find(
+        ({ id }) => id === ids.requestA2,
+      );
+      expect(alternate).toMatchObject({
+        daysBlocked: 1,
+        decisionEvidence: {
+          type: "candidates",
+          items: [
+            {
+              assignmentId: alternateAssignment,
+              lastActiveOn: "2026-05-01",
+              monthlyCostUsd: 11,
+            },
+          ],
+        },
+        escalated: false,
+        licenseTypeId: alternateLicenseType,
+      });
+      expect(JSON.stringify(employeePage)).not.toContain(tenantBAssignment);
+      expect(JSON.stringify(employeePage)).not.toContain("99");
+    } finally {
+      if (previousHolidays === undefined) delete process.env.ECUADOR_HOLIDAYS;
+      else process.env.ECUADOR_HOLIDAYS = previousHolidays;
+    }
+  });
+
   test("clamps current-state age and counts only complete elapsed days", () => {
     const now = new Date("2026-07-30T12:00:00.000Z");
     expect(currentStateAgeDays(now, null)).toBe(0);

@@ -464,6 +464,424 @@ export function classifyVerificationOnlyHunk(change, fileExists = existsSync) {
   };
 }
 
+const POOL_PROJECTION_SOURCE = "packages/db/src/pool-snapshots.ts";
+const POOL_PROJECTION_DELTAS = [
+  { line: 6, oldLines: [], newLines: ["  readonly effectiveFrom: string;"] },
+  { line: 22, oldLines: [], newLines: ["  effective_from: string;"] },
+  {
+    line: 51,
+    oldLines: [],
+    newLines: ["            capacity.effective_from::text AS effective_from,"],
+  },
+  {
+    line: 57,
+    oldLines: ["              vac.license_type_id, vac.purchased_qty"],
+    newLines: [
+      "              vac.license_type_id, vac.purchased_qty, vac.effective_from",
+    ],
+  },
+  { line: 107, oldLines: [], newLines: ["    effectiveFrom: row.effective_from,"] },
+];
+
+function exactNamedInterfaceProperty(parsed, interfaceName, propertyName) {
+  const interfaces = parsed.statements.filter((node) =>
+    ts.isInterfaceDeclaration(node) && node.name.text === interfaceName);
+  if (interfaces.length !== 1) {
+    throw new Error(`database projection wrong scope: expected one ${interfaceName} interface`);
+  }
+  const properties = interfaces[0].members.filter((node) =>
+    ts.isPropertySignature(node) && ts.isIdentifier(node.name) &&
+    node.name.text === propertyName);
+  if (properties.length !== 1) {
+    throw new Error(`database projection missing or duplicate ${interfaceName}.${propertyName}`);
+  }
+  const [property] = properties;
+  if (
+    property.questionToken || property.initializer ||
+    property.type?.kind !== ts.SyntaxKind.StringKeyword
+  ) {
+    throw new Error(`database projection ${interfaceName}.${propertyName} has a cast or default`);
+  }
+}
+
+/** Verify the one inherently non-mutatable US-023 database projection bundle.
+ * This is deliberately bound to a single source, function, field pair, and
+ * complete five-delta patch; it is not a general SQL or data-wiring escape. */
+export function classifyPoolSnapshotProjectionBundle(changes) {
+  if (!Array.isArray(changes)) {
+    throw new Error("database projection incomplete exact five-delta bundle");
+  }
+  if (new Set(changes.map((change) => change.newStart)).size !== changes.length) {
+    throw new Error("database projection duplicate range");
+  }
+  if (changes.length !== POOL_PROJECTION_DELTAS.length) {
+    throw new Error("database projection incomplete exact five-delta bundle");
+  }
+  if (changes.some((change) => change.source !== POOL_PROJECTION_SOURCE)) {
+    throw new Error("database projection wrong scope");
+  }
+  const ordered = [...changes].sort((left, right) => left.newStart - right.newStart);
+  for (let index = 0; index < POOL_PROJECTION_DELTAS.length; index += 1) {
+    const change = ordered[index];
+    const expected = POOL_PROJECTION_DELTAS[index];
+    if (change.newStart !== expected.line) {
+      throw new Error("database projection incomplete or extra range set");
+    }
+    if (
+      JSON.stringify(change.oldLines) !== JSON.stringify(expected.oldLines) ||
+      JSON.stringify(change.newLines) !== JSON.stringify(expected.newLines)
+    ) {
+      throw new Error("database projection mixed or renamed delta");
+    }
+  }
+  const newContents = ordered[0].newContents;
+  const oldContents = ordered[0].oldContents;
+  if (ordered.some((change) =>
+    change.newContents !== newContents || change.oldContents !== oldContents)) {
+    throw new Error("database projection mixed source snapshots");
+  }
+  let reconstructedOld = newContents;
+  for (const delta of [...POOL_PROJECTION_DELTAS].reverse()) {
+    const next = `${delta.newLines.join("\n")}\n`;
+    const previous = delta.oldLines.length === 0
+      ? ""
+      : `${delta.oldLines.join("\n")}\n`;
+    const matches = reconstructedOld.split(next).length - 1;
+    if (matches !== 1) {
+      throw new Error("database projection missing, duplicate, or extra delta");
+    }
+    reconstructedOld = reconstructedOld.replace(next, previous);
+  }
+  if (reconstructedOld !== oldContents) {
+    throw new Error("database projection mixed or extra edit");
+  }
+
+  const parsed = parseModule(POOL_PROJECTION_SOURCE, newContents);
+  exactNamedInterfaceProperty(parsed, "SeatPoolCountsSnapshot", "effectiveFrom");
+  exactNamedInterfaceProperty(parsed, "SeatPoolRow", "effective_from");
+  const functions = parsed.statements.filter((node) =>
+    ts.isFunctionDeclaration(node) && node.name?.text === "listCurrentSeatPoolCounts");
+  if (functions.length !== 1 || !functions[0].body) {
+    throw new Error("database projection wrong scope: listCurrentSeatPoolCounts");
+  }
+  let queryTemplate;
+  let mappedPropertyCount = 0;
+  const visit = (node) => {
+    if (
+      ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === "query" && node.arguments.length >= 1
+    ) {
+      if (queryTemplate) throw new Error("database projection extra query in function scope");
+      queryTemplate = node.arguments[0];
+    }
+    if (
+      ts.isPropertyAssignment(node) && ts.isIdentifier(node.name) &&
+      node.name.text === "effectiveFrom"
+    ) {
+      mappedPropertyCount += 1;
+      if (
+        !ts.isPropertyAccessExpression(node.initializer) ||
+        !ts.isIdentifier(node.initializer.expression) ||
+        node.initializer.expression.text !== "row" ||
+        node.initializer.name.text !== "effective_from"
+      ) {
+        throw new Error("database projection row mapping wrong or has a default");
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(functions[0].body);
+  if (mappedPropertyCount !== 1) {
+    throw new Error("database projection row mapping missing or duplicate");
+  }
+  if (!queryTemplate || !ts.isNoSubstitutionTemplateLiteral(queryTemplate)) {
+    throw new Error("database projection interpolation or non-static SQL");
+  }
+  const sqlText = queryTemplate.text;
+  const requireOnce = (fragment, fault) => {
+    if (sqlText.split(fragment).length - 1 !== 1) {
+      throw new Error(`database projection ${fault}`);
+    }
+  };
+  requireOnce(
+    "capacity.effective_from::text AS effective_from",
+    "outer projection removed, renamed, cast, or duplicated",
+  );
+  requireOnce(
+    "vac.license_type_id, vac.purchased_qty, vac.effective_from",
+    "lateral field removed, reordered, or duplicated",
+  );
+  requireOnce(
+    "SELECT DISTINCT ON (vac.license_type_id)",
+    "DISTINCT pairing removed or duplicated",
+  );
+  requireOnce(
+    "ORDER BY vac.license_type_id, vac.effective_from DESC,\n                vac.created_at DESC, vac.id DESC",
+    "ORDER pairing removed, changed, or duplicated",
+  );
+
+  return {
+    faultIds: [
+      "outer-projection-removed-or-renamed",
+      "lateral-field-removed",
+      "row-mapping-wrong",
+      "operating-date-input-replaced",
+      "operating-date-constant",
+    ],
+    ranges: ordered.map((change) =>
+      `${change.source}:${change.newStart}-${change.newStart + change.newLines.length - 1}`),
+    reason: "verification-only:database-projection-bundle",
+    source: POOL_PROJECTION_SOURCE,
+  };
+}
+
+const PAGE_WIRING_SPECS = {
+  "apps/web/src/app/(authenticated)/cupos/page.tsx": {
+    component: "PoolCards",
+    deltas: [
+      {
+        line: 4,
+        oldLines: ['import { PoolCards, type PoolCardsLabels } from "@/components/pools/pool-cards";'],
+        newLines: ['import { PoolCards } from "@/components/pools/pool-cards";'],
+      },
+      {
+        line: 9,
+        oldLines: [],
+        newLines: ['import { createPoolCardsLabels } from "./labels";', ""],
+      },
+      {
+        line: 23,
+        oldLines: [
+          "  const labels: PoolCardsLabels = {",
+          '    assigned: t("assigned"),',
+          '    attention: t("attention"),',
+          '    automated: t("automated"),',
+          '    available: t("available"),',
+          '    discrepancy: t("discrepancy"),',
+          '    emptyDescription: t("emptyDescription"),',
+          '    emptyTitle: t("emptyTitle"),',
+          '    floor: t("floor"),',
+          '    mode: t("mode"),',
+          '    orchestration: t("orchestration"),',
+          '    pending: t("pending"),',
+          '    purchased: t("purchased"),',
+          '    renewal: t("renewal"),',
+          "  };",
+        ],
+        newLines: ["  const labels = createPoolCardsLabels(t);"],
+      },
+    ],
+    faultIds: [
+      "missing-or-wrong-label-import",
+      "wrong-translator-argument",
+      "wrong-assigned-label-identifier",
+      "wrong-labels-prop",
+    ],
+    imports: ["createPoolCardsLabels"],
+  },
+  "apps/web/src/app/(authenticated)/excepciones/page.tsx": {
+    component: "BlockedRequestsTable",
+    deltas: [
+      {
+        line: 12,
+        oldLines: [],
+        newLines: [
+          "import {",
+          "  createBlockedRequestsLabels,",
+          "  toBlockedRequestItem,",
+          '} from "./labels";',
+          "",
+        ],
+      },
+      {
+        line: 124,
+        oldLines: [
+          "            items={blocked.items.map((request) => ({",
+          "              companyName: request.companyName,",
+          "              daysBlocked: request.daysBlocked,",
+          "              id: request.id,",
+          "              licenseTypeName: request.licenseTypeName,",
+          "              neededBy: request.neededBy,",
+          "              personName: request.personName,",
+          "              requestNo: request.requestNo,",
+          "              vendorAccountName: request.vendorAccountName,",
+          "            }))}",
+          "            labels={{",
+          '              company: t("blocked.company"),',
+          '              daysBlocked: t("blocked.daysBlocked"),',
+          '              empty: t("blocked.empty"),',
+          '              neededBy: t("blocked.neededBy"),',
+          '              noDate: t("blocked.noDate"),',
+          '              organization: t("blocked.organization"),',
+          '              request: t("blocked.request"),',
+          '              status: t("blocked.status"),',
+          '              statusBlocked: t("blocked.statusBlocked"),',
+          '              viewPools: t("blocked.viewPools"),',
+          "            }}",
+        ],
+        newLines: [
+          "            items={blocked.items.map(toBlockedRequestItem)}",
+          "            labels={createBlockedRequestsLabels(t)}",
+        ],
+      },
+    ],
+    faultIds: [
+      "missing-or-wrong-composition-import",
+      "wrong-request-adapter",
+      "wrong-translator-argument",
+      "wrong-items-or-labels-prop",
+    ],
+    imports: ["createBlockedRequestsLabels", "toBlockedRequestItem"],
+  },
+};
+
+const PAGE_WIRING_SOURCES = new Set(Object.keys(PAGE_WIRING_SPECS));
+
+function exactNamedImports(parsed, expectedNames) {
+  const declarations = moduleDeclarations(parsed).filter((node) =>
+    ts.isImportDeclaration(node) && node.moduleSpecifier.text === "./labels");
+  if (declarations.length !== 1) {
+    throw new Error("page wiring missing, wrong, or duplicate labels import");
+  }
+  const clause = declarations[0].importClause;
+  if (
+    !clause || clause.name || !clause.namedBindings ||
+    !ts.isNamedImports(clause.namedBindings)
+  ) {
+    throw new Error("page wiring labels import must use exact named imports");
+  }
+  const names = clause.namedBindings.elements.map((element) => element.name.text).sort();
+  if (JSON.stringify(names) !== JSON.stringify([...expectedNames].sort())) {
+    throw new Error("page wiring labels import has missing, renamed, or extra bindings");
+  }
+}
+
+function jsxAttribute(element, name) {
+  const attributes = element.attributes.properties.filter((property) =>
+    ts.isJsxAttribute(property) && property.name.getText() === name);
+  if (attributes.length !== 1 || !attributes[0].initializer ||
+      !ts.isJsxExpression(attributes[0].initializer) ||
+      !attributes[0].initializer.expression) {
+    throw new Error(`page wiring ${name} prop missing, duplicate, or non-expression`);
+  }
+  return attributes[0].initializer.expression;
+}
+
+export function classifyPageWiringBundle(changes) {
+  if (!Array.isArray(changes) || changes.length === 0) {
+    throw new Error("page wiring incomplete bundle");
+  }
+  const sources = new Set(changes.map((change) => change.source));
+  if (sources.size !== 1) throw new Error("page wiring bundle must be file-specific");
+  const source = [...sources][0];
+  const spec = PAGE_WIRING_SPECS[source];
+  if (!spec) throw new Error("page wiring wrong scope");
+  if (changes.length !== spec.deltas.length) {
+    throw new Error("page wiring incomplete or extra hunk set");
+  }
+  if (new Set(changes.map((change) => change.newStart)).size !== changes.length) {
+    throw new Error("page wiring duplicate hunk");
+  }
+  const ordered = [...changes].sort((left, right) => left.newStart - right.newStart);
+  for (let index = 0; index < spec.deltas.length; index += 1) {
+    const change = ordered[index];
+    const expected = spec.deltas[index];
+    if (
+      change.newStart !== expected.line ||
+      JSON.stringify(change.oldLines) !== JSON.stringify(expected.oldLines) ||
+      JSON.stringify(change.newLines) !== JSON.stringify(expected.newLines)
+    ) {
+      throw new Error("page wiring mixed, renamed, or unexpected hunk");
+    }
+  }
+  const newContents = ordered[0].newContents;
+  const oldContents = ordered[0].oldContents;
+  if (ordered.some((change) =>
+    change.newContents !== newContents || change.oldContents !== oldContents)) {
+    throw new Error("page wiring mixed source snapshots");
+  }
+  if (/Stryker\s+(disable|restore)/.test(newContents)) {
+    throw new Error("page wiring mutation suppression is forbidden");
+  }
+  let reconstructedOld = newContents;
+  for (const delta of [...spec.deltas].reverse()) {
+    const next = `${delta.newLines.join("\n")}\n`;
+    const previous = delta.oldLines.length === 0
+      ? ""
+      : `${delta.oldLines.join("\n")}\n`;
+    if (reconstructedOld.split(next).length - 1 !== 1) {
+      throw new Error("page wiring missing, duplicate, or extra delta");
+    }
+    reconstructedOld = reconstructedOld.replace(next, previous);
+  }
+  if (reconstructedOld !== oldContents) {
+    throw new Error("page wiring mixed or extra edit");
+  }
+
+  const parsed = parseModule(source, newContents);
+  exactNamedImports(parsed, spec.imports);
+  const defaults = parsed.statements.filter((node) =>
+    ts.isFunctionDeclaration(node) && node.modifiers?.some((modifier) =>
+      modifier.kind === ts.SyntaxKind.DefaultKeyword));
+  if (defaults.length !== 1 || !defaults[0].body) {
+    throw new Error("page wiring must contain one default page function");
+  }
+  const elements = [];
+  const visit = (node) => {
+    if (
+      ts.isJsxSelfClosingElement(node) &&
+      ts.isIdentifier(node.tagName) && node.tagName.text === spec.component
+    ) elements.push(node);
+    ts.forEachChild(node, visit);
+  };
+  visit(defaults[0].body);
+  if (elements.length !== 1) {
+    throw new Error(`page wiring must contain one ${spec.component}`);
+  }
+  const element = elements[0];
+  if (source.includes("/cupos/")) {
+    const declarations = [];
+    const findLabels = (node) => {
+      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) &&
+          node.name.text === "labels") declarations.push(node);
+      ts.forEachChild(node, findLabels);
+    };
+    findLabels(defaults[0].body);
+    const initializer = declarations[0]?.initializer;
+    if (
+      declarations.length !== 1 || !initializer || !ts.isCallExpression(initializer) ||
+      !ts.isIdentifier(initializer.expression) ||
+      initializer.expression.text !== "createPoolCardsLabels" ||
+      initializer.arguments.length !== 1 || !ts.isIdentifier(initializer.arguments[0]) ||
+      initializer.arguments[0].text !== "t"
+    ) throw new Error("page wiring wrong translator call or assigned identifier");
+    const labels = jsxAttribute(element, "labels");
+    const items = jsxAttribute(element, "items");
+    if (!ts.isIdentifier(labels) || labels.text !== "labels" ||
+        !ts.isIdentifier(items) || items.text !== "items") {
+      throw new Error("page wiring wrong PoolCards labels or items prop");
+    }
+  } else {
+    const items = jsxAttribute(element, "items");
+    const labels = jsxAttribute(element, "labels");
+    const itemsText = items.getText(parsed);
+    const labelsText = labels.getText(parsed);
+    if (itemsText !== "blocked.items.map(toBlockedRequestItem)") {
+      throw new Error("page wiring wrong request adapter or items prop");
+    }
+    if (labelsText !== "createBlockedRequestsLabels(t)") {
+      throw new Error("page wiring wrong translator argument or labels prop");
+    }
+  }
+  return {
+    faultIds: spec.faultIds,
+    ranges: ordered.map((change) =>
+      `${change.source}:${change.newStart}-${change.newStart + change.newLines.length - 1}`),
+    reason: "verification-only:page-wiring-bundle",
+    source,
+  };
+}
+
 export function requireNonzeroMutationReport(report, shardId) {
   const mutants = mutationReportMutants(report);
   if (mutants.length === 0) {
@@ -491,6 +909,35 @@ export function verificationAuditsForReport(
 ) {
   if (mutationReportMutants(report).length > 0) {
     throw new Error(`nonzero mutation shard ${shard.id} cannot downgrade to verification-only`);
+  }
+  if (shard.sources.includes(POOL_PROJECTION_SOURCE)) {
+    if (shard.sources.length !== 1) {
+      throw new Error("database projection bundle cannot share a verification-only shard");
+    }
+    const audit = classifyPoolSnapshotProjectionBundle(
+      allHunks.filter((change) => change.source === POOL_PROJECTION_SOURCE),
+    );
+    if (
+      JSON.stringify([...audit.ranges].sort()) !==
+      JSON.stringify([...shard.mutate].sort())
+    ) {
+      throw new Error("database projection incomplete or extra mutation range set");
+    }
+    return [audit];
+  }
+  const pageSources = shard.sources.filter((source) => PAGE_WIRING_SOURCES.has(source));
+  if (pageSources.length > 0) {
+    if (shard.sources.length !== 1 || pageSources.length !== 1) {
+      throw new Error("page wiring bundle cannot share a verification-only shard");
+    }
+    const audit = classifyPageWiringBundle(
+      allHunks.filter((change) => change.source === pageSources[0]),
+    );
+    if (
+      JSON.stringify([...audit.ranges].sort()) !==
+      JSON.stringify([...shard.mutate].sort())
+    ) throw new Error("page wiring incomplete or extra mutation range set");
+    return [audit];
   }
   return shard.mutate.map((range) => {
     const change = allHunks.find((candidate) =>
@@ -533,8 +980,28 @@ export function runVerificationCommands(commands, run = spawnSync) {
   return commands.length;
 }
 
-export function verificationCommandsForSources(sources, testFiles) {
+export function verificationCommandsForSources(sources, testFiles, context = {}) {
   const commands = [];
+  if (sources.includes(POOL_PROJECTION_SOURCE)) {
+    if (!context.evidencePath) {
+      throw new Error("database projection verification requires an evidence path");
+    }
+    commands.push([
+      "node",
+      ["scripts/verify-pool-snapshot-projection.mjs", context.evidencePath],
+    ]);
+  }
+  if (sources.some((source) => PAGE_WIRING_SOURCES.has(source))) {
+    if (sources.length !== 1) {
+      throw new Error("page wiring verification must be file-specific");
+    }
+    commands.push([
+      "./apps/web/node_modules/.bin/vitest",
+      ["run", "--config", "vitest.mutation.config.mjs", ...testFiles],
+    ]);
+    commands.push(["pnpm", ["--filter", "smp-web", "type-check"]]);
+    commands.push(["pnpm", ["--filter", "smp-web", "build"]]);
+  }
   if (sources.some((source) => source.startsWith("packages/connectors/"))) {
     commands.push(["node", ["--eval", 'require("node:fs").rmSync("packages/connectors/dist/module-wiring", { recursive: true, force: true })']]);
     commands.push(["pnpm", [
@@ -573,10 +1040,15 @@ export function verificationCommandsForSources(sources, testFiles) {
       '}',
     ].join(" ")]]);
   }
-  commands.push([
-    "./apps/web/node_modules/.bin/vitest",
-    ["run", "--config", "vitest.mutation.config.mjs", ...testFiles],
-  ]);
+  if (
+    !sources.includes(POOL_PROJECTION_SOURCE) &&
+    !sources.some((source) => PAGE_WIRING_SOURCES.has(source))
+  ) {
+    commands.push([
+      "./apps/web/node_modules/.bin/vitest",
+      ["run", "--config", "vitest.mutation.config.mjs", ...testFiles],
+    ]);
+  }
   return commands;
 }
 
@@ -662,6 +1134,12 @@ const ADJACENT_TEST_SUFFIXES = [
 // exceptional routes explicit prevents a changed source from silently riding
 // along merely because some unrelated story test also changed.
 export const DIRECT_TEST_ROUTES = {
+  "apps/web/src/app/(authenticated)/cupos/labels.ts": [
+    "apps/web/src/app/(authenticated)/cupos/labels.test.ts",
+  ],
+  "apps/web/src/app/(authenticated)/excepciones/labels.ts": [
+    "apps/web/src/app/(authenticated)/excepciones/labels.test.ts",
+  ],
   "apps/web/src/app/(authenticated)/usuarios/page.tsx": [
     "apps/web/src/components/users/users-roles-panel.test.tsx",
     "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts",
@@ -695,7 +1173,11 @@ export const DIRECT_TEST_ROUTES = {
   "apps/web/src/modules/vendor-catalog/actions/manage-capacity.ts": [
     "apps/web/src/modules/vendor-catalog/actions/manage-capacity.test.ts",
   ],
+  "apps/web/src/modules/vendor-catalog/actions/manage-capacity-server-actions-factory.ts": [
+    "apps/web/src/modules/vendor-catalog/actions/manage-capacity.test.ts",
+  ],
   "apps/web/vitest.config.ts": [
+    "apps/web/next.config.test.ts",
     "apps/web/src/modules/identity-access/keycloak-admin.pact.test.ts",
   ],
   "packages/contracts/src/index.ts": [
@@ -964,12 +1446,29 @@ function main() {
           throw new Error(`scored mutation shard ${shard.id} instrumented zero mutants`);
         }
         const audits = verificationAuditsForReport(report, shard, allHunks);
-        const commands = verificationCommandsForSources(shard.sources, shard.testFiles);
+        const projectionEvidencePath = shard.sources.includes(POOL_PROJECTION_SOURCE)
+          ? join(
+              GENERATED_DIR,
+              `${shard.id}-${shard.provenance.runHash.slice(0, 12)}-projection.json`,
+            )
+          : undefined;
+        const commands = verificationCommandsForSources(
+          shard.sources,
+          shard.testFiles,
+          { evidencePath: projectionEvidencePath },
+        );
         runVerificationCommands(commands);
         shard.classification = "verification-only";
         shard.result = {
           audits,
           commands: commands.map(([command, args]) => [command, ...args]),
+          ...(projectionEvidencePath
+            ? {
+                projectionEvidence: JSON.parse(
+                  readFileSync(projectionEvidencePath, "utf8"),
+                ),
+              }
+            : {}),
           tests: shard.testFiles,
         };
         writeFileSync(
@@ -977,7 +1476,7 @@ function main() {
           `${JSON.stringify(manifestFor(), null, 2)}\n`,
           "utf8",
         );
-        console.log(`mutation-scope: verified non-mutatable module wiring ${shard.id}`);
+        console.log(`mutation-scope: verified non-mutatable source bundle ${shard.id}`);
         continue;
       }
       requireNonzeroMutationReport(report, shard.id);

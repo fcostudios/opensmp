@@ -9,11 +9,11 @@ import {
 } from "@smp/db/testing/postgres-container";
 
 import { createAuthorizationRepository } from "../../identity-access/authorization";
-import { createCapacityServerActions } from "./manage-capacity";
 import {
   actionInput,
   createManageCapacityActions,
 } from "./manage-capacity-operations";
+import { createCapacityServerActions } from "./manage-capacity-server-actions-factory";
 
 const id = (suffix: string) =>
   `23200000-0000-4000-8000-${suffix.padStart(12, "0")}`;

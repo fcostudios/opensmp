@@ -1,11 +1,15 @@
 import pg from "pg";
+import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   createPostgresFixture,
   type PostgresFixture,
 } from "./testing/postgres-container";
-import { listCurrentSeatPoolCounts } from "./pool-snapshots";
+const implementationPath = process.env.POOL_SNAPSHOT_IMPLEMENTATION_PATH;
+const { listCurrentSeatPoolCounts } = implementationPath
+  ? await import(pathToFileURL(implementationPath).href)
+  : await import("./pool-snapshots");
 
 const id = (suffix: string) =>
   `23200000-0000-4000-8000-${suffix.padStart(12, "0")}`;
@@ -89,7 +93,28 @@ afterAll(async () => {
 });
 
 describe("US-023 pool snapshot contract with real PostgreSQL", () => {
-  it("kills omitting the effective date selected with the latest capacity", async () => {
+  it("keeps purchased quantity paired with its effective date across operating dates", async () => {
+    await expect(
+      listCurrentSeatPoolCounts(application, {
+        asOf: new Date("2026-08-04T16:00:00.000Z"),
+        operatingDate: "2026-08-03",
+      }),
+    ).resolves.toEqual([
+      {
+        assigned: 0,
+        contractRenewalOn: null,
+        effectiveFrom: "2026-08-01",
+        licenseTypeId: ids.license,
+        licenseTypeName: "Snapshot Seat",
+        lowPoolFloor: 1,
+        mode: "automated",
+        pendingInvites: 0,
+        purchased: 2,
+        vendorAccountId: ids.account,
+        vendorAccountName: "Snapshot Account",
+      },
+    ]);
+
     await expect(
       listCurrentSeatPoolCounts(application, {
         asOf: new Date("2026-08-04T16:00:00.000Z"),
