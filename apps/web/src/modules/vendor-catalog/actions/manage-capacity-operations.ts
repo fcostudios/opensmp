@@ -27,29 +27,24 @@ export function createManageCapacityActions({
   readonly now?: () => Date;
 }) {
   const service = createCapacityService(database, { now });
-  async function execute(
-    authorization: LedgerAuthorization,
-    input: unknown,
-    reason: "purchase" | "correction",
-  ) {
-    await service.changeCapacity(authorization, actionInput(input, reason));
-  }
 
   return {
-    addCapacity(authorization: LedgerAuthorization, input: unknown): Promise<void> {
-      return execute(
+    async addCapacity(authorization: LedgerAuthorization, input: unknown): Promise<void> {
+      await service.changeCapacity(
         authorization,
-        input,
-        input instanceof FormData && input.get("reason") === "correction"
-          ? "correction"
-          : "purchase",
+        actionInput(
+          input,
+          input instanceof FormData && input.get("reason") === "correction"
+            ? "correction"
+            : "purchase",
+        ),
       );
     },
-    registerPurchase(authorization: LedgerAuthorization, input: unknown): Promise<void> {
-      return execute(authorization, input, "purchase");
+    async registerPurchase(authorization: LedgerAuthorization, input: unknown): Promise<void> {
+      await service.changeCapacity(authorization, actionInput(input, "purchase"));
     },
-    saveVendorAccountCapacity(authorization: LedgerAuthorization, input: unknown): Promise<void> {
-      return execute(authorization, input, "correction");
+    async saveVendorAccountCapacity(authorization: LedgerAuthorization, input: unknown): Promise<void> {
+      await service.changeCapacity(authorization, actionInput(input, "correction"));
     },
   };
 }
