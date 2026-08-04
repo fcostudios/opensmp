@@ -980,6 +980,15 @@ export function runVerificationCommands(commands, run = spawnSync) {
   return commands.length;
 }
 
+export function projectionEvidencePathForShard(shard) {
+  return shard.sources.includes(POOL_PROJECTION_SOURCE)
+    ? join(
+        GENERATED_SHARD_DIR,
+        `${shard.id}-${shard.provenance.runHash.slice(0, 12)}-projection.json`,
+      )
+    : undefined;
+}
+
 export function verificationCommandsForSources(sources, testFiles, context = {}) {
   const commands = [];
   if (sources.includes(POOL_PROJECTION_SOURCE)) {
@@ -1446,12 +1455,7 @@ function main() {
           throw new Error(`scored mutation shard ${shard.id} instrumented zero mutants`);
         }
         const audits = verificationAuditsForReport(report, shard, allHunks);
-        const projectionEvidencePath = shard.sources.includes(POOL_PROJECTION_SOURCE)
-          ? join(
-              GENERATED_DIR,
-              `${shard.id}-${shard.provenance.runHash.slice(0, 12)}-projection.json`,
-            )
-          : undefined;
+        const projectionEvidencePath = projectionEvidencePathForShard(shard);
         const commands = verificationCommandsForSources(
           shard.sources,
           shard.testFiles,

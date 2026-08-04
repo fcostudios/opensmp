@@ -19,6 +19,7 @@ import {
   classifyVerificationOnlyHunk,
   groupRoutedMutationTargets,
   mutationCompatibleTestFiles,
+  projectionEvidencePathForShard,
   readFreshMutationReport,
   requireNonzeroMutationReport,
   requireRoutedTestFiles,
@@ -732,6 +733,22 @@ assert.deepEqual(
     "node",
     ["scripts/verify-pool-snapshot-projection.mjs", ".tmp/pool-evidence.json"],
   ]],
+);
+assert.equal(
+  projectionEvidencePathForShard({
+    id: "vitest-projection",
+    provenance: { runHash: "1234567890abcdef" },
+    sources: [poolProjectionSource],
+  }),
+  ".tmp/stryker-shards/vitest-projection-1234567890ab-projection.json",
+);
+assert.equal(
+  projectionEvidencePathForShard({
+    id: "vitest-other",
+    provenance: { runHash: "1234567890abcdef" },
+    sources: ["packages/db/src/schema.ts"],
+  }),
+  undefined,
 );
 assert.throws(
   () => verificationCommandsForSources(
