@@ -86,7 +86,7 @@
 | **US-004** | Platform auth via Keycloak OIDC (mandatory 2FA for admin roles) | Sprint 1 | ✅ dev_done | [r1_misc_us_004.md](sprint-1/r1_misc_us_004.md) |
 | **US-005** | Server-side RBAC + company scoping middleware | Sprint 1 | ✅ dev_done | [r1_misc_us_005.md](sprint-1/r1_misc_us_005.md) |
 | **US-007** | Seed: companies CSV + go-live register backfill | Sprint 1 | ✅ dev_done | [r1_misc_us_007.md](sprint-1/r1_misc_us_007.md) |
-| **US-011** | Users, roles and delegation-ready grants | Sprint 3 | ⬜ backlog | [r1_misc_us_011.md](sprint-3/r1_misc_us_011.md) |
+| **US-011** | Users, roles and delegation-ready grants | Sprint 3 | ✅ dev_done | [r1_misc_us_011.md](sprint-3/r1_misc_us_011.md) |
 | **US-054** | Anthropic API probe spike | Sprint 1 | 🔨 in_development | [r1_misc_us_054.md](sprint-1/r1_misc_us_054.md) |
 
 ### CHG-002: Reconcile Sprint 2 planning sources
@@ -98,4 +98,3 @@
 > Reconcile Ledger Sprint 2 planning outputs: hydrate 34 story points and canonical blocked_by edges from Step 10/story artifacts; set current_sprint to the first non-closed sprint after honoring sprint-level deferrals; canonicalize US-042 to 10 alert types; publish the US-014 lifecycle transition table; clarify US-020 attestation-now/verification-later semantics; add the AlertEvent dedupe-key contract; add BR-08/BR-11/BR-14 to the generated effectiveness-critical set; clear expired story claims.
 
 _No stories linked to this change yet._
-
