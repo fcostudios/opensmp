@@ -1473,6 +1473,58 @@ describe("committed migration release path", () => {
     30_000,
   );
 
+  test("rejects empty identity-provider constraint and index catalogs in both schema verifiers", async () => {
+    const database = await createDatabase();
+    const client = new pg.Client({ connectionString: database.ownerUrl });
+    try {
+      await migrate(database.ownerUrl);
+      await client.connect();
+      await client.query(`
+        ALTER TABLE identity_provider_operation
+          DROP CONSTRAINT identity_provider_operation_actor_user_id_fkey,
+          DROP CONSTRAINT identity_provider_operation_attempt_count_check,
+          DROP CONSTRAINT identity_provider_operation_company_id_fkey,
+          DROP CONSTRAINT identity_provider_operation_idempotency_key_key,
+          DROP CONSTRAINT identity_provider_operation_kind_check,
+          DROP CONSTRAINT identity_provider_operation_lease_pair_check,
+          DROP CONSTRAINT identity_provider_operation_pkey,
+          DROP CONSTRAINT identity_provider_operation_status_check,
+          DROP CONSTRAINT identity_provider_operation_target_user_account_id_fkey;
+        DROP INDEX idx_identity_provider_operation_retry;
+      `);
+      const emptyCatalogs = await client.query<{ constraints: number; indexes: number }>(`
+        SELECT
+          (SELECT count(*)::int
+           FROM pg_constraint
+           WHERE conrelid = 'public.identity_provider_operation'::regclass) AS constraints,
+          (SELECT count(*)::int
+           FROM pg_index
+           WHERE indrelid = 'public.identity_provider_operation'::regclass) AS indexes
+      `);
+      expect(emptyCatalogs.rows).toEqual([{ constraints: 0, indexes: 0 }]);
+
+      const runtimeVerification = await runNode(verifyPath, {
+        DATABASE_ADMIN_URL: database.ownerUrl,
+        DATABASE_URL: database.appUrl,
+      });
+      expect(runtimeVerification.code).not.toBe(0);
+      expect(runtimeVerification.stderr).toContain(
+        "identity_provider_operation constraint contract mismatch",
+      );
+
+      const migrationVerification = await readLatestIdentityProviderVerifier();
+      await expect(client.query(migrationVerification)).rejects.toMatchObject({
+        code: "P0001",
+        message: expect.stringMatching(
+          /identity provider operation constraint contract mismatch.*identity provider operation index contract mismatch/u,
+        ),
+      });
+    } finally {
+      await client.end().catch(() => undefined);
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
   test("fails the cross-org verifier when any required runtime privilege is revoked", async () => {
     const database = await createDatabase();
     const client = new pg.Client({ connectionString: database.ownerUrl });
