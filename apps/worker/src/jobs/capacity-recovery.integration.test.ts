@@ -25,6 +25,15 @@ const ids = {
   capacity: id("11"),
   requestFreed: id("12"),
   requestBoundary: id("13"),
+  accountRace: id("14"),
+  licenseRace: id("15"),
+  capacityRace: id("16"),
+  requestRace: id("17"),
+  accountConfirm: id("18"),
+  licenseConfirm: id("19"),
+  capacityConfirm: id("20"),
+  requestConfirm: id("21"),
+  requestWaiting: id("22"),
 };
 const at = new Date("2026-08-04T15:00:00.000Z");
 let fixture: PostgresFixture;
@@ -43,7 +52,9 @@ beforeAll(async () => {
   await owner.query(
     `INSERT INTO user_account
        (id,email,idp_subject,global_role,ui_language,status,created_at)
-     VALUES ($1,'admin@recovery.test','recovery-admin','group_admin','es','active',$2)`,
+     VALUES ($1,'admin@recovery.test','recovery-admin','group_admin','es','active',$2),
+            ('00000000-0000-0000-0000-000000000001','system@ledger.invalid',
+             'ledger-system',NULL,'en','active',$2)`,
     [ids.admin, at],
   );
   await owner.query(
@@ -239,6 +250,11 @@ describe("US-023 capacity recovery with real PostgreSQL", () => {
       [freedAt, ids.requestA],
     );
     await owner.query(
+      `UPDATE provisioning_action SET status='failed',resolved_at=$1,
+         failure_reason='released for recovery test' WHERE request_id=$2`,
+      [freedAt, ids.requestB],
+    );
+    await owner.query(
       `INSERT INTO license_request
          (id,request_no,person_id,company_id,vendor_account_id,license_type_id,
           state,justification,created_at,created_by)
@@ -330,5 +346,137 @@ describe("US-023 capacity recovery with real PostgreSQL", () => {
     await expect(
       owner.query("SELECT state FROM license_request WHERE id=$1", [ids.requestBoundary]),
     ).resolves.toMatchObject({ rows: [{ state: "blocked_no_seat" }] });
+  });
+
+  it("leaves provider-400 recovery included or durably pending when it races completion", async () => {
+    await owner.query(
+      `INSERT INTO vendor_account
+         (id,vendor_id,name,mode,low_pool_floor,status,created_at,created_by)
+       VALUES ($1,$2,'Race account','orchestration',1,'active',$3,$4)`,
+      [ids.accountRace, ids.vendor, at, ids.admin],
+    );
+    await owner.query(
+      `INSERT INTO license_type
+         (id,vendor_id,name,unit,status,created_at,created_by)
+       VALUES ($1,$2,'Race seat','seat','active',$3,$4)`,
+      [ids.licenseRace, ids.vendor, at, ids.admin],
+    );
+    await owner.query(
+      `INSERT INTO vendor_account_capacity
+         (id,vendor_account_id,license_type_id,purchased_qty,effective_from,created_at,created_by)
+       VALUES ($1,$2,$3,1,'2026-08-04',$4,$5)`,
+      [ids.capacityRace, ids.accountRace, ids.licenseRace, at, ids.admin],
+    );
+    await owner.query(
+      `INSERT INTO license_request
+         (id,request_no,person_id,company_id,vendor_account_id,license_type_id,
+          state,justification,created_at,created_by)
+       VALUES ($1,'REC-RACE',$2,$3,$4,$5,'approved','race',$6,$7)`,
+      [ids.requestRace, ids.personA, ids.companyA, ids.accountRace,
+        ids.licenseRace, at, ids.admin],
+    );
+    await owner.query(
+      `SELECT enqueue_capacity_recovery($1,$2,$3,'2026-08-04','capacity_change',$4)`,
+      [ids.capacityRace, ids.accountRace, ids.licenseRace, at],
+    );
+    const job = createCapacityRecoveryJob({ connectionString: fixture.appUrl, now: () => at });
+    const orchestration = createOrchestrationService(fixture.appUrl, { now: () => at });
+    try {
+      await Promise.all([
+        job.drain(),
+        orchestration.observeProviderNoSeat(ids.requestRace),
+      ]);
+    } finally {
+      await Promise.all([job.close(), orchestration.close()]);
+    }
+    const evidence = await owner.query<{
+      actions: number;
+      pending: number;
+      state: string;
+    }>(
+      `SELECT request.state,
+              (SELECT count(*)::int FROM provisioning_action action
+               WHERE action.request_id=request.id) AS actions,
+              (SELECT count(*)::int FROM capacity_recovery_work work
+               WHERE work.vendor_account_id=request.vendor_account_id
+                 AND work.license_type_id=request.license_type_id
+                 AND work.status='pending') AS pending
+       FROM license_request request WHERE request.id=$1`,
+      [ids.requestRace],
+    );
+    const [result] = evidence.rows;
+    expect(
+      result?.state === "provisioning"
+        ? result.actions === 1
+        : result?.state === "blocked_no_seat" && result.pending >= 1,
+    ).toBe(true);
+  });
+
+  it("does not overallocate when checklist confirmation races capacity recovery", async () => {
+    await owner.query(
+      `INSERT INTO vendor_account
+         (id,vendor_id,name,mode,low_pool_floor,status,created_at,created_by)
+       VALUES ($1,$2,'Confirmation account','orchestration',1,'active',$3,$4)`,
+      [ids.accountConfirm, ids.vendor, at, ids.admin],
+    );
+    await owner.query(
+      `INSERT INTO license_type
+         (id,vendor_id,name,unit,status,created_at,created_by)
+       VALUES ($1,$2,'Confirmation seat','seat','active',$3,$4)`,
+      [ids.licenseConfirm, ids.vendor, at, ids.admin],
+    );
+    await owner.query(
+      `INSERT INTO vendor_account_capacity
+         (id,vendor_account_id,license_type_id,purchased_qty,effective_from,created_at,created_by)
+       VALUES ($1,$2,$3,1,'2026-08-04',$4,$5)`,
+      [ids.capacityConfirm, ids.accountConfirm, ids.licenseConfirm, at, ids.admin],
+    );
+    await owner.query(
+      `INSERT INTO license_request
+         (id,request_no,person_id,company_id,vendor_account_id,license_type_id,
+          state,justification,created_at,created_by)
+       VALUES ($1,'REC-CONFIRM',$3,$5,$7,$8,'approved','confirm',$9,$10),
+              ($2,'REC-WAIT',$4,$6,$7,$8,'blocked_no_seat','wait',$9,$10)`,
+      [ids.requestConfirm, ids.requestWaiting, ids.personA, ids.personB,
+        ids.companyA, ids.companyB, ids.accountConfirm, ids.licenseConfirm, at, ids.admin],
+    );
+    await owner.query(
+      `INSERT INTO request_transition
+         (request_id,from_state,to_state,actor_user_id,note,occurred_at)
+       VALUES ($1,'approved','blocked_no_seat',$2,'empty',$3)`,
+      [ids.requestWaiting, ids.admin, at],
+    );
+    await owner.query(
+      `SELECT enqueue_capacity_recovery($1,$2,$3,'2026-08-04','capacity_change',$4)`,
+      [ids.capacityConfirm, ids.accountConfirm, ids.licenseConfirm, at],
+    );
+    const orchestration = createOrchestrationService(fixture.appUrl, { now: () => at });
+    const authorization = {
+      companyGrants: [], companyIds: [], employeeCompanyId: null,
+      globalRole: "group_admin" as const, idpSubject: "recovery-admin",
+      roles: ["group_admin" as const], userAccountId: ids.admin, userId: ids.admin,
+    };
+    const action = await orchestration.routeApprovedRequest(authorization, ids.requestConfirm);
+    const job = createCapacityRecoveryJob({ connectionString: fixture.appUrl, now: () => at });
+    try {
+      await Promise.all([
+        orchestration.confirmChecklistDone(authorization, {
+          actionId: action.id,
+          confirmationId: "confirmation-recovery-race",
+        }),
+        job.drain(),
+      ]);
+    } finally {
+      await Promise.all([job.close(), orchestration.close()]);
+    }
+    await expect(owner.query(
+      `SELECT
+         (SELECT count(*)::int FROM license_assignment
+          WHERE vendor_account_id=$1 AND license_type_id=$2) AS assignments,
+         (SELECT state FROM license_request WHERE id=$3) AS waiting_state`,
+      [ids.accountConfirm, ids.licenseConfirm, ids.requestWaiting],
+    )).resolves.toMatchObject({
+      rows: [{ assignments: 1, waiting_state: "blocked_no_seat" }],
+    });
   });
 });

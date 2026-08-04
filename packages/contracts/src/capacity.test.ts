@@ -94,7 +94,6 @@ describe("US-023 capacity contracts", () => {
   it("kills recovery messages that omit the effective-dated capacity identity", () => {
     const payload = {
       capacityId: "23000000-0000-4000-8000-000000000004",
-      companyIds: ["23000000-0000-4000-8000-000000000003"],
       effectiveFrom: "2026-08-04",
       licenseTypeId: ids.license,
       publishedAt: "2026-08-04T15:00:00.000Z",
@@ -103,16 +102,12 @@ describe("US-023 capacity contracts", () => {
     expect(capacityRecoveryJobSchema.parse(payload)).toEqual(payload);
     const { capacityId: _capacityId, ...withoutIdentity } = payload;
     expect(capacityRecoveryJobSchema.safeParse(withoutIdentity).success).toBe(false);
-    expect(capacityRecoveryJobSchema.safeParse({ ...payload, companyIds: [] }).success).toBe(false);
     expect(
       capacityRecoveryJobSchema.safeParse({
         ...payload,
-        companyIds: [
-          "23000000-0000-4000-8000-000000000003",
-          "23000000-0000-4000-8000-000000000005",
-        ],
+        companyIds: ["23000000-0000-4000-8000-000000000003"],
       }).success,
-    ).toBe(true);
+    ).toBe(false);
     expect(
       capacityRecoveryJobSchema.safeParse({
         ...payload,

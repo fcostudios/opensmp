@@ -9,6 +9,7 @@ import {
 // eslint-disable-next-line no-restricted-imports -- Shared atomic provisioning routing is a transaction-service boundary.
 import {
   ecuadorOperatingDate,
+  lockCapacityPool,
   lockRequestCapacityPool,
   routeProvisioningActionInTransaction,
 } from "@smp/db/provisioning-routing";
@@ -207,8 +208,10 @@ export async function routeApprovedRequestInTransaction(
               AND pending.vendor_account_id=action.vendor_account_id
              WHERE action.vendor_account_id=${request.vendorAccountId}::uuid
                AND pending.license_type_id=${request.licenseTypeId}::uuid
-               AND action.kind='invite' AND action.mode='automated'
+               AND ((action.kind='invite' AND action.mode='automated')
+                 OR (action.kind='checklist' AND action.mode='orchestration'))
                AND action.status IN ('pending','sent')
+               AND action.raw_request->>'operation'='provision'
                AND action.created_at <= ${occurredAt})
         )::int AS free`,
   );
@@ -245,9 +248,6 @@ export function createOrchestrationOperations(
     async observeProviderNoSeat(requestId: string) {
       const occurredAt = now();
       return database.transaction(async (transaction) => {
-        await transaction.execute(
-          sql`SELECT pg_advisory_xact_lock(hashtextextended(${`provider-no-seat:${requestId}`},0))`,
-        );
         return observeNoSeatInTransaction(
           transaction,
           { requestId, source: "provider_400" },
@@ -415,10 +415,26 @@ export function createOrchestrationOperations(
       const occurredAt = now();
       const attestedOn = ecuadorOperatingDate(occurredAt);
       return database.transaction(async (transaction) => {
-        await transaction.execute(
-          // Stryker disable next-line StringLiteral: @equivalent Changing the
-          // stable advisory key only changes contention scope, not outcomes.
-          sql`SELECT pg_advisory_xact_lock(hashtextextended(${`checklist-confirm:${input.actionId}`}, 0))`,
+        const pool = await transaction.execute<{
+          licenseTypeId: string;
+          vendorAccountId: string;
+        }>(
+          sql`SELECT request.license_type_id::text AS "licenseTypeId",
+                     action.vendor_account_id::text AS "vendorAccountId"
+              FROM provisioning_action action
+              JOIN license_request request
+                ON request.id=action.request_id
+               AND request.vendor_account_id=action.vendor_account_id
+              WHERE action.id=${input.actionId}::uuid
+                AND action.kind='checklist'
+                AND action.mode='orchestration'`,
+        );
+        const [capacityPool] = pool.rows;
+        if (!capacityPool) throw new Error("CHECKLIST_ACTION_NOT_PENDING");
+        await lockCapacityPool(
+          transaction,
+          capacityPool.vendorAccountId,
+          capacityPool.licenseTypeId,
         );
         const replay = await transaction.execute<{
           assignmentId: string;
@@ -490,6 +506,42 @@ export function createOrchestrationOperations(
           throw new Error("CHECKLIST_ACTION_NOT_PENDING");
         }
         validatedChecklistSteps(action.rawRequest);
+        const availability = await transaction.execute<{ freeForAction: number }>(
+          sql`SELECT (
+                COALESCE((
+                  SELECT capacity.purchased_qty
+                  FROM vendor_account_capacity capacity
+                  WHERE capacity.vendor_account_id=${action.vendorAccountId}::uuid
+                    AND capacity.license_type_id=${action.licenseTypeId}::uuid
+                    AND capacity.effective_from <= ${attestedOn}::date
+                    AND capacity.created_at <= ${occurredAt}
+                  ORDER BY capacity.effective_from DESC,capacity.created_at DESC,capacity.id DESC
+                  LIMIT 1
+                ),0)
+                - (SELECT count(*) FROM license_assignment assignment
+                   JOIN person holder ON holder.id=assignment.person_id
+                    AND holder.company_id=assignment.company_id
+                   WHERE assignment.vendor_account_id=${action.vendorAccountId}::uuid
+                     AND assignment.license_type_id=${action.licenseTypeId}::uuid
+                     AND assignment.started_on <= ${attestedOn}::date
+                     AND assignment.created_at <= ${occurredAt}
+                     AND (assignment.ended_on IS NULL OR assignment.ended_on >= ${attestedOn}::date))
+                - (SELECT count(*) FROM provisioning_action reservation
+                   JOIN license_request pending ON pending.id=reservation.request_id
+                    AND pending.vendor_account_id=reservation.vendor_account_id
+                   WHERE reservation.vendor_account_id=${action.vendorAccountId}::uuid
+                     AND pending.license_type_id=${action.licenseTypeId}::uuid
+                     AND reservation.id <> ${input.actionId}::uuid
+                     AND ((reservation.kind='invite' AND reservation.mode='automated')
+                       OR (reservation.kind='checklist' AND reservation.mode='orchestration'))
+                     AND reservation.status IN ('pending','sent')
+                     AND reservation.raw_request->>'operation'='provision'
+                     AND reservation.created_at <= ${occurredAt})
+              )::int AS "freeForAction"`,
+        );
+        if ((availability.rows[0]?.freeForAction ?? 0) <= 0) {
+          throw new Error("CHECKLIST_CAPACITY_UNAVAILABLE");
+        }
         const assignmentId = randomUUID();
         await transaction.execute(
           sql`INSERT INTO license_assignment

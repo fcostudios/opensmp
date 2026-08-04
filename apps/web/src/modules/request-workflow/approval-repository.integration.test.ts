@@ -855,6 +855,46 @@ describe("approval queue repository", () => {
     expect(evidence.rows).toEqual([{ actions: 1, blocked: 1, provisioning: 1 }]);
   });
 
+  test("reserves the final pool seat for one concurrent orchestration approval", async () => {
+    await owner.query(
+      `INSERT INTO user_account
+         (id,email,idp_subject,global_role,ui_language,status,created_at)
+       VALUES ('00000000-0000-0000-0000-000000000001','system@ledger.invalid',
+               'ledger-system',NULL,'en','active',$1)
+       ON CONFLICT (id) DO NOTHING`,
+      [decidedAt],
+    );
+    await owner.query(
+      `UPDATE vendor_account_capacity SET purchased_qty=4
+       WHERE vendor_account_id=$1 AND license_type_id=$2`,
+      [vendorAccountId, licenseTypeId],
+    );
+
+    await Promise.all([
+      repository.decide(admin, {
+        decision: "approved",
+        requestId: requestA,
+      }, decidedAt),
+      repository.decide(admin, {
+        decision: "approved",
+        requestId: requestB,
+      }, decidedAt),
+    ]);
+
+    const evidence = await owner.query(
+      `SELECT
+         (SELECT count(*)::int FROM provisioning_action
+          WHERE request_id IN ($1,$2) AND kind='checklist'
+            AND mode='orchestration' AND status IN ('pending','sent')) AS reservations,
+         (SELECT count(*)::int FROM license_request
+          WHERE id IN ($1,$2) AND state='blocked_no_seat') AS blocked,
+         (SELECT count(*)::int FROM license_request
+          WHERE id IN ($1,$2) AND state='provisioning') AS provisioning`,
+      [requestA, requestB],
+    );
+    expect(evidence.rows).toEqual([{ blocked: 1, provisioning: 1, reservations: 1 }]);
+  });
+
   test("rolls an automated approval back when action persistence fails", async () => {
     await owner.query(
       `UPDATE vendor

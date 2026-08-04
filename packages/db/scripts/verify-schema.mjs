@@ -282,6 +282,31 @@ export async function verifyMigratedSchema({
       );
     }
 
+    const capacityRecoveryIdentity = await owner.query(`
+      SELECT pg_get_constraintdef(oid) AS definition, convalidated AS validated
+      FROM pg_constraint
+      WHERE conrelid='public.capacity_recovery_work'::regclass
+        AND conname='capacity_recovery_identity_xor_check'
+        AND contype='c'
+    `);
+    const capacityRecoveryDefinition =
+      capacityRecoveryIdentity.rows[0]?.definition ?? "";
+    if (
+      capacityRecoveryIdentity.rows.length !== 1 ||
+      capacityRecoveryIdentity.rows[0]?.validated !== true ||
+      !capacityRecoveryDefinition.includes("source = 'seat_freed'") ||
+      !capacityRecoveryDefinition.includes("release_event_id IS NOT NULL") ||
+      !capacityRecoveryDefinition.includes("capacity_id IS NULL") ||
+      !capacityRecoveryDefinition.includes("source = 'capacity_change'") ||
+      !capacityRecoveryDefinition.includes("capacity_id IS NOT NULL") ||
+      !capacityRecoveryDefinition.includes("release_event_id IS NULL")
+    ) {
+      throw new Error(
+        "capacity recovery identity XOR mismatch: " +
+          JSON.stringify(capacityRecoveryIdentity.rows),
+      );
+    }
+
     const identityProviderColumns = await owner.query(`
       SELECT
         attribute.attname AS name,

@@ -265,6 +265,52 @@ describe("US-023 canonical capacity transaction", () => {
     });
   });
 
+  it("rejects malformed recovery identities at the database boundary", async () => {
+    const capacity = await owner.query<{ id: string }>(
+      `SELECT id::text FROM vendor_account_capacity
+       WHERE vendor_account_id=$1 AND license_type_id=$2
+       ORDER BY effective_from,created_at,id LIMIT 1`,
+      [ids.accountA, ids.licenseA],
+    );
+    const capacityId = capacity.rows[0]?.id;
+    if (!capacityId) throw new Error("capacity identity fixture missing");
+    await expect(owner.query(
+      `SELECT enqueue_capacity_recovery(
+         $1,$2,$3,'2026-08-04','seat_freed',$4,$5)`,
+      [capacityId, ids.accountA, ids.licenseA, now, id("104")],
+    )).rejects.toThrow("CAPACITY_RECOVERY_IDENTITY_INVALID");
+    await expect(owner.query(
+      `SELECT enqueue_capacity_recovery(
+         NULL,$1,$2,'2026-08-04','capacity_change',$3,NULL)`,
+      [ids.accountA, ids.licenseA, now],
+    )).rejects.toThrow("CAPACITY_RECOVERY_IDENTITY_INVALID");
+    await expect(owner.query(
+      `INSERT INTO capacity_recovery_work
+         (idempotency_key,capacity_id,vendor_account_id,license_type_id,
+          effective_from,available_at,source,release_event_id)
+       SELECT 'malformed-seat-with-capacity',capacity.id,$1,$2,
+              '2026-08-04',$3,'seat_freed',$4
+       FROM vendor_account_capacity capacity
+       WHERE capacity.vendor_account_id=$1 AND capacity.license_type_id=$2
+       LIMIT 1`,
+      [ids.accountA, ids.licenseA, now, id("103")],
+    )).rejects.toMatchObject({
+      code: "23514",
+      constraint: "capacity_recovery_identity_xor_check",
+    });
+    await expect(owner.query(
+      `INSERT INTO capacity_recovery_work
+         (idempotency_key,capacity_id,vendor_account_id,license_type_id,
+          effective_from,available_at,source,release_event_id)
+       VALUES ('malformed-change-without-capacity',NULL,$1,$2,
+               '2026-08-04',$3,'capacity_change',NULL)`,
+      [ids.accountA, ids.licenseA, now],
+    )).rejects.toMatchObject({
+      code: "23514",
+      constraint: "capacity_recovery_identity_xor_check",
+    });
+  });
+
   it("kills accepting a non-admin or any client companyId on the global capacity command", async () => {
     const service = createCapacityService(database, { now: () => now });
     await expect(

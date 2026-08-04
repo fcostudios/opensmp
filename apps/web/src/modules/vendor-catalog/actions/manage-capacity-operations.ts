@@ -1,7 +1,10 @@
-import type { LedgerAuthorization } from "../../identity-access/authorization";
-import type { createCapacityService } from "../capacity-service";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-type CapacityService = ReturnType<typeof createCapacityService>;
+// eslint-disable-next-line no-restricted-imports -- This factory composes the audited capacity transaction service.
+import * as schema from "@smp/db/schema";
+
+import type { LedgerAuthorization } from "../../identity-access/authorization";
+import { createCapacityService } from "../capacity-service";
 
 export function actionInput(input: unknown, reason: "purchase" | "correction") {
   if (!(input instanceof FormData)) return input;
@@ -17,36 +20,36 @@ export function actionInput(input: unknown, reason: "purchase" | "correction") {
 }
 
 export function createManageCapacityActions({
-  loadAuthorization,
-  revalidate,
-  service,
+  database,
+  now,
 }: {
-  readonly loadAuthorization: () => Promise<LedgerAuthorization | null>;
-  readonly revalidate: (path: string) => void;
-  readonly service: CapacityService;
+  readonly database: NodePgDatabase<typeof schema>;
+  readonly now?: () => Date;
 }) {
-  async function execute(input: unknown, reason: "purchase" | "correction") {
-    const authorization = await loadAuthorization();
-    if (!authorization) throw new Error("CAPACITY_ACCESS_FORBIDDEN");
+  const service = createCapacityService(database, { now });
+  async function execute(
+    authorization: LedgerAuthorization,
+    input: unknown,
+    reason: "purchase" | "correction",
+  ) {
     await service.changeCapacity(authorization, actionInput(input, reason));
-    revalidate("/cupos");
-    revalidate("/excepciones");
   }
 
   return {
-    addCapacity(input: unknown): Promise<void> {
+    addCapacity(authorization: LedgerAuthorization, input: unknown): Promise<void> {
       return execute(
+        authorization,
         input,
         input instanceof FormData && input.get("reason") === "correction"
           ? "correction"
           : "purchase",
       );
     },
-    registerPurchase(input: unknown): Promise<void> {
-      return execute(input, "purchase");
+    registerPurchase(authorization: LedgerAuthorization, input: unknown): Promise<void> {
+      return execute(authorization, input, "purchase");
     },
-    saveVendorAccountCapacity(input: unknown): Promise<void> {
-      return execute(input, "correction");
+    saveVendorAccountCapacity(authorization: LedgerAuthorization, input: unknown): Promise<void> {
+      return execute(authorization, input, "correction");
     },
   };
 }

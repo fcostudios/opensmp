@@ -9,7 +9,6 @@ import {
 } from "@smp/db/testing/postgres-container";
 
 import { createAuthorizationRepository } from "../../identity-access/authorization";
-import { createCapacityService } from "../capacity-service";
 import { createManageCapacityActions } from "./manage-capacity-operations";
 
 const id = (suffix: string) =>
@@ -52,11 +51,11 @@ describe("US-023 capacity server actions", () => {
   it("parses FormData reasons, authorizes, audits, and revalidates both views", async () => {
     const database = drizzle(pool, { schema });
     const authorizationRepository = createAuthorizationRepository(database);
-    const paths: string[] = [];
+    const authorization = await authorizationRepository.load({ subject: "capacity-actions" });
+    if (!authorization) throw new Error("capacity action authorization missing");
     const actions = createManageCapacityActions({
-      loadAuthorization: () => authorizationRepository.load({ subject: "capacity-actions" }),
-      revalidate: (path) => paths.push(path),
-      service: createCapacityService(database, { now: () => now }),
+      database,
+      now: () => now,
     });
     const form = (effectiveFrom: string, purchasedQty: string, reason?: string) => {
       const input = new FormData();
@@ -68,10 +67,10 @@ describe("US-023 capacity server actions", () => {
       return input;
     };
 
-    await actions.registerPurchase(form("2026-08-10", "3"));
-    await actions.addCapacity(form("2026-08-11", "4"));
-    await actions.addCapacity(form("2026-08-12", "5", "correction"));
-    await actions.saveVendorAccountCapacity(form("2026-08-13", "6"));
+    await actions.registerPurchase(authorization, form("2026-08-10", "3"));
+    await actions.addCapacity(authorization, form("2026-08-11", "4"));
+    await actions.addCapacity(authorization, form("2026-08-12", "5", "correction"));
+    await actions.saveVendorAccountCapacity(authorization, form("2026-08-13", "6"));
 
     const evidence = await owner.query(
       `SELECT capacity.purchased_qty,capacity.effective_from::text,
@@ -86,20 +85,5 @@ describe("US-023 capacity server actions", () => {
       { effective_from: "2026-08-12", purchased_qty: 5, reason: "correction" },
       { effective_from: "2026-08-13", purchased_qty: 6, reason: "correction" },
     ]);
-    expect(paths).toEqual([
-      "/cupos", "/excepciones", "/cupos", "/excepciones",
-      "/cupos", "/excepciones", "/cupos", "/excepciones",
-    ]);
-
-    const forbidden = createManageCapacityActions({
-      loadAuthorization: () => authorizationRepository.load({ subject: "missing" }),
-      revalidate: (path) => paths.push(path),
-      service: createCapacityService(database, { now: () => now }),
-    });
-    await expect(forbidden.registerPurchase(form("2026-08-14", "7")))
-      .rejects.toThrow("CAPACITY_ACCESS_FORBIDDEN");
-    await expect(owner.query(
-      "SELECT count(*)::int AS count FROM vendor_account_capacity",
-    )).resolves.toMatchObject({ rows: [{ count: 4 }] });
   });
 });

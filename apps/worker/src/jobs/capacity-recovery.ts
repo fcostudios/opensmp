@@ -1,4 +1,3 @@
-import type { CapacityRecoveryJob } from "@smp/contracts/capacity";
 import {
   ecuadorOperatingDate,
   lockCapacityPool,
@@ -49,46 +48,12 @@ export function createCapacityRecoveryJob({
         );
         await client.query("COMMIT");
         let processed = 0;
-        const operatingDate = ecuadorOperatingDate(at);
         for (const work of claimed.rows) {
           try {
-            const scope = await pool.query<{ company_id: string }>(
-              `SELECT DISTINCT request.company_id::text
-               FROM license_request request JOIN person holder
-                 ON holder.id=request.person_id AND holder.company_id=request.company_id
-               WHERE request.state='blocked_no_seat'
-                 AND request.vendor_account_id=$1 AND request.license_type_id=$2`,
-              [work.vendor_account_id, work.license_type_id],
-            );
-            const capacity = work.capacity_id
-              ? { effective_from: work.effective_from, id: work.capacity_id }
-              : (
-                  await pool.query<{ effective_from: string; id: string }>(
-                    `SELECT id::text,effective_from::text FROM vendor_account_capacity
-                     WHERE vendor_account_id=$1 AND license_type_id=$2
-                       AND effective_from <= $3::date
-                     ORDER BY effective_from DESC,created_at DESC,id DESC LIMIT 1`,
-                    [
-                      work.vendor_account_id,
-                      work.license_type_id,
-                      operatingDate,
-                    ],
-                  )
-                ).rows[0];
-            if (capacity && scope.rows.length) {
-              await recover(
-                pool,
-                {
-                  capacityId: capacity.id,
-                  companyIds: scope.rows.map((row) => row.company_id),
-                  effectiveFrom: capacity.effective_from,
-                  licenseTypeId: work.license_type_id,
-                  publishedAt: at.toISOString(),
-                  vendorAccountId: work.vendor_account_id,
-                },
-                at,
-              );
-            }
+            await recover(pool, {
+              licenseTypeId: work.license_type_id,
+              vendorAccountId: work.vendor_account_id,
+            }, at);
             const completed = await pool.query(
               `UPDATE capacity_recovery_work SET status='completed',completed_at=$3,
                  lease_token=NULL,lease_expires_at=NULL
@@ -119,7 +84,10 @@ export function createCapacityRecoveryJob({
 
 async function recover(
   pool: pg.Pool,
-  input: CapacityRecoveryJob,
+  input: {
+    readonly licenseTypeId: string;
+    readonly vendorAccountId: string;
+  },
   occurredAt: Date,
 ): Promise<{ readonly resumedRequestIds: string[] }> {
   const client = await pool.connect();
@@ -133,27 +101,25 @@ async function recover(
           - (SELECT count(*) FROM license_assignment assignment
              JOIN person holder ON holder.id=assignment.person_id
               AND holder.company_id=assignment.company_id
-             WHERE assignment.vendor_account_id=$2 AND assignment.license_type_id=$3
-               AND assignment.started_on <= $5::date
-               AND (assignment.ended_on IS NULL OR assignment.ended_on >= $5::date))
+             WHERE assignment.vendor_account_id=$1 AND assignment.license_type_id=$2
+               AND assignment.started_on <= $3::date
+               AND (assignment.ended_on IS NULL OR assignment.ended_on >= $3::date))
           - (SELECT count(*) FROM provisioning_action action
              JOIN license_request pending ON pending.id=action.request_id
               AND pending.vendor_account_id=action.vendor_account_id
-             WHERE action.vendor_account_id=$2 AND pending.license_type_id=$3
-               AND action.kind='invite' AND action.mode='automated'
-               AND action.status IN ('pending','sent')))::int AS free
+             WHERE action.vendor_account_id=$1 AND pending.license_type_id=$2
+               AND ((action.kind='invite' AND action.mode='automated')
+                 OR (action.kind='checklist' AND action.mode='orchestration'))
+               AND action.status IN ('pending','sent')
+               AND action.raw_request->>'operation'='provision'))::int AS free
        FROM vendor_account_capacity selected
-       WHERE selected.id=$1 AND selected.vendor_account_id=$2
-         AND selected.license_type_id=$3 AND selected.effective_from=$4::date
-         AND selected.effective_from <= $5::date
-         AND NOT EXISTS (SELECT 1 FROM vendor_account_capacity newer
-           WHERE newer.vendor_account_id=selected.vendor_account_id
-             AND newer.license_type_id=selected.license_type_id
-             AND newer.effective_from <= $5::date
-             AND (newer.effective_from,newer.created_at,newer.id) >
-                 (selected.effective_from,selected.created_at,selected.id))
+       WHERE selected.vendor_account_id=$1
+         AND selected.license_type_id=$2
+         AND selected.effective_from <= $3::date
+       ORDER BY selected.effective_from DESC,selected.created_at DESC,selected.id DESC
+       LIMIT 1
       `,
-      [input.capacityId,input.vendorAccountId,input.licenseTypeId,input.effectiveFrom,operatingDate],
+      [input.vendorAccountId,input.licenseTypeId,operatingDate],
     );
     const free = capacity.rows[0]?.free ?? 0;
     const candidates = free === 0
@@ -163,9 +129,9 @@ async function recover(
            FROM license_request request JOIN person holder
              ON holder.id=request.person_id AND holder.company_id=request.company_id
            WHERE request.state='blocked_no_seat' AND request.vendor_account_id=$1
-             AND request.license_type_id=$2 AND request.company_id=ANY($3::uuid[])
-           ORDER BY request.created_at,request.id FOR UPDATE OF request SKIP LOCKED LIMIT $4`,
-          [input.vendorAccountId,input.licenseTypeId,input.companyIds,free],
+             AND request.license_type_id=$2
+           ORDER BY request.created_at,request.id FOR UPDATE OF request SKIP LOCKED LIMIT $3`,
+          [input.vendorAccountId,input.licenseTypeId,free],
         );
     for (const candidate of candidates.rows) {
       await routeProvisioningActionInTransaction(database, {

@@ -564,7 +564,16 @@ export const capacityRecoveryWork = pgTable("capacity_recovery_work", {
   lastError: text("last_error"),
   completedAt: timestamp("completed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => ({
+  identityXor: check(
+    "capacity_recovery_identity_xor_check",
+    sql`(
+      (${table.source} = 'seat_freed' AND ${table.releaseEventId} IS NOT NULL AND ${table.capacityId} IS NULL)
+      OR
+      (${table.source} = 'capacity_change' AND ${table.capacityId} IS NOT NULL AND ${table.releaseEventId} IS NULL)
+    )`,
+  ),
+}));
 
 export const integrationCredential = pgTable("integration_credential", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),

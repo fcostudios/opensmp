@@ -3,6 +3,11 @@ import { z } from "zod";
 
 // eslint-disable-next-line no-restricted-imports -- This trusted transaction records the canonical system actor.
 import { SYSTEM_USER_ID } from "@smp/db";
+// eslint-disable-next-line no-restricted-imports -- Trusted observations share the canonical capacity-pool transaction lock.
+import {
+  ecuadorOperatingDate,
+  lockRequestCapacityPool,
+} from "@smp/db/provisioning-routing";
 
 import type { LedgerTransaction } from "../request-workflow/transition-core";
 
@@ -18,6 +23,12 @@ export async function observeNoSeatInTransaction(
 ): Promise<{ readonly requestId: string; readonly status: "blocked_no_seat" }> {
   const parsed = noSeatObservationSchema.safeParse(input);
   if (!parsed.success) throw new Error("CAPACITY_INPUT_INVALID");
+  const capacityPool = await lockRequestCapacityPool(
+    transaction,
+    parsed.data.requestId,
+    "all",
+    "CAPACITY_REQUEST_NOT_FOUND",
+  );
   const locked = await transaction.execute<{
     readonly companyId: string;
     readonly state: "approved" | "blocked_no_seat";
@@ -39,6 +50,26 @@ export async function observeNoSeatInTransaction(
         WHERE id=${parsed.data.requestId}::uuid
           AND company_id=${request.companyId}::uuid AND state='approved'`,
   );
+  if (parsed.data.source === "provider_400") {
+    await transaction.execute(
+      sql`INSERT INTO capacity_recovery_work
+            (idempotency_key,capacity_id,vendor_account_id,license_type_id,
+             effective_from,available_at,source,status)
+          SELECT ${`blocked-request:${parsed.data.requestId}`},capacity.id,
+                 capacity.vendor_account_id,capacity.license_type_id,
+                 capacity.effective_from,${occurredAt},'capacity_change','pending'
+          FROM vendor_account_capacity capacity
+          WHERE capacity.vendor_account_id=${capacityPool.vendorAccountId}::uuid
+            AND capacity.license_type_id=${capacityPool.licenseTypeId}::uuid
+            AND capacity.effective_from <= ${ecuadorOperatingDate(occurredAt)}::date
+          ORDER BY capacity.effective_from DESC,capacity.created_at DESC,capacity.id DESC
+          LIMIT 1
+          ON CONFLICT (idempotency_key) DO UPDATE
+          SET status='pending',available_at=LEAST(capacity_recovery_work.available_at,EXCLUDED.available_at),
+              lease_token=NULL,lease_expires_at=NULL,completed_at=NULL,last_error=NULL
+          WHERE capacity_recovery_work.status='completed'`,
+    );
+  }
   await transaction.execute(
     sql`INSERT INTO request_transition
           (request_id,from_state,to_state,actor_user_id,note,occurred_at)

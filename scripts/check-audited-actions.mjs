@@ -516,7 +516,7 @@ function serviceTargetIsAudited(
       memberTarget,
       importedBindings(factoryFile),
       factorySource,
-      false,
+      true,
     );
   }
     const importedSourcePath = resolveImportedSource(

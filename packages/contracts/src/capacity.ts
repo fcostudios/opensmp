@@ -27,7 +27,6 @@ export const capacityChangeSchema = z
 export const capacityRecoveryJobSchema = z
   .object({
     capacityId: uuidSchema,
-    companyIds: z.array(uuidSchema).min(1),
     effectiveFrom: isoDateSchema,
     licenseTypeId: uuidSchema,
     publishedAt: z.string().datetime({ offset: true }),
