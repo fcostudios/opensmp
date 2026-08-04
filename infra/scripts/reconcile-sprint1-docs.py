@@ -568,11 +568,12 @@ def build_plan(root: Path) -> dict[Path, str]:
         desired[path] = updated
 
     claude_path = project_output_path(root, "CLAUDE.md")
-    claude = desired[claude_path]
-    for relative_path in MIRRORS:
-        path = project_output_path(root, relative_path)
-        original[path] = read_text(path)
-        desired[path] = claude
+    claude = desired.get(claude_path)
+    if claude is not None:
+        for relative_path in MIRRORS:
+            path = project_output_path(root, relative_path)
+            original[path] = read_text(path)
+            desired[path] = claude
 
     for path in governed_guidance_paths(root):
         if not path.resolve().is_relative_to(root.resolve()):

@@ -260,6 +260,22 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             self.assertIn("unknown generated guidance state", result.stderr)
             self.assertIn("review and pin a new migration", result.stderr)
 
+    def test_unknown_claude_hash_reports_reconciliation_error_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_project(root)
+            claude = root / "CLAUDE.md"
+            claude.write_bytes(claude.read_bytes() + b"unknown future sync\n")
+            before = snapshot(root)
+
+            result = run_reconciler(root)
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(snapshot(root), before)
+            self.assertIn("CLAUDE.md: unknown generated guidance state", result.stderr)
+            self.assertIn("review and pin a new migration", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+
     def test_unknown_reviewed_section_fails_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
