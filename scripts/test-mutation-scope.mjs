@@ -21,8 +21,10 @@ import {
   requireRoutedTestFiles,
   routedTestFiles,
   runVerificationCommands,
+  validateMutationReportIdentity,
   verificationCommandsForSources,
   verificationAuditsForReport,
+  verifyContractsBarrelSource,
 } from "./mutation-scope.mjs";
 import mutationVitestConfig from "../vitest.mutation.config.mjs";
 
@@ -65,6 +67,13 @@ assert.deepEqual(
   [
     "packages/contracts/src/capacity.test.ts",
     "packages/contracts/src/identity-access.test.ts",
+  ],
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["apps/web/src/modules/identity-access/provider-operation-repository.ts"],
+  [
+    "apps/web/src/modules/identity-access/repository.integration.test.ts",
+    "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts",
   ],
 );
 assert.ok(
@@ -149,17 +158,99 @@ assert.equal(
   }, (path) => path === "src/capacity.ts").reason,
   "new-relative-export-star",
 );
+assert.deepEqual(
+  classifyVerificationOnlyHunk({
+    source: "packages/connectors/src/index.ts",
+    oldContents: [
+      'export * from "./contracts";',
+      'export * from "./dispatch";',
+      'export * from "./action-planner";',
+      "",
+    ].join("\n"),
+    newContents: [
+      'export * from "./contracts.js";',
+      'export * from "./dispatch.js";',
+      'export * from "./action-planner.js";',
+      "",
+    ].join("\n"),
+    oldStart: 1,
+    oldLines: [
+      'export * from "./contracts";',
+      'export * from "./dispatch";',
+      'export * from "./action-planner";',
+    ],
+    newStart: 1,
+    newLines: [
+      'export * from "./contracts.js";',
+      'export * from "./dispatch.js";',
+      'export * from "./action-planner.js";',
+    ],
+  }, (path) => new Set([
+    "packages/connectors/src/contracts.ts",
+    "packages/connectors/src/dispatch.ts",
+    "packages/connectors/src/action-planner.ts",
+  ]).has(path)),
+  {
+    newFingerprint: "b5cbd2b0944982456145e53ad45bf1f989e83441639f5ad47bd0dd780809bdcf",
+    oldFingerprint: "fa0ea713423d119b4eacb83081ba04ba7f03a1b9c104b019a171b2a41eb89956",
+    range: "packages/connectors/src/index.ts:1-3",
+    reason: "relative-export-stars-append-js",
+    resolvedTarget: [
+      "packages/connectors/src/contracts.ts",
+      "packages/connectors/src/dispatch.ts",
+      "packages/connectors/src/action-planner.ts",
+    ],
+  },
+);
 assert.throws(
   () => classifyVerificationOnlyHunk({
     ...importChange,
     newContents: 'import { changedBinding } from "./value.js";\n',
     newLines: ['import { changedBinding } from "./value.js";'],
   }, (path) => path === "src/value.ts"),
-  /must solely append \.js/,
+  /must solely insert \.js/,
+);
+assert.throws(
+  () => classifyVerificationOnlyHunk({
+    ...importChange,
+    oldContents: "import { value } from './value';\n",
+    newContents: 'import { value } from "./value.js";\n',
+    oldLines: ["import { value } from './value';"],
+    newLines: ['import { value } from "./value.js";'],
+  }, (path) => path === "src/value.ts"),
+  /unchanged closing quote/,
+);
+assert.throws(
+  () => classifyVerificationOnlyHunk({
+    ...importChange,
+    newContents: 'import { value } from "./value.mjs";\n',
+    newLines: ['import { value } from "./value.mjs";'],
+  }, (path) => path === "src/value.ts"),
+  /solely insert \.js/,
 );
 assert.throws(
   () => classifyVerificationOnlyHunk(importChange, () => false),
   /resolves 0 targets/,
+);
+assert.throws(
+  () => classifyVerificationOnlyHunk({
+    ...importChange,
+    oldContents: 'import data from "./value" with { type: "json" };\n',
+    newContents: 'import data from "./value.js" with { type: "json" };\n',
+    oldLines: ['import data from "./value" with { type: "json" };'],
+    newLines: ['import data from "./value.js" with { type: "json" };'],
+  }, (path) => path === "src/value.ts"),
+  /cannot use attributes or assertions/,
+);
+assert.throws(
+  () => classifyVerificationOnlyHunk({
+    ...importChange,
+    oldContents: 'import { value } from "../outside";\n',
+    newContents: 'import { value } from "../outside.js";\n',
+    oldLines: ['import { value } from "../outside";'],
+    newLines: ['import { value } from "../outside.js";'],
+  }, (path) => path === "outside.ts"),
+  /escapes its package/,
 );
 assert.throws(
   () => classifyVerificationOnlyHunk(importChange, () => true),
@@ -213,12 +304,79 @@ assert.throws(
   /nonzero mutation shard nonzero cannot downgrade/,
 );
 assert.equal(downgradeClassifierCalls, 0);
+const identityConfig = '{"mutate":["src/a.ts:2-3"]}\n';
+const identityShard = {
+  configHash: "158bf6b7b7025c2ac096b0a0b3babc3cdb188a2fbec24a6372c9f4b90386d07a",
+  configPath: ".tmp/shard.json",
+  contentHashes: {
+    "src/a.ts": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+  },
+  id: "identity",
+  jsonReportPath: "reports/identity-run.json",
+  mutate: ["src/a.ts:2-3"],
+  sources: ["src/a.ts"],
+};
+const identityReport = {
+  config: {
+    configFile: identityShard.configPath,
+    jsonReporter: { fileName: identityShard.jsonReportPath },
+    mutate: identityShard.mutate,
+  },
+  files: {
+    "src/a.ts": {
+      mutants: [{ location: { start: { line: 2 }, end: { line: 3 } } }],
+      source: "hello world",
+    },
+  },
+};
+assert.equal(
+  validateMutationReportIdentity(identityReport, identityShard, identityConfig, () => "hello world"),
+  true,
+);
+assert.throws(
+  () => validateMutationReportIdentity(
+    { ...identityReport, config: { ...identityReport.config, mutate: ["src/a.ts:1-9"] } },
+    identityShard,
+    identityConfig,
+    () => "hello world",
+  ),
+  /config identity mismatch/,
+);
+assert.throws(
+  () => validateMutationReportIdentity({
+    ...identityReport,
+    files: {
+      "src/a.ts": {
+        mutants: [{ location: { start: { line: 4 }, end: { line: 4 } } }],
+        source: "hello world",
+      },
+    },
+  }, identityShard, identityConfig, () => "hello world"),
+  /outside requested ranges/,
+);
+assert.throws(
+  () => validateMutationReportIdentity({
+    ...identityReport,
+    files: {
+      "src/wrong.ts": {
+        mutants: [{ location: { start: { line: 2 }, end: { line: 2 } } }],
+        source: "hello world",
+      },
+    },
+  }, identityShard, identityConfig, () => "hello world"),
+  /source identity mismatch/,
+);
+assert.throws(
+  () => validateMutationReportIdentity(identityReport, identityShard, identityConfig, () => "wrong"),
+  /source content hash mismatch/,
+);
 const connectorVerification = verificationCommandsForSources(
   ["packages/connectors/src/action-planner.ts"],
   ["packages/connectors/src/action-planner.test.ts"],
 );
 assert.match(connectorVerification[2][1][2], /ERR_MODULE_NOT_FOUND/);
-assert.match(connectorVerification[2][1][2], /dist\/module-wiring\/action-planner\.js/);
+assert.match(connectorVerification[2][1][2], /index\.js/);
+assert.match(connectorVerification[2][1][2], /public exports differ from exact module union/);
 const contractsVerification = verificationCommandsForSources(
   ["packages/contracts/src/index.ts"],
   ["packages/contracts/src/capacity.test.ts"],
@@ -227,7 +385,23 @@ assert.deepEqual(contractsVerification[0], [
   "pnpm",
   ["--filter", "@smp/contracts", "build"],
 ]);
+assert.match(contractsVerification[1][1][2], /negative control did not fail/);
 assert.ok(contractsVerification.at(-1)[1].includes("packages/contracts/src/capacity.test.ts"));
+assert.equal(
+  verifyContractsBarrelSource(
+    'export * from "./capacity";\n',
+    (path) => path === "packages/contracts/src/capacity.ts",
+  ),
+  "packages/contracts/src/capacity.ts",
+);
+assert.throws(
+  () => verifyContractsBarrelSource("", () => true),
+  /exactly one capacity export; found 0/,
+);
+assert.throws(
+  () => verifyContractsBarrelSource('export * from "./wrong";\n', () => true),
+  /exactly one capacity export; found 0/,
+);
 assert.deepEqual(
   requireRoutedTestFiles(
     ["src/story.test.ts", "src/entry.ts"],
@@ -264,6 +438,7 @@ let generatedStatic;
 let manifest;
 let manifestText;
 let configs;
+let fixtureBase;
 try {
   execFileSync("git", ["init", "--quiet"], { cwd: fixtureRoot });
   execFileSync("git", ["config", "user.email", "mutation-scope@example.invalid"], { cwd: fixtureRoot });
@@ -294,6 +469,7 @@ try {
     cwd: fixtureRoot,
     encoding: "utf8",
   }).trim();
+  fixtureBase = base;
   writeFixture(source, [
     "export const first = 1;",
     "export const second = 20;",
@@ -370,6 +546,9 @@ assert.deepEqual(generated.mutate, [
   `${source}:5-5`,
 ]);
 assert.equal(manifest.shards.length, 3);
+assert.equal(manifest.base, fixtureBase);
+assert.match(manifest.head, /^[0-9a-f]{40}$/);
+assert.match(manifest.worktreeHash, /^[0-9a-f]{64}$/);
 for (const [index, shard] of manifest.shards.entries()) {
   const config = configs[index];
   assert.equal(config.coverageAnalysis, "off");
@@ -378,6 +557,17 @@ for (const [index, shard] of manifest.shards.entries()) {
   assert.equal(config.thresholds.high, 80);
   assert.equal(config.thresholds.break, 80);
   assert.deepEqual(config.mutate, shard.mutate);
+  assert.equal(shard.classification, "pending");
+  assert.equal(shard.mutantCount, null);
+  assert.equal(shard.result, "pending");
+  assert.equal(shard.reportHash, null);
+  assert.match(shard.configHash, /^[0-9a-f]{64}$/);
+  assert.match(shard.provenance.runHash, /^[0-9a-f]{64}$/);
+  assert.ok(shard.jsonReportPath.includes(shard.provenance.runHash.slice(0, 12)));
+  assert.ok(shard.reportPath.includes(shard.provenance.runHash.slice(0, 12)));
+  assert.equal(shard.provenance.resolvedBase, fixtureBase);
+  assert.deepEqual(shard.provenance.toolVersions, manifest.toolVersions);
+  for (const source of shard.sources) assert.match(shard.contentHashes[source], /^[0-9a-f]{64}$/);
   assert.ok(config.reporters.includes("json"));
   assert.equal(config.jsonReporter.fileName, shard.jsonReportPath);
   if (shard.kind === "vitest") {

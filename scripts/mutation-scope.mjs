@@ -17,7 +17,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "../apps/web/node_modules/typescript/lib/typescript.js";
 
@@ -246,6 +246,13 @@ function parseModule(source, contents) {
   return parsed;
 }
 
+function sourcePackageRoot(source) {
+  const segments = source.split("/");
+  return segments[0] === "packages" || segments[0] === "apps"
+    ? join(segments[0], segments[1])
+    : segments[0];
+}
+
 function relativeModuleTarget(source, specifier, fileExists) {
   if (!specifier.startsWith("./") && !specifier.startsWith("../")) {
     throw new Error(`verification-only module specifier is not relative: ${specifier}`);
@@ -261,6 +268,15 @@ function relativeModuleTarget(source, specifier, fileExists) {
     throw new Error(
       `verification-only module specifier resolves ${candidates.length} targets: ${specifier}`,
     );
+  }
+  const repositoryRoot = resolve(".");
+  const packageRoot = resolve(sourcePackageRoot(source));
+  const resolvedCandidate = resolve(candidates[0]);
+  if (
+    relative(repositoryRoot, resolvedCandidate).startsWith(`..${sep}`) ||
+    relative(packageRoot, resolvedCandidate).startsWith(`..${sep}`)
+  ) {
+    throw new Error(`verification-only module target escapes its package: ${specifier}`);
   }
   return candidates[0];
 }
@@ -285,8 +301,89 @@ function declarationOnLine(parsed, lineNumber, predicate) {
   return matches[0];
 }
 
+function assertNoImportAttributes(node) {
+  if (node.attributes || node.assertClause) {
+    throw new Error("verification-only module declaration cannot use attributes or assertions");
+  }
+}
+
+function assertRawJsAppend(oldNode, newNode, oldParsed, newParsed, oldLine, newLine) {
+  assertNoImportAttributes(oldNode);
+  assertNoImportAttributes(newNode);
+  const oldToken = oldNode.moduleSpecifier.getText(oldParsed);
+  const newToken = newNode.moduleSpecifier.getText(newParsed);
+  if (
+    oldToken.length < 3 ||
+    newToken !== `${oldToken.slice(0, -1)}.js${oldToken.slice(-1)}` ||
+    oldLine.replace(oldToken, "<module>") !== newLine.replace(newToken, "<module>")
+  ) {
+    throw new Error("verification-only module edit must solely insert .js before the unchanged closing quote");
+  }
+  return newNode.moduleSpecifier.text;
+}
+
 function fingerprint(lines) {
   return createHash("sha256").update(lines.join("\n")).digest("hex");
+}
+
+function contentHash(contents) {
+  return createHash("sha256").update(contents).digest("hex");
+}
+
+function rangeParts(target) {
+  const match = /^(.*):(\d+)-(\d+)$/.exec(target);
+  if (!match) throw new Error(`invalid mutation range: ${target}`);
+  return { source: match[1], start: Number(match[2]), end: Number(match[3]) };
+}
+
+export function validateMutationReportIdentity(
+  report,
+  shard,
+  actualConfigText,
+  sourceContents,
+) {
+  if (contentHash(actualConfigText) !== shard.configHash) {
+    throw new Error(`mutation config hash mismatch: ${shard.id}`);
+  }
+  for (const [source, expectedHash] of Object.entries(shard.contentHashes)) {
+    if (contentHash(sourceContents(source)) !== expectedHash) {
+      throw new Error(`mutation source content hash mismatch: ${source}`);
+    }
+  }
+  if (
+    JSON.stringify(report?.config?.mutate) !== JSON.stringify(shard.mutate) ||
+    report?.config?.configFile !== shard.configPath ||
+    report?.config?.jsonReporter?.fileName !== shard.jsonReportPath
+  ) {
+    throw new Error(`mutation report config identity mismatch: ${shard.id}`);
+  }
+  const ranges = shard.mutate.map(rangeParts);
+  const reportedSources = Object.keys(report?.files ?? {}).sort();
+  const reportMutants = mutationReportMutants(report);
+  if (
+    reportMutants.length > 0 &&
+    JSON.stringify(reportedSources) !== JSON.stringify([...shard.sources].sort())
+  ) {
+    throw new Error(`mutation report source identity mismatch: ${shard.id}`);
+  }
+  for (const [source, file] of Object.entries(report?.files ?? {})) {
+    if (!shard.sources.includes(source)) {
+      throw new Error(`mutation report contains unexpected source: ${source}`);
+    }
+    if (typeof file?.source !== "string" || contentHash(file.source) !== shard.contentHashes[source]) {
+      throw new Error(`mutation report embedded source hash mismatch: ${source}`);
+    }
+    for (const mutant of file?.mutants ?? []) {
+      const start = mutant.location?.start?.line;
+      const end = mutant.location?.end?.line;
+      if (!ranges.some((range) =>
+        range.source === source && Number.isInteger(start) && Number.isInteger(end) &&
+        start >= range.start && end <= range.end)) {
+        throw new Error(`mutation report mutant is outside requested ranges: ${source}`);
+      }
+    }
+  }
+  return true;
 }
 
 /** Classify only the two AST shapes that are inherently non-mutatable:
@@ -306,18 +403,29 @@ export function classifyVerificationOnlyHunk(change, fileExists = existsSync) {
   if (oldLines.length === 1 && newLines.length === 1) {
     const oldNode = declarationOnLine(oldParsed, oldStart, ts.isImportDeclaration);
     const newNode = declarationOnLine(newParsed, newStart, ts.isImportDeclaration);
-    const oldSpecifier = oldNode.moduleSpecifier.text;
-    specifier = newNode.moduleSpecifier.text;
-    const oldToken = oldNode.moduleSpecifier.getText(oldParsed);
-    const newToken = newNode.moduleSpecifier.getText(newParsed);
-    if (
-      specifier !== `${oldSpecifier}.js` || oldSpecifier.endsWith(".js") ||
-      oldLines[0].replace(oldToken, "<module>") !==
-        newLines[0].replace(newToken, "<module>")
-    ) {
-      throw new Error("verification-only import must solely append .js to its module token");
-    }
+    specifier = assertRawJsAppend(
+      oldNode, newNode, oldParsed, newParsed, oldLines[0], newLines[0],
+    );
     reason = "relative-import-appends-js";
+  } else if (oldLines.length >= 1 && oldLines.length === newLines.length) {
+    const resolvedTargets = [];
+    for (let index = 0; index < oldLines.length; index += 1) {
+      const predicate = (candidate) => ts.isExportDeclaration(candidate) &&
+        candidate.exportClause === undefined && !candidate.isTypeOnly;
+      const oldNode = declarationOnLine(oldParsed, oldStart + index, predicate);
+      const newNode = declarationOnLine(newParsed, newStart + index, predicate);
+      const nextSpecifier = assertRawJsAppend(
+        oldNode, newNode, oldParsed, newParsed, oldLines[index], newLines[index],
+      );
+      resolvedTargets.push(relativeModuleTarget(source, nextSpecifier, fileExists));
+    }
+    return {
+      newFingerprint: fingerprint(newLines),
+      oldFingerprint: fingerprint(oldLines),
+      range: `${source}:${newStart}-${newStart + newLines.length - 1}`,
+      reason: "relative-export-stars-append-js",
+      resolvedTarget: resolvedTargets,
+    };
   } else if (oldLines.length === 0 && newLines.length === 1) {
     const node = declarationOnLine(
       newParsed,
@@ -325,6 +433,7 @@ export function classifyVerificationOnlyHunk(change, fileExists = existsSync) {
       (candidate) => ts.isExportDeclaration(candidate) &&
         candidate.exportClause === undefined && !candidate.isTypeOnly,
     );
+    assertNoImportAttributes(node);
     const exactNodeText = node.getText(newParsed);
     if (newLines[0].trim() !== exactNodeText) {
       throw new Error("verification-only re-export hunk must contain one exact export declaration");
@@ -424,20 +533,55 @@ export function verificationCommandsForSources(sources, testFiles) {
       "--declaration", "false", "--composite", "false",
     ]]);
     commands.push(["node", ["--input-type=module", "--eval", [
-      'const module = await import("./packages/connectors/dist/module-wiring/action-planner.js");',
-      'if (typeof module.planProvisioningAction !== "function") throw new Error("missing planner export");',
+      'const root = "./packages/connectors/dist/module-wiring/";',
+      'const publicApi = await import(`${root}index.js`);',
+      'const modules = await Promise.all(["contracts.js", "dispatch.js", "action-planner.js"].map((file) => import(`${root}${file}`)));',
+      'const expected = new Map(); for (const module of modules) for (const name of Object.keys(module)) {',
+      '  if (expected.has(name) && expected.get(name) !== module[name]) throw new Error(`conflicting connector export: ${name}`);',
+      '  expected.set(name, module[name]);',
+      '}',
+      'if (JSON.stringify(Object.keys(publicApi).sort()) !== JSON.stringify([...expected.keys()].sort()))',
+      '  throw new Error("connector public exports differ from exact module union");',
+      'for (const [name, value] of expected) if (publicApi[name] !== value) throw new Error(`connector export identity mismatch: ${name}`);',
       'try { await import("./packages/connectors/dist/module-wiring/contracts"); throw new Error("extensionless negative control resolved"); }',
       'catch (error) { if (error.code !== "ERR_MODULE_NOT_FOUND") throw error; }',
     ].join(" ")]]);
   }
   if (sources.some((source) => source.startsWith("packages/contracts/"))) {
     commands.push(["pnpm", ["--filter", "@smp/contracts", "build"]]);
+    commands.push(["node", ["--input-type=module", "--eval", [
+      'import { readFileSync } from "node:fs";',
+      'import { verifyContractsBarrelSource } from "./scripts/mutation-scope.mjs";',
+      'const source = readFileSync("packages/contracts/src/index.ts", "utf8");',
+      'verifyContractsBarrelSource(source);',
+      `for (const wrong of [source.replace('export * from "./capacity";\\n', ""),`,
+      `  source.replace('export * from "./capacity";', 'export * from "./wrong";')]) {`,
+      '  let rejected = false; try { verifyContractsBarrelSource(wrong); } catch { rejected = true; }',
+      '  if (!rejected) throw new Error("contracts barrel negative control did not fail");',
+      '}',
+    ].join(" ")]]);
   }
   commands.push([
     "./apps/web/node_modules/.bin/vitest",
     ["run", "--config", "vitest.mutation.config.mjs", ...testFiles],
   ]);
   return commands;
+}
+
+export function verifyContractsBarrelSource(
+  contents,
+  fileExists = existsSync,
+  source = "packages/contracts/src/index.ts",
+) {
+  const parsed = parseModule(source, contents);
+  const exports = moduleDeclarations(parsed).filter((node) =>
+    ts.isExportDeclaration(node) && node.exportClause === undefined &&
+    !node.isTypeOnly && node.moduleSpecifier.text === "./capacity");
+  if (exports.length !== 1) {
+    throw new Error(`contracts barrel must contain exactly one capacity export; found ${exports.length}`);
+  }
+  assertNoImportAttributes(exports[0]);
+  return relativeModuleTarget(source, "./capacity", fileExists);
 }
 
 function mutationTargets(base, sourceFiles) {
@@ -505,6 +649,10 @@ export const DIRECT_TEST_ROUTES = {
   ],
   "apps/web/src/modules/identity-access/actions/manage-users.ts": [
     "apps/web/src/components/users/users-roles-panel.test.tsx",
+    "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts",
+  ],
+  "apps/web/src/modules/identity-access/provider-operation-repository.ts": [
+    "apps/web/src/modules/identity-access/repository.integration.test.ts",
     "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts",
   ],
   "apps/web/src/modules/identity-access/server-authorization.ts": [
@@ -595,17 +743,29 @@ export function requireRoutedTestFiles(changed, mutate, fileExists = existsSync,
 }
 
 function main() {
-  const base = resolveBase();
-  const changed = changedFiles(base);
+  const baseRef = resolveBase();
+  const resolvedBase = mergeBaseFor(baseRef);
+  const head = git(["rev-parse", "HEAD"]);
+  const changed = changedFiles(baseRef);
   const changedSources = mutatable(changed);
-  const allMutate = mutationTargets(base, changedSources);
-  const allHunks = mutationHunks(base, changedSources);
+  const allMutate = mutationTargets(baseRef, changedSources);
+  const allHunks = mutationHunks(baseRef, changedSources);
+  const worktreeHash = contentHash(changed.map((path) =>
+    `${path}\0${existsSync(path) ? readFileSync(path, "utf8") : "<deleted>"}`).join("\0"));
+  const toolVersions = {
+    node: process.version,
+    stryker: JSON.parse(readFileSync(
+      new URL("../node_modules/@stryker-mutator/core/package.json", import.meta.url),
+      "utf8",
+    )).version,
+    typescript: ts.version,
+  };
   const schemaStaticMutate = allMutate.filter((target) =>
     target.replace(/:\d+-\d+$/, "") === SCHEMA_STATIC_SOURCE);
   const routedMutate = allMutate.filter((target) => !schemaStaticMutate.includes(target));
 
   console.log(
-    `mutation-scope: base=${base} changed=${changed.length} ` +
+    `mutation-scope: base=${resolvedBase} changed=${changed.length} ` +
       `mutatable=${mutationSourceFiles(allMutate).length} ranges=${allMutate.length} ` +
       `schemaStaticRanges=${schemaStaticMutate.length}`,
   );
@@ -661,8 +821,15 @@ function main() {
     const id = `${spec.kind}-${digest}`;
     const configPath = join(GENERATED_SHARD_DIR, `${id}.json`);
     const tempDirName = join(".tmp", `stryker-${id}`);
-    const reportPath = join("reports", "mutation", `${id}.html`);
-    const jsonReportPath = join("reports", "mutation", `${id}.json`);
+    const contentHashes = Object.fromEntries(
+      spec.sources.map((source) => [source, contentHash(readFileSync(source, "utf8"))]),
+    );
+    const runHash = contentHash(JSON.stringify({
+      contentHashes, head, id, mutate: spec.mutate, resolvedBase,
+      testFiles: spec.testFiles, worktreeHash,
+    }));
+    const reportPath = join("reports", "mutation", `${id}-${runHash.slice(0, 12)}.html`);
+    const jsonReportPath = join("reports", "mutation", `${id}-${runHash.slice(0, 12)}.json`);
     const common = {
       ...sharedBaseConf,
       mutate: spec.mutate,
@@ -698,14 +865,29 @@ function main() {
           },
           testFiles: spec.testFiles,
         };
+    const configText = `${JSON.stringify(config, null, 2)}\n`;
     return {
+      classification: "pending",
       config,
+      configHash: contentHash(configText),
       configPath,
+      configText,
+      contentHashes,
       id,
       kind: spec.kind,
       jsonReportPath,
+      mutantCount: null,
       mutate: spec.mutate,
+      provenance: {
+        head,
+        resolvedBase,
+        runHash,
+        toolVersions,
+        worktreeHash,
+      },
+      reportHash: null,
       reportPath,
+      result: "pending",
       sources: spec.sources,
       tempDirName,
       testFiles: spec.testFiles,
@@ -714,11 +896,19 @@ function main() {
 
   mkdirSync(GENERATED_SHARD_DIR, { recursive: true });
   for (const shard of shards) {
-    writeFileSync(shard.configPath, `${JSON.stringify(shard.config, null, 2)}\n`, "utf8");
+    writeFileSync(shard.configPath, shard.configText, "utf8");
   }
+  const manifestFor = () => ({
+    base: resolvedBase,
+    baseRef,
+    head,
+    shards: shards.map(({ config, configText, ...shard }) => shard),
+    toolVersions,
+    worktreeHash,
+  });
   writeFileSync(
     GENERATED_MANIFEST,
-    `${JSON.stringify({ base, shards: shards.map(({ config, ...shard }) => shard) }, null, 2)}\n`,
+    `${JSON.stringify(manifestFor(), null, 2)}\n`,
     "utf8",
   );
   console.log(`mutation-scope: wrote ${shards.length} shards + ${GENERATED_MANIFEST}`);
@@ -732,12 +922,21 @@ function main() {
     for (const shard of shards) {
       console.log(`mutation-scope: running ${shard.id} (${shard.mutate.length} ranges)`);
       rmSync(shard.jsonReportPath, { force: true });
+      rmSync(shard.reportPath, { force: true });
       const startedAt = Date.now();
       const result = spawnSync(
         "pnpm", ["exec", "stryker", "run", shard.configPath], { stdio: "inherit" },
       );
       const report = readFreshMutationReport(shard.jsonReportPath, startedAt);
+      validateMutationReportIdentity(
+        report,
+        shard,
+        readFileSync(shard.configPath, "utf8"),
+        (source) => readFileSync(source, "utf8"),
+      );
       const mutants = mutationReportMutants(report);
+      shard.mutantCount = mutants.length;
+      shard.reportHash = contentHash(readFileSync(shard.jsonReportPath));
       if (mutants.length === 0) {
         if (result.status !== 0) {
           throw new Error(`zero-mutant shard ${shard.id} exited ${result.status}`);
@@ -748,27 +947,24 @@ function main() {
         const audits = verificationAuditsForReport(report, shard, allHunks);
         const commands = verificationCommandsForSources(shard.sources, shard.testFiles);
         runVerificationCommands(commands);
+        shard.classification = "verification-only";
         shard.result = {
           audits,
           commands: commands.map(([command, args]) => [command, ...args]),
-          classification: "verification-only",
-          mutantCount: 0,
           tests: shard.testFiles,
-          toolVersions: {
-            node: process.version,
-            stryker: execFileSync("pnpm", ["exec", "stryker", "--version"], { encoding: "utf8" }).trim(),
-            typescript: ts.version,
-          },
         };
         writeFileSync(
           GENERATED_MANIFEST,
-          `${JSON.stringify({ base, shards: shards.map(({ config, ...entry }) => entry) }, null, 2)}\n`,
+          `${JSON.stringify(manifestFor(), null, 2)}\n`,
           "utf8",
         );
         console.log(`mutation-scope: verified non-mutatable module wiring ${shard.id}`);
         continue;
       }
       requireNonzeroMutationReport(report, shard.id);
+      shard.classification = "scored";
+      shard.result = result.status === 0 ? "passed" : "failed";
+      writeFileSync(GENERATED_MANIFEST, `${JSON.stringify(manifestFor(), null, 2)}\n`, "utf8");
       if (result.status !== 0) process.exit(result.status ?? 1);
     }
   } catch (err) {
