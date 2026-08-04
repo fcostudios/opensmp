@@ -16,7 +16,7 @@
 //   MUTATION_SCOPE_DRY=1  write + print the generated config, do NOT run Stryker
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "../apps/web/node_modules/typescript/lib/typescript.js";
@@ -269,9 +269,10 @@ function relativeModuleTarget(source, specifier, fileExists) {
       `verification-only module specifier resolves ${candidates.length} targets: ${specifier}`,
     );
   }
-  const repositoryRoot = resolve(".");
-  const packageRoot = resolve(sourcePackageRoot(source));
-  const resolvedCandidate = resolve(candidates[0]);
+  const canonicalize = fileExists === existsSync ? realpathSync : resolve;
+  const repositoryRoot = canonicalize(resolve("."));
+  const packageRoot = canonicalize(resolve(sourcePackageRoot(source)));
+  const resolvedCandidate = canonicalize(resolve(candidates[0]));
   if (
     relative(repositoryRoot, resolvedCandidate).startsWith(`..${sep}`) ||
     relative(packageRoot, resolvedCandidate).startsWith(`..${sep}`)
@@ -426,20 +427,29 @@ export function classifyVerificationOnlyHunk(change, fileExists = existsSync) {
       reason: "relative-export-stars-append-js",
       resolvedTarget: resolvedTargets,
     };
-  } else if (oldLines.length === 0 && newLines.length === 1) {
-    const node = declarationOnLine(
-      newParsed,
-      newStart,
-      (candidate) => ts.isExportDeclaration(candidate) &&
-        candidate.exportClause === undefined && !candidate.isTypeOnly,
-    );
-    assertNoImportAttributes(node);
-    const exactNodeText = node.getText(newParsed);
-    if (newLines[0].trim() !== exactNodeText) {
-      throw new Error("verification-only re-export hunk must contain one exact export declaration");
+  } else if (oldLines.length === 0 && newLines.length >= 1) {
+    const resolvedTargets = [];
+    for (let index = 0; index < newLines.length; index += 1) {
+      const node = declarationOnLine(
+        newParsed,
+        newStart + index,
+        (candidate) => ts.isExportDeclaration(candidate) &&
+          candidate.exportClause === undefined && !candidate.isTypeOnly,
+      );
+      assertNoImportAttributes(node);
+      const exactNodeText = node.getText(newParsed);
+      if (newLines[index].trim() !== exactNodeText) {
+        throw new Error("verification-only re-export hunk must contain only exact export declarations");
+      }
+      resolvedTargets.push(relativeModuleTarget(source, node.moduleSpecifier.text, fileExists));
     }
-    specifier = node.moduleSpecifier.text;
-    reason = "new-relative-export-star";
+    return {
+      newFingerprint: fingerprint(newLines),
+      oldFingerprint: fingerprint(oldLines),
+      range: `${source}:${newStart}-${newStart + newLines.length - 1}`,
+      reason: "new-relative-export-stars",
+      resolvedTarget: resolvedTargets,
+    };
   } else {
     throw new Error("verification-only hunk is mixed or spans unsupported lines");
   }
@@ -554,10 +564,12 @@ export function verificationCommandsForSources(sources, testFiles) {
       'import { verifyContractsBarrelSource } from "./scripts/mutation-scope.mjs";',
       'const source = readFileSync("packages/contracts/src/index.ts", "utf8");',
       'verifyContractsBarrelSource(source);',
-      `for (const wrong of [source.replace('export * from "./capacity";\\n', ""),`,
-      `  source.replace('export * from "./capacity";', 'export * from "./wrong";')]) {`,
-      '  let rejected = false; try { verifyContractsBarrelSource(wrong); } catch { rejected = true; }',
-      '  if (!rejected) throw new Error("contracts barrel negative control did not fail");',
+      'for (const name of ["capacity", "identity-access"]) {',
+      '  const declaration = `export * from "./${name}";`;',
+      '  for (const wrong of [source.replace(`${declaration}\\n`, ""), source.replace(declaration, `export * from "./wrong-${name}";`)]) {',
+      '    let rejected = false; try { verifyContractsBarrelSource(wrong); } catch { rejected = true; }',
+      '    if (!rejected) throw new Error(`contracts barrel negative control did not fail: ${name}`);',
+      '  }',
       '}',
     ].join(" ")]]);
   }
@@ -574,14 +586,21 @@ export function verifyContractsBarrelSource(
   source = "packages/contracts/src/index.ts",
 ) {
   const parsed = parseModule(source, contents);
-  const exports = moduleDeclarations(parsed).filter((node) =>
-    ts.isExportDeclaration(node) && node.exportClause === undefined &&
-    !node.isTypeOnly && node.moduleSpecifier.text === "./capacity");
-  if (exports.length !== 1) {
-    throw new Error(`contracts barrel must contain exactly one capacity export; found ${exports.length}`);
+  const expected = ["./capacity", "./identity-access"];
+  const resolved = [];
+  for (const specifier of expected) {
+    const exports = moduleDeclarations(parsed).filter((node) =>
+      ts.isExportDeclaration(node) && node.exportClause === undefined &&
+      !node.isTypeOnly && node.moduleSpecifier.text === specifier);
+    if (exports.length !== 1) {
+      throw new Error(
+        `contracts barrel must contain exactly one ${specifier} export; found ${exports.length}`,
+      );
+    }
+    assertNoImportAttributes(exports[0]);
+    resolved.push(relativeModuleTarget(source, specifier, fileExists));
   }
-  assertNoImportAttributes(exports[0]);
-  return relativeModuleTarget(source, "./capacity", fileExists);
+  return resolved;
 }
 
 function mutationTargets(base, sourceFiles) {

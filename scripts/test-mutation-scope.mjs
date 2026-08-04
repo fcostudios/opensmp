@@ -6,10 +6,11 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   DIRECT_TEST_ROUTES,
@@ -36,6 +37,18 @@ assert.deepEqual(
     "packages/db/src/schema-parity.test.ts",
   ]),
   ["apps/web/src/modules/vendor-catalog/actions/manage-capacity.test.ts"],
+);
+assert.throws(
+  () => classifyVerificationOnlyHunk({
+    source: "src/index.ts",
+    oldContents: "",
+    newContents: 'export * from "./capacity";\nexport const mixed = true;\n',
+    oldStart: 1,
+    oldLines: [],
+    newStart: 1,
+    newLines: ['export * from "./capacity";', "export const mixed = true;"],
+  }, (path) => path === "src/capacity.ts"),
+  /exact module declarations/,
 );
 
 assert.deepEqual(
@@ -146,7 +159,7 @@ assert.deepEqual(
     resolvedTarget: "src/value.ts",
   },
 );
-assert.equal(
+assert.deepEqual(
   classifyVerificationOnlyHunk({
     source: "src/index.ts",
     oldContents: "",
@@ -155,8 +168,39 @@ assert.equal(
     oldLines: [],
     newStart: 1,
     newLines: ['export * from "./capacity";'],
-  }, (path) => path === "src/capacity.ts").reason,
-  "new-relative-export-star",
+  }, (path) => path === "src/capacity.ts"),
+  {
+    newFingerprint: "e44b2298ad9cbc536267c4f743fcf3f0fe02216818a8f15b88155de78179ddf3",
+    oldFingerprint: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    range: "src/index.ts:1-1",
+    reason: "new-relative-export-stars",
+    resolvedTarget: ["src/capacity.ts"],
+  },
+);
+assert.deepEqual(
+  classifyVerificationOnlyHunk({
+    source: "packages/contracts/src/index.ts",
+    oldContents: "",
+    newContents: [
+      'export * from "./capacity";',
+      'export * from "./identity-access";',
+      "",
+    ].join("\n"),
+    oldStart: 1,
+    oldLines: [],
+    newStart: 1,
+    newLines: [
+      'export * from "./capacity";',
+      'export * from "./identity-access";',
+    ],
+  }, (path) => new Set([
+    "packages/contracts/src/capacity.ts",
+    "packages/contracts/src/identity-access.ts",
+  ]).has(path)).resolvedTarget,
+  [
+    "packages/contracts/src/capacity.ts",
+    "packages/contracts/src/identity-access.ts",
+  ],
 );
 assert.deepEqual(
   classifyVerificationOnlyHunk({
@@ -252,6 +296,28 @@ assert.throws(
   }, (path) => path === "outside.ts"),
   /escapes its package/,
 );
+const symlinkPackage = mkdtempSync(join(process.cwd(), "packages/contracts/.mutation-symlink-"));
+const symlinkOutside = mkdtempSync(join(tmpdir(), "smp-mutation-symlink-outside-"));
+try {
+  writeFileSync(join(symlinkOutside, "target.ts"), "export const value = 1;\n", "utf8");
+  symlinkSync(join(symlinkOutside, "target.ts"), join(symlinkPackage, "linked.ts"));
+  const symlinkSource = relative(process.cwd(), join(symlinkPackage, "index.ts"));
+  assert.throws(
+    () => classifyVerificationOnlyHunk({
+      source: symlinkSource,
+      oldContents: 'import { value } from "./linked";\n',
+      newContents: 'import { value } from "./linked.js";\n',
+      oldStart: 1,
+      oldLines: ['import { value } from "./linked";'],
+      newStart: 1,
+      newLines: ['import { value } from "./linked.js";'],
+    }),
+    /escapes its package/,
+  );
+} finally {
+  rmSync(symlinkPackage, { force: true, recursive: true });
+  rmSync(symlinkOutside, { force: true, recursive: true });
+}
 assert.throws(
   () => classifyVerificationOnlyHunk(importChange, () => true),
   /resolves 4 targets/,
@@ -388,19 +454,26 @@ assert.deepEqual(contractsVerification[0], [
 assert.match(contractsVerification[1][1][2], /negative control did not fail/);
 assert.ok(contractsVerification.at(-1)[1].includes("packages/contracts/src/capacity.test.ts"));
 assert.equal(
-  verifyContractsBarrelSource(
-    'export * from "./capacity";\n',
-    (path) => path === "packages/contracts/src/capacity.ts",
-  ),
-  "packages/contracts/src/capacity.ts",
+  verifyContractsBarrelSource([
+    'export * from "./capacity";',
+    'export * from "./identity-access";',
+    "",
+  ].join("\n"), (path) => new Set([
+    "packages/contracts/src/capacity.ts",
+    "packages/contracts/src/identity-access.ts",
+  ]).has(path)).length,
+  2,
 );
 assert.throws(
   () => verifyContractsBarrelSource("", () => true),
-  /exactly one capacity export; found 0/,
+  /exactly one \.\/capacity export; found 0/,
 );
 assert.throws(
-  () => verifyContractsBarrelSource('export * from "./wrong";\n', () => true),
-  /exactly one capacity export; found 0/,
+  () => verifyContractsBarrelSource(
+    'export * from "./capacity";\n',
+    (path) => path === "packages/contracts/src/capacity.ts",
+  ),
+  /exactly one \.\/identity-access export; found 0/,
 );
 assert.deepEqual(
   requireRoutedTestFiles(

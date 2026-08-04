@@ -7,6 +7,13 @@ import {
   removeCompanyRoleInputSchema,
   resetTwoFactorInputSchema,
 } from "./identity-access";
+import {
+  createUserAccountInputSchema as publicCreateUserAccountInputSchema,
+  disableUserAccountInputSchema as publicDisableUserAccountInputSchema,
+  grantCompanyRoleInputSchema as publicGrantCompanyRoleInputSchema,
+  removeCompanyRoleInputSchema as publicRemoveCompanyRoleInputSchema,
+  resetTwoFactorInputSchema as publicResetTwoFactorInputSchema,
+} from "./index";
 
 const userAccountId = "00000000-0000-0000-0000-000000000101";
 const companyId = "00000000-0000-0000-0000-000000000102";
@@ -14,6 +21,17 @@ const roleAssignmentId = "00000000-0000-0000-0000-000000000103";
 const personId = "00000000-0000-0000-0000-000000000104";
 
 describe("identity-access privileged command contracts", () => {
+  test("publishes the exact identity-access contracts from the public barrel", () => {
+    expect(publicCreateUserAccountInputSchema).toBe(createUserAccountInputSchema);
+    expect(publicDisableUserAccountInputSchema).toBe(disableUserAccountInputSchema);
+    expect(publicGrantCompanyRoleInputSchema).toBe(grantCompanyRoleInputSchema);
+    expect(publicRemoveCompanyRoleInputSchema).toBe(removeCompanyRoleInputSchema);
+    expect(publicResetTwoFactorInputSchema).toBe(resetTwoFactorInputSchema);
+    expect(publicDisableUserAccountInputSchema.safeParse({ note: "valid" }).success).toBe(
+      false,
+    );
+  });
+
   test.each([
     [
       "create user",
