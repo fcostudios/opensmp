@@ -10,7 +10,10 @@ import {
 
 import { createAuthorizationRepository } from "../../identity-access/authorization";
 import { createCapacityServerActions } from "./manage-capacity";
-import { createManageCapacityActions } from "./manage-capacity-operations";
+import {
+  actionInput,
+  createManageCapacityActions,
+} from "./manage-capacity-operations";
 
 const id = (suffix: string) =>
   `23200000-0000-4000-8000-${suffix.padStart(12, "0")}`;
@@ -49,6 +52,32 @@ afterAll(async () => {
 });
 
 describe("US-023 capacity server actions", () => {
+  it("preserves object commands and parses every FormData field with a trimmed optional note", () => {
+    const command = {
+      effectiveFrom: "2026-08-18",
+      licenseTypeId: id("4"),
+      purchasedQty: 11,
+      reason: "purchase" as const,
+      vendorAccountId: id("3"),
+    };
+    expect(actionInput(command, "purchase")).toBe(command);
+
+    const input = new FormData();
+    input.set("effectiveFrom", "2026-08-19");
+    input.set("licenseTypeId", id("4"));
+    input.set("note", "  procurement approval  ");
+    input.set("purchasedQty", "12");
+    input.set("vendorAccountId", id("3"));
+    expect(actionInput(input, "correction")).toEqual({
+      effectiveFrom: "2026-08-19",
+      licenseTypeId: id("4"),
+      note: "procurement approval",
+      purchasedQty: 12,
+      reason: "correction",
+      vendorAccountId: id("3"),
+    });
+  });
+
   it("parses FormData reasons, authorizes, audits, and revalidates both views", async () => {
     const database = drizzle(pool, { schema });
     const authorizationRepository = createAuthorizationRepository(database);
