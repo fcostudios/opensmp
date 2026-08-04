@@ -302,10 +302,12 @@ describe("US-042 alert evaluation worker", () => {
   }, 30_000);
 
   it("ages from the latest transition and rejects company low-pool rules on shared demand", async () => {
+    const recipients: string[][] = [];
     const smtp = new SMTPServer({
       authOptional: true,
       disabledCommands: ["AUTH", "STARTTLS"],
-      onData(stream, _session, callback) {
+      onData(stream, session, callback) {
+        recipients.push(session.envelope.rcptTo.map(({ address }) => address));
         stream.on("data", () => undefined);
         stream.on("end", callback);
       },
@@ -329,6 +331,13 @@ describe("US-042 alert evaluation worker", () => {
       request: "00000000-0000-4000-8000-000000004279",
       vendorPoolRule: "00000000-0000-4000-8000-000000004290",
     };
+    await ownerQuery(
+      `INSERT INTO user_account
+         (id,email,idp_subject,global_role,ui_language,status,created_at)
+       VALUES ('00000000-0000-4000-8000-000000004271',
+               'active-group-admin-042@example.com','active-group-admin-042',
+               'group_admin','en','active',now())`,
+    );
     await ownerQuery(
       `INSERT INTO company (id, name, code, type, status, created_at, created_by)
        VALUES
@@ -413,6 +422,7 @@ describe("US-042 alert evaluation worker", () => {
       [ids.provisioningAction, ids.request],
     );
     const job = createAlertEvaluationJob({
+      calendar: { holidays: new Set(["2026-08-03"]) },
       connectionString: fixture.appUrl,
       mailer: createSmtpMailer(`smtp://127.0.0.1:${address.port}`),
       workerId: "worker-facts-042",
@@ -465,6 +475,7 @@ describe("US-042 alert evaluation worker", () => {
       await expect(job.run(new Date("2026-08-07T15:07:00Z"))).resolves.toMatchObject({
         status: "succeeded",
       });
+      expect(recipients).toContainEqual(["active-group-admin-042@example.com"]);
       const owner = await fixture.connectAsOwner();
       try {
         await expect(

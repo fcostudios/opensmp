@@ -145,11 +145,12 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
 
       const queues = await queryAsOwner<{ name: string; partition: boolean }>(
         "SELECT name, partition FROM pgboss.queue WHERE name = ANY($1) ORDER BY name",
-        [["analytics-sync", "member-sync", "invite-poll", "alert-evaluation", "close-precheck"]],
+        [["analytics-sync", "member-sync", "invite-poll", "alert-evaluation", "close-precheck", "capacity-recovery"]],
       );
       expect(queues.rows).toEqual([
         { name: "alert-evaluation", partition: false },
         { name: "analytics-sync", partition: false },
+        { name: "capacity-recovery", partition: false },
         { name: "close-precheck", partition: false },
         { name: "invite-poll", partition: false },
         { name: "member-sync", partition: false },
@@ -161,6 +162,7 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
       expect(schedules.rows).toEqual([
         { cron: "7,22,37,52 * * * *", name: "alert-evaluation", timezone: "UTC" },
         { cron: "15 10 * * *", name: "analytics-sync", timezone: "UTC" },
+        { cron: "* * * * *", name: "capacity-recovery", timezone: "UTC" },
         { cron: "30 10 * * 1-5", name: "close-precheck", timezone: "UTC" },
         { cron: "*/15 * * * *", name: "invite-poll", timezone: "UTC" },
         { cron: "5 * * * *", name: "member-sync", timezone: "UTC" },
@@ -226,6 +228,7 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
       ["invitePoll", vendor],
       ["alertEvaluation", {}],
       ["closePrecheck", {}],
+      ["capacityRecovery", {}],
     ] as const;
     try {
       await runtime.start();
@@ -245,9 +248,10 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
             "invite-poll",
             "alert-evaluation",
             "close-precheck",
+            "capacity-recovery",
           ]),
         );
-        expect(logs).toHaveLength(5);
+        expect(logs).toHaveLength(6);
       });
     } finally {
       await runtime.stop();
@@ -395,6 +399,7 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
           "invite-poll",
           "alert-evaluation",
           "close-precheck",
+          "capacity-recovery",
         ].map(async (queue) =>
           await queryAsOwner<{ id: string }>(
             `INSERT INTO pgboss.job (name, data)
@@ -417,7 +422,7 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
         }));
         expect(
           logs.filter(({ jobId, status }) =>
-            jobId !== jobIds[3] && status === "skipped"),
+            ![jobIds[3], jobIds[5]].includes(jobId) && status === "skipped"),
         ).toHaveLength(4);
       });
     } finally {

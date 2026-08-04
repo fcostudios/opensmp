@@ -9,6 +9,7 @@ import {
 import type { NotificationMailer } from "@smp/notifications";
 
 import { createAlertEvaluationJob } from "../alerts/evaluate-alerts.js";
+import { createCapacityRecoveryJob } from "./capacity-recovery.js";
 
 export type WorkerJobContext = {
   at: Date;
@@ -43,5 +44,15 @@ export function createDeferredJobHandlers(
     },
     closePrecheck: async ({ at }) =>
       isThirdBusinessDay(at, calendar) ? dependencyNotDelivered("US-034") : successfulJob(0),
+    capacityRecovery: async ({ at }) => {
+      if (!alerts) return dependencyNotDelivered("US-023");
+      const job = createCapacityRecoveryJob({ connectionString: alerts.connectionString });
+      try {
+        const result = await job.drain(at);
+        return successfulJob(result.processed);
+      } finally {
+        await job.close();
+      }
+    },
   };
 }

@@ -53,6 +53,7 @@ const coreTableNames = [
   "alert_rule",
   "audit_log",
   "close_run",
+  "capacity_recovery_work",
   "company",
   "company_role_assignment",
   "cost_record",
@@ -81,6 +82,7 @@ const coreTableNames = [
 
 const normallyUpdateableTableNames = [
   "alert_rule",
+  "capacity_recovery_work",
   "close_run",
   "company",
   "company_role_assignment",

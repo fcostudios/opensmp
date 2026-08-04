@@ -9,6 +9,7 @@ export interface PoolCardsLabels extends PoolGaugeLabels {
   readonly addCapacity: string;
   readonly attention: string;
   readonly automated: string;
+  readonly candidateTitle: string;
   readonly emptyDescription: string;
   readonly emptyTitle: string;
   readonly effectiveFrom: string;
@@ -16,6 +17,8 @@ export interface PoolCardsLabels extends PoolGaugeLabels {
   readonly escalated: string;
   readonly floor: string;
   readonly mode: string;
+  readonly lastActive: string;
+  readonly monthlyCost: string;
   readonly noUsageData: string;
   readonly note: string;
   readonly orchestration: string;
@@ -169,8 +172,23 @@ export function PoolCards({
                 <p className="text-sm text-pending-text">
                   {item.decisionEvidence.type === "no_data"
                     ? labels.noUsageData
-                    : null}
+                    : labels.candidateTitle}
                 </p>
+                {item.decisionEvidence.type === "candidates" ? (
+                  <ul className="space-y-2" data-testid="reclaim_candidates">
+                    {item.decisionEvidence.items.map((candidate) => (
+                      <li className="rounded bg-surface p-2 text-sm text-text-secondary" key={candidate.assignmentId}>
+                        <span>{labels.lastActive}: {formatDate(candidate.lastActiveOn, locale)}</span>
+                        <span className="ml-3">
+                          {labels.monthlyCost}: {new Intl.NumberFormat(locale, {
+                            currency: "USD",
+                            style: "currency",
+                          }).format(candidate.monthlyCostUsd)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
                 <p className="text-sm text-pending-text">{labels.prorationNote}</p>
               </section>
             ) : null}

@@ -304,6 +304,13 @@ function safePreludeCall(call, owner, imports) {
   }
   if (
     target.member === null &&
+    imported?.importedName === "loadCurrentLedgerAuthorization" &&
+    imported.specifier.endsWith("identity-access/server-authorization")
+  ) {
+    return true;
+  }
+  if (
+    target.member === null &&
     imported?.importedName === "refresh" &&
     imported.specifier === "next/cache"
   ) {
@@ -424,11 +431,43 @@ function serviceTargetIsAudited(
   sourceFilePath,
 ) {
   const call = callTarget(expression);
-  if (!call || !call.member || shadowsBinding(owner, call.root)) {
+  if (!call || shadowsBinding(owner, call.root)) {
     return false;
   }
+  if (!call.member) {
+    const localTarget = namedTarget(
+      ts.getSourceFileOfNode(owner),
+      call.root,
+    );
+    return !!localTarget && localTarget !== owner &&
+      wholeBodyUsesAudit(localTarget, imports, sourceFilePath, true);
+  }
   const imported = imports.get(call.root);
-  if (!imported) return false;
+  if (!imported) {
+    const localService = namedTarget(ts.getSourceFileOfNode(owner), call.root);
+    const initializer = localService?.initializer;
+    const factoryCall = initializer ? callTarget(initializer) : null;
+    if (!factoryCall || factoryCall.member !== null) return false;
+    const factoryImport = imports.get(factoryCall.root);
+    if (!factoryImport || shadowsBinding(owner, factoryCall.root)) return false;
+    const factorySource = resolveImportedSource(sourceFilePath, factoryImport.specifier);
+    if (!factorySource) return false;
+    const factoryText = readFileSync(factorySource, "utf8");
+    const factoryFile = ts.createSourceFile(
+      factorySource,
+      factoryText,
+      ts.ScriptTarget.Latest,
+      true,
+      factorySource.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    );
+    const memberTarget = namedTarget(factoryFile, call.member);
+    return !!memberTarget && wholeBodyUsesAudit(
+      memberTarget,
+      importedBindings(factoryFile),
+      factorySource,
+      false,
+    );
+  }
     const importedSourcePath = resolveImportedSource(
       sourceFilePath,
       imported.specifier,
@@ -489,8 +528,10 @@ function safeRedirectCall(expression, owner, imports) {
     return false;
   }
   const imported = imports.get(target.root);
-  return imported?.importedName === "redirect" &&
-    imported.specifier === "next/navigation" &&
+  return ((imported?.importedName === "redirect" &&
+    imported.specifier === "next/navigation") ||
+    (imported?.importedName === "revalidatePath" &&
+      imported.specifier === "next/cache")) &&
     target.call.arguments.every((argument) =>
       isNonMutatingExpression(argument, owner, imports),
     );

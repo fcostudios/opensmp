@@ -1,6 +1,9 @@
 import { sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
+import type { CapacityDecisionEvidence } from "@smp/contracts/capacity";
+import { businessDaysBetween } from "@smp/domain/jobs/schedule";
+
 import type { LedgerAuthorization } from "../identity-access/authorization";
 import type {
   Database,
@@ -31,6 +34,8 @@ export interface BlockedExceptionItem {
   readonly blockedAt: string;
   readonly companyName: string;
   readonly daysBlocked: number;
+  readonly decisionEvidence: CapacityDecisionEvidence;
+  readonly escalated: boolean;
   readonly id: string;
   readonly licenseTypeName: string;
   readonly licenseTypeId: string;
@@ -299,10 +304,72 @@ export function createRequestReadRepository(
             LIMIT ${limit + 1}`,
       );
       const rows = result.rows.slice(0, limit);
+      const evaluatedAt = clock();
+      const holidays = new Set(
+        (process.env.ECUADOR_HOLIDAYS ?? "").split(",").map((value) => value.trim()).filter(Boolean),
+      );
+      const assignmentScope = authorization.globalRole === "group_admin"
+        ? sql`TRUE`
+        : authorization.companyIds.length > 0
+          ? sql`assignment.company_id IN (${sql.join(
+              authorization.companyIds.map((id) => sql`${id}::uuid`),
+              sql`, `,
+            )})`
+          : sql`FALSE`;
+      const candidates = rows.length === 0 ? { rows: [] } : await database.execute<{
+        readonly assignmentId: string;
+        readonly lastActiveOn: string;
+        readonly licenseTypeId: string;
+        readonly monthlyCostUsd: number;
+        readonly vendorAccountId: string;
+      }>(
+        sql`SELECT assignment.id::text AS "assignmentId",
+                   assignment.vendor_account_id::text AS "vendorAccountId",
+                   assignment.license_type_id::text AS "licenseTypeId",
+                   max(activity.activity_date)::text AS "lastActiveOn",
+                   coalesce(cost.monthly_cost_usd,rate.monthly_rate_usd::float8) AS "monthlyCostUsd"
+            FROM license_assignment assignment
+            JOIN activity_record activity ON activity.person_id=assignment.person_id
+              AND activity.vendor_account_id=assignment.vendor_account_id
+            LEFT JOIN LATERAL (
+              SELECT sum(amount_usd)::float8 AS monthly_cost_usd FROM cost_record
+              WHERE person_id=assignment.person_id
+                AND vendor_account_id=assignment.vendor_account_id
+                AND cost_date >= date_trunc('month',${evaluatedAt}::date)::date
+                AND cost_date <= ${evaluatedAt}::date
+            ) cost ON TRUE
+            LEFT JOIN LATERAL (
+              SELECT monthly_rate_usd FROM rate_card
+              WHERE vendor_account_id=assignment.vendor_account_id
+                AND license_type_id=assignment.license_type_id
+                AND effective_from <= ${evaluatedAt}::date
+                AND (effective_to IS NULL OR effective_to >= ${evaluatedAt}::date)
+              ORDER BY effective_from DESC,id DESC LIMIT 1
+            ) rate ON TRUE
+            WHERE ${assignmentScope}
+              AND assignment.started_on <= ${evaluatedAt}::date
+              AND (assignment.ended_on IS NULL OR assignment.ended_on >= ${evaluatedAt}::date)
+              AND coalesce(cost.monthly_cost_usd,rate.monthly_rate_usd::float8) > 0
+              AND (assignment.vendor_account_id,assignment.license_type_id) IN (${sql.join(
+                rows.map((row) => sql`(${row.vendorAccountId}::uuid,${row.licenseTypeId}::uuid)`),
+                sql`, `,
+              )})
+            GROUP BY assignment.id,cost.monthly_cost_usd,rate.monthly_rate_usd
+            HAVING max(activity.activity_date) < ${evaluatedAt}::date - 30`,
+      );
       const items = rows.map((row) => ({
         ...row,
         blockedAt: iso(row.blockedAt),
-        daysBlocked: currentStateAgeDays(clock(), row.blockedAt),
+        daysBlocked: businessDaysBetween(new Date(row.blockedAt), evaluatedAt, { holidays }),
+        decisionEvidence: (() => {
+          const items = candidates.rows
+            .filter((candidate) => candidate.vendorAccountId === row.vendorAccountId && candidate.licenseTypeId === row.licenseTypeId)
+            .map(({ assignmentId, lastActiveOn, monthlyCostUsd }) => ({ assignmentId, lastActiveOn, monthlyCostUsd }));
+          return items.length > 0
+            ? ({ type: "candidates", items } as const)
+            : ({ type: "no_data" } as const);
+        })(),
+        escalated: businessDaysBetween(new Date(row.blockedAt), evaluatedAt, { holidays }) > 1,
       }));
       const last = items.at(-1);
       return {

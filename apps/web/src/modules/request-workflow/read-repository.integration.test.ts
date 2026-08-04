@@ -320,6 +320,8 @@ describe("request read repository", () => {
           blockedAt: "2026-07-28T12:00:00.000Z",
           companyName: "Acme",
           daysBlocked: 2,
+          decisionEvidence: { type: "no_data" },
+          escalated: true,
           id: ids.requestA,
           licenseTypeId: ids.licenseType,
           licenseTypeName: "Claude Enterprise",

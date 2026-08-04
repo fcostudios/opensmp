@@ -9,6 +9,7 @@ import {
 } from "@smp/db/testing/postgres-container";
 
 import type { LedgerAuthorization } from "../identity-access/authorization";
+import { enqueueCapacityRecovery } from "./capacity-recovery-outbox";
 import { createCapacityService } from "./capacity-service";
 
 const id = (suffix: string) =>
@@ -53,14 +54,16 @@ beforeAll(async () => {
   owner = await fixture.connectAsOwner();
   await owner.query(
     `TRUNCATE TABLE audit_log, request_transition, provisioning_action,
-       license_request, vendor_account_capacity, license_assignment, license_type,
+       license_request, capacity_recovery_work, vendor_account_capacity, license_assignment, license_type,
        vendor_account, vendor, person, company, user_account
      RESTART IDENTITY CASCADE`,
   );
   await owner.query(
     `INSERT INTO user_account
        (id,email,idp_subject,global_role,ui_language,status,created_at)
-     VALUES ($1,'admin@capacity.test','capacity-admin','group_admin','es','active',$3),
+     VALUES ('00000000-0000-0000-0000-000000000001','system@ledger.invalid',
+             'ledger-system',NULL,'en','active',$3),
+            ($1,'admin@capacity.test','capacity-admin','group_admin','es','active',$3),
             ($2,'requester@capacity.test','capacity-requester',NULL,'en','active',$3)`,
     [ids.admin, ids.requester, now],
   );
@@ -138,13 +141,7 @@ afterAll(async () => {
 
 describe("US-023 canonical capacity transaction", () => {
   it("kills bypassing effective-date, vendor/license ownership, and negative-total checks", async () => {
-    const published: unknown[] = [];
-    const service = createCapacityService(database, {
-      now: () => now,
-      publishRecovery: async (job) => {
-        published.push(job);
-      },
-    });
+    const service = createCapacityService(database, { now: () => now });
 
     const result = await service.changeCapacity(authorization, {
       effectiveFrom: "2026-08-04",
@@ -154,7 +151,19 @@ describe("US-023 canonical capacity transaction", () => {
       vendorAccountId: ids.accountA,
     });
     expect(result).toMatchObject({ effectiveFrom: "2026-08-04", purchasedQty: 3 });
-    expect(published).toHaveLength(1);
+    const published = await owner.query(
+      `SELECT source,status,effective_from::text,available_at
+       FROM capacity_recovery_work WHERE capacity_id=$1`,
+      [result.id],
+    );
+    expect(published.rows).toEqual([
+      {
+        available_at: now,
+        effective_from: "2026-08-04",
+        source: "capacity_change",
+        status: "pending",
+      },
+    ]);
     await expect(
       service.changeCapacity(authorization, {
         effectiveFrom: "2026-08-05",
@@ -188,13 +197,10 @@ describe("US-023 canonical capacity transaction", () => {
   });
 
   it("kills publishing recovery before a failed capacity transaction commits", async () => {
-    let publishCount = 0;
-    const service = createCapacityService(database, {
-      now: () => now,
-      publishRecovery: async () => {
-        publishCount += 1;
-      },
-    });
+    const service = createCapacityService(database, { now: () => now });
+    const before = await owner.query(
+      "SELECT count(*)::int AS count FROM capacity_recovery_work",
+    );
     await expect(
       service.changeCapacity(authorization, {
         effectiveFrom: "2026-08-04",
@@ -204,7 +210,49 @@ describe("US-023 canonical capacity transaction", () => {
         vendorAccountId: ids.accountA,
       }),
     ).rejects.toThrow("CAPACITY_EFFECTIVE_DATE_CONFLICT");
-    expect(publishCount).toBe(0);
+    const after = await owner.query(
+      "SELECT count(*)::int AS count FROM capacity_recovery_work",
+    );
+    expect(after.rows[0]).toEqual(before.rows[0]);
+  });
+
+  it("kills making future capacity recovery visible before its Ecuador effective date", async () => {
+    const service = createCapacityService(database, { now: () => now });
+    const result = await service.changeCapacity(authorization, {
+      effectiveFrom: "2026-08-09",
+      licenseTypeId: ids.licenseA,
+      purchasedQty: 5,
+      reason: "purchase",
+      vendorAccountId: ids.accountA,
+    });
+    const work = await owner.query(
+      `SELECT available_at FROM capacity_recovery_work WHERE capacity_id=$1`,
+      [result.id],
+    );
+    expect(work.rows[0]?.available_at).toEqual(
+      new Date("2026-08-09T05:00:00.000Z"),
+    );
+  });
+
+  it("exposes one shared transactional enqueue seam for a future freed-seat writer", async () => {
+    await database.transaction(async (transaction) => {
+      await enqueueCapacityRecovery(transaction, {
+        capacityId: null,
+        effectiveFrom: "2026-08-04",
+        licenseTypeId: ids.licenseA,
+        occurredAt: now,
+        source: "seat_freed",
+        vendorAccountId: ids.accountA,
+      });
+    });
+    await expect(
+      owner.query(
+        `SELECT source,capacity_id,status FROM capacity_recovery_work
+         WHERE source='seat_freed'`,
+      ),
+    ).resolves.toMatchObject({
+      rows: [{ capacity_id: null, source: "seat_freed", status: "pending" }],
+    });
   });
 
   it("kills accepting a non-admin or any client companyId on the global capacity command", async () => {
@@ -230,41 +278,42 @@ describe("US-023 canonical capacity transaction", () => {
     ).rejects.toThrow("CAPACITY_INPUT_INVALID");
   });
 
-  it("kills manufacturing zero-valued inactive candidates before US-027", async () => {
-    const service = createCapacityService(database, { now: () => now });
-    await expect(
-      service.decisionEvidence(authorization, ids.accountA, ids.licenseA),
-    ).resolves.toEqual({ type: "no_data" });
-  });
-
   it.each([
     ["pool_empty", ids.requestPool],
     ["provider_400", ids.requestProvider],
   ] as const)("kills duplicate blocked transitions and alerts for %s", async (source, requestId) => {
     const service = createCapacityService(database, { now: () => now });
-    await service.blockRequestNoSeat(authorization, { requestId, source });
-    await service.blockRequestNoSeat(authorization, { requestId, source });
+    await service.observeNoSeat({ requestId, source });
+    await service.observeNoSeat({ requestId, source });
     const evidence = await owner.query(
       `SELECT
          (SELECT count(*)::int FROM license_request WHERE id = $1 AND state = 'blocked_no_seat') AS blocked,
          (SELECT count(*)::int FROM request_transition WHERE request_id = $1 AND to_state = 'blocked_no_seat') AS transitions,
+         (SELECT actor_user_id::text FROM request_transition WHERE request_id = $1 AND to_state = 'blocked_no_seat' LIMIT 1) AS actor,
          (SELECT count(*)::int FROM alert_event WHERE subject_ref->>'requestId' = $1::text) AS alerts,
          (SELECT count(*)::int FROM alert_notification_delivery delivery
           JOIN alert_event event ON event.id = delivery.alert_event_id
           WHERE event.subject_ref->>'requestId' = $1::text AND delivery.phase = 'pending') AS recipients`,
       [requestId],
     );
-    expect(evidence.rows[0]).toEqual({ alerts: 1, blocked: 1, recipients: 2, transitions: 1 });
+    expect(evidence.rows[0]).toEqual({
+      actor: "00000000-0000-0000-0000-000000000001",
+      alerts: 1,
+      blocked: 1,
+      recipients: 2,
+      transitions: 1,
+    });
   });
 
-  it("kills cross-tenant blocked-request mutation", async () => {
+  it("kills accepting client tenant scope on a trusted no-seat observation", async () => {
     const service = createCapacityService(database, { now: () => now });
     await expect(
-      service.blockRequestNoSeat(
-        { ...authorization, companyIds: [ids.companyA] },
-        { requestId: ids.requestOtherTenant, source: "pool_empty" },
-      ),
-    ).rejects.toThrow("CAPACITY_REQUEST_NOT_FOUND");
+      service.observeNoSeat({
+        companyId: ids.companyA,
+        requestId: ids.requestOtherTenant,
+        source: "pool_empty",
+      }),
+    ).rejects.toThrow("CAPACITY_INPUT_INVALID");
     const state = await owner.query("SELECT state FROM license_request WHERE id = $1", [ids.requestOtherTenant]);
     expect(state.rows[0]).toEqual({ state: "approved" });
   });

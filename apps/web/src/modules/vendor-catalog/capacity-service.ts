@@ -5,14 +5,15 @@ import { z } from "zod";
 import {
   capacityChangeSchema,
   type CapacityChangeInput,
-  type CapacityDecisionEvidence,
-  type CapacityRecoveryJob,
 } from "@smp/contracts/capacity";
+// eslint-disable-next-line no-restricted-imports -- The trusted observation transaction records the canonical system actor.
+import { SYSTEM_USER_ID } from "@smp/db";
 // eslint-disable-next-line no-restricted-imports -- This service owns the audited capacity transaction.
 import * as schema from "@smp/db/schema";
 
 import { withAudit } from "../audit/with-audit";
 import type { LedgerAuthorization } from "../identity-access/authorization";
+import { enqueueCapacityRecovery } from "./capacity-recovery-outbox";
 
 type Database = NodePgDatabase<typeof schema>;
 
@@ -37,16 +38,12 @@ export function createCapacityService(
   database: Database,
   options: {
     readonly now?: () => Date;
-    readonly publishRecovery?: (job: CapacityRecoveryJob) => Promise<void>;
   } = {},
 ) {
   const now = options.now ?? (() => new Date());
   return {
-    async blockRequestNoSeat(
-      authorization: LedgerAuthorization,
-      input: unknown,
-    ): Promise<void> {
-      assertCapacityAccess(authorization);
+    /** Trusted provisioning/pool observation seam; no request-supplied tenant scope. */
+    async observeNoSeat(input: unknown): Promise<void> {
       const parsed = z
         .object({
           requestId: z.string().uuid(),
@@ -64,12 +61,6 @@ export function createCapacityService(
           sql`SELECT company_id::text AS "companyId", state::text AS state
               FROM license_request
               WHERE id = ${parsed.data.requestId}::uuid
-                AND company_id IN (${sql.join(
-                  authorization.companyIds.map(
-                    (companyId) => sql`${companyId}::uuid`,
-                  ),
-                  sql`, `,
-                )})
                 AND state IN ('approved','blocked_no_seat')
               FOR UPDATE`,
         );
@@ -87,14 +78,14 @@ export function createCapacityService(
           sql`INSERT INTO request_transition
                 (request_id,from_state,to_state,actor_user_id,note,occurred_at)
               VALUES (${parsed.data.requestId}::uuid,'approved','blocked_no_seat',
-                      ${authorization.userAccountId}::uuid,
+                      ${SYSTEM_USER_ID}::uuid,
                       ${parsed.data.source},${occurredAt})`,
         );
         await transaction.execute(
           sql`INSERT INTO audit_log
                 (actor_user_id,action,entity_type,entity_id,company_id,note,
                  before,after,occurred_at)
-              VALUES (${authorization.userAccountId}::uuid,
+              VALUES (${SYSTEM_USER_ID}::uuid,
                       'request.blocked_no_seat','LicenseRequest',
                       ${parsed.data.requestId}::uuid,${request.companyId}::uuid,
                       ${parsed.data.source},'{"state":"approved"}'::jsonb,
@@ -153,12 +144,12 @@ export function createCapacityService(
       authorization: LedgerAuthorization,
       input: unknown,
     ): Promise<CapacityChangeResult> {
-      assertCapacityAccess(authorization);
-      const command = parseInput(input);
-      const occurredAt = now();
       return await withAudit(
         database,
         async (transaction) => {
+          assertCapacityAccess(authorization);
+          const command = parseInput(input);
+          const occurredAt = now();
           const ownership = await transaction.execute<{ readonly valid: boolean }>(
             sql`SELECT (license.vendor_id = account.vendor_id) AS valid
                 FROM vendor_account account
@@ -206,6 +197,14 @@ export function createCapacityService(
                 : new Date(row.createdAt).toISOString(),
             id: row.id,
           };
+          await enqueueCapacityRecovery(transaction, {
+            capacityId: row.id,
+            effectiveFrom: command.effectiveFrom,
+            licenseTypeId: command.licenseTypeId,
+            occurredAt,
+            source: "capacity_change",
+            vendorAccountId: command.vendorAccountId,
+          });
           return {
             value,
             audit: {
@@ -220,44 +219,7 @@ export function createCapacityService(
             },
           };
         },
-        options.publishRecovery
-          ? {
-              occurredAt,
-              afterCommit: async (result) => {
-                await options.publishRecovery!({
-                  capacityId: result.id,
-                  companyIds: [...authorization.companyIds],
-                  effectiveFrom: result.effectiveFrom,
-                  licenseTypeId: result.licenseTypeId,
-                  publishedAt: occurredAt.toISOString(),
-                  vendorAccountId: result.vendorAccountId,
-                });
-              },
-              onAfterCommitFailure: async (error, result) => {
-                await database.execute(
-                  sql`INSERT INTO audit_log
-                        (actor_user_id, action, entity_type, entity_id,
-                         company_id, note, before, after, occurred_at)
-                      VALUES (${authorization.userAccountId}::uuid,
-                              'capacity.recovery_publish_failed',
-                              'VendorAccountCapacity', ${result.id}::uuid,
-                              NULL, ${String(error)}, NULL,
-                              ${JSON.stringify({ retryRequired: true })}::jsonb,
-                              ${now()})`,
-                );
-              },
-            }
-          : { occurredAt },
       );
-    },
-
-    async decisionEvidence(
-      authorization: LedgerAuthorization,
-      _vendorAccountId: string,
-      _licenseTypeId: string,
-    ): Promise<CapacityDecisionEvidence> {
-      assertCapacityAccess(authorization);
-      return { type: "no_data" };
     },
   };
 }

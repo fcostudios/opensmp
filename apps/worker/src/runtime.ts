@@ -53,6 +53,7 @@ const IDEMPOTENCY_WINDOW_SECONDS: Record<JobName, number> = {
   closePrecheck: 35 * 24 * 60 * 60,
   invitePoll: 30 * 60,
   memberSync: 2 * 60 * 60,
+  capacityRecovery: 5 * 60,
 };
 
 const WORK_OPTIONS = {

@@ -10,6 +10,7 @@ const expectedTables = [
   "activityRecord",
   "auditLog",
   "closeRun",
+  "capacityRecoveryWork",
   "company",
   "companyRoleAssignment",
   "costRecord",

@@ -5,6 +5,7 @@ import {
   ecuadorOperatingDate,
 } from "@smp/domain/jobs/schedule";
 import { calculatePool } from "@smp/domain/vendor-catalog/pool-math";
+import type { CapacityDecisionEvidence } from "@smp/contracts/capacity";
 import pg from "pg";
 import { z } from "zod";
 
@@ -19,7 +20,7 @@ export type VendorPoolSnapshot = Awaited<
     readonly id: string;
     readonly requestNo: string;
   }[];
-  readonly decisionEvidence: { readonly type: "no_data" };
+  readonly decisionEvidence: CapacityDecisionEvidence;
   readonly free: number;
   readonly isLow: boolean;
 };
@@ -93,6 +94,49 @@ export function createPoolRepository(connectionString: string) {
           .map((value) => value.trim())
           .filter(Boolean),
       );
+      const candidates = authorization.companyIds.length
+        ? await pool.query<{
+            assignment_id: string;
+            last_active_on: string;
+            license_type_id: string;
+            monthly_cost_usd: number;
+            vendor_account_id: string;
+          }>(
+            `SELECT assignment.id::text AS assignment_id,
+                    assignment.vendor_account_id::text, assignment.license_type_id::text,
+                    max(activity.activity_date)::text AS last_active_on,
+                    coalesce(cost.monthly_cost_usd,
+                             rate.monthly_rate_usd::float8) AS monthly_cost_usd
+             FROM license_assignment assignment
+             JOIN person holder ON holder.id=assignment.person_id
+               AND holder.company_id=assignment.company_id
+             JOIN activity_record activity ON activity.person_id=assignment.person_id
+               AND activity.vendor_account_id=assignment.vendor_account_id
+             LEFT JOIN LATERAL (
+               SELECT sum(amount_usd)::float8 AS monthly_cost_usd
+               FROM cost_record
+               WHERE person_id=assignment.person_id
+                 AND vendor_account_id=assignment.vendor_account_id
+                 AND cost_date >= date_trunc('month',$2::date)::date
+                 AND cost_date <= $2::date
+             ) cost ON TRUE
+             LEFT JOIN LATERAL (
+               SELECT monthly_rate_usd FROM rate_card
+               WHERE vendor_account_id=assignment.vendor_account_id
+                 AND license_type_id=assignment.license_type_id
+                 AND effective_from <= $2::date
+                 AND (effective_to IS NULL OR effective_to >= $2::date)
+               ORDER BY effective_from DESC,id DESC LIMIT 1
+             ) rate ON TRUE
+             WHERE assignment.company_id=ANY($1::uuid[])
+               AND assignment.started_on <= $2::date
+               AND (assignment.ended_on IS NULL OR assignment.ended_on >= $2::date)
+               AND coalesce(cost.monthly_cost_usd,rate.monthly_rate_usd::float8) > 0
+             GROUP BY assignment.id,cost.monthly_cost_usd,rate.monthly_rate_usd
+             HAVING max(activity.activity_date) < $2::date - 30`,
+            [authorization.companyIds, poolOperatingDate(at)],
+          )
+        : { rows: [] };
       return snapshots.map((snapshot) => {
         const calculated = calculatePool(snapshot);
         const blockedRequests = blocked.rows
@@ -114,11 +158,23 @@ export function createPoolRepository(connectionString: string) {
               requestNo: request.request_no,
             };
           });
+        const evidenceItems = candidates.rows
+          .filter((candidate) =>
+            candidate.vendor_account_id === snapshot.vendorAccountId &&
+            candidate.license_type_id === snapshot.licenseTypeId,
+          )
+          .map((candidate) => ({
+            assignmentId: candidate.assignment_id,
+            lastActiveOn: candidate.last_active_on,
+            monthlyCostUsd: candidate.monthly_cost_usd,
+          }));
         return {
           ...snapshot,
           ...calculated,
           blockedRequests,
-          decisionEvidence: { type: "no_data" } as const,
+          decisionEvidence: evidenceItems.length
+            ? ({ type: "candidates", items: evidenceItems } as const)
+            : ({ type: "no_data" } as const),
           isLow: calculated.free < snapshot.lowPoolFloor,
         };
       });

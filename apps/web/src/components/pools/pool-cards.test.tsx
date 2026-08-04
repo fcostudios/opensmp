@@ -13,6 +13,7 @@ const labels = {
   attention: "Below minimum floor",
   available: "Available",
   automated: "Automated",
+  candidateTitle: "Reclaim candidates",
   discrepancy: "Oversubscribed by",
   emptyDescription: "Capacity appears after the first effective record.",
   emptyTitle: "No pool capacity",
@@ -20,6 +21,8 @@ const labels = {
   effectiveFromField: "Effective date",
   escalated: "Escalated",
   floor: "Minimum floor",
+  lastActive: "Last active",
+  monthlyCost: "Monthly cost",
   noUsageData: "No usage data",
   note: "Note",
   mode: "Mode",
@@ -93,6 +96,36 @@ describe("SCR-pools cards", () => {
     expect(screen.getByRole("status").textContent).toContain(
       "Capacity appears after the first effective record.",
     );
+  });
+
+  it("renders real reclaim evidence when the projection has usage and cost", () => {
+    render(
+      <PoolCards
+        items={[{
+          assigned: 1,
+          blockedRequests: [{ businessDaysBlocked: 1, escalated: false, id: "request-2", requestNo: "REQ-2" }],
+          contractRenewalOn: null,
+          decisionEvidence: { type: "candidates", items: [{ assignmentId: "assignment-1", lastActiveOn: "2026-06-01", monthlyCostUsd: 42.5 }] },
+          effectiveFrom: "2026-08-01",
+          free: 0,
+          isLow: true,
+          licenseTypeId: "license-1",
+          licenseTypeName: "Enterprise",
+          lowPoolFloor: 1,
+          mode: "automated",
+          pendingInvites: 0,
+          purchased: 1,
+          vendorAccountId: "account-1",
+          vendorAccountName: "Central org",
+        }]}
+        labels={labels}
+        locale="en-US"
+      />,
+    );
+    expect(screen.getByText("Reclaim candidates")).toBeTruthy();
+    expect(screen.getByTestId("reclaim_candidates").textContent).toContain("June 1, 2026");
+    expect(screen.getByTestId("reclaim_candidates").textContent).toContain("$42.50");
+    expect(screen.queryByText("No usage data")).toBeNull();
   });
 
   it("renders healthy and oversubscribed boundaries distinctly", () => {

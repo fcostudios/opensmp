@@ -12,6 +12,7 @@ const expectedTables = [
   "alert_notification_delivery",
   "alert_rule",
   "audit_log",
+  "capacity_recovery_work",
   "close_run",
   "company",
   "company_role_assignment",

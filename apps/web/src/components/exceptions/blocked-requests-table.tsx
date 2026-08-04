@@ -1,11 +1,15 @@
 import Link from "next/link";
 
+import type { CapacityDecisionEvidence } from "@smp/contracts/capacity";
+
 import { registerPurchase } from "@/modules/vendor-catalog/actions/manage-capacity";
 
 export interface BlockedRequestItem {
   readonly licenseTypeId: string;
   readonly companyName: string;
   readonly daysBlocked: number;
+  readonly decisionEvidence: CapacityDecisionEvidence;
+  readonly escalated: boolean;
   readonly id: string;
   readonly licenseTypeName: string;
   readonly neededBy: string | null;
@@ -21,10 +25,16 @@ export interface BlockedRequestsLabels {
   readonly daysBlocked: string;
   readonly empty: string;
   readonly effectiveFrom: string;
+  readonly escalated: string;
+  readonly lastActive: string;
+  readonly monthlyCost: string;
   readonly neededBy: string;
   readonly noDate: string;
+  readonly noUsageData: string;
   readonly organization: string;
   readonly purchasedQty: string;
+  readonly prorationNote: string;
+  readonly reclaimCandidates: string;
   readonly request: string;
   readonly status: string;
   readonly statusBlocked: string;
@@ -140,12 +150,32 @@ export function BlockedRequestsTable({
                   </td>
                   <td className="px-3 py-3 font-mono text-text-secondary">
                     {request.daysBlocked}
+                    {request.escalated ? (
+                      <span className="ml-2 rounded-full bg-critical-bg px-2 py-1 text-xs font-semibold text-critical-text">
+                        {labels.escalated}
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-3 py-3 text-text-secondary">
                     {formatDate(request.neededBy, locale, labels.noDate)}
                   </td>
                   <td className="px-3 py-3 font-semibold text-text-primary">
                     {labels.statusBlocked}
+                    <p className="mt-2 text-xs font-normal text-text-secondary">
+                      {request.decisionEvidence.type === "no_data"
+                        ? labels.noUsageData
+                        : labels.reclaimCandidates}
+                    </p>
+                    {request.decisionEvidence.type === "candidates" ? (
+                      <ul className="mt-1 text-xs font-normal text-text-secondary">
+                        {request.decisionEvidence.items.map((candidate) => (
+                          <li key={candidate.assignmentId}>
+                            {labels.lastActive}: {formatDate(candidate.lastActiveOn, locale, labels.noDate)} · {labels.monthlyCost}: {new Intl.NumberFormat(locale, { currency: "USD", style: "currency" }).format(candidate.monthlyCostUsd)}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    <p className="mt-2 text-xs font-normal text-text-secondary">{labels.prorationNote}</p>
                     <details className="mt-2">
                       <summary className="cursor-pointer text-sm" role="button">
                         {labels.addCapacity}

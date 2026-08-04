@@ -182,13 +182,16 @@ export function createAlertEvaluationJob(options: {
                 row.type,
                 evaluation.subjectRef,
               );
+              const recipients = row.type === "blocked_no_seat"
+                ? await loadActiveGroupAdminEmails(pool)
+                : [settings.escalationEmail];
               const result = await resolveMailer().send({
                 from: settings.from,
                 html: rendered.html,
                 messageId: createStableMessageId(eventDedupeKey),
                 subject: rendered.subject,
                 text: rendered.text,
-                to: [settings.escalationEmail],
+                to: recipients,
               });
               await outbox.completeSuccess({
                 accepted: result.accepted,
@@ -229,6 +232,20 @@ export function createAlertEvaluationJob(options: {
       return successfulJob(processed);
     },
   };
+}
+
+async function loadActiveGroupAdminEmails(pool: pg.Pool): Promise<string[]> {
+  const result = await pool.query<{ email: string }>(
+    `SELECT email FROM user_account
+     WHERE status='active' AND global_role='group_admin'
+     ORDER BY id`,
+  );
+  if (result.rows.length === 0) {
+    throw Object.assign(new Error("blocked alert has no active Group Admin"), {
+      code: "BLOCKED_ALERT_RECIPIENT_MISSING",
+    });
+  }
+  return result.rows.map(({ email }) => email);
 }
 
 export function breachWindowStart(at: Date): Date {

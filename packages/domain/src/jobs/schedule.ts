@@ -8,6 +8,7 @@ export const JOB_SCHEDULES = {
     timeZone: "UTC",
   },
   closePrecheck: { cron: "30 10 * * 1-5", queue: "close-precheck", timeZone: "UTC" },
+  capacityRecovery: { cron: "* * * * *", queue: "capacity-recovery", timeZone: "UTC" },
 } as const;
 
 /**
@@ -20,6 +21,7 @@ export const SCHEDULE_TIME_DOCUMENTATION = {
   invitePoll: { americaGuayaquilCron: "*/15 * * * *" },
   alertEvaluation: { americaGuayaquilCron: "7,22,37,52 * * * *" },
   closePrecheck: { americaGuayaquilCron: "30 5 * * 1-5" },
+  capacityRecovery: { americaGuayaquilCron: "* * * * *" },
 } as const satisfies Record<keyof typeof JOB_SCHEDULES, { americaGuayaquilCron: string }>;
 
 export type JobName = keyof typeof JOB_SCHEDULES;
@@ -50,6 +52,7 @@ export function createJobIdempotencyKey(job: JobName, input: JobKeyInput): strin
   }
 
   if (job === "alertEvaluation") return `alert-evaluation:${utcQuarterHour(date)}`;
+  if (job === "capacityRecovery") return `capacity-recovery:${date.toISOString().slice(0, 16)}`;
   return `close-precheck:${day.slice(0, 7)}`;
 }
 

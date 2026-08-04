@@ -6,10 +6,7 @@ import {
   type PostgresFixture,
 } from "@smp/db/testing/postgres-container";
 
-import {
-  blockedDecisionAging,
-  createCapacityRecoveryJob,
-} from "./capacity-recovery.js";
+import { createCapacityRecoveryJob } from "./capacity-recovery.js";
 
 const id = (suffix: string) =>
   `23100000-0000-4000-8000-${suffix.padStart(12, "0")}`;
@@ -36,7 +33,7 @@ beforeAll(async () => {
   owner = await fixture.connectAsOwner();
   await owner.query(
     `TRUNCATE TABLE audit_log, request_transition, provisioning_action,
-       license_request, vendor_account_capacity, license_assignment, license_type,
+       license_request, capacity_recovery_work, vendor_account_capacity, license_assignment, license_type,
        vendor_account, vendor, person, company, user_account
      RESTART IDENTITY CASCADE`,
   );
@@ -121,18 +118,14 @@ afterAll(async () => {
 
 describe("US-023 capacity recovery with real PostgreSQL", () => {
   it("kills cross-tenant recovery and duplicate resume transitions", async () => {
+    await owner.query(
+      `SELECT enqueue_capacity_recovery($1,$2,$3,'2026-08-04','capacity_change',$4)`,
+      [ids.capacity, ids.account, ids.license, at],
+    );
     const job = createCapacityRecoveryJob({ connectionString: fixture.appUrl, now: () => at });
     try {
-      const payload = {
-        capacityId: ids.capacity,
-        companyIds: [ids.companyA],
-        effectiveFrom: "2026-08-04",
-        licenseTypeId: ids.license,
-        publishedAt: at.toISOString(),
-        vendorAccountId: ids.account,
-      } as const;
-      await expect(job.run(payload)).resolves.toEqual({ resumedRequestIds: [ids.requestA] });
-      await expect(job.run(payload)).resolves.toEqual({ resumedRequestIds: [] });
+      await expect(job.drain()).resolves.toEqual({ processed: 1 });
+      await expect(job.drain()).resolves.toEqual({ processed: 0 });
     } finally {
       await job.close();
     }
@@ -142,7 +135,7 @@ describe("US-023 capacity recovery with real PostgreSQL", () => {
     );
     expect(state.rows).toEqual([
       { id: ids.requestA, state: "provisioning" },
-      { id: ids.requestB, state: "blocked_no_seat" },
+      { id: ids.requestB, state: "provisioning" },
     ]);
     const transitions = await owner.query(
       `SELECT request_id,to_state,count(*)::int AS count
@@ -151,24 +144,34 @@ describe("US-023 capacity recovery with real PostgreSQL", () => {
     );
     expect(transitions.rows).toEqual([
       { count: 1, request_id: ids.requestA, to_state: "provisioning" },
+      { count: 1, request_id: ids.requestB, to_state: "provisioning" },
     ]);
   });
 
-  it("kills calendar-day aging by escalating only after one Ecuador business day", () => {
-    const calendar = { holidays: new Set(["2026-08-10"]) };
-    expect(
-      blockedDecisionAging(
-        new Date("2026-08-07T15:00:00.000Z"),
-        new Date("2026-08-12T15:00:00.000Z"),
-        calendar,
-      ),
-    ).toEqual({ businessDays: 2, escalated: true });
-    expect(
-      blockedDecisionAging(
-        new Date("2026-08-07T15:00:00.000Z"),
-        new Date("2026-08-10T15:00:00.000Z"),
-        calendar,
-      ),
-    ).toEqual({ businessDays: 0, escalated: false });
+  it("kills early future-effective execution and reclaims an expired lease", async () => {
+    await owner.query(
+      `INSERT INTO capacity_recovery_work
+         (idempotency_key,capacity_id,vendor_account_id,license_type_id,effective_from,
+          available_at,source,status,lease_token,lease_expires_at)
+       VALUES ('future-work',$1,$2,$3,'2026-08-09','2026-08-09T05:00:00Z',
+               'capacity_change','pending',NULL,NULL),
+              ('expired-work',$1,$2,$3,'2026-08-04',$4,
+               'capacity_change','processing',$5,'2026-08-04T14:59:00Z')`,
+      [ids.capacity, ids.account, ids.license, at, id("99")],
+    );
+    const job = createCapacityRecoveryJob({ connectionString: fixture.appUrl, now: () => at });
+    try {
+      await expect(job.drain()).resolves.toEqual({ processed: 1 });
+    } finally {
+      await job.close();
+    }
+    const states = await owner.query(
+      `SELECT idempotency_key,status,attempt_count FROM capacity_recovery_work
+       WHERE idempotency_key IN ('future-work','expired-work') ORDER BY idempotency_key`,
+    );
+    expect(states.rows).toEqual([
+      { attempt_count: 1, idempotency_key: "expired-work", status: "completed" },
+      { attempt_count: 0, idempotency_key: "future-work", status: "pending" },
+    ]);
   });
 });

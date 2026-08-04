@@ -65,7 +65,7 @@ beforeAll(async () => {
     owner = await fixture.connectAsOwner();
   }
   await owner.query(
-    `TRUNCATE TABLE alert_notification_delivery, alert_event, provisioning_action,
+    `TRUNCATE TABLE alert_notification_delivery, alert_event, activity_record, cost_record, provisioning_action,
        license_request, vendor_account_capacity, license_assignment, license_type,
        vendor_account, vendor, person, company, user_account
      RESTART IDENTITY CASCADE`,
@@ -215,6 +215,18 @@ beforeAll(async () => {
       ids.admin,
     ],
   );
+  await owner.query(
+    `INSERT INTO activity_record
+       (vendor_account_id,person_id,activity_date,counters,synced_at)
+     VALUES ($1,$2,'2026-06-01','{}',$3)`,
+    [ids.accountLow, ids.personA, evaluatedAt],
+  );
+  await owner.query(
+    `INSERT INTO cost_record
+       (vendor_account_id,person_id,cost_date,amount_usd,synced_at)
+     VALUES ($1,$2,'2026-07-15',42.50,$3)`,
+    [ids.accountLow, ids.personA, evaluatedAt],
+  );
 
   const requestRows = [
     ["1", ids.personA, ids.companyA, ids.accountLow, ids.licenseStandard],
@@ -339,6 +351,14 @@ describe("US-022 pool repository with real PostgreSQL", () => {
     expect(snapshots).toEqual([
       expect.objectContaining({
         assigned: 2,
+        decisionEvidence: {
+          type: "candidates",
+          items: [{
+            assignmentId: expect.any(String),
+            lastActiveOn: "2026-06-01",
+            monthlyCostUsd: 42.5,
+          }],
+        },
         free: 8,
         licenseTypeId: ids.licenseStandard,
         pendingInvites: 2,

@@ -547,6 +547,24 @@ export const licenseType = pgTable("license_type", {
   createdBy: uuid("created_by").references((): AnyPgColumn => userAccount.id).notNull(),
 });
 
+export const capacityRecoveryWork = pgTable("capacity_recovery_work", {
+  id: uuid("id").primaryKey().defaultRandom().notNull(),
+  idempotencyKey: text("idempotency_key").notNull().unique(),
+  capacityId: uuid("capacity_id").references(() => vendorAccountCapacity.id),
+  vendorAccountId: uuid("vendor_account_id").references(() => vendorAccount.id).notNull(),
+  licenseTypeId: uuid("license_type_id").references(() => licenseType.id).notNull(),
+  effectiveFrom: date("effective_from").notNull(),
+  availableAt: timestamp("available_at", { withTimezone: true }).notNull(),
+  source: text("source").notNull(),
+  status: text("status").notNull().default("pending"),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  leaseToken: uuid("lease_token"),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const integrationCredential = pgTable("integration_credential", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),
   vendorAccountId: uuid("vendor_account_id").references((): AnyPgColumn => vendorAccount.id).notNull(),

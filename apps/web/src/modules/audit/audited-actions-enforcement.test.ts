@@ -98,6 +98,42 @@ describe("audited server action enforcement", () => {
     });
   });
 
+  test("accepts a local action helper backed by a factory-created audited service", async () => {
+    const root = await fixture({
+      "src/app/actions.ts": `"use server";
+        import { revalidatePath } from "next/cache";
+        import { loadCurrentLedgerAuthorization } from "../modules/identity-access/server-authorization";
+        import { createCapacityService } from "../modules/capacity-service";
+        const service = createCapacityService(db);
+        async function execute(input) {
+          const authorization = await loadCurrentLedgerAuthorization();
+          if (!authorization) throw new Error("forbidden");
+          await service.changeCapacity(authorization, input);
+          revalidatePath("/capacity");
+        }
+        export async function save(input) { await execute(input); }`,
+      "src/modules/capacity-service.ts": `import { withAudit } from "@/modules/audit/with-audit";
+        export function createCapacityService(database) {
+          return { async changeCapacity(authorization, input) {
+            return await withAudit(database, async (transaction) => ({
+              value: input,
+              audit: evidence,
+            }));
+          }};
+        }`,
+      "src/modules/identity-access/server-authorization.ts":
+        `export async function loadCurrentLedgerAuthorization() { return {}; }`,
+      "src/modules/audit/with-audit.ts":
+        `export function withAudit(...args) { return args; }`,
+    });
+
+    await expect(
+      execFileAsync(process.execPath, [script, root]),
+    ).resolves.toMatchObject({
+      stdout: expect.stringContaining("Audited server action enforcement passed"),
+    });
+  });
+
   test("rejects a mutation after an audited service result", async () => {
     const root = await fixture({
       "src/app/actions.ts": `"use server";

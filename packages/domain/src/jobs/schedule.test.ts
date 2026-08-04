@@ -82,6 +82,7 @@ describe("US-046 job schedules", () => {
         timeZone: "UTC",
       },
       closePrecheck: { cron: "30 10 * * 1-5", queue: "close-precheck", timeZone: "UTC" },
+      capacityRecovery: { cron: "* * * * *", queue: "capacity-recovery", timeZone: "UTC" },
     });
   });
 
@@ -91,6 +92,7 @@ describe("US-046 job schedules", () => {
     expect(SCHEDULE_TIME_DOCUMENTATION.invitePoll.americaGuayaquilCron).toBe("*/15 * * * *");
     expect(SCHEDULE_TIME_DOCUMENTATION.alertEvaluation.americaGuayaquilCron).toBe("7,22,37,52 * * * *");
     expect(SCHEDULE_TIME_DOCUMENTATION.closePrecheck.americaGuayaquilCron).toBe("30 5 * * 1-5");
+    expect(SCHEDULE_TIME_DOCUMENTATION.capacityRecovery.americaGuayaquilCron).toBe("* * * * *");
   });
 
   it("derives the approved stable keys from UTC job periods", () => {
@@ -107,6 +109,9 @@ describe("US-046 job schedules", () => {
     );
     expect(createJobIdempotencyKey("alertEvaluation", { at })).toBe(
       "alert-evaluation:2026-07-25T14:15",
+    );
+    expect(createJobIdempotencyKey("capacityRecovery", { at })).toBe(
+      "capacity-recovery:2026-07-25T14:29",
     );
     expect(createJobIdempotencyKey("closePrecheck", { at })).toBe("close-precheck:2026-07");
   });
