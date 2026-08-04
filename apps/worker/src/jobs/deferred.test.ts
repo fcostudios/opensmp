@@ -35,6 +35,12 @@ describe("US-046 deferred job handlers", () => {
       status: "skipped",
       story: "US-042",
     });
+    await expect(handlers.capacityRecovery({ ...context, jobName: "capacityRecovery" })).resolves.toEqual({
+      processed: 0,
+      reason: "dependency_not_delivered",
+      status: "skipped",
+      story: "US-023",
+    });
     await expect(handlers.closePrecheck({ ...context, jobName: "closePrecheck" })).resolves.toMatchObject({
       reason: "dependency_not_delivered",
       status: "skipped",
