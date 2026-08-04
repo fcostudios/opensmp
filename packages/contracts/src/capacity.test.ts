@@ -1,15 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  capacityChangeSchema,
-  capacityDecisionEvidenceSchema,
-  capacityRecoveryJobSchema,
-} from "./capacity";
-import {
-  capacityChangeSchema as publicCapacityChangeSchema,
-  capacityDecisionEvidenceSchema as publicCapacityDecisionEvidenceSchema,
-  capacityRecoveryJobSchema as publicCapacityRecoveryJobSchema,
-} from "./index";
+type CapacityContracts = typeof import("./capacity");
+
+let capacityChangeSchema: CapacityContracts["capacityChangeSchema"];
+let capacityDecisionEvidenceSchema: CapacityContracts["capacityDecisionEvidenceSchema"];
+let capacityRecoveryJobSchema: CapacityContracts["capacityRecoveryJobSchema"];
 
 const ids = {
   account: "23000000-0000-4000-8000-000000000001",
@@ -17,7 +12,23 @@ const ids = {
 };
 
 describe("US-023 capacity contracts", () => {
-  it("publishes the exact capacity contracts from the public barrel", () => {
+  beforeEach(async () => {
+    // Stryker activates each mutant after Vitest collects this file. Loading the
+    // schemas here ensures top-level Zod builders execute with that mutant active.
+    vi.resetModules();
+    ({
+      capacityChangeSchema,
+      capacityDecisionEvidenceSchema,
+      capacityRecoveryJobSchema,
+    } = await import("./capacity"));
+  });
+
+  it("publishes the exact capacity contracts from the public barrel", async () => {
+    const {
+      capacityChangeSchema: publicCapacityChangeSchema,
+      capacityDecisionEvidenceSchema: publicCapacityDecisionEvidenceSchema,
+      capacityRecoveryJobSchema: publicCapacityRecoveryJobSchema,
+    } = await import("./index");
     expect(publicCapacityChangeSchema).toBe(capacityChangeSchema);
     expect(publicCapacityDecisionEvidenceSchema).toBe(capacityDecisionEvidenceSchema);
     expect(publicCapacityRecoveryJobSchema).toBe(capacityRecoveryJobSchema);
