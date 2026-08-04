@@ -500,6 +500,23 @@ describe("request read repository", () => {
       });
       expect(JSON.stringify(employeePage)).not.toContain(tenantBAssignment);
       expect(JSON.stringify(employeePage)).not.toContain("99");
+
+      const adminPage = await repository.listBlockedExceptions(
+        await authorization("read-admin"),
+        { limit: 10 },
+      );
+      expect(
+        adminPage.items.find(({ id }) => id === ids.requestA)?.decisionEvidence,
+      ).toEqual({
+        type: "candidates",
+        items: [
+          {
+            assignmentId: tenantBAssignment,
+            lastActiveOn: "2026-05-02",
+            monthlyCostUsd: 99,
+          },
+        ],
+      });
     } finally {
       if (previousHolidays === undefined) delete process.env.ECUADOR_HOLIDAYS;
       else process.env.ECUADOR_HOLIDAYS = previousHolidays;
