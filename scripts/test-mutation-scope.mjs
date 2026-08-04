@@ -12,9 +12,23 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  DIRECT_TEST_ROUTES,
   requireRoutedTestFiles,
   routedTestFiles,
 } from "./mutation-scope.mjs";
+
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["apps/web/src/modules/vendor-catalog/capacity-recovery-outbox.ts"],
+  ["apps/web/src/modules/vendor-catalog/capacity-service.integration.test.ts"],
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["apps/web/src/modules/vendor-catalog/no-seat-observation.ts"],
+  ["apps/web/src/modules/vendor-catalog/capacity-service.integration.test.ts"],
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["apps/web/src/modules/request-workflow/approval/repository.ts"],
+  ["apps/web/src/modules/request-workflow/approval-repository.integration.test.ts"],
+);
 
 const syntheticExists = (path) => new Set([
   "src/account.test.ts",

@@ -424,6 +424,51 @@ function namedTarget(sourceFile, targetName) {
   return target;
 }
 
+function returnedFactoryMember(factoryTarget, memberName) {
+  const callable = ts.isVariableDeclaration(factoryTarget)
+    ? factoryTarget.initializer
+    : factoryTarget;
+  if (!callable ||
+      !(ts.isFunctionDeclaration(callable) ||
+        ts.isFunctionExpression(callable) ||
+        ts.isArrowFunction(callable))) {
+    return null;
+  }
+  const returned = [];
+  if (!ts.isBlock(callable.body)) {
+    returned.push(unwrapExpression(callable.body));
+  } else {
+    function visit(current) {
+      if (current !== callable.body &&
+          (ts.isFunctionDeclaration(current) ||
+           ts.isFunctionExpression(current) ||
+           ts.isArrowFunction(current))) {
+        return;
+      }
+      if (ts.isReturnStatement(current) && current.expression) {
+        returned.push(unwrapExpression(current.expression));
+        return;
+      }
+      ts.forEachChild(current, visit);
+    }
+    visit(callable.body);
+  }
+  for (const expression of returned) {
+    if (!ts.isObjectLiteralExpression(expression)) continue;
+    for (const property of expression.properties) {
+      const name = property.name;
+      if (!name ||
+          !((ts.isIdentifier(name) || ts.isStringLiteral(name)) &&
+            name.text === memberName)) {
+        continue;
+      }
+      if (ts.isPropertyAssignment(property)) return property.initializer;
+      if (ts.isMethodDeclaration(property)) return property;
+    }
+  }
+  return null;
+}
+
 function serviceTargetIsAudited(
   expression,
   owner,
@@ -460,7 +505,13 @@ function serviceTargetIsAudited(
       true,
       factorySource.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
     );
-    const memberTarget = namedTarget(factoryFile, call.member);
+    const factoryTarget = namedTarget(
+      factoryFile,
+      factoryImport.importedName,
+    );
+    const memberTarget = factoryTarget
+      ? returnedFactoryMember(factoryTarget, call.member)
+      : null;
     return !!memberTarget && wholeBodyUsesAudit(
       memberTarget,
       importedBindings(factoryFile),

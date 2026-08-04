@@ -1,11 +1,7 @@
 import { z } from "zod";
 
 const uuidSchema = z.string().uuid();
-// Stryker disable all:
-// @equivalent The ISO round-trip refinement below independently rejects every
-// prefix, suffix, width, and non-digit mutation of this readability guard.
 const isoDateFormat = /^\d{4}-\d{2}-\d{2}$/;
-// Stryker restore all
 const isoDateSchema = z
   .string()
   .regex(isoDateFormat)

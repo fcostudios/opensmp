@@ -1,4 +1,11 @@
 import type { CapacityRecoveryJob } from "@smp/contracts/capacity";
+import {
+  ecuadorOperatingDate,
+  lockCapacityPool,
+  routeProvisioningActionInTransaction,
+} from "@smp/db/provisioning-routing";
+import * as schema from "@smp/db/schema";
+import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 
 export function createCapacityRecoveryJob({
@@ -42,6 +49,7 @@ export function createCapacityRecoveryJob({
         );
         await client.query("COMMIT");
         let processed = 0;
+        const operatingDate = ecuadorOperatingDate(at);
         for (const work of claimed.rows) {
           try {
             const scope = await pool.query<{ company_id: string }>(
@@ -60,7 +68,11 @@ export function createCapacityRecoveryJob({
                      WHERE vendor_account_id=$1 AND license_type_id=$2
                        AND effective_from <= $3::date
                      ORDER BY effective_from DESC,created_at DESC,id DESC LIMIT 1`,
-                    [work.vendor_account_id, work.license_type_id, at],
+                    [
+                      work.vendor_account_id,
+                      work.license_type_id,
+                      operatingDate,
+                    ],
                   )
                 ).rows[0];
             if (capacity && scope.rows.length) {
@@ -112,19 +124,63 @@ async function recover(
 ): Promise<{ readonly resumedRequestIds: string[] }> {
   const client = await pool.connect();
   try {
-    const result = await client.query<{ request_id: string }>(
-      `SELECT recovered::text AS request_id
-       FROM recover_blocked_requests_for_capacity($1,$2,$3,$4,$5,$6) recovered`,
-      [
-        input.capacityId,
-        input.vendorAccountId,
-        input.licenseTypeId,
-        input.effectiveFrom,
-        input.companyIds,
-        occurredAt,
-      ],
+    await client.query("BEGIN");
+    const database = drizzle(client, { schema });
+    await lockCapacityPool(database, input.vendorAccountId, input.licenseTypeId);
+    const operatingDate = ecuadorOperatingDate(occurredAt);
+    const capacity = await client.query<{ free: number }>(
+      `SELECT greatest(0,selected.purchased_qty
+          - (SELECT count(*) FROM license_assignment assignment
+             JOIN person holder ON holder.id=assignment.person_id
+              AND holder.company_id=assignment.company_id
+             WHERE assignment.vendor_account_id=$2 AND assignment.license_type_id=$3
+               AND assignment.started_on <= $5::date
+               AND (assignment.ended_on IS NULL OR assignment.ended_on >= $5::date))
+          - (SELECT count(*) FROM provisioning_action action
+             JOIN license_request pending ON pending.id=action.request_id
+              AND pending.vendor_account_id=action.vendor_account_id
+             WHERE action.vendor_account_id=$2 AND pending.license_type_id=$3
+               AND action.kind='invite' AND action.mode='automated'
+               AND action.status IN ('pending','sent')))::int AS free
+       FROM vendor_account_capacity selected
+       WHERE selected.id=$1 AND selected.vendor_account_id=$2
+         AND selected.license_type_id=$3 AND selected.effective_from=$4::date
+         AND selected.effective_from <= $5::date
+         AND NOT EXISTS (SELECT 1 FROM vendor_account_capacity newer
+           WHERE newer.vendor_account_id=selected.vendor_account_id
+             AND newer.license_type_id=selected.license_type_id
+             AND newer.effective_from <= $5::date
+             AND (newer.effective_from,newer.created_at,newer.id) >
+                 (selected.effective_from,selected.created_at,selected.id))
+      `,
+      [input.capacityId,input.vendorAccountId,input.licenseTypeId,input.effectiveFrom,operatingDate],
     );
-    return { resumedRequestIds: result.rows.map((row) => row.request_id) };
+    const free = capacity.rows[0]?.free ?? 0;
+    const candidates = free === 0
+      ? { rows: [] as { request_id: string }[] }
+      : await client.query<{ request_id: string }>(
+          `SELECT request.id::text AS request_id
+           FROM license_request request JOIN person holder
+             ON holder.id=request.person_id AND holder.company_id=request.company_id
+           WHERE request.state='blocked_no_seat' AND request.vendor_account_id=$1
+             AND request.license_type_id=$2 AND request.company_id=ANY($3::uuid[])
+           ORDER BY request.created_at,request.id FOR UPDATE OF request SKIP LOCKED LIMIT $4`,
+          [input.vendorAccountId,input.licenseTypeId,input.companyIds,free],
+        );
+    for (const candidate of candidates.rows) {
+      await routeProvisioningActionInTransaction(database, {
+        actorUserId: null,
+        expectedState: "blocked_no_seat",
+        note: "Capacity became available",
+        occurredAt,
+        requestId: candidate.request_id,
+      });
+    }
+    await client.query("COMMIT");
+    return { resumedRequestIds: candidates.rows.map((row) => row.request_id) };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
   } finally {
     client.release();
   }

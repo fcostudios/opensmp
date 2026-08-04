@@ -11,7 +11,7 @@ import {
   type ProvisionResult,
   type SyncInput,
   type VendorConnector,
-} from "./contracts";
+} from "./contracts.js";
 
 export type ConnectorProtocol = "none" | "rest" | "scim";
 const protocols = new Set<ConnectorProtocol>(["none", "rest", "scim"]);

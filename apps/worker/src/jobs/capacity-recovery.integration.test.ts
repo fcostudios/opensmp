@@ -6,6 +6,7 @@ import {
   type PostgresFixture,
 } from "@smp/db/testing/postgres-container";
 
+import { createOrchestrationService } from "../../../web/src/modules/request-workflow/orchestration.js";
 import { createCapacityRecoveryJob } from "./capacity-recovery.js";
 
 const id = (suffix: string) =>
@@ -23,6 +24,7 @@ const ids = {
   requestB: id("10"),
   capacity: id("11"),
   requestFreed: id("12"),
+  requestBoundary: id("13"),
 };
 const at = new Date("2026-08-04T15:00:00.000Z");
 let fixture: PostgresFixture;
@@ -147,6 +149,59 @@ describe("US-023 capacity recovery with real PostgreSQL", () => {
       { count: 1, request_id: ids.requestA, to_state: "provisioning" },
       { count: 1, request_id: ids.requestB, to_state: "provisioning" },
     ]);
+
+    const orchestration = createOrchestrationService(fixture.appUrl, {
+      now: () => at,
+    });
+    try {
+      const action = await orchestration.routeApprovedRequest({
+        companyGrants: [],
+        companyIds: [],
+        employeeCompanyId: null,
+        globalRole: "group_admin",
+        idpSubject: "recovery-admin",
+        roles: ["group_admin"],
+        userAccountId: ids.admin,
+        userId: ids.admin,
+      }, ids.requestA);
+      expect(action).toMatchObject({
+        kind: "checklist",
+        mode: "orchestration",
+        status: "pending",
+      });
+      expect(action).toHaveProperty("rawRequest.operation", "provision");
+      await expect(
+        orchestration.pendingChecklist({
+          companyGrants: [],
+          companyIds: [],
+          employeeCompanyId: null,
+          globalRole: "group_admin",
+          idpSubject: "recovery-admin",
+          roles: ["group_admin"],
+          userAccountId: ids.admin,
+          userId: ids.admin,
+        }, ids.requestA),
+      ).resolves.toMatchObject({ id: action.id });
+      await expect(orchestration.confirmChecklistDone({
+        companyGrants: [],
+        companyIds: [],
+        employeeCompanyId: null,
+        globalRole: "group_admin",
+        idpSubject: "recovery-admin",
+        roles: ["group_admin"],
+        userAccountId: ids.admin,
+        userId: ids.admin,
+      }, {
+        actionId: action.id,
+        confirmationId: "recovered-action-confirmation",
+      })).resolves.toMatchObject({ status: "active" });
+      await expect(owner.query(
+        "SELECT state FROM license_request WHERE id=$1",
+        [ids.requestA],
+      )).resolves.toMatchObject({ rows: [{ state: "active" }] });
+    } finally {
+      await orchestration.close();
+    }
   });
 
   it("kills early future-effective execution and reclaims an expired lease", async () => {
@@ -197,8 +252,8 @@ describe("US-023 capacity recovery with real PostgreSQL", () => {
       [ids.requestFreed, ids.admin, freedAt],
     );
     await owner.query(
-      `SELECT enqueue_capacity_recovery(NULL,$1,$2,'2026-08-05','seat_freed',$3)`,
-      [ids.account, ids.license, freedAt],
+      `SELECT enqueue_capacity_recovery(NULL,$1,$2,'2026-08-05','seat_freed',$3,$4)`,
+      [ids.account, ids.license, freedAt, id("120")],
     );
     const job = createCapacityRecoveryJob({ connectionString: fixture.appUrl, now: () => freedAt });
     try {
@@ -212,5 +267,68 @@ describe("US-023 capacity recovery with real PostgreSQL", () => {
         [ids.requestFreed],
       ),
     ).resolves.toMatchObject({ rows: [{ state: "provisioning" }] });
+  });
+
+  it("processes two distinct same-day releases and one replay exactly twice", async () => {
+    const releasedAt = new Date("2026-08-05T16:00:00.000Z");
+    for (const releaseEventId of [id("121"), id("122"), id("121")]) {
+      await owner.query(
+        `SELECT enqueue_capacity_recovery(NULL,$1,$2,'2026-08-05','seat_freed',$3,$4)`,
+        [ids.account, ids.license, releasedAt, releaseEventId],
+      );
+    }
+    const job = createCapacityRecoveryJob({ connectionString: fixture.appUrl, now: () => releasedAt });
+    try {
+      await expect(job.drain()).resolves.toEqual({ processed: 2 });
+      await expect(job.drain()).resolves.toEqual({ processed: 0 });
+    } finally {
+      await job.close();
+    }
+    await expect(owner.query(
+      `SELECT release_event_id::text,status,attempt_count
+       FROM capacity_recovery_work WHERE release_event_id IN ($1,$2)
+       ORDER BY release_event_id`,
+      [id("121"), id("122")],
+    )).resolves.toMatchObject({
+      rows: [id("121"), id("122")].map((releaseEventId) => ({
+        attempt_count: 1,
+        release_event_id: releaseEventId,
+        status: "completed",
+      })),
+    });
+  });
+
+  it("does not activate tomorrow's capacity before Ecuador midnight", async () => {
+    const boundary = new Date("2026-08-05T02:00:00.000Z");
+    await owner.query(
+      `UPDATE vendor_account_capacity SET purchased_qty=0 WHERE id=$1`,
+      [ids.capacity],
+    );
+    await owner.query(
+      `INSERT INTO vendor_account_capacity
+         (vendor_account_id,license_type_id,purchased_qty,effective_from,created_at,created_by)
+       VALUES ($1,$2,1,'2026-08-05',$3,$4)`,
+      [ids.account, ids.license, boundary, ids.admin],
+    );
+    await owner.query(
+      `INSERT INTO license_request
+         (id,request_no,person_id,company_id,vendor_account_id,license_type_id,
+          state,justification,created_at,created_by)
+       VALUES ($1,'REC-BOUNDARY',$2,$3,$4,$5,'blocked_no_seat','boundary',$6,$7)`,
+      [ids.requestBoundary, ids.personA, ids.companyA, ids.account, ids.license, boundary, ids.admin],
+    );
+    await owner.query(
+      `SELECT enqueue_capacity_recovery(NULL,$1,$2,'2026-08-04','seat_freed',$3,$4)`,
+      [ids.account, ids.license, boundary, id("130")],
+    );
+    const job = createCapacityRecoveryJob({ connectionString: fixture.appUrl, now: () => boundary });
+    try {
+      await expect(job.drain()).resolves.toEqual({ processed: 1 });
+    } finally {
+      await job.close();
+    }
+    await expect(
+      owner.query("SELECT state FROM license_request WHERE id=$1", [ids.requestBoundary]),
+    ).resolves.toMatchObject({ rows: [{ state: "blocked_no_seat" }] });
   });
 });

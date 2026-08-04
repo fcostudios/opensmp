@@ -36,6 +36,11 @@ describe("US-023 capacity contracts", () => {
       reason: "purchase",
       vendorAccountId: ids.account,
     } as const;
+    for (const effectiveFrom of ["0001-01-01", "2000-02-29", "9999-12-31"]) {
+      expect(
+        capacityChangeSchema.safeParse({ ...base, effectiveFrom }).success,
+      ).toBe(true);
+    }
     for (const effectiveFrom of [
       "x2026-08-04",
       "2026-08-04x",

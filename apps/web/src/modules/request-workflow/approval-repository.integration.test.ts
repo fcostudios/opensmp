@@ -802,6 +802,59 @@ describe("approval queue repository", () => {
     }]);
   });
 
+  test("serializes concurrent approvals competing for the final pool seat", async () => {
+    await owner.query(
+      `INSERT INTO user_account
+         (id,email,idp_subject,global_role,ui_language,status,created_at)
+       VALUES ('00000000-0000-0000-0000-000000000001','system@ledger.invalid',
+               'ledger-system',NULL,'en','active',$1)
+       ON CONFLICT (id) DO NOTHING`,
+      [decidedAt],
+    );
+    await owner.query(
+      `UPDATE vendor_account_capacity SET purchased_qty=4
+       WHERE vendor_account_id=$1 AND license_type_id=$2`,
+      [vendorAccountId, licenseTypeId],
+    );
+    await owner.query(
+      `UPDATE vendor SET connector_type='api',provisioning_protocol='rest',
+         can_provision=true WHERE id=$1`,
+      [vendorId],
+    );
+    await owner.query(
+      `UPDATE vendor_account SET mode='automated' WHERE id=$1`,
+      [vendorAccountId],
+    );
+    const dispatcher = createConnectorDispatcher();
+    dispatcher.register("rest", automatedConnector);
+    const concurrentRepository = createApprovalRepository(database, {
+      dispatcher,
+    });
+
+    await Promise.all([
+      concurrentRepository.decide(admin, {
+        decision: "approved",
+        requestId: requestA,
+      }, decidedAt),
+      concurrentRepository.decide(admin, {
+        decision: "approved",
+        requestId: requestB,
+      }, decidedAt),
+    ]);
+
+    const evidence = await owner.query(
+      `SELECT
+         (SELECT count(*)::int FROM provisioning_action
+          WHERE request_id IN ($1,$2)) AS actions,
+         (SELECT count(*)::int FROM license_request
+          WHERE id IN ($1,$2) AND state='blocked_no_seat') AS blocked,
+         (SELECT count(*)::int FROM license_request
+          WHERE id IN ($1,$2) AND state='provisioning') AS provisioning`,
+      [requestA, requestB],
+    );
+    expect(evidence.rows).toEqual([{ actions: 1, blocked: 1, provisioning: 1 }]);
+  });
+
   test("rolls an automated approval back when action persistence fails", async () => {
     await owner.query(
       `UPDATE vendor

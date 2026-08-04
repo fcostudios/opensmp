@@ -2,11 +2,16 @@ import { randomUUID } from "node:crypto";
 
 import {
   createConnectorDispatcher,
-  planProvisioningAction,
   type ConnectorDispatcher,
   type ConnectorProtocol,
   type ProvisioningActionPlan,
 } from "@smp/connectors";
+// eslint-disable-next-line no-restricted-imports -- Shared atomic provisioning routing is a transaction-service boundary.
+import {
+  ecuadorOperatingDate,
+  lockRequestCapacityPool,
+  routeProvisioningActionInTransaction,
+} from "@smp/db/provisioning-routing";
 // eslint-disable-next-line no-restricted-imports -- This module is the atomic orchestration checklist transaction service.
 import * as schema from "@smp/db/schema";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
@@ -83,12 +88,11 @@ function assertGroupAdmin(authorization: LedgerAuthorization): void {
   }
 }
 
-function ecuadorCalendarDate(value: Date): string {
-  return new Date(value.getTime() - 18_000_000).toISOString().slice(0, 10);
-}
-
 export function validateProvisioningActionPlan(
-  plan: ProvisioningActionPlan,
+  plan: Pick<ProvisioningActionPlan, "kind" | "mode"> & {
+    readonly rawRequest: unknown;
+    readonly status?: unknown;
+  },
 ): void {
   if (plan.kind === "checklist" && plan.mode === "orchestration") {
     parseChecklistPayload(plan.rawRequest);
@@ -108,6 +112,12 @@ export async function routeApprovedRequestInTransaction(
   occurredAt: Date,
   dispatcher: ConnectorDispatcher = createConnectorDispatcher(),
 ) {
+  await lockRequestCapacityPool(
+    transaction,
+    requestId,
+    "all",
+    "CHECKLIST_REQUEST_NOT_FOUND",
+  );
   const routed = await transaction.execute<RouteWire>(
     sql`SELECT request.id::text AS "requestId",
                request.state::text AS "requestState",
@@ -179,7 +189,7 @@ export async function routeApprovedRequestInTransaction(
             FROM vendor_account_capacity capacity
             WHERE capacity.vendor_account_id=${request.vendorAccountId}::uuid
               AND capacity.license_type_id=${request.licenseTypeId}::uuid
-              AND capacity.effective_from <= ${ecuadorCalendarDate(occurredAt)}::date
+              AND capacity.effective_from <= ${ecuadorOperatingDate(occurredAt)}::date
               AND capacity.created_at <= ${occurredAt}
             ORDER BY capacity.effective_from DESC,capacity.created_at DESC,capacity.id DESC
             LIMIT 1
@@ -189,9 +199,9 @@ export async function routeApprovedRequestInTransaction(
               AND holder.company_id=assignment.company_id
              WHERE assignment.vendor_account_id=${request.vendorAccountId}::uuid
                AND assignment.license_type_id=${request.licenseTypeId}::uuid
-               AND assignment.started_on <= ${ecuadorCalendarDate(occurredAt)}::date
+               AND assignment.started_on <= ${ecuadorOperatingDate(occurredAt)}::date
                AND assignment.created_at <= ${occurredAt}
-               AND (assignment.ended_on IS NULL OR assignment.ended_on >= ${ecuadorCalendarDate(occurredAt)}::date))
+               AND (assignment.ended_on IS NULL OR assignment.ended_on >= ${ecuadorOperatingDate(occurredAt)}::date))
           - (SELECT count(*) FROM provisioning_action action
              JOIN license_request pending ON pending.id=action.request_id
               AND pending.vendor_account_id=action.vendor_account_id
@@ -210,76 +220,15 @@ export async function routeApprovedRequestInTransaction(
     );
   }
 
-  const plan = await planProvisioningAction(dispatcher, {
-    accountMode: request.accountMode,
-    context: {
-      companyId: request.companyId,
-      requestId: request.requestId,
-    },
-    entityIds: {
-      licenseId: request.licenseTypeId,
-      personId: request.personId,
-    },
-    instruction: {
-      licenseTypeName: request.licenseTypeName,
-      personEmail: request.personEmail,
-      requestId: request.requestId,
-      vendorAccountId: request.vendorAccountId,
-    },
-    operation: "provision",
-    protocol: request.protocol,
-    vendorCapability: request.canProvision,
-  });
-  validateProvisioningActionPlan(plan);
-  const actionId = randomUUID();
-  await transaction.execute(
-    sql`INSERT INTO provisioning_action
-          (id, request_id, vendor_account_id, kind, mode, status,
-           raw_request, created_at)
-        VALUES
-          (${actionId}::uuid, ${request.requestId}::uuid,
-           ${request.vendorAccountId}::uuid,
-           ${plan.kind}::provisioning_action_kind_enum,
-           ${plan.mode}::provisioning_action_mode_enum, 'pending',
-           ${JSON.stringify(plan.rawRequest)}::jsonb,
-           ${occurredAt})`,
-  );
-  const checklist = plan.kind === "checklist";
-  await applyLockedRequestTransition(transaction, authorization, {
+  const action = await routeProvisioningActionInTransaction(transaction, {
     actorUserId: authorization.userAccountId,
-    from: "approved",
-    note: checklist
-      ? "Orchestration checklist issued"
-      : "Automated provisioning action issued",
+    expectedState: "approved",
+    note: "Provisioning action issued",
     occurredAt,
     requestId: request.requestId,
-    to: "provisioning",
-  });
-  await transaction.execute(
-    sql`INSERT INTO audit_log
-          (actor_user_id, action, entity_type, entity_id, company_id,
-           before, after, occurred_at)
-        VALUES
-          (${authorization.userAccountId}::uuid,
-           ${checklist
-             ? "orchestration.checklist_issued"
-             : "orchestration.automated_action_issued"},
-           'ProvisioningAction',
-           ${actionId}::uuid, ${request.companyId}::uuid, NULL,
-           ${JSON.stringify({
-             kind: plan.kind,
-             mode: plan.mode,
-             requestId: request.requestId,
-             status: "pending",
-           })}::jsonb, ${occurredAt})`,
-  );
-  return {
-    id: actionId,
-    kind: plan.kind,
-    mode: plan.mode,
-    rawRequest: plan.rawRequest,
-    status: "pending" as const,
-  };
+  }, dispatcher);
+  validateProvisioningActionPlan(action);
+  return action;
 }
 
 export function createOrchestrationOperations(
@@ -464,7 +413,7 @@ export function createOrchestrationOperations(
       assertGroupAdmin(authorization);
       const input = parseConfirmChecklist(untrustedInput);
       const occurredAt = now();
-      const attestedOn = ecuadorCalendarDate(occurredAt);
+      const attestedOn = ecuadorOperatingDate(occurredAt);
       return database.transaction(async (transaction) => {
         await transaction.execute(
           // Stryker disable next-line StringLiteral: @equivalent Changing the

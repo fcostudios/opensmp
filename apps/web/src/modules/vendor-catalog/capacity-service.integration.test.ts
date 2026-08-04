@@ -234,24 +234,34 @@ describe("US-023 canonical capacity transaction", () => {
     );
   });
 
-  it("exposes one shared transactional enqueue seam for a future freed-seat writer", async () => {
+  it("deduplicates one release event without swallowing a distinct same-day freed seat", async () => {
     await database.transaction(async (transaction) => {
-      await enqueueCapacityRecovery(transaction, {
-        capacityId: null,
-        effectiveFrom: "2026-08-04",
-        licenseTypeId: ids.licenseA,
-        occurredAt: now,
-        source: "seat_freed",
-        vendorAccountId: ids.accountA,
-      });
+      for (const releaseEventId of [id("101"), id("102"), id("101")]) {
+        await enqueueCapacityRecovery(transaction, {
+          capacityId: null,
+          effectiveFrom: "2026-08-04",
+          licenseTypeId: ids.licenseA,
+          occurredAt: now,
+          releaseEventId,
+          source: "seat_freed",
+          vendorAccountId: ids.accountA,
+        });
+      }
     });
     await expect(
       owner.query(
-        `SELECT source,capacity_id,status FROM capacity_recovery_work
-         WHERE source='seat_freed'`,
+        `SELECT source,capacity_id,release_event_id::text,status
+         FROM capacity_recovery_work WHERE source='seat_freed'
+         ORDER BY release_event_id`,
       ),
     ).resolves.toMatchObject({
-      rows: [{ capacity_id: null, source: "seat_freed", status: "pending" }],
+      rowCount: 2,
+      rows: [id("101"), id("102")].map((releaseEventId) => ({
+        capacity_id: null,
+        release_event_id: releaseEventId,
+        source: "seat_freed",
+        status: "pending",
+      })),
     });
   });
 

@@ -141,7 +141,7 @@ const ADJACENT_TEST_SUFFIXES = [
 // adjacent test. Their behavior is owned by these contract tests. Keeping the
 // exceptional routes explicit prevents a changed source from silently riding
 // along merely because some unrelated story test also changed.
-const DIRECT_TEST_ROUTES = {
+export const DIRECT_TEST_ROUTES = {
   "apps/web/src/app/(authenticated)/usuarios/page.tsx": [
     "apps/web/src/components/users/users-roles-panel.test.tsx",
     "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts",
@@ -156,11 +156,34 @@ const DIRECT_TEST_ROUTES = {
   "apps/web/src/modules/identity-access/users-roles-page.tsx": [
     "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts",
   ],
+  "apps/web/src/modules/request-workflow/approval/repository.ts": [
+    "apps/web/src/modules/request-workflow/approval-repository.integration.test.ts",
+  ],
+  "apps/web/src/modules/vendor-catalog/capacity-recovery-outbox.ts": [
+    "apps/web/src/modules/vendor-catalog/capacity-service.integration.test.ts",
+  ],
+  "apps/web/src/modules/vendor-catalog/no-seat-observation.ts": [
+    "apps/web/src/modules/vendor-catalog/capacity-service.integration.test.ts",
+  ],
+  "apps/web/src/modules/vendor-catalog/actions/manage-capacity-operations.ts": [
+    "apps/web/src/modules/vendor-catalog/actions/manage-capacity.test.ts",
+  ],
   "apps/web/vitest.config.ts": [
     "apps/web/src/modules/identity-access/keycloak-admin.pact.test.ts",
   ],
   "packages/contracts/src/index.ts": [
     "packages/contracts/src/identity-access.test.ts",
+  ],
+  "packages/connectors/src/index.ts": [
+    "packages/connectors/src/action-planner.test.ts",
+    "packages/connectors/src/dispatch.test.ts",
+  ],
+  "packages/db/src/provisioning-routing.ts": [
+    "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+    "apps/worker/src/jobs/capacity-recovery.integration.test.ts",
+  ],
+  "packages/db/src/schema.ts": [
+    "packages/db/src/physical-schema.test.ts",
   ],
   "scripts/probes/anthropic/vitest.contract.config.ts": [
     "apps/web/src/modules/identity-access/keycloak-admin.pact.test.ts",

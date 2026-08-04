@@ -556,6 +556,7 @@ export const capacityRecoveryWork = pgTable("capacity_recovery_work", {
   effectiveFrom: date("effective_from").notNull(),
   availableAt: timestamp("available_at", { withTimezone: true }).notNull(),
   source: text("source").notNull(),
+  releaseEventId: uuid("release_event_id"),
   status: text("status").notNull().default("pending"),
   attemptCount: integer("attempt_count").notNull().default(0),
   leaseToken: uuid("lease_token"),

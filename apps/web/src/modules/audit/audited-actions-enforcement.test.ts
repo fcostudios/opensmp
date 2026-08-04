@@ -375,6 +375,36 @@ describe("audited server action enforcement", () => {
     });
   });
 
+  test("does not let an unrelated audited method conceal an unaudited factory result", async () => {
+    const root = await fixture({
+      "src/app/actions.ts": `"use server";
+        import { createCapacityService } from "../modules/capacity-service";
+        const service = createCapacityService(db);
+        export async function unsafeFactoryResult(input) {
+          return service.changeCapacity(input);
+        }`,
+      "src/modules/capacity-service.ts": `import { withAudit } from "@/modules/audit/with-audit";
+        export const unrelated = {
+          changeCapacity(input) {
+            return withAudit(db, async () => ({ value: input, audit }));
+          },
+        };
+        export function createCapacityService(database) {
+          return {
+            changeCapacity(input) { return database.update(input); },
+          };
+        }`,
+      "src/modules/audit/with-audit.ts":
+        `export function withAudit(...args) { return args; }`,
+    });
+
+    await expect(
+      execFileAsync(process.execPath, [script, root]),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining("unsafeFactoryResult"),
+    });
+  });
+
   test("the current application tree has no unaudited server action", async () => {
     await expect(
       execFileAsync(process.execPath, [script, applicationRoot]),

@@ -2,7 +2,7 @@ import {
   assertJsonValue,
   type JsonValue,
   type ProvisionInput,
-} from "./contracts";
+} from "./contracts.js";
 import {
   buildManualChecklistActions,
   validateProvisionInstruction,
@@ -10,7 +10,7 @@ import {
   type ConnectorProtocol,
   type ManualChecklistEntityIds,
   type ManualChecklistOperation,
-} from "./dispatch";
+} from "./dispatch.js";
 
 export interface ProvisioningActionPlan {
   readonly kind: "checklist" | "invite" | "remove";

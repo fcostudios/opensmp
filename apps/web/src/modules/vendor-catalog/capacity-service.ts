@@ -7,6 +7,8 @@ import {
 } from "@smp/contracts/capacity";
 // eslint-disable-next-line no-restricted-imports -- This service owns the audited capacity transaction.
 import * as schema from "@smp/db/schema";
+// eslint-disable-next-line no-restricted-imports -- Capacity writes share the canonical transaction-level pool lock.
+import { lockCapacityPool } from "@smp/db/provisioning-routing";
 
 import { withAudit } from "../audit/with-audit";
 import type { LedgerAuthorization } from "../identity-access/authorization";
@@ -71,6 +73,11 @@ export function createCapacityService(
           if (!ownership.rows[0]?.valid) {
             throw new Error("CAPACITY_LICENSE_VENDOR_MISMATCH");
           }
+          await lockCapacityPool(
+            transaction,
+            command.vendorAccountId,
+            command.licenseTypeId,
+          );
           const existing = await transaction.execute<{ readonly id: string }>(
             sql`SELECT id::text AS id
                 FROM vendor_account_capacity

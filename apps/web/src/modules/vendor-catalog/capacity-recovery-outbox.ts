@@ -7,14 +7,25 @@ import type * as schema from "@smp/db/schema";
 type Database = NodePgDatabase<typeof schema>;
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
-export interface CapacityRecoveryWork {
-  readonly capacityId: string | null;
+interface CapacityRecoveryWorkBase {
   readonly effectiveFrom: string;
   readonly licenseTypeId: string;
   readonly occurredAt: Date;
-  readonly source: "capacity_change" | "seat_freed";
   readonly vendorAccountId: string;
 }
+
+export type CapacityRecoveryWork = CapacityRecoveryWorkBase & (
+  | {
+      readonly capacityId: string;
+      readonly releaseEventId?: never;
+      readonly source: "capacity_change";
+    }
+  | {
+      readonly capacityId: null;
+      readonly releaseEventId: string;
+      readonly source: "seat_freed";
+    }
+);
 
 /** Enqueue in the same transaction that persisted the capacity or freed seat. */
 export async function enqueueCapacityRecovery(
@@ -25,7 +36,7 @@ export async function enqueueCapacityRecovery(
     sql`SELECT enqueue_capacity_recovery(
           ${work.capacityId}::uuid, ${work.vendorAccountId}::uuid,
           ${work.licenseTypeId}::uuid, ${work.effectiveFrom}::date,
-          ${work.source}, ${work.occurredAt})`,
+          ${work.source}, ${work.occurredAt},
+          ${work.releaseEventId ?? null}::uuid)`,
   );
 }
-

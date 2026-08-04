@@ -4,6 +4,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { decideRequestSchema, type DecideRequestInput } from "@smp/contracts";
 import { db } from "@smp/db";
 import * as schema from "@smp/db/schema";
+import { lockRequestCapacityPool } from "@smp/db/provisioning-routing";
 import {
   businessHoursPending,
   hasDecisionTargetBreach,
@@ -219,6 +220,18 @@ export function createApprovalRepository(
     ): Promise<void> {
       const input = decideRequestSchema.parse(untrustedInput);
       await database.transaction(async (transaction) => {
+        if (input.decision === "approved") {
+          const permitted = permittedCompanyIds(
+            authorization,
+            "request:approve",
+          );
+          await lockRequestCapacityPool(
+            transaction,
+            input.requestId,
+            permitted === "all" ? "all" : [...permitted],
+            `REQUEST_NOT_FOUND:${input.requestId}`,
+          );
+        }
         await applyLockedRequestTransition(transaction, authorization, {
           requestId: input.requestId,
           from: "pending_approval",

@@ -1179,6 +1179,7 @@ describe("people repository", () => {
     );
     const recoveryWork = await owner.query(
       `SELECT source,vendor_account_id::text,license_type_id::text,
+              release_event_id::text,
               effective_from::text,status
        FROM capacity_recovery_work
        WHERE vendor_account_id=$1 AND license_type_id=$2 AND source='seat_freed'`,
@@ -1187,6 +1188,7 @@ describe("people repository", () => {
     expect(recoveryWork.rows).toEqual([{
       effective_from: "2026-07-27",
       license_type_id: licenseTypeId,
+      release_event_id: singleMoveAssignmentId,
       source: "seat_freed",
       status: "pending",
       vendor_account_id: vendorAccountId,

@@ -40,6 +40,7 @@ import {
 } from "@smp/db/schema";
 import { db } from "@smp/db";
 import * as schema from "@smp/db/schema";
+import { lockCapacityPool } from "@smp/db/provisioning-routing";
 
 import { withAudit } from "../audit/with-audit";
 import type { LedgerAuthorization } from "../identity-access/authorization";
@@ -465,6 +466,11 @@ export function createPeopleRepository(
           const startedOn = calendarDate(occurredAt);
           if (openAssignments.length > 0) {
             for (const assignment of openAssignments) {
+              await lockCapacityPool(
+                transaction,
+                assignment.vendorAccountId,
+                assignment.licenseTypeId,
+              );
               await transaction
                 .update(licenseAssignment)
                 .set({ endedOn, endReason: "reallocated" })
@@ -483,6 +489,7 @@ export function createPeopleRepository(
                 effectiveFrom: startedOn,
                 licenseTypeId: assignment.licenseTypeId,
                 occurredAt,
+                releaseEventId: assignment.id,
                 source: "seat_freed",
                 vendorAccountId: assignment.vendorAccountId,
               });
