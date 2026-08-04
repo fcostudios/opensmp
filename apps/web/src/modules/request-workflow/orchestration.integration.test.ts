@@ -14,7 +14,26 @@ import {
   createProductionChecklistActionService,
 } from "./actions/checklist-action-transaction";
 import { createMemberSyncChecklistObservationPort } from "./member-sync-checklist-observation";
-import { createOrchestrationService } from "./orchestration";
+import {
+  createOrchestrationService,
+  type OrchestrationService,
+} from "./orchestration";
+
+type RouteOutcome = Awaited<
+  ReturnType<OrchestrationService["routeApprovedRequest"]>
+>;
+type RoutedAction = Exclude<
+  RouteOutcome,
+  { readonly status: "blocked_no_seat" }
+>;
+type SeatAvailableService = Omit<
+  OrchestrationService,
+  "routeApprovedRequest"
+> & {
+  routeApprovedRequest(
+    ...args: Parameters<OrchestrationService["routeApprovedRequest"]>
+  ): Promise<RoutedAction>;
+};
 
 const id = (suffix: string) =>
   `32000000-0000-4000-8000-${suffix.padStart(12, "0")}`;
@@ -48,7 +67,7 @@ const mailpitSmtpUrl = process.env.MAILPIT_TEST_SMTP_URL;
 
 let fixture: PostgresFixture;
 let owner: pg.Client;
-let service: ReturnType<typeof createOrchestrationService>;
+let service: SeatAvailableService;
 let actionPool: pg.Pool;
 let actionService: ReturnType<typeof createChecklistActionService>;
 let applicationUrl: string;
@@ -77,7 +96,7 @@ beforeAll(async () => {
   }
   service = createOrchestrationService(applicationUrl, {
     now: () => occurredAt,
-  });
+  }) as SeatAvailableService;
   actionPool = new pg.Pool({ connectionString: applicationUrl });
   actionService = createChecklistActionService(
     drizzle(actionPool, { schema }),
@@ -137,6 +156,12 @@ beforeEach(async () => {
        (id,vendor_id,name,unit,status,created_at,created_by)
      VALUES ($1,$2,'Generic seat','seat','active',$3,$4)`,
     [ids.licenseType, ids.vendor, occurredAt, ids.admin],
+  );
+  await owner.query(
+    `INSERT INTO vendor_account_capacity
+       (vendor_account_id,license_type_id,purchased_qty,effective_from,created_at,created_by)
+     VALUES ($1,$2,10,'2026-01-01',$3,$4)`,
+    [ids.account, ids.licenseType, occurredAt, ids.admin],
   );
   await owner.query(
     `INSERT INTO license_request
@@ -212,6 +237,41 @@ afterAll(async () => {
 });
 
 describe("US-020 orchestration checklist", () => {
+  it("exposes an idempotent production provider-400 no-seat observation", async () => {
+    await owner.query(
+      `INSERT INTO user_account
+         (id,email,idp_subject,global_role,ui_language,status,created_at)
+       VALUES ('00000000-0000-0000-0000-000000000001','system@ledger.invalid',
+               'ledger-system',NULL,'en','active',$1)`,
+      [occurredAt],
+    );
+    await expect(service.observeProviderNoSeat(ids.request)).resolves.toEqual({
+      requestId: ids.request,
+      status: "blocked_no_seat",
+    });
+    await expect(service.observeProviderNoSeat(ids.request)).resolves.toEqual({
+      requestId: ids.request,
+      status: "blocked_no_seat",
+    });
+    const evidence = await owner.query(
+      `SELECT request.state,
+              (SELECT count(*)::int FROM request_transition
+               WHERE request_id=request.id AND to_state='blocked_no_seat') AS transitions,
+              (SELECT note FROM request_transition
+               WHERE request_id=request.id AND to_state='blocked_no_seat') AS note,
+              (SELECT count(*)::int FROM provisioning_action
+               WHERE request_id=request.id) AS actions
+       FROM license_request request WHERE request.id=$1`,
+      [ids.request],
+    );
+    expect(evidence.rows).toEqual([{
+      actions: 0,
+      note: "provider_400",
+      state: "blocked_no_seat",
+      transitions: 1,
+    }]);
+  });
+
   it.skipIf(!mailpitSmtpUrl)(
     "dispatches the active lifecycle message only after a successful checklist action commit",
     async () => {
@@ -680,7 +740,7 @@ describe("US-020 orchestration checklist", () => {
     let trustedNow = new Date("2026-07-30T04:59:00.000Z");
     const boundaryService = createOrchestrationService(applicationUrl, {
       now: () => trustedNow,
-    });
+    }) as SeatAvailableService;
     try {
       const action = await boundaryService.routeApprovedRequest(
         authorization,
@@ -1597,7 +1657,9 @@ describe("US-020 orchestration checklist", () => {
 
   it("closes its database pool", async () => {
     const before = new Date();
-    const disposable = createOrchestrationService(applicationUrl);
+    const disposable = createOrchestrationService(
+      applicationUrl,
+    ) as SeatAvailableService;
     const routed = await disposable.routeApprovedRequest(
       authorization,
       ids.request,

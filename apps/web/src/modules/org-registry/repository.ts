@@ -43,6 +43,7 @@ import * as schema from "@smp/db/schema";
 
 import { withAudit } from "../audit/with-audit";
 import type { LedgerAuthorization } from "../identity-access/authorization";
+import { enqueueCapacityRecovery } from "../vendor-catalog/capacity-recovery-outbox";
 
 type Database = NodePgDatabase<typeof schema>;
 type PersonRow = typeof person.$inferSelect;
@@ -477,6 +478,14 @@ export function createPeopleRepository(
                     isNull(licenseAssignment.endedOn),
                   ),
                 );
+              await enqueueCapacityRecovery(transaction, {
+                capacityId: null,
+                effectiveFrom: startedOn,
+                licenseTypeId: assignment.licenseTypeId,
+                occurredAt,
+                source: "seat_freed",
+                vendorAccountId: assignment.vendorAccountId,
+              });
             }
             const successors: LicenseAssignmentRow[] = [];
             for (const [index, assignment] of openAssignments.entries()) {

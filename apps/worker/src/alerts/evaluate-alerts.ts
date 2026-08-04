@@ -156,7 +156,10 @@ export function createAlertEvaluationJob(options: {
           for (const fact of facts) {
             const evaluation = evaluateAlertRule(parsed, fact, windowStart);
             if (!evaluation) continue;
-            const eventDedupeKey = `${row.id}:breach:${evaluation.dedupeKey}`;
+            const eventDedupeKey = row.type === "blocked_no_seat" &&
+                "requestId" in evaluation.subjectRef
+              ? `${row.id}:breach:blocked_no_seat:${evaluation.subjectRef.requestId}:escalation`
+              : `${row.id}:breach:${evaluation.dedupeKey}`;
             const event = await outbox.enqueue({
               alertRuleId: row.id,
               dedupeKey: eventDedupeKey,

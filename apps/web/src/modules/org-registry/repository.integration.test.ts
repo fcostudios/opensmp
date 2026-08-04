@@ -1177,6 +1177,20 @@ describe("people repository", () => {
     expect(linkage.rows[0].license_assignment_id).toBe(
       linkage.rows[0].assignment_id,
     );
+    const recoveryWork = await owner.query(
+      `SELECT source,vendor_account_id::text,license_type_id::text,
+              effective_from::text,status
+       FROM capacity_recovery_work
+       WHERE vendor_account_id=$1 AND license_type_id=$2 AND source='seat_freed'`,
+      [vendorAccountId, licenseTypeId],
+    );
+    expect(recoveryWork.rows).toEqual([{
+      effective_from: "2026-07-27",
+      license_type_id: licenseTypeId,
+      source: "seat_freed",
+      status: "pending",
+      vendor_account_id: vendorAccountId,
+    }]);
   });
 
   test("moves a person and materializes contiguous register lineage atomically", async () => {
@@ -1188,6 +1202,9 @@ describe("people repository", () => {
     });
     const auditsBefore = await owner.query(
       "SELECT count(*)::int AS count FROM audit_log",
+    );
+    const recoveryBefore = await owner.query(
+      "SELECT count(*)::int AS count FROM capacity_recovery_work",
     );
     await owner.query(`
       CREATE OR REPLACE FUNCTION test_fail_person_move_audit()
@@ -1231,6 +1248,7 @@ describe("people repository", () => {
          (SELECT count(*)::int FROM license_assignment
             WHERE person_id = $1
               AND source_kind = 'request') AS successors,
+         (SELECT count(*)::int FROM capacity_recovery_work) AS recovery_work,
          (SELECT count(*)::int FROM audit_log) AS audits`,
       [movePersonId],
     );
@@ -1240,6 +1258,7 @@ describe("people repository", () => {
       requests: 0,
       transitions: 0,
       successors: 0,
+      recovery_work: recoveryBefore.rows[0].count,
       audits: auditsBefore.rows[0].count,
     });
     const originalAssignments = await owner.query(

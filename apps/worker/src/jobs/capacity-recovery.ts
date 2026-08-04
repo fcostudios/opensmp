@@ -53,23 +53,23 @@ export function createCapacityRecoveryJob({
               [work.vendor_account_id, work.license_type_id],
             );
             const capacity = work.capacity_id
-              ? work.capacity_id
+              ? { effective_from: work.effective_from, id: work.capacity_id }
               : (
-                  await pool.query<{ id: string }>(
-                    `SELECT id::text FROM vendor_account_capacity
+                  await pool.query<{ effective_from: string; id: string }>(
+                    `SELECT id::text,effective_from::text FROM vendor_account_capacity
                      WHERE vendor_account_id=$1 AND license_type_id=$2
                        AND effective_from <= $3::date
                      ORDER BY effective_from DESC,created_at DESC,id DESC LIMIT 1`,
                     [work.vendor_account_id, work.license_type_id, at],
                   )
-                ).rows[0]?.id;
+                ).rows[0];
             if (capacity && scope.rows.length) {
               await recover(
                 pool,
                 {
-                  capacityId: capacity,
+                  capacityId: capacity.id,
                   companyIds: scope.rows.map((row) => row.company_id),
-                  effectiveFrom: work.effective_from,
+                  effectiveFrom: capacity.effective_from,
                   licenseTypeId: work.license_type_id,
                   publishedAt: at.toISOString(),
                   vendorAccountId: work.vendor_account_id,

@@ -204,6 +204,12 @@ beforeAll(async () => {
     ],
   );
   await owner.query(
+    `INSERT INTO vendor_account_capacity
+       (vendor_account_id,license_type_id,purchased_qty,effective_from,created_at,created_by)
+     VALUES ($1,$2,10,'2026-01-01',$3,$4)`,
+    [vendorAccountId, licenseTypeId, decidedAt, approverId],
+  );
+  await owner.query(
     `
      INSERT INTO rate_card
        (vendor_account_id,license_type_id,monthly_rate_usd,effective_from,created_at,created_by)
@@ -284,6 +290,11 @@ beforeEach(async () => {
   await owner.query(
     `UPDATE vendor_account SET mode = 'orchestration' WHERE id = $1`,
     [vendorAccountId],
+  );
+  await owner.query(
+    `UPDATE vendor_account_capacity SET purchased_qty=10
+     WHERE vendor_account_id=$1 AND license_type_id=$2`,
+    [vendorAccountId, licenseTypeId],
   );
 });
 
@@ -756,6 +767,39 @@ describe("approval queue repository", () => {
         )
       ),
     ).rejects.toThrow();
+  });
+
+  test("blocks an approved request atomically when its canonical pool has no free seat", async () => {
+    await owner.query(
+      `INSERT INTO user_account
+         (id,email,idp_subject,global_role,ui_language,status,created_at)
+       VALUES ('00000000-0000-0000-0000-000000000001','system@ledger.invalid',
+               'ledger-system',NULL,'en','active',$1)
+       ON CONFLICT (id) DO NOTHING`,
+      [decidedAt],
+    );
+    await owner.query(
+      `UPDATE vendor_account_capacity SET purchased_qty=3
+       WHERE vendor_account_id=$1 AND license_type_id=$2`,
+      [vendorAccountId, licenseTypeId],
+    );
+    await repository.decide(approver, {
+      requestId: requestA,
+      decision: "approved",
+    }, decidedAt);
+    const evidence = await owner.query(
+      `SELECT request.state,
+              (SELECT count(*)::int FROM provisioning_action WHERE request_id=request.id) AS actions,
+              (SELECT actor_user_id::text FROM request_transition
+               WHERE request_id=request.id AND to_state='blocked_no_seat') AS actor
+       FROM license_request request WHERE request.id=$1`,
+      [requestA],
+    );
+    expect(evidence.rows).toEqual([{
+      actions: 0,
+      actor: "00000000-0000-0000-0000-000000000001",
+      state: "blocked_no_seat",
+    }]);
   });
 
   test("rolls an automated approval back when action persistence fails", async () => {

@@ -22,6 +22,7 @@ const ids = {
   requestA: id("9"),
   requestB: id("10"),
   capacity: id("11"),
+  requestFreed: id("12"),
 };
 const at = new Date("2026-08-04T15:00:00.000Z");
 let fixture: PostgresFixture;
@@ -173,5 +174,43 @@ describe("US-023 capacity recovery with real PostgreSQL", () => {
       { attempt_count: 1, idempotency_key: "expired-work", status: "completed" },
       { attempt_count: 0, idempotency_key: "future-work", status: "pending" },
     ]);
+  });
+
+  it("uses the selected capacity effective date when a later seat-freed event resumes work", async () => {
+    const freedAt = new Date("2026-08-05T15:00:00.000Z");
+    await owner.query(
+      `UPDATE provisioning_action SET status='confirmed',resolved_at=$1
+       WHERE request_id=$2`,
+      [freedAt, ids.requestA],
+    );
+    await owner.query(
+      `INSERT INTO license_request
+         (id,request_no,person_id,company_id,vendor_account_id,license_type_id,
+          state,justification,created_at,created_by)
+       VALUES ($1,'REC-FREED',$2,$3,$4,$5,'blocked_no_seat','freed',$6,$7)`,
+      [ids.requestFreed, ids.personA, ids.companyA, ids.account, ids.license, freedAt, ids.admin],
+    );
+    await owner.query(
+      `INSERT INTO request_transition
+         (request_id,from_state,to_state,actor_user_id,note,occurred_at)
+       VALUES ($1,'approved','blocked_no_seat',$2,'empty',$3)`,
+      [ids.requestFreed, ids.admin, freedAt],
+    );
+    await owner.query(
+      `SELECT enqueue_capacity_recovery(NULL,$1,$2,'2026-08-05','seat_freed',$3)`,
+      [ids.account, ids.license, freedAt],
+    );
+    const job = createCapacityRecoveryJob({ connectionString: fixture.appUrl, now: () => freedAt });
+    try {
+      await expect(job.drain()).resolves.toEqual({ processed: 1 });
+    } finally {
+      await job.close();
+    }
+    await expect(
+      owner.query(
+        `SELECT state FROM license_request WHERE id=$1`,
+        [ids.requestFreed],
+      ),
+    ).resolves.toMatchObject({ rows: [{ state: "provisioning" }] });
   });
 });

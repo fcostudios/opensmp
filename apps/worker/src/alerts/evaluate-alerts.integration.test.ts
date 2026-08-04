@@ -475,6 +475,9 @@ describe("US-042 alert evaluation worker", () => {
       await expect(job.run(new Date("2026-08-07T15:07:00Z"))).resolves.toMatchObject({
         status: "succeeded",
       });
+      await expect(job.run(new Date("2026-08-07T15:22:00Z"))).resolves.toMatchObject({
+        status: "succeeded",
+      });
       expect(recipients).toContainEqual(["active-group-admin-042@example.com"]);
       const owner = await fixture.connectAsOwner();
       try {
@@ -486,10 +489,54 @@ describe("US-042 alert evaluation worker", () => {
         ).resolves.toMatchObject({ rows: [{ count: 2 }] });
         await expect(
           owner.query(
-            "SELECT count(*)::int AS count FROM alert_event WHERE alert_rule_id = $1",
+            `SELECT count(*)::int AS count,
+                    (SELECT count(*)::int FROM alert_notification_delivery delivery
+                     JOIN alert_event event ON event.id=delivery.alert_event_id
+                     WHERE event.alert_rule_id=$1 AND delivery.phase='succeeded') AS deliveries
+             FROM alert_event WHERE alert_rule_id = $1`,
+            [ids.blockedRule],
+          ),
+        ).resolves.toMatchObject({ rows: [{ count: 1, deliveries: 1 }] });
+        await owner.query(
+          "UPDATE license_request SET state='approved' WHERE id=$1",
+          [ids.blockedRequest],
+        );
+        await job.run(new Date("2026-08-07T15:37:00Z"));
+        await expect(
+          owner.query(
+            "SELECT count(*)::int AS count FROM alert_event WHERE alert_rule_id=$1",
             [ids.blockedRule],
           ),
         ).resolves.toMatchObject({ rows: [{ count: 1 }] });
+        const distinctBlockedRequest = "00000000-0000-4000-8000-000000004291";
+        await owner.query(
+          `INSERT INTO license_request
+             (id,request_no,person_id,company_id,vendor_account_id,license_type_id,
+              state,justification,created_at,created_by)
+           VALUES ($1,'REQ-BLOCKED-DISTINCT-042',$2,$3,
+                   '00000000-0000-4000-8000-000000004252',
+                   '00000000-0000-4000-8000-000000004253',
+                   'blocked_no_seat','distinct breach','2026-07-27T14:30:00Z',
+                   '00000000-0000-0000-0000-000000000001')`,
+          [distinctBlockedRequest, ids.personA, ids.companyA],
+        );
+        await owner.query(
+          `INSERT INTO request_transition
+             (request_id,from_state,to_state,occurred_at)
+           VALUES ($1,'approved','blocked_no_seat','2026-07-27T14:30:00Z')`,
+          [distinctBlockedRequest],
+        );
+        await job.run(new Date("2026-08-07T15:52:00Z"));
+        await expect(
+          owner.query(
+            `SELECT count(*)::int AS count,
+                    (SELECT count(*)::int FROM alert_notification_delivery delivery
+                     JOIN alert_event event ON event.id=delivery.alert_event_id
+                     WHERE event.alert_rule_id=$1 AND delivery.phase='succeeded') AS deliveries
+             FROM alert_event WHERE alert_rule_id=$1`,
+            [ids.blockedRule],
+          ),
+        ).resolves.toMatchObject({ rows: [{ count: 2, deliveries: 2 }] });
         await expect(
           owner.query(
             "SELECT count(*)::int AS count FROM alert_event WHERE alert_rule_id = $1",

@@ -16,6 +16,7 @@ import pg from "pg";
 import { z } from "zod";
 
 import type { LedgerAuthorization } from "../identity-access/authorization";
+import { observeNoSeatInTransaction } from "../vendor-catalog/no-seat-observation";
 import { checklistAssignmentMissingFailureReason } from "./checklist-failure-reason";
 import {
   parseChecklistPayload,
@@ -171,6 +172,44 @@ export async function routeApprovedRequestInTransaction(
     throw new Error("CHECKLIST_REQUEST_NOT_APPROVED");
   }
 
+  const availability = await transaction.execute<{ readonly free: number }>(
+    sql`SELECT (
+          COALESCE((
+            SELECT capacity.purchased_qty
+            FROM vendor_account_capacity capacity
+            WHERE capacity.vendor_account_id=${request.vendorAccountId}::uuid
+              AND capacity.license_type_id=${request.licenseTypeId}::uuid
+              AND capacity.effective_from <= ${ecuadorCalendarDate(occurredAt)}::date
+              AND capacity.created_at <= ${occurredAt}
+            ORDER BY capacity.effective_from DESC,capacity.created_at DESC,capacity.id DESC
+            LIMIT 1
+          ),0)
+          - (SELECT count(*) FROM license_assignment assignment
+             JOIN person holder ON holder.id=assignment.person_id
+              AND holder.company_id=assignment.company_id
+             WHERE assignment.vendor_account_id=${request.vendorAccountId}::uuid
+               AND assignment.license_type_id=${request.licenseTypeId}::uuid
+               AND assignment.started_on <= ${ecuadorCalendarDate(occurredAt)}::date
+               AND assignment.created_at <= ${occurredAt}
+               AND (assignment.ended_on IS NULL OR assignment.ended_on >= ${ecuadorCalendarDate(occurredAt)}::date))
+          - (SELECT count(*) FROM provisioning_action action
+             JOIN license_request pending ON pending.id=action.request_id
+              AND pending.vendor_account_id=action.vendor_account_id
+             WHERE action.vendor_account_id=${request.vendorAccountId}::uuid
+               AND pending.license_type_id=${request.licenseTypeId}::uuid
+               AND action.kind='invite' AND action.mode='automated'
+               AND action.status IN ('pending','sent')
+               AND action.created_at <= ${occurredAt})
+        )::int AS free`,
+  );
+  if ((availability.rows[0]?.free ?? 0) <= 0) {
+    return observeNoSeatInTransaction(
+      transaction,
+      { requestId: request.requestId, source: "pool_empty" },
+      occurredAt,
+    );
+  }
+
   const plan = await planProvisioningAction(dispatcher, {
     accountMode: request.accountMode,
     context: {
@@ -254,6 +293,20 @@ export function createOrchestrationOperations(
   } = {},
 ) {
   return {
+    async observeProviderNoSeat(requestId: string) {
+      const occurredAt = now();
+      return database.transaction(async (transaction) => {
+        await transaction.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtextextended(${`provider-no-seat:${requestId}`},0))`,
+        );
+        return observeNoSeatInTransaction(
+          transaction,
+          { requestId, source: "provider_400" },
+          occurredAt,
+        );
+      });
+    },
+
     async pendingChecklist(
       authorization: LedgerAuthorization,
       requestId: string,
