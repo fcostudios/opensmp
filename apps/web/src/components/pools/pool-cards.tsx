@@ -3,16 +3,33 @@ import Link from "next/link";
 import { PoolGauge, type PoolGaugeLabels } from "@smp/ui";
 
 import type { VendorPoolSnapshot } from "@/modules/vendor-catalog/pool-repository";
+import { registerPurchase } from "@/modules/vendor-catalog/actions/manage-capacity";
 
 export interface PoolCardsLabels extends PoolGaugeLabels {
+  readonly addCapacity: string;
   readonly attention: string;
   readonly automated: string;
   readonly emptyDescription: string;
   readonly emptyTitle: string;
+  readonly effectiveFrom: string;
+  readonly effectiveFromField: string;
+  readonly escalated: string;
   readonly floor: string;
   readonly mode: string;
+  readonly noUsageData: string;
+  readonly note: string;
   readonly orchestration: string;
+  readonly prorationNote: string;
+  readonly purchasedQty: string;
   readonly renewal: string;
+  readonly saveCapacity: string;
+}
+
+function formatDate(value: string, locale: "es-EC" | "en-US"): string {
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "long",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T00:00:00Z`));
 }
 
 export function poolSnapshotKey(
@@ -114,12 +131,97 @@ export function PoolCards({
                     : "—"}
                 </dd>
               </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-text-muted">{labels.effectiveFrom}</dt>
+                <dd className="text-text-primary">
+                  {formatDate(item.effectiveFrom, locale)}
+                </dd>
+              </div>
             </dl>
             {item.isLow ? (
               <p className="mt-4 rounded bg-pending-bg px-3 py-2 text-sm font-semibold text-pending-text">
                 {labels.attention}
               </p>
             ) : null}
+            {item.blockedRequests.length > 0 ? (
+              <section
+                className="mt-4 space-y-3 rounded border border-primary bg-pending-bg p-3"
+                data-testid="purchase_or_reclaim_callout"
+              >
+                {item.blockedRequests.map((request) => (
+                  <div className="flex items-center justify-between gap-2" key={request.id}>
+                    <Link
+                      className="font-mono text-sm font-semibold text-pending-text underline-offset-4 hover:underline"
+                      href={`/solicitudes/${request.id}`}
+                    >
+                      {request.requestNo}
+                    </Link>
+                    <span className="text-sm text-pending-text">
+                      {request.businessDaysBlocked}
+                    </span>
+                    {request.escalated ? (
+                      <span className="rounded-full bg-critical-bg px-2 py-1 text-xs font-semibold text-critical-text">
+                        {labels.escalated}
+                      </span>
+                    ) : null}
+                  </div>
+                ))}
+                <p className="text-sm text-pending-text">
+                  {item.decisionEvidence.type === "no_data"
+                    ? labels.noUsageData
+                    : null}
+                </p>
+                <p className="text-sm text-pending-text">{labels.prorationNote}</p>
+              </section>
+            ) : null}
+            <details className="mt-4 rounded border border-border p-3">
+              <summary
+                className="cursor-pointer font-semibold text-text-primary"
+                role="button"
+              >
+                {labels.addCapacity}
+              </summary>
+              <div aria-label={labels.addCapacity} className="mt-3" role="dialog">
+                <form action={registerPurchase} className="grid gap-3">
+                  <input name="vendorAccountId" type="hidden" value={item.vendorAccountId} />
+                  <input name="licenseTypeId" type="hidden" value={item.licenseTypeId} />
+                  <label className="grid gap-1 text-sm text-text-secondary">
+                    {labels.purchasedQty}
+                    <input
+                      className="rounded border border-border bg-surface px-3 py-2 text-text-primary"
+                      defaultValue={item.purchased + 1}
+                      min="1"
+                      name="purchasedQty"
+                      required
+                      type="number"
+                    />
+                  </label>
+                  <label className="grid gap-1 text-sm text-text-secondary">
+                    {labels.effectiveFromField}
+                    <input
+                      className="rounded border border-border bg-surface px-3 py-2 text-text-primary"
+                      name="effectiveFrom"
+                      required
+                      type="date"
+                    />
+                  </label>
+                  <label className="grid gap-1 text-sm text-text-secondary">
+                    {labels.note}
+                    <textarea
+                      className="rounded border border-border bg-surface px-3 py-2 text-text-primary"
+                      maxLength={1000}
+                      name="note"
+                    />
+                  </label>
+                  <button
+                    className="rounded bg-primary px-3 py-2 font-semibold text-on-primary"
+                    type="submit"
+                  >
+                    {labels.saveCapacity}
+                  </button>
+                </form>
+              </div>
+            </details>
           </article>
         );
       })}

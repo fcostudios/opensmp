@@ -3,6 +3,7 @@ import type pg from "pg";
 export interface SeatPoolCountsSnapshot {
   readonly assigned: number;
   readonly contractRenewalOn: string | null;
+  readonly effectiveFrom: string;
   readonly licenseTypeId: string;
   readonly licenseTypeName: string;
   readonly lowPoolFloor: number;
@@ -18,6 +19,7 @@ type Queryable = Pick<pg.Pool, "query">;
 interface SeatPoolRow {
   assigned: number;
   contract_renewal_on: string | null;
+  effective_from: string;
   license_type_id: string;
   license_type_name: string;
   low_pool_floor: number;
@@ -46,12 +48,13 @@ export async function listCurrentSeatPoolCounts(
             lt.id::text AS license_type_id,
             lt.name AS license_type_name,
             capacity.purchased_qty::int AS purchased,
+            capacity.effective_from::text AS effective_from,
             assignments.assigned::int,
             invitations.pending_invites::int
      FROM vendor_account va
      JOIN LATERAL (
        SELECT DISTINCT ON (vac.license_type_id)
-              vac.license_type_id, vac.purchased_qty
+              vac.license_type_id, vac.purchased_qty, vac.effective_from
        FROM vendor_account_capacity vac
        WHERE vac.vendor_account_id = va.id
          AND vac.effective_from <= $1::date
@@ -101,6 +104,7 @@ export async function listCurrentSeatPoolCounts(
   return result.rows.map((row) => ({
     assigned: row.assigned,
     contractRenewalOn: row.contract_renewal_on,
+    effectiveFrom: row.effective_from,
     licenseTypeId: row.license_type_id,
     licenseTypeName: row.license_type_name,
     lowPoolFloor: row.low_pool_floor,

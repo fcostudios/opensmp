@@ -8,6 +8,7 @@ import { PoolCards } from "./pool-cards";
 afterEach(cleanup);
 
 const labels = {
+  addCapacity: "Add capacity",
   assigned: "Assigned",
   attention: "Below minimum floor",
   available: "Available",
@@ -15,12 +16,20 @@ const labels = {
   discrepancy: "Oversubscribed by",
   emptyDescription: "Capacity appears after the first effective record.",
   emptyTitle: "No pool capacity",
+  effectiveFrom: "Effective from",
+  effectiveFromField: "Effective date",
+  escalated: "Escalated",
   floor: "Minimum floor",
+  noUsageData: "No usage data",
+  note: "Note",
   mode: "Mode",
   orchestration: "Orchestration",
   pending: "Pending invites",
   purchased: "Purchased",
+  purchasedQty: "Purchased total",
+  prorationNote: "Purchase is prorated by actual days in the billing cycle.",
   renewal: "Renewal",
+  saveCapacity: "Save capacity",
 };
 
 describe("SCR-pools cards", () => {
@@ -31,6 +40,8 @@ describe("SCR-pools cards", () => {
           {
             assigned: 7,
             contractRenewalOn: "2027-03-01",
+            decisionEvidence: { type: "no_data" as const },
+            effectiveFrom: "2026-08-01",
             free: 1,
             isLow: true,
             licenseTypeId: "license-1",
@@ -41,6 +52,14 @@ describe("SCR-pools cards", () => {
             purchased: 10,
             vendorAccountId: "account-1",
             vendorAccountName: "Central org",
+            blockedRequests: [
+              {
+                businessDaysBlocked: 2,
+                escalated: true,
+                id: "request-1",
+                requestNo: "REQ-1",
+              },
+            ],
           },
         ]}
         labels={labels}
@@ -59,6 +78,13 @@ describe("SCR-pools cards", () => {
       "/organizaciones/account-1",
     );
     expect(screen.getByText("Below minimum floor")).toBeTruthy();
+    expect(screen.getByText("August 1, 2026")).toBeTruthy();
+    expect(screen.getByText("REQ-1")).toBeTruthy();
+    expect(screen.getByText("Escalated")).toBeTruthy();
+    expect(screen.getByText("No usage data")).toBeTruthy();
+    expect(screen.getByText(/prorated by actual days/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add capacity" })).toBeTruthy();
+    expect(screen.getByLabelText("Purchased total")).toBeTruthy();
   });
 
   it("renders the specified empty state", () => {
@@ -73,6 +99,9 @@ describe("SCR-pools cards", () => {
     const common = {
       assigned: 0,
       contractRenewalOn: null,
+      blockedRequests: [],
+      decisionEvidence: { type: "no_data" as const },
+      effectiveFrom: "2026-08-01",
       licenseTypeName: "Enterprise",
       lowPoolFloor: 0,
       mode: "orchestration" as const,

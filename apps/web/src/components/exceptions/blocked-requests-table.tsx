@@ -1,6 +1,9 @@
 import Link from "next/link";
 
+import { registerPurchase } from "@/modules/vendor-catalog/actions/manage-capacity";
+
 export interface BlockedRequestItem {
+  readonly licenseTypeId: string;
   readonly companyName: string;
   readonly daysBlocked: number;
   readonly id: string;
@@ -9,18 +12,23 @@ export interface BlockedRequestItem {
   readonly personName: string;
   readonly requestNo: string;
   readonly vendorAccountName: string;
+  readonly vendorAccountId: string;
 }
 
 export interface BlockedRequestsLabels {
+  readonly addCapacity: string;
   readonly company: string;
   readonly daysBlocked: string;
   readonly empty: string;
+  readonly effectiveFrom: string;
   readonly neededBy: string;
   readonly noDate: string;
   readonly organization: string;
+  readonly purchasedQty: string;
   readonly request: string;
   readonly status: string;
   readonly statusBlocked: string;
+  readonly saveCapacity: string;
   readonly viewPools: string;
 }
 
@@ -138,6 +146,26 @@ export function BlockedRequestsTable({
                   </td>
                   <td className="px-3 py-3 font-semibold text-text-primary">
                     {labels.statusBlocked}
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-sm" role="button">
+                        {labels.addCapacity}
+                      </summary>
+                      <form action={registerPurchase} className="mt-2 grid gap-2">
+                        <input name="vendorAccountId" type="hidden" value={request.vendorAccountId} />
+                        <input name="licenseTypeId" type="hidden" value={request.licenseTypeId} />
+                        <label className="grid gap-1 text-xs">
+                          {labels.purchasedQty}
+                          <input min="1" name="purchasedQty" required type="number" />
+                        </label>
+                        <label className="grid gap-1 text-xs">
+                          {labels.effectiveFrom}
+                          <input name="effectiveFrom" required type="date" />
+                        </label>
+                        <button className="rounded bg-primary px-2 py-1 text-on-primary" type="submit">
+                          {labels.saveCapacity}
+                        </button>
+                      </form>
+                    </details>
                   </td>
                 </tr>
               ))}

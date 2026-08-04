@@ -33,11 +33,13 @@ export interface BlockedExceptionItem {
   readonly daysBlocked: number;
   readonly id: string;
   readonly licenseTypeName: string;
+  readonly licenseTypeId: string;
   readonly neededBy: string | null;
   readonly personName: string;
   readonly requestNo: string;
   readonly status: "blocked_no_seat";
   readonly vendorAccountName: string;
+  readonly vendorAccountId: string;
 }
 
 export interface BlockedExceptionPage {
@@ -250,11 +252,13 @@ export function createRequestReadRepository(
         readonly companyName: string;
         readonly id: string;
         readonly licenseTypeName: string;
+        readonly licenseTypeId: string;
         readonly neededBy: string | null;
         readonly personName: string;
         readonly requestNo: string;
         readonly status: "blocked_no_seat";
         readonly vendorAccountName: string;
+        readonly vendorAccountId: string;
       }>(
         sql`SELECT lr.id::text AS id,
                    lr.request_no AS "requestNo",
@@ -262,8 +266,10 @@ export function createRequestReadRepository(
                    c.name AS "companyName",
                    va.name AS "vendorAccountName",
                    lt.name AS "licenseTypeName",
+                   lt.id::text AS "licenseTypeId",
                    lr.needed_by::text AS "neededBy",
                    lr.state AS status,
+                   va.id::text AS "vendorAccountId",
                    blocked.occurred_at AS "blockedAt"
             FROM license_request lr
             JOIN person p

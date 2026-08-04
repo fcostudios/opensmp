@@ -4,15 +4,19 @@ import { describe, expect, it } from "vitest";
 import { BlockedRequestsTable } from "./blocked-requests-table";
 
 const labels = {
+  addCapacity: "Add capacity",
   company: "Company",
   daysBlocked: "Days blocked",
   empty: "No blocked requests.",
+  effectiveFrom: "Effective date",
   neededBy: "Needed by",
   noDate: "Not available",
   organization: "Organization",
+  purchasedQty: "Purchased total",
   request: "Request",
   status: "Status",
   statusBlocked: "Blocked without a seat",
+  saveCapacity: "Save capacity",
   viewPools: "View pools",
 };
 
@@ -25,11 +29,13 @@ describe("BlockedRequestsTable", () => {
             companyName: "Company A",
             daysBlocked: 4,
             id: "00000000-0000-4000-8000-000000000001",
+            licenseTypeId: "00000000-0000-4000-8000-000000000002",
             licenseTypeName: "Enterprise",
             neededBy: "2026-08-05",
             personName: "Ana",
             requestNo: "REQ-1",
             vendorAccountName: "Vendor A",
+            vendorAccountId: "00000000-0000-4000-8000-000000000003",
           },
         ]}
         labels={labels}
@@ -53,6 +59,8 @@ describe("BlockedRequestsTable", () => {
     expect(html).toContain(">4<");
     expect(html).toContain("Aug 5, 2026");
     expect(html).toContain("Blocked without a seat");
+    expect(html).toContain("Add capacity");
+    expect(html).toContain('action="');
   });
 
   it("uses the localized honest placeholder when needed-by is unavailable", () => {
@@ -63,11 +71,13 @@ describe("BlockedRequestsTable", () => {
             companyName: "Company A",
             daysBlocked: 0,
             id: "00000000-0000-4000-8000-000000000001",
+            licenseTypeId: "00000000-0000-4000-8000-000000000002",
             licenseTypeName: "Enterprise",
             neededBy: null,
             personName: "Ana",
             requestNo: "REQ-1",
             vendorAccountName: "Vendor A",
+            vendorAccountId: "00000000-0000-4000-8000-000000000003",
           },
         ]}
         labels={labels}

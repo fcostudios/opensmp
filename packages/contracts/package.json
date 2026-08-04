@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./alerts": "./src/alerts.ts",
+    "./capacity": "./src/capacity.ts",
     "./requests": "./src/requests.ts",
     "./register": "./src/register.ts"
   },

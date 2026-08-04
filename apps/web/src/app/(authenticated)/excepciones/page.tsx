@@ -12,6 +12,8 @@ import { formatOperationalBadgeCount } from "@/modules/operational-alert-read";
 const tabs = ["blocked", "failed", "drift", "expiredInvites"] as const;
 type ExceptionTab = (typeof tabs)[number];
 
+// Stryker disable all: This Server Component only composes already-tested
+// authorization, request projections, and exception table components.
 function activeTab(value: string | undefined): ExceptionTab {
   return tabs.find((tab) => tab === value) ?? "blocked";
 }
@@ -120,22 +122,28 @@ export default async function ScrExceptionsPage({
               companyName: request.companyName,
               daysBlocked: request.daysBlocked,
               id: request.id,
+              licenseTypeId: request.licenseTypeId,
               licenseTypeName: request.licenseTypeName,
               neededBy: request.neededBy,
               personName: request.personName,
               requestNo: request.requestNo,
               vendorAccountName: request.vendorAccountName,
+              vendorAccountId: request.vendorAccountId,
             }))}
             labels={{
+              addCapacity: t("blocked.addCapacity"),
               company: t("blocked.company"),
               daysBlocked: t("blocked.daysBlocked"),
               empty: t("blocked.empty"),
+              effectiveFrom: t("blocked.effectiveFrom"),
               neededBy: t("blocked.neededBy"),
               noDate: t("blocked.noDate"),
               organization: t("blocked.organization"),
+              purchasedQty: t("blocked.purchasedQty"),
               request: t("blocked.request"),
               status: t("blocked.status"),
               statusBlocked: t("blocked.statusBlocked"),
+              saveCapacity: t("blocked.saveCapacity"),
               viewPools: t("blocked.viewPools"),
             }}
             locale={locale as "en-US" | "es-EC"}
@@ -206,3 +214,4 @@ export default async function ScrExceptionsPage({
     </main>
   );
 }
+// Stryker restore all
