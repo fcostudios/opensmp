@@ -94,16 +94,7 @@ function resolveBase() {
 }
 
 function changedFiles(base) {
-  let mergeBase;
-  try {
-    mergeBase = gitProbe(["merge-base", "HEAD", base]);
-  } catch {
-    // A shallow clone or an unrelated history has no merge base. Exiting 0 here
-    // would mutate nothing and report success — the false green this guard
-    // exists to prevent.
-    fail(`no merge base between HEAD and ${base}`,
-         "unshallow the clone (git fetch --unshallow) or set MUTATION_BASE=<ref>");
-  }
+  const mergeBase = mergeBaseFor(base);
   // Diff directly from the merge base so committed, staged, and unstaged
   // changes are all visible. Git diff does not report untracked files, so add
   // every non-ignored untracked path explicitly. Otherwise a newly created
@@ -119,11 +110,79 @@ function changedFiles(base) {
   )].sort();
 }
 
+function mergeBaseFor(base) {
+  try {
+    return gitProbe(["merge-base", "HEAD", base]);
+  } catch {
+    // A shallow clone or an unrelated history has no merge base. Exiting 0 here
+    // would mutate nothing and report success — the false green this guard
+    // exists to prevent.
+    fail(`no merge base between HEAD and ${base}`,
+         "unshallow the clone (git fetch --unshallow) or set MUTATION_BASE=<ref>");
+  }
+}
+
 function mutatable(files) {
   return files
     .filter((f) => MUTATABLE_EXT.test(f))
     .filter((f) => !EXCLUDED.some((re) => re.test(f)))
     .sort();  // deterministic: the generated config must be byte-stable
+}
+
+function lineCount(contents) {
+  if (contents.length === 0) return 0;
+  const lines = contents.split(/\r?\n/);
+  return lines.length - (lines.at(-1) === "" ? 1 : 0);
+}
+
+export function mutationTargetsFromPatch(patch, untracked = new Map()) {
+  const targets = [];
+  let source = null;
+  for (const line of patch.split("\n")) {
+    if (line.startsWith("+++ ")) {
+      const path = line.slice(4);
+      source = path === "/dev/null"
+        ? null
+        : path.startsWith("b/") ? path.slice(2) : path;
+      continue;
+    }
+    if (!source || !line.startsWith("@@ ")) continue;
+    const hunk = /\+(\d+)(?:,(\d+))?/.exec(line);
+    if (!hunk) continue;
+    const start = Number(hunk[1]);
+    const count = hunk[2] === undefined ? 1 : Number(hunk[2]);
+    if (count > 0) targets.push(`${source}:${start}-${start + count - 1}`);
+  }
+  for (const [path, count] of untracked) {
+    if (count > 0) targets.push(`${path}:1-${count}`);
+  }
+  return [...new Set(targets)].sort();
+}
+
+export function mutationSourceFiles(targets) {
+  return [...new Set(
+    targets.map((target) => target.replace(/:\d+-\d+$/, "")),
+  )].sort();
+}
+
+function mutationTargets(base, sourceFiles) {
+  if (sourceFiles.length === 0) return [];
+  const mergeBase = mergeBaseFor(base);
+  const patch = git([
+    "-c", "core.quotepath=false", "diff", "--no-ext-diff", "--no-renames",
+    "--unified=0", "--diff-filter=ACMR", mergeBase, "--", ...sourceFiles,
+  ]);
+  const untrackedPaths = new Set(
+    git(["ls-files", "--others", "--exclude-standard"])
+      .split("\n")
+      .filter(Boolean),
+  );
+  const untracked = new Map(
+    sourceFiles
+      .filter((path) => untrackedPaths.has(path))
+      .map((path) => [path, lineCount(readFileSync(path, "utf8"))]),
+  );
+  return mutationTargetsFromPatch(patch, untracked);
 }
 
 const TEST_FILE = /\.(test|spec)\.(ts|tsx)$/;
@@ -190,6 +249,20 @@ export const DIRECT_TEST_ROUTES = {
   ],
 };
 
+// Static source/schema enforcement tests inspect an uninstrumented application
+// tree. Stryker necessarily rewrites that tree before its dry run, so these
+// scanners reject the mutation sandbox itself before any mutant can run. They
+// remain mandatory in the normal lint/check pipeline.
+const MUTATION_INCOMPATIBLE_TESTS = new Set([
+  "apps/web/src/modules/audit/audited-actions-enforcement.test.ts",
+  "packages/db/src/migration-release.integration.test.ts",
+  "packages/db/src/schema-parity.test.ts",
+]);
+
+export function mutationCompatibleTestFiles(testFiles) {
+  return testFiles.filter((file) => !MUTATION_INCOMPATIBLE_TESTS.has(file));
+}
+
 function testsForSource(source, fileExists, directRoutes) {
   const responsible = new Set();
   const stem = source.replace(/\.(ts|tsx)$/, "");
@@ -223,9 +296,14 @@ export function requireRoutedTestFiles(changed, mutate, fileExists = existsSync,
 function main() {
   const base = resolveBase();
   const changed = changedFiles(base);
-  const mutate = mutatable(changed);
+  const changedSources = mutatable(changed);
+  const mutate = mutationTargets(base, changedSources);
+  const routedSources = mutationSourceFiles(mutate);
 
-  console.log(`mutation-scope: base=${base} changed=${changed.length} mutatable=${mutate.length}`);
+  console.log(
+    `mutation-scope: base=${base} changed=${changed.length} ` +
+      `mutatable=${routedSources.length} ranges=${mutate.length}`,
+  );
 
   if (mutate.length === 0) {
     console.log("mutation-scope: no mutatable files in diff — nothing to mutate");
@@ -239,12 +317,12 @@ function main() {
     fail(`cannot read ${BASE_CONFIG}`, "run from the repository root");
   }
 
-  const testFiles = [
+  const testFiles = mutationCompatibleTestFiles([
     ...new Set([
       ...(baseConf.testFiles ?? []),
-      ...requireRoutedTestFiles(changed, mutate),
+      ...requireRoutedTestFiles(changed, routedSources),
     ]),
-  ].sort();
+  ]).sort();
   if (testFiles.length === 0) {
     fail("mutatable files exist but no responsible Vitest tests were routed",
          "add a changed story test or a conventional adjacent test for the changed source");

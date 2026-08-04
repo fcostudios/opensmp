@@ -13,9 +13,20 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   DIRECT_TEST_ROUTES,
+  mutationCompatibleTestFiles,
   requireRoutedTestFiles,
   routedTestFiles,
 } from "./mutation-scope.mjs";
+
+assert.deepEqual(
+  mutationCompatibleTestFiles([
+    "apps/web/src/modules/audit/audited-actions-enforcement.test.ts",
+    "apps/web/src/modules/vendor-catalog/actions/manage-capacity.test.ts",
+    "packages/db/src/migration-release.integration.test.ts",
+    "packages/db/src/schema-parity.test.ts",
+  ]),
+  ["apps/web/src/modules/vendor-catalog/actions/manage-capacity.test.ts"],
+);
 
 assert.deepEqual(
   DIRECT_TEST_ROUTES["apps/web/src/modules/vendor-catalog/capacity-recovery-outbox.ts"],
@@ -71,6 +82,10 @@ assert.throws(
 const fixtureRoot = mkdtempSync(join(tmpdir(), "smp-mutation-scope-"));
 const source = "apps/web/src/modules/identity-access/users-roles-page.tsx";
 const responsibleTest = "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts";
+const newSource = "src/new-capacity.ts";
+const newSourceTest = "src/new-capacity.test.ts";
+const deletionOnlySource = "src/deletion-only.ts";
+const deletionOnlyTest = "src/deletion-only.test.ts";
 const writeFixture = (path, contents) => {
   const absolutePath = join(fixtureRoot, path);
   mkdirSync(dirname(absolutePath), { recursive: true });
@@ -84,15 +99,43 @@ try {
   execFileSync("git", ["config", "user.name", "Mutation Scope Test"], { cwd: fixtureRoot });
   writeFixture("stryker.conf.json", JSON.stringify({ testFiles: [] }));
   writeFixture("vitest.mutation.config.mjs", "export default {};\n");
-  writeFixture(source, "export const version = 1;\n");
+  writeFixture(source, [
+    "export const first = 1;",
+    "export const second = 2;",
+    "export const third = 3;",
+    "export const fourth = 4;",
+    "export const fifth = 5;",
+    "",
+  ].join("\n"));
   writeFixture(responsibleTest, "export {};\n");
+  writeFixture(deletionOnlySource, [
+    "export const retained = 1;",
+    "export const removed = 2;",
+    "export const tail = 3;",
+    "",
+  ].join("\n"));
+  writeFixture(deletionOnlyTest, "export {};\n");
   execFileSync("git", ["add", "."], { cwd: fixtureRoot });
   execFileSync("git", ["commit", "--quiet", "-m", "fixture base"], { cwd: fixtureRoot });
   const base = execFileSync("git", ["rev-parse", "HEAD"], {
     cwd: fixtureRoot,
     encoding: "utf8",
   }).trim();
-  writeFixture(source, "export const version = 2;\n");
+  writeFixture(source, [
+    "export const first = 1;",
+    "export const second = 20;",
+    "export const third = 3;",
+    "export const fourth = 4;",
+    "export const fifth = 50;",
+    "",
+  ].join("\n"));
+  writeFixture(newSource, "export const seat = 1;\nexport const pool = 2;\n");
+  writeFixture(newSourceTest, "export {};\n");
+  writeFixture(deletionOnlySource, [
+    "export const retained = 1;",
+    "export const tail = 3;",
+    "",
+  ].join("\n"));
 
   execFileSync(process.execPath, [
     fileURLToPath(new URL("./mutation-scope.mjs", import.meta.url)),
@@ -120,5 +163,12 @@ assert.deepEqual(generated.vitest, {
 });
 assert.equal(generated.concurrency, 1);
 assert.deepEqual(generated.testFiles, [...generated.testFiles].sort());
-assert.deepEqual(generated.testFiles, [responsibleTest]);
-assert.deepEqual(generated.mutate, [source]);
+assert.deepEqual(generated.testFiles, [
+  responsibleTest,
+  newSourceTest,
+]);
+assert.deepEqual(generated.mutate, [
+  `${source}:2-2`,
+  `${source}:5-5`,
+  `${newSource}:1-2`,
+]);
