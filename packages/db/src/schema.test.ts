@@ -31,7 +31,6 @@ describe("US-023 capacity recovery Drizzle contract", () => {
       { hasDefault: false, name: "effective_from", notNull: true, type: "date" },
       { hasDefault: false, name: "available_at", notNull: true, type: "timestamp with time zone" },
       { hasDefault: false, name: "source", notNull: true, type: "text" },
-      { hasDefault: false, name: "release_event_id", notNull: false, type: "uuid" },
       { hasDefault: true, name: "status", notNull: true, type: "text" },
       { hasDefault: true, name: "attempt_count", notNull: true, type: "integer" },
       { hasDefault: false, name: "lease_token", notNull: false, type: "uuid" },
@@ -39,6 +38,7 @@ describe("US-023 capacity recovery Drizzle contract", () => {
       { hasDefault: false, name: "last_error", notNull: false, type: "text" },
       { hasDefault: false, name: "completed_at", notNull: false, type: "timestamp with time zone" },
       { hasDefault: true, name: "created_at", notNull: true, type: "timestamp with time zone" },
+      { hasDefault: false, name: "release_event_id", notNull: false, type: "uuid" },
     ]);
     expect(
       config.foreignKeys.map((foreignKey) => ({
