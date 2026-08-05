@@ -12,6 +12,10 @@ const auditBoundary = resolve(
   sourceRoot,
   "modules/audit/with-audit.ts",
 );
+const authorizationBoundary = resolve(
+  sourceRoot,
+  "modules/identity-access/server-authorization.ts",
+);
 const sourceExtensions = new Set([".ts", ".tsx"]);
 
 function sourceFiles(directory) {
@@ -509,12 +513,18 @@ function boundFactoryArgument(factoryTarget, factoryCall, propertyName) {
   return localName && value ? { localName, value } : null;
 }
 
-function trustedAuthorizationLoader(expression, owner, imports) {
+function trustedAuthorizationLoader(
+  expression,
+  owner,
+  imports,
+  sourceFilePath,
+) {
   const value = unwrapExpression(expression);
   if (!ts.isIdentifier(value) || shadowsBinding(owner, value.text)) return false;
   const imported = imports.get(value.text);
   return imported?.importedName === "loadCurrentLedgerAuthorization" &&
-    imported.specifier.endsWith("identity-access/server-authorization");
+    resolveImportedSource(sourceFilePath, imported.specifier) ===
+      authorizationBoundary;
 }
 
 function trustedRevalidator(expression, owner, imports) {
@@ -575,7 +585,12 @@ function configuredActionFactoryMemberIsAudited({
   );
   const revalidator = boundFactoryArgument(factoryTarget, factoryCall, "revalidate");
   if (!authorization || !revalidator ||
-      !trustedAuthorizationLoader(authorization.value, owner, callerImports) ||
+      !trustedAuthorizationLoader(
+        authorization.value,
+        owner,
+        callerImports,
+        ts.getSourceFileOfNode(owner).fileName,
+      ) ||
       !trustedRevalidator(revalidator.value, owner, callerImports)) {
     return false;
   }
@@ -585,7 +600,9 @@ function configuredActionFactoryMemberIsAudited({
   if (!ts.isVariableStatement(load) ||
       load.declarationList.declarations.length !== 1) return false;
   const declaration = load.declarationList.declarations[0];
-  if (!ts.isIdentifier(declaration.name) || !declaration.initializer) return false;
+  if (!ts.isIdentifier(declaration.name) ||
+      !declaration.initializer ||
+      !ts.isAwaitExpression(declaration.initializer)) return false;
   const authorizationName = declaration.name.text;
   const loadCall = callTarget(declaration.initializer);
   if (!loadCall || loadCall.member !== null ||
@@ -600,6 +617,8 @@ function configuredActionFactoryMemberIsAudited({
     ? guard.thenStatement.statements
     : [guard.thenStatement];
   if (guarded.length !== 1 || !ts.isThrowStatement(guarded[0])) return false;
+  if (!ts.isExpressionStatement(operation) ||
+      !ts.isAwaitExpression(operation.expression)) return false;
   const operationExpression = statementExpression(operation);
   const operationCall = operationExpression ? callTarget(operationExpression) : null;
   if (!operationCall || operationCall.member !== memberName ||

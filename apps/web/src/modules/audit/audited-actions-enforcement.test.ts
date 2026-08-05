@@ -420,16 +420,18 @@ describe("audited server action enforcement", () => {
         return actions.addCapacity(input);
       }`;
     const factorySource = ({
+      authorizationLoad = "await loadAuthorization()",
       guard = `if (!authorization) throw new Error("forbidden");`,
       operation = "actions.addCapacity",
+      operationPrefix = "await ",
       tail = `revalidate("/capacity");`,
     } = {}) => `import { createManageCapacityActions } from "./capacity-operations";
       export function createCapacityServerActions({ database, loadAuthorization, revalidate }) {
         const actions = createManageCapacityActions({ database });
         return { async addCapacity(input) {
-          const authorization = await loadAuthorization();
+          const authorization = ${authorizationLoad};
           ${guard}
-          await ${operation}(authorization, input);
+          ${operationPrefix}${operation}(authorization, input);
           ${tail}
         }};
       }`;
@@ -453,6 +455,8 @@ describe("audited server action enforcement", () => {
           }};
         }`,
       "src/modules/identity-access/server-authorization.ts":
+        `export async function loadCurrentLedgerAuthorization() { return {}; }`,
+      "src/decoy/identity-access/server-authorization.ts":
         `export async function loadCurrentLedgerAuthorization() { return {}; }`,
       "src/modules/audit/with-audit.ts":
         `export function withAudit(...args) { return args; }`,
@@ -480,6 +484,21 @@ describe("audited server action enforcement", () => {
         operations: auditedOperations,
       },
       {
+        name: "same-suffix authorization decoy",
+        actions: actionSource().replace(
+          'from "../modules/identity-access/server-authorization"',
+          'from "../decoy/identity-access/server-authorization"',
+        ),
+        factory: factorySource(),
+        operations: auditedOperations,
+      },
+      {
+        name: "missing authorization await",
+        actions: actionSource(),
+        factory: factorySource({ authorizationLoad: "loadAuthorization()" }),
+        operations: auditedOperations,
+      },
+      {
         name: "missing authorization guard",
         actions: actionSource(),
         factory: factorySource({ guard: "" }),
@@ -495,6 +514,12 @@ describe("audited server action enforcement", () => {
         name: "computed operation",
         actions: actionSource(),
         factory: factorySource({ operation: 'actions["addCapacity"]' }),
+        operations: auditedOperations,
+      },
+      {
+        name: "missing operation await",
+        actions: actionSource(),
+        factory: factorySource({ operationPrefix: "" }),
         operations: auditedOperations,
       },
       {
