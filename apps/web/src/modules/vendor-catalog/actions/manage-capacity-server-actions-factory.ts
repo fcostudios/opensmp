@@ -1,37 +1,44 @@
-import type { LedgerAuthorization } from "../../identity-access/authorization";
-import type { createManageCapacityActions } from "./manage-capacity-operations";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-type CapacityActions = ReturnType<typeof createManageCapacityActions>;
+import * as schema from "@smp/db/schema";
+
+import type { LedgerAuthorization } from "../../identity-access/authorization";
+import { createManageCapacityActions } from "./manage-capacity-operations";
 
 export function createCapacityServerActions({
-  actions,
+  database,
   loadAuthorization,
+  now,
   revalidate,
 }: {
-  readonly actions: CapacityActions;
+  readonly database: NodePgDatabase<typeof schema>;
   readonly loadAuthorization: () => Promise<LedgerAuthorization | null>;
+  readonly now?: () => Date;
   readonly revalidate: (path: string) => void;
 }) {
-  async function execute(
-    operation: keyof CapacityActions,
-    input: unknown,
-  ): Promise<void> {
-    const authorization = await loadAuthorization();
-    if (!authorization) throw new Error("CAPACITY_ACCESS_FORBIDDEN");
-    await actions[operation](authorization, input);
-    revalidate("/cupos");
-    revalidate("/excepciones");
-  }
+  const actions = createManageCapacityActions({ database, now });
 
   return {
-    addCapacity(input: unknown): Promise<void> {
-      return execute("addCapacity", input);
+    async addCapacity(input: unknown): Promise<void> {
+      const authorization = await loadAuthorization();
+      if (!authorization) throw new Error("CAPACITY_ACCESS_FORBIDDEN");
+      await actions.addCapacity(authorization, input);
+      revalidate("/cupos");
+      revalidate("/excepciones");
     },
-    registerPurchase(input: unknown): Promise<void> {
-      return execute("registerPurchase", input);
+    async registerPurchase(input: unknown): Promise<void> {
+      const authorization = await loadAuthorization();
+      if (!authorization) throw new Error("CAPACITY_ACCESS_FORBIDDEN");
+      await actions.registerPurchase(authorization, input);
+      revalidate("/cupos");
+      revalidate("/excepciones");
     },
-    saveVendorAccountCapacity(input: unknown): Promise<void> {
-      return execute("saveVendorAccountCapacity", input);
+    async saveVendorAccountCapacity(input: unknown): Promise<void> {
+      const authorization = await loadAuthorization();
+      if (!authorization) throw new Error("CAPACITY_ACCESS_FORBIDDEN");
+      await actions.saveVendorAccountCapacity(authorization, input);
+      revalidate("/cupos");
+      revalidate("/excepciones");
     },
   };
 }

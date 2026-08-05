@@ -9,32 +9,24 @@ import { db } from "@smp/db";
 import * as schema from "@smp/db/schema";
 
 import { loadCurrentLedgerAuthorization } from "../../identity-access/server-authorization";
-import { createManageCapacityActions } from "./manage-capacity-operations";
+import { createCapacityServerActions } from "./manage-capacity-server-actions-factory";
 
 const database = db as unknown as NodePgDatabase<typeof schema>;
 
-const actions = createManageCapacityActions({ database });
+const actions = createCapacityServerActions({
+  database,
+  loadAuthorization: loadCurrentLedgerAuthorization,
+  revalidate: revalidatePath,
+});
 
 export async function registerPurchase(input: unknown): Promise<void> {
-  const authorization = await loadCurrentLedgerAuthorization();
-  if (!authorization) throw new Error("CAPACITY_ACCESS_FORBIDDEN");
-  await actions.registerPurchase(authorization, input);
-  revalidatePath("/cupos");
-  revalidatePath("/excepciones");
+  return actions.registerPurchase(input);
 }
 
 export async function addCapacity(input: unknown): Promise<void> {
-  const authorization = await loadCurrentLedgerAuthorization();
-  if (!authorization) throw new Error("CAPACITY_ACCESS_FORBIDDEN");
-  await actions.addCapacity(authorization, input);
-  revalidatePath("/cupos");
-  revalidatePath("/excepciones");
+  return actions.addCapacity(input);
 }
 
 export async function saveVendorAccountCapacity(input: unknown): Promise<void> {
-  const authorization = await loadCurrentLedgerAuthorization();
-  if (!authorization) throw new Error("CAPACITY_ACCESS_FORBIDDEN");
-  await actions.saveVendorAccountCapacity(authorization, input);
-  revalidatePath("/cupos");
-  revalidatePath("/excepciones");
+  return actions.saveVendorAccountCapacity(input);
 }

@@ -469,6 +469,161 @@ function returnedFactoryMember(factoryTarget, memberName) {
   return null;
 }
 
+function objectBindingMap(parameter) {
+  if (!parameter || !ts.isObjectBindingPattern(parameter.name)) return null;
+  const bindings = new Map();
+  for (const element of parameter.name.elements) {
+    if (!ts.isBindingElement(element) || !ts.isIdentifier(element.name)) return null;
+    const property = element.propertyName ?? element.name;
+    if (!(ts.isIdentifier(property) || ts.isStringLiteral(property))) return null;
+    bindings.set(property.text, element.name.text);
+  }
+  return bindings;
+}
+
+function objectArgumentMap(expression) {
+  const argument = unwrapExpression(expression);
+  if (!ts.isObjectLiteralExpression(argument)) return null;
+  const values = new Map();
+  for (const property of argument.properties) {
+    if (ts.isShorthandPropertyAssignment(property)) {
+      values.set(property.name.text, property.name);
+      continue;
+    }
+    if (!ts.isPropertyAssignment(property) ||
+        !(ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))) {
+      return null;
+    }
+    values.set(property.name.text, property.initializer);
+  }
+  return values;
+}
+
+function boundFactoryArgument(factoryTarget, factoryCall, propertyName) {
+  const bindings = objectBindingMap(factoryTarget.parameters?.[0]);
+  const values = factoryCall.call.arguments.length === 1
+    ? objectArgumentMap(factoryCall.call.arguments[0])
+    : null;
+  const localName = bindings?.get(propertyName);
+  const value = values?.get(propertyName);
+  return localName && value ? { localName, value } : null;
+}
+
+function trustedAuthorizationLoader(expression, owner, imports) {
+  const value = unwrapExpression(expression);
+  if (!ts.isIdentifier(value) || shadowsBinding(owner, value.text)) return false;
+  const imported = imports.get(value.text);
+  return imported?.importedName === "loadCurrentLedgerAuthorization" &&
+    imported.specifier.endsWith("identity-access/server-authorization");
+}
+
+function trustedRevalidator(expression, owner, imports) {
+  const value = unwrapExpression(expression);
+  if (!ts.isIdentifier(value) || shadowsBinding(owner, value.text)) return false;
+  const imported = imports.get(value.text);
+  return imported?.importedName === "revalidatePath" &&
+    imported.specifier === "next/cache";
+}
+
+function factoryOperationIsAudited(
+  factoryFile,
+  factorySourcePath,
+  actionsName,
+  memberName,
+) {
+  const actionsTarget = namedTarget(factoryFile, actionsName);
+  const initializer = actionsTarget?.initializer;
+  const actionFactoryCall = initializer ? callTarget(initializer) : null;
+  if (!actionFactoryCall || actionFactoryCall.member !== null) return false;
+  const factoryImport = importedBindings(factoryFile).get(actionFactoryCall.root);
+  if (!factoryImport) return false;
+  const operationsSource = resolveImportedSource(factorySourcePath, factoryImport.specifier);
+  if (!operationsSource) return false;
+  const operationsFile = ts.createSourceFile(
+    operationsSource,
+    readFileSync(operationsSource, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+    operationsSource.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  const operationsFactory = namedTarget(operationsFile, factoryImport.importedName);
+  const operation = operationsFactory
+    ? returnedFactoryMember(operationsFactory, memberName)
+    : null;
+  return !!operation && wholeBodyUsesAudit(
+    operation,
+    importedBindings(operationsFile),
+    operationsSource,
+    true,
+  );
+}
+
+function configuredActionFactoryMemberIsAudited({
+  callerImports,
+  factoryCall,
+  factoryFile,
+  factorySourcePath,
+  factoryTarget,
+  memberName,
+  memberTarget,
+  owner,
+}) {
+  const authorization = boundFactoryArgument(
+    factoryTarget,
+    factoryCall,
+    "loadAuthorization",
+  );
+  const revalidator = boundFactoryArgument(factoryTarget, factoryCall, "revalidate");
+  if (!authorization || !revalidator ||
+      !trustedAuthorizationLoader(authorization.value, owner, callerImports) ||
+      !trustedRevalidator(revalidator.value, owner, callerImports)) {
+    return false;
+  }
+  const body = memberTarget.body ?? memberTarget;
+  if (!ts.isBlock(body) || body.statements.length < 4) return false;
+  const [load, guard, operation, ...postAudit] = body.statements;
+  if (!ts.isVariableStatement(load) ||
+      load.declarationList.declarations.length !== 1) return false;
+  const declaration = load.declarationList.declarations[0];
+  if (!ts.isIdentifier(declaration.name) || !declaration.initializer) return false;
+  const authorizationName = declaration.name.text;
+  const loadCall = callTarget(declaration.initializer);
+  if (!loadCall || loadCall.member !== null ||
+      loadCall.root !== authorization.localName ||
+      loadCall.call.arguments.length !== 0) return false;
+  if (!ts.isIfStatement(guard) || guard.elseStatement ||
+      !ts.isPrefixUnaryExpression(guard.expression) ||
+      guard.expression.operator !== ts.SyntaxKind.ExclamationToken ||
+      !ts.isIdentifier(guard.expression.operand) ||
+      guard.expression.operand.text !== authorizationName) return false;
+  const guarded = ts.isBlock(guard.thenStatement)
+    ? guard.thenStatement.statements
+    : [guard.thenStatement];
+  if (guarded.length !== 1 || !ts.isThrowStatement(guarded[0])) return false;
+  const operationExpression = statementExpression(operation);
+  const operationCall = operationExpression ? callTarget(operationExpression) : null;
+  if (!operationCall || operationCall.member !== memberName ||
+      operationCall.call.arguments.length !== 2 ||
+      !ts.isIdentifier(operationCall.call.arguments[0]) ||
+      operationCall.call.arguments[0].text !== authorizationName ||
+      !ts.isIdentifier(operationCall.call.arguments[1]) ||
+      operationCall.call.arguments[1].text !== "input" ||
+      !factoryOperationIsAudited(
+        factoryFile,
+        factorySourcePath,
+        operationCall.root,
+        memberName,
+      )) return false;
+  return postAudit.length > 0 && postAudit.every((statement) => {
+    if (!ts.isExpressionStatement(statement)) return false;
+    const revalidateCall = callTarget(statement.expression);
+    return !!revalidateCall && revalidateCall.member === null &&
+      revalidateCall.root === revalidator.localName &&
+      revalidateCall.call.arguments.length === 1 &&
+      ts.isStringLiteral(revalidateCall.call.arguments[0]);
+  });
+}
+
 function serviceTargetIsAudited(
   expression,
   owner,
@@ -512,11 +667,22 @@ function serviceTargetIsAudited(
     const memberTarget = factoryTarget
       ? returnedFactoryMember(factoryTarget, call.member)
       : null;
-    return !!memberTarget && wholeBodyUsesAudit(
-      memberTarget,
-      importedBindings(factoryFile),
-      factorySource,
-      true,
+    return !!memberTarget && (
+      wholeBodyUsesAudit(
+        memberTarget,
+        importedBindings(factoryFile),
+        factorySource,
+        true,
+      ) || configuredActionFactoryMemberIsAudited({
+        callerImports: imports,
+        factoryCall,
+        factoryFile,
+        factorySourcePath: factorySource,
+        factoryTarget,
+        memberName: call.member,
+        memberTarget,
+        owner,
+      })
     );
   }
     const importedSourcePath = resolveImportedSource(

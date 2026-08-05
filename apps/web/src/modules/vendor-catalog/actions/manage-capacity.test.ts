@@ -122,11 +122,11 @@ describe("US-023 capacity server actions", () => {
     const authorizationRepository = createAuthorizationRepository(database);
     const authorization = await authorizationRepository.load({ subject: "capacity-actions" });
     if (!authorization) throw new Error("capacity action authorization missing");
-    const operations = createManageCapacityActions({ database, now: () => now });
     const revalidated: string[] = [];
     const actions = createCapacityServerActions({
-      actions: operations,
+      database,
       loadAuthorization: async () => authorization,
+      now: () => now,
       revalidate: (path) => { revalidated.push(path); },
     });
     const form = (effectiveFrom: string, purchasedQty: string) => {
@@ -161,8 +161,9 @@ describe("US-023 capacity server actions", () => {
 
     const forbiddenRevalidations: string[] = [];
     const forbidden = createCapacityServerActions({
-      actions: operations,
+      database,
       loadAuthorization: async () => null,
+      now: () => now,
       revalidate: (path) => { forbiddenRevalidations.push(path); },
     });
     await expect(forbidden.addCapacity(form("2026-08-17", "10"))).rejects.toThrow(

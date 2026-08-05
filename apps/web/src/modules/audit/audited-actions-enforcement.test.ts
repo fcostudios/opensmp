@@ -405,6 +405,141 @@ describe("audited server action enforcement", () => {
     });
   });
 
+  test("accepts only an exactly bound authorization-and-audit action factory", async () => {
+    const actionSource = (overrides = "") => `"use server";
+      import { revalidatePath } from "next/cache";
+      import { loadCurrentLedgerAuthorization } from "../modules/identity-access/server-authorization";
+      import { createCapacityServerActions } from "../modules/capacity-actions";
+      ${overrides}
+      const actions = createCapacityServerActions({
+        database,
+        loadAuthorization: loadCurrentLedgerAuthorization,
+        revalidate: revalidatePath,
+      });
+      export async function addCapacity(input) {
+        return actions.addCapacity(input);
+      }`;
+    const factorySource = ({
+      guard = `if (!authorization) throw new Error("forbidden");`,
+      operation = "actions.addCapacity",
+      tail = `revalidate("/capacity");`,
+    } = {}) => `import { createManageCapacityActions } from "./capacity-operations";
+      export function createCapacityServerActions({ database, loadAuthorization, revalidate }) {
+        const actions = createManageCapacityActions({ database });
+        return { async addCapacity(input) {
+          const authorization = await loadAuthorization();
+          ${guard}
+          await ${operation}(authorization, input);
+          ${tail}
+        }};
+      }`;
+    const auditedOperations = `import { createCapacityService } from "./capacity-service";
+      export function createManageCapacityActions({ database }) {
+        const service = createCapacityService(database);
+        return {
+          async addCapacity(authorization, input) {
+            await service.changeCapacity(authorization, input);
+          },
+          async registerPurchase(authorization, input) {
+            await service.changeCapacity(authorization, input);
+          },
+        };
+      }`;
+    const shared = {
+      "src/modules/capacity-service.ts": `import { withAudit } from "@/modules/audit/with-audit";
+        export function createCapacityService(database) {
+          return { async changeCapacity(authorization, input) {
+            return withAudit(database, async () => ({ value: input, audit: evidence }));
+          }};
+        }`,
+      "src/modules/identity-access/server-authorization.ts":
+        `export async function loadCurrentLedgerAuthorization() { return {}; }`,
+      "src/modules/audit/with-audit.ts":
+        `export function withAudit(...args) { return args; }`,
+    };
+    const valid = await fixture({
+      ...shared,
+      "src/app/actions.ts": actionSource(),
+      "src/modules/capacity-actions.ts": factorySource(),
+      "src/modules/capacity-operations.ts": auditedOperations,
+    });
+    await expect(
+      execFileAsync(process.execPath, [script, valid]),
+    ).resolves.toMatchObject({
+      stdout: expect.stringContaining("Audited server action enforcement passed"),
+    });
+
+    const adversarial = [
+      {
+        name: "wrong authorization loader",
+        actions: actionSource(`const untrustedAuthorization = async () => ({});`).replace(
+          "loadAuthorization: loadCurrentLedgerAuthorization",
+          "loadAuthorization: untrustedAuthorization",
+        ),
+        factory: factorySource(),
+        operations: auditedOperations,
+      },
+      {
+        name: "missing authorization guard",
+        actions: actionSource(),
+        factory: factorySource({ guard: "" }),
+        operations: auditedOperations,
+      },
+      {
+        name: "mismatched operation",
+        actions: actionSource(),
+        factory: factorySource({ operation: "actions.registerPurchase" }),
+        operations: auditedOperations,
+      },
+      {
+        name: "computed operation",
+        actions: actionSource(),
+        factory: factorySource({ operation: 'actions["addCapacity"]' }),
+        operations: auditedOperations,
+      },
+      {
+        name: "unaudited operations factory",
+        actions: actionSource(),
+        factory: factorySource(),
+        operations: auditedOperations.replace(
+          "await service.changeCapacity(authorization, input);",
+          "await database.update(input);",
+        ),
+      },
+      {
+        name: "wrong revalidator",
+        actions: actionSource(`const unsafeRevalidate = (path) => database.update(path);`).replace(
+          "revalidate: revalidatePath",
+          "revalidate: unsafeRevalidate",
+        ),
+        factory: factorySource(),
+        operations: auditedOperations,
+      },
+      {
+        name: "post-audit mutation",
+        actions: actionSource(),
+        factory: factorySource({
+          tail: `revalidate("/capacity"); await database.update(input);`,
+        }),
+        operations: auditedOperations,
+      },
+    ];
+    for (const candidate of adversarial) {
+      const root = await fixture({
+        ...shared,
+        "src/app/actions.ts": candidate.actions,
+        "src/modules/capacity-actions.ts": candidate.factory,
+        "src/modules/capacity-operations.ts": candidate.operations,
+      });
+      await expect(
+        execFileAsync(process.execPath, [script, root]),
+        candidate.name,
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("addCapacity"),
+      });
+    }
+  });
+
   test("the current application tree has no unaudited server action", async () => {
     await expect(
       execFileAsync(process.execPath, [script, applicationRoot]),
