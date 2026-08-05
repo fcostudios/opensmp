@@ -385,6 +385,7 @@ describe("approval queue repository", () => {
         decisionComment: "No procede",
       }, decidedAt);
     } finally {
+      await client.query("RESET lock_timeout");
       client.release();
       await owner.query("ROLLBACK");
     }
@@ -429,6 +430,7 @@ describe("approval queue repository", () => {
         }, decidedAt),
       ).rejects.toMatchObject({ code: "55P03" });
     } finally {
+      await client.query("RESET lock_timeout");
       client.release();
       await owner.query("ROLLBACK");
       await owner.query(
