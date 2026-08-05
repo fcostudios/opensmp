@@ -1,9 +1,7 @@
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-
-import * as schema from "@smp/db/schema";
-
 import type { LedgerAuthorization } from "../../identity-access/authorization";
 import { createManageCapacityActions } from "./manage-capacity-operations";
+
+type Database = Parameters<typeof createManageCapacityActions>[0]["database"];
 
 export function createCapacityServerActions({
   database,
@@ -11,7 +9,7 @@ export function createCapacityServerActions({
   now,
   revalidate,
 }: {
-  readonly database: NodePgDatabase<typeof schema>;
+  readonly database: Database;
   readonly loadAuthorization: () => Promise<LedgerAuthorization | null>;
   readonly now?: () => Date;
   readonly revalidate: (path: string) => void;
