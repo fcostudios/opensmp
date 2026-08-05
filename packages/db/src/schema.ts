@@ -556,7 +556,6 @@ export const capacityRecoveryWork = pgTable("capacity_recovery_work", {
   effectiveFrom: date("effective_from").notNull(),
   availableAt: timestamp("available_at", { withTimezone: true }).notNull(),
   source: text("source").notNull(),
-  releaseEventId: uuid("release_event_id"),
   status: text("status").notNull().default("pending"),
   attemptCount: integer("attempt_count").notNull().default(0),
   leaseToken: uuid("lease_token"),
@@ -564,6 +563,7 @@ export const capacityRecoveryWork = pgTable("capacity_recovery_work", {
   lastError: text("last_error"),
   completedAt: timestamp("completed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  releaseEventId: uuid("release_event_id"),
 }, (table) => ({
   identityXor: check(
     "capacity_recovery_identity_xor_check",
