@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { getTableName } from "drizzle-orm";
 import { PgDialect, getTableConfig } from "drizzle-orm/pg-core";
 
-import { capacityRecoveryWork } from "./schema.js";
+import { capacityRecoveryWork, vendor, vendorAccount } from "./schema.js";
 
 const dialect = new PgDialect();
 
@@ -60,5 +60,28 @@ describe("US-023 capacity recovery Drizzle contract", () => {
         sql: "(\n      (\"capacity_recovery_work\".\"source\" = 'seat_freed' AND \"capacity_recovery_work\".\"release_event_id\" IS NOT NULL AND \"capacity_recovery_work\".\"capacity_id\" IS NULL)\n      OR\n      (\"capacity_recovery_work\".\"source\" = 'capacity_change' AND \"capacity_recovery_work\".\"capacity_id\" IS NOT NULL AND \"capacity_recovery_work\".\"release_event_id\" IS NULL)\n    )",
       },
     ]);
+  });
+});
+
+describe("US-025 vendor-account uniqueness Drizzle contract", () => {
+  test("names vendors globally and vendor accounts within their vendor exactly once", () => {
+    const vendorConfig = getTableConfig(vendor);
+    const accountConfig = getTableConfig(vendorAccount);
+
+    expect(
+      vendorConfig.uniqueConstraints.map(({ columns, name }) => ({
+        columns: columns.map((column) => column.name),
+        name,
+      })),
+    ).toEqual([{ columns: ["name"], name: "uq_vendor_name" }]);
+    expect(
+      accountConfig.uniqueConstraints.map(({ columns, name }) => ({
+        columns: columns.map((column) => column.name),
+        name,
+      })),
+    ).toContainEqual({
+      columns: ["vendor_id", "name"],
+      name: "uq_vendor_account_vendor_id_name",
+    });
   });
 });
