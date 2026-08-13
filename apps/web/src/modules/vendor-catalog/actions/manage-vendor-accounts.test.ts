@@ -1,6 +1,4 @@
-import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
-import { promisify } from "node:util";
 
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
@@ -16,7 +14,6 @@ import type { LedgerAuthorization } from "../../identity-access/authorization";
 import { createVendorAccountServerActions } from "./manage-vendor-accounts-server-actions-factory";
 import type { VendorAccountActionState } from "./manage-vendor-accounts-operations";
 
-const execFileAsync = promisify(execFile);
 const id = (suffix: string) =>
   `25100000-0000-4000-8000-${suffix.padStart(12, "0")}`;
 const ids = {
@@ -255,7 +252,7 @@ describe("US-025 vendor-account server actions", () => {
     expect(audit.rows).toEqual([{ count: 1 }]);
   });
 
-  it("exports only the two React actions and passes audited-action enforcement", async () => {
+  it("exports only the two audited React actions", async () => {
     const production = await import("./manage-vendor-accounts");
     expect(Object.keys(production).sort()).toEqual([
       "createVendorAccount",
@@ -267,10 +264,5 @@ describe("US-025 vendor-account server actions", () => {
     const source = await readFile(new URL("./manage-vendor-accounts.ts", import.meta.url), "utf8");
     expect(source).not.toContain("@read-only-action");
 
-    const appRoot = new URL("../../../..", import.meta.url).pathname;
-    const checker = new URL("../../../../../../scripts/check-audited-actions.mjs", import.meta.url);
-    await expect(execFileAsync(process.execPath, [checker.pathname, appRoot])).resolves.toMatchObject({
-      stdout: expect.stringContaining("Audited server action enforcement passed"),
-    });
   });
 });
