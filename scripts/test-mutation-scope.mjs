@@ -39,8 +39,20 @@ import {
   verificationAuditsForReport,
   verifyContractsBarrelSource,
   runMutationScope,
+  strykerMutationTarget,
 } from "./mutation-scope.mjs";
 import mutationVitestConfig from "../vitest.mutation.config.mjs";
+
+assert.equal(
+  strykerMutationTarget(
+    "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx:10-12",
+  ),
+  "apps/web/src/app/(authenticated)/organizaciones/\\[vendorAccountId\\]/page.tsx:10-12",
+);
+assert.equal(
+  strykerMutationTarget("packages/contracts/src/vendor-catalog.ts:1-20"),
+  "packages/contracts/src/vendor-catalog.ts:1-20",
+);
 
 assert.deepEqual(
   mutatable([

@@ -236,6 +236,10 @@ export function mutationSourceFiles(targets) {
   )].sort();
 }
 
+export function strykerMutationTarget(target) {
+  return target.replaceAll("[", "\\[").replaceAll("]", "\\]");
+}
+
 export function groupRoutedMutationTargets(targets, routeTestsForSource) {
   const groups = new Map();
   for (const source of mutationSourceFiles(targets)) {
@@ -1661,7 +1665,7 @@ export async function runMutationScope(options = {}) {
     const jsonReportPath = join("reports", "mutation", `${id}-${runSuffix}.json`);
     const common = {
       ...sharedBaseConf,
-      mutate: spec.mutate,
+      mutate: spec.mutate.map(strykerMutationTarget),
       coverageAnalysis: "off",
       concurrency: 1,
       maxTestRunnerReuse: 1,
