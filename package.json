@@ -15,6 +15,7 @@
     "lint:probe": "pnpm --dir scripts/probes/anthropic run lint",
     "mutation:cache:inspect": "node scripts/mutation-cache.mjs inspect",
     "mutation:cache:clear": "node scripts/mutation-cache.mjs clear",
+    "mutation:benchmark:summary": "node scripts/mutation-evidence/performance.mjs",
     "test": "pnpm run test:enforcement && pnpm run test:feedback-order && pnpm run test:feedback-order:fixtures && pnpm run test:mutation-scope && pnpm run test:mutation-evidence && pnpm run test:infra && pnpm run test:probe && pnpm --filter @smp/db test && turbo run test --filter='!@smp/db' --concurrency=1",
     "test:enforcement": "node scripts/test-token-enforcement.mjs",
     "test:feedback-order": "node scripts/check-nous-feedback-order.mjs .",

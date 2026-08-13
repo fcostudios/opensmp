@@ -18,6 +18,14 @@ import {
   createEvidenceKey,
   sha256,
 } from "./mutation-evidence/fingerprint.mjs";
+import {
+  createPerformanceRun,
+  finishPerformanceRun,
+  finishShard,
+  renderBenchmarkSummary,
+  startShard,
+  writePerformanceRecord,
+} from "./mutation-evidence/performance.mjs";
 
 assert.equal(EVIDENCE_SCHEMA_VERSION, 1);
 assert.equal(
@@ -1050,3 +1058,181 @@ try {
   await rm(cacheFixture, { recursive: true, force: true });
 }
 assert.equal(cacheContractCompleted, true);
+
+function sequenceClock(...values) {
+  let index = 0;
+  return () => {
+    assert.ok(index < values.length, "monotonic clock sequence exhausted");
+    return values[index++];
+  };
+}
+
+const machine = {
+  os: "TestOS 1",
+  arch: "test64",
+  logicalCpuCount: 8,
+  memoryBytes: 16_000_000_000,
+  toolVersions: { node: "22.12.0", stryker: "9.0.0" },
+};
+const provenance = {
+  campaignKey: "campaign-123",
+  head: "head-commit",
+  base: "base-commit",
+  baseRef: "main",
+};
+const coldClock = sequenceClock(100, 110, 150, 160, 260, 300);
+const coldRun = createPerformanceRun({
+  provenance,
+  cacheMode: "enabled",
+  machine: { ...machine, environment: { SECRET: "must-not-persist" } },
+  now: coldClock,
+});
+const coldFirst = startShard(coldRun, {
+  id: "core",
+  evidenceKey: "evidence-core",
+  classification: "mutation",
+}, coldClock);
+finishShard(coldRun, coldFirst, "executed", { result: "passed" }, coldClock);
+const coldSecond = startShard(coldRun, {
+  id: "db",
+  evidenceKey: "evidence-db",
+  classification: "db-backed",
+}, coldClock);
+finishShard(coldRun, coldSecond, "executed", { result: "passed" }, coldClock);
+finishPerformanceRun(coldRun, "passed", coldClock);
+assert.deepEqual(coldRun.totals, {
+  shardCount: 2,
+  executedCount: 2,
+  reusedCount: 0,
+  rejectedCount: 0,
+  hitRatio: 0,
+  estimatedMsSaved: 0,
+});
+assert.deepEqual(coldRun.shards.map(({ durationMs }) => durationMs), [40, 100]);
+assert.equal(coldRun.wallClockDurationMs, 200);
+assert.equal(coldRun.orchestrationDurationMs, 200);
+assert.equal(coldRun.outcome, "passed");
+assert.deepEqual(coldRun.machine, machine);
+assert.equal(Object.hasOwn(coldRun.machine, "environment"), false);
+assert.match(coldRun.startedAt, /^\d{4}-\d{2}-\d{2}T.*Z$/);
+assert.match(coldRun.finishedAt, /^\d{4}-\d{2}-\d{2}T.*Z$/);
+
+const warmClock = sequenceClock(500, 510, 515, 520, 528, 540, 550, 560);
+const warmRun = createPerformanceRun({ provenance, cacheMode: "enabled", machine, now: warmClock });
+const warmFirst = startShard(warmRun, {
+  id: "core",
+  evidenceKey: "evidence-core",
+  classification: "mutation",
+}, warmClock);
+finishShard(warmRun, warmFirst, "reused", { priorDurationMs: 40, result: "passed" }, warmClock);
+const warmSecond = startShard(warmRun, {
+  id: "db",
+  evidenceKey: "evidence-db",
+  classification: "db-backed",
+}, warmClock);
+finishShard(warmRun, warmSecond, "rejected", {
+  priorDurationMs: 100,
+  rejectionReason: "artifact-hash-mismatch",
+  result: "passed",
+}, warmClock);
+const warmThird = startShard(warmRun, {
+  id: "verification",
+  evidenceKey: "evidence-verification",
+  classification: "verification-only",
+}, warmClock);
+finishShard(warmRun, warmThird, "executed", { result: "passed" }, warmClock);
+finishPerformanceRun(warmRun, "passed", warmClock);
+assert.deepEqual(warmRun.totals, {
+  shardCount: 3,
+  executedCount: 1,
+  reusedCount: 1,
+  rejectedCount: 1,
+  hitRatio: 1 / 3,
+  estimatedMsSaved: 40,
+});
+assert.deepEqual(warmRun.shards.map(({ durationMs }) => durationMs), [5, 8, 10]);
+assert.equal(warmRun.wallClockDurationMs, 60);
+
+const performanceFixture = await mkdtemp(path.join(tmpdir(), "ledger-mutation-performance-"));
+try {
+  const recordPath = writePerformanceRecord(performanceFixture, warmRun);
+  assert.equal(path.dirname(recordPath), path.join(performanceFixture, "reports/mutation-performance"));
+  const persisted = JSON.parse(await readFile(recordPath, "utf8"));
+  assert.deepEqual(persisted, warmRun);
+  assert.equal(JSON.stringify(persisted).includes("environment"), false);
+  assert.equal(
+    (await readdir(path.dirname(recordPath))).some((name) => name.endsWith(".temporary")),
+    false,
+  );
+  assert.throws(
+    () => writePerformanceRecord(performanceFixture, {
+      ...warmRun,
+      environment: { DATABASE_URL: "must-not-persist" },
+    }),
+    /unsafe performance record/i,
+  );
+
+  const summary = renderBenchmarkSummary(coldRun, warmRun);
+  assert.match(summary, /Comparable: yes/);
+  assert.match(summary, /Cold wall-clock \(ms\) \| 200/);
+  assert.match(summary, /Warm wall-clock \(ms\) \| 60/);
+  assert.match(summary, /Measured wall-clock savings \(ms\) \| 140/);
+  assert.match(summary, /Estimated cache savings \(ms\) \| 0 \| 40/);
+  assert.match(summary, /Executed shards \| 2 \| 1/);
+  assert.match(summary, /Reused shards \| 0 \| 1/);
+  assert.match(summary, /Rejected cache entries \| 0 \| 1/);
+  assert.match(summary, /Campaign outcome \| passed \| passed/);
+
+  const coldPath = path.join(performanceFixture, "cold.json");
+  const warmPath = path.join(performanceFixture, "warm.json");
+  await writeFile(coldPath, `${JSON.stringify(coldRun)}\n`);
+  await writeFile(warmPath, `${JSON.stringify(warmRun)}\n`);
+  const performanceCli = new URL("./mutation-evidence/performance.mjs", import.meta.url).pathname;
+  assert.equal(
+    execFileSync(process.execPath, [performanceCli, coldPath, warmPath], { encoding: "utf8" }),
+    summary,
+  );
+
+  const otherMachinePath = path.join(performanceFixture, "other-machine.json");
+  await writeFile(otherMachinePath, `${JSON.stringify({
+    ...warmRun,
+    machine: { ...machine, arch: "other64" },
+  })}\n`);
+  assert.throws(
+    () => execFileSync(process.execPath, [performanceCli, coldPath, otherMachinePath], {
+      encoding: "utf8",
+      stdio: "pipe",
+    }),
+    (error) => error.status === 2 && /incomparable/i.test(error.stderr),
+  );
+  const incomparable = execFileSync(
+    process.execPath,
+    [performanceCli, "--allow-incomparable", coldPath, otherMachinePath],
+    { encoding: "utf8" },
+  );
+  assert.match(incomparable, /Comparable: no \(different machine profiles\)/);
+  assert.match(incomparable, /Measured wall-clock savings \(ms\) \| incomparable/);
+
+  const otherCampaignPath = path.join(performanceFixture, "other-campaign.json");
+  await writeFile(otherCampaignPath, `${JSON.stringify({
+    ...warmRun,
+    provenance: { ...provenance, campaignKey: "another-campaign" },
+  })}\n`);
+  assert.throws(
+    () => execFileSync(process.execPath, [performanceCli, coldPath, otherCampaignPath], {
+      encoding: "utf8",
+      stdio: "pipe",
+    }),
+    (error) => error.status === 2 && /different campaign keys/i.test(error.stderr),
+  );
+
+  assert.throws(
+    () => execFileSync(process.execPath, [performanceCli, coldPath], {
+      encoding: "utf8",
+      stdio: "pipe",
+    }),
+    (error) => error.status === 2 && /exactly two/i.test(error.stderr),
+  );
+} finally {
+  await rm(performanceFixture, { recursive: true, force: true });
+}
