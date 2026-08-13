@@ -89,7 +89,6 @@ describe("US-025 vendor account detail", () => {
       />,
     );
     const tabs = screen.getAllByRole("tab");
-    expect(tabs[0]!.getAttribute("aria-selected")).toBe("true");
     const panels = screen.getAllByRole("tabpanel", { hidden: true });
     expect(panels).toHaveLength(3);
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
@@ -97,18 +96,37 @@ describe("US-025 vendor account detail", () => {
       expect(tab.getAttribute("aria-controls")).toBe(panels[index]!.id);
       expect(panels[index]!.getAttribute("aria-labelledby")).toBe(tab.id);
     }
-    expect(panels.map((panel) => panel.hidden)).toEqual([false, true, true]);
+    const expectTabState = (activeIndex: number) => {
+      expect(tabs.map((tab) => tab.getAttribute("aria-selected"))).toEqual(
+        tabs.map((_, index) => String(index === activeIndex)),
+      );
+      expect(tabs.map((tab) => tab.getAttribute("tabindex"))).toEqual(
+        tabs.map((_, index) => index === activeIndex ? "0" : "-1"),
+      );
+      expect(panels.map((panel) => panel.hidden)).toEqual(
+        panels.map((_, index) => index !== activeIndex),
+      );
+      expect(panels.map((panel) => panel.getAttribute("tabindex"))).toEqual(
+        panels.map((_, index) => index === activeIndex ? "0" : "-1"),
+      );
+    };
+    expectTabState(0);
     tabs[0]!.focus();
+    await user.keyboard("x");
+    expect(document.activeElement).toBe(tabs[0]);
+    expectTabState(0);
     await user.keyboard("{ArrowRight}");
     expect(document.activeElement).toBe(tabs[1]);
-    expect(tabs[1]!.getAttribute("aria-selected")).toBe("true");
-    expect(panels.map((panel) => panel.hidden)).toEqual([true, false, true]);
+    expectTabState(1);
     await user.keyboard("{End}");
     expect(document.activeElement).toBe(tabs[2]);
+    expectTabState(2);
     await user.keyboard("{Home}");
     expect(document.activeElement).toBe(tabs[0]);
+    expectTabState(0);
     await user.keyboard("{ArrowLeft}");
     expect(document.activeElement).toBe(tabs[2]);
+    expectTabState(2);
   });
 
   it("renders localized read-only licenses, current USD rates, dates, and a missing-rate placeholder", async () => {
@@ -129,9 +147,10 @@ describe("US-025 vendor account detail", () => {
     );
     await user.click(screen.getByRole("tab", { name: "LICENSE_TYPES" }));
     const table = screen.getByRole("table", { name: "LICENSE_TABLE" });
-    expect(within(table).getByText("$30.00")).toBeTruthy();
-    expect(within(table).getByText("SEAT")).toBeTruthy();
-    expect(within(table).getByText("ACTIVE")).toBeTruthy();
+    const teamCells = within(table).getByRole("row", { name: /Team/ }).querySelectorAll("th,td");
+    expect(Array.from(teamCells, (cell) => cell.textContent)).toEqual([
+      "Team", "SEAT", "ACTIVE", "$30.00", "Jan 1, 2026", "OPEN_ENDED",
+    ]);
     const legacyCells = within(table).getByRole("row", { name: /Legacy/ }).querySelectorAll("th,td");
     expect(Array.from(legacyCells, (cell) => cell.textContent)).toEqual([
       "Legacy", "LICENSE", "INACTIVE", "NO_RATE", "NO_RATE", "NO_RATE",
@@ -156,6 +175,8 @@ describe("US-025 vendor account detail", () => {
       />,
     );
     await user.click(screen.getByRole("tab", { name: "SETTINGS" }));
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("button", { name: "CANCEL" })).toBeNull();
     const save = screen.getByRole("button", { name: "SAVE" }) as HTMLButtonElement;
     const name = screen.getByLabelText("NAME") as HTMLInputElement;
     expect(save.disabled).toBe(true);
