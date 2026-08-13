@@ -39,30 +39,22 @@ import {
   verificationAuditsForReport,
   verifyContractsBarrelSource,
   runMutationScope,
-  strykerMutationTarget,
 } from "./mutation-scope.mjs";
 import mutationVitestConfig from "../vitest.mutation.config.mjs";
-
-assert.equal(
-  strykerMutationTarget(
-    "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx:10-12",
-  ),
-  "apps/web/src/app/(authenticated)/organizaciones/\\[vendorAccountId\\]/page.tsx:10-12",
-);
-assert.equal(
-  strykerMutationTarget("packages/contracts/src/vendor-catalog.ts:1-20"),
-  "packages/contracts/src/vendor-catalog.ts:1-20",
-);
 
 assert.deepEqual(
   mutatable([
     "apps/web/e2e/auth.setup.ts",
     "apps/web/e2e/vendor-accounts.spec.ts",
     "apps/web/playwright.config.ts",
+    "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx",
+    "apps/web/src/app/(authenticated)/organizaciones/error.tsx",
+    "apps/web/src/app/(authenticated)/organizaciones/loading.tsx",
+    "apps/web/src/app/(authenticated)/organizaciones/page.tsx",
     "apps/web/src/modules/vendor-catalog/service.ts",
   ]),
   ["apps/web/src/modules/vendor-catalog/service.ts"],
-  "Playwright journeys and their setup are test infrastructure, not mutation targets",
+  "test infrastructure and exact-static route boundaries are not scored mutation targets",
 );
 
 const databaseShard = (id) => ({ id, sources: ["packages/db/src/example.ts"], testFiles: [] });

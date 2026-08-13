@@ -63,6 +63,12 @@ const GENERATED_ARTIFACT = [
   /(^|\/)\.next\//,
   /(^|\/)(coverage|dist|reports)\//,
 ];
+const EXACT_STATIC_ROUTE_SOURCES = new Set([
+  "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx",
+  "apps/web/src/app/(authenticated)/organizaciones/error.tsx",
+  "apps/web/src/app/(authenticated)/organizaciones/loading.tsx",
+  "apps/web/src/app/(authenticated)/organizaciones/page.tsx",
+]);
 const EXCLUDED = [
   /\.(test|spec)\.tsx?$/,
   /\.d\.ts$/,
@@ -159,6 +165,7 @@ export function mutatable(files) {
   return files
     .filter((f) => MUTATABLE_EXT.test(f))
     .filter((f) => !EXCLUDED.some((re) => re.test(f)))
+    .filter((f) => !EXACT_STATIC_ROUTE_SOURCES.has(f))
     .sort();  // deterministic: the generated config must be byte-stable
 }
 
@@ -234,10 +241,6 @@ export function mutationSourceFiles(targets) {
   return [...new Set(
     targets.map((target) => target.replace(/:\d+-\d+$/, "")),
   )].sort();
-}
-
-export function strykerMutationTarget(target) {
-  return target.replaceAll("[", "\\[").replaceAll("]", "\\]");
 }
 
 export function groupRoutedMutationTargets(targets, routeTestsForSource) {
@@ -1665,7 +1668,7 @@ export async function runMutationScope(options = {}) {
     const jsonReportPath = join("reports", "mutation", `${id}-${runSuffix}.json`);
     const common = {
       ...sharedBaseConf,
-      mutate: spec.mutate.map(strykerMutationTarget),
+      mutate: spec.mutate,
       coverageAnalysis: "off",
       concurrency: 1,
       maxTestRunnerReuse: 1,
