@@ -25,6 +25,11 @@ function utcLabel() {
   return new Date().toISOString();
 }
 
+const INVALID_PROVENANCE = "Invalid performance provenance";
+const INVALID_CACHE_MODE = "Invalid cache mode";
+const INVALID_MACHINE = "Invalid machine profile";
+const INVALID_SHARD_COMPLETION = "Invalid shard completion";
+
 function requiredString(value, name) {
   if (typeof value !== "string" || value.length === 0) {
     throw new TypeError(`${name} must be a non-empty string`);
@@ -63,28 +68,83 @@ function normalizeMachine(machine = {}) {
     memoryBytes: machine.memoryBytes ?? os.totalmem(),
     toolVersions: machine.toolVersions ?? { node: process.versions.node },
   };
-  requiredString(normalized.os, "machine.os");
-  requiredString(normalized.arch, "machine.arch");
-  if (!Number.isInteger(normalized.logicalCpuCount) || normalized.logicalCpuCount <= 0) {
-    throw new TypeError("machine.logicalCpuCount must be a positive integer");
+  try {
+    requiredString(normalized.os, "machine.os");
+    requiredString(normalized.arch, "machine.arch");
+    if (!Number.isInteger(normalized.logicalCpuCount) || normalized.logicalCpuCount <= 0) {
+      throw new TypeError();
+    }
+    finiteNonnegative(normalized.memoryBytes, "machine.memoryBytes");
+    normalized.toolVersions = sanitizeStringMap(normalized.toolVersions, "machine.toolVersions");
+    if (Object.keys(normalized.toolVersions).length === 0) throw new TypeError();
+    return normalized;
+  } catch {
+    throw new TypeError(INVALID_MACHINE);
   }
-  finiteNonnegative(normalized.memoryBytes, "machine.memoryBytes");
-  normalized.toolVersions = sanitizeStringMap(normalized.toolVersions, "machine.toolVersions");
-  return normalized;
 }
 
 function normalizeProvenance(provenance) {
-  if (!provenance || typeof provenance !== "object" || Array.isArray(provenance)) {
-    throw new TypeError("provenance must be an object");
+  try {
+    if (!provenance || typeof provenance !== "object" || Array.isArray(provenance)) throw new TypeError();
+    return {
+      campaignKey: requiredString(provenance.campaignKey, "provenance.campaignKey"),
+      head: requiredString(provenance.head, "provenance.head"),
+      base: requiredString(provenance.base, "provenance.base"),
+      baseRef: requiredString(provenance.baseRef, "provenance.baseRef"),
+    };
+  } catch {
+    throw new TypeError(INVALID_PROVENANCE);
   }
-  const normalized = {
-    campaignKey: requiredString(provenance.campaignKey, "provenance.campaignKey"),
-  };
-  for (const key of ["head", "base", "baseRef"]) {
-    const value = optionalString(provenance[key], `provenance.${key}`);
-    if (value !== undefined) normalized[key] = value;
+}
+
+function normalizeCacheMode(cacheMode) {
+  if (cacheMode !== "enabled" && cacheMode !== "bypass") throw new TypeError(INVALID_CACHE_MODE);
+  return cacheMode;
+}
+
+function wallLabel(wallNow) {
+  const supplied = wallNow();
+  const label = supplied instanceof Date ? supplied.toISOString() : supplied;
+  if (typeof label !== "string" || !label.endsWith("Z")) {
+    throw new TypeError("Wall clock must return a UTC timestamp");
   }
-  return normalized;
+  const parsed = new Date(label);
+  if (!Number.isFinite(parsed.valueOf()) || parsed.toISOString() !== label) {
+    throw new TypeError("Wall clock must return a UTC timestamp");
+  }
+  return label;
+}
+
+function normalizeCompletion(decision, details) {
+  try {
+    if (!decisions.has(decision) || !details || typeof details !== "object" || Array.isArray(details)) {
+      throw new TypeError();
+    }
+    const allowedFields = decision === "executed"
+      ? new Set(["result"])
+      : decision === "reused"
+        ? new Set(["result", "priorDurationMs"])
+        : new Set(["result", "priorDurationMs", "rejectionReason"]);
+    if (Object.keys(details).some((key) => !allowedFields.has(key))) throw new TypeError();
+    const result = requiredString(details.result, "details.result");
+    const hasRejection = details.rejectionReason !== undefined;
+    if (decision === "executed" && (hasRejection || details.priorDurationMs !== undefined)) {
+      throw new TypeError();
+    }
+    if (decision === "reused") {
+      if (result !== "passed" || hasRejection || details.priorDurationMs === undefined) throw new TypeError();
+      finiteNonnegative(details.priorDurationMs, "details.priorDurationMs");
+    }
+    if (decision === "rejected") {
+      requiredString(details.rejectionReason, "details.rejectionReason");
+      if (details.priorDurationMs !== undefined) {
+        finiteNonnegative(details.priorDurationMs, "details.priorDurationMs");
+      }
+    }
+    return { result };
+  } catch {
+    throw new TypeError(INVALID_SHARD_COMPLETION);
+  }
 }
 
 function runState(run) {
@@ -137,21 +197,33 @@ function totals(shards) {
   return result;
 }
 
-export function createPerformanceRun({ provenance, cacheMode, machine, now = performance.now.bind(performance) }) {
+export function createPerformanceRun({
+  provenance,
+  cacheMode,
+  machine,
+  now = performance.now.bind(performance),
+  wallNow = utcLabel,
+  createRunId = randomUUID,
+}) {
+  const normalizedProvenance = normalizeProvenance(provenance);
+  const normalizedCacheMode = normalizeCacheMode(cacheMode);
+  const normalizedMachine = normalizeMachine(machine);
   const started = monotonicNow(now);
+  const runId = requiredString(createRunId(), "runId");
+  if (!/^[A-Za-z0-9_-]+$/.test(runId)) throw new TypeError("Invalid run identifier");
   const run = {
     schemaVersion: PERFORMANCE_SCHEMA_VERSION,
-    runId: randomUUID(),
-    startedAt: utcLabel(),
-    provenance: normalizeProvenance(provenance),
+    runId,
+    startedAt: wallLabel(wallNow),
+    provenance: normalizedProvenance,
     cacheSchemaVersion: CACHE_SCHEMA_VERSION,
-    cacheMode: requiredString(cacheMode, "cacheMode"),
-    machine: normalizeMachine(machine),
+    cacheMode: normalizedCacheMode,
+    machine: normalizedMachine,
     shards: [],
     totals: totals([]),
     outcome: "incomplete",
   };
-  state.set(run, { now, started, active: new Map(), finished: false });
+  state.set(run, { now, wallNow, createRunId, started, active: new Map(), finished: false });
   return run;
 }
 
@@ -176,7 +248,7 @@ export function finishShard(run, token, decision, details = {}, now) {
   const current = runState(run);
   const active = current.active.get(token);
   if (!active) throw new Error("Unknown or already finished shard token");
-  if (!decisions.has(decision)) throw new TypeError("Invalid shard decision");
+  normalizeCompletion(decision, details);
   const durationMs = monotonicNow(now ?? current.now) - active.started;
   finiteNonnegative(durationMs, "shard duration");
   const record = active.record;
@@ -200,13 +272,17 @@ export function finishPerformanceRun(run, outcome, now) {
   const current = runState(run);
   if (current.finished) throw new Error("Performance run is already finished");
   if (current.active.size !== 0) throw new Error("Cannot finish a run with active shards");
+  if (outcome !== "passed" && outcome !== "failed") throw new Error("Invalid campaign outcome");
+  if (outcome === "passed" && run.shards.some((shard) => shard.result !== "passed")) {
+    throw new Error("Invalid campaign outcome");
+  }
   const durationMs = monotonicNow(now ?? current.now) - current.started;
   finiteNonnegative(durationMs, "run duration");
   run.wallClockDurationMs = durationMs;
   run.orchestrationDurationMs = durationMs;
   run.totals = totals(run.shards);
   run.outcome = requiredString(outcome, "outcome");
-  run.finishedAt = utcLabel();
+  run.finishedAt = wallLabel(current.wallNow);
   current.finished = true;
   return run;
 }
@@ -214,13 +290,23 @@ export function finishPerformanceRun(run, outcome, now) {
 export function writePerformanceRecord(root, run) {
   requiredString(root, "root");
   if (!run || typeof run !== "object" || Array.isArray(run)) throw new TypeError("run must be an object");
+  const current = state.get(run);
+  const hasIncompleteOrFailedShard = !Array.isArray(run.shards)
+    || run.shards.some((shard) => shard.status === "started" || shard.result !== "passed");
+  if (run.outcome === "passed" && (current?.active.size > 0 || hasIncompleteOrFailedShard)) {
+    throw new Error("Cannot persist a passed run with active shards");
+  }
   assertSafeRecord(run);
   const directory = path.join(root, "reports", "mutation-performance");
   mkdirSync(directory, { recursive: true });
   const runId = requiredString(run.runId, "run.runId");
   if (!/^[A-Za-z0-9_-]+$/.test(runId)) throw new TypeError("run.runId is unsafe");
   const destination = path.join(directory, `${runId}.json`);
-  const temporary = path.join(directory, `.${runId}.${randomUUID()}.temporary`);
+  const temporaryId = current ? current.createRunId() : randomUUID();
+  if (typeof temporaryId !== "string" || !/^[A-Za-z0-9_-]+$/.test(temporaryId)) {
+    throw new TypeError("Invalid temporary identifier");
+  }
+  const temporary = path.join(directory, `.${runId}.${temporaryId}.temporary`);
   writeFileSync(temporary, `${JSON.stringify(run, null, 2)}\n`, { flag: "wx", mode: 0o600 });
   renameSync(temporary, destination);
   return destination;
@@ -256,14 +342,15 @@ export function renderBenchmarkSummary(cold, warm, { allowIncomparable = false }
     "",
     "| Metric | Cold | Warm |",
     "| --- | ---: | ---: |",
-    `| Cold wall-clock (ms) | ${display(cold.wallClockDurationMs)} | — |`,
-    `| Warm wall-clock (ms) | ${display(warm.wallClockDurationMs)} | — |`,
+    `| Wall-clock duration (ms) | ${display(cold.wallClockDurationMs)} | ${display(warm.wallClockDurationMs)} |`,
+    `| Orchestration duration (ms) | ${display(cold.orchestrationDurationMs)} | ${display(warm.orchestrationDurationMs)} |`,
     `| Measured wall-clock savings (ms) | ${display(measuredSavings)} | — |`,
-    `| Estimated cache savings (ms) | ${display(cold.totals.estimatedMsSaved)} | ${display(warm.totals.estimatedMsSaved)} |`,
+    `| Shard count | ${display(cold.totals.shardCount)} | ${display(warm.totals.shardCount)} |`,
     `| Executed shards | ${display(cold.totals.executedCount)} | ${display(warm.totals.executedCount)} |`,
     `| Reused shards | ${display(cold.totals.reusedCount)} | ${display(warm.totals.reusedCount)} |`,
     `| Rejected cache entries | ${display(cold.totals.rejectedCount)} | ${display(warm.totals.rejectedCount)} |`,
     `| Hit ratio | ${display(cold.totals.hitRatio)} | ${display(warm.totals.hitRatio)} |`,
+    `| Estimated cache savings (ms) | ${display(cold.totals.estimatedMsSaved)} | ${display(warm.totals.estimatedMsSaved)} |`,
     `| Campaign outcome | ${cold.outcome} | ${warm.outcome} |`,
     "",
     "> Measured wall-clock savings are the cold-minus-warm elapsed durations. Estimated cache savings sum prior recorded durations for reused shards and are not wall-clock measurements.",

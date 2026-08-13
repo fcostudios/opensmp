@@ -1067,6 +1067,17 @@ function sequenceClock(...values) {
   };
 }
 
+function sequenceValue(...values) {
+  let index = 0;
+  const next = () => {
+    assert.ok(index < values.length, "injected value sequence exhausted");
+    next.calls += 1;
+    return values[index++];
+  };
+  next.calls = 0;
+  return next;
+}
+
 const machine = {
   os: "TestOS 1",
   arch: "test64",
@@ -1080,12 +1091,97 @@ const provenance = {
   base: "base-commit",
   baseRef: "main",
 };
+for (const invalidProvenance of [
+  { ...provenance, head: "" },
+  { ...provenance, base: undefined },
+  { ...provenance, baseRef: "" },
+]) {
+  assert.throws(
+    () => createPerformanceRun({ provenance: invalidProvenance, cacheMode: "enabled", machine }),
+    (error) => error.message === "Invalid performance provenance",
+  );
+}
+assert.throws(
+  () => createPerformanceRun({ provenance, cacheMode: "sometimes", machine }),
+  (error) => error.message === "Invalid cache mode",
+);
+assert.throws(
+  () => createPerformanceRun({
+    provenance,
+    cacheMode: "enabled",
+    machine: { ...machine, toolVersions: {} },
+  }),
+  (error) => error.message === "Invalid machine profile",
+);
+
+const invalidDecisionClock = sequenceClock(0, 10, 20, 30);
+const invalidDecisionRun = createPerformanceRun({
+  provenance,
+  cacheMode: "bypass",
+  machine,
+  now: invalidDecisionClock,
+  wallNow: sequenceValue("2026-08-12T10:00:00.000Z", "2026-08-12T10:00:01.000Z"),
+  createRunId: sequenceValue("invalid-decision-run", "invalid-decision-temporary"),
+});
+const invalidDecisionToken = startShard(invalidDecisionRun, {
+  id: "strict-contract",
+  evidenceKey: "strict-evidence",
+  classification: "mutation",
+}, invalidDecisionClock);
+for (const [decision, details] of [
+  ["executed", {}],
+  ["executed", { result: "passed", rejectionReason: "not-allowed" }],
+  ["executed", { result: "passed", durationMs: 999 }],
+  ["reused", { result: "passed" }],
+  ["reused", { result: "passed", priorDurationMs: -1 }],
+  ["reused", { result: "failed", priorDurationMs: 10 }],
+  ["reused", { result: "passed", priorDurationMs: 10, rejectionReason: "not-allowed" }],
+  ["rejected", { result: "passed" }],
+  ["rejected", { rejectionReason: "invalid-entry" }],
+  ["unknown", { result: "passed" }],
+]) {
+  assert.throws(
+    () => finishShard(invalidDecisionRun, invalidDecisionToken, decision, details, invalidDecisionClock),
+    (error) => error.message === "Invalid shard completion",
+  );
+  assert.deepEqual(invalidDecisionRun.shards[0], {
+    id: "strict-contract",
+    evidenceKey: "strict-evidence",
+    classification: "mutation",
+    status: "started",
+  });
+}
+assert.throws(
+  () => finishPerformanceRun(invalidDecisionRun, "passed", invalidDecisionClock),
+  (error) => error.message === "Cannot finish a run with active shards",
+);
+finishShard(
+  invalidDecisionRun,
+  invalidDecisionToken,
+  "executed",
+  { result: "failed" },
+  invalidDecisionClock,
+);
+assert.throws(
+  () => finishPerformanceRun(invalidDecisionRun, "green", invalidDecisionClock),
+  (error) => error.message === "Invalid campaign outcome",
+);
+assert.throws(
+  () => finishPerformanceRun(invalidDecisionRun, "passed", invalidDecisionClock),
+  (error) => error.message === "Invalid campaign outcome",
+);
+finishPerformanceRun(invalidDecisionRun, "failed", invalidDecisionClock);
+
 const coldClock = sequenceClock(100, 110, 150, 160, 260, 300);
+const coldWallNow = sequenceValue("2026-08-12T12:00:00.000Z", "2026-08-12T12:00:03.000Z");
+const coldCreateRunId = sequenceValue("cold-run", "cold-write");
 const coldRun = createPerformanceRun({
   provenance,
   cacheMode: "enabled",
   machine: { ...machine, environment: { SECRET: "must-not-persist" } },
   now: coldClock,
+  wallNow: coldWallNow,
+  createRunId: coldCreateRunId,
 });
 const coldFirst = startShard(coldRun, {
   id: "core",
@@ -1114,11 +1210,23 @@ assert.equal(coldRun.orchestrationDurationMs, 200);
 assert.equal(coldRun.outcome, "passed");
 assert.deepEqual(coldRun.machine, machine);
 assert.equal(Object.hasOwn(coldRun.machine, "environment"), false);
-assert.match(coldRun.startedAt, /^\d{4}-\d{2}-\d{2}T.*Z$/);
-assert.match(coldRun.finishedAt, /^\d{4}-\d{2}-\d{2}T.*Z$/);
+assert.equal(coldRun.runId, "cold-run");
+assert.equal(coldRun.startedAt, "2026-08-12T12:00:00.000Z");
+assert.equal(coldRun.finishedAt, "2026-08-12T12:00:03.000Z");
+assert.equal(coldWallNow.calls, 2);
+assert.equal(coldCreateRunId.calls, 1);
 
 const warmClock = sequenceClock(500, 510, 515, 520, 528, 540, 550, 560);
-const warmRun = createPerformanceRun({ provenance, cacheMode: "enabled", machine, now: warmClock });
+const warmWallNow = sequenceValue("2026-08-12T12:01:00.000Z", "2026-08-12T12:01:01.000Z");
+const warmCreateRunId = sequenceValue("warm-run", "warm-write");
+const warmRun = createPerformanceRun({
+  provenance,
+  cacheMode: "enabled",
+  machine,
+  now: warmClock,
+  wallNow: warmWallNow,
+  createRunId: warmCreateRunId,
+});
 const warmFirst = startShard(warmRun, {
   id: "core",
   evidenceKey: "evidence-core",
@@ -1155,6 +1263,25 @@ assert.equal(warmRun.wallClockDurationMs, 60);
 
 const performanceFixture = await mkdtemp(path.join(tmpdir(), "ledger-mutation-performance-"));
 try {
+  const unfinishedRun = createPerformanceRun({
+    provenance,
+    cacheMode: "enabled",
+    machine,
+    now: sequenceClock(0, 1),
+    wallNow: sequenceValue("2026-08-12T12:02:00.000Z"),
+    createRunId: sequenceValue("unfinished-run", "unfinished-write"),
+  });
+  startShard(unfinishedRun, {
+    id: "unfinished",
+    evidenceKey: "unfinished-evidence",
+    classification: "mutation",
+  });
+  unfinishedRun.outcome = "passed";
+  assert.throws(
+    () => writePerformanceRecord(performanceFixture, unfinishedRun),
+    (error) => error.message === "Cannot persist a passed run with active shards",
+  );
+
   const recordPath = writePerformanceRecord(performanceFixture, warmRun);
   assert.equal(path.dirname(recordPath), path.join(performanceFixture, "reports/mutation-performance"));
   const persisted = JSON.parse(await readFile(recordPath, "utf8"));
@@ -1164,6 +1291,9 @@ try {
     (await readdir(path.dirname(recordPath))).some((name) => name.endsWith(".temporary")),
     false,
   );
+  assert.equal(path.basename(recordPath), "warm-run.json");
+  assert.equal(warmWallNow.calls, 2);
+  assert.equal(warmCreateRunId.calls, 2);
   assert.throws(
     () => writePerformanceRecord(performanceFixture, {
       ...warmRun,
@@ -1173,15 +1303,25 @@ try {
   );
 
   const summary = renderBenchmarkSummary(coldRun, warmRun);
-  assert.match(summary, /Comparable: yes/);
-  assert.match(summary, /Cold wall-clock \(ms\) \| 200/);
-  assert.match(summary, /Warm wall-clock \(ms\) \| 60/);
-  assert.match(summary, /Measured wall-clock savings \(ms\) \| 140/);
-  assert.match(summary, /Estimated cache savings \(ms\) \| 0 \| 40/);
-  assert.match(summary, /Executed shards \| 2 \| 1/);
-  assert.match(summary, /Reused shards \| 0 \| 1/);
-  assert.match(summary, /Rejected cache entries \| 0 \| 1/);
-  assert.match(summary, /Campaign outcome \| passed \| passed/);
+  assert.equal(summary, `# Mutation cache benchmark
+
+Comparable: yes
+
+| Metric | Cold | Warm |
+| --- | ---: | ---: |
+| Wall-clock duration (ms) | 200 | 60 |
+| Orchestration duration (ms) | 200 | 60 |
+| Measured wall-clock savings (ms) | 140 | — |
+| Shard count | 2 | 3 |
+| Executed shards | 2 | 1 |
+| Reused shards | 0 | 1 |
+| Rejected cache entries | 0 | 1 |
+| Hit ratio | 0 | 0.3333333333333333 |
+| Estimated cache savings (ms) | 0 | 40 |
+| Campaign outcome | passed | passed |
+
+> Measured wall-clock savings are the cold-minus-warm elapsed durations. Estimated cache savings sum prior recorded durations for reused shards and are not wall-clock measurements.
+`);
 
   const coldPath = path.join(performanceFixture, "cold.json");
   const warmPath = path.join(performanceFixture, "warm.json");
