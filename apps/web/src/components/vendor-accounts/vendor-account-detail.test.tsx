@@ -66,6 +66,8 @@ describe("US-025 vendor account detail", () => {
     expect(within(card).getByText("SCIM")).toBeTruthy();
     expect(within(card).getByText("EMAIL")).toBeTruthy();
     expect(within(card).getByText("UNSUPPORTED_TO_ORCHESTRATION")).toBeTruthy();
+    expect(card.textContent).toContain("✓");
+    expect(card.textContent).toContain("—");
   });
 
   it("always explains the orchestration fallback when every connector capability is supported", () => {
