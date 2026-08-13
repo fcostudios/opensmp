@@ -565,6 +565,130 @@ describe("audited server action enforcement", () => {
     }
   });
 
+  test("traces state-returning actions through authorization and an audited operation factory", async () => {
+    const actionSource = `"use server";
+      import { revalidatePath } from "next/cache";
+      import { loadCurrentLedgerAuthorization } from "../modules/identity-access/server-authorization";
+      import { createVendorAccountServerActions } from "../modules/vendor-actions";
+      const actions = createVendorAccountServerActions({
+        database,
+        loadAuthorization: loadCurrentLedgerAuthorization,
+        revalidate: revalidatePath,
+      });
+      export async function createVendorAccount(previousState, formData) {
+        return actions.createVendorAccount(previousState, formData);
+      }`;
+    const factorySource = `import { createManageVendorAccountActions, vendorAccountActionError } from "./vendor-operations";
+      export function createVendorAccountServerActions({ database, loadAuthorization, revalidate }) {
+        const actions = createManageVendorAccountActions({ database });
+        return { async createVendorAccount(previousState, input) {
+          void previousState;
+          let authorization;
+          try { authorization = await loadAuthorization(); }
+          catch { return { status: "error", code: "unexpected" }; }
+          if (!authorization) return { status: "error", code: "forbidden" };
+          let created;
+          try { created = await actions.createVendorAccount(authorization, input); }
+          catch (error) { return vendorAccountActionError(error); }
+          revalidate("/accounts");
+          return { status: "success", id: created.id };
+        }};
+      }`;
+    const auditedOperations = `import { createVendorAccountService } from "./vendor-service";
+      export function vendorAccountActionError(error) {
+        return { status: "error", code: "unexpected" };
+      }
+      export function createManageVendorAccountActions({ database }) {
+        const service = createVendorAccountService(database);
+        return { async createVendorAccount(authorization, input) {
+          return service.createVendorAccount(authorization, input);
+        }};
+      }`;
+    const shared = {
+      "src/app/actions.ts": actionSource,
+      "src/modules/vendor-actions.ts": factorySource,
+      "src/modules/vendor-service.ts": `import { withAudit } from "@/modules/audit/with-audit";
+        function reject(error) { throw new Error(error); }
+        function mapPersistenceFailure(error) { reject(error); }
+        export function createVendorAccountService(database) {
+          const now = () => new Date();
+          return { async createVendorAccount(authorization, input) {
+            const occurredAt = now();
+            try {
+              return await withAudit(database, async () => ({ value: input, audit: evidence }));
+            } catch (error) {
+              mapPersistenceFailure(error);
+            }
+          }};
+        }`,
+      "src/modules/identity-access/server-authorization.ts":
+        `export async function loadCurrentLedgerAuthorization() { return {}; }`,
+      "src/modules/audit/with-audit.ts":
+        `export function withAudit(...args) { return args; }`,
+    };
+    const valid = await fixture({
+      ...shared,
+      "src/modules/vendor-operations.ts": auditedOperations,
+    });
+    await expect(execFileAsync(process.execPath, [script, valid])).resolves.toMatchObject({
+      stdout: expect.stringContaining("Audited server action enforcement passed"),
+    });
+
+    const unaudited = await fixture({
+      ...shared,
+      "src/modules/vendor-operations.ts": auditedOperations.replace(
+        "return service.createVendorAccount(authorization, input);",
+        "return database.insert(input);",
+      ),
+    });
+    await expect(execFileAsync(process.execPath, [script, unaudited])).rejects.toMatchObject({
+      stderr: expect.stringContaining("createVendorAccount"),
+    });
+
+    const externalResultAssignment = await fixture({
+      ...shared,
+      "src/modules/vendor-actions.ts": factorySource.replace(
+        "created = await actions.createVendorAccount(authorization, input);",
+        "external.result = await actions.createVendorAccount(authorization, input);",
+      ),
+      "src/modules/vendor-operations.ts": auditedOperations,
+    });
+    await expect(
+      execFileAsync(process.execPath, [script, externalResultAssignment]),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining("createVendorAccount"),
+    });
+
+    const mutatingErrorMapper = await fixture({
+      ...shared,
+      "src/modules/vendor-operations.ts": auditedOperations.replace(
+        `return { status: "error", code: "unexpected" };`,
+        `const target = external;
+        target.lastError = error;
+        return { status: "error", code: "unexpected" };`,
+      ),
+    });
+    await expect(
+      execFileAsync(process.execPath, [script, mutatingErrorMapper]),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining("createVendorAccount"),
+    });
+
+    const mutatingServiceMapper = await fixture({
+      ...shared,
+      "src/modules/vendor-service.ts": shared["src/modules/vendor-service.ts"].replace(
+        "mapPersistenceFailure(error);",
+        "mapPersistenceFailure(database.insert(error));",
+      ),
+      "src/modules/vendor-operations.ts": auditedOperations,
+    });
+    await expect(
+      execFileAsync(process.execPath, [script, mutatingServiceMapper]),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining("createVendorAccount"),
+    });
+  });
+
   test("the current application tree has no unaudited server action", async () => {
     await expect(
       execFileAsync(process.execPath, [script, applicationRoot]),

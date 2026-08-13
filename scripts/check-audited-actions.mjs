@@ -568,6 +568,288 @@ function factoryOperationIsAudited(
   );
 }
 
+function safeStateReturn(statement) {
+  if (!ts.isReturnStatement(statement) || !statement.expression) return false;
+  const expression = unwrapExpression(statement.expression);
+  return ts.isObjectLiteralExpression(expression) &&
+    isNonMutatingExpression(expression, statement, new Map());
+}
+
+function pureImportedErrorMapper(
+  expression,
+  factoryFile,
+  factorySourcePath,
+  operationsSource,
+) {
+  const target = callTarget(expression);
+  if (!target || target.member !== null || target.call.arguments.length !== 1) return false;
+  const imported = importedBindings(factoryFile).get(target.root);
+  if (!imported ||
+      resolveImportedSource(factorySourcePath, imported.specifier) !== operationsSource) {
+    return false;
+  }
+  const operationsFile = ts.createSourceFile(
+    operationsSource,
+    readFileSync(operationsSource, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+    operationsSource.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  const mapper = namedTarget(operationsFile, imported.importedName);
+  const callable = ts.isVariableDeclaration(mapper) ? mapper.initializer : mapper;
+  if (!callable ||
+      !(ts.isFunctionDeclaration(callable) ||
+        ts.isFunctionExpression(callable) ||
+        ts.isArrowFunction(callable)) ||
+      callable.parameters.length !== 1 ||
+      !ts.isIdentifier(callable.parameters[0].name)) {
+    return false;
+  }
+  const parameterName = callable.parameters[0].name.text;
+  const localNames = new Set();
+  function collectLocals(node) {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) &&
+        node.initializer && ts.isObjectLiteralExpression(node.initializer)) {
+      localNames.add(node.name.text);
+    }
+    ts.forEachChild(node, collectLocals);
+  }
+  collectLocals(callable.body);
+  function assignedRoot(expression) {
+    let current = expression;
+    while (ts.isPropertyAccessExpression(current) || ts.isElementAccessExpression(current)) {
+      current = current.expression;
+    }
+    return ts.isIdentifier(current) ? current.text : null;
+  }
+  let safe = true;
+  function inspect(node) {
+    if (!safe) return;
+    if (ts.isAwaitExpression(node) || ts.isNewExpression(node)) {
+      safe = false;
+      return;
+    }
+    if (ts.isBinaryExpression(node) &&
+        node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+        node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+        !localNames.has(assignedRoot(node.left))) {
+      safe = false;
+      return;
+    }
+    if (ts.isCallExpression(node)) {
+      const call = callTarget(node);
+      const allowedObjectEntries = call?.root === "Object" && call.member === "entries";
+      const allowedZodFlatten = call?.root === parameterName && call.member === "flatten";
+      if (!allowedObjectEntries && !allowedZodFlatten) {
+        safe = false;
+        return;
+      }
+    }
+    ts.forEachChild(node, inspect);
+  }
+  inspect(callable.body);
+  return safe;
+}
+
+function safeFactoryCatch(
+  clause,
+  factoryFile,
+  factorySourcePath,
+  operationsSource,
+) {
+  if (!clause || clause.block.statements.length !== 1) return false;
+  const [statement] = clause.block.statements;
+  if (safeStateReturn(statement)) return true;
+  return ts.isReturnStatement(statement) && !!statement.expression &&
+    pureImportedErrorMapper(
+      statement.expression,
+      factoryFile,
+      factorySourcePath,
+      operationsSource,
+    );
+}
+
+function safeRevalidationArgument(expression) {
+  let safe = true;
+  function inspect(node) {
+    if (!safe) return;
+    if (ts.isCallExpression(node)) {
+      const target = callTarget(node);
+      if (!target || target.member !== null || target.root !== "encodeURIComponent") {
+        safe = false;
+        return;
+      }
+    }
+    if (ts.isAwaitExpression(node) || ts.isNewExpression(node)) {
+      safe = false;
+      return;
+    }
+    ts.forEachChild(node, inspect);
+  }
+  inspect(expression);
+  return safe;
+}
+
+function stateReturningConfiguredActionFactoryMemberIsAudited({
+  callerImports,
+  factoryCall,
+  factoryFile,
+  factorySourcePath,
+  factoryTarget,
+  memberName,
+  memberTarget,
+  owner,
+}) {
+  const authorization = boundFactoryArgument(factoryTarget, factoryCall, "loadAuthorization");
+  const revalidator = boundFactoryArgument(factoryTarget, factoryCall, "revalidate");
+  if (!authorization || !revalidator ||
+      !trustedAuthorizationLoader(
+        authorization.value,
+        owner,
+        callerImports,
+        ts.getSourceFileOfNode(owner).fileName,
+      ) ||
+      !trustedRevalidator(revalidator.value, owner, callerImports)) {
+    return false;
+  }
+  const actionsTarget = namedTarget(factoryFile, "actions");
+  const actionFactoryCall = actionsTarget?.initializer
+    ? callTarget(actionsTarget.initializer)
+    : null;
+  const operationFactoryImport = actionFactoryCall && actionFactoryCall.member === null
+    ? importedBindings(factoryFile).get(actionFactoryCall.root)
+    : null;
+  const operationsSource = operationFactoryImport
+    ? resolveImportedSource(factorySourcePath, operationFactoryImport.specifier)
+    : null;
+  const body = memberTarget.body ?? memberTarget;
+  if (!operationsSource || !ts.isBlock(body)) return false;
+
+  let authorizationName = null;
+  let resultName = null;
+  let authorizationLoaded = false;
+  let guarded = false;
+  let operationSeen = false;
+  let revalidationCount = 0;
+  let successReturnSeen = false;
+  for (const statement of body.statements) {
+    if (successReturnSeen) return false;
+    if (operationSeen && ts.isExpressionStatement(statement)) {
+      const call = callTarget(statement.expression);
+      if (call && call.member === null && call.root === revalidator.localName &&
+          call.call.arguments.length === 1 &&
+          safeRevalidationArgument(call.call.arguments[0])) {
+        revalidationCount += 1;
+        continue;
+      }
+    }
+    if (operationSeen && safeStateReturn(statement)) {
+      successReturnSeen = true;
+      continue;
+    }
+    if (ts.isExpressionStatement(statement) &&
+        ts.isVoidExpression(statement.expression)) {
+      continue;
+    }
+    if (ts.isVariableStatement(statement) &&
+        statement.declarationList.declarations.length === 1 &&
+        !statement.declarationList.declarations[0].initializer &&
+        ts.isIdentifier(statement.declarationList.declarations[0].name)) {
+      const declaredName = statement.declarationList.declarations[0].name.text;
+      if (!authorizationName) {
+        authorizationName = declaredName;
+        continue;
+      }
+      if (authorizationLoaded && guarded && !operationSeen && !resultName) {
+        resultName = declaredName;
+        continue;
+      }
+      return false;
+    }
+    if (!authorizationLoaded && authorizationName && ts.isTryStatement(statement) &&
+        !statement.finallyBlock && statement.tryBlock.statements.length === 1 &&
+        safeFactoryCatch(
+          statement.catchClause,
+          factoryFile,
+          factorySourcePath,
+          operationsSource,
+        )) {
+      const [loadStatement] = statement.tryBlock.statements;
+      const expression = ts.isExpressionStatement(loadStatement)
+        ? loadStatement.expression
+        : null;
+      const assignment = expression && ts.isBinaryExpression(expression) &&
+        expression.operatorToken.kind === ts.SyntaxKind.EqualsToken
+        ? expression
+        : null;
+      const loadCall = assignment && ts.isIdentifier(assignment.left) &&
+        assignment.left.text === authorizationName &&
+        ts.isAwaitExpression(assignment.right)
+        ? callTarget(assignment.right)
+        : null;
+      if (loadCall && loadCall.member === null &&
+          loadCall.root === authorization.localName &&
+          loadCall.call.arguments.length === 0) {
+        authorizationLoaded = true;
+        continue;
+      }
+    }
+    if (authorizationLoaded && !guarded && authorizationName &&
+        ts.isIfStatement(statement) && !statement.elseStatement &&
+        ts.isPrefixUnaryExpression(statement.expression) &&
+        statement.expression.operator === ts.SyntaxKind.ExclamationToken &&
+        ts.isIdentifier(statement.expression.operand) &&
+        statement.expression.operand.text === authorizationName) {
+      const guardedStatements = ts.isBlock(statement.thenStatement)
+        ? statement.thenStatement.statements
+        : [statement.thenStatement];
+      if (guardedStatements.length === 1 && safeStateReturn(guardedStatements[0])) {
+        guarded = true;
+        continue;
+      }
+    }
+    if (guarded && !operationSeen && authorizationName && resultName &&
+        ts.isTryStatement(statement) &&
+        !statement.finallyBlock && statement.tryBlock.statements.length === 1 &&
+        safeFactoryCatch(
+          statement.catchClause,
+          factoryFile,
+          factorySourcePath,
+          operationsSource,
+        )) {
+      const [operationStatement] = statement.tryBlock.statements;
+      const expression = ts.isExpressionStatement(operationStatement)
+        ? operationStatement.expression
+        : null;
+      const assignment = expression && ts.isBinaryExpression(expression) &&
+        expression.operatorToken.kind === ts.SyntaxKind.EqualsToken
+        ? expression
+        : null;
+      const operationCall = assignment && ts.isIdentifier(assignment.left) &&
+        assignment.left.text === resultName && ts.isAwaitExpression(assignment.right)
+        ? callTarget(assignment.right)
+        : null;
+      if (operationCall && operationCall.member === memberName &&
+          operationCall.call.arguments.length >= 2 &&
+          ts.isIdentifier(operationCall.call.arguments[0]) &&
+          operationCall.call.arguments[0].text === authorizationName &&
+          operationCall.call.arguments.slice(1).every(ts.isIdentifier) &&
+          factoryOperationIsAudited(
+            factoryFile,
+            factorySourcePath,
+            operationCall.root,
+            memberName,
+          )) {
+        operationSeen = true;
+        continue;
+      }
+    }
+    return false;
+  }
+  return authorizationLoaded && guarded && operationSeen &&
+    revalidationCount > 0 && successReturnSeen;
+}
+
 function configuredActionFactoryMemberIsAudited({
   callerImports,
   factoryCall,
@@ -702,6 +984,16 @@ function serviceTargetIsAudited(
         memberTarget,
         owner,
       })
+      || stateReturningConfiguredActionFactoryMemberIsAudited({
+        callerImports: imports,
+        factoryCall,
+        factoryFile,
+        factorySourcePath: factorySource,
+        factoryTarget,
+        memberName: call.member,
+        memberTarget,
+        owner,
+      })
     );
   }
     const importedSourcePath = resolveImportedSource(
@@ -799,6 +1091,81 @@ function safePostAuditStatement(statement, owner, imports) {
   return ts.isEmptyStatement(statement);
 }
 
+function synchronousLocalErrorMapper(callExpression, owner, visited = new Set()) {
+  const call = callTarget(callExpression);
+  if (!call || call.member !== null || visited.has(call.root)) return false;
+  const sourceFile = ts.getSourceFileOfNode(owner);
+  const helper = namedTarget(sourceFile, call.root);
+  const callable = ts.isVariableDeclaration(helper) ? helper.initializer : helper;
+  if (!callable ||
+      !(ts.isFunctionDeclaration(callable) ||
+        ts.isFunctionExpression(callable) ||
+        ts.isArrowFunction(callable))) {
+    return false;
+  }
+  const nextVisited = new Set(visited).add(call.root);
+  let safe = true;
+  function inspect(node) {
+    if (!safe) return;
+    if (ts.isAwaitExpression(node)) {
+      safe = false;
+      return;
+    }
+    if (ts.isNewExpression(node)) {
+      if (!ts.isIdentifier(node.expression) || !node.expression.text.endsWith("Error")) {
+        safe = false;
+      }
+      for (const argument of node.arguments ?? []) inspect(argument);
+      return;
+    }
+    if (ts.isBinaryExpression(node) &&
+        node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+        node.operatorToken.kind <= ts.SyntaxKind.LastAssignment) {
+      safe = false;
+      return;
+    }
+    if (ts.isCallExpression(node)) {
+      const nested = callTarget(node);
+      for (const argument of node.arguments) inspect(argument);
+      if (!nested || nested.member !== null ||
+          !synchronousLocalErrorMapper(node, callable, nextVisited)) {
+        safe = false;
+      }
+      return;
+    }
+    ts.forEachChild(node, inspect);
+  }
+  for (const argument of call.call.arguments) inspect(argument);
+  inspect(callable.body);
+  return safe;
+}
+
+function mappedAuditedServiceBody(owner, imports, sourceFilePath) {
+  const body = owner.body ?? owner;
+  if (!ts.isBlock(body) || body.statements.length !== 2) return false;
+  const [clockStatement, transactionStatement] = body.statements;
+  if (!ts.isVariableStatement(clockStatement) ||
+      clockStatement.declarationList.declarations.length !== 1) return false;
+  const clockInitializer = clockStatement.declarationList.declarations[0].initializer;
+  const clockCall = clockInitializer ? callTarget(clockInitializer) : null;
+  if (!clockCall || clockCall.member !== null ||
+      clockCall.root !== "now" || clockCall.call.arguments.length !== 0) return false;
+  if (!ts.isTryStatement(transactionStatement) || transactionStatement.finallyBlock ||
+      transactionStatement.tryBlock.statements.length !== 1 ||
+      !directAuditStatement(
+        transactionStatement.tryBlock.statements[0],
+        owner,
+        imports,
+        sourceFilePath,
+      )) {
+    return false;
+  }
+  const catchStatements = transactionStatement.catchClause?.block.statements;
+  if (!catchStatements || catchStatements.length !== 1 ||
+      !ts.isExpressionStatement(catchStatements[0])) return false;
+  return synchronousLocalErrorMapper(catchStatements[0].expression, owner);
+}
+
 function wholeBodyUsesAudit(
   owner,
   imports,
@@ -815,6 +1182,7 @@ function wholeBodyUsesAudit(
       sourceFilePath,
     );
   }
+  if (mappedAuditedServiceBody(owner, imports, sourceFilePath)) return true;
 
   let auditedStatements = 0;
   for (const statement of body.statements) {
