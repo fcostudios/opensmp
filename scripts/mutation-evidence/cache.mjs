@@ -113,11 +113,34 @@ function artifactRelativePath(name) {
   if (typeof name !== "string" || name.length === 0 || path.isAbsolute(name)) {
     throw new TypeError("Artifact names must be non-empty relative paths");
   }
+  if (name.split(/[\\/]/).includes("..")) {
+    throw new TypeError("Artifact paths cannot traverse outside a cache entry");
+  }
   const normalized = path.normalize(name);
   if (normalized === ".." || normalized.startsWith(`..${path.sep}`)) {
     throw new TypeError("Artifact paths cannot escape a cache entry");
   }
   return normalized;
+}
+
+function isStrictlyWithin(parent, candidate) {
+  const relative = path.relative(parent, candidate);
+  return relative !== "" && relative !== ".." && !relative.startsWith(`..${path.sep}`);
+}
+
+function safeArtifactPath(entryDirectory, relativePath) {
+  const realEntryDirectory = realpathSync(entryDirectory);
+  let candidate = entryDirectory;
+  for (const component of relativePath.split(path.sep)) {
+    candidate = path.join(candidate, component);
+    const candidateStat = lstatSync(candidate);
+    if (candidateStat.isSymbolicLink()) throw new Error("symlink artifact path");
+  }
+  const realCandidate = realpathSync(candidate);
+  if (!isStrictlyWithin(realEntryDirectory, realCandidate)) {
+    throw new Error("artifact escaped cache entry");
+  }
+  return realCandidate;
 }
 
 function safeEntry(entry, evidenceKey, artifactHashes) {
@@ -211,7 +234,12 @@ export function readCacheEntry({ root, evidenceKey, validateArtifacts }) {
     if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) {
       return { hit: false, reason: "entry-invalid" };
     }
-    entry = JSON.parse(readFileSync(path.join(entryDirectory, "entry.json"), "utf8"));
+    const entryPath = path.join(entryDirectory, "entry.json");
+    const entryStat = lstatSync(entryPath);
+    if (!entryStat.isFile() || entryStat.isSymbolicLink()) {
+      return { hit: false, reason: "entry-invalid" };
+    }
+    entry = JSON.parse(readFileSync(entryPath, "utf8"));
   } catch {
     return { hit: false, reason: "entry-invalid" };
   }
@@ -247,9 +275,10 @@ export function readCacheEntry({ root, evidenceKey, validateArtifacts }) {
     if (typeof expectedHash !== "string" || !EVIDENCE_KEY_PATTERN.test(expectedHash)) {
       return { hit: false, reason: "artifact-manifest-invalid" };
     }
-    const artifactPath = path.join(entryDirectory, relativePath);
+    let artifactPath;
     let contents;
     try {
+      artifactPath = safeArtifactPath(entryDirectory, relativePath);
       const artifactStat = lstatSync(artifactPath);
       if (!artifactStat.isFile() || artifactStat.isSymbolicLink()) {
         return { hit: false, reason: "artifact-missing" };

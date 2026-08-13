@@ -373,8 +373,13 @@ export function collectExecutionInputs({
     });
   const resolveImport = (specifier, containingFile) => {
     if (specifier.startsWith("node:")) return { owned: false, resolved: null };
-    if (path.basename(containingFile) === "next-env.d.ts" && specifier.startsWith("./.next/")) {
-      return { owned: false, resolved: null };
+    if (path.basename(containingFile) === "next-env.d.ts" && specifier.startsWith(".")) {
+      const generatedRoot = path.resolve(path.dirname(containingFile), ".next");
+      const candidate = path.resolve(path.dirname(containingFile), specifier);
+      const generatedRelative = path.relative(generatedRoot, candidate);
+      if (generatedRelative !== "" && isWithin(generatedRoot, candidate)) {
+        return { owned: false, resolved: null };
+      }
     }
     const { options: compilerOptions } = compilerConfigurationFor(containingFile);
     const compilerResult = ts.resolveModuleName(

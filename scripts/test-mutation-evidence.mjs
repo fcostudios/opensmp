@@ -446,6 +446,42 @@ try {
   );
   await put(
     fixtureRoot,
+    "apps/next-shim/owned.ts",
+    "export const owned = 1;\n",
+  );
+  await put(
+    fixtureRoot,
+    "apps/next-shim/next-env.d.ts",
+    '/// <reference types="next" />\nimport "./.next/../owned.ts";\n',
+  );
+  const traversingNextShimBefore = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["apps/next-shim/next-env.d.ts"],
+    configurationFiles: [],
+    migrationRoots: [],
+    toolVersions,
+    runtimeProfile,
+  });
+  assert.ok(traversingNextShimBefore.hashes["apps/next-shim/owned.ts"]);
+  await put(
+    fixtureRoot,
+    "apps/next-shim/owned.ts",
+    "export const owned = 2;\n",
+  );
+  const traversingNextShimAfter = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["apps/next-shim/next-env.d.ts"],
+    configurationFiles: [],
+    migrationRoots: [],
+    toolVersions,
+    runtimeProfile,
+  });
+  assert.notEqual(
+    traversingNextShimBefore.hashes["apps/next-shim/owned.ts"],
+    traversingNextShimAfter.hashes["apps/next-shim/owned.ts"],
+  );
+  await put(
+    fixtureRoot,
     "packages/explicit/package.json",
     '{"name":"@fixture/explicit","type":"module"}',
   );
@@ -880,6 +916,49 @@ try {
     },
   }));
   rejectedEntries.push([unsafePersisted.cloneKey, "entry-metadata-invalid"]);
+  const symlinkedEntry = await cloneEntry("symlinked-entry");
+  const externalEntryJson = path.join(cacheFixture, "external-entry.json");
+  await writeFile(
+    externalEntryJson,
+    await readFile(path.join(symlinkedEntry.cloneDirectory, "entry.json")),
+  );
+  await rm(path.join(symlinkedEntry.cloneDirectory, "entry.json"));
+  await symlink(externalEntryJson, path.join(symlinkedEntry.cloneDirectory, "entry.json"));
+  rejectedEntries.push([symlinkedEntry.cloneKey, "entry-invalid"]);
+  const symlinkedArtifactParent = await cloneEntry("symlinked-artifact-parent", (entry) => ({
+    ...entry,
+    artifacts: {
+      nested: entry.artifacts["mutation-report.json"],
+    },
+  }));
+  const externalArtifacts = path.join(cacheFixture, "external-artifacts");
+  await mkdir(externalArtifacts);
+  await writeFile(
+    path.join(externalArtifacts, "report.json"),
+    await readFile(path.join(symlinkedArtifactParent.cloneDirectory, "mutation-report.json")),
+  );
+  await symlink(externalArtifacts, path.join(symlinkedArtifactParent.cloneDirectory, "nested"));
+  const symlinkedArtifactEntry = JSON.parse(
+    await readFile(path.join(symlinkedArtifactParent.cloneDirectory, "entry.json"), "utf8"),
+  );
+  symlinkedArtifactEntry.artifacts = {
+    "nested/report.json": symlinkedArtifactEntry.artifacts.nested,
+  };
+  await writeFile(
+    path.join(symlinkedArtifactParent.cloneDirectory, "entry.json"),
+    `${JSON.stringify(symlinkedArtifactEntry)}\n`,
+  );
+  rejectedEntries.push([symlinkedArtifactParent.cloneKey, "artifact-missing"]);
+  const traversingArtifact = await cloneEntry("traversing-artifact", (entry) => ({
+    ...entry,
+    artifacts: { "../external-report.json": entry.artifacts["mutation-report.json"] },
+  }));
+  rejectedEntries.push([traversingArtifact.cloneKey, "artifact-manifest-invalid"]);
+  const absoluteArtifact = await cloneEntry("absolute-artifact", (entry) => ({
+    ...entry,
+    artifacts: { [reportSource]: entry.artifacts["mutation-report.json"] },
+  }));
+  rejectedEntries.push([absoluteArtifact.cloneKey, "artifact-manifest-invalid"]);
   const truncated = await cloneEntry("truncated");
   await writeFile(path.join(truncated.cloneDirectory, "entry.json"), '{"schemaVersion":1');
   rejectedEntries.push([truncated.cloneKey, "entry-invalid"]);
@@ -940,7 +1019,7 @@ try {
   });
   assert.equal(
     inspectOutput,
-    `Mutation cache: ${repositoryCacheRoot}\nEntries: 9\n`,
+    `Mutation cache: ${repositoryCacheRoot}\nEntries: 13\n`,
   );
   assert.throws(
     () => execFileSync(process.execPath, [cacheCli, "clear", cacheFixture], {
@@ -953,7 +1032,7 @@ try {
 
   const cleared = clearMutationCache({ repoRoot: linkedWorktree, runGit: runFixtureGit(linkedWorktree) });
   assert.equal(cleared.root, repositoryCacheRoot);
-  assert.equal(cleared.count, 9);
+  assert.equal(cleared.count, 13);
   await assert.rejects(readFile(path.join(repositoryCacheRoot, evidenceKey, "entry.json")), /ENOENT/);
 
   const outsideDirectory = path.join(cacheFixture, "outside-do-not-delete");
