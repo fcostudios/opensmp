@@ -42,8 +42,20 @@ import {
   verificationAuditsForReport,
   verifyContractsBarrelSource,
   runMutationScope,
+  strykerMutationTarget,
 } from "./mutation-scope.mjs";
 import mutationVitestConfig from "../vitest.mutation.config.mjs";
+
+assert.equal(
+  strykerMutationTarget(
+    "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx:10-12",
+  ),
+  "apps/web/src/app/(authenticated)/organizaciones/\\[vendorAccountId\\]/page.tsx:10-12",
+);
+assert.equal(
+  strykerMutationTarget("packages/contracts/src/vendor-catalog.ts:1-20"),
+  "packages/contracts/src/vendor-catalog.ts:1-20",
+);
 
 assert.deepEqual(
   mutatable([
@@ -56,8 +68,14 @@ assert.deepEqual(
     "apps/web/src/app/(authenticated)/organizaciones/page.tsx",
     "apps/web/src/modules/vendor-catalog/service.ts",
   ]),
-  ["apps/web/src/modules/vendor-catalog/service.ts"],
-  "test infrastructure and exact-static route boundaries are not scored mutation targets",
+  [
+    "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx",
+    "apps/web/src/app/(authenticated)/organizaciones/error.tsx",
+    "apps/web/src/app/(authenticated)/organizaciones/loading.tsx",
+    "apps/web/src/app/(authenticated)/organizaciones/page.tsx",
+    "apps/web/src/modules/vendor-catalog/service.ts",
+  ],
+  "test infrastructure is excluded while all production route boundaries remain scored",
 );
 
 const databaseShard = (id) => ({ id, sources: ["packages/db/src/example.ts"], testFiles: [] });
@@ -496,6 +514,7 @@ assert.deepEqual(
 const us025DirectRoutes = {
   "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx": [
     "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
+    "apps/web/src/modules/vendor-catalog/vendor-account-repository.integration.test.ts",
   ],
   "apps/web/src/app/(authenticated)/organizaciones/error.tsx": [
     "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
@@ -505,6 +524,7 @@ const us025DirectRoutes = {
   ],
   "apps/web/src/app/(authenticated)/organizaciones/page.tsx": [
     "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
+    "apps/web/src/modules/vendor-catalog/vendor-account-repository.integration.test.ts",
   ],
   "apps/web/src/components/vendor-accounts/capability-card.tsx": [
     "apps/web/src/components/vendor-accounts/vendor-account-detail.test.tsx",
@@ -529,6 +549,9 @@ const us025DirectRoutes = {
   ],
   "apps/web/src/modules/vendor-catalog/actions/manage-vendor-accounts-server-actions-factory.ts": [
     "apps/web/src/modules/vendor-catalog/actions/manage-vendor-accounts.test.ts",
+  ],
+  "apps/web/src/modules/vendor-catalog/vendor-account-route-access.ts": [
+    "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
   ],
   "apps/web/src/modules/vendor-catalog/production-vendor-account-repository.ts": [
     "apps/web/src/modules/vendor-catalog/vendor-account-repository.integration.test.ts",

@@ -63,12 +63,6 @@ const GENERATED_ARTIFACT = [
   /(^|\/)\.next\//,
   /(^|\/)(coverage|dist|reports)\//,
 ];
-const EXACT_STATIC_ROUTE_SOURCES = new Set([
-  "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx",
-  "apps/web/src/app/(authenticated)/organizaciones/error.tsx",
-  "apps/web/src/app/(authenticated)/organizaciones/loading.tsx",
-  "apps/web/src/app/(authenticated)/organizaciones/page.tsx",
-]);
 const EXCLUDED = [
   /\.(test|spec)\.tsx?$/,
   /\.d\.ts$/,
@@ -165,7 +159,6 @@ export function mutatable(files) {
   return files
     .filter((f) => MUTATABLE_EXT.test(f))
     .filter((f) => !EXCLUDED.some((re) => re.test(f)))
-    .filter((f) => !EXACT_STATIC_ROUTE_SOURCES.has(f))
     .sort();  // deterministic: the generated config must be byte-stable
 }
 
@@ -241,6 +234,13 @@ export function mutationSourceFiles(targets) {
   return [...new Set(
     targets.map((target) => target.replace(/:\d+-\d+$/, "")),
   )].sort();
+}
+
+/** Stryker interprets mutate paths with minimatch even when they carry an
+ * exact line range. Escape bracketed Next.js route segments so a literal
+ * `[vendorAccountId]` directory cannot be treated as a character class. */
+export function strykerMutationTarget(target) {
+  return target.replaceAll("[", "\\[").replaceAll("]", "\\]");
 }
 
 export function groupRoutedMutationTargets(targets, routeTestsForSource) {
@@ -1322,6 +1322,7 @@ const ADJACENT_TEST_SUFFIXES = [
 export const DIRECT_TEST_ROUTES = {
   "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx": [
     "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
+    "apps/web/src/modules/vendor-catalog/vendor-account-repository.integration.test.ts",
   ],
   "apps/web/src/app/(authenticated)/organizaciones/error.tsx": [
     "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
@@ -1331,6 +1332,7 @@ export const DIRECT_TEST_ROUTES = {
   ],
   "apps/web/src/app/(authenticated)/organizaciones/page.tsx": [
     "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
+    "apps/web/src/modules/vendor-catalog/vendor-account-repository.integration.test.ts",
   ],
   "apps/web/src/components/vendor-accounts/capability-card.tsx": [
     "apps/web/src/components/vendor-accounts/vendor-account-detail.test.tsx",
@@ -1355,6 +1357,9 @@ export const DIRECT_TEST_ROUTES = {
   ],
   "apps/web/src/modules/vendor-catalog/actions/manage-vendor-accounts-server-actions-factory.ts": [
     "apps/web/src/modules/vendor-catalog/actions/manage-vendor-accounts.test.ts",
+  ],
+  "apps/web/src/modules/vendor-catalog/vendor-account-route-access.ts": [
+    "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
   ],
   "apps/web/src/modules/vendor-catalog/production-vendor-account-repository.ts": [
     "apps/web/src/modules/vendor-catalog/vendor-account-repository.integration.test.ts",
@@ -1760,7 +1765,7 @@ export async function runMutationScope(options = {}) {
     const jsonReportPath = join("reports", "mutation", `${id}-${runSuffix}.json`);
     const common = {
       ...sharedBaseConf,
-      mutate: spec.mutate,
+      mutate: spec.mutate.map(strykerMutationTarget),
       coverageAnalysis: "off",
       concurrency: 1,
       maxTestRunnerReuse: 1,

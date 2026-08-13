@@ -1,22 +1,21 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 
 import { CapabilityCard, type CapabilityCardLabels } from "@/components/vendor-accounts/capability-card";
 import type { VendorAccountFormLabels } from "@/components/vendor-accounts/vendor-account-form";
 import { VendorAccountTabs, type VendorAccountTabsLabels } from "@/components/vendor-accounts/vendor-account-tabs";
 import { PoolTiles } from "@/components/pools/pool-tiles";
-import { ROUTE_SCR_ACCESS_DENIED } from "@/lib/routes";
 import { loadCurrentLedgerAuthorization } from "@/modules/identity-access/server-authorization";
 import { updateVendorAccount } from "@/modules/vendor-catalog/actions/manage-vendor-accounts";
 import { getPoolRepository } from "@/modules/vendor-catalog/production-pool-repository";
 import { getVendorAccountRepository } from "@/modules/vendor-catalog/production-vendor-account-repository";
+import { requireVendorAccountAdmin } from "@/modules/vendor-catalog/vendor-account-route-access";
 import { parseVendorAccountId, poolOperatingDate } from "@/modules/vendor-catalog/pool-repository";
 
 export default async function ScrVendorAccountDetailPage({ params }: {
   readonly params: Promise<{ readonly vendorAccountId: string }>;
 }) {
-  const authorization = await loadCurrentLedgerAuthorization();
-  if (!authorization || authorization.globalRole !== "group_admin") redirect(ROUTE_SCR_ACCESS_DENIED);
+  const authorization = requireVendorAccountAdmin(await loadCurrentLedgerAuthorization());
 
   const vendorAccountId = parseVendorAccountId((await params).vendorAccountId);
   if (!vendorAccountId) notFound();

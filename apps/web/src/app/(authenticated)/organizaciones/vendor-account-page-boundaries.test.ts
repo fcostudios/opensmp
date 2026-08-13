@@ -1,60 +1,93 @@
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+// @vitest-environment jsdom
 
-import { describe, expect, test } from "vitest";
+import { createElement } from "react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import { afterEach, describe, expect, test } from "vitest";
 
-const routeRoot = resolve(
-  process.cwd(),
-  "src/app/(authenticated)/organizaciones",
-);
+import type { LedgerAuthorization } from "@/modules/identity-access/authorization";
+import { ROUTE_SCR_ACCESS_DENIED } from "@/lib/routes";
+import VendorAccountsError, { VendorAccountsErrorView } from "./error";
+import VendorAccountsLoading, { VendorAccountsLoadingView } from "./loading";
+import { requireVendorAccountAdmin } from "@/modules/vendor-catalog/vendor-account-route-access";
 
-async function routeSource(relativePath: string): Promise<string> {
-  return readFile(resolve(routeRoot, relativePath), "utf8");
+const authorization = (
+  globalRole: LedgerAuthorization["globalRole"],
+): LedgerAuthorization => ({
+  companyGrants: [],
+  companyIds: [],
+  employeeCompanyId: null,
+  globalRole,
+  idpSubject: `route-${globalRole ?? "none"}`,
+  roles: globalRole ? [globalRole] : [],
+  userAccountId: `account-${globalRole ?? "none"}`,
+  userId: `user-${globalRole ?? "none"}`,
+});
+
+function expectAccessDenied(run: () => unknown): void {
+  expect(run).toThrowError(expect.objectContaining({
+    digest: expect.stringContaining(`;${ROUTE_SCR_ACCESS_DENIED};`),
+  }));
 }
 
-describe("vendor-account route boundaries", () => {
-  test.each(["page.tsx", "[vendorAccountId]/page.tsx"])(
-    "%s authenticates through the canonical loader and redirects unauthorized users",
-    async (relativePath) => {
-      const source = await routeSource(relativePath);
+afterEach(cleanup);
 
-      expect(source).toContain("await loadCurrentLedgerAuthorization()");
-      expect(source).toContain("redirect(ROUTE_SCR_ACCESS_DENIED)");
-      expect(source).not.toContain("SCAFFOLD");
-      expect(source).not.toContain("data-scaffold");
-    },
-  );
-
-  test("detail validates the route UUID before constructing or calling repositories", async () => {
-    const source = await routeSource("[vendorAccountId]/page.tsx");
-    const parseIndex = source.indexOf("parseVendorAccountId(");
-    const vendorRepositoryIndex = source.indexOf("getVendorAccountRepository()");
-    const poolRepositoryIndex = source.indexOf("getPoolRepository()");
-
-    expect(parseIndex).toBeGreaterThan(-1);
-    expect(vendorRepositoryIndex).toBeGreaterThan(parseIndex);
-    expect(poolRepositoryIndex).toBeGreaterThan(parseIndex);
+describe("shared registry/detail route authorization boundary", () => {
+  test("redirects an anonymous request before protected data can load", () => {
+    expectAccessDenied(() => requireVendorAccountAdmin(null));
   });
 
-  test("loading state is localized and announced as a polite status", async () => {
-    const source = await routeSource("loading.tsx");
-
-    expect(source).toContain('getTranslations("vendorAccounts")');
-    expect(source).toContain('data-testid="vendor_accounts_loading"');
-    expect(source).toContain('role="status"');
-    expect(source).toContain('aria-live="polite"');
-    expect(source).toContain('t("loading")');
+  test("redirects an authenticated non-admin before protected data can load", () => {
+    expectAccessDenied(() => requireVendorAccountAdmin(authorization("central_finance")));
   });
 
-  test("error state is localized, alerts users, and invokes only the supplied retry", async () => {
-    const source = await routeSource("error.tsx");
-
-    expect(source).toContain('useTranslations("vendorAccounts")');
-    expect(source).toContain('data-testid="vendor_accounts_error"');
-    expect(source).toContain('role="alert"');
-    expect(source).toContain('onClick={reset}');
-    expect(source).toContain('t("loadError")');
-    expect(source).toContain('t("retry")');
-    expect(source).not.toMatch(/console\.(?:debug|error|info|log|warn)/);
+  test("returns the exact group-admin authorization used by the real repository", () => {
+    const admin = authorization("group_admin");
+    expect(requireVendorAccountAdmin(admin)).toBe(admin);
   });
+});
+
+test("loading boundary renders its localized label as a polite status", () => {
+  render(createElement(VendorAccountsLoadingView, { label: "Loading organizations" }));
+
+  const status = screen.getByTestId("vendor_accounts_loading");
+  expect(status.getAttribute("role")).toBe("status");
+  expect(status.getAttribute("aria-live")).toBe("polite");
+  expect(status.textContent).toBe("Loading organizations");
+});
+
+test("loading route resolves real next-intl labels", () => {
+  render(createElement(NextIntlClientProvider, {
+    locale: "en-US",
+    messages: { vendorAccounts: { loading: "Boundary loading" } },
+    children: createElement(VendorAccountsLoading),
+  }));
+  expect(screen.getByRole("status").textContent).toBe("Boundary loading");
+});
+
+test("error boundary renders the failure and invokes exactly its supplied retry", () => {
+  let retries = 0;
+  render(createElement(VendorAccountsErrorView, {
+    loadError: "Unable to load organizations",
+    reset: () => { retries += 1; },
+    retry: "Retry now",
+  }));
+
+  const alert = screen.getByTestId("vendor_accounts_error");
+  expect(alert.getAttribute("role")).toBe("alert");
+  expect(alert.textContent).toContain("Unable to load organizations");
+  fireEvent.click(screen.getByRole("button", { name: "Retry now" }));
+  expect(retries).toBe(1);
+});
+
+test("error route resolves real next-intl labels and delegates retry", () => {
+  let retries = 0;
+  render(createElement(NextIntlClientProvider, {
+    locale: "en-US",
+    messages: { vendorAccounts: { loadError: "Boundary failure", retry: "Try again" } },
+    children: createElement(VendorAccountsError, { reset: () => { retries += 1; } }),
+  }));
+  expect(screen.getByRole("alert").textContent).toContain("Boundary failure");
+  fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+  expect(retries).toBe(1);
 });

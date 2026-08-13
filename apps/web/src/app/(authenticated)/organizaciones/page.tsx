@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 
 import { VendorAccountDialog } from "@/components/vendor-accounts/vendor-account-dialog";
@@ -7,16 +6,13 @@ import {
   VendorAccountsTable,
   type VendorAccountsTableLabels,
 } from "@/components/vendor-accounts/vendor-accounts-table";
-import { ROUTE_SCR_ACCESS_DENIED } from "@/lib/routes";
 import { loadCurrentLedgerAuthorization } from "@/modules/identity-access/server-authorization";
 import { createVendorAccount } from "@/modules/vendor-catalog/actions/manage-vendor-accounts";
 import { getVendorAccountRepository } from "@/modules/vendor-catalog/production-vendor-account-repository";
+import { requireVendorAccountAdmin } from "@/modules/vendor-catalog/vendor-account-route-access";
 
 export default async function VendorAccountsPage() {
-  const authorization = await loadCurrentLedgerAuthorization();
-  if (!authorization || authorization.globalRole !== "group_admin") {
-    redirect(ROUTE_SCR_ACCESS_DENIED);
-  }
+  const authorization = requireVendorAccountAdmin(await loadCurrentLedgerAuthorization());
 
   const repository = getVendorAccountRepository();
   const [accounts, vendors, t, locale] = await Promise.all([

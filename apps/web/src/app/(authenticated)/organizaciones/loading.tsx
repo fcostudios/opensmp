@@ -1,7 +1,8 @@
-import { getTranslations } from "next-intl/server";
+"use client";
 
-export default async function VendorAccountsLoading() {
-  const t = await getTranslations("vendorAccounts");
+import { useTranslations } from "next-intl";
+
+export function VendorAccountsLoadingView({ label }: { readonly label: string }) {
   return (
     <div
       aria-live="polite"
@@ -9,7 +10,12 @@ export default async function VendorAccountsLoading() {
       data-testid="vendor_accounts_loading"
       role="status"
     >
-      {t("loading")}
+      {label}
     </div>
   );
+}
+
+export default function VendorAccountsLoading() {
+  const t = useTranslations("vendorAccounts");
+  return <VendorAccountsLoadingView label={t("loading")} />;
 }
