@@ -1192,12 +1192,23 @@ try {
       result: "passed",
       shardKind: "stryker",
       durationMs: 125,
+      dependencyHashes: {
+        "@installed/example@1.0.0/token-map.js": sha256("installed token-map bytes"),
+      },
     },
     artifacts: {
       "mutation-report.json": reportSource,
     },
     artifactProjectors: mutationArtifactProjectors,
   });
+  assert.deepEqual(
+    readCacheEntry({
+      root: repositoryCacheRoot,
+      evidenceKey,
+      validateArtifacts: () => true,
+    }).entry.dependencyHashes,
+    { "@installed/example@1.0.0/token-map.js": sha256("installed token-map bytes") },
+  );
 
   assert.throws(() => writeSuccessfulCacheEntry({
     root: repositoryCacheRoot,

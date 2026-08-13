@@ -95,11 +95,11 @@ function canonicalMetadata(value) {
     `${JSON.stringify(key)}:${canonicalMetadata(value[key])}`).join(",")}}`;
 }
 
-function stringRecord(value, valuePattern = null) {
+function stringRecord(value, valuePattern = null, { allowSensitiveKeys = false } = {}) {
   if (!value || typeof value !== "object" || Array.isArray(value)) unsafeMetadata();
   const result = {};
   for (const [key, item] of Object.entries(value)) {
-    if (UNSAFE_KEY_PATTERN.test(key) || typeof item !== "string"
+    if ((!allowSensitiveKeys && UNSAFE_KEY_PATTERN.test(key)) || typeof item !== "string"
         || (valuePattern && !valuePattern.test(item))) {
       unsafeMetadata();
     }
@@ -275,7 +275,11 @@ function safeEntry(entry, evidenceKey, artifactHashes) {
     persisted.runtimeProfile = runtimeProfile;
   }
   if (entry.dependencyHashes !== undefined) {
-    persisted.dependencyHashes = stringRecord(entry.dependencyHashes, EVIDENCE_KEY_PATTERN);
+    persisted.dependencyHashes = stringRecord(
+      entry.dependencyHashes,
+      EVIDENCE_KEY_PATTERN,
+      { allowSensitiveKeys: true },
+    );
   }
   if (entry.commandList !== undefined) {
     persisted.commandIdentity = digest(canonicalMetadata(entry.commandList));
