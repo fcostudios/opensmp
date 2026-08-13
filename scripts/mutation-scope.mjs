@@ -66,6 +66,7 @@ const GENERATED_ARTIFACT = [
 const EXCLUDED = [
   /\.(test|spec)\.tsx?$/,
   /\.d\.ts$/,
+  /(^|\/)e2e\//,
   /(^|\/)migrations\//,
   /(^|\/)testing\//,
   /(^|\/)node_modules\//,
@@ -153,7 +154,7 @@ function mergeBaseFor(base) {
   }
 }
 
-function mutatable(files) {
+export function mutatable(files) {
   return files
     .filter((f) => MUTATABLE_EXT.test(f))
     .filter((f) => !EXCLUDED.some((re) => re.test(f)))

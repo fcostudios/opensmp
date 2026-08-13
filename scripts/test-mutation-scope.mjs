@@ -25,6 +25,7 @@ import {
   createCampaignRuntimeProfileResolver,
   groupRoutedMutationTargets,
   mutationCompatibleTestFiles,
+  mutatable,
   projectionEvidencePathForShard,
   readFreshMutationReport,
   requireNonzeroMutationReport,
@@ -40,6 +41,16 @@ import {
   runMutationScope,
 } from "./mutation-scope.mjs";
 import mutationVitestConfig from "../vitest.mutation.config.mjs";
+
+assert.deepEqual(
+  mutatable([
+    "apps/web/e2e/auth.setup.ts",
+    "apps/web/e2e/vendor-accounts.spec.ts",
+    "apps/web/src/modules/vendor-catalog/service.ts",
+  ]),
+  ["apps/web/src/modules/vendor-catalog/service.ts"],
+  "Playwright journeys and their setup are test infrastructure, not mutation targets",
+);
 
 const databaseShard = (id) => ({ id, sources: ["packages/db/src/example.ts"], testFiles: [] });
 let memoizedProfileCalls = 0;
