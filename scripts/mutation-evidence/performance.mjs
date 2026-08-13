@@ -204,6 +204,7 @@ export function createPerformanceRun({
   now = performance.now.bind(performance),
   wallNow = utcLabel,
   createRunId = randomUUID,
+  createShardToken = randomUUID,
 }) {
   const normalizedProvenance = normalizeProvenance(provenance);
   const normalizedCacheMode = normalizeCacheMode(cacheMode);
@@ -223,7 +224,15 @@ export function createPerformanceRun({
     totals: totals([]),
     outcome: "incomplete",
   };
-  state.set(run, { now, wallNow, createRunId, started, active: new Map(), finished: false });
+  state.set(run, {
+    now,
+    wallNow,
+    createRunId,
+    createShardToken,
+    started,
+    active: new Map(),
+    finished: false,
+  });
   return run;
 }
 
@@ -231,7 +240,9 @@ export function startShard(run, shard, now) {
   const current = runState(run);
   if (current.finished) throw new Error("Performance run is already finished");
   const clock = now ?? current.now;
-  const token = randomUUID();
+  const token = requiredString(current.createShardToken(), "shard token");
+  if (!/^[A-Za-z0-9_-]+$/.test(token)) throw new TypeError("Invalid shard token");
+  if (current.active.has(token)) throw new TypeError("Invalid shard token");
   const record = {
     id: requiredString(shard?.id, "shard.id"),
     evidenceKey: requiredString(shard?.evidenceKey, "shard.evidenceKey"),
@@ -246,6 +257,7 @@ export function startShard(run, shard, now) {
 
 export function finishShard(run, token, decision, details = {}, now) {
   const current = runState(run);
+  if (current.finished) throw new Error("Performance run is already finished");
   const active = current.active.get(token);
   if (!active) throw new Error("Unknown or already finished shard token");
   normalizeCompletion(decision, details);
@@ -271,8 +283,12 @@ export function finishShard(run, token, decision, details = {}, now) {
 export function finishPerformanceRun(run, outcome, now) {
   const current = runState(run);
   if (current.finished) throw new Error("Performance run is already finished");
-  if (current.active.size !== 0) throw new Error("Cannot finish a run with active shards");
-  if (outcome !== "passed" && outcome !== "failed") throw new Error("Invalid campaign outcome");
+  if (outcome !== "passed" && outcome !== "failed" && outcome !== "interrupted") {
+    throw new Error("Invalid campaign outcome");
+  }
+  if (current.active.size !== 0 && outcome !== "interrupted") {
+    throw new Error("Cannot finish a run with active shards");
+  }
   if (outcome === "passed" && run.shards.some((shard) => shard.result !== "passed")) {
     throw new Error("Invalid campaign outcome");
   }
@@ -317,6 +333,9 @@ function comparison(cold, warm) {
   if (!isDeepStrictEqual(cold.machine, warm.machine)) reasons.push("different machine profiles");
   if (cold.provenance?.campaignKey !== warm.provenance?.campaignKey) {
     reasons.push("different campaign keys");
+  }
+  if (cold.outcome !== "passed" || warm.outcome !== "passed") {
+    reasons.push("campaign outcomes are not both passed");
   }
   return reasons;
 }

@@ -1122,6 +1122,7 @@ const invalidDecisionRun = createPerformanceRun({
   now: invalidDecisionClock,
   wallNow: sequenceValue("2026-08-12T10:00:00.000Z", "2026-08-12T10:00:01.000Z"),
   createRunId: sequenceValue("invalid-decision-run", "invalid-decision-temporary"),
+  createShardToken: sequenceValue("invalid-decision-token"),
 });
 const invalidDecisionToken = startShard(invalidDecisionRun, {
   id: "strict-contract",
@@ -1175,6 +1176,7 @@ finishPerformanceRun(invalidDecisionRun, "failed", invalidDecisionClock);
 const coldClock = sequenceClock(100, 110, 150, 160, 260, 300);
 const coldWallNow = sequenceValue("2026-08-12T12:00:00.000Z", "2026-08-12T12:00:03.000Z");
 const coldCreateRunId = sequenceValue("cold-run", "cold-write");
+const coldCreateShardToken = sequenceValue("cold-core-token", "cold-db-token");
 const coldRun = createPerformanceRun({
   provenance,
   cacheMode: "enabled",
@@ -1182,18 +1184,21 @@ const coldRun = createPerformanceRun({
   now: coldClock,
   wallNow: coldWallNow,
   createRunId: coldCreateRunId,
+  createShardToken: coldCreateShardToken,
 });
 const coldFirst = startShard(coldRun, {
   id: "core",
   evidenceKey: "evidence-core",
   classification: "mutation",
 }, coldClock);
+assert.equal(coldFirst, "cold-core-token");
 finishShard(coldRun, coldFirst, "executed", { result: "passed" }, coldClock);
 const coldSecond = startShard(coldRun, {
   id: "db",
   evidenceKey: "evidence-db",
   classification: "db-backed",
 }, coldClock);
+assert.equal(coldSecond, "cold-db-token");
 finishShard(coldRun, coldSecond, "executed", { result: "passed" }, coldClock);
 finishPerformanceRun(coldRun, "passed", coldClock);
 assert.deepEqual(coldRun.totals, {
@@ -1215,10 +1220,12 @@ assert.equal(coldRun.startedAt, "2026-08-12T12:00:00.000Z");
 assert.equal(coldRun.finishedAt, "2026-08-12T12:00:03.000Z");
 assert.equal(coldWallNow.calls, 2);
 assert.equal(coldCreateRunId.calls, 1);
+assert.equal(coldCreateShardToken.calls, 2);
 
 const warmClock = sequenceClock(500, 510, 515, 520, 528, 540, 550, 560);
 const warmWallNow = sequenceValue("2026-08-12T12:01:00.000Z", "2026-08-12T12:01:01.000Z");
 const warmCreateRunId = sequenceValue("warm-run", "warm-write");
+const warmCreateShardToken = sequenceValue("warm-core-token", "warm-db-token", "warm-verification-token");
 const warmRun = createPerformanceRun({
   provenance,
   cacheMode: "enabled",
@@ -1226,6 +1233,7 @@ const warmRun = createPerformanceRun({
   now: warmClock,
   wallNow: warmWallNow,
   createRunId: warmCreateRunId,
+  createShardToken: warmCreateShardToken,
 });
 const warmFirst = startShard(warmRun, {
   id: "core",
@@ -1270,6 +1278,7 @@ try {
     now: sequenceClock(0, 1),
     wallNow: sequenceValue("2026-08-12T12:02:00.000Z"),
     createRunId: sequenceValue("unfinished-run", "unfinished-write"),
+    createShardToken: sequenceValue("unfinished-token"),
   });
   startShard(unfinishedRun, {
     id: "unfinished",
@@ -1294,6 +1303,7 @@ try {
   assert.equal(path.basename(recordPath), "warm-run.json");
   assert.equal(warmWallNow.calls, 2);
   assert.equal(warmCreateRunId.calls, 2);
+  assert.equal(warmCreateShardToken.calls, 3);
   assert.throws(
     () => writePerformanceRecord(performanceFixture, {
       ...warmRun,
@@ -1301,6 +1311,46 @@ try {
     }),
     /unsafe performance record/i,
   );
+
+  const interruptedRun = createPerformanceRun({
+    provenance,
+    cacheMode: "enabled",
+    machine,
+    now: sequenceClock(1_000, 1_010, 1_025),
+    wallNow: sequenceValue("2026-08-12T12:03:00.000Z", "2026-08-12T12:03:02.000Z"),
+    createRunId: sequenceValue("interrupted-run", "interrupted-write"),
+    createShardToken: sequenceValue("interrupted-shard-token"),
+  });
+  assert.equal(startShard(interruptedRun, {
+    id: "interrupted-shard",
+    evidenceKey: "interrupted-evidence",
+    classification: "mutation",
+  }), "interrupted-shard-token");
+  finishPerformanceRun(interruptedRun, "interrupted");
+  assert.equal(interruptedRun.outcome, "interrupted");
+  assert.equal(interruptedRun.wallClockDurationMs, 25);
+  assert.equal(interruptedRun.shards[0].status, "started");
+  assert.throws(
+    () => finishShard(
+      interruptedRun,
+      "interrupted-shard-token",
+      "executed",
+      { result: "passed" },
+    ),
+    (error) => error.message === "Performance run is already finished",
+  );
+  const interruptedPath = writePerformanceRecord(performanceFixture, interruptedRun);
+  assert.deepEqual(JSON.parse(await readFile(interruptedPath, "utf8")), interruptedRun);
+  assert.throws(
+    () => renderBenchmarkSummary(coldRun, interruptedRun),
+    (error) => error.message === "Benchmark records are incomparable: campaign outcomes are not both passed",
+  );
+  const interruptedSummary = renderBenchmarkSummary(coldRun, interruptedRun, {
+    allowIncomparable: true,
+  });
+  assert.match(interruptedSummary, /Comparable: no \(campaign outcomes are not both passed\)/);
+  assert.match(interruptedSummary, /Measured wall-clock savings \(ms\) \| incomparable/);
+  assert.match(interruptedSummary, /Campaign outcome \| passed \| interrupted/);
 
   const summary = renderBenchmarkSummary(coldRun, warmRun);
   assert.equal(summary, `# Mutation cache benchmark
