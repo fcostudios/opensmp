@@ -1638,6 +1638,14 @@ export async function runMutationScope(options = {}) {
   const activeDatabaseSandboxes = new Set();
   const signalProcess = options.signalProcess ?? process;
   let signalShutdownPromise = null;
+  const cleanupDatabaseSandbox = async (record) => {
+    try {
+      const sandbox = await record.promise;
+      await sandbox.cleanup();
+    } finally {
+      activeDatabaseSandboxes.delete(record);
+    }
+  };
   const environment = options.env ?? process.env;
   if (options.cwd) process.chdir(options.cwd);
   for (const key of ["MUTATION_BASE", "MUTATION_CACHE", "MUTATION_SCOPE_DRY"]) {
@@ -1861,11 +1869,9 @@ export async function runMutationScope(options = {}) {
         signalShutdownPromise ??= (async () => {
           finishPerformanceRun(performanceRun, "interrupted");
           persist();
-          const sandboxes = [...activeDatabaseSandboxes];
-          await Promise.allSettled(sandboxes.map(async (sandbox) => {
-            await sandbox.cleanup();
-            activeDatabaseSandboxes.delete(sandbox);
-          }));
+          await Promise.allSettled(
+            [...activeDatabaseSandboxes].map(cleanupDatabaseSandbox),
+          );
           signalProcess.exit(signal === "SIGINT" ? 130 : 143);
         })();
         return signalShutdownPromise;
@@ -2058,12 +2064,25 @@ export async function runMutationScope(options = {}) {
       rmSync(shard.reportPath, { force: true });
       let shardEnvironment = environment;
       let databaseSandbox = null;
+      let databaseSandboxRecord = null;
       if (isDatabaseBacked(shard) && (!options.executeShard || options.databaseSandboxFactory)) {
         const factory = options.databaseSandboxFactory ?? (async (env, id) =>
           createDatabaseShardSandbox(env, id, await import("../packages/db/node_modules/pg/esm/index.mjs")));
-        databaseSandbox = await factory(environment, shard.id);
-        activeDatabaseSandboxes.add(databaseSandbox);
+        databaseSandboxRecord = {};
+        activeDatabaseSandboxes.add(databaseSandboxRecord);
+        databaseSandboxRecord.promise = Promise.resolve()
+          .then(() => factory(environment, shard.id));
+        try {
+          databaseSandbox = await databaseSandboxRecord.promise;
+        } catch (error) {
+          activeDatabaseSandboxes.delete(databaseSandboxRecord);
+          throw error;
+        }
         shardEnvironment = databaseSandbox.environment;
+      }
+      if (signalShutdownPromise) {
+        await signalShutdownPromise;
+        return { manifest: manifestFor(), performance: performanceRun };
       }
       const childEnvironment = controlledChildEnvironment(shardEnvironment, runtimeProfile);
       const result = executeShard({ shard, environment: childEnvironment });
@@ -2156,9 +2175,8 @@ export async function runMutationScope(options = {}) {
         });
       }
       persist();
-      if (databaseSandbox) {
-        await databaseSandbox.cleanup();
-        activeDatabaseSandboxes.delete(databaseSandbox);
+      if (databaseSandboxRecord) {
+        await cleanupDatabaseSandbox(databaseSandboxRecord);
       }
     }
     finishPerformanceRun(performanceRun, "passed");
@@ -2177,7 +2195,7 @@ export async function runMutationScope(options = {}) {
     throw err;
   }
   } finally {
-    await Promise.allSettled([...activeDatabaseSandboxes].map((sandbox) => sandbox.cleanup()));
+    await Promise.allSettled([...activeDatabaseSandboxes].map(cleanupDatabaseSandbox));
     for (const [signal, handler] of signalHandlers) signalProcess.removeListener(signal, handler);
     for (const [key, value] of Object.entries(previousEnvironment)) {
       if (value === undefined) delete process.env[key];

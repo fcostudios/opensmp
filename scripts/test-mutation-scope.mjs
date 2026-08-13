@@ -1560,6 +1560,24 @@ try {
   await new Promise((resolve) => setTimeout(resolve, 20));
   assert.deepEqual(signalOrder.slice(0, 2), ["cleanup", "exit"],
     "SIGTERM must await the active database sandbox cleanup before exit");
+
+  const pendingSignalProcess = new EventEmitter();
+  const pendingSignalOrder = [];
+  pendingSignalProcess.exit = () => { pendingSignalOrder.push("exit"); };
+  await cacheRun({
+    signalProcess: pendingSignalProcess,
+    env: { MUTATION_CACHE: "off" },
+    databaseSandboxFactory: async (environment) => {
+      pendingSignalProcess.emit("SIGTERM");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return {
+        environment,
+        async cleanup() { pendingSignalOrder.push("cleanup"); },
+      };
+    },
+  });
+  assert.deepEqual(pendingSignalOrder, ["cleanup", "exit"],
+    "SIGTERM must also await cleanup when sandbox creation is still pending");
 } finally {
   rmSync(cacheFixtureRoot, { force: true, recursive: true });
 }
