@@ -292,6 +292,7 @@ export function collectExecutionInputs({
   const incompleteWorkspaces = new Set();
   const externalDependencyWorkspaces = new Set();
   const symlinkRuntimeInputWorkspaces = new Set();
+  const unresolvedInstalledInputs = new Set();
   const environmentInputWorkspaces = new Set();
   const computedChildExecutionWorkspaces = new Set();
   const safeEnvironment = {};
@@ -314,10 +315,23 @@ export function collectExecutionInputs({
     specifier,
     containingFile,
     ownerFile = containingFile,
-    required = true,
+    requirement = "required",
+    requestedBy = null,
   ) => {
     const packageName = installedPackageName(specifier);
     if (builtinModules.includes(packageName) || packageName.startsWith("node:")) return;
+    const markUnresolved = () => {
+      if (requirement === "optional") {
+        installedInputs.set(
+          `@installed-absence/${requestedBy ?? "root"}/optional/${packageName}`,
+          sha256("absent"),
+        );
+      } else if (findOwner(absoluteRoot, workspacePackages, ownerFile)) {
+        markOwner(externalDependencyWorkspaces, ownerFile);
+      } else {
+        unresolvedInstalledInputs.add(packageName);
+      }
+    };
     let runtimeFile;
     try {
       runtimeFile = createRequire(containingFile).resolve(specifier);
@@ -325,7 +339,7 @@ export function collectExecutionInputs({
       try {
         runtimeFile = createRequire(containingFile).resolve(packageName);
       } catch {
-        if (required) markOwner(externalDependencyWorkspaces, ownerFile);
+        markUnresolved();
         return;
       }
     }
@@ -341,7 +355,7 @@ export function collectExecutionInputs({
     }
     const manifestPath = path.join(packageRoot, "package.json");
     if (!existsSync(manifestPath)) {
-      if (required) markOwner(externalDependencyWorkspaces, ownerFile);
+      markUnresolved();
       return;
     }
     const manifest = parseJson(manifestPath);
@@ -371,8 +385,18 @@ export function collectExecutionInputs({
       );
     }
     const dependencyRequireFile = path.join(packageRoot, "package.json");
-    for (const dependency of Object.keys(manifest.dependencies ?? {}).sort()) {
-      collectInstalledPackage(dependency, dependencyRequireFile, ownerFile, false);
+    const optionalDependencies = new Set(Object.keys(manifest.optionalDependencies ?? {}));
+    for (const dependency of Object.keys(manifest.dependencies ?? {})
+      .filter((name) => !optionalDependencies.has(name)).sort()) {
+      collectInstalledPackage(dependency, dependencyRequireFile, ownerFile, "required", identity);
+    }
+    for (const dependency of [...optionalDependencies].sort()) {
+      collectInstalledPackage(dependency, dependencyRequireFile, ownerFile, "optional", identity);
+    }
+    for (const dependency of Object.keys(manifest.peerDependencies ?? {}).sort()) {
+      const peerRequirement = manifest.peerDependenciesMeta?.[dependency]?.optional === true
+        ? "optional" : "required";
+      collectInstalledPackage(dependency, dependencyRequireFile, ownerFile, peerRequirement, identity);
     }
   };
   const recordEnvironmentInput = (key, file) => {
@@ -779,6 +803,27 @@ export function collectExecutionInputs({
   for (const candidate of [...entryFiles, ...configurationFiles]) {
     addFile(path.resolve(absoluteRoot, candidate));
   }
+  for (const configurationFile of configurationFiles) {
+    const absoluteConfiguration = path.resolve(absoluteRoot, configurationFile);
+    if (!/^stryker(?:\.|-)|^stryker\.conf\.json$/i.test(path.basename(configurationFile))) continue;
+    const contents = readFileSync(absoluteConfiguration, "utf8");
+    let plugins = [];
+    if (path.extname(configurationFile) === ".json") {
+      const parsed = parseJson(absoluteConfiguration);
+      plugins = Array.isArray(parsed.plugins) ? parsed.plugins : [];
+    } else {
+      const pluginsMatch = contents.match(/plugins\s*:\s*\[([^\]]*)\]/s);
+      plugins = [...(pluginsMatch?.[1] ?? "").matchAll(/["']([^"']+)["']/g)]
+        .map((match) => match[1]);
+    }
+    for (const plugin of plugins) {
+      if (typeof plugin !== "string" || !/^(?:@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/i.test(plugin)) {
+        unresolvedInstalledInputs.add("invalid-stryker-plugin");
+      } else {
+        collectInstalledPackage(plugin, absoluteConfiguration, absoluteConfiguration);
+      }
+    }
+  }
   for (const migrationRoot of migrationRoots) {
     const absoluteMigrationRoot = path.resolve(absoluteRoot, migrationRoot);
     const markSymlink = () => markOwner(symlinkRuntimeInputWorkspaces, absoluteMigrationRoot);
@@ -856,6 +901,10 @@ export function collectExecutionInputs({
     ...[...computedChildExecutionWorkspaces].map((workspace) => ({
       code: "computed-child-execution-input",
       workspace: displayPath(workspace),
+    })),
+    ...[...unresolvedInstalledInputs].map((dependency) => ({
+      code: "unresolved-installed-package",
+      workspace: dependency,
     })),
   ].sort((left, right) =>
     comparePaths(left.workspace, right.workspace) || comparePaths(left.code, right.code),

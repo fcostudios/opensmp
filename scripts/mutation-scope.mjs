@@ -21,7 +21,12 @@ import os from "node:os";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "../apps/web/node_modules/typescript/lib/typescript.js";
-import { cacheRoot, readCacheEntry, writeSuccessfulCacheEntry } from "./mutation-evidence/cache.mjs";
+import {
+  cacheRoot,
+  projectMutationReportArtifact,
+  readCacheEntry,
+  writeSuccessfulCacheEntry,
+} from "./mutation-evidence/cache.mjs";
 import { canonicalJson, collectExecutionInputs, createEvidenceKey, sha256 } from "./mutation-evidence/fingerprint.mjs";
 import {
   createPerformanceRun,
@@ -1973,8 +1978,16 @@ export async function runMutationScope(options = {}) {
       if (cacheMode === "enabled" && shard.reason !== "runtime-profile-unavailable"
           && executionInputs.reusable) {
         const artifacts = { "mutation-report.json": shard.jsonReportPath };
+        const artifactProjectors = {
+          "mutation-report.json": projectMutationReportArtifact,
+        };
         const projectionPath = projectionEvidencePathForShard(shard);
-        if (projectionPath && existsSync(projectionPath)) artifacts["projection-evidence.json"] = projectionPath;
+        if (projectionPath && existsSync(projectionPath)) {
+          artifacts["projection-evidence.json"] = projectionPath;
+          const sourceContents = readFileSync(POOL_PROJECTION_SOURCE, "utf8");
+          artifactProjectors["projection-evidence.json"] = (evidence) =>
+            validatePoolProjectionEvidence(evidence, sourceContents);
+        }
         writeSuccessfulCacheEntry({
           root: repositoryCacheRoot,
           evidenceKey: shard.evidenceKey,
@@ -1984,6 +1997,7 @@ export async function runMutationScope(options = {}) {
             dependencyHashes: shard.dependencyHashes, commandList,
           },
           artifacts,
+          artifactProjectors,
         });
       }
       persist();

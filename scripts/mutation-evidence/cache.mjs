@@ -1,6 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
-  copyFileSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -26,6 +25,7 @@ const MUTATOR_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9 ]{0,100}$/;
 const TERMINAL_MUTANT_STATUSES = new Set([
   "Killed", "Survived", "NoCoverage", "CompileError", "RuntimeError", "Timeout", "Ignored",
 ]);
+const ALLOWED_ARTIFACTS = new Set(["mutation-report.json", "projection-evidence.json"]);
 const RUNTIME_PROFILE_PATTERNS = {
   platform: /^(?:aix|darwin|freebsd|linux|openbsd|sunos|win32)$/,
   arch: /^(?:arm|arm64|ia32|loong64|mips|mipsel|ppc|ppc64|riscv64|s390|s390x|x64)$/,
@@ -169,8 +169,7 @@ function assertCacheRoot(root, { create = false } = {}) {
   return absoluteRoot;
 }
 
-function mutationReportProjection(sourcePath) {
-  const report = JSON.parse(readFileSync(sourcePath, "utf8"));
+export function projectMutationReportArtifact(report) {
   const config = report?.config;
   if (!config || !Array.isArray(config.mutate) || typeof config.configFile !== "string"
       || typeof config.jsonReporter?.fileName !== "string") {
@@ -363,6 +362,9 @@ export function readCacheEntry({ root, evidenceKey, validateArtifacts }) {
 
   const artifacts = {};
   for (const [name, expectedHash] of Object.entries(entry.artifacts)) {
+    if (!ALLOWED_ARTIFACTS.has(name)) {
+      return { hit: false, reason: "artifact-manifest-invalid" };
+    }
     let relativePath;
     try {
       relativePath = artifactRelativePath(name);
@@ -403,7 +405,9 @@ export function readCacheEntry({ root, evidenceKey, validateArtifacts }) {
   return { hit: true, entry, artifacts };
 }
 
-export function writeSuccessfulCacheEntry({ root, evidenceKey, entry, artifacts }) {
+export function writeSuccessfulCacheEntry({
+  root, evidenceKey, entry, artifacts, artifactProjectors,
+}) {
   assertEvidenceKey(evidenceKey);
   if (!entry || entry.result !== "passed") {
     throw new Error("Only passed mutation evidence may be cached");
@@ -413,6 +417,18 @@ export function writeSuccessfulCacheEntry({ root, evidenceKey, entry, artifacts 
   }
   const artifactEntries = Object.entries(artifacts);
   if (artifactEntries.length === 0) throw new Error("A cache entry requires artifacts");
+  if (!artifactProjectors || typeof artifactProjectors !== "object"
+      || Array.isArray(artifactProjectors)
+      || Object.keys(artifactProjectors).length !== artifactEntries.length) {
+    throw new Error("Each cache artifact requires an exact safe projector");
+  }
+  for (const [name] of artifactEntries) {
+    if (!ALLOWED_ARTIFACTS.has(name) || typeof artifactProjectors[name] !== "function"
+        || (name === "mutation-report.json"
+          && artifactProjectors[name] !== projectMutationReportArtifact)) {
+      throw new Error(`Cache artifact is not allowlisted with a safe projector: ${name}`);
+    }
+  }
 
   root = assertCacheRoot(root, { create: true });
   const entryDirectory = path.join(root, evidenceKey);
@@ -425,19 +441,21 @@ export function writeSuccessfulCacheEntry({ root, evidenceKey, entry, artifacts 
     const artifactHashes = {};
     for (const [name, sourcePath] of artifactEntries) {
       const relativePath = artifactRelativePath(name);
-      if (name === "mutation-report.html") continue;
       if (typeof sourcePath !== "string" || !statSync(sourcePath).isFile()) {
         throw new TypeError(`Artifact source is not a file: ${name}`);
       }
       const destination = path.join(temporaryDirectory, relativePath);
       mkdirSync(path.dirname(destination), { recursive: true });
-      if (name === "mutation-report.json") {
-        writeFileSync(destination, `${JSON.stringify(mutationReportProjection(sourcePath))}\n`, {
-          encoding: "utf8", mode: 0o600,
-        });
-      } else {
-        copyFileSync(sourcePath, destination);
+      const rawArtifact = JSON.parse(readFileSync(sourcePath, "utf8"));
+      const projectedArtifact = artifactProjectors[name](rawArtifact);
+      if (!projectedArtifact || typeof projectedArtifact !== "object"
+          || Array.isArray(projectedArtifact)) {
+        throw new Error(`Cache artifact projector returned an unsafe value: ${name}`);
       }
+      inspectMetadata(projectedArtifact);
+      writeFileSync(destination, `${canonicalMetadata(projectedArtifact)}\n`, {
+        encoding: "utf8", mode: 0o600,
+      });
       artifactHashes[name] = digest(readFileSync(destination));
     }
     if (Object.keys(artifactHashes).length === 0) {

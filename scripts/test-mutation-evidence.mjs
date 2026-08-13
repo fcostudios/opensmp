@@ -9,6 +9,7 @@ import {
   CACHE_SCHEMA_VERSION,
   cacheRoot,
   clearMutationCache,
+  projectMutationReportArtifact,
   readCacheEntry,
   writeSuccessfulCacheEntry,
 } from "./mutation-evidence/cache.mjs";
@@ -966,6 +967,84 @@ try {
     entryFiles: ["packages/vendor-user/src/main.ts"],
     configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
   }).hashes["@installed/fixture-third-party@1.0.0/index.js"], installedRuntimeHash);
+
+  await put(
+    fixtureRoot,
+    "node_modules/fixture-parent/package.json",
+    JSON.stringify({
+      name: "fixture-parent", version: "1.0.0", main: "index.js",
+      dependencies: { "fixture-child": "1.0.0" },
+      optionalDependencies: { "fixture-optional": "1.0.0", "fixture-absent": "1.0.0" },
+      peerDependencies: { "fixture-peer": "1.0.0" },
+    }),
+  );
+  await put(fixtureRoot, "node_modules/fixture-parent/index.js", "module.exports = true;\n");
+  for (const dependency of ["fixture-child", "fixture-optional", "fixture-peer"]) {
+    await put(
+      fixtureRoot,
+      `node_modules/${dependency}/package.json`,
+      JSON.stringify({ name: dependency, version: "1.0.0", main: "index.js" }),
+    );
+    await put(fixtureRoot, `node_modules/${dependency}/index.js`, `module.exports = ${JSON.stringify(dependency)};\n`);
+  }
+  await put(
+    fixtureRoot,
+    "packages/vendor-user/src/parent.ts",
+    'import parent from "fixture-parent";\nexport default parent;\n',
+  );
+  const parentClosure = () => collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/vendor-user/src/parent.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+  });
+  const parentResult = parentClosure();
+  assert.equal(parentResult.reusable, true);
+  for (const dependency of ["fixture-child", "fixture-optional", "fixture-peer"]) {
+    assert.ok(parentResult.hashes[`@installed/${dependency}@1.0.0/index.js`]);
+  }
+  assert.ok(parentResult.hashes["@installed-absence/fixture-parent@1.0.0/optional/fixture-absent"]);
+  const parentKey = sha256(canonicalJson(parentResult.hashes));
+  await put(fixtureRoot, "node_modules/fixture-optional/index.js", "module.exports = 'changed';\n");
+  const optionalMutationKey = sha256(canonicalJson(parentClosure().hashes));
+  assert.notEqual(optionalMutationKey, parentKey);
+  await put(fixtureRoot, "node_modules/fixture-peer/index.js", "module.exports = 'peer changed';\n");
+  assert.notEqual(sha256(canonicalJson(parentClosure().hashes)), optionalMutationKey);
+  await rm(path.join(fixtureRoot, "node_modules/fixture-peer"), { recursive: true, force: true });
+  const missingPeer = parentClosure();
+  assert.equal(missingPeer.reusable, false);
+  assert.ok(missingPeer.reasons.some(({ code }) => code === "external-local-dependency"));
+
+  for (const plugin of ["@stryker-mutator/vitest-runner", "fixture-stryker-plugin"]) {
+    await put(
+      fixtureRoot,
+      `node_modules/${plugin}/package.json`,
+      JSON.stringify({ name: plugin, version: "1.0.0", main: "index.js" }),
+    );
+    await put(fixtureRoot, `node_modules/${plugin}/index.js`, `module.exports = ${JSON.stringify(plugin)};\n`);
+  }
+  await put(
+    fixtureRoot,
+    "stryker.plugins.json",
+    JSON.stringify({ testRunner: "vitest", plugins: [
+      "@stryker-mutator/vitest-runner", "fixture-stryker-plugin",
+    ] }),
+  );
+  const pluginClosure = () => collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/app/src/helper.ts"],
+    configurationFiles: ["stryker.plugins.json"],
+    migrationRoots: [], toolVersions, runtimeProfile,
+  });
+  const pluginResult = pluginClosure();
+  assert.ok(pluginResult.hashes["@installed/@stryker-mutator/vitest-runner@1.0.0/index.js"]);
+  assert.ok(pluginResult.hashes["@installed/fixture-stryker-plugin@1.0.0/index.js"]);
+  const pluginKey = sha256(canonicalJson(pluginResult.hashes));
+  await put(
+    fixtureRoot,
+    "node_modules/@stryker-mutator/vitest-runner/index.js",
+    "module.exports = 'byte mutation';\n",
+  );
+  assert.notEqual(sha256(canonicalJson(pluginClosure().hashes)), pluginKey);
 } finally {
   delete process.env.LEDGER_FINGERPRINT_SECRET_SENTINEL;
   await rm(fixtureRoot, { recursive: true, force: true });
@@ -975,7 +1054,7 @@ try {
 const repositoryProbe = collectExecutionInputs({
   root: path.resolve(new URL("..", import.meta.url).pathname),
   entryFiles: ["scripts/mutation-scope.mjs"],
-  configurationFiles: [],
+  configurationFiles: ["stryker.conf.json"],
   migrationRoots: [],
   toolVersions: { node: process.versions.node },
   runtimeProfile: { arch: process.arch, platform: process.platform },
@@ -983,7 +1062,9 @@ const repositoryProbe = collectExecutionInputs({
 assert.equal(repositoryProbe.reusable, false);
 assert.ok(repositoryProbe.reasons.some(({ code }) => code === "environment-runtime-input"));
 assert.ok(repositoryProbe.hashes["scripts/mutation-scope.mjs"]);
-for (const tool of ["typescript@", "vitest@", "@stryker-mutator/core@"]) {
+for (const tool of [
+  "typescript@", "vitest@", "@stryker-mutator/core@", "@stryker-mutator/vitest-runner@",
+]) {
   assert.ok(Object.keys(repositoryProbe.hashes).some((input) =>
     input.startsWith(`@installed/${tool}`)), `${tool} installed bytes must be fingerprinted`);
 }
@@ -1055,6 +1136,9 @@ try {
     testFiles: [{ name: secretSentinel }],
   }));
   await writeFile(htmlSource, `<html>${secretSentinel}</html>\n`);
+  const mutationArtifactProjectors = {
+    "mutation-report.json": projectMutationReportArtifact,
+  };
   writeSuccessfulCacheEntry({
     root: repositoryCacheRoot,
     evidenceKey,
@@ -1065,9 +1149,49 @@ try {
     },
     artifacts: {
       "mutation-report.json": reportSource,
-      "mutation-report.html": htmlSource,
+    },
+    artifactProjectors: mutationArtifactProjectors,
+  });
+
+  assert.throws(() => writeSuccessfulCacheEntry({
+    root: repositoryCacheRoot,
+    evidenceKey: sha256("html-forbidden"),
+    entry: { result: "passed", shardKind: "stryker" },
+    artifacts: { "mutation-report.html": htmlSource },
+    artifactProjectors: { "mutation-report.html": (value) => value },
+  }), /artifact|allowlist|projector/i);
+  const projectionSource = path.join(cacheFixture, "projection-evidence.json");
+  await writeFile(projectionSource, JSON.stringify({
+    sourceHash: "a".repeat(64), resultHash: "b".repeat(64),
+    endpoint: secretSentinel, password: secretSentinel,
+  }));
+  const projectionKey = sha256("projected-evidence");
+  writeSuccessfulCacheEntry({
+    root: repositoryCacheRoot,
+    evidenceKey: projectionKey,
+    entry: { result: "passed", shardKind: "stryker", classification: "verification-only" },
+    artifacts: { "projection-evidence.json": projectionSource },
+    artifactProjectors: {
+      "projection-evidence.json": (value) => ({
+        sourceHash: value.sourceHash,
+        resultHash: value.resultHash,
+      }),
     },
   });
+  const projectedEvidence = await readFile(
+    path.join(repositoryCacheRoot, projectionKey, "projection-evidence.json"), "utf8",
+  );
+  assert.equal(projectedEvidence.includes(secretSentinel), false);
+  assert.deepEqual(JSON.parse(projectedEvidence), {
+    resultHash: "b".repeat(64), sourceHash: "a".repeat(64),
+  });
+  assert.throws(() => writeSuccessfulCacheEntry({
+    root: repositoryCacheRoot,
+    evidenceKey: sha256("unknown-artifact"),
+    entry: { result: "passed", shardKind: "stryker" },
+    artifacts: { "unknown.json": reportSource },
+    artifactProjectors: { "unknown.json": (value) => value },
+  }), /artifact|allowlist|projector/i);
 
   let validatorCalls = 0;
   const hit = readCacheEntry({
@@ -1117,6 +1241,7 @@ try {
     evidenceKey: sha256("symlink-root"),
     entry: { result: "passed", shardKind: "stryker" },
     artifacts: { "mutation-report.json": reportSource },
+    artifactProjectors: mutationArtifactProjectors,
   }), /unvalidated cache path|symlink/i);
   assert.equal(await readFile(path.join(victim, "preserve.txt"), "utf8"), "preserve\n");
 
@@ -1141,6 +1266,7 @@ try {
         evidenceKey: unsafeKey,
         entry: { result: "passed", ...unsafeMetadata },
         artifacts: { "mutation-report.json": reportSource },
+        artifactProjectors: mutationArtifactProjectors,
       }),
       (error) => error.message === "Unsafe cache metadata",
     );
@@ -1172,8 +1298,8 @@ try {
     entry: { result: "passed", shardKind: "stryker", durationMs: 125 },
     artifacts: {
       "mutation-report.json": reportSource,
-      "mutation-report.html": htmlSource,
     },
+    artifactProjectors: mutationArtifactProjectors,
   });
   assert.equal(
     readCacheEntry({
@@ -1271,7 +1397,7 @@ try {
     path.join(symlinkedArtifactParent.cloneDirectory, "entry.json"),
     `${JSON.stringify(symlinkedArtifactEntry)}\n`,
   );
-  rejectedEntries.push([symlinkedArtifactParent.cloneKey, "artifact-missing"]);
+  rejectedEntries.push([symlinkedArtifactParent.cloneKey, "artifact-manifest-invalid"]);
   const traversingArtifact = await cloneEntry("traversing-artifact", (entry) => ({
     ...entry,
     artifacts: { "../external-report.json": entry.artifacts["mutation-report.json"] },
@@ -1282,6 +1408,15 @@ try {
     artifacts: { [reportSource]: entry.artifacts["mutation-report.json"] },
   }));
   rejectedEntries.push([absoluteArtifact.cloneKey, "artifact-manifest-invalid"]);
+  const unknownArtifact = await cloneEntry("unknown-artifact-read", (entry) => ({
+    ...entry,
+    artifacts: {
+      ...entry.artifacts,
+      "unknown.json": sha256("{}\n"),
+    },
+  }));
+  await writeFile(path.join(unknownArtifact.cloneDirectory, "unknown.json"), "{}\n");
+  rejectedEntries.push([unknownArtifact.cloneKey, "artifact-manifest-invalid"]);
   const truncated = await cloneEntry("truncated");
   await writeFile(path.join(truncated.cloneDirectory, "entry.json"), '{"schemaVersion":1');
   rejectedEntries.push([truncated.cloneKey, "entry-invalid"]);
@@ -1342,7 +1477,7 @@ try {
   });
   assert.equal(
     inspectOutput,
-    `Mutation cache: ${repositoryCacheRoot}\nEntries: 13\n`,
+    `Mutation cache: ${repositoryCacheRoot}\nEntries: 15\n`,
   );
   assert.throws(
     () => execFileSync(process.execPath, [cacheCli, "clear", cacheFixture], {
@@ -1355,7 +1490,7 @@ try {
 
   const cleared = clearMutationCache({ repoRoot: linkedWorktree, runGit: runFixtureGit(linkedWorktree) });
   assert.equal(cleared.root, repositoryCacheRoot);
-  assert.equal(cleared.count, 13);
+  assert.equal(cleared.count, 15);
   await assert.rejects(readFile(path.join(repositoryCacheRoot, evidenceKey, "entry.json")), /ENOENT/);
 
   const outsideDirectory = path.join(cacheFixture, "outside-do-not-delete");
