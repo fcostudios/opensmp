@@ -112,7 +112,7 @@ async function expectedInputs(root, relativePaths, toolVersions, runtimeProfile)
     ]),
   );
   entries.push(
-    ["@mutation-evidence/dependency-resolver.json", sha256(canonicalJson({ version: 3 }))],
+    ["@mutation-evidence/dependency-resolver.json", sha256(canonicalJson({ version: 4 }))],
     [
       "@mutation-evidence/fingerprint.mjs",
       sha256(await readFile(new URL("./mutation-evidence/fingerprint.mjs", import.meta.url))),
@@ -980,6 +980,29 @@ try {
   });
   assert.equal(installedPathResult.reusable, true);
   assert.ok(installedPathResult.hashes["@installed/fixture-third-party@1.0.0/index.js"]);
+
+  await put(
+    fixtureRoot,
+    "packages/tool/node_modules/fixture-tool/package.json",
+    JSON.stringify({ name: "fixture-tool", version: "1.0.0", main: "index.js" }),
+  );
+  await put(
+    fixtureRoot,
+    "packages/tool/node_modules/fixture-tool/index.js",
+    "export const tool = true;\n",
+  );
+  await put(
+    fixtureRoot,
+    "packages/vendor-user/src/tool-path-import.ts",
+    'import { tool } from "../../tool/node_modules/fixture-tool/index.js";\nexport const value = tool;\n',
+  );
+  const toolPathResult = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/vendor-user/src/tool-path-import.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+  });
+  assert.equal(toolPathResult.reusable, true);
+  assert.ok(toolPathResult.hashes["@installed/fixture-tool@1.0.0/index.js"]);
 
   await put(
     fixtureRoot,

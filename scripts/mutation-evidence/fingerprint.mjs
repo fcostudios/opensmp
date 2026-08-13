@@ -12,7 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const EVIDENCE_SCHEMA_VERSION = 1;
-const DEPENDENCY_RESOLVER_VERSION = 3;
+const DEPENDENCY_RESOLVER_VERSION = 4;
 const KNOWN_OUTPUT_DIRECTORIES = new Set([
   ".cache",
   ".next",
@@ -325,6 +325,7 @@ export function collectExecutionInputs({
     ownerFile = containingFile,
     requirement = "required",
     requestedBy = null,
+    resolvedRuntimeFile = null,
   ) => {
     const packageName = installedPackageName(specifier);
     if (builtinModules.includes(packageName) || packageName.startsWith("node:")) return;
@@ -340,8 +341,8 @@ export function collectExecutionInputs({
         unresolvedInstalledInputs.add(packageName);
       }
     };
-    let runtimeFile;
-    try {
+    let runtimeFile = resolvedRuntimeFile;
+    if (!runtimeFile) try {
       runtimeFile = createRequire(containingFile).resolve(specifier);
     } catch {
       try {
@@ -539,7 +540,14 @@ export function collectExecutionInputs({
       const isDependency = resolved.split(path.sep).includes("node_modules");
       const isLocal = !isDependency && isWithin(absoluteRoot, resolved);
       if (isDependency) {
-        collectInstalledPackage(installedPackageNameFromPath(resolved), containingFile);
+        collectInstalledPackage(
+          installedPackageNameFromPath(resolved),
+          containingFile,
+          containingFile,
+          "required",
+          null,
+          resolved,
+        );
       }
       return {
         external: !isDependency && !isLocal,
