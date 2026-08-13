@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { createElement } from "react";
+import type { ComponentProps } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { afterEach, describe, expect, test } from "vitest";
@@ -57,14 +58,12 @@ test("loading boundary renders its localized label as a polite status", () => {
 });
 
 test("loading route resolves real next-intl labels", () => {
-  render(createElement(
-    NextIntlClientProvider,
-    {
-      locale: "en-US",
-      messages: { vendorAccounts: { loading: "Boundary loading" } },
-    },
-    createElement(VendorAccountsLoading),
-  ));
+  const providerProps: ComponentProps<typeof NextIntlClientProvider> = {
+    children: createElement(VendorAccountsLoading),
+    locale: "en-US",
+    messages: { vendorAccounts: { loading: "Boundary loading" } },
+  };
+  render(createElement(NextIntlClientProvider, providerProps));
   expect(screen.getByRole("status").textContent).toBe("Boundary loading");
 });
 
@@ -85,14 +84,12 @@ test("error boundary renders the failure and invokes exactly its supplied retry"
 
 test("error route resolves real next-intl labels and delegates retry", () => {
   let retries = 0;
-  render(createElement(
-    NextIntlClientProvider,
-    {
-      locale: "en-US",
-      messages: { vendorAccounts: { loadError: "Boundary failure", retry: "Try again" } },
-    },
-    createElement(VendorAccountsError, { reset: () => { retries += 1; } }),
-  ));
+  const providerProps: ComponentProps<typeof NextIntlClientProvider> = {
+    children: createElement(VendorAccountsError, { reset: () => { retries += 1; } }),
+    locale: "en-US",
+    messages: { vendorAccounts: { loadError: "Boundary failure", retry: "Try again" } },
+  };
+  render(createElement(NextIntlClientProvider, providerProps));
   expect(screen.getByRole("alert").textContent).toContain("Boundary failure");
   fireEvent.click(screen.getByRole("button", { name: "Try again" }));
   expect(retries).toBe(1);

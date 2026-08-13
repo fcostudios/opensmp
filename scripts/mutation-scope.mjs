@@ -44,7 +44,7 @@ const SCHEMA_STATIC_SOURCE = "packages/db/src/schema.ts";
 const VITEST_CONFIG_STATIC_SOURCE = "apps/web/vitest.config.ts";
 const VITEST_CONFIG_STATIC_RANGE = `${VITEST_CONFIG_STATIC_SOURCE}:21-21`;
 const SCORED_STATIC_KINDS = new Set(["schema-static", "vitest-config-static"]);
-const VENDOR_ACCOUNT_PAGE_ADAPTER_KIND = "vendor-account-page-adapter";
+const EXACT_FRAMEWORK_ADAPTER_KIND = "exact-framework-adapter";
 const MUTATION_RUNNER_STATIC_INPUTS = [
   "scripts/mutation-scope.mjs",
   "scripts/mutation-evidence/fingerprint.mjs",
@@ -938,91 +938,48 @@ export function classifyPageWiringBundle(changes) {
   };
 }
 
-const VENDOR_ACCOUNT_PAGE_ADAPTER_SPECS = {
+const EXACT_FRAMEWORK_ADAPTERS = {
   "apps/web/src/app/(authenticated)/organizaciones/page.tsx": {
-    functionName: "VendorAccountsPage",
-    imports: ["next-intl/server", "@/modules/identity-access/server-authorization", "@/modules/vendor-catalog/actions/manage-vendor-accounts", "@/modules/vendor-catalog/vendor-account-page-loaders", "@/modules/vendor-catalog/vendor-account-page-presenters", "@/modules/vendor-catalog/production-vendor-account-repository", "@/modules/vendor-catalog/vendor-account-route-access"],
-    parameter: null,
-    statements: [
-      ["authorization-wiring", "const authorization = requireVendorAccountAdmin(await loadCurrentLedgerAuthorization());"],
-      ["load-and-translation-namespace-wiring", 'const [data, t, locale] = await Promise.all([\n    loadVendorAccountsRegistryPage({ at: new Date(), authorization, repository: getVendorAccountRepository() }),\n    getTranslations("vendorAccounts"),\n    getLocale(),\n  ]);'],
-      ["render-wiring", "return renderVendorAccountsRegistryPage({ createAction: createVendorAccount, data, locale, t });"],
-    ],
+    sha256: "23f45735460082b1f28e52da675d060d2996fbfe566ac27db6db60d75e6f99fc",
   },
   "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx": {
-    functionName: "VendorAccountDetailPage",
-    imports: ["next/navigation", "next-intl/server", "@/modules/identity-access/server-authorization", "@/modules/vendor-catalog/actions/manage-vendor-accounts", "@/modules/vendor-catalog/vendor-account-page-loaders", "@/modules/vendor-catalog/vendor-account-page-presenters", "@/modules/vendor-catalog/production-pool-repository", "@/modules/vendor-catalog/production-vendor-account-repository", "@/modules/vendor-catalog/vendor-account-route-access"],
-    parameter: "{ params }: {\n  readonly params: Promise<{ readonly vendorAccountId: string }>;\n}",
-    statements: [
-      ["authorization-wiring", "const authorization = requireVendorAccountAdmin(await loadCurrentLedgerAuthorization());"],
-      ["clock-wiring", "const at = new Date();"],
-      ["load-and-translation-namespace-wiring", 'const [outcome, t, poolsT, locale] = await Promise.all([\n    loadVendorAccountDetailPage({\n      at,\n      authorization,\n      poolRepository: getPoolRepository(),\n      rawVendorAccountId: (await params).vendorAccountId,\n      vendorAccountRepository: getVendorAccountRepository(),\n    }),\n    getTranslations("vendorAccounts"),\n    getTranslations("pools"),\n    getLocale(),\n  ]);'],
-      ["not-found-framework-wiring", 'if (outcome.kind === "not-found") notFound();'],
-      ["ready-outcome-wiring", "const { data } = outcome;"],
-      ["render-wiring", "return renderVendorAccountDetailPage({\n    data,\n    locale,\n    poolsT,\n    t,\n    updateAction: updateVendorAccount.bind(null, data.detail.id),\n  });"],
-    ],
+    sha256: "5394f1abbd72a39d45581fce4f41a4884d12cb1678b20512deddf025c11cfcc9",
   },
 };
 
-const VENDOR_ACCOUNT_PAGE_ADAPTER_SOURCES = new Set(
-  Object.keys(VENDOR_ACCOUNT_PAGE_ADAPTER_SPECS),
-);
+const EXACT_FRAMEWORK_ADAPTER_SOURCES = new Set(Object.keys(EXACT_FRAMEWORK_ADAPTERS));
 
 /**
  * Audit the two Next.js composition roots whose remaining code solely invokes
  * framework/application seams. Business decisions live in scored loaders; the
  * detail root may only dispatch the already-scored `not-found` outcome.
  */
-export function classifyVendorAccountPageAdapter(source, contents, requestedRanges = []) {
-  const spec = VENDOR_ACCOUNT_PAGE_ADAPTER_SPECS[source];
-  if (!spec) throw new Error("vendor account page adapter wrong scope");
+export function classifyExactFrameworkAdapter(source, contents, requestedRanges = []) {
+  const spec = EXACT_FRAMEWORK_ADAPTERS[source];
+  if (!spec) throw new Error("exact framework adapter wrong scope");
   if (/Stryker\s+(disable|restore)/.test(contents)) {
-    throw new Error("vendor account page adapter mutation suppression is forbidden");
+    throw new Error("exact framework adapter mutation suppression is forbidden");
   }
-  const parsed = parseModule(source, contents);
-  const imports = moduleDeclarations(parsed).filter(ts.isImportDeclaration)
-    .map((node) => node.moduleSpecifier.text);
-  if (JSON.stringify(imports) !== JSON.stringify(spec.imports)) {
-    throw new Error("vendor account exact default adapter imports changed");
-  }
-  const defaults = parsed.statements.filter((node) =>
-    ts.isFunctionDeclaration(node) && node.modifiers?.some((modifier) =>
-      modifier.kind === ts.SyntaxKind.DefaultKeyword));
-  const page = defaults[0];
-  if (
-    defaults.length !== 1 || !page.body || page.name?.text !== spec.functionName ||
-    !page.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.AsyncKeyword) ||
-    page.parameters.length !== (spec.parameter === null ? 0 : 1) ||
-    (spec.parameter !== null && page.parameters[0].getText(parsed) !== spec.parameter)
-  ) throw new Error("vendor account exact default adapter function changed");
-  const statementTexts = page.body.statements.map((statement) => statement.getText(parsed));
-  if (JSON.stringify(statementTexts) !== JSON.stringify(spec.statements.map(([, text]) => text))) {
-    throw new Error("vendor account exact default adapter statement sequence changed or business conditional reappeared");
-  }
-  const ranges = page.body.statements.map((statement, index) => {
-    const start = parsed.getLineAndCharacterOfPosition(statement.getStart(parsed)).line + 1;
-    const end = parsed.getLineAndCharacterOfPosition(statement.getEnd()).line + 1;
-    return { start, end, reason: spec.statements[index][0] };
-  });
+  if (sha256(contents) !== spec.sha256) throw new Error("exact framework adapter changed");
   for (const target of requestedRanges) {
     const range = rangeParts(target);
     if (range.source !== source || range.start < 1 || range.end > lineCount(contents)) {
-      throw new Error("vendor account page adapter range escapes exact source");
+      throw new Error("exact framework adapter range escapes source");
     }
   }
   return {
-    ranges,
-    reason: "verification-only:vendor-account-page-adapter",
+    ranges: requestedRanges.map((target) => ({ target, reason: "exact-source-hash" })),
+    reason: "verification-only:exact-framework-adapter",
     source,
     verifiedMutationRanges: [...requestedRanges],
   };
 }
 
-export function partitionVendorAccountPageAdapterTargets(targets, sourceContents) {
+export function partitionExactFrameworkAdapterTargets(targets, sourceContents) {
   const adapter = targets.filter((target) =>
-    VENDOR_ACCOUNT_PAGE_ADAPTER_SOURCES.has(rangeParts(target).source));
+    EXACT_FRAMEWORK_ADAPTER_SOURCES.has(rangeParts(target).source));
   for (const source of mutationSourceFiles(adapter)) {
-    classifyVendorAccountPageAdapter(
+    classifyExactFrameworkAdapter(
       source,
       sourceContents(source),
       adapter.filter((target) => rangeParts(target).source === source),
@@ -1106,12 +1063,12 @@ export function verificationAuditsForReport(
     return [audit];
   }
   const vendorPageSources = shard.sources.filter((source) =>
-    VENDOR_ACCOUNT_PAGE_ADAPTER_SOURCES.has(source));
+    EXACT_FRAMEWORK_ADAPTER_SOURCES.has(source));
   if (vendorPageSources.length > 0) {
     if (vendorPageSources.length !== shard.sources.length) {
-      throw new Error("vendor account page adapter cannot share a verification-only shard");
+      throw new Error("exact framework adapter cannot share a verification-only shard");
     }
-    return vendorPageSources.map((source) => classifyVendorAccountPageAdapter(
+    return vendorPageSources.map((source) => classifyExactFrameworkAdapter(
       source,
       readFileSync(source, "utf8"),
       shard.mutate.filter((range) => rangeParts(range).source === source),
@@ -1342,9 +1299,9 @@ export function verificationCommandsForSources(sources, testFiles, context = {})
     commands.push(["pnpm", ["--filter", "smp-web", "type-check"]]);
     commands.push(["pnpm", ["--filter", "smp-web", "build"]]);
   }
-  if (sources.some((source) => VENDOR_ACCOUNT_PAGE_ADAPTER_SOURCES.has(source))) {
-    if (!sources.every((source) => VENDOR_ACCOUNT_PAGE_ADAPTER_SOURCES.has(source))) {
-      throw new Error("vendor account page adapter verification must be isolated");
+  if (sources.some((source) => EXACT_FRAMEWORK_ADAPTER_SOURCES.has(source))) {
+    if (!sources.every((source) => EXACT_FRAMEWORK_ADAPTER_SOURCES.has(source))) {
+      throw new Error("exact framework adapter verification must be isolated");
     }
     commands.push([
       "./apps/web/node_modules/.bin/vitest",
@@ -1878,7 +1835,7 @@ export async function runMutationScope(options = {}) {
     );
   }
   const staticMutate = new Set([...schemaStaticMutate, ...vitestConfigStaticMutate]);
-  const adapterPartition = partitionVendorAccountPageAdapterTargets(
+  const adapterPartition = partitionExactFrameworkAdapterTargets(
     allMutate,
     (source) => readFileSync(source, "utf8"),
   );
@@ -1917,10 +1874,10 @@ export async function runMutationScope(options = {}) {
     const testFiles = [...new Set(vendorAccountPageAdapterSources.flatMap((source) =>
       mutationCompatibleTestFiles(testsForSource(source, existsSync, DIRECT_TEST_ROUTES))))].sort();
     if (testFiles.length === 0) {
-      fail("vendor account page adapter has no accountable focused tests");
+      fail("exact framework adapter has no accountable focused tests");
     }
     shardSpecs.push({
-      kind: VENDOR_ACCOUNT_PAGE_ADAPTER_KIND,
+      kind: EXACT_FRAMEWORK_ADAPTER_KIND,
       mutate: vendorAccountPageAdapterMutate,
       sources: vendorAccountPageAdapterSources,
       testFiles,
@@ -2324,7 +2281,7 @@ export async function runMutationScope(options = {}) {
       }
       const childEnvironment = controlledChildEnvironment(shardEnvironment, runtimeProfile);
       let result;
-      if (shard.kind === VENDOR_ACCOUNT_PAGE_ADAPTER_KIND) {
+      if (shard.kind === EXACT_FRAMEWORK_ADAPTER_KIND) {
         writeFileSync(shard.jsonReportPath, `${JSON.stringify({
           config: {
             configFile: shard.configPath,

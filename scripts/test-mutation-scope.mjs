@@ -19,7 +19,7 @@ import {
   DIRECT_TEST_ROUTES,
   classifyPageWiringBundle,
   classifyPoolSnapshotProjectionBundle,
-  classifyVendorAccountPageAdapter,
+  classifyExactFrameworkAdapter,
   classifyVerificationOnlyHunk,
   controlledChildEnvironment,
   createCampaignRuntimeProfileResolver,
@@ -30,7 +30,7 @@ import {
   isDatabaseBacked,
   mutationCompatibleTestFiles,
   mutatable,
-  partitionVendorAccountPageAdapterTargets,
+  partitionExactFrameworkAdapterTargets,
   projectionEvidencePathForShard,
   readFreshMutationReport,
   requireNonzeroMutationReport,
@@ -82,46 +82,28 @@ assert.deepEqual(
 
 const vendorRegistryPageSource = "apps/web/src/app/(authenticated)/organizaciones/page.tsx";
 const vendorDetailPageSource = "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx";
-const vendorRegistryPageAudit = classifyVendorAccountPageAdapter(
+const vendorRegistryPageAudit = classifyExactFrameworkAdapter(
   vendorRegistryPageSource,
   readFileSync(vendorRegistryPageSource, "utf8"),
 );
-const vendorDetailPageAudit = classifyVendorAccountPageAdapter(
+const vendorDetailPageAudit = classifyExactFrameworkAdapter(
   vendorDetailPageSource,
   readFileSync(vendorDetailPageSource, "utf8"),
 );
-assert.equal(vendorRegistryPageAudit.reason, "verification-only:vendor-account-page-adapter");
-assert.deepEqual(
-  vendorRegistryPageAudit.ranges.map(({ reason }) => reason),
-  [
-    "authorization-wiring",
-    "load-and-translation-namespace-wiring",
-    "render-wiring",
-  ],
-);
-assert.deepEqual(
-  vendorDetailPageAudit.ranges.map(({ reason }) => reason),
-  [
-    "authorization-wiring",
-    "clock-wiring",
-    "load-and-translation-namespace-wiring",
-    "not-found-framework-wiring",
-    "ready-outcome-wiring",
-    "render-wiring",
-  ],
-);
+assert.equal(vendorRegistryPageAudit.reason, "verification-only:exact-framework-adapter");
+assert.equal(vendorDetailPageAudit.reason, "verification-only:exact-framework-adapter");
 assert.throws(
-  () => classifyVendorAccountPageAdapter(
+  () => classifyExactFrameworkAdapter(
     vendorDetailPageSource,
     readFileSync(vendorDetailPageSource, "utf8").replace(
       'if (outcome.kind === "not-found") notFound();',
       "if (!outcome) notFound();",
     ),
   ),
-  /business conditional|exact default adapter/,
+  /exact framework adapter changed/,
 );
 assert.deepEqual(
-  partitionVendorAccountPageAdapterTargets([
+  partitionExactFrameworkAdapterTargets([
     `${vendorDetailPageSource}:12-12`,
     "apps/web/src/modules/vendor-catalog/vendor-account-page-loaders.ts:1-49",
     `${vendorRegistryPageSource}:10-18`,
@@ -133,25 +115,25 @@ assert.deepEqual(
   "only exact thin page-adapter ranges leave the scored mutation route",
 );
 assert.throws(
-  () => classifyVendorAccountPageAdapter(
+  () => classifyExactFrameworkAdapter(
     vendorDetailPageSource,
     readFileSync(vendorDetailPageSource, "utf8").replace(
       "  const at = new Date();",
       "  const at = new Date();\n  invokeUnscoredBusinessRule();",
     ),
   ),
-  /exact default adapter statement sequence changed/,
+  /exact framework adapter changed/,
   "an extra unconditional business call cannot enter verification-only ranges",
 );
 assert.throws(
-  () => classifyVendorAccountPageAdapter(
+  () => classifyExactFrameworkAdapter(
     vendorDetailPageSource,
     readFileSync(vendorDetailPageSource, "utf8").replace(
       "readonly vendorAccountId: string",
       "readonly vendorAccountId?: string",
     ),
   ),
-  /exact default adapter function changed/,
+  /exact framework adapter changed/,
   "the dynamic-route parameter signature is part of the exact adapter contract",
 );
 
