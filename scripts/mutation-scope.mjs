@@ -935,6 +935,31 @@ export function requireNonzeroMutationReport(report, shardId) {
   return testable.length;
 }
 
+export function validateScoredMutationReport(report, breakThreshold, shardId) {
+  const mutants = mutationReportMutants(report);
+  requireNonzeroMutationReport(report, shardId);
+  const terminal = new Set([
+    "Killed", "Survived", "NoCoverage", "CompileError", "RuntimeError", "Timeout", "Ignored",
+  ]);
+  for (const mutant of mutants) {
+    if (!terminal.has(mutant.status)) {
+      throw new Error(`non-terminal or unknown mutant status in ${shardId}`);
+    }
+  }
+  const valid = mutants.filter((mutant) =>
+    ["Killed", "Timeout", "Survived", "NoCoverage"].includes(mutant.status));
+  if (valid.length === 0) throw new Error(`scored mutation shard ${shardId} has zero valid mutants`);
+  const detected = valid.filter((mutant) => ["Killed", "Timeout"].includes(mutant.status)).length;
+  const score = (detected / valid.length) * 100;
+  if (!Number.isFinite(breakThreshold) || breakThreshold < 0 || breakThreshold > 100) {
+    throw new Error(`invalid mutation break threshold for ${shardId}`);
+  }
+  if (score < breakThreshold) {
+    throw new Error(`mutation score ${score.toFixed(2)} is below break threshold ${breakThreshold}: ${shardId}`);
+  }
+  return score;
+}
+
 export function requireNonzeroStaticShard(kind, mutantCount, shardId) {
   if (SCORED_STATIC_KINDS.has(kind) && mutantCount === 0) {
     throw new Error(`scored mutation shard ${shardId} instrumented zero mutants`);
@@ -1016,10 +1041,32 @@ export function readFreshMutationReport(
   }
 }
 
-export function runVerificationCommands(commands, run = spawnSync) {
+export function controlledChildEnvironment(environment, runtimeProfile = {}) {
+  const allowed = [
+    "PATH", "HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "TMP", "TEMP",
+    "LANG", "LC_ALL", "LC_MESSAGES", "TZ", "MIGRATIONS_DIR",
+  ];
+  if (runtimeProfile.databaseDriver === "postgres") {
+    const harness = runtimeProfile.databaseHarness ?? "default";
+    if (harness === "default") allowed.push("DATABASE_URL", "DATABASE_ADMIN_URL");
+    else {
+      const prefix = harness.toUpperCase();
+      allowed.push(
+        `${prefix}_MUTATION_DATABASE_URL`,
+        `${prefix}_MUTATION_DATABASE_ADMIN_URL`,
+      );
+    }
+    allowed.push("DB_DRIVER");
+  }
+  return Object.fromEntries(allowed
+    .filter((key) => typeof environment[key] === "string")
+    .map((key) => [key, environment[key]]));
+}
+
+export function runVerificationCommands(commands, run = spawnSync, environment = {}) {
   if (commands.length === 0) throw new Error("verification-only result has no commands");
   for (const [command, args] of commands) {
-    const result = run(command, args, { stdio: "inherit" });
+    const result = run(command, args, { stdio: "inherit", env: environment });
     if (result.status !== 0) {
       throw new Error(`verification command failed: ${command} ${args.join(" ")}`);
     }
@@ -1428,8 +1475,19 @@ export function createCampaignRuntimeProfileResolver(provider, environment = pro
 
 function rehydrateCachedReport(cachedPath, destination, shard) {
   const report = JSON.parse(readFileSync(cachedPath, "utf8"));
+  if (report.config?.mutationIdentity !== contentHash(JSON.stringify(shard.mutate))) {
+    throw new Error(`cached mutation config identity mismatch: ${shard.id}`);
+  }
+  for (const [source, file] of Object.entries(report.files ?? {})) {
+    const sourceBytes = readFileSync(source, "utf8");
+    if (file.sourceHash !== contentHash(sourceBytes)) {
+      throw new Error(`cached mutation source identity mismatch: ${source}`);
+    }
+    file.source = sourceBytes;
+    delete file.sourceHash;
+  }
   report.config = {
-    ...report.config,
+    mutate: shard.mutate,
     configFile: shard.configPath,
     jsonReporter: { ...report.config?.jsonReporter, fileName: shard.jsonReportPath },
   };
@@ -1753,8 +1811,10 @@ export async function runMutationScope(options = {}) {
     shards.map((shard) => shard.evidenceKey).sort().join("\n"),
   );
   persist();
-  const executeShard = options.executeShard ?? (({ shard }) => spawnSync(
-    "pnpm", ["exec", "stryker", "run", shard.configPath], { stdio: "inherit" },
+  const executeShard = options.executeShard ?? (({ shard, environment: childEnvironment }) => spawnSync(
+    "pnpm", ["exec", "stryker", "run", shard.configPath], {
+      stdio: "inherit", env: childEnvironment,
+    },
   ));
     for (const shard of shards) {
       const { commandList, executionInputs, runtimeProfile } = executionContexts.get(shard.id);
@@ -1801,7 +1861,7 @@ export async function runMutationScope(options = {}) {
             const mutants = mutationReportMutants(report);
             if (mutants.length > 0) {
               if (entry.classification !== "scored") return false;
-              requireNonzeroMutationReport(report, shard.id);
+              validateScoredMutationReport(report, shard.config.thresholds.break, shard.id);
             } else {
               if (entry.classification !== "verification-only") return false;
               requireNonzeroStaticShard(shard.kind, mutants.length, shard.id);
@@ -1812,10 +1872,6 @@ export async function runMutationScope(options = {}) {
         });
       }
       if (cached?.hit) {
-        if (cached.artifacts["mutation-report.html"]) {
-          mkdirSync(dirname(shard.reportPath), { recursive: true });
-          copyFileSync(cached.artifacts["mutation-report.html"], shard.reportPath);
-        }
         shard.classification = cached.entry.classification;
         const cachedReport = JSON.parse(readFileSync(shard.jsonReportPath, "utf8"));
         shard.mutantCount = mutationReportMutants(cachedReport).length;
@@ -1853,7 +1909,8 @@ export async function runMutationScope(options = {}) {
       }
       rmSync(shard.jsonReportPath, { force: true });
       rmSync(shard.reportPath, { force: true });
-      const result = executeShard({ shard });
+      const childEnvironment = controlledChildEnvironment(environment, runtimeProfile);
+      const result = executeShard({ shard, environment: childEnvironment });
       const report = readFreshMutationReport(shard.jsonReportPath, startedAt);
       validateMutationReportIdentity(
         report,
@@ -1876,7 +1933,11 @@ export async function runMutationScope(options = {}) {
           shard.testFiles,
           { evidencePath: projectionEvidencePath },
         );
-        runVerificationCommands(commands, options.verificationRunner ?? spawnSync);
+        runVerificationCommands(
+          commands,
+          options.verificationRunner ?? spawnSync,
+          childEnvironment,
+        );
         shard.classification = "verification-only";
         shard.result = {
           audits,
@@ -1893,7 +1954,7 @@ export async function runMutationScope(options = {}) {
         };
         console.log(`mutation-scope: verified non-mutatable source bundle ${shard.id}`);
       } else {
-        requireNonzeroMutationReport(report, shard.id);
+        validateScoredMutationReport(report, shard.config.thresholds.break, shard.id);
         shard.classification = "scored";
         shard.result = result.status === 0 ? "passed" : "failed";
       }
@@ -1912,7 +1973,6 @@ export async function runMutationScope(options = {}) {
       if (cacheMode === "enabled" && shard.reason !== "runtime-profile-unavailable"
           && executionInputs.reusable) {
         const artifacts = { "mutation-report.json": shard.jsonReportPath };
-        if (existsSync(shard.reportPath)) artifacts["mutation-report.html"] = shard.reportPath;
         const projectionPath = projectionEvidencePathForShard(shard);
         if (projectionPath && existsSync(projectionPath)) artifacts["projection-evidence.json"] = projectionPath;
         writeSuccessfulCacheEntry({

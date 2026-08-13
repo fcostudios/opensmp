@@ -21,6 +21,7 @@ import {
   classifyPageWiringBundle,
   classifyPoolSnapshotProjectionBundle,
   classifyVerificationOnlyHunk,
+  controlledChildEnvironment,
   createCampaignRuntimeProfileResolver,
   groupRoutedMutationTargets,
   mutationCompatibleTestFiles,
@@ -32,6 +33,7 @@ import {
   routedTestFiles,
   runVerificationCommands,
   validateMutationReportIdentity,
+  validateScoredMutationReport,
   verificationCommandsForSources,
   verificationAuditsForReport,
   verifyContractsBarrelSource,
@@ -679,6 +681,28 @@ assert.equal(
   runVerificationCommands([["tool", ["test"]]], () => ({ status: 0 })),
   1,
 );
+const childEnvironment = controlledChildEnvironment({
+  PATH: "/bin", HOME: "/safe-home", TMPDIR: "/tmp", LANG: "en_US.UTF-8", TZ: "UTC",
+  NODE_OPTIONS: "--require=/tmp/secret-preload.cjs",
+  npm_config_userconfig: "/tmp/secret-npmrc",
+  US017_MUTATION_DATABASE_URL: "postgres://app:secret@db/ledger",
+  US017_MUTATION_DATABASE_ADMIN_URL: "postgres://owner:secret@db/ledger",
+  US018_MUTATION_DATABASE_URL: "postgres://wrong:secret@db/ledger",
+}, {
+  databaseDriver: "postgres", databaseHarness: "us017", schemaFingerprint: "a".repeat(64),
+});
+assert.deepEqual(Object.keys(childEnvironment).sort(), [
+  "HOME", "LANG", "PATH", "TMPDIR", "TZ",
+  "US017_MUTATION_DATABASE_ADMIN_URL", "US017_MUTATION_DATABASE_URL",
+]);
+assert.equal("NODE_OPTIONS" in childEnvironment, false);
+assert.equal("npm_config_userconfig" in childEnvironment, false);
+let capturedVerificationEnvironment;
+runVerificationCommands([["tool", ["test"]]], (_command, _args, options) => {
+  capturedVerificationEnvironment = options.env;
+  return { status: 0 };
+}, childEnvironment);
+assert.deepEqual(capturedVerificationEnvironment, childEnvironment);
 let downgradeClassifierCalls = 0;
 assert.throws(
   () => verificationAuditsForReport(
@@ -719,6 +743,22 @@ assert.equal(
   validateMutationReportIdentity(identityReport, identityShard, identityConfig, () => "hello world"),
   true,
 );
+const statusReport = (statuses) => ({
+  files: { "src/a.ts": { mutants: statuses.map((status, id) => ({ id: String(id), status })) } },
+});
+assert.equal(validateScoredMutationReport(statusReport([
+  "Killed", "Timeout", "RuntimeError", "CompileError", "NoCoverage", "Ignored",
+]), 50, "status-semantics"), (2 / 3) * 100);
+assert.throws(
+  () => validateScoredMutationReport(statusReport(["Survived"]), 80, "forged-zero"),
+  /below break threshold/,
+);
+for (const status of ["Pending", "TimedOut", "Error", "Unknown", ""] ) {
+  assert.throws(
+    () => validateScoredMutationReport(statusReport([status]), 0, "nonterminal"),
+    /non-terminal or unknown mutant status/,
+  );
+}
 assert.throws(
   () => validateMutationReportIdentity(
     { ...identityReport, config: { ...identityReport.config, mutate: ["src/a.ts:1-9"] } },
@@ -1104,6 +1144,7 @@ const cacheWrite = (path, contents) => {
 };
 const cacheRun = async (overrides = {}) => {
   let executions = 0;
+  const childEnvironments = [];
   const result = await runMutationScope({
     cwd: cacheFixtureRoot,
     env: { MUTATION_BASE: cacheFixtureBase, ...overrides.env },
@@ -1125,8 +1166,9 @@ const cacheRun = async (overrides = {}) => {
     })),
     beforeEvidence: overrides.beforeEvidence,
     signalProcess: overrides.signalProcess,
-    executeShard: ({ shard }) => {
+    executeShard: ({ shard, environment }) => {
       executions += 1;
+      childEnvironments.push(environment);
       const mutantLine = Number(/:(\d+)-/.exec(shard.mutate[0])?.[1]);
       const report = {
         config: {
@@ -1148,7 +1190,7 @@ const cacheRun = async (overrides = {}) => {
       return { status: overrides.executorStatus ?? 0 };
     },
   });
-  return { executions, result };
+  return { childEnvironments, executions, result };
 };
 let cacheFixtureBase;
 try {
@@ -1242,7 +1284,7 @@ try {
   const stable = await cacheRun();
   const stableShard = stable.result.manifest.shards[0];
   const cacheEntryRoot = join(
-    cacheFixtureRoot, ".git", "ledger-mutation-cache", "v1", stableShard.evidenceKey,
+    cacheFixtureRoot, ".git", "ledger-mutation-cache", "v2", stableShard.evidenceKey,
   );
   const entryPath = join(cacheEntryRoot, "entry.json");
   for (const [field, mutateEntry] of [
@@ -1263,6 +1305,20 @@ try {
     const tampered = await cacheRun();
     assert.equal(tampered.executions, 1, `${field} metadata tampering must execute`);
     assert.equal(tampered.result.manifest.shards[0].cacheDecision, "rejected");
+  }
+  for (const forgedStatus of ["Survived", "Pending", "Unknown"]) {
+    const reportPath = join(cacheEntryRoot, "mutation-report.json");
+    const forgedReport = JSON.parse(readFileSync(reportPath, "utf8"));
+    forgedReport.files[cacheSource].mutants[0].status = forgedStatus;
+    const forgedBytes = `${JSON.stringify(forgedReport)}\n`;
+    writeFileSync(reportPath, forgedBytes, "utf8");
+    const coordinatedEntry = JSON.parse(readFileSync(entryPath, "utf8"));
+    coordinatedEntry.artifacts["mutation-report.json"] = createHash("sha256")
+      .update(forgedBytes).digest("hex");
+    writeFileSync(entryPath, `${JSON.stringify(coordinatedEntry)}\n`, "utf8");
+    const forged = await cacheRun();
+    assert.equal(forged.executions, 1, `${forgedStatus} cached report must execute`);
+    assert.equal(forged.result.manifest.shards[0].cacheDecision, "rejected");
   }
   writeFileSync(join(cacheEntryRoot, "mutation-report.json"), "{corrupt", "utf8");
   const corrupt = await cacheRun();
@@ -1285,6 +1341,15 @@ try {
   assert.equal(JSON.stringify(unavailable.result.manifest).includes("databaseUrl"), false);
   assert.equal(JSON.stringify(unavailable.result.manifest).includes("localhost"), false);
   assert.equal((await cacheRun({ env: { MUTATION_CACHE: "off" } })).executions, 1);
+  const withoutNodeOptions = await cacheRun({ env: { MUTATION_CACHE: "off" } });
+  const withNodeOptions = await cacheRun({
+    env: { MUTATION_CACHE: "off", NODE_OPTIONS: "--require=/tmp/secret-preload.cjs" },
+  });
+  assert.equal(withoutNodeOptions.result.manifest.shards[0].evidenceKey,
+    withNodeOptions.result.manifest.shards[0].evidenceKey);
+  assert.equal("NODE_OPTIONS" in withoutNodeOptions.childEnvironments[0], false);
+  assert.equal("NODE_OPTIONS" in withNodeOptions.childEnvironments[0], false);
+  assert.equal(JSON.stringify(withNodeOptions.result.manifest).includes("secret-preload"), false);
 
   const performanceDirectory = join(cacheFixtureRoot, "reports/mutation-performance");
   const failureRecordsBefore = new Set(
@@ -1535,7 +1600,7 @@ try {
   assert.deepEqual(projectionWarmShard.result, projectionColdShard.result);
 
   const projectionEntryRoot = join(
-    projectionFixtureRoot, ".git", "ledger-mutation-cache", "v1", projectionWarmShard.evidenceKey,
+    projectionFixtureRoot, ".git", "ledger-mutation-cache", "v2", projectionWarmShard.evidenceKey,
   );
   const projectionEntryPath = join(projectionEntryRoot, "entry.json");
   const tamperProjection = async (evidence) => {

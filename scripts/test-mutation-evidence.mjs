@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -276,9 +277,10 @@ try {
   await put(
     fixtureRoot,
     "packages/db/scripts/apply-migrations.mjs",
-    'import "./migration-helper.mjs";\n',
+    'import { readFileSync } from "node:fs";\nimport "./migration-helper.mjs";\nexport const read = readFileSync;\n',
   );
   await put(fixtureRoot, "packages/db/scripts/migration-helper.mjs", "export const helper = 1;\n");
+  await put(fixtureRoot, "packages/db/.tmp/incidental-output.json", '{"secret":"ignored"}\n');
   await put(
     fixtureRoot,
     "packages/db/src/postgres-container.ts",
@@ -650,10 +652,19 @@ try {
         toolVersions,
         runtimeProfile,
       ),
-      reasons: [],
-      reusable: true,
+      reasons: [{ code: "excluded-runtime-inputs", workspace: "packages/safe" }],
+      reusable: false,
     },
   );
+  await put(fixtureRoot, "packages/safe/src/no-fs.ts", "export const value = 1;\n");
+  const noFileSystemFallback = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/safe/src/no-fs.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+  });
+  assert.equal(noFileSystemFallback.reusable, true);
+  assert.equal(Object.keys(noFileSystemFallback.hashes).some((file) =>
+    /packages\/safe\/(?:dist|build|reports|\.tmp)\//.test(file)), false);
   await put(
     fixtureRoot,
     "apps/next-shim/package.json",
@@ -905,18 +916,23 @@ try {
     toolVersions,
     runtimeProfile,
   });
-  assert.equal(symlinkNodeModulesResult.reusable, true);
-  assert.deepEqual(symlinkNodeModulesResult.reasons, []);
+  assert.equal(symlinkNodeModulesResult.reusable, false);
+  assert.ok(symlinkNodeModulesResult.reasons.some(({ code }) => code === "symlink-runtime-input"));
 
   await put(
     fixtureRoot,
     "node_modules/fixture-third-party/package.json",
-    '{"name":"fixture-third-party","types":"index.d.ts"}',
+    '{"name":"fixture-third-party","version":"1.0.0","types":"index.d.ts","main":"index.js"}',
   );
   await put(
     fixtureRoot,
     "node_modules/fixture-third-party/index.d.ts",
     "export declare const thirdParty: boolean;\n",
+  );
+  await put(
+    fixtureRoot,
+    "node_modules/fixture-third-party/index.js",
+    "export const thirdParty = true;\n",
   );
   await put(
     fixtureRoot,
@@ -937,7 +953,19 @@ try {
     runtimeProfile,
   });
   assert.equal(thirdPartyResult.reusable, true);
-  assert.equal(Object.keys(thirdPartyResult.hashes).some((file) => file.includes("node_modules")), false);
+  assert.ok(thirdPartyResult.hashes["@installed/fixture-third-party@1.0.0/package.json"]);
+  assert.ok(thirdPartyResult.hashes["@installed/fixture-third-party@1.0.0/index.js"]);
+  const installedRuntimeHash = thirdPartyResult.hashes["@installed/fixture-third-party@1.0.0/index.js"];
+  await put(
+    fixtureRoot,
+    "node_modules/fixture-third-party/index.js",
+    "export const thirdParty = false;\n",
+  );
+  assert.notEqual(collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/vendor-user/src/main.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+  }).hashes["@installed/fixture-third-party@1.0.0/index.js"], installedRuntimeHash);
 } finally {
   delete process.env.LEDGER_FINGERPRINT_SECRET_SENTINEL;
   await rm(fixtureRoot, { recursive: true, force: true });
@@ -955,6 +983,11 @@ const repositoryProbe = collectExecutionInputs({
 assert.equal(repositoryProbe.reusable, false);
 assert.ok(repositoryProbe.reasons.some(({ code }) => code === "environment-runtime-input"));
 assert.ok(repositoryProbe.hashes["scripts/mutation-scope.mjs"]);
+for (const tool of ["typescript@", "vitest@", "@stryker-mutator/core@"]) {
+  assert.ok(Object.keys(repositoryProbe.hashes).some((input) =>
+    input.startsWith(`@installed/${tool}`)), `${tool} installed bytes must be fingerprinted`);
+}
+assert.ok(repositoryProbe.hashes["@tool/pnpm-executable"]);
 
 const connectorDispatchProbe = collectExecutionInputs({
   root: path.resolve(new URL("..", import.meta.url).pathname),
@@ -994,16 +1027,34 @@ try {
     repository,
     runFixtureGit(repository)(["rev-parse", "--git-common-dir"]),
   ));
-  assert.equal(repositoryCacheRoot, path.join(commonDirectory, "ledger-mutation-cache", "v1"));
+  assert.equal(repositoryCacheRoot, path.join(commonDirectory, "ledger-mutation-cache", "v2"));
   assert.equal(linkedCacheRoot, repositoryCacheRoot);
-  assert.equal(CACHE_SCHEMA_VERSION, 1);
+  assert.equal(CACHE_SCHEMA_VERSION, 2);
 
   const evidenceKey = sha256("successful-cache-entry");
   const reportSource = path.join(cacheFixture, "mutation-report.json");
   const htmlSource = path.join(cacheFixture, "mutation-report.html");
-  await writeFile(reportSource, JSON.stringify({ files: {}, schemaVersion: "1" }));
-  await writeFile(htmlSource, "<html>passed</html>\n");
   const secretSentinel = "postgres://cache-secret:do-not-write@example.invalid/ledger";
+  await writeFile(reportSource, JSON.stringify({
+    config: {
+      mutate: [secretSentinel], configFile: secretSentinel,
+      jsonReporter: { fileName: secretSentinel },
+    },
+    files: {
+      "source.ts": {
+        source: secretSentinel,
+        mutants: [{
+          id: "0", mutatorName: "BooleanLiteral", replacement: secretSentinel,
+          location: { start: { line: 1, column: 20 }, end: { line: 1, column: 24 } },
+          status: "Killed", statusReason: secretSentinel,
+          testsCompleted: 1, killedBy: [secretSentinel], coveredBy: [secretSentinel],
+        }],
+      },
+    },
+    diagnostics: secretSentinel,
+    testFiles: [{ name: secretSentinel }],
+  }));
+  await writeFile(htmlSource, `<html>${secretSentinel}</html>\n`);
   writeSuccessfulCacheEntry({
     root: repositoryCacheRoot,
     evidenceKey,
@@ -1025,14 +1076,14 @@ try {
     validateArtifacts(artifacts, entry) {
       validatorCalls += 1;
       assert.equal(entry.result, "passed");
-      assert.deepEqual(Object.keys(artifacts).sort(), [
-        "mutation-report.html",
-        "mutation-report.json",
+      assert.deepEqual(Object.keys(artifacts), ["mutation-report.json"]);
+      const projected = JSON.parse(execFileSync("node", ["-e", `process.stdout.write(require('fs').readFileSync(${JSON.stringify(artifacts["mutation-report.json"])}, 'utf8'))`], { encoding: "utf8" }));
+      assert.deepEqual(Object.keys(projected).sort(), ["config", "files"]);
+      assert.equal("source" in projected.files["source.ts"], false);
+      assert.match(projected.files["source.ts"].sourceHash, /^[a-f0-9]{64}$/);
+      assert.deepEqual(Object.keys(projected.files["source.ts"].mutants[0]).sort(), [
+        "id", "location", "mutatorName", "status",
       ]);
-      assert.deepEqual(JSON.parse(execFileSync("node", ["-e", `process.stdout.write(require('fs').readFileSync(${JSON.stringify(artifacts["mutation-report.json"])}, 'utf8'))`], { encoding: "utf8" })), {
-        files: {},
-        schemaVersion: "1",
-      });
       return true;
     },
   });
@@ -1042,11 +1093,32 @@ try {
   assert.equal(validatorCalls, 1);
   const persistedEntry = await readFile(path.join(repositoryCacheRoot, evidenceKey, "entry.json"), "utf8");
   assert.equal(persistedEntry.includes(secretSentinel), false);
+  assert.equal(
+    (await Promise.all((await readdir(path.join(repositoryCacheRoot, evidenceKey))).map((name) =>
+      readFile(path.join(repositoryCacheRoot, evidenceKey, name), "utf8")))).join("\n")
+      .includes(secretSentinel),
+    false,
+  );
+  assert.equal(existsSync(path.join(repositoryCacheRoot, evidenceKey, "mutation-report.html")), false);
   assert.equal(persistedEntry.includes("DATABASE_URL"), false);
   assert.equal(
     (await readdir(repositoryCacheRoot)).some((name) => name.endsWith(".temporary")),
     false,
   );
+
+  const victim = path.join(cacheFixture, "victim");
+  await mkdir(victim);
+  await writeFile(path.join(victim, "preserve.txt"), "preserve\n");
+  const symlinkedCacheParent = path.join(cacheFixture, "symlinked-common", "ledger-mutation-cache");
+  await mkdir(path.dirname(symlinkedCacheParent), { recursive: true });
+  await symlink(victim, symlinkedCacheParent);
+  assert.throws(() => writeSuccessfulCacheEntry({
+    root: path.join(symlinkedCacheParent, "v2"),
+    evidenceKey: sha256("symlink-root"),
+    entry: { result: "passed", shardKind: "stryker" },
+    artifacts: { "mutation-report.json": reportSource },
+  }), /unvalidated cache path|symlink/i);
+  assert.equal(await readFile(path.join(victim, "preserve.txt"), "utf8"), "preserve\n");
 
   const unsafeEntries = [
     { runtimeProfile: { platform: "linux", DATABASE_URL: secretSentinel } },
@@ -1130,13 +1202,13 @@ try {
     const sourceDirectory = path.join(repositoryCacheRoot, evidenceKey);
     const cloneDirectory = path.join(repositoryCacheRoot, cloneKey);
     await mkdir(cloneDirectory, { recursive: true });
-    for (const artifactName of ["mutation-report.json", "mutation-report.html"]) {
+    const originalEntry = JSON.parse(await readFile(path.join(sourceDirectory, "entry.json"), "utf8"));
+    for (const artifactName of Object.keys(originalEntry.artifacts)) {
       await writeFile(
         path.join(cloneDirectory, artifactName),
         await readFile(path.join(sourceDirectory, artifactName)),
       );
     }
-    const originalEntry = JSON.parse(await readFile(path.join(sourceDirectory, "entry.json"), "utf8"));
     await writeFile(
       path.join(cloneDirectory, "entry.json"),
       `${JSON.stringify(transformEntry({ ...originalEntry, evidenceKey: cloneKey }))}\n`,
@@ -1150,7 +1222,7 @@ try {
     rejectedEntries.push([clone.cloneKey, "result-not-passed"]);
   }
   const partial = await cloneEntry("partial");
-  await rm(path.join(partial.cloneDirectory, "mutation-report.html"));
+  await rm(path.join(partial.cloneDirectory, "mutation-report.json"));
   rejectedEntries.push([partial.cloneKey, "artifact-missing"]);
   const tampered = await cloneEntry("tampered");
   await writeFile(path.join(tampered.cloneDirectory, "mutation-report.json"), '{"tampered":true}\n');

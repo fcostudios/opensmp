@@ -4,9 +4,10 @@ import {
   lstatSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   statSync,
 } from "node:fs";
-import { createRequire } from "node:module";
+import { builtinModules, createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -110,10 +111,18 @@ function walkFiles(directory, onExcluded = () => {}, onSymlink = () => {}) {
   if (!directoryStat.isDirectory()) return [directory];
   const files = [];
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    if ([".git", "node_modules"].includes(entry.name)) {
+    if (entry.name === ".git") {
+      continue;
+    }
+    if (entry.name === "node_modules") {
+      onExcluded();
+      const nodeModulesPath = path.join(directory, entry.name);
+      if (entry.isSymbolicLink() || (entry.isDirectory() && readdirSync(nodeModulesPath, { withFileTypes: true })
+        .some((dependency) => dependency.isSymbolicLink()))) onSymlink();
       continue;
     }
     if (KNOWN_OUTPUT_DIRECTORIES.has(entry.name)) {
+      onExcluded();
       continue;
     }
     if (entry.name === "generated") {
@@ -286,6 +295,8 @@ export function collectExecutionInputs({
   const environmentInputWorkspaces = new Set();
   const computedChildExecutionWorkspaces = new Set();
   const safeEnvironment = {};
+  const installedInputs = new Map();
+  const installedPackages = new Set();
   const compilerConfigurationCache = new Map();
   const includedCompilerConfigurations = new Set();
   const fileSystemModules = new Set(["fs", "fs/promises", "node:fs", "node:fs/promises"]);
@@ -297,6 +308,73 @@ export function collectExecutionInputs({
   };
 
   const displayPath = (file) => path.relative(absoluteRoot, file).split(path.sep).join("/");
+  const installedPackageName = (specifier) => specifier.startsWith("@")
+    ? specifier.split("/").slice(0, 2).join("/") : specifier.split("/")[0];
+  const collectInstalledPackage = (
+    specifier,
+    containingFile,
+    ownerFile = containingFile,
+    required = true,
+  ) => {
+    const packageName = installedPackageName(specifier);
+    if (builtinModules.includes(packageName) || packageName.startsWith("node:")) return;
+    let runtimeFile;
+    try {
+      runtimeFile = createRequire(containingFile).resolve(specifier);
+    } catch {
+      try {
+        runtimeFile = createRequire(containingFile).resolve(packageName);
+      } catch {
+        if (required) markOwner(externalDependencyWorkspaces, ownerFile);
+        return;
+      }
+    }
+    if (!path.isAbsolute(runtimeFile)) return;
+    let packageRoot = path.dirname(runtimeFile);
+    while (path.dirname(packageRoot) !== packageRoot) {
+      const manifestCandidate = path.join(packageRoot, "package.json");
+      if (existsSync(manifestCandidate)) {
+        const candidate = parseJson(manifestCandidate);
+        if (candidate.name === packageName) break;
+      }
+      packageRoot = path.dirname(packageRoot);
+    }
+    const manifestPath = path.join(packageRoot, "package.json");
+    if (!existsSync(manifestPath)) {
+      if (required) markOwner(externalDependencyWorkspaces, ownerFile);
+      return;
+    }
+    const manifest = parseJson(manifestPath);
+    const identity = `${manifest.name}@${manifest.version ?? "unknown"}`;
+    if (installedPackages.has(identity)) return;
+    installedPackages.add(identity);
+    const logicalPackage = path.join(absoluteRoot, "node_modules", packageName);
+    if (existsSync(logicalPackage) && lstatSync(logicalPackage).isSymbolicLink()
+        && !isWithin(path.join(absoluteRoot, "node_modules"), realpathSync(logicalPackage))) {
+      markOwner(symlinkRuntimeInputWorkspaces, ownerFile);
+    }
+    const installedFiles = (directory) => readdirSync(directory, { withFileTypes: true })
+      .flatMap((entry) => {
+        if (entry.name === "node_modules") return [];
+        const candidate = path.join(directory, entry.name);
+        if (entry.isSymbolicLink()) {
+          markOwner(symlinkRuntimeInputWorkspaces, ownerFile);
+          return [];
+        }
+        if (entry.isDirectory()) return installedFiles(candidate);
+        return entry.isFile() ? [candidate] : [];
+      });
+    for (const installedFile of installedFiles(packageRoot)) {
+      installedInputs.set(
+        `@installed/${identity}/${path.relative(packageRoot, installedFile).split(path.sep).join("/")}`,
+        sha256(readFileSync(installedFile)),
+      );
+    }
+    const dependencyRequireFile = path.join(packageRoot, "package.json");
+    for (const dependency of Object.keys(manifest.dependencies ?? {}).sort()) {
+      collectInstalledPackage(dependency, dependencyRequireFile, ownerFile, false);
+    }
+  };
   const recordEnvironmentInput = (key, file) => {
     const value = environment[key];
     if (["LANG", "LC_ALL", "LC_MESSAGES", "TZ"].includes(key)
@@ -422,6 +500,7 @@ export function collectExecutionInputs({
       const resolved = path.resolve(compilerResult);
       const isDependency = resolved.split(path.sep).includes("node_modules");
       const isLocal = !isDependency && isWithin(absoluteRoot, resolved);
+      if (isDependency) collectInstalledPackage(specifier, containingFile);
       return {
         external: !isDependency && !isLocal,
         owned: isLocal,
@@ -449,7 +528,10 @@ export function collectExecutionInputs({
     );
     const runnerInfrastructure = displayPath(file) === "scripts/mutation-scope.mjs"
       || displayPath(file).startsWith("scripts/mutation-evidence/")
-      || displayPath(file) === "packages/db/scripts/verify-schema.mjs";
+      || [
+        "packages/db/scripts/verify-schema.mjs",
+        "packages/db/scripts/apply-migrations.mjs",
+      ].includes(displayPath(file));
     let importsFileSystem = false;
     const childProcessApis = new Set([
       "exec", "execSync", "execFile", "execFileSync", "spawn", "spawnSync", "fork",
@@ -502,7 +584,7 @@ export function collectExecutionInputs({
       ts.forEachChild(node, findFileSystemDependency);
     };
     findFileSystemDependency(ast);
-    if (importsFileSystem) expandOwner(file);
+    if (importsFileSystem && !runnerInfrastructure) expandOwner(file);
     const owner = findOwner(absoluteRoot, workspacePackages, file);
     const knownMigrationRunner = /(?:const|let)\s+migrationRunner\s*=\s*resolve\s*\([^)]*["']scripts\/apply-migrations\.mjs["']/.test(sourceText);
     if (analyzeRuntime && knownMigrationRunner && owner) {
@@ -704,7 +786,23 @@ export function collectExecutionInputs({
   }
   addFile(path.join(absoluteRoot, "pnpm-lock.yaml"));
 
+  for (const tool of ["typescript", "vitest", "@stryker-mutator/core"]) {
+    try {
+      const toolManifest = requireFromWorkspace.resolve(`${tool}/package.json`);
+      if (isWithin(absoluteRoot, toolManifest)) collectInstalledPackage(tool, toolManifest);
+    } catch {
+      // A tool unavailable from this fixture root is represented by toolVersions.
+    }
+  }
+
   const entries = [...included].map((file) => [displayPath(file), sha256(readFileSync(file))]);
+  entries.push(...installedInputs);
+  const pnpmExecutable = environment.npm_execpath;
+  if (isWithin(absoluteRoot, fingerprintPath)
+      && typeof pnpmExecutable === "string" && existsSync(pnpmExecutable)
+      && statSync(pnpmExecutable).isFile()) {
+    entries.push(["@tool/pnpm-executable", sha256(readFileSync(realpathSync(pnpmExecutable)))]);
+  }
   for (const candidate of staticFiles) {
     const file = path.resolve(absoluteRoot, candidate);
     if (!isWithin(absoluteRoot, file) || hasSymlinkComponent(absoluteRoot, file)
@@ -722,6 +820,16 @@ export function collectExecutionInputs({
     ["@runtime/profile.json", sha256(canonicalJson(runtimeProfile))],
     ["@tool/versions.json", sha256(canonicalJson(toolVersions))],
   );
+  if (isWithin(absoluteRoot, fingerprintPath)) {
+    const controlledEnvironment = Object.fromEntries([
+      "PATH", "HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "TMP", "TEMP",
+      "LANG", "LC_ALL", "LC_MESSAGES", "TZ", "MIGRATIONS_DIR", "DB_DRIVER",
+    ].filter((key) => typeof environment[key] === "string").map((key) => [key, environment[key]]));
+    entries.push([
+      "@runtime/child-environment.json",
+      sha256(canonicalJson(controlledEnvironment)),
+    ]);
+  }
   if (Object.keys(safeEnvironment).length > 0) {
     entries.push(["@runtime/environment.json", sha256(canonicalJson(safeEnvironment))]);
   }

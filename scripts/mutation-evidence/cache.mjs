@@ -14,13 +14,18 @@ import {
 } from "node:fs";
 import path from "node:path";
 
-export const CACHE_SCHEMA_VERSION = 1;
+export const CACHE_SCHEMA_VERSION = 2;
 const CACHE_DIRECTORY = path.join("ledger-mutation-cache", `v${CACHE_SCHEMA_VERSION}`);
 const EVIDENCE_KEY_PATTERN = /^[a-f0-9]{64}$/;
 const UNSAFE_KEY_PATTERN = /(?:database.?url|password|token|authorization|credential|secret|api.?key|^__proto__$|^prototype$|^constructor$)/i;
 const UNSAFE_VALUE_PATTERN = /(?:\b[a-z][a-z\d+.-]*:\/\/|\b(?:basic|bearer)\s+|^--?[\w-]*(?:password|token|authorization|credential|secret|api[-_]?key|database[-_]?url))/i;
 const IDENTIFIER_PATTERN = /^[a-z][a-z0-9-]*$/i;
 const VERSION_PATTERN = /^v?\d+(?:\.\d+){0,3}(?:[-+][a-z0-9.-]+)?$/i;
+const MUTANT_ID_PATTERN = /^[A-Za-z0-9_.:-]{1,200}$/;
+const MUTATOR_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9 ]{0,100}$/;
+const TERMINAL_MUTANT_STATUSES = new Set([
+  "Killed", "Survived", "NoCoverage", "CompileError", "RuntimeError", "Timeout", "Ignored",
+]);
 const RUNTIME_PROFILE_PATTERNS = {
   platform: /^(?:aix|darwin|freebsd|linux|openbsd|sunos|win32)$/,
   arch: /^(?:arm|arm64|ia32|loong64|mips|mipsel|ppc|ppc64|riscv64|s390|s390x|x64)$/,
@@ -129,6 +134,92 @@ function isStrictlyWithin(parent, candidate) {
   return relative !== "" && relative !== ".." && !relative.startsWith(`..${path.sep}`);
 }
 
+function assertCacheRoot(root, { create = false } = {}) {
+  if (typeof root !== "string" || !path.isAbsolute(root)
+      || path.basename(root) !== `v${CACHE_SCHEMA_VERSION}`
+      || path.basename(path.dirname(root)) !== "ledger-mutation-cache") {
+    throw new Error(`Refusing unvalidated cache path: ${root}`);
+  }
+  const absoluteRoot = path.resolve(root);
+  const commonDirectory = path.dirname(path.dirname(absoluteRoot));
+  for (const gitControl of ["HEAD", "config"]) {
+    const controlPath = path.join(commonDirectory, gitControl);
+    if (!existsSync(controlPath) || lstatSync(controlPath).isSymbolicLink()
+        || !lstatSync(controlPath).isFile()) {
+      throw new Error(`Refusing non-Git-common cache path: ${root}`);
+    }
+  }
+  let existing = absoluteRoot;
+  while (!existsSync(existing)) existing = path.dirname(existing);
+  let current = path.parse(existing).root;
+  for (const component of path.relative(current, existing).split(path.sep).filter(Boolean)) {
+    current = path.join(current, component);
+    if (lstatSync(current).isSymbolicLink()) {
+      throw new Error(`Refusing symlink cache path: ${root}`);
+    }
+  }
+  if (!lstatSync(existing).isDirectory()) throw new Error(`Refusing unvalidated cache path: ${root}`);
+  if (create) mkdirSync(absoluteRoot, { recursive: true });
+  if (existsSync(absoluteRoot)) {
+    if (lstatSync(absoluteRoot).isSymbolicLink() || !lstatSync(absoluteRoot).isDirectory()
+        || realpathSync(absoluteRoot) !== absoluteRoot) {
+      throw new Error(`Refusing unvalidated cache path: ${root}`);
+    }
+  }
+  return absoluteRoot;
+}
+
+function mutationReportProjection(sourcePath) {
+  const report = JSON.parse(readFileSync(sourcePath, "utf8"));
+  const config = report?.config;
+  if (!config || !Array.isArray(config.mutate) || typeof config.configFile !== "string"
+      || typeof config.jsonReporter?.fileName !== "string") {
+    throw new Error("Mutation report cannot be safely projected");
+  }
+  const files = {};
+  for (const [fileName, file] of Object.entries(report.files ?? {})) {
+    if (typeof fileName !== "string" || typeof file?.source !== "string"
+        || !Array.isArray(file.mutants)) throw new Error("Mutation report cannot be safely projected");
+    assertSafeString(fileName);
+    const safeFileName = artifactRelativePath(fileName);
+    files[safeFileName] = {
+      sourceHash: digest(file.source),
+      mutants: file.mutants.map((mutant) => {
+        const id = String(mutant.id);
+        const mutatorName = String(mutant.mutatorName ?? "unknown");
+        const status = String(mutant.status);
+        const location = mutant.location;
+        if (!MUTANT_ID_PATTERN.test(id) || !MUTATOR_NAME_PATTERN.test(mutatorName)
+            || !TERMINAL_MUTANT_STATUSES.has(status)
+            || !location || typeof location !== "object" || Array.isArray(location)
+            || Object.keys(location).some((key) => key !== "start" && key !== "end")) {
+          throw new Error("Mutation report cannot be safely projected");
+        }
+        const projectPosition = (position) => {
+          if (!position || typeof position !== "object" || Array.isArray(position)
+              || Object.keys(position).some((key) => key !== "line" && key !== "column")
+              || !Number.isInteger(position.line) || position.line < 1
+              || (position.column !== undefined
+                && (!Number.isInteger(position.column) || position.column < 0))) {
+            throw new Error("Mutation report cannot be safely projected");
+          }
+          return position.column === undefined
+            ? { line: position.line }
+            : { line: position.line, column: position.column };
+        };
+        const projected = {
+          id,
+          mutatorName,
+          location: { start: projectPosition(location.start), end: projectPosition(location.end) },
+          status,
+        };
+        return projected;
+      }),
+    };
+  }
+  return { config: { mutationIdentity: digest(canonicalMetadata(config.mutate)) }, files };
+}
+
 function safeArtifactPath(entryDirectory, relativePath) {
   const realEntryDirectory = realpathSync(entryDirectory);
   let candidate = entryDirectory;
@@ -226,6 +317,11 @@ export function readCacheEntry({ root, evidenceKey, validateArtifacts }) {
   if (typeof validateArtifacts !== "function") {
     throw new TypeError("validateArtifacts callback is required");
   }
+  try {
+    root = assertCacheRoot(root);
+  } catch {
+    return { hit: false, reason: "entry-invalid" };
+  }
   const entryDirectory = path.join(root, evidenceKey);
   if (!existsSync(entryDirectory)) return { hit: false, reason: "not-found" };
 
@@ -318,7 +414,7 @@ export function writeSuccessfulCacheEntry({ root, evidenceKey, entry, artifacts 
   const artifactEntries = Object.entries(artifacts);
   if (artifactEntries.length === 0) throw new Error("A cache entry requires artifacts");
 
-  mkdirSync(root, { recursive: true });
+  root = assertCacheRoot(root, { create: true });
   const entryDirectory = path.join(root, evidenceKey);
   const temporaryDirectory = path.join(
     root,
@@ -329,20 +425,37 @@ export function writeSuccessfulCacheEntry({ root, evidenceKey, entry, artifacts 
     const artifactHashes = {};
     for (const [name, sourcePath] of artifactEntries) {
       const relativePath = artifactRelativePath(name);
+      if (name === "mutation-report.html") continue;
       if (typeof sourcePath !== "string" || !statSync(sourcePath).isFile()) {
         throw new TypeError(`Artifact source is not a file: ${name}`);
       }
       const destination = path.join(temporaryDirectory, relativePath);
       mkdirSync(path.dirname(destination), { recursive: true });
-      copyFileSync(sourcePath, destination);
+      if (name === "mutation-report.json") {
+        writeFileSync(destination, `${JSON.stringify(mutationReportProjection(sourcePath))}\n`, {
+          encoding: "utf8", mode: 0o600,
+        });
+      } else {
+        copyFileSync(sourcePath, destination);
+      }
       artifactHashes[name] = digest(readFileSync(destination));
+    }
+    if (Object.keys(artifactHashes).length === 0) {
+      throw new Error("A cache entry requires a persistable artifact");
     }
     writeFileSync(
       path.join(temporaryDirectory, "entry.json"),
       `${JSON.stringify(safeEntry(entry, evidenceKey, artifactHashes))}\n`,
       { encoding: "utf8", mode: 0o600 },
     );
-    rmSync(entryDirectory, { recursive: true, force: true });
+    if (existsSync(entryDirectory)) {
+      const entryStat = lstatSync(entryDirectory);
+      if (!entryStat.isDirectory() || entryStat.isSymbolicLink()
+          || !isStrictlyWithin(root, realpathSync(entryDirectory))) {
+        throw new Error(`Refusing unvalidated cache entry path: ${entryDirectory}`);
+      }
+      rmSync(entryDirectory, { recursive: true });
+    }
     try {
       renameSync(temporaryDirectory, entryDirectory);
     } catch (error) {
@@ -363,6 +476,7 @@ export function clearMutationCache({ repoRoot, runGit }) {
   const root = cacheRoot(repoRoot, runGit);
   if (!existsSync(root)) return { root, count: 0 };
 
+  assertCacheRoot(root);
   const rootStat = lstatSync(root);
   if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
     throw new Error(`Refusing to clear unvalidated cache path: ${root}`);
