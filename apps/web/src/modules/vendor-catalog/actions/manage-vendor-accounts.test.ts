@@ -11,8 +11,12 @@ import {
 } from "@smp/db/testing/postgres-container";
 
 import type { LedgerAuthorization } from "../../identity-access/authorization";
+import { VendorAccountError } from "../vendor-account-service";
 import { createVendorAccountServerActions } from "./manage-vendor-accounts-server-actions-factory";
-import type { VendorAccountActionState } from "./manage-vendor-accounts-operations";
+import {
+  type VendorAccountActionState,
+  vendorAccountActionError,
+} from "./manage-vendor-accounts-operations";
 
 const id = (suffix: string) =>
   `25100000-0000-4000-8000-${suffix.padStart(12, "0")}`;
@@ -231,6 +235,29 @@ describe("US-025 vendor-account server actions", () => {
     expect(result).toEqual({ status: "error", code: "duplicate" });
     expect(revalidated).toEqual([]);
     expect(JSON.stringify(result)).not.toMatch(/sql|constraint|stack|audit/i);
+  });
+
+  it("maps every stable service error code to the exact public action error", () => {
+    const cases = [
+      ["VENDOR_ACCOUNT_ACCESS_FORBIDDEN", "forbidden"],
+      ["VENDOR_ACCOUNT_NAME_CONFLICT", "duplicate"],
+      ["VENDOR_ACCOUNT_ORG_REF_CONFLICT", "duplicate"],
+      ["VENDOR_ACCOUNT_NOT_FOUND", "not_found"],
+      ["VENDOR_ACCOUNT_VENDOR_UNAVAILABLE", "not_found"],
+      ["VENDOR_ACCOUNT_INPUT_INVALID", "invalid_input"],
+      ["VENDOR_ACCOUNT_NO_CHANGES", "invalid_input"],
+    ] as const;
+
+    for (const [serviceCode, actionCode] of cases) {
+      expect(vendorAccountActionError(new VendorAccountError(serviceCode))).toEqual({
+        status: "error",
+        code: actionCode,
+      });
+    }
+    expect(vendorAccountActionError(new Error("private persistence detail"))).toEqual({
+      status: "error",
+      code: "unexpected",
+    });
   });
 
   it("rejects cache invalidation failure after committing one real row and audit", async () => {
