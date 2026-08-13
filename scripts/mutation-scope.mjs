@@ -67,6 +67,7 @@ const EXCLUDED = [
   /\.(test|spec)\.tsx?$/,
   /\.d\.ts$/,
   /(^|\/)e2e\//,
+  /(^|\/)playwright\.config\.(ts|js|mts|mjs)$/,
   /(^|\/)migrations\//,
   /(^|\/)testing\//,
   /(^|\/)node_modules\//,

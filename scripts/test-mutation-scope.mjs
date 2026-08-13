@@ -46,6 +46,7 @@ assert.deepEqual(
   mutatable([
     "apps/web/e2e/auth.setup.ts",
     "apps/web/e2e/vendor-accounts.spec.ts",
+    "apps/web/playwright.config.ts",
     "apps/web/src/modules/vendor-catalog/service.ts",
   ]),
   ["apps/web/src/modules/vendor-catalog/service.ts"],
