@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   mkdirSync,
   mkdtempSync,
@@ -1283,12 +1284,110 @@ try {
   rmSync(cacheFixtureRoot, { force: true, recursive: true });
 }
 
+const pageFixtureRoot = mkdtempSync(join(tmpdir(), "smp-mutation-page-cache-"));
+const pageWrite = (path, contents) => {
+  const destination = join(pageFixtureRoot, path);
+  mkdirSync(dirname(destination), { recursive: true });
+  writeFileSync(destination, contents, "utf8");
+};
+let pageBase;
+let pageExecutions = 0;
+const runPageFixture = () => runMutationScope({
+  cwd: pageFixtureRoot,
+  env: { MUTATION_BASE: pageBase },
+  installSignalHandlers: false,
+  toolVersions: {
+    node: "22.0.0", pnpm: "10.0.0", stryker: "9.0.0", typescript: "5.0.0", vitest: "3.0.0",
+  },
+  runtimeProfileProvider: () => ({
+    arch: "x64", locale: "en-US", platform: "linux", timezone: "UTC",
+  }),
+  executeShard: ({ shard }) => {
+    pageExecutions += 1;
+    const line = Number(/:(\d+)-/.exec(shard.mutate[0])?.[1]);
+    pageWrite(shard.jsonReportPath, `${JSON.stringify({
+      config: {
+        configFile: shard.configPath,
+        jsonReporter: { fileName: shard.jsonReportPath },
+        mutate: shard.mutate,
+      },
+      files: Object.fromEntries(shard.sources.map((sourcePath) => [sourcePath, {
+          source: readFileSync(join(pageFixtureRoot, sourcePath), "utf8"),
+          mutants: [{ id: "0", location: { start: { line }, end: { line } }, status: "Killed" }],
+        }])),
+    })}\n`);
+    return { status: 0 };
+  },
+});
+try {
+  execFileSync("git", ["init", "--quiet"], { cwd: pageFixtureRoot });
+  execFileSync("git", ["config", "user.email", "page-cache@example.invalid"], { cwd: pageFixtureRoot });
+  execFileSync("git", ["config", "user.name", "Page Cache Test"], { cwd: pageFixtureRoot });
+  pageWrite("package.json", JSON.stringify({ name: "page-fixture", private: true }));
+  pageWrite("pnpm-lock.yaml", "lockfileVersion: '9.0'\n");
+  pageWrite("stryker.conf.json", JSON.stringify({ testFiles: [] }));
+  pageWrite("vitest.mutation.config.mjs", "export default {};\n");
+  pageWrite("apps/web/package.json", JSON.stringify({ name: "web-fixture" }));
+  pageWrite("apps/web/next.config.ts", "export default { output: 'standalone' };\n");
+  pageWrite("apps/web/next.config.test.ts", "export {};\n");
+  pageWrite(poolsPageSource, poolsPageChanges[0].oldContents);
+  pageWrite("apps/web/src/app/(authenticated)/cupos/page.test.ts", "export {};\n");
+  for (const path of [
+    "scripts/mutation-scope.mjs",
+    "scripts/mutation-evidence/fingerprint.mjs",
+    "scripts/mutation-evidence/cache.mjs",
+    "scripts/mutation-evidence/performance.mjs",
+  ]) pageWrite(path, "export {};\n");
+  execFileSync("git", ["add", "."], { cwd: pageFixtureRoot });
+  execFileSync("git", ["commit", "--quiet", "-m", "page base"], { cwd: pageFixtureRoot });
+  pageBase = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: pageFixtureRoot, encoding: "utf8",
+  }).trim();
+  pageWrite(poolsPageSource, poolsPageChanges[0].newContents);
+  const pageCold = await runPageFixture();
+  assert.equal(pageExecutions, 1);
+  const pageSourceBeforeConfigChange = readFileSync(join(pageFixtureRoot, poolsPageSource), "utf8");
+  pageWrite("apps/web/next.config.ts", "export default { output: 'export' };\n");
+  const pageConfigMiss = await runPageFixture();
+  assert.equal(pageExecutions, 3);
+  const changedPageShard = pageConfigMiss.manifest.shards.find((shard) =>
+    shard.sources.includes(poolsPageSource));
+  assert.notEqual(
+    changedPageShard.evidenceKey,
+    pageCold.manifest.shards[0].evidenceKey,
+  );
+  assert.equal(readFileSync(join(pageFixtureRoot, poolsPageSource), "utf8"), pageSourceBeforeConfigChange);
+} finally {
+  rmSync(pageFixtureRoot, { force: true, recursive: true });
+}
+
 const projectionFixtureRoot = mkdtempSync(join(tmpdir(), "smp-mutation-projection-cache-"));
 const projectionWrite = (path, contents) => {
   const destination = join(projectionFixtureRoot, path);
   mkdirSync(dirname(destination), { recursive: true });
   writeFileSync(destination, contents, "utf8");
 };
+const projectionDigest = "a".repeat(64);
+const validProjectionEvidence = () => ({
+  baseline: {
+    expectedStatus: "passed", observedExitStatus: 0, observedSignal: null,
+    observedStatus: "passed", outputHash: projectionDigest, resultHash: projectionDigest,
+  },
+  controls: [
+    "outer-projection-removed-or-renamed",
+    "lateral-field-removed",
+    "row-mapping-wrong",
+    "operating-date-input-replaced",
+    "operating-date-constant",
+  ].map((faultId) => ({
+    expectedStatus: "failed", faultId, observedExitStatus: 1, observedSignal: null,
+    observedStatus: "failed", outputHash: projectionDigest,
+    resultHash: projectionDigest, variantSourceHash: projectionDigest,
+  })),
+  source: poolProjectionSource,
+  sourceHash: createHash("sha256").update(poolProjectionNew).digest("hex"),
+  test: "packages/db/src/pool-snapshots.test.ts",
+});
 let projectionBase;
 let projectionExecutions = 0;
 const runProjectionFixture = () => runMutationScope({
@@ -1317,7 +1416,7 @@ const runProjectionFixture = () => runMutationScope({
   },
   verificationRunner: (_command, args) => {
     const evidencePath = args.find((argument) => argument.endsWith("-projection.json"));
-    projectionWrite(evidencePath, `${JSON.stringify({ exact: "projection-evidence" })}\n`);
+    projectionWrite(evidencePath, `${JSON.stringify(validProjectionEvidence())}\n`);
     return { status: 0 };
   },
 });
@@ -1353,6 +1452,27 @@ try {
   assert.equal(projectionExecutions, 1);
   assert.equal(projectionWarmShard.cacheDecision, "reused");
   assert.deepEqual(projectionWarmShard.result, projectionColdShard.result);
+
+  const projectionEntryRoot = join(
+    projectionFixtureRoot, ".git", "ledger-mutation-cache", "v1", projectionWarmShard.evidenceKey,
+  );
+  const projectionEntryPath = join(projectionEntryRoot, "entry.json");
+  const tamperProjection = async (evidence) => {
+    const artifactPath = join(projectionEntryRoot, "projection-evidence.json");
+    writeFileSync(artifactPath, `${JSON.stringify(evidence)}\n`, "utf8");
+    const entry = JSON.parse(readFileSync(projectionEntryPath, "utf8"));
+    entry.artifacts["projection-evidence.json"] = createHash("sha256")
+      .update(readFileSync(artifactPath)).digest("hex");
+    writeFileSync(projectionEntryPath, `${JSON.stringify(entry)}\n`, "utf8");
+    const executionsBefore = projectionExecutions;
+    const rerun = await runProjectionFixture();
+    assert.equal(projectionExecutions, executionsBefore + 1);
+    assert.equal(rerun.manifest.shards[0].cacheDecision, "rejected");
+  };
+  await tamperProjection({});
+  const alteredControl = validProjectionEvidence();
+  alteredControl.controls[0].observedStatus = "passed";
+  await tamperProjection(alteredControl);
 } finally {
   rmSync(projectionFixtureRoot, { force: true, recursive: true });
 }

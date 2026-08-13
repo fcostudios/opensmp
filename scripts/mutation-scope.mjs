@@ -30,6 +30,7 @@ import {
   startShard,
   writePerformanceRecord,
 } from "./mutation-evidence/performance.mjs";
+import { validatePoolProjectionEvidence } from "./verify-pool-snapshot-projection.mjs";
 
 const BASE_CONFIG = "stryker.conf.json";
 const GENERATED_SHARD_DIR = join(".tmp", "stryker-shards");
@@ -1662,6 +1663,8 @@ export async function runMutationScope(options = {}) {
       "vitest.mutation.config.mjs",
       "apps/web/vitest.static-contract.config.mjs",
       "packages/db/vitest.config.ts",
+      ...(shard.sources.some((source) => PAGE_WIRING_SOURCES.has(source))
+        ? ["apps/web/next.config.ts"] : []),
     ]
       .filter((file) => existsSync(file));
     const entryFiles = [...shard.sources, ...shard.testFiles, ...commandFiles]
@@ -1737,7 +1740,10 @@ export async function runMutationScope(options = {}) {
               if (!projectionArtifact) return false;
               mkdirSync(dirname(projectionPath), { recursive: true });
               copyFileSync(projectionArtifact, projectionPath);
-              JSON.parse(readFileSync(projectionPath, "utf8"));
+              validatePoolProjectionEvidence(
+                JSON.parse(readFileSync(projectionPath, "utf8")),
+                readFileSync(POOL_PROJECTION_SOURCE, "utf8"),
+              );
             }
             const report = JSON.parse(readFileSync(shard.jsonReportPath, "utf8"));
             validateMutationReportIdentity(
@@ -1772,7 +1778,10 @@ export async function runMutationScope(options = {}) {
             audits: verificationAuditsForReport(cachedReport, shard, allHunks),
             commands: commandList,
             ...(projectionPath
-              ? { projectionEvidence: JSON.parse(readFileSync(projectionPath, "utf8")) }
+              ? { projectionEvidence: validatePoolProjectionEvidence(
+                  JSON.parse(readFileSync(projectionPath, "utf8")),
+                  readFileSync(POOL_PROJECTION_SOURCE, "utf8"),
+                ) }
               : {}),
             tests: shard.testFiles,
           };
@@ -1825,8 +1834,9 @@ export async function runMutationScope(options = {}) {
           commands: commandList,
           ...(projectionEvidencePath
             ? {
-                projectionEvidence: JSON.parse(
-                  readFileSync(projectionEvidencePath, "utf8"),
+                projectionEvidence: validatePoolProjectionEvidence(
+                  JSON.parse(readFileSync(projectionEvidencePath, "utf8")),
+                  readFileSync(POOL_PROJECTION_SOURCE, "utf8"),
                 ),
               }
             : {}),

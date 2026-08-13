@@ -9,20 +9,68 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const expectedFaultIds = [
+  "outer-projection-removed-or-renamed",
+  "lateral-field-removed",
+  "row-mapping-wrong",
+  "operating-date-input-replaced",
+  "operating-date-constant",
+];
+const digestPattern = /^[a-f0-9]{64}$/;
+
+const exactFields = (value, fields) => value && typeof value === "object"
+  && !Array.isArray(value)
+  && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...fields].sort());
+
+export function validatePoolProjectionEvidence(evidence, sourceContents) {
+  const resultFields = [
+    "expectedStatus", "observedExitStatus", "observedSignal", "observedStatus",
+    "outputHash", "resultHash",
+  ];
+  if (!exactFields(evidence, ["baseline", "controls", "source", "sourceHash", "test"])
+      || evidence.source !== "packages/db/src/pool-snapshots.ts"
+      || evidence.test !== "packages/db/src/pool-snapshots.test.ts"
+      || evidence.sourceHash !== createHash("sha256").update(sourceContents).digest("hex")
+      || !Array.isArray(evidence.controls)
+      || evidence.controls.length !== expectedFaultIds.length
+      || !exactFields(evidence.baseline, resultFields)
+      || evidence.baseline.expectedStatus !== "passed"
+      || evidence.baseline.observedStatus !== "passed"
+      || evidence.baseline.observedExitStatus !== 0
+      || evidence.baseline.observedSignal !== null
+      || !digestPattern.test(evidence.baseline.outputHash)
+      || !digestPattern.test(evidence.baseline.resultHash)) {
+    throw new Error("invalid pool projection evidence");
+  }
+  for (const [index, control] of evidence.controls.entries()) {
+    if (!exactFields(control, [...resultFields, "faultId", "variantSourceHash"])
+        || control.faultId !== expectedFaultIds[index]
+        || control.expectedStatus !== "failed"
+        || control.observedStatus !== "failed"
+        || control.observedExitStatus !== 1
+        || control.observedSignal !== null
+        || !digestPattern.test(control.outputHash)
+        || !digestPattern.test(control.resultHash)
+        || !digestPattern.test(control.variantSourceHash)) {
+      throw new Error("invalid pool projection evidence");
+    }
+  }
+  return evidence;
+}
 
 const sourcePath = resolve("packages/db/src/pool-snapshots.ts");
 const testPath = "packages/db/src/pool-snapshots.test.ts";
 const evidencePath = process.argv[2];
-if (!evidencePath) throw new Error("pool projection evidence path is required");
 
-const source = readFileSync(sourcePath, "utf8");
 const replaceExactlyOnce = (contents, before, after, faultId) => {
   if (contents.split(before).length - 1 !== 1) {
     throw new Error(`pool projection fault ${faultId} does not have one exact target`);
   }
   return contents.replace(before, after);
 };
-const faults = [
+const createFaults = (source) => [
   {
     id: "outer-projection-removed-or-renamed",
     source: replaceExactlyOnce(
@@ -101,6 +149,10 @@ const resultEvidence = (result) => {
   };
 };
 
+function main() {
+if (!evidencePath) throw new Error("pool projection evidence path is required");
+const source = readFileSync(sourcePath, "utf8");
+const faults = createFaults(source);
 const temporaryRoot = mkdtempSync(join(resolve(".tmp"), "pool-projection-"));
 try {
   const baseline = runTest();
@@ -149,8 +201,12 @@ try {
     sourceHash: createHash("sha256").update(source).digest("hex"),
     test: testPath,
   };
+  validatePoolProjectionEvidence(evidence, source);
   mkdirSync(dirname(resolve(evidencePath)), { recursive: true });
   writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
 } finally {
   rmSync(temporaryRoot, { force: true, recursive: true });
 }
+}
+
+if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) main();
