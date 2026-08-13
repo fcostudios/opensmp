@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,6 +46,14 @@ function finiteNonnegative(value, name) {
     throw new TypeError(`${name} must be a finite non-negative number`);
   }
   return value;
+}
+
+function safeAdd(left, right) {
+  const sum = left + right;
+  if (!Number.isFinite(sum) || sum > Number.MAX_VALUE) {
+    throw new Error("Invalid performance aggregate");
+  }
+  return sum;
 }
 
 function sanitizeStringMap(value, name) {
@@ -189,12 +197,86 @@ function totals(shards) {
     if (shard.decision === "executed") result.executedCount += 1;
     if (shard.decision === "reused") {
       result.reusedCount += 1;
-      result.estimatedMsSaved += shard.priorDurationMs ?? 0;
+      result.estimatedMsSaved = safeAdd(result.estimatedMsSaved, shard.priorDurationMs ?? 0);
     }
     if (shard.decision === "rejected") result.rejectedCount += 1;
   }
   result.hitRatio = result.shardCount === 0 ? 0 : result.reusedCount / result.shardCount;
   return result;
+}
+
+function assertExactFields(value, allowed) {
+  if (Object.keys(value).some((key) => !allowed.has(key))) throw new Error("Invalid performance record");
+}
+
+function validateUtcLabel(label) {
+  if (typeof label !== "string" || !label.endsWith("Z")) throw new Error("Invalid performance record");
+  const parsed = new Date(label);
+  if (!Number.isFinite(parsed.valueOf()) || parsed.toISOString() !== label) {
+    throw new Error("Invalid performance record");
+  }
+}
+
+function validateRecord(record, { allowIncomplete = false } = {}) {
+  try {
+    assertSafeRecord(record);
+    if (!record || typeof record !== "object" || Array.isArray(record)) throw new Error();
+    const finished = record.outcome !== "incomplete";
+    assertExactFields(record, new Set([
+      "schemaVersion", "runId", "startedAt", "provenance", "cacheSchemaVersion", "cacheMode",
+      "machine", "shards", "totals", "outcome",
+      ...(finished ? ["wallClockDurationMs", "orchestrationDurationMs", "finishedAt"] : []),
+    ]));
+    if (record.schemaVersion !== PERFORMANCE_SCHEMA_VERSION
+        || record.cacheSchemaVersion !== CACHE_SCHEMA_VERSION
+        || !/^[A-Za-z0-9_-]+$/.test(record.runId)) throw new Error();
+    validateUtcLabel(record.startedAt);
+    if (!isDeepStrictEqual(normalizeProvenance(record.provenance), record.provenance)) throw new Error();
+    normalizeCacheMode(record.cacheMode);
+    if (!isDeepStrictEqual(normalizeMachine(record.machine), record.machine)) throw new Error();
+    if (!Array.isArray(record.shards)) throw new Error();
+    const shardIds = new Set();
+    for (const shard of record.shards) {
+      if (!shard || typeof shard !== "object" || Array.isArray(shard)) throw new Error();
+      requiredString(shard.id, "shard.id");
+      requiredString(shard.evidenceKey, "shard.evidenceKey");
+      requiredString(shard.classification, "shard.classification");
+      if (shardIds.has(shard.id)) throw new Error();
+      shardIds.add(shard.id);
+      if (shard.status === "started") {
+        assertExactFields(shard, new Set(["id", "evidenceKey", "classification", "status"]));
+      } else {
+        const completion = {};
+        for (const key of ["result", "priorDurationMs", "rejectionReason"]) {
+          if (shard[key] !== undefined) completion[key] = shard[key];
+        }
+        normalizeCompletion(shard.decision, completion);
+        finiteNonnegative(shard.durationMs, "shard.durationMs");
+        assertExactFields(shard, new Set([
+          "id", "evidenceKey", "classification", "decision", "durationMs", ...Object.keys(completion),
+        ]));
+      }
+    }
+    const derivedTotals = totals(record.shards);
+    if (!isDeepStrictEqual(record.totals, derivedTotals)) throw new Error();
+    if (!finished) {
+      if (!allowIncomplete) throw new Error();
+    } else {
+      if (!["passed", "failed", "interrupted"].includes(record.outcome)) throw new Error();
+      finiteNonnegative(record.wallClockDurationMs, "record.wallClockDurationMs");
+      finiteNonnegative(record.orchestrationDurationMs, "record.orchestrationDurationMs");
+      validateUtcLabel(record.finishedAt);
+      if (new Date(record.finishedAt).valueOf() < new Date(record.startedAt).valueOf()) throw new Error();
+      if (record.outcome === "passed"
+          && record.shards.some((shard) => shard.status === "started" || shard.result !== "passed")) {
+        throw new Error();
+      }
+    }
+    return derivedTotals;
+  } catch (error) {
+    if (error?.message === "Invalid performance aggregate") throw error;
+    throw new Error("Invalid performance record");
+  }
 }
 
 export function createPerformanceRun({
@@ -243,6 +325,7 @@ export function startShard(run, shard, now) {
   const token = requiredString(current.createShardToken(), "shard token");
   if (!/^[A-Za-z0-9_-]+$/.test(token)) throw new TypeError("Invalid shard token");
   if (current.active.has(token)) throw new TypeError("Invalid shard token");
+  const started = monotonicNow(clock);
   const record = {
     id: requiredString(shard?.id, "shard.id"),
     evidenceKey: requiredString(shard?.evidenceKey, "shard.evidenceKey"),
@@ -250,7 +333,7 @@ export function startShard(run, shard, now) {
     status: "started",
   };
   run.shards.push(record);
-  current.active.set(token, { record, started: monotonicNow(clock) });
+  current.active.set(token, { record, started });
   run.totals = totals(run.shards);
   return token;
 }
@@ -264,19 +347,28 @@ export function finishShard(run, token, decision, details = {}, now) {
   const durationMs = monotonicNow(now ?? current.now) - active.started;
   finiteNonnegative(durationMs, "shard duration");
   const record = active.record;
-  delete record.status;
-  record.decision = decision;
-  record.durationMs = durationMs;
+  const completed = {
+    id: record.id,
+    evidenceKey: record.evidenceKey,
+    classification: record.classification,
+    decision,
+    durationMs,
+  };
   const priorDurationMs = details.priorDurationMs;
   if (priorDurationMs !== undefined) {
-    record.priorDurationMs = finiteNonnegative(priorDurationMs, "details.priorDurationMs");
+    completed.priorDurationMs = finiteNonnegative(priorDurationMs, "details.priorDurationMs");
   }
   for (const key of ["rejectionReason", "result"]) {
     const value = optionalString(details[key], `details.${key}`);
-    if (value !== undefined) record[key] = value;
+    if (value !== undefined) completed[key] = value;
   }
+  const shardIndex = run.shards.indexOf(record);
+  const candidateShards = run.shards.with(shardIndex, completed);
+  const candidateTotals = totals(candidateShards);
+  Object.keys(record).forEach((key) => delete record[key]);
+  Object.assign(record, completed);
   current.active.delete(token);
-  run.totals = totals(run.shards);
+  run.totals = candidateTotals;
   return record;
 }
 
@@ -286,7 +378,7 @@ export function finishPerformanceRun(run, outcome, now) {
   if (outcome !== "passed" && outcome !== "failed" && outcome !== "interrupted") {
     throw new Error("Invalid campaign outcome");
   }
-  if (current.active.size !== 0 && outcome !== "interrupted") {
+  if (current.active.size !== 0 && outcome === "passed") {
     throw new Error("Cannot finish a run with active shards");
   }
   if (outcome === "passed" && run.shards.some((shard) => shard.result !== "passed")) {
@@ -307,14 +399,37 @@ export function writePerformanceRecord(root, run) {
   requiredString(root, "root");
   if (!run || typeof run !== "object" || Array.isArray(run)) throw new TypeError("run must be an object");
   const current = state.get(run);
+  if (!current) throw new Error("Invalid performance record");
   const hasIncompleteOrFailedShard = !Array.isArray(run.shards)
     || run.shards.some((shard) => shard.status === "started" || shard.result !== "passed");
   if (run.outcome === "passed" && (current?.active.size > 0 || hasIncompleteOrFailedShard)) {
     throw new Error("Cannot persist a passed run with active shards");
   }
-  assertSafeRecord(run);
-  const directory = path.join(root, "reports", "mutation-performance");
-  mkdirSync(directory, { recursive: true });
+  validateRecord(run, { allowIncomplete: true });
+  if (current.finished !== (run.outcome !== "incomplete")) throw new Error("Invalid performance record");
+  if (current.active.size !== run.shards.filter((shard) => shard.status === "started").length) {
+    throw new Error("Invalid performance record");
+  }
+  for (const active of current.active.values()) {
+    if (!run.shards.includes(active.record) || active.record.status !== "started") {
+      throw new Error("Invalid performance record");
+    }
+  }
+  const resolvedRoot = realpathSync(root);
+  let candidate = resolvedRoot;
+  for (const component of ["reports", "mutation-performance"]) {
+    candidate = path.join(candidate, component);
+    if (existsSync(candidate) && lstatSync(candidate).isSymbolicLink()) {
+      throw new Error("Unsafe performance record path");
+    }
+    if (!existsSync(candidate)) mkdirSync(candidate);
+    const resolved = realpathSync(candidate);
+    const relative = path.relative(resolvedRoot, resolved);
+    if (relative === ".." || relative.startsWith(`..${path.sep}`)) {
+      throw new Error("Unsafe performance record path");
+    }
+  }
+  const directory = candidate;
   const runId = requiredString(run.runId, "run.runId");
   if (!/^[A-Za-z0-9_-]+$/.test(runId)) throw new TypeError("run.runId is unsafe");
   const destination = path.join(directory, `${runId}.json`);
@@ -334,6 +449,13 @@ function comparison(cold, warm) {
   if (cold.provenance?.campaignKey !== warm.provenance?.campaignKey) {
     reasons.push("different campaign keys");
   }
+  if (cold.provenance?.base !== warm.provenance?.base
+      || cold.provenance?.baseRef !== warm.provenance?.baseRef) {
+    reasons.push("different base provenance");
+  }
+  const workload = (record) => record.shards.map(({ id, evidenceKey, classification }) =>
+    `${id}\0${evidenceKey}\0${classification}`).sort();
+  if (!isDeepStrictEqual(workload(cold), workload(warm))) reasons.push("different workloads");
   if (cold.outcome !== "passed" || warm.outcome !== "passed") {
     reasons.push("campaign outcomes are not both passed");
   }
@@ -345,6 +467,8 @@ function display(value) {
 }
 
 export function renderBenchmarkSummary(cold, warm, { allowIncomparable = false } = {}) {
+  validateRecord(cold);
+  validateRecord(warm);
   const reasons = comparison(cold, warm);
   if (reasons.length > 0 && !allowIncomparable) {
     throw new Error(`Benchmark records are incomparable: ${reasons.join(" and ")}`);
