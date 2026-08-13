@@ -1127,12 +1127,13 @@ const invalidDecisionRun = createPerformanceRun({
 const invalidDecisionToken = startShard(invalidDecisionRun, {
   id: "strict-contract",
   evidenceKey: "strict-evidence",
-  classification: "mutation",
+  classification: "scored",
 }, invalidDecisionClock);
 for (const [decision, details] of [
   ["executed", {}],
   ["executed", { result: "passed", rejectionReason: "not-allowed" }],
   ["executed", { result: "passed", durationMs: 999 }],
+  ["executed", { classification: "vitest", result: "passed" }],
   ["reused", { result: "passed" }],
   ["reused", { result: "passed", priorDurationMs: -1 }],
   ["reused", { result: "failed", priorDurationMs: 10 }],
@@ -1148,7 +1149,7 @@ for (const [decision, details] of [
   assert.deepEqual(invalidDecisionRun.shards[0], {
     id: "strict-contract",
     evidenceKey: "strict-evidence",
-    classification: "mutation",
+    classification: "scored",
     status: "started",
   });
 }
@@ -1189,7 +1190,7 @@ for (const failure of ["clock", "token"]) {
     () => startShard(transactionalRun, {
       id: "transactional",
       evidenceKey: "transactional-evidence",
-      classification: "mutation",
+      classification: "scored",
     }, failure === "clock" ? () => { throw new Error("clock failure"); } : undefined),
     (error) => error.message === `${failure} failure`,
   );
@@ -1220,14 +1221,14 @@ const coldRun = createPerformanceRun({
 const coldFirst = startShard(coldRun, {
   id: "core",
   evidenceKey: "evidence-core",
-  classification: "mutation",
+  classification: "scored",
 }, coldClock);
 assert.equal(coldFirst, "cold-core-token");
 finishShard(coldRun, coldFirst, "executed", { result: "passed" }, coldClock);
 const coldSecond = startShard(coldRun, {
   id: "db",
   evidenceKey: "evidence-db",
-  classification: "db-backed",
+  classification: "scored",
 }, coldClock);
 assert.equal(coldSecond, "cold-db-token");
 finishShard(coldRun, coldSecond, "executed", { result: "passed" }, coldClock);
@@ -1276,13 +1277,13 @@ const warmRun = createPerformanceRun({
 const warmFirst = startShard(warmRun, {
   id: "core",
   evidenceKey: "evidence-core",
-  classification: "mutation",
+  classification: "scored",
 }, warmClock);
 finishShard(warmRun, warmFirst, "reused", { priorDurationMs: 40, result: "passed" }, warmClock);
 const warmSecond = startShard(warmRun, {
   id: "db",
   evidenceKey: "evidence-db",
-  classification: "db-backed",
+  classification: "scored",
 }, warmClock);
 finishShard(warmRun, warmSecond, "rejected", {
   priorDurationMs: 100,
@@ -1321,7 +1322,7 @@ try {
   startShard(unfinishedRun, {
     id: "unfinished",
     evidenceKey: "unfinished-evidence",
-    classification: "mutation",
+    classification: "scored",
   });
   unfinishedRun.outcome = "passed";
   assert.throws(
@@ -1411,7 +1412,7 @@ try {
   assert.equal(startShard(interruptedRun, {
     id: "interrupted-shard",
     evidenceKey: "interrupted-evidence",
-    classification: "mutation",
+    classification: "pending",
   }), "interrupted-shard-token");
   finishPerformanceRun(interruptedRun, "interrupted");
   assert.equal(interruptedRun.outcome, "interrupted");
@@ -1451,7 +1452,7 @@ try {
   startShard(failedRun, {
     id: "failed-active-shard",
     evidenceKey: "failed-active-evidence",
-    classification: "mutation",
+    classification: "pending",
   });
   finishPerformanceRun(failedRun, "failed");
   assert.equal(failedRun.shards[0].status, "started");
@@ -1472,7 +1473,7 @@ try {
   const rollbackToken = startShard(rollbackRun, {
     id: "rollback-shard",
     evidenceKey: "rollback-evidence",
-    classification: "mutation",
+    classification: "scored",
   });
   finishShard(rollbackRun, rollbackToken, "executed", { result: "passed" });
   finishPerformanceRun(rollbackRun, "passed");
@@ -1517,7 +1518,7 @@ try {
   const overflowOne = startShard(overflowRun, {
     id: "overflow-one",
     evidenceKey: "overflow-evidence-one",
-    classification: "mutation",
+    classification: "scored",
   });
   finishShard(overflowRun, overflowOne, "reused", {
     result: "passed",
@@ -1526,7 +1527,7 @@ try {
   const overflowTwo = startShard(overflowRun, {
     id: "overflow-two",
     evidenceKey: "overflow-evidence-two",
-    classification: "mutation",
+    classification: "scored",
   });
   assert.throws(
     () => finishShard(overflowRun, overflowTwo, "reused", {

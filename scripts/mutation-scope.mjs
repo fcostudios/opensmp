@@ -1712,7 +1712,7 @@ export async function runMutationScope(options = {}) {
       const { commandList, executionInputs, runtimeProfile } = executionContexts.get(shard.id);
       console.log(`mutation-scope: running ${shard.id} (${shard.mutate.length} ranges)`);
       const performanceToken = startShard(performanceRun, {
-        id: shard.id, evidenceKey: shard.evidenceKey, classification: shard.kind,
+        id: shard.id, evidenceKey: shard.evidenceKey, classification: "pending",
       });
       const startedAt = Date.now();
       let cached = null;
@@ -1791,6 +1791,7 @@ export async function runMutationScope(options = {}) {
         shard.cacheDecision = "reused";
         shard.priorDurationMs = cached.entry.durationMs ?? 0;
         const timing = finishShard(performanceRun, performanceToken, "reused", {
+          classification: cached.entry.classification,
           result: "passed", priorDurationMs: shard.priorDurationMs,
         });
         shard.durationMs = timing.durationMs;
@@ -1851,6 +1852,7 @@ export async function runMutationScope(options = {}) {
       if (result.status !== 0) throw Object.assign(new Error(`mutation shard ${shard.id} failed`), { status: result.status ?? 1 });
       const timingDecision = shard.cacheDecision === "rejected" ? "rejected" : "executed";
       const timing = finishShard(performanceRun, performanceToken, timingDecision, {
+        classification: shard.classification,
         result: "passed",
         ...(timingDecision === "rejected" ? {
           rejectionReason: shard.reason,

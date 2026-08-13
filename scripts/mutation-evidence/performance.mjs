@@ -12,6 +12,7 @@ export const PERFORMANCE_SCHEMA_VERSION = 1;
 
 const state = new WeakMap();
 const decisions = new Set(["executed", "reused", "rejected"]);
+const finalClassifications = new Set(["scored", "verification-only"]);
 const unsafeKeyPattern = /(?:^environment$|database.?url|password|token|authorization|credential|secret|api.?key|^__proto__$|^prototype$|^constructor$)/i;
 const unsafeValuePattern = /(?:\b[a-z][a-z\d+.-]*:\/\/|\b(?:basic|bearer)\s+)/i;
 
@@ -129,10 +130,10 @@ function normalizeCompletion(decision, details) {
       throw new TypeError();
     }
     const allowedFields = decision === "executed"
-      ? new Set(["result"])
+      ? new Set(["classification", "result"])
       : decision === "reused"
-        ? new Set(["result", "priorDurationMs"])
-        : new Set(["result", "priorDurationMs", "rejectionReason"]);
+        ? new Set(["classification", "result", "priorDurationMs"])
+        : new Set(["classification", "result", "priorDurationMs", "rejectionReason"]);
     if (Object.keys(details).some((key) => !allowedFields.has(key))) throw new TypeError();
     const result = requiredString(details.result, "details.result");
     const hasRejection = details.rejectionReason !== undefined;
@@ -149,7 +150,11 @@ function normalizeCompletion(decision, details) {
         finiteNonnegative(details.priorDurationMs, "details.priorDurationMs");
       }
     }
-    return { result };
+    const classification = details.classification === undefined
+      ? undefined
+      : requiredString(details.classification, "details.classification");
+    if (classification !== undefined && !finalClassifications.has(classification)) throw new TypeError();
+    return { classification, result };
   } catch {
     throw new TypeError(INVALID_SHARD_COMPLETION);
   }
@@ -244,8 +249,10 @@ function validateRecord(record, { allowIncomplete = false } = {}) {
       if (shardIds.has(shard.id)) throw new Error();
       shardIds.add(shard.id);
       if (shard.status === "started") {
+        if (!["pending", ...finalClassifications].includes(shard.classification)) throw new Error();
         assertExactFields(shard, new Set(["id", "evidenceKey", "classification", "status"]));
       } else {
+        if (!finalClassifications.has(shard.classification)) throw new Error();
         const completion = {};
         for (const key of ["result", "priorDurationMs", "rejectionReason"]) {
           if (shard[key] !== undefined) completion[key] = shard[key];
@@ -342,17 +349,20 @@ export function finishShard(run, token, decision, details = {}, now) {
   if (current.finished) throw new Error("Performance run is already finished");
   const active = current.active.get(token);
   if (!active) throw new Error("Unknown or already finished shard token");
-  normalizeCompletion(decision, details);
+  const completion = normalizeCompletion(decision, details);
   const durationMs = monotonicNow(now ?? current.now) - active.started;
   finiteNonnegative(durationMs, "shard duration");
   const record = active.record;
   const completed = {
     id: record.id,
     evidenceKey: record.evidenceKey,
-    classification: record.classification,
+    classification: completion.classification ?? record.classification,
     decision,
     durationMs,
   };
+  if (!finalClassifications.has(completed.classification)) {
+    throw new TypeError(INVALID_SHARD_COMPLETION);
+  }
   const priorDurationMs = details.priorDurationMs;
   if (priorDurationMs !== undefined) {
     completed.priorDurationMs = finiteNonnegative(priorDurationMs, "details.priorDurationMs");

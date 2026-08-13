@@ -1141,12 +1141,14 @@ try {
   const cold = await cacheRun();
   assert.equal(cold.executions, 1);
   assert.equal(cold.result.manifest.shards[0].cacheDecision, "executed");
+  assert.equal(cold.result.performance.shards[0].classification, "scored");
   assert.match(cold.result.manifest.shards[0].evidenceKey, /^[a-f0-9]{64}$/);
   assert.ok(Object.keys(cold.result.manifest.shards[0].dependencyHashes).length > 0);
 
   const warm = await cacheRun();
   assert.equal(warm.executions, 0);
   assert.equal(warm.result.manifest.shards[0].cacheDecision, "reused");
+  assert.equal(warm.result.performance.shards[0].classification, "scored");
   assert.equal(warm.result.manifest.shards[0].priorDurationMs, cold.result.manifest.shards[0].durationMs);
   assert.equal(warm.result.manifest.shards[0].configHash, cold.result.manifest.shards[0].configHash);
   assert.equal(warm.result.manifest.shards[0].evidenceKey, cold.result.manifest.shards[0].evidenceKey);
@@ -1330,6 +1332,9 @@ try {
   pageWrite("apps/web/package.json", JSON.stringify({ name: "web-fixture" }));
   pageWrite("apps/web/next.config.ts", "export default { output: 'standalone' };\n");
   pageWrite("apps/web/next.config.test.ts", "export {};\n");
+  pageWrite("apps/web/vitest.config.ts", `${Array.from(
+    { length: 20 }, (_, index) => `// config line ${index + 1}`,
+  ).join("\n")}\nexport default { test: { passWithNoTests: true } };\n`);
   pageWrite(poolsPageSource, poolsPageChanges[0].oldContents);
   pageWrite("apps/web/src/app/(authenticated)/cupos/page.test.ts", "export {};\n");
   for (const path of [
@@ -1346,10 +1351,19 @@ try {
   pageWrite(poolsPageSource, poolsPageChanges[0].newContents);
   const pageCold = await runPageFixture();
   assert.equal(pageExecutions, 1);
+  assert.deepEqual(pageCold.performance.shards.map(({ classification }) => classification), ["scored"]);
   const pageSourceBeforeConfigChange = readFileSync(join(pageFixtureRoot, poolsPageSource), "utf8");
   pageWrite("apps/web/next.config.ts", "export default { output: 'export' };\n");
+  pageWrite("apps/web/vitest.config.ts", `${Array.from(
+    { length: 20 }, (_, index) => `// config line ${index + 1}`,
+  ).join("\n")}\nexport default { test: { passWithNoTests: false } };\n`);
   const pageConfigMiss = await runPageFixture();
-  assert.equal(pageExecutions, 3);
+  assert.equal(pageExecutions, 4);
+  assert.equal(
+    pageConfigMiss.performance.shards.find(({ id }) => id.startsWith("vitest-config-static-"))
+      .classification,
+    "scored",
+  );
   const changedPageShard = pageConfigMiss.manifest.shards.find((shard) =>
     shard.sources.includes(poolsPageSource));
   assert.notEqual(
@@ -1474,12 +1488,14 @@ try {
   const projectionCold = await runProjectionFixture();
   const projectionColdShard = projectionCold.manifest.shards[0];
   assert.equal(projectionColdShard.classification, "verification-only");
+  assert.equal(projectionCold.performance.shards[0].classification, "verification-only");
   assert.equal(typeof projectionColdShard.result, "object");
   projectionWrite("docs/unrelated.md", "unrelated documentation\n");
   const projectionWarm = await runProjectionFixture();
   const projectionWarmShard = projectionWarm.manifest.shards[0];
   assert.equal(projectionExecutions, 1);
   assert.equal(projectionWarmShard.cacheDecision, "reused");
+  assert.equal(projectionWarm.performance.shards[0].classification, "verification-only");
   assert.deepEqual(projectionWarmShard.result, projectionColdShard.result);
 
   const projectionEntryRoot = join(
