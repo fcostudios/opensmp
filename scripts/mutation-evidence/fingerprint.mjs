@@ -268,6 +268,7 @@ export function collectExecutionInputs({
   root,
   entryFiles,
   configurationFiles,
+  staticFiles = [],
   migrationRoots,
   toolVersions,
   runtimeProfile,
@@ -515,6 +516,14 @@ export function collectExecutionInputs({
   addFile(path.join(absoluteRoot, "pnpm-lock.yaml"));
 
   const entries = [...included].map((file) => [displayPath(file), sha256(readFileSync(file))]);
+  for (const candidate of staticFiles) {
+    const file = path.resolve(absoluteRoot, candidate);
+    if (!isWithin(absoluteRoot, file) || hasSymlinkComponent(absoluteRoot, file)
+        || !existsSync(file) || !statSync(file).isFile()) {
+      throw new Error(`Static execution input is unavailable: ${candidate}`);
+    }
+    entries.push([displayPath(file), sha256(readFileSync(file))]);
+  }
   entries.push(
     [
       "@mutation-evidence/dependency-resolver.json",

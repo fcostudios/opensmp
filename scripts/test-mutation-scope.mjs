@@ -6,11 +6,13 @@ import {
   mkdtempSync,
   existsSync,
   readFileSync,
+  readdirSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
+import { EventEmitter } from "node:events";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -971,9 +973,11 @@ assert.deepEqual(generated.mutate, [
   `${source}:5-5`,
 ]);
 assert.equal(manifest.shards.length, 4);
-assert.equal(manifest.base, fixtureBase);
-assert.match(manifest.head, /^[0-9a-f]{40}$/);
-assert.match(manifest.worktreeHash, /^[0-9a-f]{64}$/);
+assert.equal(manifest.provenance.base, fixtureBase);
+assert.equal(manifest.provenance.baseRef, fixtureBase);
+assert.match(manifest.provenance.head, /^[0-9a-f]{40}$/);
+assert.match(manifest.provenance.worktreeHash, /^[0-9a-f]{64}$/);
+assert.deepEqual(Object.keys(manifest).sort(), ["provenance", "shards", "toolVersions"]);
 for (const [index, shard] of manifest.shards.entries()) {
   const config = configs[index];
   assert.equal(config.coverageAnalysis, "off");
@@ -987,10 +991,7 @@ for (const [index, shard] of manifest.shards.entries()) {
   assert.equal(shard.result, "pending");
   assert.equal(shard.reportHash, null);
   assert.match(shard.configHash, /^[0-9a-f]{64}$/);
-  assert.deepEqual(Object.keys(shard.provenance).sort(), ["base", "head", "worktreeHash"]);
-  assert.equal(shard.provenance.base, fixtureBase);
-  assert.equal(shard.provenance.head, manifest.head);
-  assert.equal(shard.provenance.worktreeHash, manifest.worktreeHash);
+  assert.equal("provenance" in shard, false);
   assert.equal(shard.cacheDecision, "pending");
   assert.equal(shard.durationMs, null);
   assert.equal(shard.priorDurationMs, null);
@@ -1054,7 +1055,7 @@ assert.deepEqual(vitestStaticShard.sources, ["apps/web/vitest.config.ts"]);
 assert.deepEqual(vitestStaticShard.testFiles, ["apps/web/next.config.test.ts"]);
 assert.deepEqual(vitestStaticShard.mutate, ["apps/web/vitest.config.ts:21-21"]);
 assert.match(vitestStaticShard.contentHashes["apps/web/vitest.config.ts"], /^[0-9a-f]{64}$/);
-assert.equal(vitestStaticShard.provenance.base, fixtureBase);
+assert.equal("provenance" in vitestStaticShard, false);
 
 const cacheFixtureRoot = mkdtempSync(join(tmpdir(), "smp-mutation-cache-runner-"));
 const cacheSource = "packages/db/src/provisioning-routing.ts";
@@ -1085,8 +1086,11 @@ const cacheRun = async (overrides = {}) => {
       databaseServerVersion: "16.4",
       schemaFingerprint: "a".repeat(64),
     })),
+    beforeEvidence: overrides.beforeEvidence,
+    signalProcess: overrides.signalProcess,
     executeShard: ({ shard }) => {
       executions += 1;
+      const mutantLine = Number(/:(\d+)-/.exec(shard.mutate[0])?.[1]);
       const report = {
         config: {
           configFile: shard.configPath,
@@ -1097,7 +1101,7 @@ const cacheRun = async (overrides = {}) => {
           source: readFileSync(join(cacheFixtureRoot, sourcePath), "utf8"),
           mutants: [{
             id: "0",
-            location: { start: { line: 1 }, end: { line: 1 } },
+            location: { start: { line: mutantLine }, end: { line: mutantLine } },
             status: "Killed",
           }],
         }])),
@@ -1118,8 +1122,9 @@ try {
   cacheWrite("pnpm-lock.yaml", "lockfileVersion: '9.0'\n");
   cacheWrite("stryker.conf.json", JSON.stringify({ testFiles: [] }));
   cacheWrite("vitest.mutation.config.mjs", "export default {};\n");
-  cacheWrite("scripts/mutation-scope.mjs", "export const runnerIdentity = 1;\n");
-  cacheWrite(cacheSource, "export const rolesPage = 1;\n");
+  cacheWrite("scripts/mutation-scope.mjs", 'import "node:fs";\nexport const runnerIdentity = 1;\n');
+  cacheWrite("scripts/dependency.mjs", "export const dependency = 1;\n");
+  cacheWrite(cacheSource, 'import "../../../scripts/dependency.mjs";\nexport const rolesPage = 1;\n');
   cacheWrite(cacheTest, "export {};\n");
   execFileSync("git", ["add", "."], { cwd: cacheFixtureRoot });
   execFileSync("git", ["commit", "--quiet", "-m", "cache base"], { cwd: cacheFixtureRoot });
@@ -1127,7 +1132,7 @@ try {
     cwd: cacheFixtureRoot,
     encoding: "utf8",
   }).trim();
-  cacheWrite(cacheSource, "export const rolesPage = 2;\n");
+  cacheWrite(cacheSource, 'import "../../../scripts/dependency.mjs";\nexport const rolesPage = 2;\n');
 
   const cold = await cacheRun();
   assert.equal(cold.executions, 1);
@@ -1150,27 +1155,31 @@ try {
   assert.equal(committed.executions, 0);
   assert.equal(committed.result.manifest.shards[0].cacheDecision, "reused");
   assert.equal(committed.result.manifest.shards[0].evidenceKey, cold.result.manifest.shards[0].evidenceKey);
+  cacheWrite("docs/unrelated.md", "metadata only\n");
+  const unrelatedDocumentation = await cacheRun();
+  assert.equal(unrelatedDocumentation.executions, 0);
+  assert.equal(unrelatedDocumentation.result.manifest.shards[0].evidenceKey, cold.result.manifest.shards[0].evidenceKey);
+  rmSync(join(cacheFixtureRoot, "docs/unrelated.md"));
 
   for (const [path, contents] of [
-    [cacheSource, "export const rolesPage = 3;\n"],
+    [cacheSource, 'import "../../../scripts/dependency.mjs";\nexport const rolesPage = 3;\n'],
     [cacheTest, "export const responsible = true;\n"],
     ["stryker.conf.json", JSON.stringify({ testFiles: [], timeoutMS: 1234 })],
-    ["scripts/dependency.mjs", "export const dependency = 1;\n"],
+    ["scripts/dependency.mjs", "export const dependency = 2;\n"],
     ["pnpm-lock.yaml", "lockfileVersion: '9.0'\n# changed\n"],
-    ["scripts/mutation-scope.mjs", "export const runnerIdentity = 2;\n"],
+    ["scripts/mutation-scope.mjs", 'import "node:fs";\nexport const runnerIdentity = 2;\n'],
   ]) {
     const existed = existsSync(join(cacheFixtureRoot, path));
     const before = existed ? readFileSync(join(cacheFixtureRoot, path), "utf8") : null;
     cacheWrite(path, contents);
-    if (path === "scripts/dependency.mjs") {
-      const sourceBefore = readFileSync(join(cacheFixtureRoot, cacheSource), "utf8");
-      cacheWrite(cacheSource, `import \"../../../../../scripts/dependency.mjs\";\n${sourceBefore}`);
-    }
+    const sourceBeforeRun = readFileSync(join(cacheFixtureRoot, cacheSource), "utf8");
     const miss = await cacheRun();
     assert.equal(miss.executions, 1, `${path} changes invalidate cached evidence`);
+    if (path === "scripts/dependency.mjs") {
+      assert.equal(readFileSync(join(cacheFixtureRoot, cacheSource), "utf8"), sourceBeforeRun);
+    }
     if (existed) cacheWrite(path, before);
     else rmSync(join(cacheFixtureRoot, path), { force: true });
-    if (path === "scripts/dependency.mjs") cacheWrite(cacheSource, "export const rolesPage = 2;\n");
   }
   assert.equal((await cacheRun({
     toolVersions: {
@@ -1190,6 +1199,26 @@ try {
   const cacheEntryRoot = join(
     cacheFixtureRoot, ".git", "ledger-mutation-cache", "v1", stableShard.evidenceKey,
   );
+  const entryPath = join(cacheEntryRoot, "entry.json");
+  for (const [field, mutateEntry] of [
+    ["classification", (entry) => ({ ...entry, classification: "verification-only" })],
+    ["shardKind", (entry) => ({ ...entry, shardKind: "schema-static" })],
+    ["toolVersions", (entry) => ({ ...entry, toolVersions: { ...entry.toolVersions, node: "22.0.1" } })],
+    ["runtimeProfile", (entry) => ({ ...entry, runtimeProfile: { ...entry.runtimeProfile, locale: "es-EC" } })],
+    ["dependencyHashes", (entry) => ({
+      ...entry,
+      dependencyHashes: { ...entry.dependencyHashes, "pnpm-lock.yaml": "b".repeat(64) },
+    })],
+    ["commandIdentity", (entry) => ({ ...entry, commandIdentity: "b".repeat(64) })],
+    ["evidenceKey", (entry) => ({ ...entry, evidenceKey: "b".repeat(64) })],
+    ["result", (entry) => ({ ...entry, result: "failed" })],
+  ]) {
+    const entry = JSON.parse(readFileSync(entryPath, "utf8"));
+    writeFileSync(entryPath, `${JSON.stringify(mutateEntry(entry))}\n`, "utf8");
+    const tampered = await cacheRun();
+    assert.equal(tampered.executions, 1, `${field} metadata tampering must execute`);
+    assert.equal(tampered.result.manifest.shards[0].cacheDecision, "rejected");
+  }
   writeFileSync(join(cacheEntryRoot, "mutation-report.json"), "{corrupt", "utf8");
   const corrupt = await cacheRun();
   assert.equal(corrupt.executions, 1);
@@ -1211,6 +1240,39 @@ try {
   assert.equal(JSON.stringify(unavailable.result.manifest).includes("databaseUrl"), false);
   assert.equal(JSON.stringify(unavailable.result.manifest).includes("localhost"), false);
   assert.equal((await cacheRun({ env: { MUTATION_CACHE: "off" } })).executions, 1);
+
+  const performanceDirectory = join(cacheFixtureRoot, "reports/mutation-performance");
+  const failureRecordsBefore = new Set(
+    existsSync(performanceDirectory) ? readdirSync(performanceDirectory) : [],
+  );
+  await assert.rejects(
+    cacheRun({ beforeEvidence: () => { throw new Error("profile exploded"); } }),
+  );
+  const failureRecords = readdirSync(performanceDirectory);
+  const failedRecordName = failureRecords.find((name) => !failureRecordsBefore.has(name));
+  assert.ok(failedRecordName);
+  const failedRecord = JSON.parse(readFileSync(join(
+    performanceDirectory, failedRecordName,
+  ), "utf8"));
+  assert.equal(failedRecord.outcome, "failed");
+  assert.equal(failedRecord.shards.every((shard) => shard.status === "started" || shard.result !== "passed"), true);
+
+  const signalProcess = new EventEmitter();
+  signalProcess.exit = (code) => { throw Object.assign(new Error("signal exit"), { code }); };
+  const signalRecordsBefore = new Set(readdirSync(performanceDirectory));
+  await assert.rejects(cacheRun({
+    signalProcess,
+    beforeEvidence: () => {
+      signalProcess.emit("SIGTERM");
+    },
+  }), /signal exit/);
+  const signalRecords = readdirSync(performanceDirectory);
+  const interruptedRecordName = signalRecords.find((name) => !signalRecordsBefore.has(name));
+  assert.ok(interruptedRecordName);
+  const interruptedRecord = JSON.parse(readFileSync(join(
+    performanceDirectory, interruptedRecordName,
+  ), "utf8"));
+  assert.equal(interruptedRecord.outcome, "interrupted");
 } finally {
   rmSync(cacheFixtureRoot, { force: true, recursive: true });
 }

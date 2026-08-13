@@ -22,7 +22,7 @@ import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "../apps/web/node_modules/typescript/lib/typescript.js";
 import { cacheRoot, readCacheEntry, writeSuccessfulCacheEntry } from "./mutation-evidence/cache.mjs";
-import { collectExecutionInputs, createEvidenceKey, sha256 } from "./mutation-evidence/fingerprint.mjs";
+import { canonicalJson, collectExecutionInputs, createEvidenceKey, sha256 } from "./mutation-evidence/fingerprint.mjs";
 import {
   createPerformanceRun,
   finishPerformanceRun,
@@ -1385,6 +1385,7 @@ export async function runMutationScope(options = {}) {
   const previousCwd = process.cwd();
   const previousEnvironment = {};
   const signalHandlers = [];
+  const signalProcess = options.signalProcess ?? process;
   const environment = options.env ?? process.env;
   if (options.cwd) process.chdir(options.cwd);
   for (const key of ["MUTATION_BASE", "MUTATION_CACHE", "MUTATION_SCOPE_DRY"]) {
@@ -1553,11 +1554,6 @@ export async function runMutationScope(options = {}) {
       mutantCount: null,
       mutate: spec.mutate,
       priorDurationMs: null,
-      provenance: {
-        head,
-        base: resolvedBase,
-        worktreeHash,
-      },
       reportHash: null,
       reportPath,
       result: "pending",
@@ -1572,12 +1568,9 @@ export async function runMutationScope(options = {}) {
     writeFileSync(shard.configPath, shard.configText, "utf8");
   }
   const manifestFor = () => ({
-    base: resolvedBase,
-    baseRef,
-    head,
+    provenance: { base: resolvedBase, baseRef, head, worktreeHash },
     shards: shards.map(({ config, configText, ...shard }) => shard),
     toolVersions,
-    worktreeHash,
   });
   writeFileSync(
     GENERATED_MANIFEST,
@@ -1591,11 +1584,46 @@ export async function runMutationScope(options = {}) {
     return { manifest: manifestFor(), performance: null };
   }
 
+  const cacheMode = process.env.MUTATION_CACHE === "off" ? "bypass" : "enabled";
+  const performanceRun = createPerformanceRun({
+    provenance: {
+      campaignKey: sha256(shards.map((shard) => `${shard.id}:${shard.configHash}`).join("\n")),
+      head,
+      base: resolvedBase,
+      baseRef,
+    },
+    cacheMode,
+    machine: options.machine ?? {
+      os: `${os.type()} ${os.release()}`,
+      arch: os.arch(), logicalCpuCount: os.cpus().length, memoryBytes: os.totalmem(), toolVersions,
+    },
+    ...(options.performanceOptions ?? {}),
+  });
+  const persist = () => {
+    writeFileSync(GENERATED_MANIFEST, `${JSON.stringify(manifestFor(), null, 2)}\n`, "utf8");
+    writePerformanceRecord(process.cwd(), performanceRun);
+  };
+  if (options.installSignalHandlers !== false) {
+    for (const signal of ["SIGINT", "SIGTERM"]) {
+      const handler = () => {
+        try {
+          finishPerformanceRun(performanceRun, "interrupted");
+          persist();
+        } finally {
+          signalProcess.exit(signal === "SIGINT" ? 130 : 143);
+        }
+      };
+      signalProcess.once(signal, handler);
+      signalHandlers.push([signal, handler]);
+    }
+  }
+  persist();
+  try {
+  options.beforeEvidence?.();
   const gitAtRoot = (args, execOptions = {}) => execFileSync("git", args, {
     ...execOptions, encoding: "utf8",
   }).trim();
   const repositoryCacheRoot = cacheRoot(process.cwd(), gitAtRoot);
-  const cacheMode = process.env.MUTATION_CACHE === "off" ? "bypass" : "enabled";
   const runtimeProfileProvider = options.runtimeProfileProvider ?? defaultRuntimeProfile;
   const executionContexts = new Map();
   for (const shard of shards) {
@@ -1626,14 +1654,13 @@ export async function runMutationScope(options = {}) {
       "packages/db/vitest.config.ts",
     ]
       .filter((file) => existsSync(file));
-    const entryFiles = [
-      ...shard.sources, ...shard.testFiles, "scripts/mutation-scope.mjs", ...commandFiles,
-    ]
+    const entryFiles = [...shard.sources, ...shard.testFiles, ...commandFiles]
       .filter((file) => existsSync(file));
     const executionInputs = collectExecutionInputs({
       root: process.cwd(),
       entryFiles,
       configurationFiles,
+      staticFiles: ["scripts/mutation-scope.mjs"],
       migrationRoots: isDatabaseBacked(shard) && existsSync("packages/db/src/migrations")
         ? ["packages/db/src/migrations"] : [],
       toolVersions,
@@ -1657,38 +1684,13 @@ export async function runMutationScope(options = {}) {
     });
     executionContexts.set(shard.id, { commandList, executionInputs, runtimeProfile });
   }
-  const campaignKey = sha256(shards.map((shard) => shard.evidenceKey).sort().join("\n"));
-  const performanceRun = createPerformanceRun({
-    provenance: { campaignKey, head, base: resolvedBase, baseRef },
-    cacheMode,
-    machine: options.machine ?? {
-      os: `${os.type()} ${os.release()}`,
-      arch: os.arch(), logicalCpuCount: os.cpus().length, memoryBytes: os.totalmem(), toolVersions,
-    },
-    ...(options.performanceOptions ?? {}),
-  });
-  const persist = () => {
-    writeFileSync(GENERATED_MANIFEST, `${JSON.stringify(manifestFor(), null, 2)}\n`, "utf8");
-    writePerformanceRecord(process.cwd(), performanceRun);
-  };
-  if (options.installSignalHandlers !== false) {
-    for (const signal of ["SIGINT", "SIGTERM"]) {
-      const handler = () => {
-        try {
-          finishPerformanceRun(performanceRun, "interrupted");
-          persist();
-        } finally {
-          process.exit(signal === "SIGINT" ? 130 : 143);
-        }
-      };
-      process.once(signal, handler);
-      signalHandlers.push([signal, handler]);
-    }
-  }
+  performanceRun.provenance.campaignKey = sha256(
+    shards.map((shard) => shard.evidenceKey).sort().join("\n"),
+  );
+  persist();
   const executeShard = options.executeShard ?? (({ shard }) => spawnSync(
     "pnpm", ["exec", "stryker", "run", shard.configPath], { stdio: "inherit" },
   ));
-  try {
     for (const shard of shards) {
       const { commandList, executionInputs, runtimeProfile } = executionContexts.get(shard.id);
       console.log(`mutation-scope: running ${shard.id} (${shard.mutate.length} ranges)`);
@@ -1702,7 +1704,16 @@ export async function runMutationScope(options = {}) {
           root: repositoryCacheRoot,
           evidenceKey: shard.evidenceKey,
           validateArtifacts: (artifacts, entry) => {
-            if (entry.shardKind !== shard.kind || entry.result !== "passed") return false;
+            if (
+              entry.evidenceKey !== shard.evidenceKey
+              || entry.shardKind !== shard.kind
+              || entry.result !== "passed"
+              || !["scored", "verification-only"].includes(entry.classification)
+              || canonicalJson(entry.toolVersions) !== canonicalJson(toolVersions)
+              || canonicalJson(entry.runtimeProfile) !== canonicalJson(runtimeProfile)
+              || canonicalJson(entry.dependencyHashes) !== canonicalJson(shard.dependencyHashes)
+              || entry.commandIdentity !== sha256(canonicalJson(commandList))
+            ) return false;
             const reportArtifact = artifacts["mutation-report.json"];
             if (!reportArtifact) return false;
             rehydrateCachedReport(reportArtifact, shard.jsonReportPath, shard);
@@ -1720,8 +1731,11 @@ export async function runMutationScope(options = {}) {
               (source) => readFileSync(source, "utf8"),
             );
             const mutants = mutationReportMutants(report);
-            if (entry.classification === "scored") requireNonzeroMutationReport(report, shard.id);
-            else {
+            if (mutants.length > 0) {
+              if (entry.classification !== "scored") return false;
+              requireNonzeroMutationReport(report, shard.id);
+            } else {
+              if (entry.classification !== "verification-only") return false;
               requireNonzeroStaticShard(shard.kind, mutants.length, shard.id);
               verificationAuditsForReport(report, shard, allHunks);
             }
@@ -1843,7 +1857,7 @@ export async function runMutationScope(options = {}) {
     throw err;
   }
   } finally {
-    for (const [signal, handler] of signalHandlers) process.removeListener(signal, handler);
+    for (const [signal, handler] of signalHandlers) signalProcess.removeListener(signal, handler);
     for (const [key, value] of Object.entries(previousEnvironment)) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
