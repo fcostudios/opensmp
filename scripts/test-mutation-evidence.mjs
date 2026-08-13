@@ -380,6 +380,33 @@ try {
     }]);
     assert.equal(canonicalJson(result).includes(argvSecret), false);
   }
+  await put(
+    fixtureRoot,
+    ".tmp/stryker-fixture/sandbox/packages/db/src/testing/postgres-container.ts",
+    [
+      'import { execFile } from "node:child_process";',
+      'import { resolve } from "node:path";',
+      'const packageRoot = import.meta.dirname;',
+      'const migrationRunner = resolve(packageRoot, "scripts/apply-migrations.mjs");',
+      'export const run = () => execFile(process.execPath, [migrationRunner]);',
+      "",
+    ].join("\n"),
+  );
+  await put(
+    fixtureRoot,
+    "scripts/computed-root.ts",
+    'import "./missing.js";\nimport { execFile } from "node:child_process";\nexport const run = (target: string) => execFile(process.execPath, [target]);\n',
+  );
+  const generatedSandboxInputs = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["scripts/computed-root.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+  });
+  assert.equal(generatedSandboxInputs.reusable, false);
+  assert.equal(
+    Object.keys(generatedSandboxInputs.hashes).some((input) => input.startsWith(".tmp/")),
+    false,
+  );
   process.env.LEDGER_FINGERPRINT_SECRET_SENTINEL = "changed-secret-value";
   assert.deepEqual(
     collectExecutionInputs({

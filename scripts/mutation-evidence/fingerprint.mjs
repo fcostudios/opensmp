@@ -16,6 +16,7 @@ const KNOWN_OUTPUT_DIRECTORIES = new Set([
   ".cache",
   ".next",
   ".stryker-tmp",
+  ".tmp",
   ".turbo",
   "build",
   "coverage",
