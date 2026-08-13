@@ -1,8 +1,16 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import {
+  CACHE_SCHEMA_VERSION,
+  cacheRoot,
+  clearMutationCache,
+  readCacheEntry,
+  writeSuccessfulCacheEntry,
+} from "./mutation-evidence/cache.mjs";
 import {
   EVIDENCE_SCHEMA_VERSION,
   canonicalJson,
@@ -643,3 +651,247 @@ const repositoryProbe = collectExecutionInputs({
 assert.equal(repositoryProbe.reusable, true);
 assert.deepEqual(repositoryProbe.reasons, []);
 assert.ok(repositoryProbe.hashes["scripts/mutation-scope.mjs"]);
+
+function runFixtureGit(repoRoot) {
+  return (args) => execFileSync("git", args, { cwd: repoRoot, encoding: "utf8" }).trim();
+}
+
+const cacheFixture = await mkdtemp(path.join(tmpdir(), "ledger-mutation-cache-"));
+try {
+  const repository = path.join(cacheFixture, "repository");
+  const linkedWorktree = path.join(cacheFixture, "linked-worktree");
+  await mkdir(repository);
+  execFileSync("git", ["init", "-q"], { cwd: repository });
+  execFileSync("git", ["config", "user.email", "cache-test@example.invalid"], { cwd: repository });
+  execFileSync("git", ["config", "user.name", "Cache Contract Test"], { cwd: repository });
+  await writeFile(path.join(repository, "tracked.txt"), "fixture\n");
+  execFileSync("git", ["add", "tracked.txt"], { cwd: repository });
+  execFileSync("git", ["commit", "-qm", "fixture"], { cwd: repository });
+  execFileSync("git", ["worktree", "add", "-q", "-b", "cache-linked", linkedWorktree], {
+    cwd: repository,
+  });
+
+  const repositoryCacheRoot = cacheRoot(repository, runFixtureGit(repository));
+  const linkedCacheRoot = cacheRoot(linkedWorktree, runFixtureGit(linkedWorktree));
+  const commonDirectory = await realpath(path.resolve(
+    repository,
+    runFixtureGit(repository)(["rev-parse", "--git-common-dir"]),
+  ));
+  assert.equal(repositoryCacheRoot, path.join(commonDirectory, "ledger-mutation-cache", "v1"));
+  assert.equal(linkedCacheRoot, repositoryCacheRoot);
+  assert.equal(CACHE_SCHEMA_VERSION, 1);
+
+  const evidenceKey = sha256("successful-cache-entry");
+  const reportSource = path.join(cacheFixture, "mutation-report.json");
+  const htmlSource = path.join(cacheFixture, "mutation-report.html");
+  await writeFile(reportSource, JSON.stringify({ files: {}, schemaVersion: "1" }));
+  await writeFile(htmlSource, "<html>passed</html>\n");
+  const secretSentinel = "postgres://cache-secret:do-not-write@example.invalid/ledger";
+  writeSuccessfulCacheEntry({
+    root: repositoryCacheRoot,
+    evidenceKey,
+    entry: {
+      result: "passed",
+      shardKind: "stryker",
+      durationMs: 125,
+      secret: secretSentinel,
+      environment: { DATABASE_URL: secretSentinel },
+    },
+    artifacts: {
+      "mutation-report.json": reportSource,
+      "mutation-report.html": htmlSource,
+    },
+  });
+
+  let validatorCalls = 0;
+  const hit = readCacheEntry({
+    root: linkedCacheRoot,
+    evidenceKey,
+    validateArtifacts(artifacts, entry) {
+      validatorCalls += 1;
+      assert.equal(entry.result, "passed");
+      assert.deepEqual(Object.keys(artifacts).sort(), [
+        "mutation-report.html",
+        "mutation-report.json",
+      ]);
+      assert.deepEqual(JSON.parse(execFileSync("node", ["-e", `process.stdout.write(require('fs').readFileSync(${JSON.stringify(artifacts["mutation-report.json"])}, 'utf8'))`], { encoding: "utf8" })), {
+        files: {},
+        schemaVersion: "1",
+      });
+      return true;
+    },
+  });
+  assert.equal(hit.hit, true);
+  assert.equal(hit.entry.evidenceKey, evidenceKey);
+  assert.equal(hit.entry.result, "passed");
+  assert.equal(validatorCalls, 1);
+  const persistedEntry = await readFile(path.join(repositoryCacheRoot, evidenceKey, "entry.json"), "utf8");
+  assert.equal(persistedEntry.includes(secretSentinel), false);
+  assert.equal(persistedEntry.includes("DATABASE_URL"), false);
+  assert.equal(
+    (await readdir(repositoryCacheRoot)).some((name) => name.endsWith(".temporary")),
+    false,
+  );
+  await writeFile(path.join(repositoryCacheRoot, evidenceKey, "mutation-report.json"), "truncated");
+  assert.deepEqual(
+    readCacheEntry({
+      root: repositoryCacheRoot,
+      evidenceKey,
+      validateArtifacts: () => true,
+    }),
+    { hit: false, reason: "artifact-hash-mismatch" },
+  );
+  writeSuccessfulCacheEntry({
+    root: repositoryCacheRoot,
+    evidenceKey,
+    entry: { result: "passed", shardKind: "stryker", durationMs: 125 },
+    artifacts: {
+      "mutation-report.json": reportSource,
+      "mutation-report.html": htmlSource,
+    },
+  });
+  assert.equal(
+    readCacheEntry({
+      root: repositoryCacheRoot,
+      evidenceKey,
+      validateArtifacts: () => true,
+    }).hit,
+    true,
+  );
+
+  assert.throws(
+    () => readCacheEntry({ root: repositoryCacheRoot, evidenceKey }),
+    /validateArtifacts/i,
+  );
+  assert.deepEqual(
+    readCacheEntry({
+      root: repositoryCacheRoot,
+      evidenceKey: sha256("missing"),
+      validateArtifacts: () => true,
+    }),
+    { hit: false, reason: "not-found" },
+  );
+
+  async function cloneEntry(suffix, transformEntry = (entry) => entry) {
+    const cloneKey = sha256(suffix);
+    const sourceDirectory = path.join(repositoryCacheRoot, evidenceKey);
+    const cloneDirectory = path.join(repositoryCacheRoot, cloneKey);
+    await mkdir(cloneDirectory, { recursive: true });
+    for (const artifactName of ["mutation-report.json", "mutation-report.html"]) {
+      await writeFile(
+        path.join(cloneDirectory, artifactName),
+        await readFile(path.join(sourceDirectory, artifactName)),
+      );
+    }
+    const originalEntry = JSON.parse(await readFile(path.join(sourceDirectory, "entry.json"), "utf8"));
+    await writeFile(
+      path.join(cloneDirectory, "entry.json"),
+      `${JSON.stringify(transformEntry({ ...originalEntry, evidenceKey: cloneKey }))}\n`,
+    );
+    return { cloneDirectory, cloneKey };
+  }
+
+  const rejectedEntries = [];
+  for (const result of ["failed", "pending"]) {
+    const clone = await cloneEntry(result, (entry) => ({ ...entry, result }));
+    rejectedEntries.push([clone.cloneKey, "result-not-passed"]);
+  }
+  const partial = await cloneEntry("partial");
+  await rm(path.join(partial.cloneDirectory, "mutation-report.html"));
+  rejectedEntries.push([partial.cloneKey, "artifact-missing"]);
+  const tampered = await cloneEntry("tampered");
+  await writeFile(path.join(tampered.cloneDirectory, "mutation-report.json"), '{"tampered":true}\n');
+  rejectedEntries.push([tampered.cloneKey, "artifact-hash-mismatch"]);
+  const wrongSchema = await cloneEntry("wrong-schema", (entry) => ({ ...entry, schemaVersion: 999 }));
+  rejectedEntries.push([wrongSchema.cloneKey, "schema-version-mismatch"]);
+  const wrongKey = await cloneEntry("wrong-key", (entry) => ({ ...entry, evidenceKey }));
+  rejectedEntries.push([wrongKey.cloneKey, "evidence-key-mismatch"]);
+  const truncated = await cloneEntry("truncated");
+  await writeFile(path.join(truncated.cloneDirectory, "entry.json"), '{"schemaVersion":1');
+  rejectedEntries.push([truncated.cloneKey, "entry-invalid"]);
+
+  for (const [rejectedKey, reason] of rejectedEntries) {
+    let called = false;
+    assert.deepEqual(
+      readCacheEntry({
+        root: repositoryCacheRoot,
+        evidenceKey: rejectedKey,
+        validateArtifacts: () => {
+          called = true;
+          return true;
+        },
+      }),
+      { hit: false, reason },
+    );
+    assert.equal(called, false);
+  }
+  assert.deepEqual(
+    readCacheEntry({
+      root: repositoryCacheRoot,
+      evidenceKey,
+      validateArtifacts: () => false,
+    }),
+    { hit: false, reason: "artifact-validation-failed" },
+  );
+
+  const interruptedKey = sha256("interrupted-write");
+  await mkdir(path.join(repositoryCacheRoot, `.${interruptedKey}.temporary`), { recursive: true });
+  assert.deepEqual(
+    readCacheEntry({
+      root: repositoryCacheRoot,
+      evidenceKey: interruptedKey,
+      validateArtifacts: () => true,
+    }),
+    { hit: false, reason: "not-found" },
+  );
+
+  assert.throws(
+    () => writeSuccessfulCacheEntry({
+      root: repositoryCacheRoot,
+      evidenceKey: sha256("failed-write"),
+      entry: { result: "failed" },
+      artifacts: { "mutation-report.json": reportSource },
+    }),
+    /passed/i,
+  );
+  assert.equal(
+    (await readdir(repositoryCacheRoot)).some((name) => name.includes("failed-write")),
+    false,
+  );
+
+  const cacheCli = new URL("./mutation-cache.mjs", import.meta.url).pathname;
+  const inspectOutput = execFileSync(process.execPath, [cacheCli, "inspect"], {
+    cwd: linkedWorktree,
+    encoding: "utf8",
+  });
+  assert.equal(
+    inspectOutput,
+    `Mutation cache: ${repositoryCacheRoot}\nEntries: 8\n`,
+  );
+  assert.throws(
+    () => execFileSync(process.execPath, [cacheCli, "clear", cacheFixture], {
+      cwd: linkedWorktree,
+      encoding: "utf8",
+      stdio: "pipe",
+    }),
+    (error) => error.status === 2 && error.stderr === "Usage: mutation-cache.mjs <inspect|clear>\n",
+  );
+
+  const cleared = clearMutationCache({ repoRoot: linkedWorktree, runGit: runFixtureGit(linkedWorktree) });
+  assert.equal(cleared.root, repositoryCacheRoot);
+  assert.equal(cleared.count, 8);
+  await assert.rejects(readFile(path.join(repositoryCacheRoot, evidenceKey, "entry.json")), /ENOENT/);
+
+  const outsideDirectory = path.join(cacheFixture, "outside-do-not-delete");
+  await mkdir(outsideDirectory);
+  await writeFile(path.join(outsideDirectory, "sentinel"), "preserve\n");
+  await mkdir(path.dirname(repositoryCacheRoot), { recursive: true });
+  await symlink(outsideDirectory, repositoryCacheRoot);
+  assert.throws(
+    () => clearMutationCache({ repoRoot: repository, runGit: runFixtureGit(repository) }),
+    /refusing|validated cache path/i,
+  );
+  assert.equal(await readFile(path.join(outsideDirectory, "sentinel"), "utf8"), "preserve\n");
+} finally {
+  await rm(cacheFixture, { recursive: true, force: true });
+}
