@@ -373,6 +373,9 @@ export function collectExecutionInputs({
     });
   const resolveImport = (specifier, containingFile) => {
     if (specifier.startsWith("node:")) return { owned: false, resolved: null };
+    if (path.basename(containingFile) === "next-env.d.ts" && specifier.startsWith("./.next/")) {
+      return { owned: false, resolved: null };
+    }
     const { options: compilerOptions } = compilerConfigurationFor(containingFile);
     const compilerResult = ts.resolveModuleName(
       specifier,

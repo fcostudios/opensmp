@@ -17,7 +17,23 @@ import path from "node:path";
 export const CACHE_SCHEMA_VERSION = 1;
 const CACHE_DIRECTORY = path.join("ledger-mutation-cache", `v${CACHE_SCHEMA_VERSION}`);
 const EVIDENCE_KEY_PATTERN = /^[a-f0-9]{64}$/;
-const SAFE_ENTRY_FIELDS = [
+const UNSAFE_KEY_PATTERN = /(?:database.?url|password|token|authorization|credential|secret|api.?key|^__proto__$|^prototype$|^constructor$)/i;
+const UNSAFE_VALUE_PATTERN = /(?:\b[a-z][a-z\d+.-]*:\/\/|\b(?:basic|bearer)\s+|^--?[\w-]*(?:password|token|authorization|credential|secret|api[-_]?key|database[-_]?url))/i;
+const IDENTIFIER_PATTERN = /^[a-z][a-z0-9-]*$/i;
+const VERSION_PATTERN = /^v?\d+(?:\.\d+){0,3}(?:[-+][a-z0-9.-]+)?$/i;
+const RUNTIME_PROFILE_PATTERNS = {
+  platform: /^(?:aix|darwin|freebsd|linux|openbsd|sunos|win32)$/,
+  arch: /^(?:arm|arm64|ia32|loong64|mips|mipsel|ppc|ppc64|riscv64|s390|s390x|x64)$/,
+  locale: /^[a-z]{2,3}(?:[-_][a-z0-9]{2,8})*$/i,
+  timezone: /^(?:UTC|[A-Za-z_+-]+(?:\/[A-Za-z0-9_+-]+)+)$/,
+  databaseDriver: IDENTIFIER_PATTERN,
+  databaseServerVersion: VERSION_PATTERN,
+  schemaFingerprint: EVIDENCE_KEY_PATTERN,
+};
+const ENTRY_FIELDS = new Set([
+  "schemaVersion",
+  "evidenceKey",
+  "result",
   "shardKind",
   "classification",
   "durationMs",
@@ -25,10 +41,66 @@ const SAFE_ENTRY_FIELDS = [
   "runtimeProfile",
   "dependencyHashes",
   "commandList",
-];
+  "commandIdentity",
+  "artifacts",
+]);
 
 function digest(contents) {
   return createHash("sha256").update(contents).digest("hex");
+}
+
+function unsafeMetadata() {
+  throw new Error("Unsafe cache metadata");
+}
+
+function assertSafeString(value) {
+  if (typeof value !== "string" || UNSAFE_VALUE_PATTERN.test(value)) unsafeMetadata();
+}
+
+function inspectMetadata(value, parentKey = "") {
+  if (value === null || typeof value === "boolean") return;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) unsafeMetadata();
+    return;
+  }
+  if (typeof value === "string") {
+    assertSafeString(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) inspectMetadata(item);
+    return;
+  }
+  if (!value || typeof value !== "object" || Object.getPrototypeOf(value) !== Object.prototype) {
+    unsafeMetadata();
+  }
+  for (const [key, nested] of Object.entries(value)) {
+    if (parentKey !== "dependencyHashes" && key !== "evidenceKey" && UNSAFE_KEY_PATTERN.test(key)) {
+      unsafeMetadata();
+    }
+    inspectMetadata(nested, key);
+  }
+}
+
+function canonicalMetadata(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalMetadata).join(",")}]`;
+  return `{${Object.keys(value).sort().map((key) =>
+    `${JSON.stringify(key)}:${canonicalMetadata(value[key])}`).join(",")}}`;
+}
+
+function stringRecord(value, valuePattern = null) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) unsafeMetadata();
+  const result = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (UNSAFE_KEY_PATTERN.test(key) || typeof item !== "string"
+        || (valuePattern && !valuePattern.test(item))) {
+      unsafeMetadata();
+    }
+    assertSafeString(item);
+    result[key] = item;
+  }
+  return result;
 }
 
 function assertEvidenceKey(evidenceKey) {
@@ -49,13 +121,56 @@ function artifactRelativePath(name) {
 }
 
 function safeEntry(entry, evidenceKey, artifactHashes) {
+  inspectMetadata(entry);
+  if (Object.keys(entry).some((field) => !ENTRY_FIELDS.has(field))) unsafeMetadata();
   const persisted = {
     schemaVersion: CACHE_SCHEMA_VERSION,
     evidenceKey,
     result: "passed",
   };
-  for (const field of SAFE_ENTRY_FIELDS) {
-    if (entry[field] !== undefined) persisted[field] = entry[field];
+  for (const field of ["shardKind", "classification"]) {
+    if (entry[field] !== undefined) {
+      assertSafeString(entry[field]);
+      if (!IDENTIFIER_PATTERN.test(entry[field])) unsafeMetadata();
+      persisted[field] = entry[field];
+    }
+  }
+  if (entry.durationMs !== undefined) {
+    if (typeof entry.durationMs !== "number" || !Number.isFinite(entry.durationMs)
+        || entry.durationMs < 0) {
+      unsafeMetadata();
+    }
+    persisted.durationMs = entry.durationMs;
+  }
+  if (entry.toolVersions !== undefined) {
+    persisted.toolVersions = stringRecord(entry.toolVersions, VERSION_PATTERN);
+  }
+  if (entry.runtimeProfile !== undefined) {
+    if (!entry.runtimeProfile || typeof entry.runtimeProfile !== "object"
+        || Array.isArray(entry.runtimeProfile)) {
+      unsafeMetadata();
+    }
+    const runtimeProfile = {};
+    for (const [key, value] of Object.entries(entry.runtimeProfile)) {
+      const pattern = RUNTIME_PROFILE_PATTERNS[key];
+      if (!pattern) unsafeMetadata();
+      assertSafeString(value);
+      if (!pattern.test(value)) unsafeMetadata();
+      runtimeProfile[key] = value;
+    }
+    persisted.runtimeProfile = runtimeProfile;
+  }
+  if (entry.dependencyHashes !== undefined) {
+    persisted.dependencyHashes = stringRecord(entry.dependencyHashes, EVIDENCE_KEY_PATTERN);
+  }
+  if (entry.commandList !== undefined) {
+    persisted.commandIdentity = digest(canonicalMetadata(entry.commandList));
+  } else if (entry.commandIdentity !== undefined) {
+    if (typeof entry.commandIdentity !== "string"
+        || !EVIDENCE_KEY_PATTERN.test(entry.commandIdentity)) {
+      unsafeMetadata();
+    }
+    persisted.commandIdentity = entry.commandIdentity;
   }
   persisted.artifacts = artifactHashes;
   return persisted;
@@ -111,6 +226,14 @@ export function readCacheEntry({ root, evidenceKey, validateArtifacts }) {
   }
   if (!entry.artifacts || typeof entry.artifacts !== "object" || Array.isArray(entry.artifacts)) {
     return { hit: false, reason: "artifact-manifest-invalid" };
+  }
+  try {
+    const normalizedEntry = safeEntry(entry, evidenceKey, entry.artifacts);
+    if (canonicalMetadata(normalizedEntry) !== canonicalMetadata(entry)) {
+      return { hit: false, reason: "entry-metadata-invalid" };
+    }
+  } catch {
+    return { hit: false, reason: "entry-metadata-invalid" };
   }
 
   const artifacts = {};

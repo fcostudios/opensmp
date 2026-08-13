@@ -417,6 +417,35 @@ try {
   );
   await put(
     fixtureRoot,
+    "apps/next-shim/package.json",
+    '{"name":"fixture-next-shim","type":"module"}',
+  );
+  await put(
+    fixtureRoot,
+    "apps/next-shim/next-env.d.ts",
+    '/// <reference types="next" />\nimport "./.next/types/routes.d.ts";\n',
+  );
+  await put(
+    fixtureRoot,
+    "apps/next-shim/.next/types/routes.d.ts",
+    "export type GeneratedRoute = string;\n",
+  );
+  const nextGeneratedShim = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["apps/next-shim/next-env.d.ts"],
+    configurationFiles: [],
+    migrationRoots: [],
+    toolVersions,
+    runtimeProfile,
+  });
+  assert.equal(nextGeneratedShim.reusable, true);
+  assert.deepEqual(nextGeneratedShim.reasons, []);
+  assert.equal(
+    Object.keys(nextGeneratedShim.hashes).some((file) => file.includes("/.next/")),
+    false,
+  );
+  await put(
+    fixtureRoot,
     "packages/explicit/package.json",
     '{"name":"@fixture/explicit","type":"module"}',
   );
@@ -657,6 +686,7 @@ function runFixtureGit(repoRoot) {
 }
 
 const cacheFixture = await mkdtemp(path.join(tmpdir(), "ledger-mutation-cache-"));
+let cacheContractCompleted = false;
 try {
   const repository = path.join(cacheFixture, "repository");
   const linkedWorktree = path.join(cacheFixture, "linked-worktree");
@@ -694,8 +724,6 @@ try {
       result: "passed",
       shardKind: "stryker",
       durationMs: 125,
-      secret: secretSentinel,
-      environment: { DATABASE_URL: secretSentinel },
     },
     artifacts: {
       "mutation-report.json": reportSource,
@@ -730,6 +758,44 @@ try {
   assert.equal(persistedEntry.includes("DATABASE_URL"), false);
   assert.equal(
     (await readdir(repositoryCacheRoot)).some((name) => name.endsWith(".temporary")),
+    false,
+  );
+
+  const unsafeEntries = [
+    { runtimeProfile: { platform: "linux", DATABASE_URL: secretSentinel } },
+    { runtimeProfile: { platform: "linux", nested: { token: secretSentinel } } },
+    { toolVersions: { node: "22.12.0", password: secretSentinel } },
+    { commandList: [["node", ["runner.mjs", "--token", secretSentinel]]] },
+    { commandList: [{ command: "node", metadata: { authorization: secretSentinel } }] },
+    { runtimeProfile: { platform: "linux", credential: "https://user:pass@example.invalid" } },
+    { runtimeProfile: { platform: "opaque-secret-sentinel" } },
+    { toolVersions: { node: "opaque-secret-sentinel" } },
+    { environment: { region: "local" } },
+    { extraMetadata: { region: "local" } },
+    JSON.parse('{"toolVersions":{"__proto__":"22.12.0"}}'),
+  ];
+  for (const [index, unsafeMetadata] of unsafeEntries.entries()) {
+    const unsafeKey = sha256(`unsafe-cache-entry-${index}`);
+    assert.throws(
+      () => writeSuccessfulCacheEntry({
+        root: repositoryCacheRoot,
+        evidenceKey: unsafeKey,
+        entry: { result: "passed", ...unsafeMetadata },
+        artifacts: { "mutation-report.json": reportSource },
+      }),
+      (error) => error.message === "Unsafe cache metadata",
+    );
+    assert.equal(
+      (await readdir(repositoryCacheRoot)).includes(unsafeKey),
+      false,
+    );
+  }
+  assert.equal(
+    (await Promise.all(
+      (await readdir(repositoryCacheRoot)).map(async (name) =>
+        readFile(path.join(repositoryCacheRoot, name, "entry.json"), "utf8").catch(() => ""),
+      ),
+    )).join("\n").includes(secretSentinel),
     false,
   );
   await writeFile(path.join(repositoryCacheRoot, evidenceKey, "mutation-report.json"), "truncated");
@@ -806,6 +872,14 @@ try {
   rejectedEntries.push([wrongSchema.cloneKey, "schema-version-mismatch"]);
   const wrongKey = await cloneEntry("wrong-key", (entry) => ({ ...entry, evidenceKey }));
   rejectedEntries.push([wrongKey.cloneKey, "evidence-key-mismatch"]);
+  const unsafePersisted = await cloneEntry("unsafe-persisted", (entry) => ({
+    ...entry,
+    runtimeProfile: {
+      platform: "linux",
+      nested: { authorization: secretSentinel },
+    },
+  }));
+  rejectedEntries.push([unsafePersisted.cloneKey, "entry-metadata-invalid"]);
   const truncated = await cloneEntry("truncated");
   await writeFile(path.join(truncated.cloneDirectory, "entry.json"), '{"schemaVersion":1');
   rejectedEntries.push([truncated.cloneKey, "entry-invalid"]);
@@ -866,7 +940,7 @@ try {
   });
   assert.equal(
     inspectOutput,
-    `Mutation cache: ${repositoryCacheRoot}\nEntries: 8\n`,
+    `Mutation cache: ${repositoryCacheRoot}\nEntries: 9\n`,
   );
   assert.throws(
     () => execFileSync(process.execPath, [cacheCli, "clear", cacheFixture], {
@@ -879,7 +953,7 @@ try {
 
   const cleared = clearMutationCache({ repoRoot: linkedWorktree, runGit: runFixtureGit(linkedWorktree) });
   assert.equal(cleared.root, repositoryCacheRoot);
-  assert.equal(cleared.count, 8);
+  assert.equal(cleared.count, 9);
   await assert.rejects(readFile(path.join(repositoryCacheRoot, evidenceKey, "entry.json")), /ENOENT/);
 
   const outsideDirectory = path.join(cacheFixture, "outside-do-not-delete");
@@ -892,6 +966,8 @@ try {
     /refusing|validated cache path/i,
   );
   assert.equal(await readFile(path.join(outsideDirectory, "sentinel"), "utf8"), "preserve\n");
+  cacheContractCompleted = true;
 } finally {
   await rm(cacheFixture, { recursive: true, force: true });
 }
+assert.equal(cacheContractCompleted, true);
