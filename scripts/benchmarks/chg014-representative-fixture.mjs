@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-export const BASE_REF = "9a9db72782d2f2bb4823c35c56ce27a349f949a5";
+export const BASE_REF = "c1575cd9d5cc557121d50dc870dc2d30585af112";
 
 function transformSchema(source) {
   const before = 'export const capacityRecoveryWork = pgTable("capacity_recovery_work", {';

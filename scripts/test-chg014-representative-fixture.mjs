@@ -14,7 +14,7 @@ import {
   restoreFixture,
 } from "./benchmarks/chg014-representative-fixture.mjs";
 
-assert.equal(BASE_REF, "9a9db72782d2f2bb4823c35c56ce27a349f949a5");
+assert.equal(BASE_REF, "c1575cd9d5cc557121d50dc870dc2d30585af112");
 assert.deepEqual(
   FIXTURE_FILES.map(({ path: relativePath, preSha256, postSha256 }) => ({
     path: relativePath,

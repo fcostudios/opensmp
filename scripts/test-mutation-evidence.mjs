@@ -112,7 +112,7 @@ async function expectedInputs(root, relativePaths, toolVersions, runtimeProfile)
     ]),
   );
   entries.push(
-    ["@mutation-evidence/dependency-resolver.json", sha256(canonicalJson({ version: 2 }))],
+    ["@mutation-evidence/dependency-resolver.json", sha256(canonicalJson({ version: 3 }))],
     [
       "@mutation-evidence/fingerprint.mjs",
       sha256(await readFile(new URL("./mutation-evidence/fingerprint.mjs", import.meta.url))),
@@ -967,6 +967,19 @@ try {
     entryFiles: ["packages/vendor-user/src/main.ts"],
     configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
   }).hashes["@installed/fixture-third-party@1.0.0/index.js"], installedRuntimeHash);
+
+  await put(
+    fixtureRoot,
+    "packages/vendor-user/src/path-import.ts",
+    'import { thirdParty } from "../../../node_modules/fixture-third-party/index.js";\nexport const value = thirdParty;\n',
+  );
+  const installedPathResult = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/vendor-user/src/path-import.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+  });
+  assert.equal(installedPathResult.reusable, true);
+  assert.ok(installedPathResult.hashes["@installed/fixture-third-party@1.0.0/index.js"]);
 
   await put(
     fixtureRoot,

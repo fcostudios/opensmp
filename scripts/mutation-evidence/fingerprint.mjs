@@ -12,7 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const EVIDENCE_SCHEMA_VERSION = 1;
-const DEPENDENCY_RESOLVER_VERSION = 2;
+const DEPENDENCY_RESOLVER_VERSION = 3;
 const KNOWN_OUTPUT_DIRECTORIES = new Set([
   ".cache",
   ".next",
@@ -311,6 +311,14 @@ export function collectExecutionInputs({
   const displayPath = (file) => path.relative(absoluteRoot, file).split(path.sep).join("/");
   const installedPackageName = (specifier) => specifier.startsWith("@")
     ? specifier.split("/").slice(0, 2).join("/") : specifier.split("/")[0];
+  const installedPackageNameFromPath = (resolved) => {
+    const segments = resolved.split(path.sep);
+    const nodeModulesIndex = segments.lastIndexOf("node_modules");
+    const first = segments[nodeModulesIndex + 1];
+    return first?.startsWith("@")
+      ? `${first}/${segments[nodeModulesIndex + 2]}`
+      : first;
+  };
   const collectInstalledPackage = (
     specifier,
     containingFile,
@@ -530,7 +538,9 @@ export function collectExecutionInputs({
       const resolved = path.resolve(compilerResult);
       const isDependency = resolved.split(path.sep).includes("node_modules");
       const isLocal = !isDependency && isWithin(absoluteRoot, resolved);
-      if (isDependency) collectInstalledPackage(specifier, containingFile);
+      if (isDependency) {
+        collectInstalledPackage(installedPackageNameFromPath(resolved), containingFile);
+      }
       return {
         external: !isDependency && !isLocal,
         owned: isLocal,
