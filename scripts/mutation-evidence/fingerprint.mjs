@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   existsSync,
+  lstatSync,
   readFileSync,
   readdirSync,
   statSync,
@@ -93,9 +94,19 @@ function isWithin(parent, candidate) {
   return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== "..");
 }
 
-function walkFiles(directory, onExcluded = () => {}) {
-  if (!existsSync(directory)) return [];
-  if (!statSync(directory).isDirectory()) return [directory];
+function walkFiles(directory, onExcluded = () => {}, onSymlink = () => {}) {
+  let directoryStat;
+  try {
+    directoryStat = lstatSync(directory);
+  } catch (error) {
+    if (error?.code === "ENOENT") return [];
+    throw error;
+  }
+  if (directoryStat.isSymbolicLink()) {
+    onSymlink();
+    return [];
+  }
+  if (!directoryStat.isDirectory()) return [directory];
   const files = [];
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     if ([".git", "node_modules"].includes(entry.name)) {
@@ -109,10 +120,28 @@ function walkFiles(directory, onExcluded = () => {}) {
       continue;
     }
     const entryPath = path.join(directory, entry.name);
-    if (entry.isDirectory()) files.push(...walkFiles(entryPath, onExcluded));
+    if (entry.isSymbolicLink()) {
+      onSymlink();
+      continue;
+    }
+    if (entry.isDirectory()) files.push(...walkFiles(entryPath, onExcluded, onSymlink));
     else if (entry.isFile()) files.push(entryPath);
   }
   return files;
+}
+
+function hasSymlinkComponent(root, candidate) {
+  const relative = path.relative(root, candidate);
+  let current = root;
+  for (const part of relative.split(path.sep).filter(Boolean)) {
+    current = path.join(current, part);
+    try {
+      if (lstatSync(current).isSymbolicLink()) return true;
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+  }
+  return false;
 }
 
 function parseJson(file) {
@@ -249,6 +278,7 @@ export function collectExecutionInputs({
   const expandedWorkspaces = new Set();
   const incompleteWorkspaces = new Set();
   const externalDependencyWorkspaces = new Set();
+  const symlinkRuntimeInputWorkspaces = new Set();
   const compilerConfigurationCache = new Map();
   const includedCompilerConfigurations = new Set();
   const fileSystemModules = new Set(["fs", "fs/promises", "node:fs", "node:fs/promises"]);
@@ -269,7 +299,8 @@ export function collectExecutionInputs({
     if (!owner || expandedWorkspaces.has(owner.directory)) return;
     expandedWorkspaces.add(owner.directory);
     const markIncomplete = () => incompleteWorkspaces.add(owner.directory);
-    for (const ownedFile of walkFiles(owner.directory, markIncomplete)) {
+    const markSymlink = () => symlinkRuntimeInputWorkspaces.add(owner.directory);
+    for (const ownedFile of walkFiles(owner.directory, markIncomplete, markSymlink)) {
       if (isWorkspaceFingerprintFile(owner.directory, ownedFile)) addFile(ownedFile);
       else markIncomplete();
     }
@@ -439,6 +470,10 @@ export function collectExecutionInputs({
     if (!isWithin(absoluteRoot, file)) {
       throw new Error(`Execution input escapes repository root: ${candidate}`);
     }
+    if (hasSymlinkComponent(absoluteRoot, file)) {
+      markOwner(symlinkRuntimeInputWorkspaces, file);
+      return;
+    }
     if (!existsSync(file) || !statSync(file).isFile()) {
       throw new Error(`Execution input does not exist: ${displayPath(file)}`);
     }
@@ -465,7 +500,9 @@ export function collectExecutionInputs({
     addFile(path.resolve(absoluteRoot, candidate));
   }
   for (const migrationRoot of migrationRoots) {
-    for (const migration of walkFiles(path.resolve(absoluteRoot, migrationRoot))) addFile(migration);
+    const absoluteMigrationRoot = path.resolve(absoluteRoot, migrationRoot);
+    const markSymlink = () => markOwner(symlinkRuntimeInputWorkspaces, absoluteMigrationRoot);
+    for (const migration of walkFiles(absoluteMigrationRoot, () => {}, markSymlink)) addFile(migration);
   }
   addFile(path.join(absoluteRoot, "pnpm-lock.yaml"));
 
@@ -489,6 +526,10 @@ export function collectExecutionInputs({
     })),
     ...[...externalDependencyWorkspaces].map((workspace) => ({
       code: "external-local-dependency",
+      workspace: displayPath(workspace),
+    })),
+    ...[...symlinkRuntimeInputWorkspaces].map((workspace) => ({
+      code: "symlink-runtime-input",
       workspace: displayPath(workspace),
     })),
   ].sort((left, right) =>

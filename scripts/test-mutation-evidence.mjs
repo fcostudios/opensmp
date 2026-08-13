@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -108,6 +108,7 @@ async function expectedInputs(root, relativePaths, toolVersions, runtimeProfile)
 }
 
 const fixtureRoot = await mkdtemp(path.join(tmpdir(), "ledger-fingerprint-"));
+const symlinkTargetRoot = await mkdtemp(path.join(tmpdir(), "ledger-fingerprint-symlink-target-"));
 try {
   const files = {
     "package.json": '{"name":"fixture-root","private":true}',
@@ -514,6 +515,87 @@ try {
     );
   }
 
+  const symlinkPath = path.join(fixtureRoot, "packages/nonliteral/src/runtime-link.ts");
+  const symlinkTargets = [
+    path.join(symlinkTargetRoot, "first-sensitive-target.ts"),
+    path.join(symlinkTargetRoot, "second-sensitive-target.ts"),
+  ];
+  await writeFile(symlinkTargets[0], 'export const secret = "first-symlink-sentinel";\n');
+  await writeFile(symlinkTargets[1], 'export const secret = "second-symlink-sentinel";\n');
+  const symlinkResults = [];
+  for (const symlinkTarget of symlinkTargets) {
+    await rm(symlinkPath, { force: true });
+    await symlink(symlinkTarget, symlinkPath);
+    await put(
+      fixtureRoot,
+      "packages/nonliteral/src/main.cjs",
+      'const target = process.argv[2];\nmodule.exports = require(target);\n',
+    );
+    const fallbackResult = collectExecutionInputs({
+      root: fixtureRoot,
+      entryFiles: ["packages/nonliteral/src/main.cjs"],
+      configurationFiles: [],
+      migrationRoots: [],
+      toolVersions,
+      runtimeProfile,
+    });
+    await put(
+      fixtureRoot,
+      "packages/nonliteral/src/main.cjs",
+      'module.exports = require("./runtime-link.ts");\n',
+    );
+    const explicitResult = collectExecutionInputs({
+      root: fixtureRoot,
+      entryFiles: ["packages/nonliteral/src/main.cjs"],
+      configurationFiles: [],
+      migrationRoots: [],
+      toolVersions,
+      runtimeProfile,
+    });
+    symlinkResults.push(...[fallbackResult, explicitResult].map((result) => ({
+      hasSymlinkHash: Boolean(result.hashes["packages/nonliteral/src/runtime-link.ts"]),
+      leaksSentinel: canonicalJson(result).includes("symlink-sentinel"),
+      leaksTarget: canonicalJson(result).includes(symlinkTarget),
+      reasons: result.reasons,
+      reusable: result.reusable,
+    })));
+  }
+  assert.deepEqual(symlinkResults, Array.from({ length: 4 }, () => ({
+    hasSymlinkHash: false,
+    leaksSentinel: false,
+    leaksTarget: false,
+    reasons: [{ code: "symlink-runtime-input", workspace: "packages/nonliteral" }],
+    reusable: false,
+  })));
+
+  await put(
+    fixtureRoot,
+    "packages/symlink-node-modules/package.json",
+    '{"name":"@fixture/symlink-node-modules","type":"commonjs"}',
+  );
+  await put(
+    fixtureRoot,
+    "packages/symlink-node-modules/src/main.cjs",
+    'const target = process.argv[2];\nmodule.exports = require(target);\n',
+  );
+  await mkdir(path.join(fixtureRoot, "packages/symlink-node-modules/node_modules"), {
+    recursive: true,
+  });
+  await symlink(
+    symlinkTargetRoot,
+    path.join(fixtureRoot, "packages/symlink-node-modules/node_modules/fixture-third-party"),
+  );
+  const symlinkNodeModulesResult = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/symlink-node-modules/src/main.cjs"],
+    configurationFiles: [],
+    migrationRoots: [],
+    toolVersions,
+    runtimeProfile,
+  });
+  assert.equal(symlinkNodeModulesResult.reusable, true);
+  assert.deepEqual(symlinkNodeModulesResult.reasons, []);
+
   await put(
     fixtureRoot,
     "node_modules/fixture-third-party/package.json",
@@ -547,6 +629,7 @@ try {
 } finally {
   delete process.env.LEDGER_FINGERPRINT_SECRET_SENTINEL;
   await rm(fixtureRoot, { recursive: true, force: true });
+  await rm(symlinkTargetRoot, { recursive: true, force: true });
 }
 
 const repositoryProbe = collectExecutionInputs({
