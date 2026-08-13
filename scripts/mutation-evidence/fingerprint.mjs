@@ -11,6 +11,16 @@ import { fileURLToPath } from "node:url";
 
 export const EVIDENCE_SCHEMA_VERSION = 1;
 const DEPENDENCY_RESOLVER_VERSION = 1;
+const KNOWN_OUTPUT_DIRECTORIES = new Set([
+  ".cache",
+  ".next",
+  ".stryker-tmp",
+  ".turbo",
+  "build",
+  "coverage",
+  "dist",
+  "reports",
+]);
 const fingerprintPath = fileURLToPath(import.meta.url);
 const requireFromWorkspace = createRequire(
   new URL("../../apps/web/package.json", import.meta.url),
@@ -91,17 +101,10 @@ function walkFiles(directory, onExcluded = () => {}) {
     if ([".git", "node_modules"].includes(entry.name)) {
       continue;
     }
-    if ([
-      ".cache",
-      ".next",
-      ".stryker-tmp",
-      ".turbo",
-      "build",
-      "coverage",
-      "dist",
-      "generated",
-      "reports",
-    ].includes(entry.name)) {
+    if (KNOWN_OUTPUT_DIRECTORIES.has(entry.name)) {
+      continue;
+    }
+    if (entry.name === "generated") {
       onExcluded();
       continue;
     }
@@ -213,9 +216,8 @@ function isWorkspaceFingerprintFile(workspaceRoot, file) {
   const base = path.basename(file);
   if (
     base === ".env"
-    || base.startsWith(".env.")
+    || (base.startsWith(".env.") && !base.endsWith(".example"))
     || base === ".npmrc"
-    || /(?:^|[-_.])(?:credential|password|private|secret|token)(?:[-_.]|$)/i.test(base)
     || /\.(?:key|p12|pem|pfx|secret)$/i.test(base)
     || /\.tsbuildinfo$/i.test(base)
     || /(?:^|\.)generated\./i.test(base)
@@ -431,6 +433,12 @@ export function collectExecutionInputs({
     included.add(file);
 
     const owner = findOwner(absoluteRoot, workspacePackages, file);
+    if (owner) {
+      const ownerRelativeParts = path.relative(owner.directory, file).split(path.sep);
+      if (ownerRelativeParts.some((part) => KNOWN_OUTPUT_DIRECTORIES.has(part))) {
+        incompleteWorkspaces.add(owner.directory);
+      }
+    }
     if (owner && owner.manifestPath !== file) addFile(owner.manifestPath);
     if (/\.[cm]?[jt]sx?$/.test(file)) {
       compilerConfigurationFor(file);

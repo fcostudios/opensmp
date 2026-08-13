@@ -366,6 +366,14 @@ try {
     "packages/safe/src/load.ts":
       'import { readFile } from "node:fs/promises";\nexport const load = readFile;\n',
     "packages/safe/fixtures/runtime.txt": "safe runtime input\n",
+    "packages/safe/.cache/state.json": '{"generated":true}',
+    "packages/safe/.next/server/chunk.js": "export const generated = true;\n",
+    "packages/safe/.stryker-tmp/mutant.js": "export const mutant = true;\n",
+    "packages/safe/.turbo/cache.json": '{"cache":true}',
+    "packages/safe/build/output.js": "export const built = true;\n",
+    "packages/safe/coverage/report.json": '{"coverage":100}',
+    "packages/safe/dist/runtime.js": "export const generatedRuntime = true;\n",
+    "packages/safe/reports/result.json": '{"result":"ok"}',
   };
   await Promise.all(
     Object.entries(safeRuntimeFiles).map(([relativePath, contents]) =>
@@ -398,7 +406,46 @@ try {
       reusable: true,
     },
   );
+  await put(
+    fixtureRoot,
+    "packages/explicit/package.json",
+    '{"name":"@fixture/explicit","type":"module"}',
+  );
+  await put(
+    fixtureRoot,
+    "packages/explicit/src/uses-output.ts",
+    'import { generatedRuntime } from "../dist/runtime.js";\nexport const value = generatedRuntime;\n',
+  );
+  await put(
+    fixtureRoot,
+    "packages/explicit/dist/runtime.js",
+    "export const generatedRuntime = true;\n",
+  );
+  const explicitOutputResult = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/explicit/src/uses-output.ts"],
+    configurationFiles: [],
+    migrationRoots: [],
+    toolVersions,
+    runtimeProfile,
+  });
+  assert.equal(explicitOutputResult.reusable, false);
+  assert.deepEqual(explicitOutputResult.reasons, [
+    { code: "excluded-runtime-inputs", workspace: "packages/explicit" },
+  ]);
 } finally {
   delete process.env.LEDGER_FINGERPRINT_SECRET_SENTINEL;
   await rm(fixtureRoot, { recursive: true, force: true });
 }
+
+const repositoryProbe = collectExecutionInputs({
+  root: path.resolve(new URL("..", import.meta.url).pathname),
+  entryFiles: ["scripts/mutation-scope.mjs"],
+  configurationFiles: [],
+  migrationRoots: [],
+  toolVersions: { node: process.versions.node },
+  runtimeProfile: { arch: process.arch, platform: process.platform },
+});
+assert.equal(repositoryProbe.reusable, true);
+assert.deepEqual(repositoryProbe.reasons, []);
+assert.ok(repositoryProbe.hashes["scripts/mutation-scope.mjs"]);
