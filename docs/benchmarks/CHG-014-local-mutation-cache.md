@@ -55,24 +55,71 @@ mutatable sources, two ranges, and two shards:
   `2647ad5f735c5622b98d8b210eb66d6654b5e6eb237c3c890a49563293972161`
   (fingerprint runner).
 
-The cache was cleared immediately before the final cold run with
-`rtk pnpm mutation:cache:clear`. Cold and warm used the identical command:
+The committed
+[`scripts/benchmarks/chg014-representative-fixture.mjs`](../../scripts/benchmarks/chg014-representative-fixture.mjs)
+applies only those three byte changes. It refuses a checkout whose HEAD, clean
+status, or pre-fixture hashes differ from the recorded inputs; `restore`
+refuses mixed or unknown bytes and restores the exact blobs from the fixed ref.
+
+| File | Clean SHA-256 | Applied SHA-256 |
+| --- | --- | --- |
+| `packages/db/src/schema.ts` | `868a7a83630164a252f83fc9ae777e500300ad086d9486b0336da537b162fe0a` | `d4dea1f15fc04df49cc39d9a487e8518cd79ef560530904dc3f280448df1c4dc` |
+| `packages/contracts/src/capacity.ts` | `5385a51cc9afc577b6691f48816420586ab0fa65360a725d1a76a4eb3cdd7ca3` | `bc7aef14955d702f47be67233139e90f9bf20c667d72a731bb70b29db0d058fa` |
+| `scripts/mutation-evidence/fingerprint.mjs` | `b7e846b76aa6c0ffbaf0b7b24106f20ed9021072a02ed4fc51b13e6848d40a72` | `2647ad5f735c5622b98d8b210eb66d6654b5e6eb237c3c890a49563293972161` |
+
+### Exact reproduction sequence
+
+Start in a clean checkout containing the committed fixture script. The two
+database variables must already point to a fresh, isolated PostgreSQL 16
+database: `DATABASE_ADMIN_URL` authenticates as `ledger_owner`, and
+`DATABASE_URL` authenticates as `ledger_app`. Do not place either value in the
+worktree, command history, benchmark record, or cache. The repository's normal
+PostgreSQL initialization must create those roles before this sequence.
 
 ```sh
-set -a
-. /Users/fcolomas/Projects/smp/.env
-set +a
-export DATABASE_ADMIN_URL="postgresql://ledger_owner:${LEDGER_OWNER_PASSWORD}@127.0.0.1:25432/ledger"
-export DATABASE_URL="postgresql://ledger_app:${LEDGER_APP_PASSWORD}@127.0.0.1:25432/ledger"
-export MUTATION_BASE=35b5c3f5119ff124c3546e00b3ff17c4521996da
-rtk pnpm test:mutation
+repo_root="$(rtk git rev-parse --show-toplevel)"
+fixture_script="$repo_root/scripts/benchmarks/chg014-representative-fixture.mjs"
+fixture_root="$(rtk mktemp -d /tmp/ledger-chg014-repro.XXXXXX)"
+record_root="$(rtk mktemp -d /tmp/ledger-chg014-records.XXXXXX)"
+
+rtk git worktree add --detach "$fixture_root" 35b5c3f5119ff124c3546e00b3ff17c4521996da
+rtk pnpm --dir "$fixture_root" install --frozen-lockfile
+rtk node "$fixture_script" check clean --root "$fixture_root"
+rtk node "$fixture_script" apply applied --root "$fixture_root"
+
+rtk sh -c 'test -n "${DATABASE_ADMIN_URL:-}" && test -n "${DATABASE_URL:-}"'
+rtk pnpm --dir "$fixture_root/packages/db" db:migrate
+rtk pnpm --dir "$fixture_root/packages/db" db:verify
+rtk pnpm --dir "$fixture_root" mutation:cache:clear
+
+MUTATION_BASE=35b5c3f5119ff124c3546e00b3ff17c4521996da rtk pnpm --dir "$fixture_root" test:mutation
+cold_record="$(rtk sh -c 'ls -t "$1"/reports/mutation-performance/*.json | head -n 1' -- "$fixture_root")"
+rtk cp "$cold_record" "$record_root/cold.json"
+
+MUTATION_BASE=35b5c3f5119ff124c3546e00b3ff17c4521996da rtk pnpm --dir "$fixture_root" test:mutation
+warm_record="$(rtk sh -c 'ls -t "$1"/reports/mutation-performance/*.json | head -n 1' -- "$fixture_root")"
+rtk cp "$warm_record" "$record_root/warm.json"
+rtk pnpm --dir "$fixture_root" mutation:benchmark:summary "$record_root/cold.json" "$record_root/warm.json"
+
+rtk sh -c 'find "$1/reports" -type f -delete && find "$1/reports" -depth -type d -empty -delete' -- "$fixture_root"
+rtk node "$fixture_script" restore clean --root "$fixture_root"
+rtk node "$fixture_script" check clean --root "$fixture_root"
+rtk git -C "$fixture_root" status --short
+rtk git worktree remove "$fixture_root"
 ```
 
-The isolated `ledger-chg014` database was created on local port 25432. All 54
-committed migrations were applied as `ledger_owner`, then
+The final `status --short` output is empty. The two copied JSON records remain
+in `record_root` after the detached worktree is removed; their UUID filenames
+may differ from this report. Running the fixture script with `instructions`
+prints the database validation and cold/warm command core without connection
+values.
+
+For the recorded run, the isolated `ledger-chg014` database used PostgreSQL
+16.14. All 54 committed migrations were applied as `ledger_owner`, then
 `packages/db/scripts/verify-schema.mjs` verified 54 checksums, 31 application
 tables, four append-only triggers, and the exact `ledger_app` grant matrix.
-URLs and credentials are absent from the performance records and cache.
+Connection values and credentials are absent from the performance records and
+cache.
 
 ## Historical US-023 diagnostic and limitation
 

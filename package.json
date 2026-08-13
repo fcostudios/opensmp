@@ -21,7 +21,7 @@
     "test:feedback-order": "node scripts/check-nous-feedback-order.mjs .",
     "test:feedback-order:fixtures": "node scripts/test-feedback-order.mjs",
     "test:mutation-scope": "node scripts/test-mutation-scope.mjs",
-    "test:mutation-evidence": "node scripts/test-mutation-evidence.mjs",
+    "test:mutation-evidence": "node scripts/test-mutation-evidence.mjs && node scripts/test-chg014-representative-fixture.mjs",
     "test:infra": "python3 -B -m unittest infra.scripts.tests.test_reconcile_sprint1_docs infra.scripts.tests.test_sync_from_nous_config infra.scripts.tests.test_regenerate_sidebar infra.scripts.tests.test_nous_api_reconcile -v",
     "test:infra:integration": "python3 -B -m unittest infra.scripts.tests.test_sync_from_nous_integration -v",
     "test:probe": "./apps/web/node_modules/.bin/vitest run --root . --config scripts/probes/anthropic/vitest.config.ts",
