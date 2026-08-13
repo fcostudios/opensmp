@@ -1058,8 +1058,18 @@ export function readFreshMutationReport(
 export function controlledChildEnvironment(environment, runtimeProfile = {}) {
   const allowed = [
     "PATH", "HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "TMP", "TEMP",
-    "LANG", "LC_ALL", "LC_MESSAGES", "TZ", "MIGRATIONS_DIR",
+    "LANG", "LC_ALL", "LC_MESSAGES", "TZ", "MIGRATIONS_DIR", "ECUADOR_HOLIDAYS",
   ];
+  if (typeof environment.ECUADOR_HOLIDAYS === "string") {
+    const holidays = environment.ECUADOR_HOLIDAYS.trim() === ""
+      ? [] : environment.ECUADOR_HOLIDAYS.split(",").map((value) => value.trim());
+    if (holidays.some((value) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return true;
+      const date = new Date(`${value}T00:00:00.000Z`);
+      return Number.isNaN(date.valueOf()) || date.toISOString().slice(0, 10) !== value;
+    })) throw new Error("ECUADOR_HOLIDAYS must be empty or a comma-separated ISO date list");
+    environment = { ...environment, ECUADOR_HOLIDAYS: holidays.join(",") };
+  }
   if (runtimeProfile.databaseDriver === "postgres") {
     const harnesses = String(runtimeProfile.databaseHarness ?? "default").split("-");
     for (const harness of harnesses) {
@@ -1627,6 +1637,7 @@ export async function runMutationScope(options = {}) {
   const signalHandlers = [];
   const activeDatabaseSandboxes = new Set();
   const signalProcess = options.signalProcess ?? process;
+  let signalShutdownPromise = null;
   const environment = options.env ?? process.env;
   if (options.cwd) process.chdir(options.cwd);
   for (const key of ["MUTATION_BASE", "MUTATION_CACHE", "MUTATION_SCOPE_DRY"]) {
@@ -1847,12 +1858,17 @@ export async function runMutationScope(options = {}) {
   if (options.installSignalHandlers !== false) {
     for (const signal of ["SIGINT", "SIGTERM"]) {
       const handler = () => {
-        try {
+        signalShutdownPromise ??= (async () => {
           finishPerformanceRun(performanceRun, "interrupted");
           persist();
-        } finally {
+          const sandboxes = [...activeDatabaseSandboxes];
+          await Promise.allSettled(sandboxes.map(async (sandbox) => {
+            await sandbox.cleanup();
+            activeDatabaseSandboxes.delete(sandbox);
+          }));
           signalProcess.exit(signal === "SIGINT" ? 130 : 143);
-        }
+        })();
+        return signalShutdownPromise;
       };
       signalProcess.once(signal, handler);
       signalHandlers.push([signal, handler]);
@@ -1861,6 +1877,10 @@ export async function runMutationScope(options = {}) {
   persist();
   try {
   options.beforeEvidence?.();
+  if (signalShutdownPromise) {
+    await signalShutdownPromise;
+    return { manifest: manifestFor(), performance: performanceRun };
+  }
   const gitAtRoot = (args, execOptions = {}) => execFileSync("git", args, {
     ...execOptions, encoding: "utf8",
   }).trim();
@@ -2047,6 +2067,10 @@ export async function runMutationScope(options = {}) {
       }
       const childEnvironment = controlledChildEnvironment(shardEnvironment, runtimeProfile);
       const result = executeShard({ shard, environment: childEnvironment });
+      if (signalShutdownPromise) {
+        await signalShutdownPromise;
+        return { manifest: manifestFor(), performance: performanceRun };
+      }
       const report = readFreshMutationReport(shard.jsonReportPath, startedAt);
       validateMutationReportIdentity(
         report,

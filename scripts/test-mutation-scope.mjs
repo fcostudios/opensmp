@@ -95,6 +95,17 @@ assert.equal(
   undefined,
   "parent-only secrets cannot influence or enter mutation execution",
 );
+assert.equal(
+  controlledChildEnvironment({ ECUADOR_HOLIDAYS: "2026-07-27,2026-08-10" }).ECUADOR_HOLIDAYS,
+  "2026-07-27,2026-08-10",
+  "the validated business calendar must be observable by the mutation child",
+);
+assert.equal("ECUADOR_HOLIDAYS" in controlledChildEnvironment({}), false);
+assert.equal(controlledChildEnvironment({ ECUADOR_HOLIDAYS: "" }).ECUADOR_HOLIDAYS, "");
+assert.throws(
+  () => controlledChildEnvironment({ ECUADOR_HOLIDAYS: "2026-02-30" }),
+  /comma-separated ISO date list/,
+);
 assert.equal(isDatabaseBacked({
   sources: ["apps/web/src/modules/vendor-catalog/production-vendor-account-repository.ts"],
   testFiles: ["apps/web/src/modules/vendor-catalog/actions/manage-vendor-accounts.test.ts"],
@@ -1292,9 +1303,11 @@ const cacheRun = async (overrides = {}) => {
     })),
     beforeEvidence: overrides.beforeEvidence,
     signalProcess: overrides.signalProcess,
+    databaseSandboxFactory: overrides.databaseSandboxFactory,
     executeShard: ({ shard, environment }) => {
       executions += 1;
       childEnvironments.push(environment);
+      overrides.executeSignal?.();
       const mutantLine = Number(/:(\d+)-/.exec(shard.mutate[0])?.[1]);
       const report = {
         config: {
@@ -1358,6 +1371,23 @@ try {
   assert.equal(warm.result.manifest.shards[0].evidenceKey, cold.result.manifest.shards[0].evidenceKey);
   assert.notEqual(warm.result.manifest.shards[0].reportPath, cold.result.manifest.shards[0].reportPath);
   assert.notEqual(warm.result.manifest.shards[0].tempDirName, cold.result.manifest.shards[0].tempDirName);
+
+  const sourceWithoutCalendar = readFileSync(join(cacheFixtureRoot, cacheSource), "utf8");
+  cacheWrite(cacheSource, `${sourceWithoutCalendar}export const calendar = process.env.ECUADOR_HOLIDAYS;\n`);
+  const holidayA = await cacheRun({
+    env: { MUTATION_CACHE: "off", ECUADOR_HOLIDAYS: "2026-07-27" },
+  });
+  const holidayB = await cacheRun({
+    env: { MUTATION_CACHE: "off", ECUADOR_HOLIDAYS: "2026-07-27, 2026-08-10" },
+  });
+  assert.equal(holidayA.childEnvironments[0].ECUADOR_HOLIDAYS, "2026-07-27");
+  assert.equal(holidayB.childEnvironments[0].ECUADOR_HOLIDAYS, "2026-07-27,2026-08-10");
+  assert.notEqual(
+    holidayA.result.manifest.shards[0].evidenceKey,
+    holidayB.result.manifest.shards[0].evidenceKey,
+    "the controlled calendar child input and its evidence key must change together",
+  );
+  cacheWrite(cacheSource, sourceWithoutCalendar);
 
   execFileSync("git", ["add", cacheSource], { cwd: cacheFixtureRoot });
   execFileSync("git", ["commit", "--quiet", "-m", "provenance only"], { cwd: cacheFixtureRoot });
@@ -1509,6 +1539,27 @@ try {
     performanceDirectory, interruptedRecordName,
   ), "utf8"));
   assert.equal(interruptedRecord.outcome, "interrupted");
+
+  const activeSignalProcess = new EventEmitter();
+  const signalOrder = [];
+  activeSignalProcess.exit = () => { signalOrder.push("exit"); };
+  await cacheRun({
+    signalProcess: activeSignalProcess,
+    env: { MUTATION_CACHE: "off" },
+    databaseSandboxFactory: async (environment) => ({
+      environment,
+      async cleanup() {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        signalOrder.push("cleanup");
+      },
+    }),
+    beforeEvidence: undefined,
+    executorStatus: 0,
+    executeSignal: () => activeSignalProcess.emit("SIGTERM"),
+  });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.deepEqual(signalOrder.slice(0, 2), ["cleanup", "exit"],
+    "SIGTERM must await the active database sandbox cleanup before exit");
 } finally {
   rmSync(cacheFixtureRoot, { force: true, recursive: true });
 }

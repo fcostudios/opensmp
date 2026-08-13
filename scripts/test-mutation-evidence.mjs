@@ -262,6 +262,75 @@ try {
   });
   assert.equal(aliasedDependency.reusable, true);
   assert.ok(aliasedDependency.hashes["@installed/fixture-real@1.2.3/index.js"]);
+  for (const owner of ["instance-a", "instance-b"]) {
+    await put(
+      fixtureRoot,
+      `packages/${owner}/package.json`,
+      JSON.stringify({ name: `@fixture/${owner}`, type: "module" }),
+    );
+    await put(
+      fixtureRoot,
+      `packages/${owner}/src/main.ts`,
+      "import value from 'fixture-twin'; export default value;\n",
+    );
+    await put(
+      fixtureRoot,
+      `packages/${owner}/node_modules/fixture-twin/package.json`,
+      JSON.stringify({
+        name: "fixture-twin", version: "1.0.0", main: "index.js",
+        peerDependencies: { "fixture-peer": "1.0.0" },
+      }),
+    );
+    await put(
+      fixtureRoot,
+      `packages/${owner}/node_modules/fixture-twin/index.js`,
+      `module.exports = ${JSON.stringify(owner)};\n`,
+    );
+    await put(
+      fixtureRoot,
+      `packages/${owner}/node_modules/fixture-peer/package.json`,
+      JSON.stringify({ name: "fixture-peer", version: "1.0.0", main: "index.js" }),
+    );
+    await put(
+      fixtureRoot,
+      `packages/${owner}/node_modules/fixture-peer/index.js`,
+      `module.exports = ${JSON.stringify(`peer-${owner}`)};\n`,
+    );
+  }
+  const twinClosure = () => collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: [
+      "packages/instance-a/src/main.ts",
+      "packages/instance-b/src/main.ts",
+    ],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+  });
+  const twinInputs = twinClosure();
+  const twinPackageKeys = Object.keys(twinInputs.hashes)
+    .filter((key) => key.startsWith("@installed/fixture-twin@1.0.0"));
+  assert.equal(twinPackageKeys.length >= 4, true);
+  assert.equal(twinPackageKeys.every((key) =>
+    /^@installed\/fixture-twin@1\.0\.0#[a-f0-9]{16}\//.test(key)), true,
+  "same-version instances must have distinct relocatable locators");
+  assert.equal(new Set(twinPackageKeys.map((key) => key.split("/")[1])).size, 2);
+  const twinBefore = sha256(canonicalJson(twinInputs.hashes));
+  await put(
+    fixtureRoot,
+    "packages/instance-a/node_modules/fixture-twin/index.js",
+    "module.exports = 'patched-instance-a';\n",
+  );
+  const twinAfterA = sha256(canonicalJson(twinClosure().hashes));
+  assert.notEqual(twinAfterA, twinBefore, "patched bytes in the first same-version instance change the key");
+  await put(
+    fixtureRoot,
+    "packages/instance-b/node_modules/fixture-peer/index.js",
+    "module.exports = 'patched-peer-instance-b';\n",
+  );
+  assert.notEqual(
+    sha256(canonicalJson(twinClosure().hashes)),
+    twinAfterA,
+    "peer bytes in the second same-version instance change the key",
+  );
   await put(
     fixtureRoot,
     "packages/app/src/computed-worker.ts",

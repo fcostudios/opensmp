@@ -310,6 +310,7 @@ export function collectExecutionInputs({
   const safeEnvironment = {};
   const installedInputs = new Map();
   const installedPackages = new Set();
+  const installedIdentityLocators = new Map();
   const compilerConfigurationCache = new Map();
   const includedCompilerConfigurations = new Set();
   const fileSystemModules = new Set(["fs", "fs/promises", "node:fs", "node:fs/promises"]);
@@ -384,8 +385,27 @@ export function collectExecutionInputs({
     }
     const manifest = parseJson(manifestPath);
     const identity = `${manifest.name}@${manifest.version ?? "unknown"}`;
-    if (installedPackages.has(identity)) return;
-    installedPackages.add(identity);
+    const locator = displayPath(realpathSync(packageRoot));
+    const instanceIdentity = `${identity}#${sha256(locator).slice(0, 16)}`;
+    if (installedPackages.has(instanceIdentity)) return;
+    installedPackages.add(instanceIdentity);
+    const priorLocators = installedIdentityLocators.get(identity) ?? [];
+    if (priorLocators.length === 1) {
+      const priorInstanceIdentity = `${identity}#${sha256(priorLocators[0]).slice(0, 16)}`;
+      for (const [key, value] of [...installedInputs]) {
+        const installedPrefix = `@installed/${identity}/`;
+        const absencePrefix = `@installed-absence/${identity}/`;
+        if (key.startsWith(installedPrefix)) {
+          installedInputs.delete(key);
+          installedInputs.set(key.replace(installedPrefix, `@installed/${priorInstanceIdentity}/`), value);
+        } else if (key.startsWith(absencePrefix)) {
+          installedInputs.delete(key);
+          installedInputs.set(key.replace(absencePrefix, `@installed-absence/${priorInstanceIdentity}/`), value);
+        }
+      }
+    }
+    const keyIdentity = priorLocators.length === 0 ? identity : instanceIdentity;
+    installedIdentityLocators.set(identity, [...priorLocators, locator]);
     const logicalPackage = path.join(absoluteRoot, "node_modules", packageName);
     if (existsSync(logicalPackage) && lstatSync(logicalPackage).isSymbolicLink()
         && !isWithin(path.join(absoluteRoot, "node_modules"), realpathSync(logicalPackage))) {
@@ -404,7 +424,7 @@ export function collectExecutionInputs({
       });
     for (const installedFile of installedFiles(packageRoot)) {
       installedInputs.set(
-        `@installed/${identity}/${path.relative(packageRoot, installedFile).split(path.sep).join("/")}`,
+        `@installed/${keyIdentity}/${path.relative(packageRoot, installedFile).split(path.sep).join("/")}`,
         sha256(readFileSync(installedFile)),
       );
     }
@@ -412,15 +432,15 @@ export function collectExecutionInputs({
     const optionalDependencies = new Set(Object.keys(manifest.optionalDependencies ?? {}));
     for (const dependency of Object.keys(manifest.dependencies ?? {})
       .filter((name) => !optionalDependencies.has(name)).sort()) {
-      collectInstalledPackage(dependency, dependencyRequireFile, ownerFile, "required", identity);
+      collectInstalledPackage(dependency, dependencyRequireFile, ownerFile, "required", keyIdentity);
     }
     for (const dependency of [...optionalDependencies].sort()) {
-      collectInstalledPackage(dependency, dependencyRequireFile, ownerFile, "optional", identity);
+      collectInstalledPackage(dependency, dependencyRequireFile, ownerFile, "optional", keyIdentity);
     }
     for (const dependency of Object.keys(manifest.peerDependencies ?? {}).sort()) {
       const peerRequirement = manifest.peerDependenciesMeta?.[dependency]?.optional === true
         ? "optional" : "required";
-      collectInstalledPackage(dependency, dependencyRequireFile, ownerFile, peerRequirement, identity);
+      collectInstalledPackage(dependency, dependencyRequireFile, ownerFile, peerRequirement, keyIdentity);
     }
   };
   const recordEnvironmentInput = (key, file) => {
