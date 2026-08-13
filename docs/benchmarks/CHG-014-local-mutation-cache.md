@@ -252,3 +252,57 @@ The authoritative database runtime profile embedded in the production
 campaign evidence used driver `postgres`, harness `default-us017`, PostgreSQL
 server version `16.14`, and schema fingerprint
 `211385307848216a8d9cbd93ee167090e6a0732077a34db6a686de825d6ab58c`.
+
+## US-025 post-review production campaign — 2026-08-13
+
+This pair supersedes the earlier US-025 authoritative pair above because it
+measures the reviewed cache and runtime semantics at final correction commit
+`c6127a4a047af1b95ba3e55d5ae42dd951758acb`. Both records use immutable base
+and baseRef `a91bc3bac76e11a9e0c8c7a3cef59992b0797cde`, cache schema v2, and campaign
+key `a07b6f674ac765966675723d6b06f0601d90922a9a7fe8fbade489b923b8e647`:
+
+- cold: `reports/mutation-performance/a97783d9-1ce3-496b-b82a-43b5494bba70.json`
+- warm: `reports/mutation-performance/e98ebba5-a21c-4f78-ac07-ba76fe8340dc.json`
+
+| Metric | Cold | Warm |
+| --- | ---: | ---: |
+| Wall/orchestration duration (ms) | 1389115.854 | 15984.615333 |
+| Measured savings (ms) | 1373131.238667 | — |
+| Shards | 14 | 14 |
+| Executed | 14 | 0 |
+| Reused | 0 | 14 |
+| Rejected | 0 | 0 |
+| Hit ratio | 0 | 1 |
+| Estimated reused-shard savings (ms) | 0 | 1375870.3423749995 |
+| Outcome | passed | passed |
+
+The unchanged warm replay was 86.9033 times faster, reduced measured wall time
+by 98.8493%, and completed in 15.985 seconds without starting Stryker. The 14
+rehydrated artifacts contain 514 Killed, 62 Survived, 20 NoCoverage, two
+RuntimeError, and 259 Ignored mutants. Excluding invalid RuntimeError mutants,
+as each shard does, the aggregate mutation score is 86.24%:
+`514 / (514 + 62 + 20)`.
+
+The post-review fingerprint distinguishes installed package instances by a
+stable repository-relative real-package locator instead of collapsing every
+manifest with the same name and version. Regression fixtures prove differing
+same-version instances, patched bytes, peer dependencies, and aliases affect
+the evidence key without making it checkout-location-dependent. The controlled
+child now admits only canonical, valid `ECUADOR_HOLIDAYS` date lists; absent and
+empty remain distinct, malformed dates reject the run, and tests prove the
+child value and fingerprint change together without admitting parent secrets.
+
+Signal handling now covers pending database creation and a live Stryker child.
+The runner forwards SIGINT/SIGTERM to the detached shard process group, awaits
+the exact tracked sandbox cleanup, persists interruption evidence, and exits
+with the conventional signal status. A real PostgreSQL subprocess probe sent
+SIGTERM while Stryker was live and observed exit 143, zero remaining unique
+`ledger_mutation_*` clones, and a successful query against the source template
+database. The subsequent cold and warm runs also ended with zero unique clones.
+
+The conclusion for a later Substrate implementation is strengthened: remote
+reuse must preserve per-instance package identity, strict observable-calendar
+inputs, process-group interruption, pending-sandbox tracking, and exact cleanup
+before exit. A precise dependency graph and parallel cache misses remain the
+main opportunities to reduce the 1,389-second cold path; the hardened local
+warm path remains comfortably below the 60-second requirement.
