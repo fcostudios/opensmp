@@ -136,6 +136,10 @@ describe("US-025 vendor-account registry", () => {
 
     const table = screen.getByRole("table", { name: "TABLE_CAPTION" });
     expect(within(table).getAllByRole("row")).toHaveLength(3);
+    expect(within(table).getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
+      "COL_NAME", "COL_VENDOR", "COL_CONNECTOR", "COL_MODE", "COL_SEATS",
+      "COL_RENEWAL", "COL_CREDENTIAL", "COL_FLOOR", "COL_STATUS",
+    ]);
     const row = screen.getByRole("link", { name: "Zero capacity account" }).closest("tr");
     expect(row).not.toBeNull();
     expect(within(row!).getByText("0 PURCHASED / 0 FREE")).toBeTruthy();
@@ -144,7 +148,9 @@ describe("US-025 vendor-account registry", () => {
     expect(within(row!).getByText("MODE_ORCHESTRATION")).toBeTruthy();
     expect(within(row!).getByText("CREDENTIAL_FAILED")).toBeTruthy();
     expect(within(row!).getByText("3")).toBeTruthy();
-    expect(within(row!).getByText("STATUS_INACTIVE")).toBeTruthy();
+    const inactiveStatus = within(row!).getByText("STATUS_INACTIVE");
+    expect(inactiveStatus.className).toContain("bg-neutral-bg");
+    expect(inactiveStatus.className).not.toContain("bg-success-bg");
     expect(screen.getByRole("link", { name: "Zero capacity account" }).getAttribute("href")).toBe(
       `/organizaciones/${encodeURIComponent(accountId)}`,
     );
@@ -153,6 +159,9 @@ describe("US-025 vendor-account registry", () => {
     expect(screen.getByText("CONNECTOR_API · PROTOCOL_REST")).toBeTruthy();
     expect(screen.getByText("MODE_AUTOMATED")).toBeTruthy();
     expect(screen.getByText("CREDENTIAL_OK")).toBeTruthy();
+    const activeStatus = screen.getByText("STATUS_ACTIVE");
+    expect(activeStatus.className).toContain("bg-success-bg");
+    expect(activeStatus.className).not.toContain("bg-neutral-bg");
     expect(screen.getByText("STATUS_ACTIVE")).toBeTruthy();
     expect(screen.getByText("Feb 1, 2027")).toBeTruthy();
   });
