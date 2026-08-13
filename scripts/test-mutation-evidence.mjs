@@ -1267,6 +1267,11 @@ const repositoryProbe = collectExecutionInputs({
   migrationRoots: [],
   toolVersions: { node: process.versions.node },
   runtimeProfile: { arch: process.arch, platform: process.platform },
+  // Keep this repository-shape assertion hermetic when the parent test process
+  // legitimately carries database credentials (for example, during the full
+  // Definition-of-Done gate). The package-manager executable remains an
+  // intentional fingerprint input and is asserted below.
+  environment: { npm_execpath: process.env.npm_execpath },
 });
 assert.equal(repositoryProbe.reusable, false);
 assert.equal(repositoryProbe.reasons.some(({ code }) => code === "environment-runtime-input"), false);
