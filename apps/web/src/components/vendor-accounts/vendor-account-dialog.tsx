@@ -17,10 +17,7 @@ function openNativeDialog(dialog: HTMLDialogElement | null): void {
   // Ledger's supported Chromium runtime provides HTMLDialogElement.showModal;
   // the fallback remains only for non-browser test compatibility.
   if (typeof dialog.showModal === "function") dialog.showModal();
-  // Stryker disable StringLiteral: @equivalent the supported browser never
-  // enters this fallback; any non-empty value has identical boolean-attribute semantics.
-  else dialog.setAttribute("open", "");
-  // Stryker restore StringLiteral
+  else dialog.open = true;
 }
 
 function closeNativeDialog(dialog: HTMLDialogElement | null): void {
