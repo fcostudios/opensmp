@@ -69,9 +69,9 @@
 - Modify `apps/web/messages/en-US.json`: English vendor-account vocabulary.
 - Modify `apps/web/messages/es-EC.json`: Ecuadorian Spanish vendor-account vocabulary.
 - Modify `apps/web/src/lib/i18n/catalogs.test.ts`: lock recursive parity and critical US-025 terms.
-- Create `apps/web/e2e/vendor-accounts.spec.ts`: black-box Group Admin CRUD/capability/license-type journey and role denial.
+- Create in Task 6, extend in Tasks 7–8 `apps/web/e2e/vendor-accounts.spec.ts`: black-box Group Admin CRUD/capability/license-type journey and role denial.
 - Modify `apps/web/e2e/auth.setup.ts`: deterministic Anthropic vendor, account, capacity, credential, license, and rate fixtures.
-- Modify `apps/web/playwright.config.ts`: include the US-025 journey.
+- Modify in Task 6 `apps/web/playwright.config.ts`: include the US-025 journey.
 - Modify `docs/benchmarks/CHG-014-local-mutation-cache.md`: append the measured US-025 cold/warm production-campaign result and comparison with the representative fixture.
 - Modify `.nous-feedback.jsonl`: append ordered `started`, AC evidence, mutation report, build, verification, and done events only as each event becomes true.
 
@@ -554,6 +554,9 @@ rtk git commit -m "feat(US-025): expose vendor account server actions"
 - Modify: `apps/web/messages/en-US.json`
 - Modify: `apps/web/messages/es-EC.json`
 - Modify: `apps/web/src/lib/i18n/catalogs.test.ts`
+- Create: `apps/web/e2e/vendor-accounts.spec.ts`
+- Modify: `apps/web/e2e/auth.setup.ts`
+- Modify: `apps/web/playwright.config.ts`
 
 - [ ] **Step 1: Add failing semantic rendering tests**
 
@@ -630,6 +633,8 @@ rtk git commit -m "feat(US-025): build vendor account registry"
 - Modify: `apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx`
 - Modify: `apps/web/messages/en-US.json`
 - Modify: `apps/web/messages/es-EC.json`
+- Extend: `apps/web/e2e/vendor-accounts.spec.ts`
+- Modify: `apps/web/e2e/auth.setup.ts`
 
 - [ ] **Step 1: Write failing detail-surface tests**
 
@@ -684,9 +689,10 @@ rtk git commit -m "feat(US-025): complete vendor account detail"
 - Create: `apps/web/src/app/(authenticated)/organizaciones/loading.tsx`
 - Create: `apps/web/src/app/(authenticated)/organizaciones/error.tsx`
 - Create: `apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts`
-- Create: `apps/web/e2e/vendor-accounts.spec.ts`
+- Extend: `apps/web/e2e/vendor-accounts.spec.ts`
 - Modify: `apps/web/e2e/auth.setup.ts`
-- Modify: `apps/web/playwright.config.ts`
+- Modify: `apps/web/messages/en-US.json`
+- Modify: `apps/web/messages/es-EC.json`
 
 - [ ] **Step 1: Write failing static boundary tests**
 
@@ -724,7 +730,7 @@ In a real Compose/Auth.js/Keycloak/PostgreSQL environment:
 
 ```bash
 rtk pnpm --filter smp-web test -- vendor-account-page-boundaries.test.ts vendor-accounts.test.tsx vendor-account-repository.integration.test.ts manage-vendor-accounts.test.ts
-rtk pnpm --filter smp-web test:e2e -- vendor-accounts.spec.ts
+rtk pnpm --filter smp-web test:e2e vendor-accounts.spec.ts
 ```
 
 Expected: every focused test and the real black-box journey passes. Preserve traces only on failure.
@@ -732,7 +738,7 @@ Expected: every focused test and the real black-box journey passes. Preserve tra
 - [ ] **Step 6: Commit**
 
 ```bash
-rtk git add apps/web/src/app/'(authenticated)'/organizaciones/loading.tsx apps/web/src/app/'(authenticated)'/organizaciones/error.tsx apps/web/src/app/'(authenticated)'/organizaciones/vendor-account-page-boundaries.test.ts apps/web/e2e/vendor-accounts.spec.ts apps/web/e2e/auth.setup.ts apps/web/playwright.config.ts
+rtk git add apps/web/src/app/'(authenticated)'/organizaciones/loading.tsx apps/web/src/app/'(authenticated)'/organizaciones/error.tsx apps/web/src/app/'(authenticated)'/organizaciones/vendor-account-page-boundaries.test.ts apps/web/e2e/vendor-accounts.spec.ts apps/web/e2e/auth.setup.ts apps/web/messages/en-US.json apps/web/messages/es-EC.json
 rtk git commit -m "test(US-025): verify vendor account journey"
 ```
 
@@ -751,7 +757,7 @@ rtk pnpm --filter @smp/contracts test -- vendor-catalog.test.ts
 rtk pnpm --filter @smp/connectors test -- action-planner.test.ts
 rtk pnpm --filter smp-web test -- vendor-account
 rtk pnpm --filter smp-web test -- vendor-accounts
-rtk pnpm --filter smp-web test:e2e -- vendor-accounts.spec.ts
+rtk pnpm --filter smp-web test:e2e vendor-accounts.spec.ts
 ```
 
 - [ ] **Step 2: Capture the cache baseline and run the cold diff-scoped mutation gate**

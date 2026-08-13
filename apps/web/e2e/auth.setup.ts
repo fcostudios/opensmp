@@ -222,68 +222,66 @@ export default async function setupAuthEnvironment() {
           '00000000-0000-0000-0000-000000000001'
         );
         INSERT INTO vendor_account (
-          id, vendor_id, name, mode, low_pool_floor, status,
+          id, vendor_id, name, mode, vendor_org_ref, contract_renewal_on,
+          low_pool_floor, status,
           created_at, created_by
         ) VALUES (
           '20000000-0000-0000-0000-000000000461',
           '20000000-0000-0000-0000-000000000460',
           'Claude Enterprise · Central',
           'automated',
-          0,
+          'anthropic-central-e2e',
+          '2027-04-30',
+          3,
           'active',
           now(),
           '00000000-0000-0000-0000-000000000001'
         );
         INSERT INTO license_type (
           id, vendor_id, name, unit, status, created_at, created_by
-        ) VALUES (
-          '20000000-0000-0000-0000-000000000462',
-          '20000000-0000-0000-0000-000000000460',
-          'Claude Enterprise',
-          'seat',
-          'active',
-          now(),
-          '00000000-0000-0000-0000-000000000001'
-        );
+        ) VALUES
+          (
+            '20000000-0000-0000-0000-000000000462',
+            '20000000-0000-0000-0000-000000000460',
+            'Claude Enterprise',
+            'seat',
+            'active',
+            now(),
+            '00000000-0000-0000-0000-000000000001'
+          ),
+          (
+            '20000000-0000-0000-0000-000000000468',
+            '20000000-0000-0000-0000-000000000460',
+            'Claude Legacy',
+            'license',
+            'inactive',
+            now(),
+            '00000000-0000-0000-0000-000000000001'
+          );
         INSERT INTO rate_card (
           id, vendor_account_id, license_type_id, monthly_rate_usd,
           effective_from, effective_to, created_at, created_by
-        ) VALUES (
-          '20000000-0000-0000-0000-000000000465',
-          '20000000-0000-0000-0000-000000000461',
-          '20000000-0000-0000-0000-000000000462',
-          49.00,
-          '2026-01-01',
-          NULL,
-          now(),
-          '00000000-0000-0000-0000-000000000001'
-        );
-        INSERT INTO vendor_account (
-          id, vendor_id, name, mode, low_pool_floor, status,
-          created_at, created_by
-        ) VALUES (
-          '20000000-0000-0000-0000-000000000466',
-          '20000000-0000-0000-0000-000000000460',
-          'US-025 Detail Fixture',
-          'automated',
-          0,
-          'active',
-          now(),
-          '00000000-0000-0000-0000-000000000001'
-        );
-        INSERT INTO rate_card (
-          id, vendor_account_id, license_type_id, monthly_rate_usd,
-          effective_from, effective_to, created_at, created_by
-        ) VALUES (
-          '20000000-0000-0000-0000-000000000467',
-          '20000000-0000-0000-0000-000000000466',
-          '20000000-0000-0000-0000-000000000462',
-          49.00,
-          '2026-01-01',
-          NULL,
-          now(),
-          '00000000-0000-0000-0000-000000000001'
-        );
+        ) VALUES
+          (
+            '20000000-0000-0000-0000-000000000465',
+            '20000000-0000-0000-0000-000000000461',
+            '20000000-0000-0000-0000-000000000462',
+            49.00,
+            '2026-01-01',
+            NULL,
+            now(),
+            '00000000-0000-0000-0000-000000000001'
+          ),
+          (
+            '20000000-0000-0000-0000-000000000469',
+            '20000000-0000-0000-0000-000000000461',
+            '20000000-0000-0000-0000-000000000462',
+            99.00,
+            '2099-01-01',
+            NULL,
+            now(),
+            '00000000-0000-0000-0000-000000000001'
+          );
         INSERT INTO license_request (
           id, request_no, person_id, company_id, vendor_account_id,
           license_type_id, state, justification, created_at, created_by
@@ -297,6 +295,94 @@ export default async function setupAuthEnvironment() {
           'active',
           'fixture',
           now(),
+          '00000000-0000-0000-0000-000000000001'
+        );
+        INSERT INTO person (
+          id, email, full_name, company_id, status, created_at, created_by
+        ) VALUES
+          (
+            '20000000-0000-0000-0000-000000000821',
+            'vendor.assigned@e2e.test',
+            'Vendor Assigned Fixture',
+            '20000000-0000-0000-0000-000000000451',
+            'active',
+            '2026-08-01T12:00:00Z',
+            '00000000-0000-0000-0000-000000000001'
+          ),
+          (
+            '20000000-0000-0000-0000-000000000822',
+            'vendor.pending@e2e.test',
+            'Vendor Pending Fixture',
+            '20000000-0000-0000-0000-000000000451',
+            'active',
+            '2026-08-01T12:00:00Z',
+            '00000000-0000-0000-0000-000000000001'
+          );
+        INSERT INTO vendor_account_capacity (
+          id, vendor_account_id, license_type_id, purchased_qty,
+          effective_from, note, created_at, created_by
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000820',
+          '20000000-0000-0000-0000-000000000461',
+          '20000000-0000-0000-0000-000000000462',
+          8,
+          '2026-01-01',
+          'US-025 deterministic acceptance capacity',
+          '2026-08-01T12:00:00Z',
+          '00000000-0000-0000-0000-000000000001'
+        );
+        INSERT INTO license_assignment (
+          id, person_id, company_id, vendor_account_id, license_type_id,
+          started_on, source_kind, note, created_at, created_by
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000823',
+          '20000000-0000-0000-0000-000000000821',
+          '20000000-0000-0000-0000-000000000451',
+          '20000000-0000-0000-0000-000000000461',
+          '20000000-0000-0000-0000-000000000462',
+          '2026-01-01',
+          'import',
+          'US-025 deterministic assigned seat',
+          '2026-08-01T12:00:00Z',
+          '00000000-0000-0000-0000-000000000001'
+        );
+        INSERT INTO license_request (
+          id, request_no, person_id, company_id, vendor_account_id,
+          license_type_id, state, justification, created_at, created_by
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000824',
+          'REQ-US025-PENDING',
+          '20000000-0000-0000-0000-000000000822',
+          '20000000-0000-0000-0000-000000000451',
+          '20000000-0000-0000-0000-000000000461',
+          '20000000-0000-0000-0000-000000000462',
+          'provisioning',
+          'US-025 deterministic pending invitation',
+          '2026-08-01T12:00:00Z',
+          '00000000-0000-0000-0000-000000000001'
+        );
+        INSERT INTO provisioning_action (
+          id, request_id, vendor_account_id, kind, mode, status, created_at
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000825',
+          '20000000-0000-0000-0000-000000000824',
+          '20000000-0000-0000-0000-000000000461',
+          'invite',
+          'automated',
+          'pending',
+          '2026-08-01T12:00:00Z'
+        );
+        INSERT INTO integration_credential (
+          id, vendor_account_id, kind, encrypted_secret, health, status,
+          created_at, created_by
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000826',
+          '20000000-0000-0000-0000-000000000461',
+          'admin_scoped',
+          'e2e-not-a-production-secret',
+          'ok',
+          'active',
+          '2026-08-01T12:00:00Z',
           '00000000-0000-0000-0000-000000000001'
         );
         INSERT INTO statement (

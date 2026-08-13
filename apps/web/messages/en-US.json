@@ -282,6 +282,9 @@
   },
   "vendorAccounts": {
     "title": "Vendor organizations",
+    "loading": "Loading vendor organizations…",
+    "loadError": "We couldn't load vendor organizations.",
+    "retry": "Try again",
     "subtitle": "The vendor organizations where the group's licenses live.",
     "eyebrow": "Vendor management",
     "listTitle": "Registered organizations",

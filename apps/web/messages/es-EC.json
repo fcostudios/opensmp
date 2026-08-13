@@ -282,6 +282,9 @@
   },
   "vendorAccounts": {
     "title": "Organizaciones",
+    "loading": "Cargando organizaciones de proveedor…",
+    "loadError": "No pudimos cargar las organizaciones de proveedor.",
+    "retry": "Intentar de nuevo",
     "subtitle": "Las organizaciones de proveedor donde viven las licencias del grupo.",
     "eyebrow": "Gestión de proveedores",
     "listTitle": "Organizaciones registradas",
