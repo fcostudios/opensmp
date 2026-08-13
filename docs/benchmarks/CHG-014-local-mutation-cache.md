@@ -157,3 +157,93 @@ return the same hashed shard artifacts for local validation.
 
 These are same-machine local measurements and must not be treated as
 cross-machine performance guarantees.
+
+## US-025 production campaign — 2026-08-13
+
+US-025 exercised the production diff rather than the two-shard representative
+fixture. The authoritative comparable pair is uncommitted generated evidence:
+
+- cold: `reports/mutation-performance/7a7ca1bb-e618-4d5b-8f28-ae3bcb8dcedf.json`
+- warm: `reports/mutation-performance/5d925abb-de46-46a2-8439-ebab582cefeb.json`
+
+Both records bind campaign key
+`ce2845d69b3ca7fdca2c3a1aae9e0cfdf4370238fb84bca6fcfd69d848fca809`,
+HEAD `25801d7997eecb89f957d8e45f1dcf4c5024b5b9`, immutable base and baseRef
+`a91bc3bac76e11a9e0c8c7a3cef59992b0797cde`, and cache schema v2. The runner
+consumes `MUTATION_BASE`; `MUTATION_BASE_REF` was also set to the identical
+commit so the requested and recorded provenance cannot diverge.
+
+| Metric | Cold | Warm |
+| --- | ---: | ---: |
+| Wall/orchestration duration (ms) | 907833.457458 | 15903.4085 |
+| Measured savings (ms) | 891930.048958 | — |
+| Shards | 14 | 14 |
+| Executed | 14 | 0 |
+| Reused | 0 | 14 |
+| Rejected | 0 | 0 |
+| Hit ratio | 0 | 1 |
+| Estimated reused-shard savings (ms) | 0 | 893473.4615020001 |
+| Outcome | passed | passed |
+
+The unchanged warm replay was 57.0842 times faster and reduced measured wall
+time by 98.2482%, completing in 15.903 seconds—comfortably below 60 seconds.
+It emitted no Stryker, project-reader, dry-run, or mutation-score output. This
+production result is materially larger than the fixed representative pair
+(29,669.241917 ms cold, 2,269.107959 ms warm, 27,400.133958 ms measured and
+27,275.874667 ms estimated savings across two shards), while preserving a 100%
+warm hit ratio.
+
+The cold campaign executed 13 scored shards plus one exact verification-only
+bundle. Every scored shard met the 80% gate; focused mutation results retained
+for the principal US-025 surfaces were form/dialog 80.65%, table 96.30%, tabs
+93.91%, contracts 81.58%, schema 100%, and navigation 85.71%. Static App Router
+boundary evidence ran separately and passed 5/5 because bracketed route paths
+are excluded from Stryker's fast-glob boundary; this exclusion is explicit,
+not counted as cached scored mutation evidence.
+
+Cold time was dominated by server actions/service composition (292,923.010917
+ms), the vendor-account repository (192,837.086417 ms), the final form/dialog
+bundle (146,207.374333 ms), and tab/detail integration (139,555.516417 ms).
+Repeated parsing attempts against unrelated prototype HTML also added noisy
+cold startup overhead. Warm time is instead dependency/runtime-profile hashing,
+cache validation, report rehydration, and record I/O.
+
+### Defects exposed before the authoritative pair
+
+Earlier generated records are diagnostic only and are not compared above.
+They exposed fail-closed defects that were fixed with regressions before the
+cache was cleared for the authoritative cold run:
+
+- database harness selection now recognizes app-URL references and binds URLs
+  only through a verified PostgreSQL schema profile;
+- empty and ISO-date-list `ECUADOR_HOLIDAYS` values are deterministic hashed
+  inputs, while malformed values still reject reuse;
+- pnpm dependency aliases hash the nearest installed package bytes by actual
+  manifest identity;
+- each database-backed shard runs in a unique UUID-named clone of the verified
+  template, terminates sessions, and drops the clone in cleanup/finally;
+- production `DATABASE_URL` reads classify a closure as DB-backed even when its
+  test filename is not `.integration.test.ts`;
+- cache fingerprints the exact controlled child environment, so parent-only
+  Keycloak secrets neither reach tests nor create false cache dependencies;
+- literal `readFile(new URL(..., import.meta.url))` calls hash the exact static
+  file, while dynamic filesystem access remains conservatively non-cacheable;
+- integration fixtures that require empty business tables explicitly truncate
+  their owned rows instead of assuming an empty schema template.
+
+After the cold campaign, schema verification again proved 54 committed
+migration checksums across 31 application tables, four append-only triggers,
+and the exact `ledger_app` grant matrix; zero `ledger_mutation_*` databases
+remained. No credentials or connection values appear in records or cache.
+
+For Substrate, keep these fail-closed evidence, controlled-environment,
+schema-profile, artifact-validation, and isolated-database contracts. Improve
+cold performance by building a precise dependency graph that excludes unrelated
+prototype HTML and by scheduling independent cache misses concurrently. The
+local result proves content-addressed shard reuse is effective; a remote system
+must not trade away the provenance and cleanup properties that made it safe.
+
+Machine profile: Darwin 25.5.0 arm64 Apple M4, 10 logical CPUs,
+25,769,803,776 bytes memory; Node 26.7.0, pnpm 9.15.0, TypeScript 5.9.3,
+Vitest 4.1.10, Stryker 9.6.1, and PostgreSQL 16 Alpine using the committed
+digest/profile. These remain same-machine measurements.
