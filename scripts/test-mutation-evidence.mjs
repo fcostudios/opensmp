@@ -1460,6 +1460,51 @@ try {
     failedRun,
   );
 
+  const rollbackRun = createPerformanceRun({
+    provenance,
+    cacheMode: "enabled",
+    machine,
+    now: sequenceClock(3_000, 3_010, 3_030, 3_040),
+    wallNow: sequenceValue("2026-08-12T12:06:00.000Z", "2026-08-12T12:05:59.000Z"),
+    createRunId: sequenceValue("rollback-run", "rollback-write"),
+    createShardToken: sequenceValue("rollback-shard-token"),
+  });
+  const rollbackToken = startShard(rollbackRun, {
+    id: "rollback-shard",
+    evidenceKey: "rollback-evidence",
+    classification: "mutation",
+  });
+  finishShard(rollbackRun, rollbackToken, "executed", { result: "passed" });
+  finishPerformanceRun(rollbackRun, "passed");
+  assert.equal(rollbackRun.startedAt, "2026-08-12T12:06:00.000Z");
+  assert.equal(rollbackRun.finishedAt, "2026-08-12T12:05:59.000Z");
+  assert.equal(rollbackRun.wallClockDurationMs, 40);
+  assert.deepEqual(
+    JSON.parse(await readFile(writePerformanceRecord(performanceFixture, rollbackRun), "utf8")),
+    rollbackRun,
+  );
+  const rollbackSummary = renderBenchmarkSummary(rollbackRun, rollbackRun);
+  assert.match(rollbackSummary, /Comparable: yes/);
+  assert.match(rollbackSummary, /Wall-clock duration \(ms\) \| 40 \| 40/);
+  assert.match(rollbackSummary, /Measured wall-clock savings \(ms\) \| 0/);
+
+  const collisionLeft = {
+    ...warmRun,
+    shards: warmRun.shards.map((shard, index) => index === 0
+      ? { ...shard, id: "collision\0left", evidenceKey: "middle" }
+      : { ...shard }),
+  };
+  const collisionRight = {
+    ...warmRun,
+    shards: warmRun.shards.map((shard, index) => index === 0
+      ? { ...shard, id: "collision", evidenceKey: "left\0middle" }
+      : { ...shard }),
+  };
+  assert.throws(
+    () => renderBenchmarkSummary(collisionLeft, collisionRight),
+    (error) => /different workloads/.test(error.message),
+  );
+
   const overflowRun = createPerformanceRun({
     provenance,
     cacheMode: "enabled",

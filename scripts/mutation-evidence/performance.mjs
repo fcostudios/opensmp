@@ -266,7 +266,6 @@ function validateRecord(record, { allowIncomplete = false } = {}) {
       finiteNonnegative(record.wallClockDurationMs, "record.wallClockDurationMs");
       finiteNonnegative(record.orchestrationDurationMs, "record.orchestrationDurationMs");
       validateUtcLabel(record.finishedAt);
-      if (new Date(record.finishedAt).valueOf() < new Date(record.startedAt).valueOf()) throw new Error();
       if (record.outcome === "passed"
           && record.shards.some((shard) => shard.status === "started" || shard.result !== "passed")) {
         throw new Error();
@@ -453,8 +452,9 @@ function comparison(cold, warm) {
       || cold.provenance?.baseRef !== warm.provenance?.baseRef) {
     reasons.push("different base provenance");
   }
-  const workload = (record) => record.shards.map(({ id, evidenceKey, classification }) =>
-    `${id}\0${evidenceKey}\0${classification}`).sort();
+  const workload = (record) => record.shards
+    .map(({ id, evidenceKey, classification }) => JSON.stringify([id, evidenceKey, classification]))
+    .sort();
   if (!isDeepStrictEqual(workload(cold), workload(warm))) reasons.push("different workloads");
   if (cold.outcome !== "passed" || warm.outcome !== "passed") {
     reasons.push("campaign outcomes are not both passed");
