@@ -450,8 +450,10 @@ export function collectExecutionInputs({
       || displayPath(file).startsWith("scripts/mutation-evidence/")
       || displayPath(file) === "packages/db/scripts/verify-schema.mjs";
     let importsFileSystem = false;
-    const childProcessBindings = new Set();
-    const childProcessAliases = new Set();
+    const childProcessApis = new Set([
+      "exec", "execSync", "execFile", "execFileSync", "spawn", "spawnSync", "fork",
+    ]);
+    const childProcessBindings = new Map();
     const childProcessNamespaces = new Set();
     const workerBindings = new Set();
     const workerNamespaces = new Set();
@@ -469,8 +471,9 @@ export function collectExecutionInputs({
           childProcessNamespaces.add(node.importClause.namedBindings.name.text);
         }
         for (const element of node.importClause?.namedBindings?.elements ?? []) {
-          if (["exec", "execFile", "spawn", "fork"].includes(element.propertyName?.text ?? element.name.text)) {
-            childProcessBindings.add(element.name.text);
+          const importedName = element.propertyName?.text ?? element.name.text;
+          if (childProcessApis.has(importedName)) {
+            childProcessBindings.set(element.name.text, importedName);
           }
         }
       }
@@ -500,8 +503,7 @@ export function collectExecutionInputs({
     findFileSystemDependency(ast);
     if (importsFileSystem) expandOwner(file);
     const owner = findOwner(absoluteRoot, workspacePackages, file);
-    const knownMigrationRunner = childProcessBindings.size > 0
-      && /resolve\s*\([^)]*["']scripts\/apply-migrations\.mjs["']/.test(sourceText);
+    const knownMigrationRunner = /(?:const|let)\s+migrationRunner\s*=\s*resolve\s*\([^)]*["']scripts\/apply-migrations\.mjs["']/.test(sourceText);
     if (analyzeRuntime && knownMigrationRunner && owner) {
       addFile(path.join(owner.directory, "scripts/apply-migrations.mjs"));
     }
@@ -513,7 +515,30 @@ export function collectExecutionInputs({
           && node.initializer.arguments.length === 1
           && ts.isIdentifier(node.initializer.arguments[0])
           && childProcessBindings.has(node.initializer.arguments[0].text)) {
-        childProcessAliases.add(node.name.text);
+        childProcessBindings.set(
+          node.name.text,
+          childProcessBindings.get(node.initializer.arguments[0].text),
+        );
+      } else if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)
+          && node.initializer && ts.isIdentifier(node.initializer)
+          && childProcessBindings.has(node.initializer.text)) {
+        childProcessBindings.set(node.name.text, childProcessBindings.get(node.initializer.text));
+      } else if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)
+          && node.initializer && ts.isPropertyAccessExpression(node.initializer)
+          && ts.isIdentifier(node.initializer.expression)
+          && childProcessNamespaces.has(node.initializer.expression.text)
+          && childProcessApis.has(node.initializer.name.text)) {
+        childProcessBindings.set(node.name.text, node.initializer.name.text);
+      } else if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)
+          && node.initializer && ts.isIdentifier(node.initializer)
+          && workerBindings.has(node.initializer.text)) {
+        workerBindings.add(node.name.text);
+      } else if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)
+          && node.initializer && ts.isPropertyAccessExpression(node.initializer)
+          && ts.isIdentifier(node.initializer.expression)
+          && workerNamespaces.has(node.initializer.expression.text)
+          && node.initializer.name.text === "Worker") {
+        workerBindings.add(node.name.text);
       }
       ts.forEachChild(node, collectChildAliases);
     };
@@ -521,6 +546,25 @@ export function collectExecutionInputs({
     if (analyzeRuntime && /require\s*\(\s*["'](?:node:)?(?:child_process|worker_threads)["']\s*\)/.test(sourceText)) {
       markOwner(computedChildExecutionWorkspaces, file);
     }
+    const isDeclaredMigrationOptions = (options) => {
+      if (!options) return true;
+      if (!ts.isObjectLiteralExpression(options) || options.properties.length !== 2) return false;
+      const cwd = options.properties.find((property) => property.name?.getText(ast) === "cwd");
+      const env = options.properties.find((property) => property.name?.getText(ast) === "env");
+      if (!cwd || !ts.isPropertyAssignment(cwd) || !ts.isIdentifier(cwd.initializer)
+          || cwd.initializer.text !== "packageRoot"
+          || !env || !ts.isPropertyAssignment(env) || !ts.isObjectLiteralExpression(env.initializer)
+          || env.initializer.properties.length !== 3) return false;
+      const hasProcessEnvironment = env.initializer.properties.some((property) =>
+        ts.isSpreadAssignment(property) && property.expression.getText(ast) === "process.env");
+      const hasDatabaseUrl = env.initializer.properties.some((property) =>
+        ts.isPropertyAssignment(property) && property.name.getText(ast) === "DATABASE_URL"
+        && ts.isIdentifier(property.initializer) && property.initializer.text === "appUrl");
+      const hasDatabaseAdminUrl = env.initializer.properties.some((property) =>
+        ts.isPropertyAssignment(property) && property.name.getText(ast) === "DATABASE_ADMIN_URL"
+        && ts.isIdentifier(property.initializer) && property.initializer.text === "ownerUrl");
+      return hasProcessEnvironment && hasDatabaseUrl && hasDatabaseAdminUrl;
+    };
     const visit = (node) => {
       let specifier = null;
       if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node))
@@ -573,22 +617,27 @@ export function collectExecutionInputs({
       }
       if (analyzeRuntime && ts.isCallExpression(node)
           && ((ts.isIdentifier(node.expression)
-            && (childProcessBindings.has(node.expression.text)
-              || childProcessAliases.has(node.expression.text)))
+            && childProcessBindings.has(node.expression.text))
             || (ts.isPropertyAccessExpression(node.expression)
               && ts.isIdentifier(node.expression.expression)
-              && childProcessNamespaces.has(node.expression.expression.text)))) {
+              && childProcessNamespaces.has(node.expression.expression.text)
+              && childProcessApis.has(node.expression.name.text)))) {
+        const childProcessApi = ts.isIdentifier(node.expression)
+          ? childProcessBindings.get(node.expression.text)
+          : node.expression.name.text;
         const executable = node.arguments[0];
         const runsNode = executable?.getText(ast) === "process.execPath";
-        if (runsNode) {
-          const argumentsExpression = node.arguments[1];
-          const firstArgument = ts.isArrayLiteralExpression(argumentsExpression)
-            ? argumentsExpression.elements[0]
-            : null;
-          const declaredMigrationRunner = firstArgument && ts.isIdentifier(firstArgument)
-            && firstArgument.text === "migrationRunner" && knownMigrationRunner;
-          if (!declaredMigrationRunner) markOwner(computedChildExecutionWorkspaces, file);
-        } else if (!ts.isStringLiteralLike(executable)) {
+        const argumentsExpression = node.arguments[1];
+        const declaredMigrationRunner = ["execFile", "execFileSync"].includes(childProcessApi)
+          && runsNode
+          && ts.isArrayLiteralExpression(argumentsExpression)
+          && argumentsExpression.elements.length === 1
+          && ts.isIdentifier(argumentsExpression.elements[0])
+          && argumentsExpression.elements[0].text === "migrationRunner"
+          && node.arguments.length <= 3
+          && isDeclaredMigrationOptions(node.arguments[2])
+          && knownMigrationRunner;
+        if (!declaredMigrationRunner) {
           markOwner(computedChildExecutionWorkspaces, file);
         }
       }

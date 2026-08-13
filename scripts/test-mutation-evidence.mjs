@@ -289,7 +289,12 @@ try {
       'const execFileAsync = promisify(execFile);',
       'const packageRoot = resolve(import.meta.dirname, "..");',
       'const migrationRunner = resolve(packageRoot, "scripts/apply-migrations.mjs");',
-      'export const migrate = () => execFileAsync(process.execPath, [migrationRunner]);',
+      'const appUrl = "sanitized-app-url";',
+      'const ownerUrl = "sanitized-owner-url";',
+      'export const migrate = () => execFileAsync(process.execPath, [migrationRunner], {',
+      '  cwd: packageRoot,',
+      '  env: { ...process.env, DATABASE_ADMIN_URL: ownerUrl, DATABASE_URL: appUrl },',
+      '});',
       "",
     ].join("\n"),
   );
@@ -311,6 +316,27 @@ try {
 
   await put(
     fixtureRoot,
+    "packages/db/src/unsafe-migration.ts",
+    [
+      'import { execFile } from "node:child_process";',
+      'import { resolve } from "node:path";',
+      'const packageRoot = resolve(import.meta.dirname, "..");',
+      'const migrationRunner = resolve(packageRoot, "scripts/apply-migrations.mjs");',
+      'const unboundOptions = { env: { TOKEN: "argv-secret-must-not-be-persisted" } };',
+      'export const migrate = () => execFile(process.execPath, [migrationRunner], { ...unboundOptions });',
+      "",
+    ].join("\n"),
+  );
+  const unboundMigrationOptions = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/db/src/unsafe-migration.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+  });
+  assert.equal(unboundMigrationOptions.reusable, false);
+  assert.equal(canonicalJson(unboundMigrationOptions).includes("argv-secret-must-not-be-persisted"), false);
+
+  await put(
+    fixtureRoot,
     "packages/app/src/computed-child.ts",
     'import { execFile } from "node:child_process";\nexport const run = (target: string) => execFile(process.execPath, [target]);\n',
   );
@@ -319,6 +345,41 @@ try {
     entryFiles: ["packages/app/src/computed-child.ts"],
     configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
   }).reusable, false);
+
+  const argvSecret = "argv-secret-must-not-be-persisted";
+  const childProcessCases = [
+    [
+      "spawn-sync.ts",
+      `import { spawnSync } from "node:child_process";\nexport const run = () => spawnSync("pnpm", ["test", "${argvSecret}"]);\n`,
+    ],
+    [
+      "exec-file-sync.ts",
+      `import { execFileSync as execute } from "node:child_process";\nexport const run = () => execute("pnpm", ["test", "${argvSecret}"]);\n`,
+    ],
+    [
+      "exec-sync.ts",
+      `import * as childProcess from "node:child_process";\nexport const run = () => childProcess.execSync("pnpm test ${argvSecret}");\n`,
+    ],
+    [
+      "aliased-spawn-sync.ts",
+      `import { spawnSync } from "node:child_process";\nconst execute = spawnSync;\nexport const run = () => execute("pnpm", ["test", "${argvSecret}"]);\n`,
+    ],
+  ];
+  for (const [fileName, source] of childProcessCases) {
+    const relativeFile = `packages/app/src/${fileName}`;
+    await put(fixtureRoot, relativeFile, source);
+    const result = collectExecutionInputs({
+      root: fixtureRoot,
+      entryFiles: [relativeFile],
+      configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+    });
+    assert.equal(result.reusable, false, `${fileName} must not reuse mutation evidence`);
+    assert.deepEqual(result.reasons, [{
+      code: "computed-child-execution-input",
+      workspace: "packages/app",
+    }]);
+    assert.equal(canonicalJson(result).includes(argvSecret), false);
+  }
   process.env.LEDGER_FINGERPRINT_SECRET_SENTINEL = "changed-secret-value";
   assert.deepEqual(
     collectExecutionInputs({
@@ -867,6 +928,18 @@ const repositoryProbe = collectExecutionInputs({
 assert.equal(repositoryProbe.reusable, false);
 assert.ok(repositoryProbe.reasons.some(({ code }) => code === "environment-runtime-input"));
 assert.ok(repositoryProbe.hashes["scripts/mutation-scope.mjs"]);
+
+const connectorDispatchProbe = collectExecutionInputs({
+  root: path.resolve(new URL("..", import.meta.url).pathname),
+  entryFiles: ["packages/connectors/src/dispatch.test.ts"],
+  configurationFiles: [],
+  migrationRoots: [],
+  toolVersions: { node: process.versions.node },
+  runtimeProfile: { arch: process.arch, platform: process.platform },
+});
+assert.equal(connectorDispatchProbe.reusable, false);
+assert.ok(connectorDispatchProbe.reasons.some(({ code, workspace }) =>
+  code === "computed-child-execution-input" && workspace === "packages/connectors"));
 
 function runFixtureGit(repoRoot) {
   return (args) => execFileSync("git", args, { cwd: repoRoot, encoding: "utf8" }).trim();
