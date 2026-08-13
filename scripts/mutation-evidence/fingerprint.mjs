@@ -213,15 +213,14 @@ function isWorkspaceFingerprintFile(workspaceRoot, file) {
     base === ".env"
     || base.startsWith(".env.")
     || base === ".npmrc"
+    || /(?:^|[-_.])(?:credential|password|private|secret|token)(?:[-_.]|$)/i.test(base)
     || /\.(?:key|p12|pem|pfx|secret)$/i.test(base)
+    || /\.tsbuildinfo$/i.test(base)
     || /(?:^|\.)generated\./i.test(base)
   ) {
     return false;
   }
-  if (base === "package.json") return true;
-  return /^(?:config|migrations|scripts|src|templates|test|tests)\//.test(relative)
-    || /(?:^|\.)config\.[cm]?[jt]s$/.test(base)
-    || /^tsconfig(?:\..+)?\.json$/.test(base);
+  return relative !== "";
 }
 
 function sourceKind(file) {
@@ -245,36 +244,7 @@ export function collectExecutionInputs({
   const included = new Set();
   const expandedWorkspaces = new Set();
   const compilerConfigurationCache = new Map();
-  const fileSystemReadApis = new Set([
-    "access",
-    "accessSync",
-    "createReadStream",
-    "existsSync",
-    "fstat",
-    "fstatSync",
-    "glob",
-    "globSync",
-    "lstat",
-    "lstatSync",
-    "open",
-    "openAsBlob",
-    "openSync",
-    "opendir",
-    "opendirSync",
-    "read",
-    "readSync",
-    "readFile",
-    "readFileSync",
-    "readdir",
-    "readdirSync",
-    "readlink",
-    "readlinkSync",
-    "realpath",
-    "realpathSync",
-    "stat",
-    "statSync",
-    "watch",
-  ]);
+  const includedCompilerConfigurations = new Set();
   const fileSystemModules = new Set(["fs", "fs/promises", "node:fs", "node:fs/promises"]);
   const defaultCompilerOptions = {
     allowJs: true,
@@ -290,6 +260,31 @@ export function collectExecutionInputs({
     expandedWorkspaces.add(owner.directory);
     for (const ownedFile of walkFiles(owner.directory)) {
       if (isWorkspaceFingerprintFile(owner.directory, ownedFile)) addFile(ownedFile);
+    }
+  };
+  const includeCompilerConfigurationChain = (configPath, ownerFile) => {
+    const absoluteConfigPath = path.resolve(configPath);
+    if (includedCompilerConfigurations.has(absoluteConfigPath)) return;
+    includedCompilerConfigurations.add(absoluteConfigPath);
+    addFile(absoluteConfigPath);
+
+    const loaded = ts.readConfigFile(absoluteConfigPath, ts.sys.readFile);
+    if (loaded.error) {
+      throw new Error(ts.flattenDiagnosticMessageText(loaded.error.messageText, "\n"));
+    }
+    const extendedConfigs = Array.isArray(loaded.config.extends)
+      ? loaded.config.extends
+      : [loaded.config.extends];
+    for (const extended of extendedConfigs) {
+      if (typeof extended !== "string") continue;
+      const localConfig = extended.startsWith(".") || path.isAbsolute(extended)
+        ? resolveAsFile(path.resolve(path.dirname(absoluteConfigPath), extended))
+        : resolveWorkspaceImport(extended, workspacePackages).resolved;
+      if (localConfig && isWithin(absoluteRoot, localConfig)) {
+        includeCompilerConfigurationChain(localConfig, ownerFile);
+      } else {
+        expandOwner(ownerFile);
+      }
     }
   };
   const compilerConfigurationFor = (file) => {
@@ -322,17 +317,7 @@ export function collectExecutionInputs({
     }
     const configuration = { configPath: absoluteConfigPath, options: parsed.options };
     compilerConfigurationCache.set(absoluteConfigPath, configuration);
-    addFile(absoluteConfigPath);
-    const extendedConfigs = Array.isArray(loaded.config.extends)
-      ? loaded.config.extends
-      : [loaded.config.extends];
-    for (const extended of extendedConfigs) {
-      if (typeof extended !== "string") continue;
-      const localConfig = extended.startsWith(".") || path.isAbsolute(extended)
-        ? resolveAsFile(path.resolve(path.dirname(absoluteConfigPath), extended))
-        : resolveWorkspaceImport(extended, workspacePackages).resolved;
-      if (localConfig && isWithin(absoluteRoot, localConfig)) addFile(localConfig);
-    }
+    includeCompilerConfigurationChain(absoluteConfigPath, file);
     return configuration;
   };
   const matchesPathAlias = (specifier, compilerOptions) =>
@@ -376,54 +361,25 @@ export function collectExecutionInputs({
       true,
       sourceKind(file),
     );
-    const fileSystemFunctionBindings = new Set();
-    const fileSystemNamespaceBindings = new Set();
-    for (const statement of ast.statements) {
-      if (ts.isImportDeclaration(statement)
-          && ts.isStringLiteralLike(statement.moduleSpecifier)
-          && fileSystemModules.has(statement.moduleSpecifier.text)) {
-        const bindings = statement.importClause;
-        if (bindings?.name) fileSystemNamespaceBindings.add(bindings.name.text);
-        if (bindings?.namedBindings && ts.isNamespaceImport(bindings.namedBindings)) {
-          fileSystemNamespaceBindings.add(bindings.namedBindings.name.text);
-        } else if (bindings?.namedBindings && ts.isNamedImports(bindings.namedBindings)) {
-          for (const element of bindings.namedBindings.elements) {
-            const importedName = element.propertyName?.text ?? element.name.text;
-            if (importedName === "promises") {
-              fileSystemNamespaceBindings.add(element.name.text);
-            } else if (fileSystemReadApis.has(importedName)) {
-              fileSystemFunctionBindings.add(element.name.text);
-            }
-          }
-        }
+    let importsFileSystem = false;
+    const findFileSystemDependency = (node) => {
+      if (ts.isImportDeclaration(node)
+          && ts.isStringLiteralLike(node.moduleSpecifier)
+          && fileSystemModules.has(node.moduleSpecifier.text)) {
+        importsFileSystem = true;
       }
-      if (!ts.isVariableStatement(statement)) continue;
-      for (const declaration of statement.declarationList.declarations) {
-        const initializer = declaration.initializer;
-        if (!initializer
-            || !ts.isCallExpression(initializer)
-            || !ts.isIdentifier(initializer.expression)
-            || initializer.expression.text !== "require"
-            || initializer.arguments.length !== 1
-            || !ts.isStringLiteralLike(initializer.arguments[0])
-            || !fileSystemModules.has(initializer.arguments[0].text)) {
-          continue;
-        }
-        if (ts.isIdentifier(declaration.name)) {
-          fileSystemNamespaceBindings.add(declaration.name.text);
-        } else if (ts.isObjectBindingPattern(declaration.name)) {
-          for (const element of declaration.name.elements) {
-            if (!ts.isIdentifier(element.name)) continue;
-            const importedName = element.propertyName && ts.isIdentifier(element.propertyName)
-              ? element.propertyName.text
-              : element.name.text;
-            if (fileSystemReadApis.has(importedName)) {
-              fileSystemFunctionBindings.add(element.name.text);
-            }
-          }
-        }
+      if (ts.isCallExpression(node)
+          && ts.isIdentifier(node.expression)
+          && node.expression.text === "require"
+          && node.arguments.length === 1
+          && ts.isStringLiteralLike(node.arguments[0])
+          && fileSystemModules.has(node.arguments[0].text)) {
+        importsFileSystem = true;
       }
-    }
+      ts.forEachChild(node, findFileSystemDependency);
+    };
+    findFileSystemDependency(ast);
+    if (importsFileSystem) expandOwner(file);
     const visit = (node) => {
       let specifier = null;
       if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node))
@@ -454,24 +410,6 @@ export function collectExecutionInputs({
         else if (resolution.owned) expandOwner(file);
       }
 
-      if (ts.isCallExpression(node)) {
-        const isBoundFileSystemRead = ts.isIdentifier(node.expression)
-          ? fileSystemFunctionBindings.has(node.expression.text)
-          : ts.isPropertyAccessExpression(node.expression)
-            && ts.isIdentifier(node.expression.expression)
-            && fileSystemNamespaceBindings.has(node.expression.expression.text)
-            && fileSystemReadApis.has(node.expression.name.text);
-        if (isBoundFileSystemRead) {
-          const firstArgument = node.arguments[0];
-          if (!firstArgument || !ts.isStringLiteralLike(firstArgument)) {
-            expandOwner(file);
-          } else {
-            const resolvedRead = resolveAsFile(path.resolve(path.dirname(file), firstArgument.text));
-            if (resolvedRead && isWithin(absoluteRoot, resolvedRead)) addFile(resolvedRead);
-            else expandOwner(file);
-          }
-        }
-      }
       ts.forEachChild(node, visit);
     };
     visit(ast);

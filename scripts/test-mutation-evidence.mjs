@@ -174,12 +174,16 @@ try {
 
   const aliasFiles = {
     "apps/web/package.json": '{"name":"fixture-web","type":"module"}',
-    "tsconfig.base.json": JSON.stringify({
+    "tsconfig.foundation.json": JSON.stringify({
       compilerOptions: {
         baseUrl: ".",
         moduleResolution: "bundler",
         paths: { "@/*": ["./apps/web/src/*"] },
       },
+    }),
+    "tsconfig.base.json": JSON.stringify({
+      extends: "./tsconfig.foundation.json",
+      compilerOptions: { strict: true },
     }),
     "apps/web/tsconfig.json": JSON.stringify({
       extends: "../../tsconfig.base.json",
@@ -216,10 +220,42 @@ try {
         "package.json",
         "pnpm-lock.yaml",
         "tsconfig.base.json",
+        "tsconfig.foundation.json",
       ],
       toolVersions,
       runtimeProfile,
     ),
+  );
+  const aliasInputsBeforeGrandparentChange = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["apps/web/src/app/page.ts"],
+    configurationFiles: [],
+    migrationRoots: [],
+    toolVersions,
+    runtimeProfile,
+  });
+  await put(
+    fixtureRoot,
+    "tsconfig.foundation.json",
+    JSON.stringify({
+      compilerOptions: {
+        baseUrl: ".",
+        moduleResolution: "bundler",
+        paths: { "@/*": ["./apps/web/src/*"] },
+        useDefineForClassFields: true,
+      },
+    }),
+  );
+  assert.notDeepEqual(
+    collectExecutionInputs({
+      root: fixtureRoot,
+      entryFiles: ["apps/web/src/app/page.ts"],
+      configurationFiles: [],
+      migrationRoots: [],
+      toolVersions,
+      runtimeProfile,
+    }),
+    aliasInputsBeforeGrandparentChange,
   );
 
   const uncertaintyFiles = {
@@ -234,8 +270,17 @@ try {
       'import * as storage from "node:fs";\nconst target = process.argv[2];\nexport const stream = storage.createReadStream(target);\n',
     "packages/uncertain/src/fs-open.ts":
       'import { open as acquire } from "node:fs/promises";\nconst target = process.argv[2];\nexport const handle = acquire(target, "r");\n',
+    "packages/uncertain/src/fs-promises-property.ts":
+      'import * as fs from "node:fs";\nconst target = process.argv[2];\nexport const data = fs.promises.readFile(target);\n',
+    "packages/uncertain/src/fs-detached.ts":
+      'import * as fs from "node:fs";\nconst read = fs.readFile;\nexport const data = read(process.argv[2], () => {});\n',
+    "packages/uncertain/src/fs-commonjs-promises.cjs":
+      'const { promises: fs } = require("fs");\nmodule.exports = fs.readFile(process.argv[2]);\n',
     "packages/uncertain/src/schema.sql": "select 1;\n",
     "packages/uncertain/config/settings.yaml": "mode: test\n",
+    "packages/uncertain/fixtures/sample.csv": "id,name\n1,fixture\n",
+    "packages/uncertain/public/example.svg": "<svg></svg>\n",
+    "packages/uncertain/runtime-policy.txt": "runtime input\n",
     "packages/uncertain/templates/notice.hbs": "Hello {{name}}\n",
     "packages/uncertain/src/unresolved.ts": 'import "./missing.js";\nexport const value = 1;\n',
     "packages/uncertain/src/unrelated.ts": "export const conservative = true;\n",
@@ -245,6 +290,7 @@ try {
     "packages/uncertain/src/private.secret": "must-not-be-persisted\n",
     "packages/uncertain/generated/ignored.ts": "export const generated = true;\n",
     "packages/uncertain/dist/ignored.sql": "select 'generated';\n",
+    "packages/uncertain/tsconfig.tsbuildinfo": "generated compiler state\n",
   };
   await Promise.all(
     Object.entries(uncertaintyFiles).map(([relativePath, contents]) =>
@@ -254,15 +300,21 @@ try {
   const fallbackPaths = [
     "package.json",
     "packages/uncertain/config/settings.yaml",
+    "packages/uncertain/fixtures/sample.csv",
     "packages/uncertain/package.json",
     "packages/uncertain/src/dynamic.ts",
     "packages/uncertain/src/fs-aliased.ts",
+    "packages/uncertain/src/fs-commonjs-promises.cjs",
+    "packages/uncertain/src/fs-detached.ts",
     "packages/uncertain/src/fs-open.ts",
+    "packages/uncertain/src/fs-promises-property.ts",
     "packages/uncertain/src/fs-read.ts",
     "packages/uncertain/src/fs-stream.ts",
     "packages/uncertain/src/schema.sql",
     "packages/uncertain/src/unrelated.ts",
     "packages/uncertain/src/unresolved.ts",
+    "packages/uncertain/public/example.svg",
+    "packages/uncertain/runtime-policy.txt",
     "packages/uncertain/templates/notice.hbs",
     "packages/uncertain/test/owned.test.ts",
     "packages/uncertain/vitest.config.ts",
@@ -271,7 +323,10 @@ try {
   for (const entryFile of [
     "packages/uncertain/src/dynamic.ts",
     "packages/uncertain/src/fs-aliased.ts",
+    "packages/uncertain/src/fs-commonjs-promises.cjs",
+    "packages/uncertain/src/fs-detached.ts",
     "packages/uncertain/src/fs-open.ts",
+    "packages/uncertain/src/fs-promises-property.ts",
     "packages/uncertain/src/fs-read.ts",
     "packages/uncertain/src/fs-stream.ts",
     "packages/uncertain/src/unresolved.ts",
