@@ -245,6 +245,45 @@ export default async function setupAuthEnvironment() {
           now(),
           '00000000-0000-0000-0000-000000000001'
         );
+        INSERT INTO rate_card (
+          id, vendor_account_id, license_type_id, monthly_rate_usd,
+          effective_from, effective_to, created_at, created_by
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000465',
+          '20000000-0000-0000-0000-000000000461',
+          '20000000-0000-0000-0000-000000000462',
+          49.00,
+          '2026-01-01',
+          NULL,
+          now(),
+          '00000000-0000-0000-0000-000000000001'
+        );
+        INSERT INTO vendor_account (
+          id, vendor_id, name, mode, low_pool_floor, status,
+          created_at, created_by
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000466',
+          '20000000-0000-0000-0000-000000000460',
+          'US-025 Detail Fixture',
+          'automated',
+          0,
+          'active',
+          now(),
+          '00000000-0000-0000-0000-000000000001'
+        );
+        INSERT INTO rate_card (
+          id, vendor_account_id, license_type_id, monthly_rate_usd,
+          effective_from, effective_to, created_at, created_by
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000467',
+          '20000000-0000-0000-0000-000000000466',
+          '20000000-0000-0000-0000-000000000462',
+          49.00,
+          '2026-01-01',
+          NULL,
+          now(),
+          '00000000-0000-0000-0000-000000000001'
+        );
         INSERT INTO license_request (
           id, request_no, person_id, company_id, vendor_account_id,
           license_type_id, state, justification, created_at, created_by

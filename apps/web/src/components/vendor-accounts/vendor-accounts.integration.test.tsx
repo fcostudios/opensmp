@@ -17,10 +17,11 @@ import { createVendorAccountServerActions } from "@/modules/vendor-catalog/actio
 
 import { VendorAccountDialog } from "./vendor-account-dialog";
 import type { VendorAccountFormLabels } from "./vendor-account-form";
+import { VendorAccountTabs, type VendorAccountTabsLabels } from "./vendor-account-tabs";
 
 const id = (suffix: string) =>
   `25200000-0000-4000-8000-${suffix.padStart(12, "0")}`;
-const ids = { admin: id("1"), vendor: id("2") };
+const ids = { admin: id("1"), vendor: id("2"), account: id("3") };
 const now = new Date("2026-08-13T19:00:00.000Z");
 const authorization: LedgerAuthorization = {
   companyGrants: [],
@@ -51,6 +52,7 @@ const labels: VendorAccountFormLabels = {
     lowPoolFloor: "FIELD_FLOOR",
     mode: "FIELD_MODE",
     name: "FIELD_NAME",
+    status: "FIELD_STATUS",
     vendorId: "FIELD_VENDOR",
     vendorOrgRef: "FIELD_VENDOR_REF",
   },
@@ -63,6 +65,7 @@ const labels: VendorAccountFormLabels = {
     automated: "FORM_MODE_AUTOMATED",
     orchestration: "FORM_MODE_ORCHESTRATION",
   },
+  statuses: { active: "STATUS_ACTIVE", inactive: "STATUS_INACTIVE" },
   submit: "SUBMIT_FORM",
   submitting: "SUBMITTING_FORM",
   success: "CREATE_SUCCESS",
@@ -230,5 +233,93 @@ describe("US-025 real vendor-account dialog journey", () => {
          (SELECT count(*)::int FROM audit_log WHERE action='vendor_account.created') AS audits`,
     );
     expect(counts.rows).toEqual([{ accounts: 1, audits: 1 }]);
+  });
+});
+
+const tabLabels: VendorAccountTabsLabels = {
+  capacity: { empty: "NO_CAPACITY", label: "CAPACITY" },
+  licenses: { active: "ACTIVE", caption: "LICENSES", effectiveFrom: "FROM", effectiveTo: "TO", inactive: "INACTIVE", label: "LICENSE_TYPES", monthlyRate: "RATE", name: "NAME", noRate: "NO_RATE", openEnded: "OPEN", status: "STATUS", unit: "UNIT", units: { license: "LICENSE", seat: "SEAT" } },
+  settings: { label: "SETTINGS", saved: "SETTINGS_SAVED" },
+  tabsLabel: "SECTIONS",
+};
+
+describe("US-025 real vendor-account settings journey", () => {
+  it("persists only dirty settings, advances the baseline, and never labels pending edits as saved", async () => {
+    await owner.query(
+      `INSERT INTO vendor_account
+         (id,vendor_id,name,mode,vendor_org_ref,contract_renewal_on,low_pool_floor,status,created_at,created_by,updated_at,updated_by)
+       VALUES ($1,$2,'Original account','automated','org-original','2027-01-15',3,'active',$3,$4,$3,$4)`,
+      [ids.account, ids.vendor, now, ids.admin],
+    );
+    let signalRevalidation!: () => void;
+    const revalidationStarted = new Promise<void>((resolve) => { signalRevalidation = resolve; });
+    let releaseRevalidation!: () => void;
+    const revalidationGate = new Promise<void>((resolve) => { releaseRevalidation = resolve; });
+    let revalidationCalls = 0;
+    const updateAction = createVendorAccountServerActions({
+      database: drizzle(pool, { schema }),
+      loadAuthorization: async () => authorization,
+      now: () => now,
+      revalidate: async () => {
+        revalidationCalls += 1;
+        if (revalidationCalls !== 1) return;
+        signalRevalidation();
+        await revalidationGate;
+      },
+    }).updateVendorAccount.bind(null, ids.account);
+    render(<VendorAccountTabs
+      account={{ contractRenewalOn: "2027-01-15", id: ids.account, lowPoolFloor: 3, mode: "automated", name: "Original account", status: "active", vendorId: ids.vendor, vendorName: "Anthropic", vendorOrgRef: "org-original" }}
+      action={updateAction}
+      capacity={<p>{tabLabels.capacity.label}</p>}
+      formLabels={{ ...labels, submit: "SAVE", submitting: "SAVING", success: "SETTINGS_SAVED", title: "SETTINGS_FORM" }}
+      labels={tabLabels}
+      licenseTypes={[]}
+      locale="en-US"
+    />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("tab", { name: "SETTINGS" }));
+    expect((screen.getByLabelText("FIELD_VENDOR") as HTMLInputElement).readOnly).toBe(true);
+    expect((screen.getByLabelText("FIELD_NAME") as HTMLInputElement).value).toBe("Original account");
+    const saveButton = screen.getByRole("button", { name: "SAVE" }) as HTMLButtonElement;
+    expect(saveButton.disabled).toBe(true);
+    fireEvent.submit(screen.getByRole("form", { name: "SETTINGS_FORM" }));
+    expect(revalidationCalls).toBe(0);
+    expect((await owner.query("SELECT action FROM audit_log WHERE entity_id=$1", [ids.account])).rows).toEqual([]);
+    await user.clear(screen.getByLabelText("FIELD_NAME"));
+    await user.type(screen.getByLabelText("FIELD_NAME"), "Updated account");
+    await user.selectOptions(screen.getByLabelText("FIELD_MODE"), "orchestration");
+    await user.clear(screen.getByLabelText("FIELD_FLOOR"));
+    await user.type(screen.getByLabelText("FIELD_FLOOR"), "7");
+    await user.selectOptions(screen.getByLabelText("FIELD_STATUS"), "inactive");
+    await user.click(saveButton);
+    await revalidationStarted;
+    expect((screen.getByRole("button", { name: "SAVING" }) as HTMLButtonElement).disabled).toBe(true);
+    await user.clear(screen.getByLabelText("FIELD_NAME"));
+    await user.type(screen.getByLabelText("FIELD_NAME"), "Unsaved after commit");
+    expect((screen.getByRole("button", { name: "SAVING" }) as HTMLButtonElement).disabled).toBe(true);
+    releaseRevalidation();
+    await screen.findByRole("button", { name: "SAVE" });
+    expect(screen.queryByText("SETTINGS_SAVED")).toBeNull();
+    expect((screen.getByLabelText("FIELD_NAME") as HTMLInputElement).value).toBe("Unsaved after commit");
+    expect(saveButton.disabled).toBe(false);
+    const saved = await owner.query(
+      `SELECT vendor_id::text AS "vendorId", name, mode, low_pool_floor::int AS floor, status
+       FROM vendor_account WHERE id=$1`,
+      [ids.account],
+    );
+    expect(saved.rows).toEqual([{ vendorId: ids.vendor, name: "Updated account", mode: "orchestration", floor: 7, status: "inactive" }]);
+
+    await user.click(saveButton);
+    expect((await screen.findByText("SETTINGS_SAVED")).getAttribute("role")).toBe("status");
+    expect(saveButton.disabled).toBe(true);
+    await user.type(screen.getByLabelText("FIELD_NAME"), " ");
+    expect(screen.queryByText("SETTINGS_SAVED")).toBeNull();
+    expect(saveButton.disabled).toBe(true);
+    await user.type(screen.getByLabelText("FIELD_NAME"), "again");
+    expect(saveButton.disabled).toBe(false);
+    const savedAgain = await owner.query("SELECT name FROM vendor_account WHERE id=$1", [ids.account]);
+    expect(savedAgain.rows).toEqual([{ name: "Unsaved after commit" }]);
+    const audit = await owner.query("SELECT action FROM audit_log WHERE entity_id=$1", [ids.account]);
+    expect(audit.rows.map((row) => row.action).sort()).toEqual(["vendor_account.retired", "vendor_account.updated"]);
   });
 });

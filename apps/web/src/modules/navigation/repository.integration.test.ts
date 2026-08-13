@@ -151,4 +151,13 @@ describe("dynamic breadcrumb repository", () => {
       "vendor account name": "Claude Enterprise · Central",
     });
   });
+
+  test.each([
+    "/organizaciones/not-a-uuid",
+    "/organizaciones/21000000-0000-4000-8000-999999999999",
+  ])("defers missing vendor-account routes to the page-level not-found boundary for %s", async (pathname) => {
+    await expect(
+      repository.resolve(pathname, user(["group_admin"], [ids.companyA, ids.companyB])),
+    ).resolves.toEqual({ "vendor account name": "…" });
+  });
 });

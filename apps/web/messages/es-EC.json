@@ -297,6 +297,13 @@
     "modes": { "automated": "Automatizada", "orchestration": "Orquestación" },
     "credential": { "ok": "Correcta", "auth_failed": "Fallo de autenticación", "unverified": "Sin verificar", "none": "Sin configurar" },
     "status": { "active": "Activa", "inactive": "Inactiva" },
+    "detail": {
+      "account": "Organización", "vendor": "Proveedor", "mode": "Modalidad", "renewal": "Renovación del contrato", "noRenewal": "Sin definir",
+      "capabilities": { "title": "Capacidades del conector", "canProvision": "Aprovisionar miembros", "canDeprovision": "Desaprovisionar miembros", "hasUsageData": "Datos de uso", "hasCostData": "Datos de costo", "protocol": "Protocolo de aprovisionamiento", "identityMatching": "Vinculación de identidad", "supported": "Compatible", "notSupported": "No compatible", "fallback": "Las operaciones no compatibles se derivan a la lista guiada de orquestación.", "identity": { "email": "Correo", "upn": "Nombre principal de usuario", "vendor_user_id": "ID de usuario del proveedor" } },
+      "tabsLabel": "Secciones del detalle de la organización", "tabs": { "capacity": "Capacidad", "licenseTypes": "Tipos de licencia", "settings": "Configuración" },
+      "licenses": { "caption": "Tipos de licencia configurados", "name": "Tipo de licencia", "unit": "Unidad", "status": "Estado", "monthlyRate": "Tarifa mensual vigente (USD)", "effectiveFrom": "Vigente desde", "effectiveTo": "Vigente hasta", "seat": "Cupo", "license": "Licencia", "noRate": "Sin tarifa vigente", "openEnded": "Sin fecha final" },
+      "settings": { "saved": "Configuración de la organización guardada.", "title": "Configuración de la organización", "submit": "Guardar configuración", "submitting": "Guardando…", "genericError": "No pudimos guardar la organización. Revisa los datos e inténtalo de nuevo.", "status": "Estado" }
+    },
     "form": {
       "title": "Nueva organización",
       "description": "Registra una organización de proveedor. Después podrás cargar capacidad, credenciales y tipos de licencia en su detalle.",

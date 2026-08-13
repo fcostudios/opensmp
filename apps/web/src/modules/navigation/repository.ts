@@ -19,6 +19,7 @@ import type { LedgerSessionUser } from "@/lib/auth/auth-types";
 import { matchRoutePolicy } from "@/lib/auth/route-access";
 import { BREADCRUMB_PATTERNS } from "@/lib/auth/screen-access.gen";
 import type { DynamicBreadcrumbLabels } from "@/components/layout/breadcrumbs";
+import { parseVendorAccountId } from "@/modules/vendor-catalog/pool-repository";
 
 type Database = NodePgDatabase<typeof schema>;
 
@@ -134,14 +135,16 @@ export function createDynamicBreadcrumbRepository(database: Database) {
           if (!user.roles.includes("group_admin")) return null;
           const id = match.params.vendorAccountId;
           if (!id) return null;
+          const parsedId = parseVendorAccountId(id);
+          if (!parsedId) return labelsFromPattern(match.policy.route, ["…"]);
           const [record] = await database
             .select({ name: vendorAccount.name })
             .from(vendorAccount)
-            .where(eq(vendorAccount.id, id))
+            .where(eq(vendorAccount.id, parsedId))
             .limit(1);
           return record
             ? labelsFromPattern(match.policy.route, [record.name])
-            : null;
+            : labelsFromPattern(match.policy.route, ["…"]);
         }
         default:
           return null;

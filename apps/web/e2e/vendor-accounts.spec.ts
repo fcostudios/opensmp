@@ -7,10 +7,30 @@ import {
   type BrowserContext,
   type Page,
 } from "@playwright/test";
+import pg from "pg";
 
 const keycloakBrowserUrl = "http://keycloak.localhost:18184";
+const ownerUrl = "postgresql://ledger_owner:change-me-owner@127.0.0.1:15434/ledger";
+const detailFixtureId = "20000000-0000-0000-0000-000000000466";
+const detailFixtureName = "US-025 Detail Fixture";
 const seededAccountName = "Claude Enterprise · Central";
-const createdAccountName = "US-025 E2E Organization";
+
+async function resetDetailFixture(): Promise<void> {
+  const owner = new pg.Client({ connectionString: ownerUrl });
+  try {
+    await owner.connect();
+    await owner.query(
+      `UPDATE vendor_account
+       SET name=$2, mode='automated', vendor_org_ref=NULL,
+           contract_renewal_on=NULL, low_pool_floor=0, status='active',
+           updated_at=NULL, updated_by=NULL
+       WHERE id=$1`,
+      [detailFixtureId, detailFixtureName],
+    );
+  } finally {
+    await owner.end();
+  }
+}
 
 function decodeBase32(value: string): Buffer {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -92,7 +112,9 @@ async function authenticatedPage(
 
 test("vendor-account authorization and create journey uses the real application stack", async ({
   browser,
-}) => {
+}, testInfo) => {
+  const createdAccountName = `US-025 E2E Organization ${process.pid}-${testInfo.workerIndex}-${testInfo.retry}`;
+  await resetDetailFixture();
   const anonymousContext = await browser.newContext();
   const anonymous = await anonymousContext.newPage();
   await anonymous.goto("/organizaciones");
@@ -105,6 +127,9 @@ test("vendor-account authorization and create journey uses the real application 
   await employee.page.goto("/organizaciones");
   await expect(employee.page).toHaveURL("/acceso-denegado");
   await expect(employee.page.getByText(seededAccountName)).toHaveCount(0);
+  await employee.page.goto("/organizaciones/20000000-0000-0000-0000-000000000461");
+  await expect(employee.page).toHaveURL("/acceso-denegado");
+  await expect(employee.page.getByText(seededAccountName)).toHaveCount(0);
 
   const admin = await authenticatedPage(browser, signInGroupAdmin);
   try {
@@ -114,6 +139,38 @@ test("vendor-account authorization and create journey uses the real application 
       /Organizaciones|Vendor organizations/,
     );
     await expect(main.getByRole("link", { name: seededAccountName })).toBeVisible();
+    await expect(main.getByRole("link", { name: detailFixtureName })).toBeVisible();
+
+    await main.getByRole("link", { name: detailFixtureName }).click();
+    await expect(main.getByRole("heading", { level: 1 })).toHaveText(detailFixtureName);
+    const detailHeader = main.getByRole("heading", { level: 1 }).locator("..");
+    await expect(detailHeader).toContainText("Anthropic");
+    await expect(detailHeader).toContainText(/Automatizada|Automated/);
+    await expect(detailHeader).toContainText(/Sin definir|Not set/);
+    await expect(main.getByRole("region", { name: /Capacidades del conector|Connector capabilities/ })).toContainText(/Aprovisionar miembros|Provision members/);
+    await expect(main.getByRole("region", { name: /Capacidades del conector|Connector capabilities/ })).toContainText(/Las operaciones no compatibles se derivan|Unsupported operations are routed/);
+    await expect(main.getByRole("heading", { name: /No hay capacidad registrada|No pool capacity recorded/ })).toBeVisible();
+    await main.getByRole("tab", { name: /Tipos de licencia|License types/ }).click();
+    const licenses = main.getByRole("table", { name: /Tipos de licencia configurados|Configured license types/ });
+    await expect(licenses.getByRole("row", { name: /Claude Enterprise/ })).toContainText(/\$49[,.]00/);
+    await expect(licenses.getByRole("button")).toHaveCount(0);
+    await expect(licenses.getByRole("link")).toHaveCount(0);
+    await main.getByRole("tab", { name: /Configuración|Settings/ }).click();
+    await expect(main.locator('input[aria-label="Proveedor"], input[aria-label="Vendor"]')).toHaveAttribute("readonly", "");
+    await main.locator('input[name="vendorOrgRef"]').fill("org-e2e-persisted");
+    await main.locator('input[name="contractRenewalOn"]').fill("2027-06-30");
+    await main.getByTestId("btn_save_vendor_account").click();
+    await expect(main.getByText(/Configuración de la organización guardada\.|Organization settings saved\./)).toBeVisible();
+    await admin.page.reload();
+    await main.getByRole("tab", { name: /Configuración|Settings/ }).click();
+    await expect(main.locator('input[name="vendorOrgRef"]')).toHaveValue("org-e2e-persisted");
+    await expect(main.locator('input[name="contractRenewalOn"]')).toHaveValue("2027-06-30");
+
+    await admin.page.goto("/organizaciones/not-a-uuid");
+    await expect(admin.page.getByRole("heading", { name: /404/ })).toBeVisible();
+    await admin.page.goto("/organizaciones/20000000-0000-4000-8000-999999999999");
+    await expect(admin.page.getByRole("heading", { name: /404/ })).toBeVisible();
+    await admin.page.goto("/organizaciones");
 
     await main.getByTestId("btn_new_vendor_account").click();
     const dialog = admin.page.getByTestId("modal_new_vendor_account");

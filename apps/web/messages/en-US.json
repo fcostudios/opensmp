@@ -297,6 +297,13 @@
     "modes": { "automated": "Automated", "orchestration": "Orchestration" },
     "credential": { "ok": "Healthy", "auth_failed": "Authentication failed", "unverified": "Unverified", "none": "Not configured" },
     "status": { "active": "Active", "inactive": "Inactive" },
+    "detail": {
+      "account": "Organization", "vendor": "Vendor", "mode": "Mode", "renewal": "Contract renewal", "noRenewal": "Not set",
+      "capabilities": { "title": "Connector capabilities", "canProvision": "Provision members", "canDeprovision": "Deprovision members", "hasUsageData": "Usage data", "hasCostData": "Cost data", "protocol": "Provisioning protocol", "identityMatching": "Identity matching", "supported": "Supported", "notSupported": "Not supported", "fallback": "Unsupported operations are routed to the guided orchestration checklist.", "identity": { "email": "Email", "upn": "User principal name", "vendor_user_id": "Vendor user ID" } },
+      "tabsLabel": "Organization detail sections", "tabs": { "capacity": "Capacity", "licenseTypes": "License types", "settings": "Settings" },
+      "licenses": { "caption": "Configured license types", "name": "License type", "unit": "Unit", "status": "Status", "monthlyRate": "Current monthly rate (USD)", "effectiveFrom": "Effective from", "effectiveTo": "Effective to", "seat": "Seat", "license": "License", "noRate": "No current rate", "openEnded": "No end date" },
+      "settings": { "saved": "Organization settings saved.", "title": "Organization settings", "submit": "Save settings", "submitting": "Saving…", "genericError": "We couldn't save the organization. Review the data and try again.", "status": "Status" }
+    },
     "form": {
       "title": "New organization",
       "description": "Register a vendor organization. You can add capacity, credentials, and license types from its details afterward.",

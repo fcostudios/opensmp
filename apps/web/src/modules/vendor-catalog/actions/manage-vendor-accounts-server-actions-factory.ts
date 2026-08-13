@@ -18,7 +18,7 @@ export function createVendorAccountServerActions({
   readonly database: Database;
   readonly loadAuthorization: () => Promise<LedgerAuthorization | null>;
   readonly now?: () => Date;
-  readonly revalidate: (path: string) => void;
+  readonly revalidate: (path: string) => void | Promise<void>;
 }) {
   const actions = createManageVendorAccountActions({ database, now });
 
@@ -41,7 +41,7 @@ export function createVendorAccountServerActions({
       } catch (error) {
         return vendorAccountActionError(error);
       }
-      revalidate(ROUTE_SCR_VENDOR_ACCOUNTS);
+      await revalidate(ROUTE_SCR_VENDOR_ACCOUNTS);
       return { status: "success", vendorAccountId: created.id };
     },
     async updateVendorAccount(
@@ -67,8 +67,8 @@ export function createVendorAccountServerActions({
       } catch (error) {
         return vendorAccountActionError(error);
       }
-      revalidate(ROUTE_SCR_VENDOR_ACCOUNTS);
-      revalidate(`${ROUTE_SCR_VENDOR_ACCOUNTS}/${encodeURIComponent(updated.id)}`);
+      await revalidate(ROUTE_SCR_VENDOR_ACCOUNTS);
+      await revalidate(`${ROUTE_SCR_VENDOR_ACCOUNTS}/${encodeURIComponent(updated.id)}`);
       return { status: "success", vendorAccountId: updated.id };
     },
   };
