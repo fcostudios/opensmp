@@ -38,6 +38,15 @@ const SCHEMA_STATIC_SOURCE = "packages/db/src/schema.ts";
 const VITEST_CONFIG_STATIC_SOURCE = "apps/web/vitest.config.ts";
 const VITEST_CONFIG_STATIC_RANGE = `${VITEST_CONFIG_STATIC_SOURCE}:21-21`;
 const SCORED_STATIC_KINDS = new Set(["schema-static", "vitest-config-static"]);
+const MUTATION_RUNNER_STATIC_INPUTS = [
+  "scripts/mutation-scope.mjs",
+  "scripts/mutation-evidence/fingerprint.mjs",
+  "scripts/mutation-evidence/cache.mjs",
+  "scripts/mutation-evidence/performance.mjs",
+];
+const POOL_PROJECTION_STATIC_INPUTS = [
+  "scripts/verify-pool-snapshot-projection.mjs",
+];
 
 // Mirrors stryker.conf.json's mutate globs: which files can carry mutants.
 // This is a FILE-TYPE filter, not a critical-set narrowing — a changed `.md` or
@@ -1646,6 +1655,7 @@ export async function runMutationScope(options = {}) {
     const commandFiles = commandList.flatMap((command) => command)
       .filter((candidate) => typeof candidate === "string"
         && /\.(?:[cm]?[jt]sx?|json)$/.test(candidate)
+        && candidate !== "scripts/verify-pool-snapshot-projection.mjs"
         && existsSync(candidate));
     const configurationFiles = [
       BASE_CONFIG,
@@ -1660,7 +1670,11 @@ export async function runMutationScope(options = {}) {
       root: process.cwd(),
       entryFiles,
       configurationFiles,
-      staticFiles: ["scripts/mutation-scope.mjs"],
+      staticFiles: [
+        ...MUTATION_RUNNER_STATIC_INPUTS,
+        ...(shard.sources.includes(POOL_PROJECTION_SOURCE)
+          ? POOL_PROJECTION_STATIC_INPUTS : []),
+      ].filter((file) => existsSync(file)),
       migrationRoots: isDatabaseBacked(shard) && existsSync("packages/db/src/migrations")
         ? ["packages/db/src/migrations"] : [],
       toolVersions,
@@ -1749,9 +1763,22 @@ export async function runMutationScope(options = {}) {
           copyFileSync(cached.artifacts["mutation-report.html"], shard.reportPath);
         }
         shard.classification = cached.entry.classification;
-        shard.mutantCount = mutationReportMutants(JSON.parse(readFileSync(shard.jsonReportPath, "utf8"))).length;
+        const cachedReport = JSON.parse(readFileSync(shard.jsonReportPath, "utf8"));
+        shard.mutantCount = mutationReportMutants(cachedReport).length;
         shard.reportHash = contentHash(readFileSync(shard.jsonReportPath));
-        shard.result = "passed";
+        if (shard.classification === "verification-only") {
+          const projectionPath = projectionEvidencePathForShard(shard);
+          shard.result = {
+            audits: verificationAuditsForReport(cachedReport, shard, allHunks),
+            commands: commandList,
+            ...(projectionPath
+              ? { projectionEvidence: JSON.parse(readFileSync(projectionPath, "utf8")) }
+              : {}),
+            tests: shard.testFiles,
+          };
+        } else {
+          shard.result = "passed";
+        }
         shard.cacheDecision = "reused";
         shard.priorDurationMs = cached.entry.durationMs ?? 0;
         const timing = finishShard(performanceRun, performanceToken, "reused", {
@@ -1795,7 +1822,7 @@ export async function runMutationScope(options = {}) {
         shard.classification = "verification-only";
         shard.result = {
           audits,
-          commands: commands.map(([command, args]) => [command, ...args]),
+          commands: commandList,
           ...(projectionEvidencePath
             ? {
                 projectionEvidence: JSON.parse(

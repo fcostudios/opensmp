@@ -1123,6 +1123,9 @@ try {
   cacheWrite("stryker.conf.json", JSON.stringify({ testFiles: [] }));
   cacheWrite("vitest.mutation.config.mjs", "export default {};\n");
   cacheWrite("scripts/mutation-scope.mjs", 'import "node:fs";\nexport const runnerIdentity = 1;\n');
+  cacheWrite("scripts/mutation-evidence/fingerprint.mjs", "export const fingerprintIdentity = 1;\n");
+  cacheWrite("scripts/mutation-evidence/cache.mjs", "export const cacheIdentity = 1;\n");
+  cacheWrite("scripts/mutation-evidence/performance.mjs", "export const performanceIdentity = 1;\n");
   cacheWrite("scripts/dependency.mjs", "export const dependency = 1;\n");
   cacheWrite(cacheSource, 'import "../../../scripts/dependency.mjs";\nexport const rolesPage = 1;\n');
   cacheWrite(cacheTest, "export {};\n");
@@ -1168,6 +1171,9 @@ try {
     ["scripts/dependency.mjs", "export const dependency = 2;\n"],
     ["pnpm-lock.yaml", "lockfileVersion: '9.0'\n# changed\n"],
     ["scripts/mutation-scope.mjs", 'import "node:fs";\nexport const runnerIdentity = 2;\n'],
+    ["scripts/mutation-evidence/fingerprint.mjs", "export const fingerprintIdentity = 2;\n"],
+    ["scripts/mutation-evidence/cache.mjs", "export const cacheIdentity = 2;\n"],
+    ["scripts/mutation-evidence/performance.mjs", "export const performanceIdentity = 2;\n"],
   ]) {
     const existed = existsSync(join(cacheFixtureRoot, path));
     const before = existed ? readFileSync(join(cacheFixtureRoot, path), "utf8") : null;
@@ -1275,4 +1281,78 @@ try {
   assert.equal(interruptedRecord.outcome, "interrupted");
 } finally {
   rmSync(cacheFixtureRoot, { force: true, recursive: true });
+}
+
+const projectionFixtureRoot = mkdtempSync(join(tmpdir(), "smp-mutation-projection-cache-"));
+const projectionWrite = (path, contents) => {
+  const destination = join(projectionFixtureRoot, path);
+  mkdirSync(dirname(destination), { recursive: true });
+  writeFileSync(destination, contents, "utf8");
+};
+let projectionBase;
+let projectionExecutions = 0;
+const runProjectionFixture = () => runMutationScope({
+  cwd: projectionFixtureRoot,
+  env: { MUTATION_BASE: projectionBase },
+  installSignalHandlers: false,
+  toolVersions: {
+    node: "22.0.0", pnpm: "10.0.0", stryker: "9.0.0", typescript: "5.0.0", vitest: "3.0.0",
+  },
+  runtimeProfileProvider: () => ({
+    arch: "x64", locale: "en-US", platform: "linux", timezone: "UTC",
+    databaseDriver: "postgres", databaseServerVersion: "16.4",
+    schemaFingerprint: "a".repeat(64),
+  }),
+  executeShard: ({ shard }) => {
+    projectionExecutions += 1;
+    projectionWrite(shard.jsonReportPath, `${JSON.stringify({
+      config: {
+        configFile: shard.configPath,
+        jsonReporter: { fileName: shard.jsonReportPath },
+        mutate: shard.mutate,
+      },
+      files: {},
+    })}\n`);
+    return { status: 0 };
+  },
+  verificationRunner: (_command, args) => {
+    const evidencePath = args.find((argument) => argument.endsWith("-projection.json"));
+    projectionWrite(evidencePath, `${JSON.stringify({ exact: "projection-evidence" })}\n`);
+    return { status: 0 };
+  },
+});
+try {
+  execFileSync("git", ["init", "--quiet"], { cwd: projectionFixtureRoot });
+  execFileSync("git", ["config", "user.email", "projection-cache@example.invalid"], { cwd: projectionFixtureRoot });
+  execFileSync("git", ["config", "user.name", "Projection Cache Test"], { cwd: projectionFixtureRoot });
+  projectionWrite("package.json", JSON.stringify({ name: "projection-fixture", private: true }));
+  projectionWrite("pnpm-lock.yaml", "lockfileVersion: '9.0'\n");
+  projectionWrite("stryker.conf.json", JSON.stringify({ testFiles: [] }));
+  projectionWrite("vitest.mutation.config.mjs", "export default {};\n");
+  projectionWrite("packages/db/package.json", JSON.stringify({ name: "@smp/db" }));
+  projectionWrite("packages/db/src/pool-snapshots.ts", poolProjectionOld);
+  projectionWrite("packages/db/src/pool-snapshots.test.ts", "export {};\n");
+  projectionWrite("scripts/verify-pool-snapshot-projection.mjs", 'import "node:fs";\nexport {};\n');
+  projectionWrite("scripts/mutation-scope.mjs", "export {};\n");
+  projectionWrite("scripts/mutation-evidence/fingerprint.mjs", "export {};\n");
+  projectionWrite("scripts/mutation-evidence/cache.mjs", "export {};\n");
+  projectionWrite("scripts/mutation-evidence/performance.mjs", "export {};\n");
+  execFileSync("git", ["add", "."], { cwd: projectionFixtureRoot });
+  execFileSync("git", ["commit", "--quiet", "-m", "projection base"], { cwd: projectionFixtureRoot });
+  projectionBase = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: projectionFixtureRoot, encoding: "utf8",
+  }).trim();
+  projectionWrite("packages/db/src/pool-snapshots.ts", poolProjectionNew);
+  const projectionCold = await runProjectionFixture();
+  const projectionColdShard = projectionCold.manifest.shards[0];
+  assert.equal(projectionColdShard.classification, "verification-only");
+  assert.equal(typeof projectionColdShard.result, "object");
+  projectionWrite("docs/unrelated.md", "unrelated documentation\n");
+  const projectionWarm = await runProjectionFixture();
+  const projectionWarmShard = projectionWarm.manifest.shards[0];
+  assert.equal(projectionExecutions, 1);
+  assert.equal(projectionWarmShard.cacheDecision, "reused");
+  assert.deepEqual(projectionWarmShard.result, projectionColdShard.result);
+} finally {
+  rmSync(projectionFixtureRoot, { force: true, recursive: true });
 }
