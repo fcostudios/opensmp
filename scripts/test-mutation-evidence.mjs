@@ -433,6 +433,117 @@ try {
   assert.deepEqual(explicitOutputResult.reasons, [
     { code: "excluded-runtime-inputs", workspace: "packages/explicit" },
   ]);
+
+  const externalSentinel = "external-secret-must-not-be-persisted";
+  const externalFile = path.join(path.dirname(fixtureRoot), `${path.basename(fixtureRoot)}-external.ts`);
+  await writeFile(externalFile, `export const external = "${externalSentinel}";\n`);
+  await put(
+    fixtureRoot,
+    "packages/external/package.json",
+    '{"name":"@fixture/external","type":"module"}',
+  );
+  const externalEntry = "packages/external/src/main.ts";
+  const externalSpecifiers = [
+    externalFile,
+    path.relative(path.join(fixtureRoot, path.dirname(externalEntry)), externalFile),
+  ];
+  for (const externalSpecifier of externalSpecifiers) {
+    await put(
+      fixtureRoot,
+      externalEntry,
+      `import { external } from ${JSON.stringify(externalSpecifier)};\nexport const value = external;\n`,
+    );
+    const externalResult = collectExecutionInputs({
+      root: fixtureRoot,
+      entryFiles: [externalEntry],
+      configurationFiles: [],
+      migrationRoots: [],
+      toolVersions,
+      runtimeProfile,
+    });
+    assert.equal(externalResult.reusable, false);
+    assert.deepEqual(externalResult.reasons, [
+      { code: "external-local-dependency", workspace: "packages/external" },
+    ]);
+    assert.equal(canonicalJson(externalResult).includes(externalSentinel), false);
+  }
+  await rm(externalFile, { force: true });
+
+  await put(
+    fixtureRoot,
+    "packages/nonliteral/package.json",
+    '{"name":"@fixture/nonliteral","type":"commonjs"}',
+  );
+  await put(
+    fixtureRoot,
+    "packages/nonliteral/src/unrelated.ts",
+    "export const closure = 1;\n",
+  );
+  for (const source of [
+    'const target = process.argv[2];\nmodule.exports = require(target);\n',
+    'const target = process.argv[2];\nmodule.exports = require(target + ".cjs");\n',
+    'module.exports = require("./local.cjs", "unexpected");\n',
+  ]) {
+    await put(fixtureRoot, "packages/nonliteral/src/main.cjs", source);
+    const nonliteralBefore = collectExecutionInputs({
+      root: fixtureRoot,
+      entryFiles: ["packages/nonliteral/src/main.cjs"],
+      configurationFiles: [],
+      migrationRoots: [],
+      toolVersions,
+      runtimeProfile,
+    });
+    assert.equal(nonliteralBefore.reusable, true);
+    assert.ok(nonliteralBefore.hashes["packages/nonliteral/src/unrelated.ts"]);
+    await put(
+      fixtureRoot,
+      "packages/nonliteral/src/unrelated.ts",
+      `export const closure = ${source.length};\n`,
+    );
+    const nonliteralAfter = collectExecutionInputs({
+      root: fixtureRoot,
+      entryFiles: ["packages/nonliteral/src/main.cjs"],
+      configurationFiles: [],
+      migrationRoots: [],
+      toolVersions,
+      runtimeProfile,
+    });
+    assert.notEqual(
+      nonliteralBefore.hashes["packages/nonliteral/src/unrelated.ts"],
+      nonliteralAfter.hashes["packages/nonliteral/src/unrelated.ts"],
+    );
+  }
+
+  await put(
+    fixtureRoot,
+    "node_modules/fixture-third-party/package.json",
+    '{"name":"fixture-third-party","types":"index.d.ts"}',
+  );
+  await put(
+    fixtureRoot,
+    "node_modules/fixture-third-party/index.d.ts",
+    "export declare const thirdParty: boolean;\n",
+  );
+  await put(
+    fixtureRoot,
+    "packages/vendor-user/package.json",
+    '{"name":"@fixture/vendor-user","type":"module"}',
+  );
+  await put(
+    fixtureRoot,
+    "packages/vendor-user/src/main.ts",
+    'import { thirdParty } from "fixture-third-party";\nexport const value = thirdParty;\n',
+  );
+  const thirdPartyResult = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/vendor-user/src/main.ts"],
+    configurationFiles: [],
+    migrationRoots: [],
+    toolVersions,
+    runtimeProfile,
+  });
+  assert.equal(thirdPartyResult.reusable, true);
+  assert.equal(Object.keys(thirdPartyResult.hashes).some((file) => file.includes("node_modules")), false);
 } finally {
   delete process.env.LEDGER_FINGERPRINT_SECRET_SENTINEL;
   await rm(fixtureRoot, { recursive: true, force: true });

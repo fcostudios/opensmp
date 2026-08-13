@@ -248,6 +248,7 @@ export function collectExecutionInputs({
   const included = new Set();
   const expandedWorkspaces = new Set();
   const incompleteWorkspaces = new Set();
+  const externalDependencyWorkspaces = new Set();
   const compilerConfigurationCache = new Map();
   const includedCompilerConfigurations = new Set();
   const fileSystemModules = new Set(["fs", "fs/promises", "node:fs", "node:fs/promises"]);
@@ -259,6 +260,10 @@ export function collectExecutionInputs({
   };
 
   const displayPath = (file) => path.relative(absoluteRoot, file).split(path.sep).join("/");
+  const markOwner = (collection, file) => {
+    const owner = findOwner(absoluteRoot, workspacePackages, file);
+    if (owner) collection.add(owner.directory);
+  };
   const expandOwner = (file) => {
     const owner = findOwner(absoluteRoot, workspacePackages, file);
     if (!owner || expandedWorkspaces.has(owner.directory)) return;
@@ -347,14 +352,19 @@ export function collectExecutionInputs({
     if (compilerResult) {
       const resolved = path.resolve(compilerResult);
       const isDependency = resolved.split(path.sep).includes("node_modules");
+      const isLocal = !isDependency && isWithin(absoluteRoot, resolved);
       return {
-        owned: !isDependency && isWithin(absoluteRoot, resolved),
-        resolved: !isDependency && isWithin(absoluteRoot, resolved) ? resolved : null,
+        external: !isDependency && !isLocal,
+        owned: isLocal,
+        resolved: isLocal ? resolved : null,
       };
     }
     if (specifier.startsWith(".") || specifier.startsWith("/")) {
       const resolved = resolveAsFile(path.resolve(path.dirname(containingFile), specifier));
-      return { owned: true, resolved };
+      if (resolved && !isWithin(absoluteRoot, resolved)) {
+        return { external: true, owned: false, resolved: null };
+      }
+      return { external: false, owned: true, resolved };
     }
     const workspaceResolution = resolveWorkspaceImport(specifier, workspacePackages);
     if (workspaceResolution.owned) return workspaceResolution;
@@ -405,15 +415,18 @@ export function collectExecutionInputs({
         }
       } else if (ts.isCallExpression(node)
           && ts.isIdentifier(node.expression)
-          && node.expression.text === "require"
-          && node.arguments.length === 1
-          && ts.isStringLiteralLike(node.arguments[0])) {
-        specifier = node.arguments[0].text;
+          && node.expression.text === "require") {
+        if (node.arguments.length !== 1 || !ts.isStringLiteralLike(node.arguments[0])) {
+          expandOwner(file);
+        } else {
+          specifier = node.arguments[0].text;
+        }
       }
 
       if (specifier !== null) {
         const resolution = resolveImport(specifier, file);
         if (resolution.resolved) addFile(resolution.resolved);
+        else if (resolution.external) markOwner(externalDependencyWorkspaces, file);
         else if (resolution.owned) expandOwner(file);
       }
 
@@ -469,11 +482,17 @@ export function collectExecutionInputs({
   const hashes = Object.fromEntries(
     entries.sort(([left], [right]) => comparePaths(left, right)),
   );
-  const reasons = [...incompleteWorkspaces]
-    .map((workspace) => ({
+  const reasons = [
+    ...[...incompleteWorkspaces].map((workspace) => ({
       code: "excluded-runtime-inputs",
       workspace: displayPath(workspace),
-    }))
-    .sort((left, right) => comparePaths(left.workspace, right.workspace));
+    })),
+    ...[...externalDependencyWorkspaces].map((workspace) => ({
+      code: "external-local-dependency",
+      workspace: displayPath(workspace),
+    })),
+  ].sort((left, right) =>
+    comparePaths(left.workspace, right.workspace) || comparePaths(left.code, right.code),
+  );
   return { hashes, reasons, reusable: reasons.length === 0 };
 }
