@@ -496,7 +496,9 @@ export const vendor = pgTable("vendor", {
   status: vendor_status_enum("status").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   createdBy: uuid("created_by").references((): AnyPgColumn => userAccount.id).notNull(),
-});
+}, (table) => ({
+  nameUnique: unique("uq_vendor_name").on(table.name),
+}));
 
 export const vendorAccount = pgTable("vendor_account", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),
@@ -516,6 +518,8 @@ export const vendorAccount = pgTable("vendor_account", {
     "vendor_account_low_pool_floor_nonnegative",
     sql`${table.lowPoolFloor} >= 0`,
   ),
+  vendorNameUnique: unique("uq_vendor_account_vendor_id_name")
+    .on(table.vendorId, table.name),
   vendorOrgRefUnique: uniqueIndex("uq_vendor_account_vendor_id_vendor_org_ref")
     .on(table.vendorId, table.vendorOrgRef)
     .where(sql`${table.vendorOrgRef} IS NOT NULL`),

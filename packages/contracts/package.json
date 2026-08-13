@@ -10,7 +10,8 @@
     "./alerts": "./src/alerts.ts",
     "./capacity": "./src/capacity.ts",
     "./requests": "./src/requests.ts",
-    "./register": "./src/register.ts"
+    "./register": "./src/register.ts",
+    "./vendor-catalog": "./src/vendor-catalog.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",

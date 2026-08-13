@@ -40,6 +40,7 @@ export * from "./people";
 export * from "./register";
 export * from "./request-workflow";
 export * from "./requests";
+export * from "./vendor-catalog";
 
 export const insertAlertRuleSchema = createInsertSchema(alertRule);
 export const selectAlertRuleSchema = createSelectSchema(alertRule);
