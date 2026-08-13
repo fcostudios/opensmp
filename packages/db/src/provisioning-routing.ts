@@ -15,13 +15,14 @@ type Executor = Pick<NodePgDatabase<typeof schema>, "execute">;
 
 type RequestWire = {
   readonly accountMode: "automated" | "orchestration";
+  readonly canDeprovision: boolean;
   readonly canProvision: boolean;
   readonly companyId: string;
   readonly licenseTypeId: string;
   readonly licenseTypeName: string;
   readonly personEmail: string;
   readonly personId: string;
-  readonly protocol: ConnectorProtocol;
+  readonly provisioningProtocol: ConnectorProtocol;
   readonly requestId: string;
   readonly requestState: string;
   readonly vendorAccountId: string;
@@ -89,7 +90,8 @@ export async function routeProvisioningActionInTransaction(
                request.vendor_account_id::text AS "vendorAccountId",
                request.license_type_id::text AS "licenseTypeId",holder.email AS "personEmail",
                license.name AS "licenseTypeName",account.mode::text AS "accountMode",
-               vendor.provisioning_protocol::text AS protocol,vendor.can_provision AS "canProvision"
+               vendor.provisioning_protocol::text AS "provisioningProtocol",
+               vendor.can_provision AS "canProvision",vendor.can_deprovision AS "canDeprovision"
         FROM license_request request
         JOIN person holder ON holder.id=request.person_id AND holder.company_id=request.company_id
         JOIN vendor_account account ON account.id=request.vendor_account_id AND account.status='active'
@@ -127,8 +129,11 @@ export async function routeProvisioningActionInTransaction(
       vendorAccountId: request.vendorAccountId,
     },
     operation: "provision",
-    protocol: request.protocol,
-    vendorCapability: request.canProvision,
+    vendor: {
+      canDeprovision: request.canDeprovision,
+      canProvision: request.canProvision,
+      provisioningProtocol: request.provisioningProtocol,
+    },
   });
   const transitionNote = input.expectedState === "approved"
     ? plan.kind === "checklist"

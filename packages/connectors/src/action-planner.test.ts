@@ -49,7 +49,8 @@ function inMemoryConnector(
 
 async function plan(input: {
   accountMode: "automated" | "orchestration";
-  capability: boolean;
+  canDeprovision: boolean;
+  canProvision: boolean;
   connectorCapabilities?: readonly ("provision" | "deprovision")[];
   operation: "provision" | "deprovision";
   protocol: ConnectorProtocol;
@@ -67,17 +68,21 @@ async function plan(input: {
     entityIds: { licenseId: "license-1", personId: "person-1" },
     instruction,
     operation: input.operation,
-    protocol: input.protocol,
-    vendorCapability: input.capability,
+    vendor: {
+      canDeprovision: input.canDeprovision,
+      canProvision: input.canProvision,
+      provisioningProtocol: input.protocol,
+    },
   });
 }
 
 describe("canonical provisioning action planner", () => {
-  it("plans automated actions only when account, vendor, protocol, and connector agree", async () => {
+  it("reads only canProvision when planning a provision operation", async () => {
     await expect(
       plan({
         accountMode: "automated",
-        capability: true,
+        canDeprovision: false,
+        canProvision: true,
         connectorCapabilities: ["provision"],
         operation: "provision",
         protocol: "rest",
@@ -88,10 +93,14 @@ describe("canonical provisioning action planner", () => {
       rawRequest: { checklistSteps: [], operation: "provision" },
       status: "pending",
     });
+  });
+
+  it("reads only canDeprovision when planning a deprovision operation", async () => {
     await expect(
       plan({
         accountMode: "automated",
-        capability: true,
+        canDeprovision: true,
+        canProvision: false,
         connectorCapabilities: ["deprovision"],
         operation: "deprovision",
         protocol: "rest",
@@ -120,24 +129,29 @@ describe("canonical provisioning action planner", () => {
           personEmail: "invalid\u0000@example.com",
         },
         operation: "provision",
-        protocol: "rest",
-        vendorCapability: true,
+        vendor: {
+          canDeprovision: false,
+          canProvision: true,
+          provisioningProtocol: "rest",
+        },
       }),
     ).rejects.toThrow("Invalid connector instruction input: personEmail");
   });
 
   it.each([
-    ["orchestration", true, ["deprovision"], "rest"],
-    ["automated", false, ["deprovision"], "rest"],
-    ["automated", true, [], "rest"],
-    ["automated", true, undefined, "scim"],
-    ["automated", true, undefined, "none"],
+    ["orchestration account mode", "orchestration", true, ["deprovision"], "rest"],
+    ["missing Vendor flag", "automated", false, ["deprovision"], "rest"],
+    ["missing connector operation capability", "automated", true, [], "rest"],
+    ["missing SCIM connector registration", "automated", true, undefined, "scim"],
+    ["missing REST connector registration", "automated", true, undefined, "rest"],
+    ["protocol none", "automated", true, undefined, "none"],
   ] as const)(
-    "falls back safely for mode=%s vendorCapability=%s connector=%s protocol=%s",
-    async (accountMode, capability, connectorCapabilities, protocol) => {
+    "falls back to a checklist for %s",
+    async (_case, accountMode, canDeprovision, connectorCapabilities, protocol) => {
       const result = await plan({
         accountMode,
-        capability,
+        canDeprovision,
+        canProvision: !canDeprovision,
         connectorCapabilities,
         operation: "deprovision",
         protocol,
@@ -174,7 +188,8 @@ describe("canonical provisioning action planner", () => {
     await expect(
       plan({
         accountMode: "orchestration",
-        capability: true,
+        canDeprovision: false,
+        canProvision: true,
         operation: "provision",
         protocol: "rest",
       }),
@@ -191,5 +206,18 @@ describe("canonical provisioning action planner", () => {
         operation: "provision",
       },
     });
+  });
+
+  it("records the Vendor descriptor protocol in the raw request", async () => {
+    const result = await plan({
+      accountMode: "automated",
+      canDeprovision: false,
+      canProvision: true,
+      connectorCapabilities: ["provision"],
+      operation: "provision",
+      protocol: "scim",
+    });
+
+    expect(result.rawRequest).toMatchObject({ protocol: "scim" });
   });
 });

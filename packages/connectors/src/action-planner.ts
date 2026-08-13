@@ -19,6 +19,12 @@ export interface ProvisioningActionPlan {
   readonly status: "pending";
 }
 
+export interface VendorProvisioningDescriptor {
+  readonly canProvision: boolean;
+  readonly canDeprovision: boolean;
+  readonly provisioningProtocol: ConnectorProtocol;
+}
+
 export async function planProvisioningAction(
   dispatcher: ConnectorDispatcher,
   input: {
@@ -27,21 +33,24 @@ export async function planProvisioningAction(
     readonly entityIds: ManualChecklistEntityIds;
     readonly instruction: ProvisionInput;
     readonly operation: ManualChecklistOperation;
-    readonly protocol: ConnectorProtocol;
-    readonly vendorCapability: boolean;
+    readonly vendor: VendorProvisioningDescriptor;
   },
 ): Promise<ProvisioningActionPlan> {
   const capability =
     input.operation === "provision" ? "provision" : "deprovision";
+  const vendorCapability = input.operation === "provision"
+    ? input.vendor.canProvision
+    : input.vendor.canDeprovision;
+  const protocol = input.vendor.provisioningProtocol;
   validateProvisionInstruction(input.instruction);
   let automated = false;
   if (
     input.accountMode === "automated" &&
-    input.vendorCapability
+    vendorCapability
   ) {
     try {
       automated = dispatcher
-        .forProtocol(input.protocol)
+        .forProtocol(protocol)
         .capabilities()
         .has(capability);
     } catch {
@@ -79,7 +88,7 @@ export async function planProvisioningAction(
     context: input.context,
     instruction: input.instruction,
     operation: input.operation,
-    protocol: input.protocol,
+    protocol,
     version: 1,
   });
   return Object.freeze({

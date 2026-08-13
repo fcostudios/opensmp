@@ -886,8 +886,9 @@ export function createPeopleRepository(
               .select({
                 accountMode: vendorAccount.mode,
                 canDeprovision: vendor.canDeprovision,
+                canProvision: vendor.canProvision,
                 licenseTypeName: licenseType.name,
-                protocol: vendor.provisioningProtocol,
+                provisioningProtocol: vendor.provisioningProtocol,
               })
               .from(vendorAccount)
               .innerJoin(vendor, eq(vendor.id, vendorAccount.vendorId))
@@ -935,8 +936,11 @@ export function createPeopleRepository(
                   vendorAccountId: request.vendorAccountId,
                 },
                 operation: "deprovision",
-                protocol: facts.protocol,
-                vendorCapability: facts.canDeprovision,
+                vendor: {
+                  canDeprovision: facts.canDeprovision,
+                  canProvision: facts.canProvision,
+                  provisioningProtocol: facts.provisioningProtocol,
+                },
               },
             );
             return { plan, request };

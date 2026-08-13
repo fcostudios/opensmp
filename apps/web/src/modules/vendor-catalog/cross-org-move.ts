@@ -44,12 +44,13 @@ type SourceWire = {
   accountMode: "automated" | "orchestration";
   assignmentId: string;
   canDeprovision: boolean;
+  canProvision: boolean;
   companyId: string;
   licenseTypeId: string;
   licenseTypeName: string;
   personEmail: string;
   personId: string;
-  protocol: ConnectorProtocol;
+  provisioningProtocol: ConnectorProtocol;
   requestId: string;
   requestState: string;
   sourceVendorAccountId: string;
@@ -58,8 +59,9 @@ type SourceWire = {
 
 type TargetWire = {
   accountMode: "automated" | "orchestration";
+  canDeprovision: boolean;
   canProvision: boolean;
-  protocol: ConnectorProtocol;
+  provisioningProtocol: ConnectorProtocol;
   targetVendorAccountId: string;
 };
 
@@ -207,7 +209,8 @@ export function createCrossOrgMoveService(
                      license.name AS "licenseTypeName",
                      account.mode::text AS "accountMode",
                      vendor.id::text AS "vendorId",
-                     vendor.provisioning_protocol::text AS protocol,
+                     vendor.provisioning_protocol::text AS "provisioningProtocol",
+                     vendor.can_provision AS "canProvision",
                      vendor.can_deprovision AS "canDeprovision"
               FROM license_assignment assignment
               JOIN license_request request
@@ -243,8 +246,9 @@ export function createCrossOrgMoveService(
         const targetResult = await transaction.execute<TargetWire>(
           sql`SELECT account.id::text AS "targetVendorAccountId",
                      account.mode::text AS "accountMode",
-                     vendor.provisioning_protocol::text AS protocol,
-                     vendor.can_provision AS "canProvision"
+                     vendor.provisioning_protocol::text AS "provisioningProtocol",
+                     vendor.can_provision AS "canProvision",
+                     vendor.can_deprovision AS "canDeprovision"
               FROM vendor_account account
               JOIN vendor
                 ON vendor.id = account.vendor_id
@@ -275,8 +279,11 @@ export function createCrossOrgMoveService(
           },
           instruction,
           operation: "deprovision",
-          protocol: source.protocol,
-          vendorCapability: source.canDeprovision,
+          vendor: {
+            canDeprovision: source.canDeprovision,
+            canProvision: source.canProvision,
+            provisioningProtocol: source.provisioningProtocol,
+          },
         });
         const destinationPlan = await planProvisioningAction(dispatcher, {
           accountMode: target.accountMode,
@@ -295,8 +302,11 @@ export function createCrossOrgMoveService(
             vendorAccountId: target.targetVendorAccountId,
           },
           operation: "provision",
-          protocol: target.protocol,
-          vendorCapability: target.canProvision,
+          vendor: {
+            canDeprovision: target.canDeprovision,
+            canProvision: target.canProvision,
+            provisioningProtocol: target.provisioningProtocol,
+          },
         });
 
         await applyLockedRequestTransition(transaction, authorization, {
