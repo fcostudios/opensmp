@@ -1246,6 +1246,47 @@ const ADJACENT_TEST_SUFFIXES = [
 // exceptional routes explicit prevents a changed source from silently riding
 // along merely because some unrelated story test also changed.
 export const DIRECT_TEST_ROUTES = {
+  "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx": [
+    "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
+  ],
+  "apps/web/src/app/(authenticated)/organizaciones/error.tsx": [
+    "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
+  ],
+  "apps/web/src/app/(authenticated)/organizaciones/loading.tsx": [
+    "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
+  ],
+  "apps/web/src/app/(authenticated)/organizaciones/page.tsx": [
+    "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
+  ],
+  "apps/web/src/components/vendor-accounts/capability-card.tsx": [
+    "apps/web/src/components/vendor-accounts/vendor-account-detail.test.tsx",
+  ],
+  "apps/web/src/components/vendor-accounts/vendor-account-dialog.tsx": [
+    "apps/web/src/components/vendor-accounts/vendor-accounts.test.tsx",
+    "apps/web/src/components/vendor-accounts/vendor-accounts.integration.test.tsx",
+  ],
+  "apps/web/src/components/vendor-accounts/vendor-account-form.tsx": [
+    "apps/web/src/components/vendor-accounts/vendor-accounts.test.tsx",
+  ],
+  "apps/web/src/components/vendor-accounts/vendor-account-tabs.tsx": [
+    "apps/web/src/components/vendor-accounts/vendor-account-detail.test.tsx",
+    "apps/web/src/components/vendor-accounts/vendor-accounts.integration.test.tsx",
+  ],
+  "apps/web/src/components/vendor-accounts/vendor-accounts-table.tsx": [
+    "apps/web/src/components/vendor-accounts/vendor-accounts.test.tsx",
+  ],
+  "apps/web/src/modules/vendor-catalog/actions/manage-vendor-accounts-operations.ts": [
+    "apps/web/src/modules/vendor-catalog/actions/manage-vendor-accounts.test.ts",
+  ],
+  "apps/web/src/modules/vendor-catalog/actions/manage-vendor-accounts-server-actions-factory.ts": [
+    "apps/web/src/modules/vendor-catalog/actions/manage-vendor-accounts.test.ts",
+  ],
+  "apps/web/src/modules/vendor-catalog/production-vendor-account-repository.ts": [
+    "apps/web/src/modules/vendor-catalog/vendor-account-repository.integration.test.ts",
+  ],
+  "apps/web/src/modules/vendor-catalog/vendor-account-service.ts": [
+    "apps/web/src/modules/vendor-catalog/vendor-account-repository.integration.test.ts",
+  ],
   "apps/web/src/app/(authenticated)/cupos/labels.ts": [
     "apps/web/src/app/(authenticated)/cupos/labels.test.ts",
   ],

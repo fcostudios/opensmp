@@ -415,6 +415,52 @@ assert.deepEqual(
     "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts",
   ],
 );
+const us025DirectRoutes = {
+  "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx": [
+    "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
+  ],
+  "apps/web/src/app/(authenticated)/organizaciones/error.tsx": [
+    "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
+  ],
+  "apps/web/src/app/(authenticated)/organizaciones/loading.tsx": [
+    "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
+  ],
+  "apps/web/src/app/(authenticated)/organizaciones/page.tsx": [
+    "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
+  ],
+  "apps/web/src/components/vendor-accounts/capability-card.tsx": [
+    "apps/web/src/components/vendor-accounts/vendor-account-detail.test.tsx",
+  ],
+  "apps/web/src/components/vendor-accounts/vendor-account-dialog.tsx": [
+    "apps/web/src/components/vendor-accounts/vendor-accounts.test.tsx",
+    "apps/web/src/components/vendor-accounts/vendor-accounts.integration.test.tsx",
+  ],
+  "apps/web/src/components/vendor-accounts/vendor-account-form.tsx": [
+    "apps/web/src/components/vendor-accounts/vendor-accounts.test.tsx",
+  ],
+  "apps/web/src/components/vendor-accounts/vendor-account-tabs.tsx": [
+    "apps/web/src/components/vendor-accounts/vendor-account-detail.test.tsx",
+    "apps/web/src/components/vendor-accounts/vendor-accounts.integration.test.tsx",
+  ],
+  "apps/web/src/components/vendor-accounts/vendor-accounts-table.tsx": [
+    "apps/web/src/components/vendor-accounts/vendor-accounts.test.tsx",
+  ],
+  "apps/web/src/modules/vendor-catalog/actions/manage-vendor-accounts-operations.ts": [
+    "apps/web/src/modules/vendor-catalog/actions/manage-vendor-accounts.test.ts",
+  ],
+  "apps/web/src/modules/vendor-catalog/actions/manage-vendor-accounts-server-actions-factory.ts": [
+    "apps/web/src/modules/vendor-catalog/actions/manage-vendor-accounts.test.ts",
+  ],
+  "apps/web/src/modules/vendor-catalog/production-vendor-account-repository.ts": [
+    "apps/web/src/modules/vendor-catalog/vendor-account-repository.integration.test.ts",
+  ],
+  "apps/web/src/modules/vendor-catalog/vendor-account-service.ts": [
+    "apps/web/src/modules/vendor-catalog/vendor-account-repository.integration.test.ts",
+  ],
+};
+for (const [source, tests] of Object.entries(us025DirectRoutes)) {
+  assert.deepEqual(DIRECT_TEST_ROUTES[source], tests, `${source} must keep accountable US-025 tests`);
+}
 assert.ok(
   mutationVitestConfig.test.projects.includes("packages/domain/vitest.config.ts"),
   "the aggregate mutation runner must execute accountable domain tests",
