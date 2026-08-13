@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
+  existsSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -30,6 +31,7 @@ import {
   verificationCommandsForSources,
   verificationAuditsForReport,
   verifyContractsBarrelSource,
+  runMutationScope,
 } from "./mutation-scope.mjs";
 import mutationVitestConfig from "../vitest.mutation.config.mjs";
 
@@ -945,6 +947,8 @@ try {
     readFileSync(join(fixtureRoot, ".tmp/stryker-shards/manifest.json"), "utf8"),
     manifestText,
   );
+  assert.equal(existsSync(join(fixtureRoot, "reports/mutation-performance")), false);
+  assert.equal(existsSync(join(fixtureRoot, ".git/ledger-mutation-cache")), false);
 } finally {
   rmSync(fixtureRoot, { force: true, recursive: true });
 }
@@ -983,11 +987,15 @@ for (const [index, shard] of manifest.shards.entries()) {
   assert.equal(shard.result, "pending");
   assert.equal(shard.reportHash, null);
   assert.match(shard.configHash, /^[0-9a-f]{64}$/);
-  assert.match(shard.provenance.runHash, /^[0-9a-f]{64}$/);
-  assert.ok(shard.jsonReportPath.includes(shard.provenance.runHash.slice(0, 12)));
-  assert.ok(shard.reportPath.includes(shard.provenance.runHash.slice(0, 12)));
-  assert.equal(shard.provenance.resolvedBase, fixtureBase);
-  assert.deepEqual(shard.provenance.toolVersions, manifest.toolVersions);
+  assert.deepEqual(Object.keys(shard.provenance).sort(), ["base", "head", "worktreeHash"]);
+  assert.equal(shard.provenance.base, fixtureBase);
+  assert.equal(shard.provenance.head, manifest.head);
+  assert.equal(shard.provenance.worktreeHash, manifest.worktreeHash);
+  assert.equal(shard.cacheDecision, "pending");
+  assert.equal(shard.durationMs, null);
+  assert.equal(shard.priorDurationMs, null);
+  assert.equal(shard.evidenceKey, null);
+  assert.deepEqual(shard.dependencyHashes, {});
   for (const source of shard.sources) assert.match(shard.contentHashes[source], /^[0-9a-f]{64}$/);
   assert.ok(config.reporters.includes("json"));
   assert.equal(config.jsonReporter.fileName, shard.jsonReportPath);
@@ -1046,4 +1054,163 @@ assert.deepEqual(vitestStaticShard.sources, ["apps/web/vitest.config.ts"]);
 assert.deepEqual(vitestStaticShard.testFiles, ["apps/web/next.config.test.ts"]);
 assert.deepEqual(vitestStaticShard.mutate, ["apps/web/vitest.config.ts:21-21"]);
 assert.match(vitestStaticShard.contentHashes["apps/web/vitest.config.ts"], /^[0-9a-f]{64}$/);
-assert.match(vitestStaticShard.provenance.runHash, /^[0-9a-f]{64}$/);
+assert.equal(vitestStaticShard.provenance.base, fixtureBase);
+
+const cacheFixtureRoot = mkdtempSync(join(tmpdir(), "smp-mutation-cache-runner-"));
+const cacheSource = "packages/db/src/provisioning-routing.ts";
+const cacheTest = "packages/db/src/provisioning-routing.test.ts";
+const cacheWrite = (path, contents) => {
+  const destination = join(cacheFixtureRoot, path);
+  mkdirSync(dirname(destination), { recursive: true });
+  writeFileSync(destination, contents, "utf8");
+};
+const cacheRun = async (overrides = {}) => {
+  let executions = 0;
+  const result = await runMutationScope({
+    cwd: cacheFixtureRoot,
+    env: { MUTATION_BASE: cacheFixtureBase, ...overrides.env },
+    toolVersions: overrides.toolVersions ?? {
+      node: "22.0.0",
+      pnpm: "10.0.0",
+      stryker: "9.0.0",
+      typescript: "5.0.0",
+      vitest: "3.0.0",
+    },
+    runtimeProfileProvider: overrides.runtimeProfileProvider ?? (() => ({
+      arch: "x64",
+      locale: "en-US",
+      platform: "linux",
+      timezone: "UTC",
+      databaseDriver: "postgres",
+      databaseServerVersion: "16.4",
+      schemaFingerprint: "a".repeat(64),
+    })),
+    executeShard: ({ shard }) => {
+      executions += 1;
+      const report = {
+        config: {
+          configFile: shard.configPath,
+          jsonReporter: { fileName: shard.jsonReportPath },
+          mutate: shard.mutate,
+        },
+        files: Object.fromEntries(shard.sources.map((sourcePath) => [sourcePath, {
+          source: readFileSync(join(cacheFixtureRoot, sourcePath), "utf8"),
+          mutants: [{
+            id: "0",
+            location: { start: { line: 1 }, end: { line: 1 } },
+            status: "Killed",
+          }],
+        }])),
+      };
+      cacheWrite(shard.jsonReportPath, `${JSON.stringify(report)}\n`);
+      cacheWrite(shard.reportPath, "<html>validated mutation evidence</html>\n");
+      return { status: overrides.executorStatus ?? 0 };
+    },
+  });
+  return { executions, result };
+};
+let cacheFixtureBase;
+try {
+  execFileSync("git", ["init", "--quiet"], { cwd: cacheFixtureRoot });
+  execFileSync("git", ["config", "user.email", "mutation-cache@example.invalid"], { cwd: cacheFixtureRoot });
+  execFileSync("git", ["config", "user.name", "Mutation Cache Test"], { cwd: cacheFixtureRoot });
+  cacheWrite("package.json", JSON.stringify({ name: "fixture", private: true }));
+  cacheWrite("pnpm-lock.yaml", "lockfileVersion: '9.0'\n");
+  cacheWrite("stryker.conf.json", JSON.stringify({ testFiles: [] }));
+  cacheWrite("vitest.mutation.config.mjs", "export default {};\n");
+  cacheWrite("scripts/mutation-scope.mjs", "export const runnerIdentity = 1;\n");
+  cacheWrite(cacheSource, "export const rolesPage = 1;\n");
+  cacheWrite(cacheTest, "export {};\n");
+  execFileSync("git", ["add", "."], { cwd: cacheFixtureRoot });
+  execFileSync("git", ["commit", "--quiet", "-m", "cache base"], { cwd: cacheFixtureRoot });
+  cacheFixtureBase = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: cacheFixtureRoot,
+    encoding: "utf8",
+  }).trim();
+  cacheWrite(cacheSource, "export const rolesPage = 2;\n");
+
+  const cold = await cacheRun();
+  assert.equal(cold.executions, 1);
+  assert.equal(cold.result.manifest.shards[0].cacheDecision, "executed");
+  assert.match(cold.result.manifest.shards[0].evidenceKey, /^[a-f0-9]{64}$/);
+  assert.ok(Object.keys(cold.result.manifest.shards[0].dependencyHashes).length > 0);
+
+  const warm = await cacheRun();
+  assert.equal(warm.executions, 0);
+  assert.equal(warm.result.manifest.shards[0].cacheDecision, "reused");
+  assert.equal(warm.result.manifest.shards[0].priorDurationMs, cold.result.manifest.shards[0].durationMs);
+  assert.equal(warm.result.manifest.shards[0].configHash, cold.result.manifest.shards[0].configHash);
+  assert.equal(warm.result.manifest.shards[0].evidenceKey, cold.result.manifest.shards[0].evidenceKey);
+  assert.notEqual(warm.result.manifest.shards[0].reportPath, cold.result.manifest.shards[0].reportPath);
+  assert.notEqual(warm.result.manifest.shards[0].tempDirName, cold.result.manifest.shards[0].tempDirName);
+
+  execFileSync("git", ["add", cacheSource], { cwd: cacheFixtureRoot });
+  execFileSync("git", ["commit", "--quiet", "-m", "provenance only"], { cwd: cacheFixtureRoot });
+  const committed = await cacheRun();
+  assert.equal(committed.executions, 0);
+  assert.equal(committed.result.manifest.shards[0].cacheDecision, "reused");
+  assert.equal(committed.result.manifest.shards[0].evidenceKey, cold.result.manifest.shards[0].evidenceKey);
+
+  for (const [path, contents] of [
+    [cacheSource, "export const rolesPage = 3;\n"],
+    [cacheTest, "export const responsible = true;\n"],
+    ["stryker.conf.json", JSON.stringify({ testFiles: [], timeoutMS: 1234 })],
+    ["scripts/dependency.mjs", "export const dependency = 1;\n"],
+    ["pnpm-lock.yaml", "lockfileVersion: '9.0'\n# changed\n"],
+    ["scripts/mutation-scope.mjs", "export const runnerIdentity = 2;\n"],
+  ]) {
+    const existed = existsSync(join(cacheFixtureRoot, path));
+    const before = existed ? readFileSync(join(cacheFixtureRoot, path), "utf8") : null;
+    cacheWrite(path, contents);
+    if (path === "scripts/dependency.mjs") {
+      const sourceBefore = readFileSync(join(cacheFixtureRoot, cacheSource), "utf8");
+      cacheWrite(cacheSource, `import \"../../../../../scripts/dependency.mjs\";\n${sourceBefore}`);
+    }
+    const miss = await cacheRun();
+    assert.equal(miss.executions, 1, `${path} changes invalidate cached evidence`);
+    if (existed) cacheWrite(path, before);
+    else rmSync(join(cacheFixtureRoot, path), { force: true });
+    if (path === "scripts/dependency.mjs") cacheWrite(cacheSource, "export const rolesPage = 2;\n");
+  }
+  assert.equal((await cacheRun({
+    toolVersions: {
+      node: "22.0.1", pnpm: "10.0.0", stryker: "9.0.0", typescript: "5.0.0", vitest: "3.0.0",
+    },
+  })).executions, 1);
+  assert.equal((await cacheRun({
+    runtimeProfileProvider: () => ({
+      arch: "x64", locale: "en-US", platform: "linux", timezone: "UTC",
+      databaseDriver: "postgres", databaseServerVersion: "17.0",
+      schemaFingerprint: "a".repeat(64),
+    }),
+  })).executions, 1);
+
+  const stable = await cacheRun();
+  const stableShard = stable.result.manifest.shards[0];
+  const cacheEntryRoot = join(
+    cacheFixtureRoot, ".git", "ledger-mutation-cache", "v1", stableShard.evidenceKey,
+  );
+  writeFileSync(join(cacheEntryRoot, "mutation-report.json"), "{corrupt", "utf8");
+  const corrupt = await cacheRun();
+  assert.equal(corrupt.executions, 1);
+  assert.equal(corrupt.result.manifest.shards[0].cacheDecision, "rejected");
+
+  const failedProfile = {
+    node: "22.0.0", pnpm: "10.0.0", stryker: "9.0.1", typescript: "5.0.0", vitest: "3.0.0",
+  };
+  await assert.rejects(
+    cacheRun({ toolVersions: failedProfile, executorStatus: 1 }),
+    /mutation shard .* failed/,
+  );
+  assert.equal((await cacheRun({ toolVersions: failedProfile })).executions, 1);
+
+  const unavailable = await cacheRun({ runtimeProfileProvider: () => { throw new Error("offline"); } });
+  assert.equal(unavailable.executions, 1);
+  assert.equal(unavailable.result.manifest.shards[0].cacheDecision, "rejected");
+  assert.equal(unavailable.result.manifest.shards[0].reason, "runtime-profile-unavailable");
+  assert.equal(JSON.stringify(unavailable.result.manifest).includes("databaseUrl"), false);
+  assert.equal(JSON.stringify(unavailable.result.manifest).includes("localhost"), false);
+  assert.equal((await cacheRun({ env: { MUTATION_CACHE: "off" } })).executions, 1);
+} finally {
+  rmSync(cacheFixtureRoot, { force: true, recursive: true });
+}

@@ -16,10 +16,20 @@
 //   MUTATION_SCOPE_DRY=1  write + print the generated config, do NOT run Stryker
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "../apps/web/node_modules/typescript/lib/typescript.js";
+import { cacheRoot, readCacheEntry, writeSuccessfulCacheEntry } from "./mutation-evidence/cache.mjs";
+import { collectExecutionInputs, createEvidenceKey, sha256 } from "./mutation-evidence/fingerprint.mjs";
+import {
+  createPerformanceRun,
+  finishPerformanceRun,
+  finishShard,
+  startShard,
+  writePerformanceRecord,
+} from "./mutation-evidence/performance.mjs";
 
 const BASE_CONFIG = "stryker.conf.json";
 const GENERATED_SHARD_DIR = join(".tmp", "stryker-shards");
@@ -334,6 +344,15 @@ function contentHash(contents) {
   return createHash("sha256").update(contents).digest("hex");
 }
 
+export function normalizeMutationConfigIdentity(config) {
+  return {
+    ...config,
+    tempDirName: "<mutation-temp-dir>",
+    htmlReporter: { ...config.htmlReporter, fileName: "<mutation-report-html>" },
+    jsonReporter: { ...config.jsonReporter, fileName: "<mutation-report-json>" },
+  };
+}
+
 function rangeParts(target) {
   const match = /^(.*):(\d+)-(\d+)$/.exec(target);
   if (!match) throw new Error(`invalid mutation range: ${target}`);
@@ -346,7 +365,16 @@ export function validateMutationReportIdentity(
   actualConfigText,
   sourceContents,
 ) {
-  if (contentHash(actualConfigText) !== shard.configHash) {
+  let actualConfig;
+  try {
+    actualConfig = JSON.parse(actualConfigText);
+  } catch {
+    throw new Error(`mutation config is malformed: ${shard.id}`);
+  }
+  const normalizedConfigHash = contentHash(
+    `${JSON.stringify(normalizeMutationConfigIdentity(actualConfig), null, 2)}\n`,
+  );
+  if (contentHash(actualConfigText) !== shard.configHash && normalizedConfigHash !== shard.configHash) {
     throw new Error(`mutation config hash mismatch: ${shard.id}`);
   }
   for (const [source, expectedHash] of Object.entries(shard.contentHashes)) {
@@ -993,7 +1021,9 @@ export function projectionEvidencePathForShard(shard) {
   return shard.sources.includes(POOL_PROJECTION_SOURCE)
     ? join(
         GENERATED_SHARD_DIR,
-        `${shard.id}-${shard.provenance.runHash.slice(0, 12)}-projection.json`,
+        shard.jsonReportPath
+          ? `${basename(shard.jsonReportPath, ".json")}-projection.json`
+          : `${shard.id}-${(shard.evidenceKey ?? shard.provenance?.runHash).slice(0, 12)}-projection.json`,
       )
     : undefined;
 }
@@ -1261,7 +1291,108 @@ export function requireRoutedTestFiles(changed, mutate, fileExists = existsSync,
   return routedTestFiles(changed, mutate, fileExists, directRoutes);
 }
 
-function main() {
+function defaultToolVersions() {
+  const packageVersion = (url) => JSON.parse(readFileSync(url, "utf8")).version;
+  const rootPackage = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  return {
+    node: process.versions.node,
+    pnpm: String(rootPackage.packageManager ?? "pnpm@0.0.0").replace(/^pnpm@/, ""),
+    stryker: packageVersion(new URL("../node_modules/@stryker-mutator/core/package.json", import.meta.url)),
+    typescript: ts.version,
+    vitest: packageVersion(new URL("../apps/web/node_modules/vitest/package.json", import.meta.url)),
+  };
+}
+
+function localRuntimeProfile() {
+  return {
+    arch: process.arch,
+    locale: Intl.DateTimeFormat().resolvedOptions().locale,
+    platform: process.platform,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  };
+}
+
+async function defaultRuntimeProfile({ shard } = {}) {
+  const local = localRuntimeProfile();
+  if (!shard || !isDatabaseBacked(shard)) return local;
+  const [{ verifyMigratedSchema }, { committedMigrations }, pgModule] = await Promise.all([
+    import("../packages/db/scripts/verify-schema.mjs"),
+    import("../packages/db/scripts/apply-migrations.mjs"),
+    import("../packages/db/node_modules/pg/esm/index.mjs"),
+  ]);
+  const verification = await verifyMigratedSchema();
+  const migrations = await committedMigrations(process.env.MIGRATIONS_DIR);
+  const databaseAdminUrl = process.env.DATABASE_ADMIN_URL;
+  if (!databaseAdminUrl) throw new Error("runtime-profile-unavailable");
+  const client = new pgModule.default.Client({
+    connectionString: databaseAdminUrl,
+    application_name: "ledger-mutation-runtime-profile",
+  });
+  await client.connect();
+  let databaseServerVersion;
+  try {
+    const version = await client.query("SHOW server_version");
+    databaseServerVersion = /\d+(?:\.\d+){0,3}/.exec(
+      version.rows[0]?.server_version ?? "",
+    )?.[0];
+  } finally {
+    await client.end();
+  }
+  return {
+    ...local,
+    databaseDriver: "postgres",
+    databaseServerVersion,
+    schemaFingerprint: sha256(JSON.stringify({ migrations, verification })),
+  };
+}
+
+function isDatabaseBacked(shard) {
+  return shard.sources.some((source) => source.startsWith("packages/db/"))
+    || shard.testFiles.some((test) =>
+      test.startsWith("packages/db/")
+      || (/\.integration\.test\.[cm]?[jt]sx?$/.test(test) && !/\.pact\.test\./.test(test)));
+}
+
+function sanitizedRuntimeProfile(profile, databaseBacked) {
+  const allowed = databaseBacked
+    ? ["platform", "arch", "locale", "timezone", "databaseDriver", "databaseServerVersion", "schemaFingerprint"]
+    : ["platform", "arch", "locale", "timezone"];
+  if (!profile || typeof profile !== "object" || Array.isArray(profile)) {
+    throw new Error("runtime-profile-unavailable");
+  }
+  const result = Object.fromEntries(allowed.map((key) => [key, profile[key]]));
+  if (Object.values(result).some((value) => typeof value !== "string" || value.length === 0)) {
+    throw new Error("runtime-profile-unavailable");
+  }
+  if (databaseBacked && !/^[a-f0-9]{64}$/.test(result.schemaFingerprint)) {
+    throw new Error("runtime-profile-unavailable");
+  }
+  return result;
+}
+
+function rehydrateCachedReport(cachedPath, destination, shard) {
+  const report = JSON.parse(readFileSync(cachedPath, "utf8"));
+  report.config = {
+    ...report.config,
+    configFile: shard.configPath,
+    jsonReporter: { ...report.config?.jsonReporter, fileName: shard.jsonReportPath },
+  };
+  mkdirSync(dirname(destination), { recursive: true });
+  writeFileSync(destination, `${JSON.stringify(report)}\n`, "utf8");
+}
+
+export async function runMutationScope(options = {}) {
+  const previousCwd = process.cwd();
+  const previousEnvironment = {};
+  const signalHandlers = [];
+  const environment = options.env ?? process.env;
+  if (options.cwd) process.chdir(options.cwd);
+  for (const key of ["MUTATION_BASE", "MUTATION_CACHE", "MUTATION_SCOPE_DRY"]) {
+    previousEnvironment[key] = process.env[key];
+    if (environment[key] === undefined) delete process.env[key];
+    else process.env[key] = environment[key];
+  }
+  try {
   const baseRef = resolveBase();
   const resolvedBase = mergeBaseFor(baseRef);
   const head = git(["rev-parse", "HEAD"]);
@@ -1271,14 +1402,7 @@ function main() {
   const allHunks = mutationHunks(baseRef, changedSources);
   const worktreeHash = contentHash(changed.map((path) =>
     `${path}\0${existsSync(path) ? readFileSync(path, "utf8") : "<deleted>"}`).join("\0"));
-  const toolVersions = {
-    node: process.version,
-    stryker: JSON.parse(readFileSync(
-      new URL("../node_modules/@stryker-mutator/core/package.json", import.meta.url),
-      "utf8",
-    )).version,
-    typescript: ts.version,
-  };
+  const toolVersions = options.toolVersions ?? defaultToolVersions();
   const schemaStaticMutate = allMutate.filter((target) =>
     target.replace(/:\d+-\d+$/, "") === SCHEMA_STATIC_SOURCE);
   const vitestConfigStaticMutate = allMutate.filter((target) =>
@@ -1303,7 +1427,7 @@ function main() {
 
   if (allMutate.length === 0) {
     console.log("mutation-scope: no mutatable files in diff — nothing to mutate");
-    process.exit(0);
+    return { manifest: null, performance: null };
   }
 
   let baseConf = {};
@@ -1356,23 +1480,22 @@ function main() {
     vitest: _baseVitest,
     ...sharedBaseConf
   } = baseConf;
+  const runSuffix = process.env.MUTATION_SCOPE_DRY === "1"
+    ? "dry"
+    : (options.runId ?? `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`);
   const shards = shardSpecs.map((spec) => {
     const digest = createHash("sha256")
       .update([spec.kind, ...spec.sources, ...spec.testFiles, ...spec.mutate].join("\n"))
       .digest("hex")
       .slice(0, 12);
     const id = `${spec.kind}-${digest}`;
-    const configPath = join(GENERATED_SHARD_DIR, `${id}.json`);
-    const tempDirName = join(".tmp", `stryker-${id}`);
+    const configPath = join(GENERATED_SHARD_DIR, `${id}-${runSuffix}.json`);
+    const tempDirName = join(".tmp", `stryker-${id}-${runSuffix}`);
     const contentHashes = Object.fromEntries(
       spec.sources.map((source) => [source, contentHash(readFileSync(source, "utf8"))]),
     );
-    const runHash = contentHash(JSON.stringify({
-      contentHashes, head, id, mutate: spec.mutate, resolvedBase,
-      testFiles: spec.testFiles, worktreeHash,
-    }));
-    const reportPath = join("reports", "mutation", `${id}-${runHash.slice(0, 12)}.html`);
-    const jsonReportPath = join("reports", "mutation", `${id}-${runHash.slice(0, 12)}.json`);
+    const reportPath = join("reports", "mutation", `${id}-${runSuffix}.html`);
+    const jsonReportPath = join("reports", "mutation", `${id}-${runSuffix}.json`);
     const common = {
       ...sharedBaseConf,
       mutate: spec.mutate,
@@ -1411,23 +1534,28 @@ function main() {
           testFiles: spec.testFiles,
         };
     const configText = `${JSON.stringify(config, null, 2)}\n`;
+    const configIdentity = normalizeMutationConfigIdentity(config);
+    const configIdentityText = `${JSON.stringify(configIdentity, null, 2)}\n`;
     return {
+      cacheDecision: "pending",
       classification: "pending",
       config,
-      configHash: contentHash(configText),
+      configHash: contentHash(configIdentityText),
       configPath,
       configText,
       contentHashes,
+      dependencyHashes: {},
+      durationMs: null,
+      evidenceKey: null,
       id,
       kind: spec.kind,
       jsonReportPath,
       mutantCount: null,
       mutate: spec.mutate,
+      priorDurationMs: null,
       provenance: {
         head,
-        resolvedBase,
-        runHash,
-        toolVersions,
+        base: resolvedBase,
         worktreeHash,
       },
       reportHash: null,
@@ -1460,18 +1588,173 @@ function main() {
 
   if (process.env.MUTATION_SCOPE_DRY === "1") {
     console.log("mutation-scope: MUTATION_SCOPE_DRY=1 — not running Stryker");
-    process.exit(0);
+    return { manifest: manifestFor(), performance: null };
   }
 
+  const gitAtRoot = (args, execOptions = {}) => execFileSync("git", args, {
+    ...execOptions, encoding: "utf8",
+  }).trim();
+  const repositoryCacheRoot = cacheRoot(process.cwd(), gitAtRoot);
+  const cacheMode = process.env.MUTATION_CACHE === "off" ? "bypass" : "enabled";
+  const runtimeProfileProvider = options.runtimeProfileProvider ?? defaultRuntimeProfile;
+  const executionContexts = new Map();
+  for (const shard of shards) {
+    let runtimeProfile;
+    try {
+      runtimeProfile = sanitizedRuntimeProfile(
+        await runtimeProfileProvider({ shard }),
+        isDatabaseBacked(shard),
+      );
+    } catch {
+      runtimeProfile = sanitizedRuntimeProfile(localRuntimeProfile(), false);
+      shard.cacheDecision = "rejected";
+      shard.reason = "runtime-profile-unavailable";
+    }
+    const commandList = verificationCommandsForSources(
+      shard.sources,
+      shard.testFiles,
+      { evidencePath: "<projection-evidence>" },
+    ).map(([command, args]) => [command, ...args]);
+    const commandFiles = commandList.flatMap((command) => command)
+      .filter((candidate) => typeof candidate === "string"
+        && /\.(?:[cm]?[jt]sx?|json)$/.test(candidate)
+        && existsSync(candidate));
+    const configurationFiles = [
+      BASE_CONFIG,
+      "vitest.mutation.config.mjs",
+      "apps/web/vitest.static-contract.config.mjs",
+      "packages/db/vitest.config.ts",
+    ]
+      .filter((file) => existsSync(file));
+    const entryFiles = [
+      ...shard.sources, ...shard.testFiles, "scripts/mutation-scope.mjs", ...commandFiles,
+    ]
+      .filter((file) => existsSync(file));
+    const executionInputs = collectExecutionInputs({
+      root: process.cwd(),
+      entryFiles,
+      configurationFiles,
+      migrationRoots: isDatabaseBacked(shard) && existsSync("packages/db/src/migrations")
+        ? ["packages/db/src/migrations"] : [],
+      toolVersions,
+      runtimeProfile,
+    });
+    shard.dependencyHashes = executionInputs.hashes;
+    if (!executionInputs.reusable && shard.cacheDecision !== "rejected") {
+      shard.cacheDecision = "rejected";
+      shard.reason = executionInputs.reasons[0]?.code ?? "dependency-profile-unavailable";
+    }
+    shard.evidenceKey = createEvidenceKey({
+      shardKind: shard.kind,
+      mutate: shard.mutate,
+      sources: shard.sources,
+      testFiles: shard.testFiles,
+      config: normalizeMutationConfigIdentity(shard.config),
+      dependencyHashes: shard.dependencyHashes,
+      toolVersions,
+      runtimeProfile,
+      commandList,
+    });
+    executionContexts.set(shard.id, { commandList, executionInputs, runtimeProfile });
+  }
+  const campaignKey = sha256(shards.map((shard) => shard.evidenceKey).sort().join("\n"));
+  const performanceRun = createPerformanceRun({
+    provenance: { campaignKey, head, base: resolvedBase, baseRef },
+    cacheMode,
+    machine: options.machine ?? {
+      os: `${os.type()} ${os.release()}`,
+      arch: os.arch(), logicalCpuCount: os.cpus().length, memoryBytes: os.totalmem(), toolVersions,
+    },
+    ...(options.performanceOptions ?? {}),
+  });
+  const persist = () => {
+    writeFileSync(GENERATED_MANIFEST, `${JSON.stringify(manifestFor(), null, 2)}\n`, "utf8");
+    writePerformanceRecord(process.cwd(), performanceRun);
+  };
+  if (options.installSignalHandlers !== false) {
+    for (const signal of ["SIGINT", "SIGTERM"]) {
+      const handler = () => {
+        try {
+          finishPerformanceRun(performanceRun, "interrupted");
+          persist();
+        } finally {
+          process.exit(signal === "SIGINT" ? 130 : 143);
+        }
+      };
+      process.once(signal, handler);
+      signalHandlers.push([signal, handler]);
+    }
+  }
+  const executeShard = options.executeShard ?? (({ shard }) => spawnSync(
+    "pnpm", ["exec", "stryker", "run", shard.configPath], { stdio: "inherit" },
+  ));
   try {
     for (const shard of shards) {
+      const { commandList, executionInputs, runtimeProfile } = executionContexts.get(shard.id);
       console.log(`mutation-scope: running ${shard.id} (${shard.mutate.length} ranges)`);
+      const performanceToken = startShard(performanceRun, {
+        id: shard.id, evidenceKey: shard.evidenceKey, classification: shard.kind,
+      });
+      const startedAt = Date.now();
+      let cached = null;
+      if (cacheMode === "enabled" && shard.cacheDecision !== "rejected") {
+        cached = readCacheEntry({
+          root: repositoryCacheRoot,
+          evidenceKey: shard.evidenceKey,
+          validateArtifacts: (artifacts, entry) => {
+            if (entry.shardKind !== shard.kind || entry.result !== "passed") return false;
+            const reportArtifact = artifacts["mutation-report.json"];
+            if (!reportArtifact) return false;
+            rehydrateCachedReport(reportArtifact, shard.jsonReportPath, shard);
+            const projectionPath = projectionEvidencePathForShard(shard);
+            if (projectionPath) {
+              const projectionArtifact = artifacts["projection-evidence.json"];
+              if (!projectionArtifact) return false;
+              mkdirSync(dirname(projectionPath), { recursive: true });
+              copyFileSync(projectionArtifact, projectionPath);
+              JSON.parse(readFileSync(projectionPath, "utf8"));
+            }
+            const report = JSON.parse(readFileSync(shard.jsonReportPath, "utf8"));
+            validateMutationReportIdentity(
+              report, shard, readFileSync(shard.configPath, "utf8"),
+              (source) => readFileSync(source, "utf8"),
+            );
+            const mutants = mutationReportMutants(report);
+            if (entry.classification === "scored") requireNonzeroMutationReport(report, shard.id);
+            else {
+              requireNonzeroStaticShard(shard.kind, mutants.length, shard.id);
+              verificationAuditsForReport(report, shard, allHunks);
+            }
+            return true;
+          },
+        });
+      }
+      if (cached?.hit) {
+        if (cached.artifacts["mutation-report.html"]) {
+          mkdirSync(dirname(shard.reportPath), { recursive: true });
+          copyFileSync(cached.artifacts["mutation-report.html"], shard.reportPath);
+        }
+        shard.classification = cached.entry.classification;
+        shard.mutantCount = mutationReportMutants(JSON.parse(readFileSync(shard.jsonReportPath, "utf8"))).length;
+        shard.reportHash = contentHash(readFileSync(shard.jsonReportPath));
+        shard.result = "passed";
+        shard.cacheDecision = "reused";
+        shard.priorDurationMs = cached.entry.durationMs ?? 0;
+        const timing = finishShard(performanceRun, performanceToken, "reused", {
+          result: "passed", priorDurationMs: shard.priorDurationMs,
+        });
+        shard.durationMs = timing.durationMs;
+        persist();
+        continue;
+      }
+      if (cached && !cached.hit && cached.reason !== "not-found") {
+        shard.cacheDecision = "rejected";
+        shard.reason = cached.reason;
+        shard.priorDurationMs = cached.entry?.durationMs ?? null;
+      }
       rmSync(shard.jsonReportPath, { force: true });
       rmSync(shard.reportPath, { force: true });
-      const startedAt = Date.now();
-      const result = spawnSync(
-        "pnpm", ["exec", "stryker", "run", shard.configPath], { stdio: "inherit" },
-      );
+      const result = executeShard({ shard });
       const report = readFreshMutationReport(shard.jsonReportPath, startedAt);
       validateMutationReportIdentity(
         report,
@@ -1494,7 +1777,7 @@ function main() {
           shard.testFiles,
           { evidencePath: projectionEvidencePath },
         );
-        runVerificationCommands(commands);
+        runVerificationCommands(commands, options.verificationRunner ?? spawnSync);
         shard.classification = "verification-only";
         shard.result = {
           audits,
@@ -1508,28 +1791,72 @@ function main() {
             : {}),
           tests: shard.testFiles,
         };
-        writeFileSync(
-          GENERATED_MANIFEST,
-          `${JSON.stringify(manifestFor(), null, 2)}\n`,
-          "utf8",
-        );
         console.log(`mutation-scope: verified non-mutatable source bundle ${shard.id}`);
-        continue;
+      } else {
+        requireNonzeroMutationReport(report, shard.id);
+        shard.classification = "scored";
+        shard.result = result.status === 0 ? "passed" : "failed";
       }
-      requireNonzeroMutationReport(report, shard.id);
-      shard.classification = "scored";
-      shard.result = result.status === 0 ? "passed" : "failed";
-      writeFileSync(GENERATED_MANIFEST, `${JSON.stringify(manifestFor(), null, 2)}\n`, "utf8");
-      if (result.status !== 0) process.exit(result.status ?? 1);
+      if (result.status !== 0) throw Object.assign(new Error(`mutation shard ${shard.id} failed`), { status: result.status ?? 1 });
+      const timingDecision = shard.cacheDecision === "rejected" ? "rejected" : "executed";
+      const timing = finishShard(performanceRun, performanceToken, timingDecision, {
+        result: "passed",
+        ...(timingDecision === "rejected" ? {
+          rejectionReason: shard.reason,
+          ...(shard.priorDurationMs === null ? {} : { priorDurationMs: shard.priorDurationMs }),
+        } : {}),
+      });
+      shard.durationMs = timing.durationMs;
+      if (shard.cacheDecision === "pending") shard.cacheDecision = "executed";
+      if (cacheMode === "enabled" && shard.reason !== "runtime-profile-unavailable"
+          && executionInputs.reusable) {
+        const artifacts = { "mutation-report.json": shard.jsonReportPath };
+        if (existsSync(shard.reportPath)) artifacts["mutation-report.html"] = shard.reportPath;
+        const projectionPath = projectionEvidencePathForShard(shard);
+        if (projectionPath && existsSync(projectionPath)) artifacts["projection-evidence.json"] = projectionPath;
+        writeSuccessfulCacheEntry({
+          root: repositoryCacheRoot,
+          evidenceKey: shard.evidenceKey,
+          entry: {
+            result: "passed", shardKind: shard.kind, classification: shard.classification,
+            durationMs: shard.durationMs, toolVersions, runtimeProfile,
+            dependencyHashes: shard.dependencyHashes, commandList,
+          },
+          artifacts,
+        });
+      }
+      persist();
     }
+    finishPerformanceRun(performanceRun, "passed");
+    persist();
+    return { manifest: manifestFor(), performance: performanceRun };
   } catch (err) {
     // A non-zero Stryker exit IS the gate failing — propagate the code, but not
     // execFileSync's exception: an uncaught throw prints a JS stack trace after
     // Stryker's own report, which reads as "the tool is broken" rather than
     // "your mutation score is short".
     if (err?.message) console.error(`mutation-scope: ${err.message}`);
-    process.exit(typeof err?.status === "number" ? err.status : 1);
+    try {
+      finishPerformanceRun(performanceRun, "failed");
+      persist();
+    } catch { /* retain the original mutation failure */ }
+    throw err;
+  }
+  } finally {
+    for (const [signal, handler] of signalHandlers) process.removeListener(signal, handler);
+    for (const [key, value] of Object.entries(previousEnvironment)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    if (options.cwd) process.chdir(previousCwd);
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  try {
+    await runMutationScope();
+  } catch (error) {
+    if (error?.message) console.error(`mutation-scope: ${error.message}`);
+    process.exit(typeof error?.status === "number" ? error.status : 1);
+  }
+}
