@@ -305,7 +305,9 @@ try {
   });
   const holidaysBefore = holidayEnvironment({ ECUADOR_HOLIDAYS: "2026-07-27" });
   const holidaysAfter = holidayEnvironment({ ECUADOR_HOLIDAYS: "2026-07-27, 2026-08-10" });
+  const holidaysEmpty = holidayEnvironment({ ECUADOR_HOLIDAYS: "" });
   assert.equal(holidaysBefore.reusable, true);
+  assert.equal(holidaysEmpty.reusable, true);
   assert.notEqual(
     holidaysBefore.hashes["@runtime/environment.json"],
     holidaysAfter.hashes["@runtime/environment.json"],

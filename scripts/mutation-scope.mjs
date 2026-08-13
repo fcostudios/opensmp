@@ -15,7 +15,7 @@
 //   MUTATION_BASE=<ref>   compare against this ref instead of the default branch
 //   MUTATION_SCOPE_DRY=1  write + print the generated config, do NOT run Stryker
 import { execFileSync, spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
@@ -1079,6 +1079,61 @@ export function controlledChildEnvironment(environment, runtimeProfile = {}) {
     .map((key) => [key, environment[key]]));
 }
 
+export async function createDatabaseShardSandbox(environment, shardId, pgModule) {
+  const ownerUrl = environment.DATABASE_ADMIN_URL ?? environment.US017_MUTATION_DATABASE_ADMIN_URL;
+  const appUrl = environment.DATABASE_URL ?? environment.US017_MUTATION_DATABASE_URL;
+  if (!ownerUrl || !appUrl) throw new Error("database shard sandbox requires owner and app URLs");
+  const template = new URL(ownerUrl).pathname.slice(1);
+  if (!/^[a-z0-9_]+$/.test(template)) throw new Error("database shard template name is invalid");
+  const slug = shardId.replace(/[^a-z0-9]/gi, "_").slice(0, 40).toLowerCase();
+  const databaseName = `ledger_mutation_${slug}_${randomUUID().replaceAll("-", "")}`;
+  const maintenanceUrl = new URL(ownerUrl);
+  maintenanceUrl.pathname = "/postgres";
+  const Client = pgModule.default?.Client ?? pgModule.Client;
+  const maintenance = new Client({ connectionString: maintenanceUrl.toString() });
+  await maintenance.connect();
+  try {
+    await maintenance.query(
+      `CREATE DATABASE "${databaseName}" WITH TEMPLATE "${template}" OWNER ledger_owner`,
+    );
+  } finally {
+    await maintenance.end();
+  }
+  const sandboxUrl = (source) => {
+    const url = new URL(source);
+    url.pathname = `/${databaseName}`;
+    return url.toString();
+  };
+  const sandboxEnvironment = { ...environment };
+  for (const key of Object.keys(sandboxEnvironment)) {
+    if (key === "DATABASE_ADMIN_URL" || /^US\d+_MUTATION_DATABASE_ADMIN_URL$/.test(key)) {
+      sandboxEnvironment[key] = sandboxUrl(ownerUrl);
+    } else if (key === "DATABASE_URL" || /^US\d+_MUTATION_DATABASE_URL$/.test(key)) {
+      sandboxEnvironment[key] = sandboxUrl(appUrl);
+    }
+  }
+  let cleaned = false;
+  return {
+    databaseName,
+    environment: sandboxEnvironment,
+    async cleanup() {
+      if (cleaned) return;
+      cleaned = true;
+      const client = new Client({ connectionString: maintenanceUrl.toString() });
+      await client.connect();
+      try {
+        await client.query(
+          "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
+          [databaseName],
+        );
+        await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
+      } finally {
+        await client.end();
+      }
+    },
+  };
+}
+
 export function runVerificationCommands(commands, run = spawnSync, environment = {}) {
   if (commands.length === 0) throw new Error("verification-only result has no commands");
   for (const [command, args] of commands) {
@@ -1568,6 +1623,7 @@ export async function runMutationScope(options = {}) {
   const previousCwd = process.cwd();
   const previousEnvironment = {};
   const signalHandlers = [];
+  const activeDatabaseSandboxes = new Set();
   const signalProcess = options.signalProcess ?? process;
   const environment = options.env ?? process.env;
   if (options.cwd) process.chdir(options.cwd);
@@ -1978,7 +2034,16 @@ export async function runMutationScope(options = {}) {
       }
       rmSync(shard.jsonReportPath, { force: true });
       rmSync(shard.reportPath, { force: true });
-      const childEnvironment = controlledChildEnvironment(environment, runtimeProfile);
+      let shardEnvironment = environment;
+      let databaseSandbox = null;
+      if (isDatabaseBacked(shard) && (!options.executeShard || options.databaseSandboxFactory)) {
+        const factory = options.databaseSandboxFactory ?? (async (env, id) =>
+          createDatabaseShardSandbox(env, id, await import("../packages/db/node_modules/pg/esm/index.mjs")));
+        databaseSandbox = await factory(environment, shard.id);
+        activeDatabaseSandboxes.add(databaseSandbox);
+        shardEnvironment = databaseSandbox.environment;
+      }
+      const childEnvironment = controlledChildEnvironment(shardEnvironment, runtimeProfile);
       const result = executeShard({ shard, environment: childEnvironment });
       const report = readFreshMutationReport(shard.jsonReportPath, startedAt);
       validateMutationReportIdentity(
@@ -2065,6 +2130,10 @@ export async function runMutationScope(options = {}) {
         });
       }
       persist();
+      if (databaseSandbox) {
+        await databaseSandbox.cleanup();
+        activeDatabaseSandboxes.delete(databaseSandbox);
+      }
     }
     finishPerformanceRun(performanceRun, "passed");
     persist();
@@ -2082,6 +2151,7 @@ export async function runMutationScope(options = {}) {
     throw err;
   }
   } finally {
+    await Promise.allSettled([...activeDatabaseSandboxes].map((sandbox) => sandbox.cleanup()));
     for (const [signal, handler] of signalHandlers) signalProcess.removeListener(signal, handler);
     for (const [key, value] of Object.entries(previousEnvironment)) {
       if (value === undefined) delete process.env[key];

@@ -450,7 +450,7 @@ export function collectExecutionInputs({
     if (key === "DB_DRIVER" && runtimeProfile?.databaseDriver === "postgres") return;
     if (key === "ECUADOR_HOLIDAYS") {
       const normalized = value === undefined ? "absent" : String(value);
-      if (/^(?:absent|\s*\d{4}-\d{2}-\d{2}(?:\s*,\s*\d{4}-\d{2}-\d{2})*\s*)$/.test(normalized)) {
+      if (/^(?:absent|\s*|\s*\d{4}-\d{2}-\d{2}(?:\s*,\s*\d{4}-\d{2}-\d{2})*\s*)$/.test(normalized)) {
         safeEnvironment[key] = normalized;
         return;
       }

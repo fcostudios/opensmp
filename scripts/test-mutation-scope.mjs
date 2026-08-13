@@ -23,6 +23,7 @@ import {
   classifyVerificationOnlyHunk,
   controlledChildEnvironment,
   createCampaignRuntimeProfileResolver,
+  createDatabaseShardSandbox,
   databaseHarnessIdentity,
   groupRoutedMutationTargets,
   mutationCompatibleTestFiles,
@@ -84,6 +85,45 @@ const mutationHarnessResolver = createCampaignRuntimeProfileResolver(async ({ en
 const mutationHarnessProfile = await mutationHarnessResolver(databaseShard("mutation"));
 assert.equal(mutationHarnessProfile.databaseHarness, "us017");
 assert.equal(mutationHarnessProfile.observedAdminUrl, "postgres://owner:secret@db/ledger");
+
+const sandboxDatabases = new Map([["ledger", { marker: "template" }]]);
+class SandboxClient {
+  constructor({ connectionString }) { this.connectionString = connectionString; }
+  async connect() {}
+  async end() {}
+  async query(sql, values = []) {
+    const create = /^CREATE DATABASE "([^"]+)" WITH TEMPLATE "([^"]+)"/.exec(sql);
+    if (create) sandboxDatabases.set(create[1], { ...sandboxDatabases.get(create[2]) });
+    const drop = /^DROP DATABASE IF EXISTS "([^"]+)"/.exec(sql);
+    if (drop) sandboxDatabases.delete(drop[1]);
+    if (sql.startsWith("SELECT pg_terminate_backend")) return { rows: [], values };
+    return { rows: [] };
+  }
+}
+const sandboxEnvironment = {
+  DATABASE_ADMIN_URL: "postgres://owner:secret@db/ledger",
+  DATABASE_URL: "postgres://app:secret@db/ledger",
+  US017_MUTATION_DATABASE_ADMIN_URL: "postgres://owner:secret@db/ledger",
+  US017_MUTATION_DATABASE_URL: "postgres://app:secret@db/ledger",
+};
+const firstSandbox = await createDatabaseShardSandbox(
+  sandboxEnvironment, "first-mutating-shard", { default: { Client: SandboxClient } },
+);
+sandboxDatabases.get(firstSandbox.databaseName).marker = "mutated";
+await firstSandbox.cleanup();
+assert.equal(sandboxDatabases.get("ledger").marker, "template");
+const secondSandbox = await createDatabaseShardSandbox(
+  sandboxEnvironment, "second-mutating-shard", { default: { Client: SandboxClient } },
+);
+assert.equal(sandboxDatabases.get(secondSandbox.databaseName).marker, "template");
+assert.notEqual(firstSandbox.databaseName, secondSandbox.databaseName);
+assert.equal(new URL(secondSandbox.environment.DATABASE_URL).pathname, `/${secondSandbox.databaseName}`);
+assert.equal(
+  new URL(secondSandbox.environment.US017_MUTATION_DATABASE_ADMIN_URL).pathname,
+  `/${secondSandbox.databaseName}`,
+);
+await secondSandbox.cleanup();
+assert.deepEqual([...sandboxDatabases.keys()], ["ledger"]);
 assert.equal(databaseHarnessIdentity({
   testFiles: ["apps/web/src/modules/vendor-catalog/cross-org-move.integration.test.ts"],
 }, {
