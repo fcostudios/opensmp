@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
@@ -167,6 +167,7 @@ describe("US-025 vendor-account registry", () => {
       />,
     );
     const trigger = screen.getByTestId("btn_new_vendor_account");
+    expect(document.activeElement).not.toBe(trigger);
     await user.click(trigger);
     const dialog = screen.getByRole("dialog");
     expect(dialog.hasAttribute("open")).toBe(true);
@@ -186,6 +187,12 @@ describe("US-025 vendor-account registry", () => {
     await user.click(screen.getByRole("button", { name: "CANCEL_FORM" }));
     expect(dialog.hasAttribute("open")).toBe(false);
     expect(document.activeElement).toBe(trigger);
+    await user.click(trigger);
+    const cancelEvent = new Event("cancel", { bubbles: true, cancelable: true });
+    dialog.dispatchEvent(cancelEvent);
+    expect(cancelEvent.defaultPrevented).toBe(true);
+    expect(dialog.hasAttribute("open")).toBe(false);
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 
   it("shows linked accessible errors for invalid data without calling the action", async () => {

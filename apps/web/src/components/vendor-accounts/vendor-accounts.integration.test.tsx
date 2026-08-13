@@ -218,6 +218,10 @@ describe("US-025 real vendor-account dialog journey", () => {
     fireEvent.keyDown(dialog, { key: "Escape" });
     expect(dialog.hasAttribute("open")).toBe(true);
     expect(trigger.disabled).toBe(true);
+    const pendingCancel = new Event("cancel", { bubbles: true, cancelable: true });
+    dialog.dispatchEvent(pendingCancel);
+    expect(pendingCancel.defaultPrevented).toBe(true);
+    expect(dialog.hasAttribute("open")).toBe(true);
     await user.click(trigger);
     const submit = screen.getByRole("button", { name: "SUBMITTING_FORM" }) as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
@@ -227,6 +231,8 @@ describe("US-025 real vendor-account dialog journey", () => {
     resolveAuthorization(authorization);
     expect((await screen.findByText("CREATE_SUCCESS")).getAttribute("role")).toBe("status");
     expect(dialog.hasAttribute("open")).toBe(false);
+    expect(trigger.disabled).toBe(false);
+    expect(document.activeElement).toBe(trigger);
     const counts = await owner.query(
       `SELECT
          (SELECT count(*)::int FROM vendor_account WHERE name='Single Pending Account') AS accounts,
