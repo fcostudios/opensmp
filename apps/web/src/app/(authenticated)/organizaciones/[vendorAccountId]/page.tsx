@@ -9,13 +9,30 @@ import { getPoolRepository } from "@/modules/vendor-catalog/production-pool-repo
 import { getVendorAccountRepository } from "@/modules/vendor-catalog/production-vendor-account-repository";
 import { requireVendorAccountAdmin } from "@/modules/vendor-catalog/vendor-account-route-access";
 
-export default async function VendorAccountDetailPage({ params }: { readonly params: Promise<{ readonly vendorAccountId: string }> }) {
+export default async function VendorAccountDetailPage({ params }: {
+  readonly params: Promise<{ readonly vendorAccountId: string }>;
+}) {
   const authorization = requireVendorAccountAdmin(await loadCurrentLedgerAuthorization());
   const at = new Date();
-  const [data, t, poolsT, locale] = await Promise.all([
-    loadVendorAccountDetailPage({ at, authorization, poolRepository: getPoolRepository(), rawVendorAccountId: (await params).vendorAccountId, vendorAccountRepository: getVendorAccountRepository() }),
-    getTranslations("vendorAccounts"), getTranslations("pools"), getLocale(),
+  const [outcome, t, poolsT, locale] = await Promise.all([
+    loadVendorAccountDetailPage({
+      at,
+      authorization,
+      poolRepository: getPoolRepository(),
+      rawVendorAccountId: (await params).vendorAccountId,
+      vendorAccountRepository: getVendorAccountRepository(),
+    }),
+    getTranslations("vendorAccounts"),
+    getTranslations("pools"),
+    getLocale(),
   ]);
-  if (!data) notFound();
-  return renderVendorAccountDetailPage({ data, locale, poolsT, t, updateAction: updateVendorAccount.bind(null, data.detail.id) });
+  if (outcome.kind === "not-found") notFound();
+  const { data } = outcome;
+  return renderVendorAccountDetailPage({
+    data,
+    locale,
+    poolsT,
+    t,
+    updateAction: updateVendorAccount.bind(null, data.detail.id),
+  });
 }

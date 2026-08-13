@@ -19,6 +19,7 @@ import {
   DIRECT_TEST_ROUTES,
   classifyPageWiringBundle,
   classifyPoolSnapshotProjectionBundle,
+  classifyVendorAccountPageAdapter,
   classifyVerificationOnlyHunk,
   controlledChildEnvironment,
   createCampaignRuntimeProfileResolver,
@@ -29,6 +30,7 @@ import {
   isDatabaseBacked,
   mutationCompatibleTestFiles,
   mutatable,
+  partitionVendorAccountPageAdapterTargets,
   projectionEvidencePathForShard,
   readFreshMutationReport,
   requireNonzeroMutationReport,
@@ -76,6 +78,81 @@ assert.deepEqual(
     "apps/web/src/modules/vendor-catalog/service.ts",
   ],
   "test infrastructure is excluded while all production route boundaries remain scored",
+);
+
+const vendorRegistryPageSource = "apps/web/src/app/(authenticated)/organizaciones/page.tsx";
+const vendorDetailPageSource = "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx";
+const vendorRegistryPageAudit = classifyVendorAccountPageAdapter(
+  vendorRegistryPageSource,
+  readFileSync(vendorRegistryPageSource, "utf8"),
+);
+const vendorDetailPageAudit = classifyVendorAccountPageAdapter(
+  vendorDetailPageSource,
+  readFileSync(vendorDetailPageSource, "utf8"),
+);
+assert.equal(vendorRegistryPageAudit.reason, "verification-only:vendor-account-page-adapter");
+assert.deepEqual(
+  vendorRegistryPageAudit.ranges.map(({ reason }) => reason),
+  [
+    "authorization-wiring",
+    "load-and-translation-namespace-wiring",
+    "render-wiring",
+  ],
+);
+assert.deepEqual(
+  vendorDetailPageAudit.ranges.map(({ reason }) => reason),
+  [
+    "authorization-wiring",
+    "clock-wiring",
+    "load-and-translation-namespace-wiring",
+    "not-found-framework-wiring",
+    "ready-outcome-wiring",
+    "render-wiring",
+  ],
+);
+assert.throws(
+  () => classifyVendorAccountPageAdapter(
+    vendorDetailPageSource,
+    readFileSync(vendorDetailPageSource, "utf8").replace(
+      'if (outcome.kind === "not-found") notFound();',
+      "if (!outcome) notFound();",
+    ),
+  ),
+  /business conditional|exact default adapter/,
+);
+assert.deepEqual(
+  partitionVendorAccountPageAdapterTargets([
+    `${vendorDetailPageSource}:12-12`,
+    "apps/web/src/modules/vendor-catalog/vendor-account-page-loaders.ts:1-49",
+    `${vendorRegistryPageSource}:10-18`,
+  ], (source) => readFileSync(source, "utf8")),
+  {
+    adapter: [`${vendorDetailPageSource}:12-12`, `${vendorRegistryPageSource}:10-18`],
+    routed: ["apps/web/src/modules/vendor-catalog/vendor-account-page-loaders.ts:1-49"],
+  },
+  "only exact thin page-adapter ranges leave the scored mutation route",
+);
+assert.throws(
+  () => classifyVendorAccountPageAdapter(
+    vendorDetailPageSource,
+    readFileSync(vendorDetailPageSource, "utf8").replace(
+      "  const at = new Date();",
+      "  const at = new Date();\n  invokeUnscoredBusinessRule();",
+    ),
+  ),
+  /exact default adapter statement sequence changed/,
+  "an extra unconditional business call cannot enter verification-only ranges",
+);
+assert.throws(
+  () => classifyVendorAccountPageAdapter(
+    vendorDetailPageSource,
+    readFileSync(vendorDetailPageSource, "utf8").replace(
+      "readonly vendorAccountId: string",
+      "readonly vendorAccountId?: string",
+    ),
+  ),
+  /exact default adapter function changed/,
+  "the dynamic-route parameter signature is part of the exact adapter contract",
 );
 
 const databaseShard = (id) => ({ id, sources: ["packages/db/src/example.ts"], testFiles: [] });
@@ -556,7 +633,7 @@ assert.deepEqual(
 const us025DirectRoutes = {
   "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx": [
     "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
-    "apps/web/src/modules/vendor-catalog/vendor-account-repository.integration.test.ts",
+    "apps/web/src/modules/vendor-catalog/vendor-account-page-loaders.test.ts",
   ],
   "apps/web/src/app/(authenticated)/organizaciones/error.tsx": [
     "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
@@ -566,7 +643,7 @@ const us025DirectRoutes = {
   ],
   "apps/web/src/app/(authenticated)/organizaciones/page.tsx": [
     "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
-    "apps/web/src/modules/vendor-catalog/vendor-account-repository.integration.test.ts",
+    "apps/web/src/modules/vendor-catalog/vendor-account-page-loaders.test.ts",
   ],
   "apps/web/src/components/vendor-accounts/capability-card.tsx": [
     "apps/web/src/components/vendor-accounts/vendor-account-detail.test.tsx",

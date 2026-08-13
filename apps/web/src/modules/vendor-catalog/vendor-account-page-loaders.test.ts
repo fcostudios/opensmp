@@ -56,8 +56,10 @@ test("loads registry and detail page models through real PostgreSQL repository p
     vendors: [{ id: ids.vendor, name: "Anthropic" }],
   });
   const detail = await loadVendorAccountDetailPage({ at, authorization, poolRepository, rawVendorAccountId: ids.account, vendorAccountRepository: vendorRepository });
-  expect(detail?.detail.id).toBe(ids.account);
-  expect(detail?.snapshots).toEqual([expect.objectContaining({ free: 13, purchased: 13, vendorAccountId: ids.account })]);
+  expect(detail.kind).toBe("ready");
+  if (detail.kind !== "ready") throw new Error("expected a ready detail page outcome");
+  expect(detail.data.detail.id).toBe(ids.account);
+  expect(detail.data.snapshots).toEqual([expect.objectContaining({ free: 13, purchased: 13, vendorAccountId: ids.account })]);
 });
 
 test("rejects an invalid identifier before real unreachable repositories perform I/O", async () => {
@@ -65,7 +67,7 @@ test("rejects an invalid identifier before real unreachable repositories perform
   const unreachableVendor = createVendorAccountRepository(unreachable);
   const unreachablePool = createPoolRepository(unreachable);
   try {
-    await expect(loadVendorAccountDetailPage({ at, authorization, poolRepository: unreachablePool, rawVendorAccountId: "not-a-uuid", vendorAccountRepository: unreachableVendor })).resolves.toBeNull();
+    await expect(loadVendorAccountDetailPage({ at, authorization, poolRepository: unreachablePool, rawVendorAccountId: "not-a-uuid", vendorAccountRepository: unreachableVendor })).resolves.toEqual({ kind: "not-found" });
   } finally {
     await Promise.all([unreachableVendor.close(), unreachablePool.close()]);
   }

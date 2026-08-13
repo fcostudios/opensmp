@@ -14,6 +14,10 @@ export interface VendorAccountDetailPageData {
   readonly snapshots: readonly VendorPoolSnapshot[];
 }
 
+export type VendorAccountDetailPageOutcome =
+  | { readonly kind: "not-found" }
+  | { readonly data: VendorAccountDetailPageData; readonly kind: "ready" };
+
 export async function loadVendorAccountsRegistryPage(input: {
   readonly at: Date;
   readonly authorization: LedgerAuthorization;
@@ -32,12 +36,14 @@ export async function loadVendorAccountDetailPage(input: {
   readonly poolRepository: PoolRepository;
   readonly rawVendorAccountId: string;
   readonly vendorAccountRepository: VendorAccountRepository;
-}): Promise<VendorAccountDetailPageData | null> {
+}): Promise<VendorAccountDetailPageOutcome> {
   const vendorAccountId = parseVendorAccountId(input.rawVendorAccountId);
-  if (!vendorAccountId) return null;
+  if (!vendorAccountId) return { kind: "not-found" };
   const [detail, snapshots] = await Promise.all([
     input.vendorAccountRepository.detail(input.authorization, vendorAccountId, input.at),
     input.poolRepository.listSnapshots(input.authorization, input.at, vendorAccountId),
   ]);
-  return detail ? { at: input.at, detail, snapshots } : null;
+  return detail
+    ? { data: { at: input.at, detail, snapshots }, kind: "ready" }
+    : { kind: "not-found" };
 }

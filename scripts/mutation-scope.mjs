@@ -44,6 +44,7 @@ const SCHEMA_STATIC_SOURCE = "packages/db/src/schema.ts";
 const VITEST_CONFIG_STATIC_SOURCE = "apps/web/vitest.config.ts";
 const VITEST_CONFIG_STATIC_RANGE = `${VITEST_CONFIG_STATIC_SOURCE}:21-21`;
 const SCORED_STATIC_KINDS = new Set(["schema-static", "vitest-config-static"]);
+const VENDOR_ACCOUNT_PAGE_ADAPTER_KIND = "vendor-account-page-adapter";
 const MUTATION_RUNNER_STATIC_INPUTS = [
   "scripts/mutation-scope.mjs",
   "scripts/mutation-evidence/fingerprint.mjs",
@@ -937,6 +938,99 @@ export function classifyPageWiringBundle(changes) {
   };
 }
 
+const VENDOR_ACCOUNT_PAGE_ADAPTER_SPECS = {
+  "apps/web/src/app/(authenticated)/organizaciones/page.tsx": {
+    functionName: "VendorAccountsPage",
+    imports: ["next-intl/server", "@/modules/identity-access/server-authorization", "@/modules/vendor-catalog/actions/manage-vendor-accounts", "@/modules/vendor-catalog/vendor-account-page-loaders", "@/modules/vendor-catalog/vendor-account-page-presenters", "@/modules/vendor-catalog/production-vendor-account-repository", "@/modules/vendor-catalog/vendor-account-route-access"],
+    parameter: null,
+    statements: [
+      ["authorization-wiring", "const authorization = requireVendorAccountAdmin(await loadCurrentLedgerAuthorization());"],
+      ["load-and-translation-namespace-wiring", 'const [data, t, locale] = await Promise.all([\n    loadVendorAccountsRegistryPage({ at: new Date(), authorization, repository: getVendorAccountRepository() }),\n    getTranslations("vendorAccounts"),\n    getLocale(),\n  ]);'],
+      ["render-wiring", "return renderVendorAccountsRegistryPage({ createAction: createVendorAccount, data, locale, t });"],
+    ],
+  },
+  "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx": {
+    functionName: "VendorAccountDetailPage",
+    imports: ["next/navigation", "next-intl/server", "@/modules/identity-access/server-authorization", "@/modules/vendor-catalog/actions/manage-vendor-accounts", "@/modules/vendor-catalog/vendor-account-page-loaders", "@/modules/vendor-catalog/vendor-account-page-presenters", "@/modules/vendor-catalog/production-pool-repository", "@/modules/vendor-catalog/production-vendor-account-repository", "@/modules/vendor-catalog/vendor-account-route-access"],
+    parameter: "{ params }: {\n  readonly params: Promise<{ readonly vendorAccountId: string }>;\n}",
+    statements: [
+      ["authorization-wiring", "const authorization = requireVendorAccountAdmin(await loadCurrentLedgerAuthorization());"],
+      ["clock-wiring", "const at = new Date();"],
+      ["load-and-translation-namespace-wiring", 'const [outcome, t, poolsT, locale] = await Promise.all([\n    loadVendorAccountDetailPage({\n      at,\n      authorization,\n      poolRepository: getPoolRepository(),\n      rawVendorAccountId: (await params).vendorAccountId,\n      vendorAccountRepository: getVendorAccountRepository(),\n    }),\n    getTranslations("vendorAccounts"),\n    getTranslations("pools"),\n    getLocale(),\n  ]);'],
+      ["not-found-framework-wiring", 'if (outcome.kind === "not-found") notFound();'],
+      ["ready-outcome-wiring", "const { data } = outcome;"],
+      ["render-wiring", "return renderVendorAccountDetailPage({\n    data,\n    locale,\n    poolsT,\n    t,\n    updateAction: updateVendorAccount.bind(null, data.detail.id),\n  });"],
+    ],
+  },
+};
+
+const VENDOR_ACCOUNT_PAGE_ADAPTER_SOURCES = new Set(
+  Object.keys(VENDOR_ACCOUNT_PAGE_ADAPTER_SPECS),
+);
+
+/**
+ * Audit the two Next.js composition roots whose remaining code solely invokes
+ * framework/application seams. Business decisions live in scored loaders; the
+ * detail root may only dispatch the already-scored `not-found` outcome.
+ */
+export function classifyVendorAccountPageAdapter(source, contents, requestedRanges = []) {
+  const spec = VENDOR_ACCOUNT_PAGE_ADAPTER_SPECS[source];
+  if (!spec) throw new Error("vendor account page adapter wrong scope");
+  if (/Stryker\s+(disable|restore)/.test(contents)) {
+    throw new Error("vendor account page adapter mutation suppression is forbidden");
+  }
+  const parsed = parseModule(source, contents);
+  const imports = moduleDeclarations(parsed).filter(ts.isImportDeclaration)
+    .map((node) => node.moduleSpecifier.text);
+  if (JSON.stringify(imports) !== JSON.stringify(spec.imports)) {
+    throw new Error("vendor account exact default adapter imports changed");
+  }
+  const defaults = parsed.statements.filter((node) =>
+    ts.isFunctionDeclaration(node) && node.modifiers?.some((modifier) =>
+      modifier.kind === ts.SyntaxKind.DefaultKeyword));
+  const page = defaults[0];
+  if (
+    defaults.length !== 1 || !page.body || page.name?.text !== spec.functionName ||
+    !page.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.AsyncKeyword) ||
+    page.parameters.length !== (spec.parameter === null ? 0 : 1) ||
+    (spec.parameter !== null && page.parameters[0].getText(parsed) !== spec.parameter)
+  ) throw new Error("vendor account exact default adapter function changed");
+  const statementTexts = page.body.statements.map((statement) => statement.getText(parsed));
+  if (JSON.stringify(statementTexts) !== JSON.stringify(spec.statements.map(([, text]) => text))) {
+    throw new Error("vendor account exact default adapter statement sequence changed or business conditional reappeared");
+  }
+  const ranges = page.body.statements.map((statement, index) => {
+    const start = parsed.getLineAndCharacterOfPosition(statement.getStart(parsed)).line + 1;
+    const end = parsed.getLineAndCharacterOfPosition(statement.getEnd()).line + 1;
+    return { start, end, reason: spec.statements[index][0] };
+  });
+  for (const target of requestedRanges) {
+    const range = rangeParts(target);
+    if (range.source !== source || range.start < 1 || range.end > lineCount(contents)) {
+      throw new Error("vendor account page adapter range escapes exact source");
+    }
+  }
+  return {
+    ranges,
+    reason: "verification-only:vendor-account-page-adapter",
+    source,
+    verifiedMutationRanges: [...requestedRanges],
+  };
+}
+
+export function partitionVendorAccountPageAdapterTargets(targets, sourceContents) {
+  const adapter = targets.filter((target) =>
+    VENDOR_ACCOUNT_PAGE_ADAPTER_SOURCES.has(rangeParts(target).source));
+  for (const source of mutationSourceFiles(adapter)) {
+    classifyVendorAccountPageAdapter(
+      source,
+      sourceContents(source),
+      adapter.filter((target) => rangeParts(target).source === source),
+    );
+  }
+  return { adapter, routed: targets.filter((target) => !adapter.includes(target)) };
+}
+
 export function requireNonzeroMutationReport(report, shardId) {
   const mutants = mutationReportMutants(report);
   if (mutants.length === 0) {
@@ -1010,6 +1104,18 @@ export function verificationAuditsForReport(
       throw new Error("database projection incomplete or extra mutation range set");
     }
     return [audit];
+  }
+  const vendorPageSources = shard.sources.filter((source) =>
+    VENDOR_ACCOUNT_PAGE_ADAPTER_SOURCES.has(source));
+  if (vendorPageSources.length > 0) {
+    if (vendorPageSources.length !== shard.sources.length) {
+      throw new Error("vendor account page adapter cannot share a verification-only shard");
+    }
+    return vendorPageSources.map((source) => classifyVendorAccountPageAdapter(
+      source,
+      readFileSync(source, "utf8"),
+      shard.mutate.filter((range) => rangeParts(range).source === source),
+    ));
   }
   const pageSources = shard.sources.filter((source) => PAGE_WIRING_SOURCES.has(source));
   if (pageSources.length > 0) {
@@ -1236,6 +1342,16 @@ export function verificationCommandsForSources(sources, testFiles, context = {})
     commands.push(["pnpm", ["--filter", "smp-web", "type-check"]]);
     commands.push(["pnpm", ["--filter", "smp-web", "build"]]);
   }
+  if (sources.some((source) => VENDOR_ACCOUNT_PAGE_ADAPTER_SOURCES.has(source))) {
+    if (!sources.every((source) => VENDOR_ACCOUNT_PAGE_ADAPTER_SOURCES.has(source))) {
+      throw new Error("vendor account page adapter verification must be isolated");
+    }
+    commands.push([
+      "./apps/web/node_modules/.bin/vitest",
+      ["run", "--config", "vitest.mutation.config.mjs", ...testFiles],
+    ]);
+    commands.push(["pnpm", ["--filter", "smp-web", "type-check"]]);
+  }
   if (sources.some((source) => source.startsWith("packages/connectors/"))) {
     commands.push(["node", ["--eval", 'require("node:fs").rmSync("packages/connectors/dist/module-wiring", { recursive: true, force: true })']]);
     commands.push(["pnpm", [
@@ -1370,7 +1486,7 @@ const ADJACENT_TEST_SUFFIXES = [
 export const DIRECT_TEST_ROUTES = {
   "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx": [
     "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
-    "apps/web/src/modules/vendor-catalog/vendor-account-repository.integration.test.ts",
+    "apps/web/src/modules/vendor-catalog/vendor-account-page-loaders.test.ts",
   ],
   "apps/web/src/app/(authenticated)/organizaciones/error.tsx": [
     "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
@@ -1380,7 +1496,7 @@ export const DIRECT_TEST_ROUTES = {
   ],
   "apps/web/src/app/(authenticated)/organizaciones/page.tsx": [
     "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
-    "apps/web/src/modules/vendor-catalog/vendor-account-repository.integration.test.ts",
+    "apps/web/src/modules/vendor-catalog/vendor-account-page-loaders.test.ts",
   ],
   "apps/web/src/components/vendor-accounts/capability-card.tsx": [
     "apps/web/src/components/vendor-accounts/vendor-account-detail.test.tsx",
@@ -1762,7 +1878,13 @@ export async function runMutationScope(options = {}) {
     );
   }
   const staticMutate = new Set([...schemaStaticMutate, ...vitestConfigStaticMutate]);
-  const routedMutate = allMutate.filter((target) => !staticMutate.has(target));
+  const adapterPartition = partitionVendorAccountPageAdapterTargets(
+    allMutate,
+    (source) => readFileSync(source, "utf8"),
+  );
+  const vendorAccountPageAdapterMutate = adapterPartition.adapter;
+  const vendorAccountPageAdapterSources = mutationSourceFiles(vendorAccountPageAdapterMutate);
+  const routedMutate = adapterPartition.routed.filter((target) => !staticMutate.has(target));
 
   console.log(
     `mutation-scope: base=${resolvedBase} changed=${changed.length} ` +
@@ -1791,6 +1913,19 @@ export async function runMutationScope(options = {}) {
   }
 
   const shardSpecs = routedGroups.map((group) => ({ kind: "vitest", ...group }));
+  if (vendorAccountPageAdapterMutate.length > 0) {
+    const testFiles = [...new Set(vendorAccountPageAdapterSources.flatMap((source) =>
+      mutationCompatibleTestFiles(testsForSource(source, existsSync, DIRECT_TEST_ROUTES))))].sort();
+    if (testFiles.length === 0) {
+      fail("vendor account page adapter has no accountable focused tests");
+    }
+    shardSpecs.push({
+      kind: VENDOR_ACCOUNT_PAGE_ADAPTER_KIND,
+      mutate: vendorAccountPageAdapterMutate,
+      sources: vendorAccountPageAdapterSources,
+      testFiles,
+    });
+  }
   if (schemaStaticMutate.length > 0) {
     requireRoutedTestFiles(
       changed,
@@ -2188,7 +2323,20 @@ export async function runMutationScope(options = {}) {
         return { manifest: manifestFor(), performance: performanceRun };
       }
       const childEnvironment = controlledChildEnvironment(shardEnvironment, runtimeProfile);
-      const result = await executeShard({ shard, environment: childEnvironment });
+      let result;
+      if (shard.kind === VENDOR_ACCOUNT_PAGE_ADAPTER_KIND) {
+        writeFileSync(shard.jsonReportPath, `${JSON.stringify({
+          config: {
+            configFile: shard.configPath,
+            jsonReporter: { fileName: shard.jsonReportPath },
+            mutate: shard.mutate,
+          },
+          files: {},
+        })}\n`, "utf8");
+        result = { status: 0 };
+      } else {
+        result = await executeShard({ shard, environment: childEnvironment });
+      }
       if (signalShutdownPromise) {
         await signalShutdownPromise;
         return { manifest: manifestFor(), performance: performanceRun };
