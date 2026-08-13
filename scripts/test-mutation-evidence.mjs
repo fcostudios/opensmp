@@ -157,7 +157,7 @@ try {
     toolVersions,
     runtimeProfile,
   );
-  assert.deepEqual(collected, expected);
+  assert.deepEqual(collected, { hashes: expected, reasons: [], reusable: true });
   assert.equal(canonicalJson(collected).includes("must-not-be-persisted"), false);
   process.env.LEDGER_FINGERPRINT_SECRET_SENTINEL = "changed-secret-value";
   assert.deepEqual(
@@ -209,22 +209,26 @@ try {
       toolVersions,
       runtimeProfile,
     }),
-    await expectedInputs(
-      fixtureRoot,
-      [
-        "apps/web/package.json",
-        "apps/web/src/app/page.ts",
-        "apps/web/src/lib/aliased.ts",
-        "apps/web/src/lib/nested.ts",
-        "apps/web/tsconfig.json",
-        "package.json",
-        "pnpm-lock.yaml",
-        "tsconfig.base.json",
-        "tsconfig.foundation.json",
-      ],
-      toolVersions,
-      runtimeProfile,
-    ),
+    {
+      hashes: await expectedInputs(
+        fixtureRoot,
+        [
+          "apps/web/package.json",
+          "apps/web/src/app/page.ts",
+          "apps/web/src/lib/aliased.ts",
+          "apps/web/src/lib/nested.ts",
+          "apps/web/tsconfig.json",
+          "package.json",
+          "pnpm-lock.yaml",
+          "tsconfig.base.json",
+          "tsconfig.foundation.json",
+        ],
+        toolVersions,
+        runtimeProfile,
+      ),
+      reasons: [],
+      reusable: true,
+    },
   );
   const aliasInputsBeforeGrandparentChange = collectExecutionInputs({
     root: fixtureRoot,
@@ -340,9 +344,60 @@ try {
         toolVersions,
         runtimeProfile,
       }),
-      await expectedInputs(fixtureRoot, fallbackPaths, toolVersions, runtimeProfile),
+      {
+        hashes: await expectedInputs(fixtureRoot, fallbackPaths, toolVersions, runtimeProfile),
+        reasons: [{ code: "excluded-runtime-inputs", workspace: "packages/uncertain" }],
+        reusable: false,
+      },
     );
   }
+  const unsafeResult = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/uncertain/src/fs-promises-property.ts"],
+    configurationFiles: [],
+    migrationRoots: [],
+    toolVersions,
+    runtimeProfile,
+  });
+  assert.equal(canonicalJson(unsafeResult).includes("must-not-be-persisted"), false);
+
+  const safeRuntimeFiles = {
+    "packages/safe/package.json": '{"name":"@fixture/safe","type":"module"}',
+    "packages/safe/src/load.ts":
+      'import { readFile } from "node:fs/promises";\nexport const load = readFile;\n',
+    "packages/safe/fixtures/runtime.txt": "safe runtime input\n",
+  };
+  await Promise.all(
+    Object.entries(safeRuntimeFiles).map(([relativePath, contents]) =>
+      put(fixtureRoot, relativePath, contents),
+    ),
+  );
+  assert.deepEqual(
+    collectExecutionInputs({
+      root: fixtureRoot,
+      entryFiles: ["packages/safe/src/load.ts"],
+      configurationFiles: [],
+      migrationRoots: [],
+      toolVersions,
+      runtimeProfile,
+    }),
+    {
+      hashes: await expectedInputs(
+        fixtureRoot,
+        [
+          "package.json",
+          "packages/safe/fixtures/runtime.txt",
+          "packages/safe/package.json",
+          "packages/safe/src/load.ts",
+          "pnpm-lock.yaml",
+        ],
+        toolVersions,
+        runtimeProfile,
+      ),
+      reasons: [],
+      reusable: true,
+    },
+  );
 } finally {
   delete process.env.LEDGER_FINGERPRINT_SECRET_SENTINEL;
   await rm(fixtureRoot, { recursive: true, force: true });

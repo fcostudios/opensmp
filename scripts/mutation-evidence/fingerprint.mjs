@@ -83,14 +83,16 @@ function isWithin(parent, candidate) {
   return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== "..");
 }
 
-function walkFiles(directory) {
+function walkFiles(directory, onExcluded = () => {}) {
   if (!existsSync(directory)) return [];
   if (!statSync(directory).isDirectory()) return [directory];
   const files = [];
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if ([".git", "node_modules"].includes(entry.name)) {
+      continue;
+    }
     if ([
       ".cache",
-      ".git",
       ".next",
       ".stryker-tmp",
       ".turbo",
@@ -98,13 +100,13 @@ function walkFiles(directory) {
       "coverage",
       "dist",
       "generated",
-      "node_modules",
       "reports",
     ].includes(entry.name)) {
+      onExcluded();
       continue;
     }
     const entryPath = path.join(directory, entry.name);
-    if (entry.isDirectory()) files.push(...walkFiles(entryPath));
+    if (entry.isDirectory()) files.push(...walkFiles(entryPath, onExcluded));
     else if (entry.isFile()) files.push(entryPath);
   }
   return files;
@@ -243,6 +245,7 @@ export function collectExecutionInputs({
   const workspacePackages = findWorkspacePackages(absoluteRoot);
   const included = new Set();
   const expandedWorkspaces = new Set();
+  const incompleteWorkspaces = new Set();
   const compilerConfigurationCache = new Map();
   const includedCompilerConfigurations = new Set();
   const fileSystemModules = new Set(["fs", "fs/promises", "node:fs", "node:fs/promises"]);
@@ -258,8 +261,10 @@ export function collectExecutionInputs({
     const owner = findOwner(absoluteRoot, workspacePackages, file);
     if (!owner || expandedWorkspaces.has(owner.directory)) return;
     expandedWorkspaces.add(owner.directory);
-    for (const ownedFile of walkFiles(owner.directory)) {
+    const markIncomplete = () => incompleteWorkspaces.add(owner.directory);
+    for (const ownedFile of walkFiles(owner.directory, markIncomplete)) {
       if (isWorkspaceFingerprintFile(owner.directory, ownedFile)) addFile(ownedFile);
+      else markIncomplete();
     }
   };
   const includeCompilerConfigurationChain = (configPath, ownerFile) => {
@@ -453,5 +458,14 @@ export function collectExecutionInputs({
     ["@runtime/profile.json", sha256(canonicalJson(runtimeProfile))],
     ["@tool/versions.json", sha256(canonicalJson(toolVersions))],
   );
-  return Object.fromEntries(entries.sort(([left], [right]) => comparePaths(left, right)));
+  const hashes = Object.fromEntries(
+    entries.sort(([left], [right]) => comparePaths(left, right)),
+  );
+  const reasons = [...incompleteWorkspaces]
+    .map((workspace) => ({
+      code: "excluded-runtime-inputs",
+      workspace: displayPath(workspace),
+    }))
+    .sort((left, right) => comparePaths(left.workspace, right.workspace));
+  return { hashes, reasons, reusable: reasons.length === 0 };
 }
