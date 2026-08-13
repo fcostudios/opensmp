@@ -1548,8 +1548,10 @@ async function defaultRuntimeProfile({ shard, environment = process.env } = {}) 
   };
 }
 
-function isDatabaseBacked(shard) {
+export function isDatabaseBacked(shard) {
   return shard.sources.some((source) => source.startsWith("packages/db/"))
+    || shard.sources.some((source) => existsSync(source)
+      && /process\.env\.(?:DATABASE_URL|DATABASE_ADMIN_URL)/.test(readFileSync(source, "utf8")))
     || shard.testFiles.some((test) =>
       test.startsWith("packages/db/")
       || (/\.integration\.test\.[cm]?[jt]sx?$/.test(test) && !/\.pact\.test\./.test(test)));
@@ -1723,6 +1725,7 @@ export async function runMutationScope(options = {}) {
   const runSuffix = process.env.MUTATION_SCOPE_DRY === "1"
     ? "dry"
     : (options.runId ?? `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  const probeShardId = process.env.MUTATION_PROBE_SHARD_ID;
   const shards = shardSpecs.map((spec) => {
     const digest = createHash("sha256")
       .update([spec.kind, ...spec.sources, ...spec.testFiles, ...spec.mutate].join("\n"))
@@ -1800,7 +1803,8 @@ export async function runMutationScope(options = {}) {
       tempDirName,
       testFiles: spec.testFiles,
     };
-  }).sort((left, right) => left.id.localeCompare(right.id));
+  }).filter((shard) => !probeShardId || shard.id === probeShardId)
+    .sort((left, right) => left.id.localeCompare(right.id));
 
   mkdirSync(GENERATED_SHARD_DIR, { recursive: true });
   for (const shard of shards) {

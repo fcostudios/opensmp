@@ -26,6 +26,7 @@ import {
   createDatabaseShardSandbox,
   databaseHarnessIdentity,
   groupRoutedMutationTargets,
+  isDatabaseBacked,
   mutationCompatibleTestFiles,
   mutatable,
   projectionEvidencePathForShard,
@@ -85,6 +86,10 @@ const mutationHarnessResolver = createCampaignRuntimeProfileResolver(async ({ en
 const mutationHarnessProfile = await mutationHarnessResolver(databaseShard("mutation"));
 assert.equal(mutationHarnessProfile.databaseHarness, "us017");
 assert.equal(mutationHarnessProfile.observedAdminUrl, "postgres://owner:secret@db/ledger");
+assert.equal(isDatabaseBacked({
+  sources: ["apps/web/src/modules/vendor-catalog/production-vendor-account-repository.ts"],
+  testFiles: ["apps/web/src/modules/vendor-catalog/actions/manage-vendor-accounts.test.ts"],
+}), true, "a production DATABASE_URL dependency requires schema-profiled cache evidence");
 
 const sandboxDatabases = new Map([["ledger", { marker: "template" }]]);
 class SandboxClient {

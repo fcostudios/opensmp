@@ -134,6 +134,12 @@ beforeAll(async () => {
   appPool = new pg.Pool({ connectionString: fixture.appUrl });
 
   await owner.query(
+    `TRUNCATE TABLE audit_log, provisioning_action, license_request,
+       license_assignment, license_type, vendor_account, vendor, person,
+       company_role_assignment, company, user_account RESTART IDENTITY CASCADE`,
+  );
+
+  await owner.query(
     `INSERT INTO user_account
        (id, email, idp_subject, global_role, ui_language, status, created_at)
      VALUES
