@@ -57,11 +57,14 @@ test("loading boundary renders its localized label as a polite status", () => {
 });
 
 test("loading route resolves real next-intl labels", () => {
-  render(createElement(NextIntlClientProvider, {
-    locale: "en-US",
-    messages: { vendorAccounts: { loading: "Boundary loading" } },
-    children: createElement(VendorAccountsLoading),
-  }));
+  render(createElement(
+    NextIntlClientProvider,
+    {
+      locale: "en-US",
+      messages: { vendorAccounts: { loading: "Boundary loading" } },
+    },
+    createElement(VendorAccountsLoading),
+  ));
   expect(screen.getByRole("status").textContent).toBe("Boundary loading");
 });
 
@@ -82,11 +85,14 @@ test("error boundary renders the failure and invokes exactly its supplied retry"
 
 test("error route resolves real next-intl labels and delegates retry", () => {
   let retries = 0;
-  render(createElement(NextIntlClientProvider, {
-    locale: "en-US",
-    messages: { vendorAccounts: { loadError: "Boundary failure", retry: "Try again" } },
-    children: createElement(VendorAccountsError, { reset: () => { retries += 1; } }),
-  }));
+  render(createElement(
+    NextIntlClientProvider,
+    {
+      locale: "en-US",
+      messages: { vendorAccounts: { loadError: "Boundary failure", retry: "Try again" } },
+    },
+    createElement(VendorAccountsError, { reset: () => { retries += 1; } }),
+  ));
   expect(screen.getByRole("alert").textContent).toContain("Boundary failure");
   fireEvent.click(screen.getByRole("button", { name: "Try again" }));
   expect(retries).toBe(1);
