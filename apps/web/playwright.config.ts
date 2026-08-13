@@ -7,6 +7,7 @@ export default defineConfig({
     "shell.spec.ts",
     "audit.spec.ts",
     "sprint2-orchestration.spec.ts",
+    "vendor-accounts.spec.ts",
   ],
   globalSetup: "./e2e/auth.setup.ts",
   fullyParallel: false,

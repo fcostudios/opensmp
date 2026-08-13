@@ -280,6 +280,37 @@
   "pools": {
     "addCapacity": "Add capacity", "assigned": "Assigned", "attention": "Below the minimum floor", "automated": "Automated", "available": "Available", "candidateTitle": "Reclaim candidates", "dashboardTitle": "Pool capacity", "detailEyebrow": "Vendor organization", "discrepancy": "Oversubscribed by", "effectiveFrom": "Effective from", "effectiveFromField": "Effective date", "emptyDescription": "A pool appears after its first effective capacity record.", "emptyTitle": "No pool capacity recorded", "escalated": "Escalated", "eyebrow": "Pool operations", "floor": "Minimum floor", "freshness": "Capacity as of {date} (Ecuador)", "lastActive": "Last active", "loadError": "We couldn't load pool capacity.", "loading": "Loading pools…", "mode": "Mode", "monthlyCost": "Monthly cost", "noUsageData": "No usage data", "note": "Note (optional)", "orchestration": "Orchestration", "pending": "Pending invites", "prorationNote": "A purchase is prorated by actual days in the billing cycle.", "purchased": "Purchased", "purchasedQty": "Purchased total", "renewal": "Contract renewal", "retry": "Try again", "saveCapacity": "Save capacity", "subtitle": "Purchased, assigned, pending invitations, and available capacity for each vendor organization.", "title": "Pools by organization"
   },
+  "vendorAccounts": {
+    "title": "Vendor organizations",
+    "subtitle": "The vendor organizations where the group's licenses live.",
+    "eyebrow": "Vendor management",
+    "listTitle": "Registered organizations",
+    "listDescription": "Purchased and free licenses, renewal, credential health, and operating settings.",
+    "empty": "No vendor organizations have been registered.",
+    "tableCaption": "Registered vendor organizations",
+    "viewAccount": "Open organization details",
+    "noRenewal": "Not set",
+    "seatsPattern": "{purchased} purchased / {free} free",
+    "columns": { "name": "Organization", "vendor": "Vendor", "connector": "Connector", "mode": "Mode", "seats": "Purchased / free", "renewal": "Renewal", "credential": "Credential", "floor": "Minimum floor", "status": "Status" },
+    "connector": { "api": "API", "orchestration": "Orchestration", "manual": "Manual" },
+    "protocol": { "rest": "REST", "scim": "SCIM", "none": "No protocol" },
+    "modes": { "automated": "Automated", "orchestration": "Orchestration" },
+    "credential": { "ok": "Healthy", "auth_failed": "Authentication failed", "unverified": "Unverified", "none": "Not configured" },
+    "status": { "active": "Active", "inactive": "Inactive" },
+    "form": {
+      "title": "New organization",
+      "description": "Register a vendor organization. You can add capacity, credentials, and license types from its details afterward.",
+      "trigger": "New organization",
+      "cancel": "Cancel",
+      "submit": "Create organization",
+      "submitting": "Creating…",
+      "success": "Organization created. Now add its capacity and credentials.",
+      "fields": { "vendorId": "Vendor", "name": "Organization name", "vendorOrgRef": "Vendor reference (optional)", "mode": "Mode", "lowPoolFloor": "Minimum free-license floor", "contractRenewalOn": "Contract renewal date (optional)" },
+      "help": { "vendor": "R1 supports active Anthropic vendors supplied by the server.", "vendorOrgRef": "Use the identifier shown in the vendor administration console, when available.", "lowPoolFloor": "We will alert you when free licenses fall below this number." },
+      "modes": { "automated": "Automated (Ledger executes actions)", "orchestration": "Orchestration (Ledger guides you through the vendor console)" },
+      "errors": { "vendorId": "Select an available vendor.", "name": "Enter an organization name.", "vendorOrgRef": "The vendor reference must be 200 characters or fewer.", "mode": "Select a valid mode.", "lowPoolFloor": "Enter a non-negative whole number.", "contractRenewalOn": "Enter a valid renewal date.", "duplicate": "An organization with this name or vendor reference already exists.", "generic": "We couldn't create the organization. Review the data and try again." }
+    }
+  },
   "usersRoles": {
     "displayName": "Display name",
     "accountDescription": "Create an access account and link it to a person in the directory. The person will receive an email to configure their password and 2FA.",

@@ -98,5 +98,15 @@
     "password": "audit-admin-test-password",
     "enabled": true,
     "platformAdmin": true
+  },
+  {
+    "id": "10000000-0000-0000-0000-000000000011",
+    "username": "vendor-accounts-admin",
+    "email": "vendor-accounts-admin@auth.test",
+    "firstName": "Vendor Accounts",
+    "lastName": "Admin",
+    "password": "vendor-accounts-admin-test-password",
+    "enabled": true,
+    "platformAdmin": true
   }
 ]

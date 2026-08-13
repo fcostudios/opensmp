@@ -66,6 +66,25 @@ describe("message catalogs", () => {
     );
   });
 
+  test("locks the critical bilingual vendor-account registry vocabulary", () => {
+    expect(enUsRaw.vendorAccounts).toMatchObject({
+      title: "Vendor organizations",
+      form: {
+        success: "Organization created. Now add its capacity and credentials.",
+        fields: { lowPoolFloor: "Minimum free-license floor" },
+      },
+      empty: "No vendor organizations have been registered.",
+    });
+    expect(esEcRaw.vendorAccounts).toMatchObject({
+      title: "Organizaciones",
+      form: {
+        success: "Organización creada. Ahora carga su capacidad y credenciales.",
+        fields: { lowPoolFloor: "Umbral mínimo de licencias libres" },
+      },
+      empty: "No hay organizaciones de proveedor registradas.",
+    });
+  });
+
   test("states only the register guarantees enforced by the database", () => {
     expect(enUsRaw.register.integrityContent).toBe(
       "The database prevents overlapping assignments and requires reallocation moves to remain contiguous. Review register-drift alerts when another attribution gap needs investigation.",

@@ -166,6 +166,25 @@ export default async function setupAuthEnvironment() {
       await owner.connect();
       await seedAuthUsers(owner);
       await owner.query(`
+        INSERT INTO user_account (
+          id, email, idp_subject, global_role, ui_language, status, created_at
+        ) VALUES (
+          '20000000-0000-0000-0000-000000000011',
+          'vendor-accounts-admin@auth.test',
+          NULL,
+          'group_admin',
+          'es',
+          'active',
+          now()
+        )
+        ON CONFLICT (id) DO UPDATE SET
+          email = EXCLUDED.email,
+          idp_subject = NULL,
+          global_role = EXCLUDED.global_role,
+          ui_language = EXCLUDED.ui_language,
+          status = EXCLUDED.status
+      `);
+      await owner.query(`
         INSERT INTO audit_log (
           id, actor_user_id, action, entity_type, entity_id, company_id,
           note, before, after, occurred_at
@@ -190,7 +209,7 @@ export default async function setupAuthEnvironment() {
           status, created_at, created_by
         ) VALUES (
           '20000000-0000-0000-0000-000000000460',
-          'Breadcrumb Vendor',
+          'Anthropic',
           'api',
           'rest',
           true,

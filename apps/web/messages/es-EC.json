@@ -280,6 +280,37 @@
   "pools": {
     "addCapacity": "Agregar capacidad", "assigned": "Asignadas", "attention": "Bajo el piso mínimo", "automated": "Automatizado", "available": "Disponibles", "candidateTitle": "Candidatas para recuperar", "dashboardTitle": "Capacidad de cupos", "detailEyebrow": "Organización del proveedor", "discrepancy": "Sobreasignación de", "effectiveFrom": "Vigente desde", "effectiveFromField": "Fecha efectiva", "emptyDescription": "Un cupo aparece después de registrar su primera capacidad vigente.", "emptyTitle": "No hay capacidad registrada", "escalated": "Escalada", "eyebrow": "Operación de cupos", "floor": "Piso mínimo", "freshness": "Capacidad al {date} (Ecuador)", "lastActive": "Última actividad", "loadError": "No pudimos cargar la capacidad de los cupos.", "loading": "Cargando cupos…", "mode": "Modo", "monthlyCost": "Costo mensual", "noUsageData": "Sin datos de uso", "note": "Nota (opcional)", "orchestration": "Orquestación", "pending": "Invitaciones pendientes", "prorationNote": "La compra se prorratea por los días reales del ciclo de facturación.", "purchased": "Compradas", "purchasedQty": "Total comprado", "renewal": "Renovación del contrato", "retry": "Intentar de nuevo", "saveCapacity": "Guardar capacidad", "subtitle": "Compradas, asignadas, invitaciones pendientes y disponibles en cada organización del proveedor.", "title": "Cupos por organización"
   },
+  "vendorAccounts": {
+    "title": "Organizaciones",
+    "subtitle": "Las organizaciones de proveedor donde viven las licencias del grupo.",
+    "eyebrow": "Gestión de proveedores",
+    "listTitle": "Organizaciones registradas",
+    "listDescription": "Licencias compradas y libres, renovación, salud de credencial y configuración operativa.",
+    "empty": "No hay organizaciones de proveedor registradas.",
+    "tableCaption": "Organizaciones de proveedor registradas",
+    "viewAccount": "Abrir detalle de la organización",
+    "noRenewal": "Sin definir",
+    "seatsPattern": "{purchased} compradas / {free} libres",
+    "columns": { "name": "Organización", "vendor": "Proveedor", "connector": "Conector", "mode": "Modalidad", "seats": "Compradas / libres", "renewal": "Renovación", "credential": "Credencial", "floor": "Umbral mínimo", "status": "Estado" },
+    "connector": { "api": "API", "orchestration": "Orquestación", "manual": "Manual" },
+    "protocol": { "rest": "REST", "scim": "SCIM", "none": "Sin protocolo" },
+    "modes": { "automated": "Automatizada", "orchestration": "Orquestación" },
+    "credential": { "ok": "Correcta", "auth_failed": "Fallo de autenticación", "unverified": "Sin verificar", "none": "Sin configurar" },
+    "status": { "active": "Activa", "inactive": "Inactiva" },
+    "form": {
+      "title": "Nueva organización",
+      "description": "Registra una organización de proveedor. Después podrás cargar capacidad, credenciales y tipos de licencia en su detalle.",
+      "trigger": "Nueva organización",
+      "cancel": "Cancelar",
+      "submit": "Crear organización",
+      "submitting": "Creando…",
+      "success": "Organización creada. Ahora carga su capacidad y credenciales.",
+      "fields": { "vendorId": "Proveedor", "name": "Nombre de la organización", "vendorOrgRef": "Referencia en el proveedor (opcional)", "mode": "Modalidad", "lowPoolFloor": "Umbral mínimo de licencias libres", "contractRenewalOn": "Fecha de renovación del contrato (opcional)" },
+      "help": { "vendor": "R1 admite proveedores Anthropic activos enviados por el servidor.", "vendorOrgRef": "Usa el identificador de la consola de administración del proveedor, cuando esté disponible.", "lowPoolFloor": "Te avisaremos cuando las licencias libres bajen de este número." },
+      "modes": { "automated": "Automatizada (Ledger ejecuta las acciones)", "orchestration": "Orquestación (Ledger te guía en la consola del proveedor)" },
+      "errors": { "vendorId": "Selecciona un proveedor disponible.", "name": "Ingresa el nombre de la organización.", "vendorOrgRef": "La referencia del proveedor debe tener 200 caracteres o menos.", "mode": "Selecciona una modalidad válida.", "lowPoolFloor": "Ingresa un número entero no negativo.", "contractRenewalOn": "Ingresa una fecha de renovación válida.", "duplicate": "Ya existe una organización con este nombre o referencia del proveedor.", "generic": "No pudimos crear la organización. Revisa los datos e inténtalo de nuevo." }
+    }
+  },
   "usersRoles": {
     "displayName": "Nombre visible",
     "accountDescription": "Crea una cuenta de acceso y vincúlala a una persona del directorio. La persona recibirá un correo para configurar su contraseña y su 2FA.",
