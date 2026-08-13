@@ -24,6 +24,14 @@ const exactFields = (value, fields) => value && typeof value === "object"
   && !Array.isArray(value)
   && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...fields].sort());
 
+export const hashPoolProjectionResult = ({ error, outputHash, signal, status }) =>
+  createHash("sha256").update(JSON.stringify({
+    error,
+    outputHash,
+    signal,
+    status,
+  })).digest("hex");
+
 export function validatePoolProjectionEvidence(evidence, sourceContents) {
   const resultFields = [
     "expectedStatus", "observedExitStatus", "observedSignal", "observedStatus",
@@ -41,9 +49,15 @@ export function validatePoolProjectionEvidence(evidence, sourceContents) {
       || evidence.baseline.observedExitStatus !== 0
       || evidence.baseline.observedSignal !== null
       || !digestPattern.test(evidence.baseline.outputHash)
-      || !digestPattern.test(evidence.baseline.resultHash)) {
+      || evidence.baseline.resultHash !== hashPoolProjectionResult({
+        error: null,
+        outputHash: evidence.baseline.outputHash,
+        signal: evidence.baseline.observedSignal,
+        status: evidence.baseline.observedExitStatus,
+      })) {
     throw new Error("invalid pool projection evidence");
   }
+  const expectedFaults = createFaults(sourceContents);
   for (const [index, control] of evidence.controls.entries()) {
     if (!exactFields(control, [...resultFields, "faultId", "variantSourceHash"])
         || control.faultId !== expectedFaultIds[index]
@@ -52,8 +66,15 @@ export function validatePoolProjectionEvidence(evidence, sourceContents) {
         || control.observedExitStatus !== 1
         || control.observedSignal !== null
         || !digestPattern.test(control.outputHash)
-        || !digestPattern.test(control.resultHash)
-        || !digestPattern.test(control.variantSourceHash)) {
+        || control.resultHash !== hashPoolProjectionResult({
+          error: null,
+          outputHash: control.outputHash,
+          signal: control.observedSignal,
+          status: control.observedExitStatus,
+        })
+        || control.variantSourceHash !== createHash("sha256")
+          .update(expectedFaults[index].source)
+          .digest("hex")) {
       throw new Error("invalid pool projection evidence");
     }
   }
@@ -140,12 +161,12 @@ const resultEvidence = (result) => {
     observedExitStatus: result.status,
     observedSignal: result.signal,
     outputHash,
-    resultHash: createHash("sha256").update(JSON.stringify({
+    resultHash: hashPoolProjectionResult({
       error: result.error?.message ?? null,
       outputHash,
       signal: result.signal,
       status: result.status,
-    })).digest("hex"),
+    }),
   };
 };
 

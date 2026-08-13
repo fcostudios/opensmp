@@ -1368,10 +1368,39 @@ const projectionWrite = (path, contents) => {
   writeFileSync(destination, contents, "utf8");
 };
 const projectionDigest = "a".repeat(64);
+const projectionHash = (contents) => createHash("sha256").update(contents).digest("hex");
+const projectionResultHash = (status) => projectionHash(JSON.stringify({
+  error: null,
+  outputHash: projectionDigest,
+  signal: null,
+  status,
+}));
+const projectionFaultSources = [
+  poolProjectionNew.replace(
+    "capacity.effective_from::text AS effective_from",
+    "capacity.effective_from::text AS wrong_effective_from",
+  ),
+  poolProjectionNew.replace(
+    "vac.license_type_id, vac.purchased_qty, vac.effective_from",
+    "vac.license_type_id, vac.purchased_qty",
+  ),
+  poolProjectionNew.replace(
+    "effectiveFrom: row.effective_from",
+    "effectiveFrom: row.contract_renewal_on",
+  ),
+  poolProjectionNew.replace(
+    "effectiveFrom: row.effective_from",
+    "effectiveFrom: input.operatingDate",
+  ),
+  poolProjectionNew.replace(
+    "effectiveFrom: row.effective_from",
+    'effectiveFrom: "2026-08-04"',
+  ),
+];
 const validProjectionEvidence = () => ({
   baseline: {
     expectedStatus: "passed", observedExitStatus: 0, observedSignal: null,
-    observedStatus: "passed", outputHash: projectionDigest, resultHash: projectionDigest,
+    observedStatus: "passed", outputHash: projectionDigest, resultHash: projectionResultHash(0),
   },
   controls: [
     "outer-projection-removed-or-renamed",
@@ -1379,10 +1408,10 @@ const validProjectionEvidence = () => ({
     "row-mapping-wrong",
     "operating-date-input-replaced",
     "operating-date-constant",
-  ].map((faultId) => ({
+  ].map((faultId, index) => ({
     expectedStatus: "failed", faultId, observedExitStatus: 1, observedSignal: null,
     observedStatus: "failed", outputHash: projectionDigest,
-    resultHash: projectionDigest, variantSourceHash: projectionDigest,
+    resultHash: projectionResultHash(1), variantSourceHash: projectionHash(projectionFaultSources[index]),
   })),
   source: poolProjectionSource,
   sourceHash: createHash("sha256").update(poolProjectionNew).digest("hex"),
@@ -1473,6 +1502,12 @@ try {
   const alteredControl = validProjectionEvidence();
   alteredControl.controls[0].observedStatus = "passed";
   await tamperProjection(alteredControl);
+  const alteredVariantSourceHash = validProjectionEvidence();
+  alteredVariantSourceHash.controls[0].variantSourceHash = "b".repeat(64);
+  await tamperProjection(alteredVariantSourceHash);
+  const alteredResultHash = validProjectionEvidence();
+  alteredResultHash.controls[0].resultHash = "b".repeat(64);
+  await tamperProjection(alteredResultHash);
 } finally {
   rmSync(projectionFixtureRoot, { force: true, recursive: true });
 }
