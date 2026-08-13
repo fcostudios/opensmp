@@ -306,3 +306,51 @@ inputs, process-group interruption, pending-sandbox tracking, and exact cleanup
 before exit. A precise dependency graph and parallel cache misses remain the
 main opportunities to reduce the 1,389-second cold path; the hardened local
 warm path remains comfortably below the 60-second requirement.
+
+## US-025 route-accountability campaign — 2026-08-13
+
+This final pair supersedes both earlier US-025 pairs. It includes the reviewed
+route-accountability architecture and retry-safe sandbox cleanup at HEAD
+`29ff3a13ad898867750a0e77de14267b24cc0c3a`, with immutable base and baseRef
+`a91bc3bac76e11a9e0c8c7a3cef59992b0797cde`, cache schema v2, and campaign key
+`9e9c26c93e7b1a2d1a183ccf1ec1afe34bd0689ac7b6f01a14978c859ea876c9`:
+
+- cold: `reports/mutation-performance/a59c1649-f415-4f90-b239-1363a138bf36.json`
+- warm: `reports/mutation-performance/b344a36c-8cd4-4e0a-85f8-8e587d30a34e.json`
+
+| Metric | Cold | Warm |
+| --- | ---: | ---: |
+| Wall/orchestration duration (ms) | 1563263.055042 | 21455.793792 |
+| Measured savings (ms) | 1541807.26125 | — |
+| Shards | 18 | 18 |
+| Executed | 18 | 0 |
+| Reused | 0 | 18 |
+| Rejected | 0 | 0 |
+| Hit ratio | 0 | 1 |
+| Estimated reused-shard savings (ms) | 0 | 1541636.1109599997 |
+| Outcome | passed | passed |
+
+The unchanged warm replay was 72.8598 times faster, reduced wall time by
+98.6275%, and completed in 21.456 seconds without Stryker output. The 16 scored
+artifacts contain 690 Killed, 75 Survived, 23 NoCoverage, two RuntimeError, and
+259 Ignored mutants. Excluding invalid RuntimeError mutants, the aggregate
+score is 87.5635%: `690 / (690 + 75 + 23)`.
+
+The other two shards are exact verification-only framework bundles. The thin
+App Router pages are pinned by reviewed source hashes, so any import, signature,
+statement, or conditional change fails closed and requires explicit review.
+Executable route authorization, real-PostgreSQL loader tests, web type-check,
+build, and focused E2E provide their accountable evidence; loader and presenter
+business behavior remains mutation-scored at 86.67% and 91.19% respectively.
+
+Cleanup now coalesces concurrent requests, marks a sandbox clean only after a
+successful drop, retains failed records for bounded retry, reports signal-path
+failures, and propagates final cleanup errors. Regression tests exercise the
+retry path. The earlier real PostgreSQL SIGTERM probe still establishes exit
+143, exact clone removal, and a queryable source template; this cold/warm pair
+also ended with zero `ledger_mutation_*` databases.
+
+For Substrate, unchanged reuse is effective even after expanding to 18 shards.
+The remaining target is the 1,563-second cold path: parallelize independent
+misses and exclude unrelated prototype parsing through a precise dependency
+graph without weakening provenance, artifact validation, or cleanup.
