@@ -13,7 +13,6 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { EventEmitter } from "node:events";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -25,6 +24,7 @@ import {
   createCampaignRuntimeProfileResolver,
   createDatabaseShardSandbox,
   databaseHarnessIdentity,
+  exitAfterDatabaseCleanup,
   groupRoutedMutationTargets,
   isDatabaseBacked,
   mutationCompatibleTestFiles,
@@ -1368,6 +1368,7 @@ const cacheRun = async (overrides = {}) => {
     })),
     beforeEvidence: overrides.beforeEvidence,
     signalProcess: overrides.signalProcess,
+    cleanupFailureReporter: overrides.cleanupFailureReporter,
     databaseSandboxFactory: overrides.databaseSandboxFactory,
     executeShard: ({ shard, environment }) => {
       executions += 1;
@@ -1588,61 +1589,30 @@ try {
   assert.equal(failedRecord.outcome, "failed");
   assert.equal(failedRecord.shards.every((shard) => shard.status === "started" || shard.result !== "passed"), true);
 
-  const signalProcess = new EventEmitter();
-  signalProcess.exit = (code) => { throw Object.assign(new Error("signal exit"), { code }); };
-  const signalRecordsBefore = new Set(readdirSync(performanceDirectory));
-  await assert.rejects(cacheRun({
-    signalProcess,
-    beforeEvidence: () => {
-      signalProcess.emit("SIGTERM");
-    },
-  }), /signal exit/);
-  const signalRecords = readdirSync(performanceDirectory);
-  const interruptedRecordName = signalRecords.find((name) => !signalRecordsBefore.has(name));
-  assert.ok(interruptedRecordName);
-  const interruptedRecord = JSON.parse(readFileSync(join(
-    performanceDirectory, interruptedRecordName,
-  ), "utf8"));
-  assert.equal(interruptedRecord.outcome, "interrupted");
-
-  const activeSignalProcess = new EventEmitter();
   const signalOrder = [];
-  activeSignalProcess.exit = () => { signalOrder.push("exit"); };
-  await cacheRun({
-    signalProcess: activeSignalProcess,
-    env: { MUTATION_CACHE: "off" },
-    databaseSandboxFactory: async (environment) => ({
-      environment,
-      async cleanup() {
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        signalOrder.push("cleanup");
-      },
-    }),
-    beforeEvidence: undefined,
-    executorStatus: 0,
-    executeSignal: () => activeSignalProcess.emit("SIGTERM"),
-  });
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  assert.deepEqual(signalOrder.slice(0, 2), ["cleanup", "exit"],
-    "SIGTERM must await the active database sandbox cleanup before exit");
-
-  const pendingSignalProcess = new EventEmitter();
-  const pendingSignalOrder = [];
-  pendingSignalProcess.exit = () => { pendingSignalOrder.push("exit"); };
-  await cacheRun({
-    signalProcess: pendingSignalProcess,
-    env: { MUTATION_CACHE: "off" },
-    databaseSandboxFactory: async (environment) => {
-      pendingSignalProcess.emit("SIGTERM");
+  await exitAfterDatabaseCleanup({
+    cleanup: async () => {
       await new Promise((resolve) => setTimeout(resolve, 10));
-      return {
-        environment,
-        async cleanup() { pendingSignalOrder.push("cleanup"); },
-      };
+      signalOrder.push("cleanup");
     },
+    exit: (code) => signalOrder.push(["exit", code]),
+    interruptedExitCode: 143,
+    reportFailure: () => signalOrder.push("reported"),
   });
-  assert.deepEqual(pendingSignalOrder, ["cleanup", "exit"],
-    "SIGTERM must also await cleanup when sandbox creation is still pending");
+  assert.deepEqual(signalOrder, ["cleanup", ["exit", 143]],
+    "signal handling must await cleanup before the interrupted exit");
+
+  const failedSignalEvents = [];
+  await exitAfterDatabaseCleanup({
+    cleanup: async () => { throw new Error("maintenance unavailable"); },
+    exit: (code) => failedSignalEvents.push(["exit", code]),
+    interruptedExitCode: 143,
+    reportFailure: (message) => failedSignalEvents.push(["reported", message]),
+  });
+  assert.match(failedSignalEvents[0][1], /maintenance unavailable/);
+  assert.deepEqual(failedSignalEvents[1], ["exit", 1],
+    "signal cleanup exhaustion must be reported before a failure exit");
+
 } finally {
   rmSync(cacheFixtureRoot, { force: true, recursive: true });
 }

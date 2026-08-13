@@ -1176,6 +1176,22 @@ export async function createDatabaseShardSandbox(
   };
 }
 
+export async function exitAfterDatabaseCleanup({
+  cleanup,
+  exit,
+  interruptedExitCode,
+  reportFailure,
+}) {
+  try {
+    await cleanup();
+  } catch (error) {
+    reportFailure(error.message);
+    exit(1);
+    return;
+  }
+  exit(interruptedExitCode);
+}
+
 export function runVerificationCommands(commands, run = spawnSync, environment = {}) {
   if (commands.length === 0) throw new Error("verification-only result has no commands");
   for (const [command, args] of commands) {
@@ -1674,14 +1690,44 @@ export async function runMutationScope(options = {}) {
   const signalHandlers = [];
   const activeDatabaseSandboxes = new Set();
   const signalProcess = options.signalProcess ?? process;
+  const cleanupFailureReporter = options.cleanupFailureReporter
+    ?? ((message) => console.error(`mutation-scope: ${message}`));
   let signalShutdownPromise = null;
   let activeShardProcess = null;
   const cleanupDatabaseSandbox = async (record) => {
-    try {
+    if (record.cleanupPromise) return record.cleanupPromise;
+    record.cleanupPromise = (async () => {
       const sandbox = await record.promise;
-      await sandbox.cleanup();
+      let lastError;
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        try {
+          await sandbox.cleanup();
+          activeDatabaseSandboxes.delete(record);
+          return;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      throw new Error(
+        `database sandbox cleanup exhausted 3 campaign attempt(s) for ${sandbox.databaseName ?? "unknown"}`,
+        { cause: lastError },
+      );
+    })();
+    try {
+      return await record.cleanupPromise;
     } finally {
-      activeDatabaseSandboxes.delete(record);
+      if (activeDatabaseSandboxes.has(record)) record.cleanupPromise = null;
+    }
+  };
+  const cleanupAllDatabaseSandboxes = async () => {
+    const results = await Promise.allSettled(
+      [...activeDatabaseSandboxes].map(cleanupDatabaseSandbox),
+    );
+    const failures = results
+      .filter((result) => result.status === "rejected")
+      .map((result) => result.reason);
+    if (failures.length > 0) {
+      throw new AggregateError(failures, "database sandbox cleanup failed");
     }
   };
   const environment = options.env ?? process.env;
@@ -1914,10 +1960,12 @@ export async function runMutationScope(options = {}) {
               if (error?.code !== "ESRCH") throw error;
             }
           }
-          await Promise.allSettled(
-            [...activeDatabaseSandboxes].map(cleanupDatabaseSandbox),
-          );
-          signalProcess.exit(signal === "SIGINT" ? 130 : 143);
+          await exitAfterDatabaseCleanup({
+            cleanup: cleanupAllDatabaseSandboxes,
+            exit: (code) => signalProcess.exit(code),
+            interruptedExitCode: signal === "SIGINT" ? 130 : 143,
+            reportFailure: cleanupFailureReporter,
+          });
         })();
         return signalShutdownPromise;
       };
@@ -2250,7 +2298,7 @@ export async function runMutationScope(options = {}) {
     throw err;
   }
   } finally {
-    await Promise.allSettled([...activeDatabaseSandboxes].map(cleanupDatabaseSandbox));
+    await cleanupAllDatabaseSandboxes();
     for (const [signal, handler] of signalHandlers) signalProcess.removeListener(signal, handler);
     for (const [key, value] of Object.entries(previousEnvironment)) {
       if (value === undefined) delete process.env[key];
