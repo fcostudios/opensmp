@@ -247,3 +247,8 @@ Machine profile: Darwin 25.5.0 arm64 Apple M4, 10 logical CPUs,
 25,769,803,776 bytes memory; Node 26.7.0, pnpm 9.15.0, TypeScript 5.9.3,
 Vitest 4.1.10, Stryker 9.6.1, and PostgreSQL 16 Alpine using the committed
 digest/profile. These remain same-machine measurements.
+
+The authoritative database runtime profile embedded in the production
+campaign evidence used driver `postgres`, harness `default-us017`, PostgreSQL
+server version `16.14`, and schema fingerprint
+`211385307848216a8d9cbd93ee167090e6a0732077a34db6a686de825d6ab58c`.
