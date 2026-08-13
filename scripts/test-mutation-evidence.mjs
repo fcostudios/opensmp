@@ -159,6 +159,68 @@ try {
   );
   assert.deepEqual(collected, expected);
   assert.equal(canonicalJson(collected).includes("must-not-be-persisted"), false);
+  process.env.LEDGER_FINGERPRINT_SECRET_SENTINEL = "changed-secret-value";
+  assert.deepEqual(
+    collectExecutionInputs({
+      root: fixtureRoot,
+      entryFiles: ["packages/app/src/main.ts"],
+      configurationFiles: ["stryker.config.mjs"],
+      migrationRoots: ["packages/db/migrations"],
+      toolVersions,
+      runtimeProfile,
+    }),
+    collected,
+  );
+
+  const aliasFiles = {
+    "apps/web/package.json": '{"name":"fixture-web","type":"module"}',
+    "tsconfig.base.json": JSON.stringify({
+      compilerOptions: {
+        baseUrl: ".",
+        moduleResolution: "bundler",
+        paths: { "@/*": ["./apps/web/src/*"] },
+      },
+    }),
+    "apps/web/tsconfig.json": JSON.stringify({
+      extends: "../../tsconfig.base.json",
+      compilerOptions: { module: "esnext" },
+    }),
+    "apps/web/src/app/page.ts":
+      'import { aliased } from "@/lib/aliased";\nexport const page = aliased;\n',
+    "apps/web/src/lib/aliased.ts":
+      'import { nested } from "./nested.js";\nexport const aliased = nested;\n',
+    "apps/web/src/lib/nested.ts": "export const nested = 42;\n",
+  };
+  await Promise.all(
+    Object.entries(aliasFiles).map(([relativePath, contents]) =>
+      put(fixtureRoot, relativePath, contents),
+    ),
+  );
+  assert.deepEqual(
+    collectExecutionInputs({
+      root: fixtureRoot,
+      entryFiles: ["apps/web/src/app/page.ts"],
+      configurationFiles: [],
+      migrationRoots: [],
+      toolVersions,
+      runtimeProfile,
+    }),
+    await expectedInputs(
+      fixtureRoot,
+      [
+        "apps/web/package.json",
+        "apps/web/src/app/page.ts",
+        "apps/web/src/lib/aliased.ts",
+        "apps/web/src/lib/nested.ts",
+        "apps/web/tsconfig.json",
+        "package.json",
+        "pnpm-lock.yaml",
+        "tsconfig.base.json",
+      ],
+      toolVersions,
+      runtimeProfile,
+    ),
+  );
 
   const uncertaintyFiles = {
     "packages/uncertain/package.json": '{"name":"@fixture/uncertain","type":"module"}',
@@ -166,10 +228,23 @@ try {
       'const target = "target";\nexport const loaded = import(`./${target}.js`);\n',
     "packages/uncertain/src/fs-read.ts":
       'import { readFileSync } from "node:fs";\nconst target = process.argv[2];\nexport const data = readFileSync(target, "utf8");\n',
+    "packages/uncertain/src/fs-aliased.ts":
+      'import { readFile as loadOwned } from "node:fs/promises";\nconst target = process.argv[2];\nexport const data = loadOwned(target, "utf8");\n',
+    "packages/uncertain/src/fs-stream.ts":
+      'import * as storage from "node:fs";\nconst target = process.argv[2];\nexport const stream = storage.createReadStream(target);\n',
+    "packages/uncertain/src/fs-open.ts":
+      'import { open as acquire } from "node:fs/promises";\nconst target = process.argv[2];\nexport const handle = acquire(target, "r");\n',
+    "packages/uncertain/src/schema.sql": "select 1;\n",
+    "packages/uncertain/config/settings.yaml": "mode: test\n",
+    "packages/uncertain/templates/notice.hbs": "Hello {{name}}\n",
     "packages/uncertain/src/unresolved.ts": 'import "./missing.js";\nexport const value = 1;\n',
     "packages/uncertain/src/unrelated.ts": "export const conservative = true;\n",
     "packages/uncertain/test/owned.test.ts": "export const testInput = true;\n",
     "packages/uncertain/vitest.config.ts": "export default {};\n",
+    "packages/uncertain/.env": "PASSWORD=must-not-be-persisted\n",
+    "packages/uncertain/src/private.secret": "must-not-be-persisted\n",
+    "packages/uncertain/generated/ignored.ts": "export const generated = true;\n",
+    "packages/uncertain/dist/ignored.sql": "select 'generated';\n",
   };
   await Promise.all(
     Object.entries(uncertaintyFiles).map(([relativePath, contents]) =>
@@ -178,18 +253,27 @@ try {
   );
   const fallbackPaths = [
     "package.json",
+    "packages/uncertain/config/settings.yaml",
     "packages/uncertain/package.json",
     "packages/uncertain/src/dynamic.ts",
+    "packages/uncertain/src/fs-aliased.ts",
+    "packages/uncertain/src/fs-open.ts",
     "packages/uncertain/src/fs-read.ts",
+    "packages/uncertain/src/fs-stream.ts",
+    "packages/uncertain/src/schema.sql",
     "packages/uncertain/src/unrelated.ts",
     "packages/uncertain/src/unresolved.ts",
+    "packages/uncertain/templates/notice.hbs",
     "packages/uncertain/test/owned.test.ts",
     "packages/uncertain/vitest.config.ts",
     "pnpm-lock.yaml",
   ];
   for (const entryFile of [
     "packages/uncertain/src/dynamic.ts",
+    "packages/uncertain/src/fs-aliased.ts",
+    "packages/uncertain/src/fs-open.ts",
     "packages/uncertain/src/fs-read.ts",
+    "packages/uncertain/src/fs-stream.ts",
     "packages/uncertain/src/unresolved.ts",
   ]) {
     assert.deepEqual(

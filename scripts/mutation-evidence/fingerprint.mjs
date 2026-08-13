@@ -88,7 +88,19 @@ function walkFiles(directory) {
   if (!statSync(directory).isDirectory()) return [directory];
   const files = [];
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    if ([".git", ".next", "build", "coverage", "dist", "node_modules"].includes(entry.name)) {
+    if ([
+      ".cache",
+      ".git",
+      ".next",
+      ".stryker-tmp",
+      ".turbo",
+      "build",
+      "coverage",
+      "dist",
+      "generated",
+      "node_modules",
+      "reports",
+    ].includes(entry.name)) {
       continue;
     }
     const entryPath = path.join(directory, entry.name);
@@ -197,9 +209,17 @@ function resolveWorkspaceImport(specifier, workspacePackages) {
 function isWorkspaceFingerprintFile(workspaceRoot, file) {
   const relative = path.relative(workspaceRoot, file).split(path.sep).join("/");
   const base = path.basename(file);
+  if (
+    base === ".env"
+    || base.startsWith(".env.")
+    || base === ".npmrc"
+    || /\.(?:key|p12|pem|pfx|secret)$/i.test(base)
+    || /(?:^|\.)generated\./i.test(base)
+  ) {
+    return false;
+  }
   if (base === "package.json") return true;
-  if (!/\.(?:[cm]?[jt]sx?|json)$/.test(base)) return false;
-  return /^(?:src|test|tests|scripts)\//.test(relative)
+  return /^(?:config|migrations|scripts|src|templates|test|tests)\//.test(relative)
     || /(?:^|\.)config\.[cm]?[jt]s$/.test(base)
     || /^tsconfig(?:\..+)?\.json$/.test(base);
 }
@@ -224,17 +244,39 @@ export function collectExecutionInputs({
   const workspacePackages = findWorkspacePackages(absoluteRoot);
   const included = new Set();
   const expandedWorkspaces = new Set();
-  const fileSystemReads = new Set([
+  const compilerConfigurationCache = new Map();
+  const fileSystemReadApis = new Set([
+    "access",
+    "accessSync",
+    "createReadStream",
+    "existsSync",
+    "fstat",
+    "fstatSync",
+    "glob",
+    "globSync",
+    "lstat",
+    "lstatSync",
+    "open",
+    "openAsBlob",
+    "openSync",
+    "opendir",
+    "opendirSync",
+    "read",
+    "readSync",
     "readFile",
     "readFileSync",
     "readdir",
     "readdirSync",
     "readlink",
     "readlinkSync",
+    "realpath",
+    "realpathSync",
     "stat",
     "statSync",
+    "watch",
   ]);
-  const compilerOptions = {
+  const fileSystemModules = new Set(["fs", "fs/promises", "node:fs", "node:fs/promises"]);
+  const defaultCompilerOptions = {
     allowJs: true,
     module: ts.ModuleKind.ESNext,
     moduleResolution: ts.ModuleResolutionKind.Bundler,
@@ -250,24 +292,81 @@ export function collectExecutionInputs({
       if (isWorkspaceFingerprintFile(owner.directory, ownedFile)) addFile(ownedFile);
     }
   };
+  const compilerConfigurationFor = (file) => {
+    const configPath = ts.findConfigFile(path.dirname(file), ts.sys.fileExists, "tsconfig.json");
+    if (!configPath || !isWithin(absoluteRoot, configPath)) {
+      return { configPath: null, options: defaultCompilerOptions };
+    }
+    const absoluteConfigPath = path.resolve(configPath);
+    if (compilerConfigurationCache.has(absoluteConfigPath)) {
+      return compilerConfigurationCache.get(absoluteConfigPath);
+    }
+
+    const loaded = ts.readConfigFile(absoluteConfigPath, ts.sys.readFile);
+    if (loaded.error) {
+      throw new Error(ts.flattenDiagnosticMessageText(loaded.error.messageText, "\n"));
+    }
+    const parsed = ts.parseJsonConfigFileContent(
+      loaded.config,
+      ts.sys,
+      path.dirname(absoluteConfigPath),
+      defaultCompilerOptions,
+      absoluteConfigPath,
+    );
+    if (parsed.errors.length > 0) {
+      throw new Error(
+        parsed.errors
+          .map((error) => ts.flattenDiagnosticMessageText(error.messageText, "\n"))
+          .join("\n"),
+      );
+    }
+    const configuration = { configPath: absoluteConfigPath, options: parsed.options };
+    compilerConfigurationCache.set(absoluteConfigPath, configuration);
+    addFile(absoluteConfigPath);
+    const extendedConfigs = Array.isArray(loaded.config.extends)
+      ? loaded.config.extends
+      : [loaded.config.extends];
+    for (const extended of extendedConfigs) {
+      if (typeof extended !== "string") continue;
+      const localConfig = extended.startsWith(".") || path.isAbsolute(extended)
+        ? resolveAsFile(path.resolve(path.dirname(absoluteConfigPath), extended))
+        : resolveWorkspaceImport(extended, workspacePackages).resolved;
+      if (localConfig && isWithin(absoluteRoot, localConfig)) addFile(localConfig);
+    }
+    return configuration;
+  };
+  const matchesPathAlias = (specifier, compilerOptions) =>
+    Object.keys(compilerOptions.paths ?? {}).some((pattern) => {
+      const wildcard = pattern.indexOf("*");
+      return wildcard === -1
+        ? specifier === pattern
+        : specifier.startsWith(pattern.slice(0, wildcard))
+          && specifier.endsWith(pattern.slice(wildcard + 1));
+    });
   const resolveImport = (specifier, containingFile) => {
     if (specifier.startsWith("node:")) return { owned: false, resolved: null };
-    if (specifier.startsWith(".") || specifier.startsWith("/")) {
-      const compilerResult = ts.resolveModuleName(
-        specifier,
-        containingFile,
-        compilerOptions,
-        ts.sys,
-      ).resolvedModule?.resolvedFileName;
-      const resolved = compilerResult
-        ? path.resolve(compilerResult)
-        : resolveAsFile(path.resolve(path.dirname(containingFile), specifier));
+    const { options: compilerOptions } = compilerConfigurationFor(containingFile);
+    const compilerResult = ts.resolveModuleName(
+      specifier,
+      containingFile,
+      compilerOptions,
+      ts.sys,
+    ).resolvedModule?.resolvedFileName;
+    if (compilerResult) {
+      const resolved = path.resolve(compilerResult);
+      const isDependency = resolved.split(path.sep).includes("node_modules");
       return {
-        owned: true,
-        resolved: resolved && isWithin(absoluteRoot, resolved) ? resolved : null,
+        owned: !isDependency && isWithin(absoluteRoot, resolved),
+        resolved: !isDependency && isWithin(absoluteRoot, resolved) ? resolved : null,
       };
     }
-    return resolveWorkspaceImport(specifier, workspacePackages);
+    if (specifier.startsWith(".") || specifier.startsWith("/")) {
+      const resolved = resolveAsFile(path.resolve(path.dirname(containingFile), specifier));
+      return { owned: true, resolved };
+    }
+    const workspaceResolution = resolveWorkspaceImport(specifier, workspacePackages);
+    if (workspaceResolution.owned) return workspaceResolution;
+    return { owned: matchesPathAlias(specifier, compilerOptions), resolved: null };
   };
   const inspectSource = (file, sourceText) => {
     const ast = ts.createSourceFile(
@@ -277,6 +376,54 @@ export function collectExecutionInputs({
       true,
       sourceKind(file),
     );
+    const fileSystemFunctionBindings = new Set();
+    const fileSystemNamespaceBindings = new Set();
+    for (const statement of ast.statements) {
+      if (ts.isImportDeclaration(statement)
+          && ts.isStringLiteralLike(statement.moduleSpecifier)
+          && fileSystemModules.has(statement.moduleSpecifier.text)) {
+        const bindings = statement.importClause;
+        if (bindings?.name) fileSystemNamespaceBindings.add(bindings.name.text);
+        if (bindings?.namedBindings && ts.isNamespaceImport(bindings.namedBindings)) {
+          fileSystemNamespaceBindings.add(bindings.namedBindings.name.text);
+        } else if (bindings?.namedBindings && ts.isNamedImports(bindings.namedBindings)) {
+          for (const element of bindings.namedBindings.elements) {
+            const importedName = element.propertyName?.text ?? element.name.text;
+            if (importedName === "promises") {
+              fileSystemNamespaceBindings.add(element.name.text);
+            } else if (fileSystemReadApis.has(importedName)) {
+              fileSystemFunctionBindings.add(element.name.text);
+            }
+          }
+        }
+      }
+      if (!ts.isVariableStatement(statement)) continue;
+      for (const declaration of statement.declarationList.declarations) {
+        const initializer = declaration.initializer;
+        if (!initializer
+            || !ts.isCallExpression(initializer)
+            || !ts.isIdentifier(initializer.expression)
+            || initializer.expression.text !== "require"
+            || initializer.arguments.length !== 1
+            || !ts.isStringLiteralLike(initializer.arguments[0])
+            || !fileSystemModules.has(initializer.arguments[0].text)) {
+          continue;
+        }
+        if (ts.isIdentifier(declaration.name)) {
+          fileSystemNamespaceBindings.add(declaration.name.text);
+        } else if (ts.isObjectBindingPattern(declaration.name)) {
+          for (const element of declaration.name.elements) {
+            if (!ts.isIdentifier(element.name)) continue;
+            const importedName = element.propertyName && ts.isIdentifier(element.propertyName)
+              ? element.propertyName.text
+              : element.name.text;
+            if (fileSystemReadApis.has(importedName)) {
+              fileSystemFunctionBindings.add(element.name.text);
+            }
+          }
+        }
+      }
+    }
     const visit = (node) => {
       let specifier = null;
       if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node))
@@ -308,12 +455,13 @@ export function collectExecutionInputs({
       }
 
       if (ts.isCallExpression(node)) {
-        const calledName = ts.isIdentifier(node.expression)
-          ? node.expression.text
+        const isBoundFileSystemRead = ts.isIdentifier(node.expression)
+          ? fileSystemFunctionBindings.has(node.expression.text)
           : ts.isPropertyAccessExpression(node.expression)
-            ? node.expression.name.text
-            : null;
-        if (calledName && fileSystemReads.has(calledName)) {
+            && ts.isIdentifier(node.expression.expression)
+            && fileSystemNamespaceBindings.has(node.expression.expression.text)
+            && fileSystemReadApis.has(node.expression.name.text);
+        if (isBoundFileSystemRead) {
           const firstArgument = node.arguments[0];
           if (!firstArgument || !ts.isStringLiteralLike(firstArgument)) {
             expandOwner(file);
@@ -341,6 +489,9 @@ export function collectExecutionInputs({
 
     const owner = findOwner(absoluteRoot, workspacePackages, file);
     if (owner && owner.manifestPath !== file) addFile(owner.manifestPath);
+    if (/\.[cm]?[jt]sx?$/.test(file)) {
+      compilerConfigurationFor(file);
+    }
     if (/\.(?:[cm]?[jt]sx?|json)$/.test(file)) {
       inspectSource(file, readFileSync(file, "utf8"));
     }
