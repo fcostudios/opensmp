@@ -207,6 +207,10 @@ describe("US-025 vendor-account registry", () => {
     await user.click(screen.getByTestId("btn_new_vendor_account"));
     const name = screen.getByLabelText("FIELD_NAME");
     const floor = screen.getByLabelText("FIELD_FLOOR");
+    for (const field of [name, floor]) {
+      expect(field.classList).toContain("min-h-11");
+      expect(field.classList).toContain("focus:ring-2");
+    }
     await user.clear(floor);
     await user.type(floor, "-1");
     await user.click(screen.getByRole("button", { name: "SUBMIT_FORM" }));
