@@ -86,6 +86,15 @@ const mutationHarnessResolver = createCampaignRuntimeProfileResolver(async ({ en
 const mutationHarnessProfile = await mutationHarnessResolver(databaseShard("mutation"));
 assert.equal(mutationHarnessProfile.databaseHarness, "us017");
 assert.equal(mutationHarnessProfile.observedAdminUrl, "postgres://owner:secret@db/ledger");
+assert.equal(
+  controlledChildEnvironment({
+    KEYCLOAK_CLIENT_SECRET: "must-not-reach-tests",
+    KEYCLOAK_ADMIN_CLIENT_SECRET: "must-not-reach-tests",
+    PATH: "/usr/bin",
+  }).KEYCLOAK_CLIENT_SECRET,
+  undefined,
+  "parent-only secrets cannot influence or enter mutation execution",
+);
 assert.equal(isDatabaseBacked({
   sources: ["apps/web/src/modules/vendor-catalog/production-vendor-account-repository.ts"],
   testFiles: ["apps/web/src/modules/vendor-catalog/actions/manage-vendor-accounts.test.ts"],

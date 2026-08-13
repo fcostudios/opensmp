@@ -1725,7 +1725,6 @@ export async function runMutationScope(options = {}) {
   const runSuffix = process.env.MUTATION_SCOPE_DRY === "1"
     ? "dry"
     : (options.runId ?? `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`);
-  const probeShardId = process.env.MUTATION_PROBE_SHARD_ID;
   const shards = shardSpecs.map((spec) => {
     const digest = createHash("sha256")
       .update([spec.kind, ...spec.sources, ...spec.testFiles, ...spec.mutate].join("\n"))
@@ -1803,8 +1802,7 @@ export async function runMutationScope(options = {}) {
       tempDirName,
       testFiles: spec.testFiles,
     };
-  }).filter((shard) => !probeShardId || shard.id === probeShardId)
-    .sort((left, right) => left.id.localeCompare(right.id));
+  }).sort((left, right) => left.id.localeCompare(right.id));
 
   mkdirSync(GENERATED_SHARD_DIR, { recursive: true });
   for (const shard of shards) {
@@ -1916,7 +1914,7 @@ export async function runMutationScope(options = {}) {
         ? ["packages/db/src/migrations"] : [],
       toolVersions,
       runtimeProfile,
-      environment: { ...process.env, ...environment },
+      environment: controlledChildEnvironment({ ...process.env, ...environment }, runtimeProfile),
     });
     shard.dependencyHashes = executionInputs.hashes;
     if (!executionInputs.reusable && shard.cacheDecision !== "rejected") {

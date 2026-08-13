@@ -465,7 +465,9 @@ export function collectExecutionInputs({
     const owner = findOwner(absoluteRoot, workspacePackages, file);
     if (!owner || expandedWorkspaces.has(owner.directory)) return;
     expandedWorkspaces.add(owner.directory);
-    const markIncomplete = () => incompleteWorkspaces.add(owner.directory);
+    const markIncomplete = () => {
+      incompleteWorkspaces.add(owner.directory);
+    };
     const markSymlink = () => symlinkRuntimeInputWorkspaces.add(owner.directory);
     for (const ownedFile of walkFiles(
       owner.directory, markIncomplete, markSymlink, absoluteRoot,
@@ -654,7 +656,21 @@ export function collectExecutionInputs({
       ts.forEachChild(node, findFileSystemDependency);
     };
     findFileSystemDependency(ast);
-    if (importsFileSystem && !runnerInfrastructure) expandOwner(file);
+    if (importsFileSystem && !runnerInfrastructure) {
+      const filesystemCalls = [...sourceText.matchAll(/\b(?:readFile|readFileSync)\s*\(/g)];
+      const staticReads = [...sourceText.matchAll(
+        /\b(?:readFile|readFileSync)\s*\(\s*new URL\(\s*["']([^"']+)["']\s*,\s*import\.meta\.url\s*\)/g,
+      )];
+      if (filesystemCalls.length > 0 && filesystemCalls.length === staticReads.length) {
+        for (const match of staticReads) {
+          const runtimeInput = resolveAsFile(path.resolve(path.dirname(file), match[1]));
+          if (!runtimeInput || !isWithin(absoluteRoot, runtimeInput)) expandOwner(file);
+          else addFile(runtimeInput);
+        }
+      } else {
+        expandOwner(file);
+      }
+    }
     const owner = findOwner(absoluteRoot, workspacePackages, file);
     const knownMigrationRunner = /(?:const|let)\s+migrationRunner\s*=\s*resolve\s*\([^)]*["']scripts\/apply-migrations\.mjs["']/.test(sourceText);
     if (analyzeRuntime && knownMigrationRunner && owner) {

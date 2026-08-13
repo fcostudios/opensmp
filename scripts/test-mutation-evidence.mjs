@@ -691,6 +691,20 @@ try {
   });
   assert.equal(canonicalJson(unsafeResult).includes("must-not-be-persisted"), false);
 
+  await put(
+    fixtureRoot,
+    "packages/uncertain/src/static-read.ts",
+    'import { readFile } from "node:fs/promises";\nexport const data = readFile(new URL("./schema.sql", import.meta.url), "utf8");\n',
+  );
+  const staticRead = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/uncertain/src/static-read.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+  });
+  assert.equal(staticRead.reusable, true);
+  assert.ok(staticRead.hashes["packages/uncertain/src/schema.sql"]);
+  assert.equal(staticRead.hashes["packages/uncertain/.env"], undefined);
+
   const safeRuntimeFiles = {
     "packages/safe/package.json": '{"name":"@fixture/safe","type":"module"}',
     "packages/safe/src/load.ts":
