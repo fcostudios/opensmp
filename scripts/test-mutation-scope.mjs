@@ -441,6 +441,7 @@ const us025DirectRoutes = {
   ],
   "apps/web/src/components/vendor-accounts/vendor-account-form.tsx": [
     "apps/web/src/components/vendor-accounts/vendor-accounts.test.tsx",
+    "apps/web/src/components/vendor-accounts/vendor-accounts.integration.test.tsx",
   ],
   "apps/web/src/components/vendor-accounts/vendor-account-tabs.tsx": [
     "apps/web/src/components/vendor-accounts/vendor-account-detail.test.tsx",
