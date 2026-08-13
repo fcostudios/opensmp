@@ -12,7 +12,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const EVIDENCE_SCHEMA_VERSION = 1;
-const DEPENDENCY_RESOLVER_VERSION = 4;
+const DEPENDENCY_RESOLVER_VERSION = 5;
+const VCS_WORKTREE_CONTAINERS = new Set([".worktrees", "worktrees"]);
 const KNOWN_OUTPUT_DIRECTORIES = new Set([
   ".cache",
   ".next",
@@ -96,7 +97,12 @@ function isWithin(parent, candidate) {
   return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== "..");
 }
 
-function walkFiles(directory, onExcluded = () => {}, onSymlink = () => {}) {
+function walkFiles(
+  directory,
+  onExcluded = () => {},
+  onSymlink = () => {},
+  repositoryRoot = directory,
+) {
   let directoryStat;
   try {
     directoryStat = lstatSync(directory);
@@ -112,6 +118,9 @@ function walkFiles(directory, onExcluded = () => {}, onSymlink = () => {}) {
   const files = [];
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     if (entry.name === ".git") {
+      continue;
+    }
+    if (directory === repositoryRoot && VCS_WORKTREE_CONTAINERS.has(entry.name)) {
       continue;
     }
     if (entry.name === "node_modules") {
@@ -134,7 +143,9 @@ function walkFiles(directory, onExcluded = () => {}, onSymlink = () => {}) {
       onSymlink();
       continue;
     }
-    if (entry.isDirectory()) files.push(...walkFiles(entryPath, onExcluded, onSymlink));
+    if (entry.isDirectory()) {
+      files.push(...walkFiles(entryPath, onExcluded, onSymlink, repositoryRoot));
+    }
     else if (entry.isFile()) files.push(entryPath);
   }
   return files;
@@ -293,6 +304,7 @@ export function collectExecutionInputs({
   const externalDependencyWorkspaces = new Set();
   const symlinkRuntimeInputWorkspaces = new Set();
   const unresolvedInstalledInputs = new Set();
+  const nestedWorktreeInputs = new Set();
   const environmentInputWorkspaces = new Set();
   const computedChildExecutionWorkspaces = new Set();
   const safeEnvironment = {};
@@ -447,7 +459,9 @@ export function collectExecutionInputs({
     expandedWorkspaces.add(owner.directory);
     const markIncomplete = () => incompleteWorkspaces.add(owner.directory);
     const markSymlink = () => symlinkRuntimeInputWorkspaces.add(owner.directory);
-    for (const ownedFile of walkFiles(owner.directory, markIncomplete, markSymlink)) {
+    for (const ownedFile of walkFiles(
+      owner.directory, markIncomplete, markSymlink, absoluteRoot,
+    )) {
       if (isWorkspaceFingerprintFile(owner.directory, ownedFile)) addFile(ownedFile, false);
       else markIncomplete();
     }
@@ -790,6 +804,11 @@ export function collectExecutionInputs({
     if (!isWithin(absoluteRoot, file)) {
       throw new Error(`Execution input escapes repository root: ${candidate}`);
     }
+    const relativeParts = path.relative(absoluteRoot, file).split(path.sep);
+    if (relativeParts.length > 1 && VCS_WORKTREE_CONTAINERS.has(relativeParts[0])) {
+      nestedWorktreeInputs.add(displayPath(file));
+      return;
+    }
     if (hasSymlinkComponent(absoluteRoot, file)) {
       markOwner(symlinkRuntimeInputWorkspaces, file);
       return;
@@ -851,7 +870,9 @@ export function collectExecutionInputs({
   for (const migrationRoot of migrationRoots) {
     const absoluteMigrationRoot = path.resolve(absoluteRoot, migrationRoot);
     const markSymlink = () => markOwner(symlinkRuntimeInputWorkspaces, absoluteMigrationRoot);
-    for (const migration of walkFiles(absoluteMigrationRoot, () => {}, markSymlink)) addFile(migration);
+    for (const migration of walkFiles(
+      absoluteMigrationRoot, () => {}, markSymlink, absoluteRoot,
+    )) addFile(migration);
   }
   addFile(path.join(absoluteRoot, "pnpm-lock.yaml"));
 
@@ -929,6 +950,10 @@ export function collectExecutionInputs({
     ...[...unresolvedInstalledInputs].map((dependency) => ({
       code: "unresolved-installed-package",
       workspace: dependency,
+    })),
+    ...[...nestedWorktreeInputs].map((input) => ({
+      code: "nested-worktree-input",
+      workspace: input,
     })),
   ].sort((left, right) =>
     comparePaths(left.workspace, right.workspace) || comparePaths(left.code, right.code),

@@ -112,7 +112,7 @@ async function expectedInputs(root, relativePaths, toolVersions, runtimeProfile)
     ]),
   );
   entries.push(
-    ["@mutation-evidence/dependency-resolver.json", sha256(canonicalJson({ version: 4 }))],
+    ["@mutation-evidence/dependency-resolver.json", sha256(canonicalJson({ version: 5 }))],
     [
       "@mutation-evidence/fingerprint.mjs",
       sha256(await readFile(new URL("./mutation-evidence/fingerprint.mjs", import.meta.url))),
@@ -180,6 +180,46 @@ try {
   );
   assert.deepEqual(collected, { hashes: expected, reasons: [], reusable: true });
   assert.equal(canonicalJson(collected).includes("must-not-be-persisted"), false);
+
+  await put(
+    fixtureRoot,
+    "scripts/root-filesystem.mjs",
+    'import { readFileSync } from "node:fs";\nexport const read = readFileSync;\n',
+  );
+  for (const container of [".worktrees", "worktrees"]) {
+    await put(
+      fixtureRoot,
+      `${container}/other/entry.mjs`,
+      'import "./postgres-container.mjs";\n',
+    );
+    await put(
+      fixtureRoot,
+      `${container}/other/postgres-container.mjs`,
+      'import { resolve } from "node:path";\nconst packageRoot = "ignored";\nconst migrationRunner = resolve(packageRoot, "scripts/apply-migrations.mjs");\nexport { migrationRunner };\n',
+    );
+  }
+  const rootFileSystemClosure = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["scripts/root-filesystem.mjs"],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+  });
+  assert.equal(rootFileSystemClosure.reusable, true);
+  assert.equal(Object.keys(rootFileSystemClosure.hashes).some((file) =>
+    /^(?:\.worktrees|worktrees)\//.test(file)), false);
+
+  await put(
+    fixtureRoot,
+    "packages/app/src/explicit-worktree.ts",
+    'import "../../../.worktrees/other/entry.mjs";\n',
+  );
+  const explicitWorktreeReference = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/app/src/explicit-worktree.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+  });
+  assert.equal(explicitWorktreeReference.reusable, false);
+  assert.ok(explicitWorktreeReference.reasons.some(({ code }) =>
+    code === "nested-worktree-input"));
 
   await put(
     fixtureRoot,
@@ -1115,6 +1155,8 @@ for (const tool of [
     input.startsWith(`@installed/${tool}`)), `${tool} installed bytes must be fingerprinted`);
 }
 assert.ok(repositoryProbe.hashes["@tool/pnpm-executable"]);
+assert.equal(Object.keys(repositoryProbe.hashes).some((input) =>
+  /^(?:\.worktrees|worktrees)\//.test(input)), false);
 
 const connectorDispatchProbe = collectExecutionInputs({
   root: path.resolve(new URL("..", import.meta.url).pathname),
