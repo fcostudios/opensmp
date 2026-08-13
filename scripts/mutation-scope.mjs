@@ -14,7 +14,7 @@
 // Env overrides:
 //   MUTATION_BASE=<ref>   compare against this ref instead of the default branch
 //   MUTATION_SCOPE_DRY=1  write + print the generated config, do NOT run Stryker
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
@@ -1638,6 +1638,7 @@ export async function runMutationScope(options = {}) {
   const activeDatabaseSandboxes = new Set();
   const signalProcess = options.signalProcess ?? process;
   let signalShutdownPromise = null;
+  let activeShardProcess = null;
   const cleanupDatabaseSandbox = async (record) => {
     try {
       const sandbox = await record.promise;
@@ -1869,6 +1870,13 @@ export async function runMutationScope(options = {}) {
         signalShutdownPromise ??= (async () => {
           finishPerformanceRun(performanceRun, "interrupted");
           persist();
+          if (activeShardProcess?.pid) {
+            try {
+              process.kill(-activeShardProcess.pid, signal);
+            } catch (error) {
+              if (error?.code !== "ESRCH") throw error;
+            }
+          }
           await Promise.allSettled(
             [...activeDatabaseSandboxes].map(cleanupDatabaseSandbox),
           );
@@ -1964,11 +1972,21 @@ export async function runMutationScope(options = {}) {
     shards.map((shard) => shard.evidenceKey).sort().join("\n"),
   );
   persist();
-  const executeShard = options.executeShard ?? (({ shard, environment: childEnvironment }) => spawnSync(
-    "pnpm", ["exec", "stryker", "run", shard.configPath], {
-      stdio: "inherit", env: childEnvironment,
-    },
-  ));
+  const executeShard = options.executeShard ?? (({ shard, environment: childEnvironment }) =>
+    new Promise((resolveExecution, rejectExecution) => {
+      const child = spawn("pnpm", ["exec", "stryker", "run", shard.configPath], {
+        detached: true,
+        stdio: "inherit",
+        env: childEnvironment,
+      });
+      activeShardProcess = child;
+      child.once("error", rejectExecution);
+      child.once("close", (status, childSignal) => {
+        if (activeShardProcess === child) activeShardProcess = null;
+        const signalStatus = childSignal === "SIGINT" ? 130 : childSignal === "SIGTERM" ? 143 : 1;
+        resolveExecution({ status: status ?? signalStatus });
+      });
+    }));
     for (const shard of shards) {
       const { commandList, executionInputs, runtimeProfile } = executionContexts.get(shard.id);
       console.log(`mutation-scope: running ${shard.id} (${shard.mutate.length} ranges)`);
@@ -2085,7 +2103,7 @@ export async function runMutationScope(options = {}) {
         return { manifest: manifestFor(), performance: performanceRun };
       }
       const childEnvironment = controlledChildEnvironment(shardEnvironment, runtimeProfile);
-      const result = executeShard({ shard, environment: childEnvironment });
+      const result = await executeShard({ shard, environment: childEnvironment });
       if (signalShutdownPromise) {
         await signalShutdownPromise;
         return { manifest: manifestFor(), performance: performanceRun };
