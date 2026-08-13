@@ -112,7 +112,7 @@ async function expectedInputs(root, relativePaths, toolVersions, runtimeProfile)
     ]),
   );
   entries.push(
-    ["@mutation-evidence/dependency-resolver.json", sha256(canonicalJson({ version: 1 }))],
+    ["@mutation-evidence/dependency-resolver.json", sha256(canonicalJson({ version: 2 }))],
     [
       "@mutation-evidence/fingerprint.mjs",
       sha256(await readFile(new URL("./mutation-evidence/fingerprint.mjs", import.meta.url))),
@@ -973,12 +973,21 @@ try {
     "node_modules/fixture-parent/package.json",
     JSON.stringify({
       name: "fixture-parent", version: "1.0.0", main: "index.js",
-      dependencies: { "fixture-child": "1.0.0" },
+      dependencies: { "fixture-child": "1.0.0", "fixture-manifest-only": "1.0.0" },
       optionalDependencies: { "fixture-optional": "1.0.0", "fixture-absent": "1.0.0" },
       peerDependencies: { "fixture-peer": "1.0.0" },
     }),
   );
   await put(fixtureRoot, "node_modules/fixture-parent/index.js", "module.exports = true;\n");
+  await put(
+    fixtureRoot,
+    "node_modules/fixture-manifest-only/package.json",
+    JSON.stringify({
+      name: "fixture-manifest-only",
+      version: "1.0.0",
+      exports: { "./package.json": "./package.json" },
+    }),
+  );
   for (const dependency of ["fixture-child", "fixture-optional", "fixture-peer"]) {
     await put(
       fixtureRoot,
@@ -999,6 +1008,7 @@ try {
   });
   const parentResult = parentClosure();
   assert.equal(parentResult.reusable, true);
+  assert.ok(parentResult.hashes["@installed/fixture-manifest-only@1.0.0/package.json"]);
   for (const dependency of ["fixture-child", "fixture-optional", "fixture-peer"]) {
     assert.ok(parentResult.hashes[`@installed/${dependency}@1.0.0/index.js`]);
   }

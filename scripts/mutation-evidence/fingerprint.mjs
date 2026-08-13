@@ -12,7 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const EVIDENCE_SCHEMA_VERSION = 1;
-const DEPENDENCY_RESOLVER_VERSION = 1;
+const DEPENDENCY_RESOLVER_VERSION = 2;
 const KNOWN_OUTPUT_DIRECTORIES = new Set([
   ".cache",
   ".next",
@@ -339,8 +339,14 @@ export function collectExecutionInputs({
       try {
         runtimeFile = createRequire(containingFile).resolve(packageName);
       } catch {
-        markUnresolved();
-        return;
+        const packageManifest = (createRequire(containingFile).resolve.paths(packageName) ?? [])
+          .map((nodeModulesPath) => path.join(nodeModulesPath, packageName, "package.json"))
+          .find((candidate) => existsSync(candidate));
+        if (!packageManifest) {
+          markUnresolved();
+          return;
+        }
+        runtimeFile = realpathSync(packageManifest);
       }
     }
     if (!path.isAbsolute(runtimeFile)) return;

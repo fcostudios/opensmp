@@ -14,7 +14,7 @@ import {
   restoreFixture,
 } from "./benchmarks/chg014-representative-fixture.mjs";
 
-assert.equal(BASE_REF, "35b5c3f5119ff124c3546e00b3ff17c4521996da");
+assert.equal(BASE_REF, "9a9db72782d2f2bb4823c35c56ce27a349f949a5");
 assert.deepEqual(
   FIXTURE_FILES.map(({ path: relativePath, preSha256, postSha256 }) => ({
     path: relativePath,
@@ -31,11 +31,6 @@ assert.deepEqual(
       path: "packages/contracts/src/capacity.ts",
       preSha256: "5385a51cc9afc577b6691f48816420586ab0fa65360a725d1a76a4eb3cdd7ca3",
       postSha256: "bc7aef14955d702f47be67233139e90f9bf20c667d72a731bb70b29db0d058fa",
-    },
-    {
-      path: "scripts/mutation-evidence/fingerprint.mjs",
-      preSha256: "b7e846b76aa6c0ffbaf0b7b24106f20ed9021072a02ed4fc51b13e6848d40a72",
-      postSha256: "2647ad5f735c5622b98d8b210eb66d6654b5e6eb237c3c890a49563293972161",
     },
   ],
 );
