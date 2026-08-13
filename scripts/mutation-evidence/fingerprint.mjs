@@ -374,10 +374,7 @@ export function collectExecutionInputs({
     let packageRoot = path.dirname(runtimeFile);
     while (path.dirname(packageRoot) !== packageRoot) {
       const manifestCandidate = path.join(packageRoot, "package.json");
-      if (existsSync(manifestCandidate)) {
-        const candidate = parseJson(manifestCandidate);
-        if (candidate.name === packageName) break;
-      }
+      if (existsSync(manifestCandidate)) break;
       packageRoot = path.dirname(packageRoot);
     }
     const manifestPath = path.join(packageRoot, "package.json");
@@ -428,6 +425,10 @@ export function collectExecutionInputs({
   };
   const recordEnvironmentInput = (key, file) => {
     const value = environment[key];
+    if (value === undefined) {
+      safeEnvironment[key] = "absent";
+      return;
+    }
     if (["LANG", "LC_ALL", "LC_MESSAGES", "TZ"].includes(key)
         || ["MUTATION_BASE", "MUTATION_CACHE", "MUTATION_SCOPE_DRY", "MIGRATIONS_DIR"].includes(key)) {
       const normalized = value === undefined ? "absent" : String(value);
@@ -436,17 +437,24 @@ export function collectExecutionInputs({
         return;
       }
     }
-    const databaseHarness = runtimeProfile?.databaseHarness;
+    const databaseHarnesses = new Set(String(runtimeProfile?.databaseHarness ?? "").split("-"));
     const databaseEnvironmentHarness = ["DATABASE_ADMIN_URL", "DATABASE_URL"].includes(key)
       ? "default"
       : /^US\d+_MUTATION_DATABASE_(?:ADMIN_)?URL$/.test(key)
         ? key.replace(/_MUTATION_DATABASE_(?:ADMIN_)?URL$/, "").toLowerCase()
         : null;
     if (databaseEnvironmentHarness !== null
-        && databaseEnvironmentHarness === databaseHarness
+        && databaseHarnesses.has(databaseEnvironmentHarness)
         && runtimeProfile?.databaseDriver === "postgres"
         && typeof runtimeProfile?.schemaFingerprint === "string") return;
     if (key === "DB_DRIVER" && runtimeProfile?.databaseDriver === "postgres") return;
+    if (key === "ECUADOR_HOLIDAYS") {
+      const normalized = value === undefined ? "absent" : String(value);
+      if (/^(?:absent|\s*\d{4}-\d{2}-\d{2}(?:\s*,\s*\d{4}-\d{2}-\d{2})*\s*)$/.test(normalized)) {
+        safeEnvironment[key] = normalized;
+        return;
+      }
+    }
     markOwner(environmentInputWorkspaces, file);
   };
   const markOwner = (collection, file) => {

@@ -243,7 +243,25 @@ try {
     entryFiles: ["packages/app/src/environment.ts"],
     configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
     environment: {},
-  }).reusable, false);
+  }).reusable, true, "absent service inputs are deterministic and contain no secret material");
+  await put(
+    fixtureRoot,
+    "node_modules/fixture-alias/package.json",
+    JSON.stringify({ name: "fixture-real", version: "1.2.3", main: "index.js" }),
+  );
+  await put(fixtureRoot, "node_modules/fixture-alias/index.js", "module.exports = 'aliased';\n");
+  await put(
+    fixtureRoot,
+    "packages/app/src/alias.ts",
+    "import alias from 'fixture-alias'; export default alias;\n",
+  );
+  const aliasedDependency = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/app/src/alias.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+  });
+  assert.equal(aliasedDependency.reusable, true);
+  assert.ok(aliasedDependency.hashes["@installed/fixture-real@1.2.3/index.js"]);
   await put(
     fixtureRoot,
     "packages/app/src/computed-worker.ts",
@@ -272,6 +290,25 @@ try {
   assert.notEqual(
     localeBefore.hashes["@runtime/environment.json"],
     localeAfter.hashes["@runtime/environment.json"],
+  );
+
+  await put(
+    fixtureRoot,
+    "packages/app/src/holidays.ts",
+    "export const holidays = process.env.ECUADOR_HOLIDAYS;\n",
+  );
+  const holidayEnvironment = (environment) => collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/app/src/holidays.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+    environment,
+  });
+  const holidaysBefore = holidayEnvironment({ ECUADOR_HOLIDAYS: "2026-07-27" });
+  const holidaysAfter = holidayEnvironment({ ECUADOR_HOLIDAYS: "2026-07-27, 2026-08-10" });
+  assert.equal(holidaysBefore.reusable, true);
+  assert.notEqual(
+    holidaysBefore.hashes["@runtime/environment.json"],
+    holidaysAfter.hashes["@runtime/environment.json"],
   );
 
   await put(
@@ -1098,7 +1135,8 @@ try {
   await rm(path.join(fixtureRoot, "node_modules/fixture-peer"), { recursive: true, force: true });
   const missingPeer = parentClosure();
   assert.equal(missingPeer.reusable, false);
-  assert.ok(missingPeer.reasons.some(({ code }) => code === "external-local-dependency"));
+  assert.ok(missingPeer.reasons.some(({ code }) =>
+    ["external-local-dependency", "symlink-runtime-input"].includes(code)));
 
   for (const plugin of ["@stryker-mutator/vitest-runner", "fixture-stryker-plugin"]) {
     await put(
@@ -1146,7 +1184,7 @@ const repositoryProbe = collectExecutionInputs({
   runtimeProfile: { arch: process.arch, platform: process.platform },
 });
 assert.equal(repositoryProbe.reusable, false);
-assert.ok(repositoryProbe.reasons.some(({ code }) => code === "environment-runtime-input"));
+assert.equal(repositoryProbe.reasons.some(({ code }) => code === "environment-runtime-input"), false);
 assert.ok(repositoryProbe.hashes["scripts/mutation-scope.mjs"]);
 for (const tool of [
   "typescript@", "vitest@", "@stryker-mutator/core@", "@stryker-mutator/vitest-runner@",

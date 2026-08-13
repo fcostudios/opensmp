@@ -1061,14 +1061,16 @@ export function controlledChildEnvironment(environment, runtimeProfile = {}) {
     "LANG", "LC_ALL", "LC_MESSAGES", "TZ", "MIGRATIONS_DIR",
   ];
   if (runtimeProfile.databaseDriver === "postgres") {
-    const harness = runtimeProfile.databaseHarness ?? "default";
-    if (harness === "default") allowed.push("DATABASE_URL", "DATABASE_ADMIN_URL");
-    else {
-      const prefix = harness.toUpperCase();
-      allowed.push(
-        `${prefix}_MUTATION_DATABASE_URL`,
-        `${prefix}_MUTATION_DATABASE_ADMIN_URL`,
-      );
+    const harnesses = String(runtimeProfile.databaseHarness ?? "default").split("-");
+    for (const harness of harnesses) {
+      if (harness === "default") allowed.push("DATABASE_URL", "DATABASE_ADMIN_URL");
+      else {
+        const prefix = harness.toUpperCase();
+        allowed.push(
+          `${prefix}_MUTATION_DATABASE_URL`,
+          `${prefix}_MUTATION_DATABASE_ADMIN_URL`,
+        );
+      }
     }
     allowed.push("DB_DRIVER");
   }
@@ -1425,12 +1427,15 @@ function localRuntimeProfile() {
   };
 }
 
-function databaseHarnessIdentity(shard, environment = process.env) {
+export function databaseHarnessIdentity(shard, environment = process.env) {
   const adminKeys = Object.keys(environment)
     .filter((key) => /^US\d+_MUTATION_DATABASE_ADMIN_URL$/.test(key) && environment[key])
     .sort();
-  const directlyReferenced = adminKeys.filter((key) => shard?.testFiles.some((test) =>
-    existsSync(test) && readFileSync(test, "utf8").includes(key)));
+  const directlyReferenced = adminKeys.filter((key) => {
+    const appKey = key.replace("_ADMIN_URL", "_URL");
+    return shard?.testFiles.some((test) => existsSync(test)
+      && [key, appKey].some((candidate) => readFileSync(test, "utf8").includes(candidate)));
+  });
   const selected = directlyReferenced.length === 1
     ? directlyReferenced[0]
     : adminKeys.length === 1 ? adminKeys[0] : null;
@@ -1470,11 +1475,19 @@ async function defaultRuntimeProfile({ shard, environment = process.env } = {}) 
   } finally {
     await client.end();
   }
+  const equivalentHarnesses = [
+    ...(environment.DATABASE_ADMIN_URL === databaseAdminUrl
+        && environment.DATABASE_URL === applicationUrl ? ["default"] : []),
+    ...Object.keys(environment)
+      .filter((key) => /^US\d+_MUTATION_DATABASE_ADMIN_URL$/.test(key)
+        && environment[key] === databaseAdminUrl
+        && environment[key.replace("_ADMIN_URL", "_URL")] === applicationUrl)
+      .map((key) => key.replace(/_MUTATION_DATABASE_ADMIN_URL$/, "").toLowerCase()),
+  ].sort();
   return {
     ...local,
     databaseDriver: "postgres",
-    databaseHarness: databaseHarness === "DATABASE_ADMIN_URL" ? "default" : databaseHarness
-      .replace(/_MUTATION_DATABASE_ADMIN_URL$/, "").toLowerCase(),
+    databaseHarness: [...new Set(equivalentHarnesses)].join("-"),
     databaseServerVersion,
     schemaFingerprint: sha256(JSON.stringify({ migrations, verification })),
   };

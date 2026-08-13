@@ -23,6 +23,7 @@ import {
   classifyVerificationOnlyHunk,
   controlledChildEnvironment,
   createCampaignRuntimeProfileResolver,
+  databaseHarnessIdentity,
   groupRoutedMutationTargets,
   mutationCompatibleTestFiles,
   mutatable,
@@ -83,6 +84,14 @@ const mutationHarnessResolver = createCampaignRuntimeProfileResolver(async ({ en
 const mutationHarnessProfile = await mutationHarnessResolver(databaseShard("mutation"));
 assert.equal(mutationHarnessProfile.databaseHarness, "us017");
 assert.equal(mutationHarnessProfile.observedAdminUrl, "postgres://owner:secret@db/ledger");
+assert.equal(databaseHarnessIdentity({
+  testFiles: ["apps/web/src/modules/vendor-catalog/cross-org-move.integration.test.ts"],
+}, {
+  US017_MUTATION_DATABASE_URL: "postgres://app:secret@db/ledger",
+  US017_MUTATION_DATABASE_ADMIN_URL: "postgres://owner:secret@db/ledger",
+  US022_MUTATION_DATABASE_URL: "postgres://app:secret@db/ledger",
+  US022_MUTATION_DATABASE_ADMIN_URL: "postgres://owner:secret@db/ledger",
+}), "US022_MUTATION_DATABASE_ADMIN_URL", "an app-URL reference selects its schema-profiled harness");
 let memoizedFailureCalls = 0;
 const resolveMemoizedFailure = createCampaignRuntimeProfileResolver(async () => {
   memoizedFailureCalls += 1;
