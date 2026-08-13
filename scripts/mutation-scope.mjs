@@ -240,7 +240,7 @@ export function mutationSourceFiles(targets) {
  * exact line range. Escape bracketed Next.js route segments so a literal
  * `[vendorAccountId]` directory cannot be treated as a character class. */
 export function strykerMutationTarget(target) {
-  return target.replaceAll("[", "\\[").replaceAll("]", "\\]");
+  return target.replace(/[\[\]]/g, (bracket) => bracket === "[" ? "[[]" : "[]]");
 }
 
 export function groupRoutedMutationTargets(targets, routeTestsForSource) {
@@ -1089,7 +1089,12 @@ export function controlledChildEnvironment(environment, runtimeProfile = {}) {
     .map((key) => [key, environment[key]]));
 }
 
-export async function createDatabaseShardSandbox(environment, shardId, pgModule) {
+export async function createDatabaseShardSandbox(
+  environment,
+  shardId,
+  pgModule,
+  { cleanupAttempts = 3 } = {},
+) {
   const ownerUrl = environment.DATABASE_ADMIN_URL ?? environment.US017_MUTATION_DATABASE_ADMIN_URL;
   const appUrl = environment.DATABASE_URL ?? environment.US017_MUTATION_DATABASE_URL;
   if (!ownerUrl || !appUrl) throw new Error("database shard sandbox requires owner and app URLs");
@@ -1122,23 +1127,50 @@ export async function createDatabaseShardSandbox(environment, shardId, pgModule)
       sandboxEnvironment[key] = sandboxUrl(appUrl);
     }
   }
+  if (!Number.isInteger(cleanupAttempts) || cleanupAttempts < 1) {
+    throw new Error("database sandbox cleanupAttempts must be a positive integer");
+  }
   let cleaned = false;
+  let cleanupPromise = null;
+  const cleanupOnce = async () => {
+    const client = new Client({ connectionString: maintenanceUrl.toString() });
+    await client.connect();
+    try {
+      await client.query(
+        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
+        [databaseName],
+      );
+      await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
+    } finally {
+      await client.end();
+    }
+  };
   return {
     databaseName,
     environment: sandboxEnvironment,
     async cleanup() {
       if (cleaned) return;
-      cleaned = true;
-      const client = new Client({ connectionString: maintenanceUrl.toString() });
-      await client.connect();
-      try {
-        await client.query(
-          "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
-          [databaseName],
+      if (cleanupPromise) return cleanupPromise;
+      cleanupPromise = (async () => {
+        let lastError;
+        for (let attempt = 1; attempt <= cleanupAttempts; attempt += 1) {
+          try {
+            await cleanupOnce();
+            cleaned = true;
+            return;
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        throw new Error(
+          `database sandbox cleanup exhausted ${cleanupAttempts} attempt(s) for ${databaseName}`,
+          { cause: lastError },
         );
-        await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
+      })();
+      try {
+        return await cleanupPromise;
       } finally {
-        await client.end();
+        if (!cleaned) cleanupPromise = null;
       }
     },
   };

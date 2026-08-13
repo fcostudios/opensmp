@@ -50,7 +50,7 @@ assert.equal(
   strykerMutationTarget(
     "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx:10-12",
   ),
-  "apps/web/src/app/(authenticated)/organizaciones/\\[vendorAccountId\\]/page.tsx:10-12",
+  "apps/web/src/app/(authenticated)/organizaciones/[[]vendorAccountId[]]/page.tsx:10-12",
 );
 assert.equal(
   strykerMutationTarget("packages/contracts/src/vendor-catalog.ts:1-20"),
@@ -167,6 +167,48 @@ assert.equal(
 );
 await secondSandbox.cleanup();
 assert.deepEqual([...sandboxDatabases.keys()], ["ledger"]);
+
+let transientCleanupAttempts = 0;
+class TransientCleanupClient extends SandboxClient {
+  async query(sql, values = []) {
+    if (/^DROP DATABASE IF EXISTS/.test(sql) && transientCleanupAttempts++ === 0) {
+      throw new Error("transient drop failure");
+    }
+    return super.query(sql, values);
+  }
+}
+const transientSandbox = await createDatabaseShardSandbox(
+  sandboxEnvironment,
+  "transient-cleanup-shard",
+  { default: { Client: TransientCleanupClient } },
+  { cleanupAttempts: 1 },
+);
+await assert.rejects(transientSandbox.cleanup(), /cleanup exhausted 1 attempt/);
+assert.equal(
+  sandboxDatabases.has(transientSandbox.databaseName),
+  true,
+  "a failed DROP must leave the sandbox eligible for a later cleanup attempt",
+);
+await transientSandbox.cleanup();
+assert.equal(sandboxDatabases.has(transientSandbox.databaseName), false);
+
+let concurrentCleanupAttempts = 0;
+class ConcurrentCleanupClient extends SandboxClient {
+  async query(sql, values = []) {
+    if (/^DROP DATABASE IF EXISTS/.test(sql)) {
+      concurrentCleanupAttempts += 1;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    return super.query(sql, values);
+  }
+}
+const concurrentSandbox = await createDatabaseShardSandbox(
+  sandboxEnvironment,
+  "concurrent-cleanup-shard",
+  { default: { Client: ConcurrentCleanupClient } },
+);
+await Promise.all([concurrentSandbox.cleanup(), concurrentSandbox.cleanup()]);
+assert.equal(concurrentCleanupAttempts, 1, "concurrent cleanup calls must share one in-flight DROP");
 assert.equal(databaseHarnessIdentity({
   testFiles: ["apps/web/src/modules/vendor-catalog/cross-org-move.integration.test.ts"],
 }, {
