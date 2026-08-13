@@ -272,14 +272,19 @@ export function collectExecutionInputs({
   migrationRoots,
   toolVersions,
   runtimeProfile,
+  environment = process.env,
 }) {
   const absoluteRoot = path.resolve(root);
   const workspacePackages = findWorkspacePackages(absoluteRoot);
   const included = new Set();
+  const runtimeInspected = new Set();
   const expandedWorkspaces = new Set();
   const incompleteWorkspaces = new Set();
   const externalDependencyWorkspaces = new Set();
   const symlinkRuntimeInputWorkspaces = new Set();
+  const environmentInputWorkspaces = new Set();
+  const computedChildExecutionWorkspaces = new Set();
+  const safeEnvironment = {};
   const compilerConfigurationCache = new Map();
   const includedCompilerConfigurations = new Set();
   const fileSystemModules = new Set(["fs", "fs/promises", "node:fs", "node:fs/promises"]);
@@ -291,6 +296,29 @@ export function collectExecutionInputs({
   };
 
   const displayPath = (file) => path.relative(absoluteRoot, file).split(path.sep).join("/");
+  const recordEnvironmentInput = (key, file) => {
+    const value = environment[key];
+    if (["LANG", "LC_ALL", "LC_MESSAGES", "TZ"].includes(key)
+        || ["MUTATION_BASE", "MUTATION_CACHE", "MUTATION_SCOPE_DRY", "MIGRATIONS_DIR"].includes(key)) {
+      const normalized = value === undefined ? "absent" : String(value);
+      if (/^[A-Za-z0-9_./:@+-]{1,200}$/.test(normalized) && !normalized.includes("://")) {
+        safeEnvironment[key] = normalized;
+        return;
+      }
+    }
+    const databaseHarness = runtimeProfile?.databaseHarness;
+    const databaseEnvironmentHarness = ["DATABASE_ADMIN_URL", "DATABASE_URL"].includes(key)
+      ? "default"
+      : /^US\d+_MUTATION_DATABASE_(?:ADMIN_)?URL$/.test(key)
+        ? key.replace(/_MUTATION_DATABASE_(?:ADMIN_)?URL$/, "").toLowerCase()
+        : null;
+    if (databaseEnvironmentHarness !== null
+        && databaseEnvironmentHarness === databaseHarness
+        && runtimeProfile?.databaseDriver === "postgres"
+        && typeof runtimeProfile?.schemaFingerprint === "string") return;
+    if (key === "DB_DRIVER" && runtimeProfile?.databaseDriver === "postgres") return;
+    markOwner(environmentInputWorkspaces, file);
+  };
   const markOwner = (collection, file) => {
     const owner = findOwner(absoluteRoot, workspacePackages, file);
     if (owner) collection.add(owner.directory);
@@ -302,7 +330,7 @@ export function collectExecutionInputs({
     const markIncomplete = () => incompleteWorkspaces.add(owner.directory);
     const markSymlink = () => symlinkRuntimeInputWorkspaces.add(owner.directory);
     for (const ownedFile of walkFiles(owner.directory, markIncomplete, markSymlink)) {
-      if (isWorkspaceFingerprintFile(owner.directory, ownedFile)) addFile(ownedFile);
+      if (isWorkspaceFingerprintFile(owner.directory, ownedFile)) addFile(ownedFile, false);
       else markIncomplete();
     }
   };
@@ -410,7 +438,7 @@ export function collectExecutionInputs({
     if (workspaceResolution.owned) return workspaceResolution;
     return { owned: matchesPathAlias(specifier, compilerOptions), resolved: null };
   };
-  const inspectSource = (file, sourceText) => {
+  const inspectSource = (file, sourceText, analyzeRuntime) => {
     const ast = ts.createSourceFile(
       file,
       sourceText,
@@ -418,12 +446,46 @@ export function collectExecutionInputs({
       true,
       sourceKind(file),
     );
+    const runnerInfrastructure = displayPath(file) === "scripts/mutation-scope.mjs"
+      || displayPath(file).startsWith("scripts/mutation-evidence/")
+      || displayPath(file) === "packages/db/scripts/verify-schema.mjs";
     let importsFileSystem = false;
+    const childProcessBindings = new Set();
+    const childProcessAliases = new Set();
+    const childProcessNamespaces = new Set();
+    const workerBindings = new Set();
+    const workerNamespaces = new Set();
     const findFileSystemDependency = (node) => {
       if (ts.isImportDeclaration(node)
           && ts.isStringLiteralLike(node.moduleSpecifier)
           && fileSystemModules.has(node.moduleSpecifier.text)) {
         importsFileSystem = true;
+      }
+      if (ts.isImportDeclaration(node)
+          && ts.isStringLiteralLike(node.moduleSpecifier)
+          && ["child_process", "node:child_process"].includes(node.moduleSpecifier.text)) {
+        if (node.importClause?.namedBindings
+            && ts.isNamespaceImport(node.importClause.namedBindings)) {
+          childProcessNamespaces.add(node.importClause.namedBindings.name.text);
+        }
+        for (const element of node.importClause?.namedBindings?.elements ?? []) {
+          if (["exec", "execFile", "spawn", "fork"].includes(element.propertyName?.text ?? element.name.text)) {
+            childProcessBindings.add(element.name.text);
+          }
+        }
+      }
+      if (ts.isImportDeclaration(node)
+          && ts.isStringLiteralLike(node.moduleSpecifier)
+          && ["worker_threads", "node:worker_threads"].includes(node.moduleSpecifier.text)) {
+        if (node.importClause?.namedBindings
+            && ts.isNamespaceImport(node.importClause.namedBindings)) {
+          workerNamespaces.add(node.importClause.namedBindings.name.text);
+        }
+        for (const element of node.importClause?.namedBindings?.elements ?? []) {
+          if ((element.propertyName?.text ?? element.name.text) === "Worker") {
+            workerBindings.add(element.name.text);
+          }
+        }
       }
       if (ts.isCallExpression(node)
           && ts.isIdentifier(node.expression)
@@ -437,6 +499,28 @@ export function collectExecutionInputs({
     };
     findFileSystemDependency(ast);
     if (importsFileSystem) expandOwner(file);
+    const owner = findOwner(absoluteRoot, workspacePackages, file);
+    const knownMigrationRunner = childProcessBindings.size > 0
+      && /resolve\s*\([^)]*["']scripts\/apply-migrations\.mjs["']/.test(sourceText);
+    if (analyzeRuntime && knownMigrationRunner && owner) {
+      addFile(path.join(owner.directory, "scripts/apply-migrations.mjs"));
+    }
+    const collectChildAliases = (node) => {
+      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)
+          && node.initializer && ts.isCallExpression(node.initializer)
+          && ts.isIdentifier(node.initializer.expression)
+          && node.initializer.expression.text === "promisify"
+          && node.initializer.arguments.length === 1
+          && ts.isIdentifier(node.initializer.arguments[0])
+          && childProcessBindings.has(node.initializer.arguments[0].text)) {
+        childProcessAliases.add(node.name.text);
+      }
+      ts.forEachChild(node, collectChildAliases);
+    };
+    collectChildAliases(ast);
+    if (analyzeRuntime && /require\s*\(\s*["'](?:node:)?(?:child_process|worker_threads)["']\s*\)/.test(sourceText)) {
+      markOwner(computedChildExecutionWorkspaces, file);
+    }
     const visit = (node) => {
       let specifier = null;
       if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node))
@@ -470,11 +554,58 @@ export function collectExecutionInputs({
         else if (resolution.owned) expandOwner(file);
       }
 
+      if (ts.isPropertyAccessExpression(node)) {
+        const expressionText = node.expression.getText(ast);
+        if (analyzeRuntime && !runnerInfrastructure
+            && (expressionText === "process.env" || expressionText === "import.meta.env")) {
+          recordEnvironmentInput(node.name.text, file);
+        }
+      }
+      if (ts.isElementAccessExpression(node)
+          && !runnerInfrastructure
+          && analyzeRuntime
+          && ["process.env", "import.meta.env"].includes(node.expression.getText(ast))) {
+        if (!ts.isStringLiteralLike(node.argumentExpression)) {
+          markOwner(environmentInputWorkspaces, file);
+        } else {
+          recordEnvironmentInput(node.argumentExpression.text, file);
+        }
+      }
+      if (analyzeRuntime && ts.isCallExpression(node)
+          && ((ts.isIdentifier(node.expression)
+            && (childProcessBindings.has(node.expression.text)
+              || childProcessAliases.has(node.expression.text)))
+            || (ts.isPropertyAccessExpression(node.expression)
+              && ts.isIdentifier(node.expression.expression)
+              && childProcessNamespaces.has(node.expression.expression.text)))) {
+        const executable = node.arguments[0];
+        const runsNode = executable?.getText(ast) === "process.execPath";
+        if (runsNode) {
+          const argumentsExpression = node.arguments[1];
+          const firstArgument = ts.isArrayLiteralExpression(argumentsExpression)
+            ? argumentsExpression.elements[0]
+            : null;
+          const declaredMigrationRunner = firstArgument && ts.isIdentifier(firstArgument)
+            && firstArgument.text === "migrationRunner" && knownMigrationRunner;
+          if (!declaredMigrationRunner) markOwner(computedChildExecutionWorkspaces, file);
+        } else if (!ts.isStringLiteralLike(executable)) {
+          markOwner(computedChildExecutionWorkspaces, file);
+        }
+      }
+      if (analyzeRuntime && ts.isNewExpression(node)
+          && ((ts.isIdentifier(node.expression) && workerBindings.has(node.expression.text))
+            || (ts.isPropertyAccessExpression(node.expression)
+              && ts.isIdentifier(node.expression.expression)
+              && workerNamespaces.has(node.expression.expression.text)
+              && node.expression.name.text === "Worker"))) {
+        markOwner(computedChildExecutionWorkspaces, file);
+      }
+
       ts.forEachChild(node, visit);
     };
     visit(ast);
   };
-  function addFile(candidate) {
+  function addFile(candidate, analyzeRuntime = true) {
     const file = path.resolve(candidate);
     if (!isWithin(absoluteRoot, file)) {
       throw new Error(`Execution input escapes repository root: ${candidate}`);
@@ -486,7 +617,14 @@ export function collectExecutionInputs({
     if (!existsSync(file) || !statSync(file).isFile()) {
       throw new Error(`Execution input does not exist: ${displayPath(file)}`);
     }
-    if (included.has(file)) return;
+    if (included.has(file)) {
+      if (analyzeRuntime && !runtimeInspected.has(file)
+          && /\.(?:[cm]?[jt]sx?|json)$/.test(file)) {
+        runtimeInspected.add(file);
+        inspectSource(file, readFileSync(file, "utf8"), true);
+      }
+      return;
+    }
     included.add(file);
 
     const owner = findOwner(absoluteRoot, workspacePackages, file);
@@ -501,7 +639,8 @@ export function collectExecutionInputs({
       compilerConfigurationFor(file);
     }
     if (/\.(?:[cm]?[jt]sx?|json)$/.test(file)) {
-      inspectSource(file, readFileSync(file, "utf8"));
+      if (analyzeRuntime) runtimeInspected.add(file);
+      inspectSource(file, readFileSync(file, "utf8"), analyzeRuntime);
     }
   }
 
@@ -533,6 +672,9 @@ export function collectExecutionInputs({
     ["@runtime/profile.json", sha256(canonicalJson(runtimeProfile))],
     ["@tool/versions.json", sha256(canonicalJson(toolVersions))],
   );
+  if (Object.keys(safeEnvironment).length > 0) {
+    entries.push(["@runtime/environment.json", sha256(canonicalJson(safeEnvironment))]);
+  }
   const hashes = Object.fromEntries(
     entries.sort(([left], [right]) => comparePaths(left, right)),
   );
@@ -547,6 +689,14 @@ export function collectExecutionInputs({
     })),
     ...[...symlinkRuntimeInputWorkspaces].map((workspace) => ({
       code: "symlink-runtime-input",
+      workspace: displayPath(workspace),
+    })),
+    ...[...environmentInputWorkspaces].map((workspace) => ({
+      code: "environment-runtime-input",
+      workspace: displayPath(workspace),
+    })),
+    ...[...computedChildExecutionWorkspaces].map((workspace) => ({
+      code: "computed-child-execution-input",
       workspace: displayPath(workspace),
     })),
   ].sort((left, right) =>

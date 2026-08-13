@@ -141,6 +141,7 @@ try {
       '{"name":"@fixture/rules","type":"module","exports":{".":"./src/index.ts"}}',
     "packages/rules/src/index.ts": "export const rule = 2;\n",
     "packages/db/migrations/0001_init.sql": "create table fixture (id integer);\n",
+    "packages/db/package.json": '{"name":"@fixture/db","type":"module"}',
   };
   await Promise.all(
     Object.entries(files).map(([relativePath, contents]) => put(fixtureRoot, relativePath, contents)),
@@ -165,6 +166,7 @@ try {
       "packages/app/src/helper.ts",
       "packages/app/src/main.ts",
       "packages/db/migrations/0001_init.sql",
+      "packages/db/package.json",
       "packages/rules/package.json",
       "packages/rules/src/index.ts",
       "pnpm-lock.yaml",
@@ -176,6 +178,147 @@ try {
   );
   assert.deepEqual(collected, { hashes: expected, reasons: [], reusable: true });
   assert.equal(canonicalJson(collected).includes("must-not-be-persisted"), false);
+
+  await put(
+    fixtureRoot,
+    "packages/app/src/environment.ts",
+    "export const endpoint = process.env.MAILPIT_TEST_SMTP_URL ?? process.env.API_ORIGIN;\n",
+  );
+  const serviceEnvironment = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/app/src/environment.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+    environment: {
+      MAILPIT_TEST_SMTP_URL: "smtp://mailpit.internal:1025",
+      API_ORIGIN: "https://ledger.internal",
+    },
+  });
+  assert.equal(serviceEnvironment.reusable, false);
+  assert.equal(canonicalJson(serviceEnvironment).includes("mailpit.internal"), false);
+  assert.equal(canonicalJson(serviceEnvironment).includes("ledger.internal"), false);
+  assert.equal(collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/app/src/environment.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+    environment: {},
+  }).reusable, false);
+  await put(
+    fixtureRoot,
+    "packages/app/src/computed-worker.ts",
+    'import { Worker } from "node:worker_threads";\nexport const run = (target: string) => new Worker(target);\n',
+  );
+  assert.equal(collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/app/src/computed-worker.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+  }).reusable, false);
+
+  await put(
+    fixtureRoot,
+    "packages/app/src/locale.ts",
+    "export const locale = process.env.LANG; export const timezone = import.meta.env.TZ;\n",
+  );
+  const localeEnvironment = (environment) => collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/app/src/locale.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+    environment,
+  });
+  const localeBefore = localeEnvironment({ LANG: "en_US.UTF-8", TZ: "UTC" });
+  const localeAfter = localeEnvironment({ LANG: "es_EC.UTF-8", TZ: "America/Guayaquil" });
+  assert.equal(localeBefore.reusable, true);
+  assert.notEqual(
+    localeBefore.hashes["@runtime/environment.json"],
+    localeAfter.hashes["@runtime/environment.json"],
+  );
+
+  await put(
+    fixtureRoot,
+    "packages/db/src/harness.ts",
+    "export const app = process.env.US017_MUTATION_DATABASE_URL;\nexport const owner = process.env.US017_MUTATION_DATABASE_ADMIN_URL;\n",
+  );
+  const databaseEnvironment = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/db/src/harness.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions,
+    runtimeProfile: { ...runtimeProfile, databaseDriver: "postgres", databaseHarness: "us017", databaseServerVersion: "16.4", schemaFingerprint: "a".repeat(64) },
+    environment: {
+      US017_MUTATION_DATABASE_URL: "postgres://app:secret@db/ledger",
+      US017_MUTATION_DATABASE_ADMIN_URL: "postgres://owner:secret@db/ledger",
+    },
+  });
+  assert.equal(databaseEnvironment.reusable, true);
+  assert.equal(canonicalJson(databaseEnvironment).includes("postgres://"), false);
+  assert.equal(canonicalJson(databaseEnvironment).includes("US017"), false);
+
+  const unrelatedDatabaseEnvironment = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/db/src/harness.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions,
+    runtimeProfile: {
+      ...runtimeProfile,
+      databaseDriver: "postgres",
+      databaseHarness: "us018",
+      databaseServerVersion: "16.4",
+      schemaFingerprint: "a".repeat(64),
+    },
+    environment: {
+      US017_MUTATION_DATABASE_URL: "postgres://app:secret@db/ledger",
+      US017_MUTATION_DATABASE_ADMIN_URL: "postgres://owner:secret@db/ledger",
+    },
+  });
+  assert.equal(unrelatedDatabaseEnvironment.reusable, false);
+  assert.deepEqual(unrelatedDatabaseEnvironment.reasons, [{
+    code: "environment-runtime-input",
+    workspace: "packages/db",
+  }]);
+
+  await put(
+    fixtureRoot,
+    "packages/db/scripts/apply-migrations.mjs",
+    'import "./migration-helper.mjs";\n',
+  );
+  await put(fixtureRoot, "packages/db/scripts/migration-helper.mjs", "export const helper = 1;\n");
+  await put(
+    fixtureRoot,
+    "packages/db/src/postgres-container.ts",
+    [
+      'import { execFile } from "node:child_process";',
+      'import { resolve } from "node:path";',
+      'import { promisify } from "node:util";',
+      'const execFileAsync = promisify(execFile);',
+      'const packageRoot = resolve(import.meta.dirname, "..");',
+      'const migrationRunner = resolve(packageRoot, "scripts/apply-migrations.mjs");',
+      'export const migrate = () => execFileAsync(process.execPath, [migrationRunner]);',
+      "",
+    ].join("\n"),
+  );
+  const migrationRunnerInputs = collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/db/src/postgres-container.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+  });
+  assert.equal(migrationRunnerInputs.reusable, true);
+  assert.ok(migrationRunnerInputs.hashes["packages/db/scripts/apply-migrations.mjs"]);
+  assert.ok(migrationRunnerInputs.hashes["packages/db/scripts/migration-helper.mjs"]);
+  const helperHash = migrationRunnerInputs.hashes["packages/db/scripts/migration-helper.mjs"];
+  await put(fixtureRoot, "packages/db/scripts/migration-helper.mjs", "export const helper = 2;\n");
+  assert.notEqual(collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/db/src/postgres-container.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+  }).hashes["packages/db/scripts/migration-helper.mjs"], helperHash);
+
+  await put(
+    fixtureRoot,
+    "packages/app/src/computed-child.ts",
+    'import { execFile } from "node:child_process";\nexport const run = (target: string) => execFile(process.execPath, [target]);\n',
+  );
+  assert.equal(collectExecutionInputs({
+    root: fixtureRoot,
+    entryFiles: ["packages/app/src/computed-child.ts"],
+    configurationFiles: [], migrationRoots: [], toolVersions, runtimeProfile,
+  }).reusable, false);
   process.env.LEDGER_FINGERPRINT_SECRET_SENTINEL = "changed-secret-value";
   assert.deepEqual(
     collectExecutionInputs({
@@ -721,8 +864,8 @@ const repositoryProbe = collectExecutionInputs({
   toolVersions: { node: process.versions.node },
   runtimeProfile: { arch: process.arch, platform: process.platform },
 });
-assert.equal(repositoryProbe.reusable, true);
-assert.deepEqual(repositoryProbe.reasons, []);
+assert.equal(repositoryProbe.reusable, false);
+assert.ok(repositoryProbe.reasons.some(({ code }) => code === "environment-runtime-input"));
 assert.ok(repositoryProbe.hashes["scripts/mutation-scope.mjs"]);
 
 function runFixtureGit(repoRoot) {

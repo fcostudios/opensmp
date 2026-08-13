@@ -27,6 +27,7 @@ const RUNTIME_PROFILE_PATTERNS = {
   locale: /^[a-z]{2,3}(?:[-_][a-z0-9]{2,8})*$/i,
   timezone: /^(?:UTC|[A-Za-z_+-]+(?:\/[A-Za-z0-9_+-]+)+)$/,
   databaseDriver: IDENTIFIER_PATTERN,
+  databaseHarness: IDENTIFIER_PATTERN,
   databaseServerVersion: VERSION_PATTERN,
   schemaFingerprint: EVIDENCE_KEY_PATTERN,
 };

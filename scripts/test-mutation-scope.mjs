@@ -21,6 +21,7 @@ import {
   classifyPageWiringBundle,
   classifyPoolSnapshotProjectionBundle,
   classifyVerificationOnlyHunk,
+  createCampaignRuntimeProfileResolver,
   groupRoutedMutationTargets,
   mutationCompatibleTestFiles,
   projectionEvidencePathForShard,
@@ -37,6 +38,41 @@ import {
   runMutationScope,
 } from "./mutation-scope.mjs";
 import mutationVitestConfig from "../vitest.mutation.config.mjs";
+
+const databaseShard = (id) => ({ id, sources: ["packages/db/src/example.ts"], testFiles: [] });
+let memoizedProfileCalls = 0;
+const resolveMemoizedProfile = createCampaignRuntimeProfileResolver(async () => {
+  memoizedProfileCalls += 1;
+  return {
+    arch: "x64", locale: "en-US", platform: "linux", timezone: "UTC",
+    databaseDriver: "postgres", databaseServerVersion: "16.4", schemaFingerprint: "a".repeat(64),
+  };
+});
+const memoizedProfileOne = await resolveMemoizedProfile(databaseShard("one"));
+const memoizedProfileTwo = await resolveMemoizedProfile(databaseShard("two"));
+assert.equal(memoizedProfileCalls, 1);
+assert.deepEqual(memoizedProfileTwo, memoizedProfileOne);
+assert.notEqual(memoizedProfileTwo, memoizedProfileOne);
+assert.equal(Object.isFrozen(memoizedProfileOne), true);
+const mutationHarnessResolver = createCampaignRuntimeProfileResolver(async ({ environment }) => ({
+  arch: "x64", locale: "en-US", platform: "linux", timezone: "UTC",
+  databaseDriver: "postgres", databaseServerVersion: "16.4", schemaFingerprint: "b".repeat(64),
+  observedAdminUrl: environment.US017_MUTATION_DATABASE_ADMIN_URL,
+}), {
+  US017_MUTATION_DATABASE_URL: "postgres://app:secret@db/ledger",
+  US017_MUTATION_DATABASE_ADMIN_URL: "postgres://owner:secret@db/ledger",
+});
+const mutationHarnessProfile = await mutationHarnessResolver(databaseShard("mutation"));
+assert.equal(mutationHarnessProfile.databaseHarness, "us017");
+assert.equal(mutationHarnessProfile.observedAdminUrl, "postgres://owner:secret@db/ledger");
+let memoizedFailureCalls = 0;
+const resolveMemoizedFailure = createCampaignRuntimeProfileResolver(async () => {
+  memoizedFailureCalls += 1;
+  throw new Error("offline");
+});
+await assert.rejects(resolveMemoizedFailure(databaseShard("failed-one")), /offline/);
+await assert.rejects(resolveMemoizedFailure(databaseShard("failed-two")), /offline/);
+assert.equal(memoizedFailureCalls, 1);
 
 assert.deepEqual(
   mutationCompatibleTestFiles([

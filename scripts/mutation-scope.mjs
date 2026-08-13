@@ -1322,7 +1322,22 @@ function localRuntimeProfile() {
   };
 }
 
-async function defaultRuntimeProfile({ shard } = {}) {
+function databaseHarnessIdentity(shard, environment = process.env) {
+  const adminKeys = Object.keys(environment)
+    .filter((key) => /^US\d+_MUTATION_DATABASE_ADMIN_URL$/.test(key) && environment[key])
+    .sort();
+  const directlyReferenced = adminKeys.filter((key) => shard?.testFiles.some((test) =>
+    existsSync(test) && readFileSync(test, "utf8").includes(key)));
+  const selected = directlyReferenced.length === 1
+    ? directlyReferenced[0]
+    : adminKeys.length === 1 ? adminKeys[0] : null;
+  if (directlyReferenced.length > 1 || (!selected && adminKeys.length > 1)) {
+    throw new Error("runtime-profile-unavailable");
+  }
+  return selected ?? "DATABASE_ADMIN_URL";
+}
+
+async function defaultRuntimeProfile({ shard, environment = process.env } = {}) {
   const local = localRuntimeProfile();
   if (!shard || !isDatabaseBacked(shard)) return local;
   const [{ verifyMigratedSchema }, { committedMigrations }, pgModule] = await Promise.all([
@@ -1330,10 +1345,14 @@ async function defaultRuntimeProfile({ shard } = {}) {
     import("../packages/db/scripts/apply-migrations.mjs"),
     import("../packages/db/node_modules/pg/esm/index.mjs"),
   ]);
-  const verification = await verifyMigratedSchema();
-  const migrations = await committedMigrations(process.env.MIGRATIONS_DIR);
-  const databaseAdminUrl = process.env.DATABASE_ADMIN_URL;
-  if (!databaseAdminUrl) throw new Error("runtime-profile-unavailable");
+  const databaseHarness = databaseHarnessIdentity(shard, environment);
+  const databaseAdminUrl = environment[databaseHarness];
+  const databaseUrlKey = databaseHarness === "DATABASE_ADMIN_URL"
+    ? "DATABASE_URL" : databaseHarness.replace("_ADMIN_URL", "_URL");
+  const applicationUrl = environment[databaseUrlKey];
+  if (!databaseAdminUrl || !applicationUrl) throw new Error("runtime-profile-unavailable");
+  const verification = await verifyMigratedSchema({ databaseAdminUrl, applicationUrl });
+  const migrations = await committedMigrations(environment.MIGRATIONS_DIR);
   const client = new pgModule.default.Client({
     connectionString: databaseAdminUrl,
     application_name: "ledger-mutation-runtime-profile",
@@ -1351,6 +1370,8 @@ async function defaultRuntimeProfile({ shard } = {}) {
   return {
     ...local,
     databaseDriver: "postgres",
+    databaseHarness: databaseHarness === "DATABASE_ADMIN_URL" ? "default" : databaseHarness
+      .replace(/_MUTATION_DATABASE_ADMIN_URL$/, "").toLowerCase(),
     databaseServerVersion,
     schemaFingerprint: sha256(JSON.stringify({ migrations, verification })),
   };
@@ -1365,7 +1386,7 @@ function isDatabaseBacked(shard) {
 
 function sanitizedRuntimeProfile(profile, databaseBacked) {
   const allowed = databaseBacked
-    ? ["platform", "arch", "locale", "timezone", "databaseDriver", "databaseServerVersion", "schemaFingerprint"]
+    ? ["platform", "arch", "locale", "timezone", "databaseDriver", "databaseHarness", "databaseServerVersion", "schemaFingerprint"]
     : ["platform", "arch", "locale", "timezone"];
   if (!profile || typeof profile !== "object" || Array.isArray(profile)) {
     throw new Error("runtime-profile-unavailable");
@@ -1378,6 +1399,31 @@ function sanitizedRuntimeProfile(profile, databaseBacked) {
     throw new Error("runtime-profile-unavailable");
   }
   return result;
+}
+
+export function createCampaignRuntimeProfileResolver(provider, environment = process.env) {
+  const databaseProfiles = new Map();
+  return async (shard) => {
+    if (!isDatabaseBacked(shard)) return Object.freeze({ ...(await provider({ shard, environment })) });
+    let identity;
+    try {
+      identity = databaseHarnessIdentity(shard, environment);
+    } catch {
+      identity = "ambiguous";
+    }
+    if (!databaseProfiles.has(identity)) {
+      databaseProfiles.set(identity, Promise.resolve()
+        .then(() => provider({ shard, environment }))
+        .then((profile) => ({
+          ...profile,
+          databaseHarness: profile?.databaseHarness
+            ?? (identity === "DATABASE_ADMIN_URL" ? "default" : identity
+              .replace(/_MUTATION_DATABASE_ADMIN_URL$/, "").toLowerCase()),
+        })));
+    }
+    const profile = await databaseProfiles.get(identity);
+    return Object.freeze({ ...profile });
+  };
 }
 
 function rehydrateCachedReport(cachedPath, destination, shard) {
@@ -1635,12 +1681,13 @@ export async function runMutationScope(options = {}) {
   }).trim();
   const repositoryCacheRoot = cacheRoot(process.cwd(), gitAtRoot);
   const runtimeProfileProvider = options.runtimeProfileProvider ?? defaultRuntimeProfile;
+  const resolveRuntimeProfile = createCampaignRuntimeProfileResolver(runtimeProfileProvider, environment);
   const executionContexts = new Map();
   for (const shard of shards) {
     let runtimeProfile;
     try {
       runtimeProfile = sanitizedRuntimeProfile(
-        await runtimeProfileProvider({ shard }),
+        await resolveRuntimeProfile(shard),
         isDatabaseBacked(shard),
       );
     } catch {
@@ -1682,6 +1729,7 @@ export async function runMutationScope(options = {}) {
         ? ["packages/db/src/migrations"] : [],
       toolVersions,
       runtimeProfile,
+      environment: { ...process.env, ...environment },
     });
     shard.dependencyHashes = executionInputs.hashes;
     if (!executionInputs.reusable && shard.cacheDecision !== "rejected") {
