@@ -704,6 +704,14 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             self.assertIn("above 120 minutes", text, relative_path)
             self.assertIn("docs/dev-guide/WORK_READINESS.md", text, relative_path)
 
+        definition = (
+            READINESS_OVERRIDE_ROOT / "docs/dev-guide/DEFINITION_OF_DONE.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("pnpm readiness:check:all", definition)
+        self.assertIn("pnpm readiness:check:range", definition)
+        self.assertIn("completion actuals", definition)
+        self.assertIn("estimate variance", definition)
+
     def test_committed_override_manifest_is_independent_exact_oracle(self) -> None:
         manifest_path = PINNED_OVERRIDE_ROOT / "manifest.json"
 

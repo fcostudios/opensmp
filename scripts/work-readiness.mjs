@@ -26,6 +26,7 @@ import {
   validateAssessment,
 } from "./work-readiness/model.mjs";
 import {
+  resolveDefaultBase,
   validateRangeOwnership,
 } from "./work-readiness/git.mjs";
 
@@ -355,8 +356,9 @@ function checkRange({ root, positionals, options }) {
   let base = options.base;
   let head = options.head ?? "HEAD";
   if (base === undefined && positionals.length > 0) [base, head = "HEAD"] = positionals;
+  if (base === undefined) base = resolveDefaultBase(root);
   if (typeof base !== "string" || positionals.length > 2) {
-    cliError("WR_INVOCATION_INVALID", "Usage: check-range <base> [head] or check-range --base <base> [--head <head>]", "$.arguments");
+    cliError("WR_INVOCATION_INVALID", "Usage: check-range [<base> [head]] or check-range [--base <base>] [--head <head>]", "$.arguments");
   }
   const result = validateRangeOwnership({ root, base, head });
   return { workIds: result.workIds, summary: `Range readiness is valid for ${result.changedPaths.length} changed path${result.changedPaths.length === 1 ? "" : "s"}` };

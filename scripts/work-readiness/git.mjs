@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
-import { lstatSync, realpathSync } from "node:fs";
+import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 
 import { WorkReadinessError, classifyAssessment, validateAssessment, validateCompletionActuals } from "./model.mjs";
 
 const MAX_GIT_OUTPUT_BYTES = 1024 * 1024;
+const MAX_CI_EVENT_BYTES = 1024 * 1024;
 const WORK_ID_PATTERN = /(?<![A-Z0-9-])(?:US|CHG)-[0-9]{3,}(?![A-Z0-9-])/giu;
 const BOOTSTRAP_DOCUMENT_PREFIXES = [
   "docs/readiness/",
@@ -20,6 +21,7 @@ const IMPLEMENTATION_PLAN_PATTERN = /^docs\/superpowers\/plans\/.+\.md$/u;
 const PLAN_HEADER_LIMIT_BYTES = 16 * 1024;
 const OVERLAY_LAYER_PATTERN = /^(CHG-[0-9]{3,})\/[a-z0-9]{7,64}$/u;
 const ACTIVATION_EVIDENCE = "CHG022-READINESS-V2-APPROVAL";
+const CHG022_EXECUTABLE_BOUNDARY = "72f5e8545ea5d98795e2a5f19e62f6ba5e7ae7cb";
 // Reviewed fail-closed raw-byte binding for the complete reconciler. Any
 // whitespace, definition rebinding, helper, build-plan, or runtime edit
 // requires an explicit review and a new digest before ownership is accepted.
@@ -892,12 +894,48 @@ export function listChangedPaths({ root, base, head = "HEAD", staged = false }) 
 
 export function resolveDefaultBase(root, env = process.env) {
   const canonicalRoot = repositoryRoot(root);
-  const explicit = env.WORK_READINESS_BASE ?? env.READINESS_BASE_SHA ?? env.GITHUB_BASE_SHA ?? env.GITHUB_BASE_REF;
+  const explicit = env.WORK_READINESS_BASE ?? env.READINESS_BASE_SHA ?? env.GITHUB_BASE_SHA;
   if (explicit !== undefined) return resolveCommit(canonicalRoot, explicit, "$.base");
+  if (env.GITHUB_ACTIONS === "true") {
+    const eventPath = env.GITHUB_EVENT_PATH;
+    if (typeof eventPath !== "string" || eventPath.length === 0 || eventPath.includes("\0") || !isAbsolute(eventPath)) {
+      fail("WR_GIT_CI_BASE_INVALID", "$.base", "GitHub Actions requires an absolute, NUL-free GITHUB_EVENT_PATH");
+    }
+    let event;
+    try {
+      const stat = lstatSync(eventPath);
+      if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_CI_EVENT_BYTES) {
+        fail("WR_GIT_CI_BASE_INVALID", "$.base", "GitHub event payload must be a bounded regular file");
+      }
+      event = JSON.parse(readFileSync(eventPath, "utf8"));
+    } catch (error) {
+      if (error instanceof WorkReadinessError) throw error;
+      fail("WR_GIT_CI_BASE_INVALID", "$.base", "GitHub event payload is unavailable or invalid JSON");
+    }
+    if (event === null || typeof event !== "object" || Array.isArray(event)) {
+      fail("WR_GIT_CI_BASE_INVALID", "$.base", "GitHub event payload must be an object");
+    }
+    const candidate = event.pull_request?.base?.sha ?? event.before;
+    if (typeof candidate !== "string" || !/^[0-9a-f]{40}$/u.test(candidate) || /^0{40}$/u.test(candidate)) {
+      fail("WR_GIT_CI_BASE_INVALID", "$.base", "GitHub event payload does not contain one valid base commit SHA");
+    }
+    return resolveCommit(canonicalRoot, candidate, "$.base");
+  }
   const main = resolveCommit(canonicalRoot, "main", "$.base");
   const head = resolveCommit(canonicalRoot, "HEAD", "$.head");
   const mergeBase = git(canonicalRoot, ["merge-base", main, head]).toString("utf8").trim();
   if (!/^[0-9a-f]{40}$/u.test(mergeBase)) fail("WR_GIT_REF_INVALID", "$.base", "Unable to resolve a unique merge base with main");
+  const mergeBasePrecedesBoundary = git(
+    canonicalRoot,
+    ["merge-base", "--is-ancestor", mergeBase, CHG022_EXECUTABLE_BOUNDARY],
+    { allowMissing: true },
+  ) !== null;
+  const boundaryPrecedesHead = git(
+    canonicalRoot,
+    ["merge-base", "--is-ancestor", CHG022_EXECUTABLE_BOUNDARY, head],
+    { allowMissing: true },
+  ) !== null;
+  if (mergeBasePrecedesBoundary && boundaryPrecedesHead) return CHG022_EXECUTABLE_BOUNDARY;
   return mergeBase;
 }
 

@@ -2001,6 +2001,31 @@ test("CLI check-range supports named refs and maps invalid Git environment to ex
   }
 });
 
+test("CLI check-range defaults to the main merge base and rejects a no-verify implementation commit", () => {
+  const { root } = makeGitRepo();
+  try {
+    activateReadinessPolicy(root);
+    git(root, ["switch", "-c", "feature/range-bypass"]);
+    writeRepoFile(root, "src/bypass.ts", "export const bypass = true;\n");
+    git(root, ["add", "--", "src/bypass.ts"]);
+    git(root, ["commit", "--no-verify", "-m", "feat(US-999): bypass local readiness hook"]);
+
+    const result = runCli(root, ["check-range", "--json"]);
+    assert.equal(result.status, 1);
+    const output = parseCliJson(result);
+    assert.equal(output.command, "check-range");
+    assert.equal(output.errors[0].code, "WR_READINESS_MISSING");
+    assert.match(output.errors[0].message, /US-999/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("repository test gate runs the readiness range backstop before focused tests", () => {
+  const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  assert.match(manifest.scripts.test, /^pnpm run readiness:check:range && pnpm run test:work-readiness\b/u);
+});
+
 test("CLI parser rejects range mixtures and treats post-separator flags as positional", () => {
   const { root } = makeGitRepo();
   try {
@@ -3531,6 +3556,42 @@ test("default base resolution is explicit and rejects an unavailable environment
   try {
     assert.equal(resolveDefaultBase(root, { WORK_READINESS_BASE: base }), base);
     assert.throws(() => resolveDefaultBase(root, { WORK_READINESS_BASE: "missing" }), (error) => error.code === "WR_GIT_REF_INVALID");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("default base resolution honors the exact CHG-022 executable boundary while main predates it", () => {
+  const root = sourceRoot.pathname;
+  const boundary = "72f5e8545ea5d98795e2a5f19e62f6ba5e7ae7cb";
+  const main = git(root, ["rev-parse", "main^{commit}"]);
+  const head = git(root, ["rev-parse", "HEAD^{commit}"]);
+  const mergeBase = git(root, ["merge-base", main, head]);
+  const boundaryApplies = runGit(root, ["merge-base", "--is-ancestor", mergeBase, boundary]).status === 0
+    && runGit(root, ["merge-base", "--is-ancestor", boundary, head]).status === 0;
+  assert.equal(resolveDefaultBase(root, {}), boundaryApplies ? boundary : mergeBase);
+});
+
+test("default base resolution uses validated GitHub event SHAs and fails closed on missing CI provenance", () => {
+  const { root } = makeGitRepo();
+  try {
+    git(root, ["switch", "-c", "feature/ci-base"]);
+    writeRepoFile(root, "feature.ts", "export const feature = true;\n");
+    const head = commitRepo(root, "feat(US-321): add feature", ["feature.ts"]);
+    const pullRequestEvent = join(root, "pull-request-event.json");
+    writeFileSync(pullRequestEvent, `${JSON.stringify({ pull_request: { base: { sha: head } } })}\n`);
+    assert.equal(resolveDefaultBase(root, { GITHUB_ACTIONS: "true", GITHUB_EVENT_PATH: pullRequestEvent }), head);
+
+    const pushEvent = join(root, "push-event.json");
+    writeFileSync(pushEvent, `${JSON.stringify({ before: head })}\n`);
+    assert.equal(resolveDefaultBase(root, { GITHUB_ACTIONS: "true", GITHUB_EVENT_PATH: pushEvent }), head);
+
+    const missingEvent = join(root, "missing-base-event.json");
+    writeFileSync(missingEvent, "{}\n");
+    assert.throws(
+      () => resolveDefaultBase(root, { GITHUB_ACTIONS: "true", GITHUB_EVENT_PATH: missingEvent }),
+      (error) => error.code === "WR_GIT_CI_BASE_INVALID",
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

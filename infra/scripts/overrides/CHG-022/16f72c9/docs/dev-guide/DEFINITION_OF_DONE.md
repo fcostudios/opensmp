@@ -10,7 +10,13 @@ or executable tooling for any US-* or CHG-*, run its approved readiness
 assessment. A work item above 120 minutes or any cohesion limit is not
 execution-ready; partition it into official, approved vertical children first.
 
-Run `pnpm readiness:check -- <WORK-ID>`. The complete mandatory contract is in
+Run `pnpm readiness:check -- <WORK-ID>` before execution and
+`pnpm readiness:check:all` before completion. Before terminal evidence, record
+completion actuals for every phase, changed files, commits, review loops,
+mutation attempts and invalidations, plus the recomputed estimate variance and
+root cause. The repository and CI backstop is `pnpm readiness:check:range`; it
+uses an explicit CI base when supplied and otherwise the local merge base with
+`main`. The complete mandatory contract is in
 [`docs/dev-guide/WORK_READINESS.md`](WORK_READINESS.md).
 
 ## Before Marking Any Story as `done`

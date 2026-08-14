@@ -14,7 +14,7 @@
     "docs/dev-guide/DEFINITION_OF_DONE.md": {
       "source_path": "overrides/CHG-001/825e882/docs/dev-guide/DEFINITION_OF_DONE.md",
       "source_sha256": "b96bf4aaf1a2e7f6a22c1342eba1854b29170060d895e07eb8d9ea4f07fcf473",
-      "desired_sha256": "d51b857bb091c98a498a094dc1834f3c7ba7cbcd1adf6e97cef8510e3d09a51b"
+      "desired_sha256": "bd6de13018729de07323b7dc426fb69e57f060f04db9fea0d9ecc5fc997056e9"
     }
   }
 }
