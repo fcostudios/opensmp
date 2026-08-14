@@ -159,6 +159,35 @@ function validateActualsShape(value, path) {
   string(value.root_cause, `${path}.root_cause`, { nullable: true });
 }
 
+function validateCheckpointPolicy(checkpoints) {
+  let previousElapsed = -1;
+  let completionObserved = false;
+  checkpoints.forEach((checkpoint, index) => {
+    const path = `$.checkpoints[${index}]`;
+    if (checkpoint.elapsed_minutes <= previousElapsed) {
+      fail("WR_CHECKPOINT_ORDER", `${path}.elapsed_minutes`, "Checkpoint elapsed minutes must be strictly increasing");
+    }
+    previousElapsed = checkpoint.elapsed_minutes;
+    if (completionObserved && !checkpoint.implementation_complete) {
+      fail("WR_CHECKPOINT_COMPLETION_REGRESSION", `${path}.implementation_complete`, "Checkpoint completion cannot regress from complete to incomplete");
+    }
+    completionObserved ||= checkpoint.implementation_complete;
+    if (checkpoint.elapsed_minutes === 45 && !["on_track", "variance"].includes(checkpoint.status)) {
+      fail("WR_CHECKPOINT_STATUS_INVALID", `${path}.status`, "The 45-minute checkpoint must be on_track or variance");
+    }
+  });
+  const latest = checkpoints.at(-1);
+  if (latest === undefined) return { partitionRequired: false };
+  if (latest.elapsed_minutes >= 45 && !latest.implementation_complete && checkpoints[0].elapsed_minutes !== 45) {
+    fail("WR_CHECKPOINT_45_REQUIRED", "$.checkpoints[0].elapsed_minutes", "Incomplete execution at or after 45 minutes requires the exact 45-minute checkpoint first");
+  }
+  if (latest.elapsed_minutes >= 90 && !latest.implementation_complete
+    && (latest.elapsed_minutes !== 90 || latest.status !== "partition_required")) {
+    fail("WR_CHECKPOINT_PARTITION_REQUIRED", `$.checkpoints[${checkpoints.length - 1}].status`, "Incomplete implementation at 90 minutes must stop at an exact partition_required checkpoint");
+  }
+  return { partitionRequired: latest.elapsed_minutes === 90 && !latest.implementation_complete && latest.status === "partition_required" };
+}
+
 function validateShape(value) {
   object(value, "$", TOP_LEVEL_KEYS);
   if (value.schema_version !== 1) fail("UNSUPPORTED_SCHEMA_VERSION", "$.schema_version", "Only schema version 1 is supported");
@@ -240,6 +269,7 @@ function validateShape(value) {
     if (typeof item.implementation_complete !== "boolean") fail("INVALID_TYPE", `${path}.implementation_complete`, `${path}.implementation_complete must be boolean`);
     string(item.evidence, `${path}.evidence`);
   });
+  validateCheckpointPolicy(value.checkpoints);
   if (typeof value.policy_bootstrap !== "boolean") fail("INVALID_TYPE", "$.policy_bootstrap", "policy_bootstrap must be boolean");
   string(value.bootstrap_exemption_rationale, "$.bootstrap_exemption_rationale", { nullable: true });
 }
@@ -290,6 +320,11 @@ function uncertaintyBlocks(value) {
   return value.uncertainties.some((item) => item.status === "unresolved" || item.resolution === null || item.estimate_impact_minutes === null);
 }
 
+function checkpointRequiresPartition(value) {
+  const latest = value.checkpoints.at(-1);
+  return latest?.elapsed_minutes === 90 && latest.status === "partition_required" && !latest.implementation_complete;
+}
+
 export function classifyAssessment(value) {
   validateShape(value);
   if (value.policy_bootstrap) {
@@ -300,6 +335,7 @@ export function classifyAssessment(value) {
     return "ready";
   }
   if (blockingViolation(value)) return "blocked";
+  if (checkpointRequiresPartition(value)) return "partition_required";
   return hardLimitViolation(value) ? "partition_required" : "ready";
 }
 
@@ -739,6 +775,25 @@ function terminalDoneIndex(records, value, terminalProjection = buildTerminalPro
   return records.findIndex((record, index) => index > afterIndex && record.story === value.work_id && terminalProjection.terminalIndices.has(index));
 }
 
+function terminalCompletionSolelySupersedesCheckpoint(value, records) {
+  const selectedApproval = approvalIndex(records, value);
+  if (selectedApproval < 0) return false;
+  let lastStopIndex = -1;
+  for (let index = selectedApproval + 1; index < records.length; index += 1) {
+    const record = records[index];
+    if (record.story !== value.work_id) continue;
+    if (record.event === "checkpoint" && record.status === "partition_required") {
+      lastStopIndex = index;
+      continue;
+    }
+    if (record.event === "decision" || REVOCATION_EVENTS.has(record.event)) return false;
+  }
+  if (lastStopIndex < 0) return false;
+  const projection = buildTerminalProjection(records, value.work_id);
+  const effectiveTerminalIndex = terminalDoneIndex(records, value, projection);
+  return effectiveTerminalIndex > lastStopIndex;
+}
+
 export function validateCompletionActuals(value, feedbackRecords) {
   feedbackArray(feedbackRecords);
   const terminalProjection = buildTerminalProjection(feedbackRecords, value.work_id);
@@ -757,6 +812,9 @@ export function validateCompletionActuals(value, feedbackRecords) {
   const variance = total - value.estimate_minutes.total;
   if (value.actuals.estimate_variance_minutes !== variance) fail("ACTUALS_VARIANCE_MISMATCH", "$.actuals.estimate_variance_minutes", "Estimate variance must equal actual total minus estimated total");
   const attempts = value.actuals.cold_mutation_attempts;
+  if (attempts === 0 && value.signals.expected_mutation_shards > 0) {
+    fail("WR_MUTATION_COLD_REQUIRED", "$.actuals.cold_mutation_attempts", "At least one authoritative cold campaign is required when mutation shards are approved");
+  }
   const expectedInvalidations = Math.max(0, attempts - 1);
   if (value.actuals.mutation_invalidations !== expectedInvalidations) fail("MUTATION_INVALIDATION_COUNT", "$.actuals.mutation_invalidations", "Mutation invalidations must equal cold attempts minus one");
   if (attempts > 1) {
@@ -766,8 +824,38 @@ export function validateCompletionActuals(value, feedbackRecords) {
   return { complete: true, total, variance };
 }
 
+function validateCheckpointEvidence(value, feedbackRecords) {
+  const checkpointFeedback = feedbackRecords.map((record, index) => ({ record, index }))
+    .filter(({ record }) => record.story === value.work_id && record.event === "checkpoint");
+  checkpointFeedback.forEach(({ record, index }) => {
+    const canonical = Object.keys(record).sort().join(",") === "elapsed_minutes,event,evidence,implementation_complete,status,story"
+      && Number.isInteger(record.elapsed_minutes) && record.elapsed_minutes >= 0
+      && ["on_track", "variance", "partition_required"].includes(record.status)
+      && typeof record.implementation_complete === "boolean"
+      && typeof record.evidence === "string" && /\S/u.test(record.evidence);
+    if (!canonical) {
+      fail("WR_CHECKPOINT_EVIDENCE_INVALID", `$.feedbackRecords[${index}]`, "Checkpoint feedback must use the exact closed canonical shape and field types");
+    }
+  });
+  const canonicalFeedback = checkpointFeedback.map(({ record }) => record);
+  value.checkpoints.forEach((checkpoint, index) => {
+    const matches = canonicalFeedback.filter((record) => record.story === value.work_id
+      && record.elapsed_minutes === checkpoint.elapsed_minutes
+      && record.status === checkpoint.status
+      && record.implementation_complete === checkpoint.implementation_complete
+      && record.evidence === checkpoint.evidence);
+    if (matches.length !== 1) {
+      fail("WR_CHECKPOINT_EVIDENCE_MISMATCH", `$.checkpoints[${index}]`, "Each artifact checkpoint requires one exact canonical feedback record");
+    }
+  });
+  if (canonicalFeedback.length !== value.checkpoints.length) {
+    fail("WR_CHECKPOINT_EVIDENCE_MISMATCH", "$.checkpoints", "Canonical checkpoint feedback and artifact checkpoints must have exact bijective cardinality");
+  }
+}
+
 export function validateAssessment(value, { feedbackRecords = [] } = {}) {
   validateShape(value);
+  feedbackArray(feedbackRecords);
   if (value.policy_bootstrap) {
     exactBootstrap(value);
   } else {
@@ -775,7 +863,12 @@ export function validateAssessment(value, { feedbackRecords = [] } = {}) {
     if (value.bootstrap_authorization !== null) fail("INVALID_BOOTSTRAP", "$.bootstrap_authorization", "Normal work cannot carry bootstrap authorization");
   }
   validatePartitionGraph(value);
-  const computedDecision = value.policy_bootstrap ? "ready" : classifyAssessment(value);
+  validateCheckpointEvidence(value, feedbackRecords);
+  const completion = validateCompletionActuals(value, feedbackRecords);
+  let computedDecision = value.policy_bootstrap ? "ready" : classifyAssessment(value);
+  if (completion.complete && checkpointRequiresPartition(value)) {
+    computedDecision = blockingViolation(value) ? "blocked" : hardLimitViolation(value) ? "partition_required" : "ready";
+  }
   if (computedDecision !== value.decision) {
     const violation = computedDecision === "blocked" ? blockingViolation(value) : hardLimitViolation(value);
     if (value.decision === "ready" && violation) fail(violation[0], `$.${violation[1]}`, violation[2]);
@@ -783,8 +876,18 @@ export function validateAssessment(value, { feedbackRecords = [] } = {}) {
   }
   if (value.decision === "ready" && value.partitions.length !== 0) fail("PARTITIONS_NOT_ALLOWED", "$.partitions", "Ready normal work cannot contain partitions");
   if (value.decision === "partition_required" && value.partitions.length === 0) fail("PARTITIONS_REQUIRED", "$.partitions", "Partition-required work must propose at least one child");
-  const completion = validateCompletionActuals(value, feedbackRecords);
-  const authorization = validateApproval(value, feedbackRecords);
+  let authorization;
+  try {
+    authorization = validateApproval(value, feedbackRecords);
+  } catch (error) {
+    if (completion.complete && checkpointRequiresPartition(value)
+      && terminalCompletionSolelySupersedesCheckpoint(value, feedbackRecords)
+      && error instanceof WorkReadinessError && error.code === "WR_APPROVAL_INACTIVE") {
+      authorization = { active: false, inactiveReason: "terminal" };
+    } else {
+      throw error;
+    }
+  }
   if (value.decision === "ready" && !authorization.active && !completion.complete) {
     fail("WR_APPROVAL_INACTIVE", "$.approval.evidence", "Inactive ready authorization requires valid terminal completion actuals");
   }

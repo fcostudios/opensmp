@@ -97,6 +97,28 @@ Assessment/design/feedback-only commits may be made while approval is pending.
 Implementation-class changes require every referenced work ID to be approved
 and `ready`.
 
+## Implementation-plan binding
+
+After CHG-022 activation, every new implementation plan begins at byte zero
+with this exact, contiguous, singleton three-line header (substitute the
+approved item values):
+
+```markdown
+**Work item:** US-123
+**Readiness assessment:** docs/readiness/US-123.json
+**Approved estimate:** 100 minutes
+```
+
+No BOM, leading whitespace/prose, duplicate metadata key, second metadata
+block, or extra metadata header line is permitted. The work ID must match the plan's owned work ID, the path must be the canonical
+normalized `docs/readiness/<WORK-ID>.json` path, and the plan estimate may not
+exceed the artifact's approved total. The repository gate parses only this
+small header block; it does not infer arbitrary Markdown semantics. A normal
+implementation commit requires one previously committed, readiness-bound plan.
+Generated sprint plans and story specifications remain documentation-class and
+Nous-owned, but that classification does not exempt an implementation plan from
+this binding before code starts.
+
 ## Checkpoints and mutation evidence
 
 - At 45 elapsed minutes, compare progress with the approved phase estimate and
@@ -114,6 +136,30 @@ An estimate cannot be raised in a plan or during implementation. New scope,
 missed boundaries, or a forecast above the approved limits returns the item to
 readiness review.
 
+Checkpoint entries are append-only, strictly ordered by `elapsed_minutes`, and
+must have one exact canonical appended feedback record carrying the same
+status, completion flag, and evidence in the same commit. The mapping is
+bijective: artifact-only or feedback-only records, duplicates, rewrites,
+deletions, and reorderings fail even in documentation-only commits. Once an
+incomplete execution records elapsed time at or beyond 45 minutes, its first
+checkpoint must be the exact 45-minute `on_track` or `variance` control. At 90
+minutes, the latest incomplete checkpoint must be exactly 90 minutes with
+`partition_required`; the classifier then returns `partition_required` and
+continued implementation remains blocked until the work is partitioned and
+approved under executable readiness artifacts. Work completed before a
+milestone does not invent a checkpoint merely to satisfy the clock.
+Checkpoint completion is determined by its explicit `implementation_complete`
+boolean; provisional or mutable actual phase minutes never override `false`.
+Only a valid effective terminal with complete actuals can supersede a prior
+checkpoint stop once execution is no longer active.
+
+Current-state validation also enforces this bijection in both directions: each
+artifact checkpoint has exactly one canonical feedback checkpoint and each
+canonical feedback checkpoint has exactly one artifact entry.
+Every same-story `checkpoint` feedback record is validated before cardinality;
+extra or missing fields, wrong types, invalid states, and empty evidence fail
+closed instead of being filtered out.
+
 ## Actuals and calibration
 
 `actuals` may be `null` while work is in progress. Before the terminal `done`
@@ -128,11 +174,26 @@ event, replace it with the closed actuals object and record:
 Actuals calibrate future estimates; they never retroactively legalize an
 oversized assessment.
 
+At completion the validator recomputes `total` from the five phase values and
+recomputes variance as `actual total - approved estimate`; declared arithmetic
+is never trusted. More than one authoritative cold attempt requires exactly one
+pre-terminal `mutation_invalidation` reason for every invalidated attempt.
+Zero cold mutation attempts are permitted only when the approved assessment has
+`expected_mutation_shards: 0`; otherwise at least one authoritative cold
+campaign is required. Provisional actuals remain mutable before terminal
+completion. The first effective terminal requires complete valid actuals, and
+after it those actuals are immutable—deletion, rewriting, or recalibration is
+rejected even in documentation-only commits.
+
 ## Historical and activation policy
 
 Completed work with a valid terminal `done` event before CHG-022 is
-grandfathered. Existing unfinished work is not grandfathered and must pass this
-gate before its next implementation commit.
+grandfathered only for implementation commits that also precede the exact V2
+activation marker. Once that marker exists in a commit's parent history, every
+new implementation commit requires a current approved artifact and bound plan,
+even when its work ID completed before activation. Existing unfinished work is
+not grandfathered and must pass this gate before its next implementation
+commit.
 
 CHG-022 is the single, immutable, non-repeatable activation bootstrap. Its
 technical work honestly estimates 360 minutes, exceeds the file and outcome

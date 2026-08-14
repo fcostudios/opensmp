@@ -752,7 +752,7 @@ test("bootstrap historical start cannot be replayed across a revoked interval", 
   };
   const records = [
     priorReady,
-    { story: "CHG-022", event: "checkpoint", status: "partition_required" },
+    { story: "CHG-022", event: "blocker", reason: "Prior authorization revoked" },
     { story: "CHG-022", event: "started", agent: "codex/work-readiness-gate" },
     bootstrapDecision,
   ];
@@ -1158,6 +1158,178 @@ test("repeated cold attempts require consistent invalidation counts and reasons"
   expectError("WR_MUTATION_INVALIDATION_COUNT", "$.actuals.mutation_invalidations", () => validateCompletionActuals(value, records));
 });
 
+test("zero cold mutation attempts are valid only when no mutation shards are approved", () => {
+  const value = completed();
+  value.actuals.cold_mutation_attempts = 0;
+  value.actuals.mutation_invalidations = 0;
+  expectError("WR_MUTATION_COLD_REQUIRED", "$.actuals.cold_mutation_attempts", () => validateCompletionActuals(value, [{ story: value.work_id, event: "done" }]));
+  value.signals.expected_mutation_shards = 0;
+  assert.equal(validateCompletionActuals(value, [{ story: value.work_id, event: "done" }]).complete, true);
+});
+
+test("45-minute checkpoints accept only on-track or evidenced variance states", () => {
+  for (const status of ["on_track", "variance"]) {
+    const value = normal();
+    value.checkpoints = [{ elapsed_minutes: 45, status, implementation_complete: false, evidence: `${status} evidence` }];
+    assert.equal(validateAssessment(value, {
+      feedbackRecords: [
+        decisionFor(value),
+        { story: value.work_id, event: "checkpoint", elapsed_minutes: 45, status, implementation_complete: false, evidence: `${status} evidence` },
+      ],
+    }).active, true);
+  }
+  const invalid = normal();
+  invalid.checkpoints = [{ elapsed_minutes: 45, status: "partition_required", implementation_complete: false, evidence: "Stopped too early" }];
+  expectError("WR_CHECKPOINT_STATUS_INVALID", "$.checkpoints[0].status", () => validateAssessment(invalid, { feedbackRecords: [decisionFor(invalid)] }));
+
+  const artifactOnly = normal();
+  artifactOnly.checkpoints = [{ elapsed_minutes: 45, status: "on_track", implementation_complete: false, evidence: "Missing feedback mirror" }];
+  expectError("WR_CHECKPOINT_EVIDENCE_MISMATCH", "$.checkpoints[0]", () => validateAssessment(artifactOnly, { feedbackRecords: [decisionFor(artifactOnly)] }));
+});
+
+test("checkpoint current state is an exact artifact-feedback bijection", () => {
+  const checkpoint = { elapsed_minutes: 45, status: "on_track", implementation_complete: false, evidence: "Exact evidence" };
+  const value = normal();
+  value.checkpoints = [checkpoint];
+  const record = { story: value.work_id, event: "checkpoint", ...checkpoint };
+  expectError("WR_CHECKPOINT_EVIDENCE_MISMATCH", "$.checkpoints[0]", () => validateAssessment(value, {
+    feedbackRecords: [decisionFor(value), record, { ...record }],
+  }));
+  const orphan = normal();
+  expectError("WR_CHECKPOINT_EVIDENCE_MISMATCH", "$.checkpoints", () => validateAssessment(orphan, {
+    feedbackRecords: [decisionFor(orphan), record],
+  }));
+});
+
+for (const [name, mutate] of [
+  ["extra field", (record) => ({ ...record, extra: true })],
+  ["missing field", ({ evidence: _evidence, ...record }) => record],
+  ["wrong typed fields", (record) => ({ ...record, elapsed_minutes: "45", implementation_complete: "false" })],
+  ["invalid state", (record) => ({ ...record, status: "blocked" })],
+]) {
+  test(`checkpoint current state rejects ${name} instead of filtering it`, () => {
+    const checkpoint = { elapsed_minutes: 45, status: "on_track", implementation_complete: false, evidence: "Canonical control" };
+    const value = normal();
+    value.checkpoints = [checkpoint];
+    const malformed = mutate({ story: value.work_id, event: "checkpoint", ...checkpoint });
+    expectError("WR_CHECKPOINT_EVIDENCE_INVALID", "$.feedbackRecords[1]", () => validateAssessment(value, {
+      feedbackRecords: [decisionFor(value), malformed],
+    }));
+  });
+}
+
+test("90-minute incomplete checkpoint forces partition-required and inactive authorization", () => {
+  const continuing = normal();
+  continuing.checkpoints = [
+    { elapsed_minutes: 45, status: "on_track", implementation_complete: false, evidence: "On track at first control" },
+    { elapsed_minutes: 90, status: "on_track", implementation_complete: false, evidence: "Still incomplete" },
+  ];
+  expectError("WR_CHECKPOINT_PARTITION_REQUIRED", "$.checkpoints[1].status", () => validateAssessment(continuing, { feedbackRecords: [decisionFor(continuing)] }));
+
+  const stopped = normal();
+  stopped.checkpoints = [
+    { elapsed_minutes: 45, status: "variance", implementation_complete: false, evidence: "The approved phase is behind" },
+    { elapsed_minutes: 90, status: "partition_required", implementation_complete: false, evidence: "Implementation is incomplete" },
+  ];
+  assert.equal(classifyAssessment(stopped), "partition_required");
+  expectError("WR_DECISION_MISMATCH", "$.decision", () => validateAssessment(stopped, {
+    feedbackRecords: [
+      decisionFor(stopped),
+      { story: stopped.work_id, event: "checkpoint", ...stopped.checkpoints[0] },
+      { story: stopped.work_id, event: "checkpoint", ...stopped.checkpoints[1] },
+    ],
+  }));
+});
+
+test("provisional actual minutes cannot override an explicit incomplete 90-minute checkpoint", () => {
+  const value = normal();
+  value.checkpoints = [
+    { elapsed_minutes: 45, status: "variance", implementation_complete: false, evidence: "Behind at first control" },
+    { elapsed_minutes: 90, status: "partition_required", implementation_complete: false, evidence: "Stop at second control" },
+  ];
+  value.actuals = {
+    phase_minutes: { readiness: null, implementation: 1, focused_verification: null, review: null, integration: null },
+    total: null, changed_files: null, commits: null, review_fix_loops: null,
+    cold_mutation_attempts: null, mutation_invalidations: null,
+    estimate_variance_minutes: null, root_cause: null,
+  };
+  assert.equal(classifyAssessment(value), "partition_required");
+
+  const completedAtCheckpoint = clone(value);
+  completedAtCheckpoint.actuals = null;
+  completedAtCheckpoint.checkpoints[1] = { elapsed_minutes: 90, status: "on_track", implementation_complete: true, evidence: "Implementation completed by the second control" };
+  assert.equal(classifyAssessment(completedAtCheckpoint), "ready");
+});
+
+test("only effective terminal completion can supersede a prior checkpoint stop", () => {
+  const value = completed();
+  value.checkpoints = [
+    { elapsed_minutes: 45, status: "variance", implementation_complete: false, evidence: "Behind at first control" },
+    { elapsed_minutes: 90, status: "partition_required", implementation_complete: false, evidence: "Stopped before terminal evidence" },
+  ];
+  const records = [
+    decisionFor(value),
+    { story: value.work_id, event: "started", agent: "checkpoint-terminal-test" },
+    { story: value.work_id, event: "build_pass", notes: "Stable implementation passed before the stop was recorded" },
+    { story: value.work_id, event: "checkpoint", ...value.checkpoints[0] },
+    { story: value.work_id, event: "checkpoint", ...value.checkpoints[1] },
+    { story: value.work_id, event: "done" },
+  ];
+  assert.deepEqual(validateAssessment(value, { feedbackRecords: records }), {
+    decision: "ready", active: false, complete: true, inactiveReason: "terminal",
+  });
+
+  const terminalBeforeStop = [
+    ...records.slice(0, 3),
+    { story: value.work_id, event: "done" },
+    ...records.slice(3, 5),
+  ];
+  expectError("WR_APPROVAL_INACTIVE", "$.approval.evidence", () => validateAssessment(value, { feedbackRecords: terminalBeforeStop }));
+});
+
+test("projected terminal completion supersedes a stop only at its effective canonical index", () => {
+  const value = completed();
+  value.checkpoints = [
+    { elapsed_minutes: 45, status: "variance", implementation_complete: false, evidence: "Behind at first control" },
+    { elapsed_minutes: 90, status: "partition_required", implementation_complete: false, evidence: "Stopped before projected terminal" },
+  ];
+  const start = [
+    decisionFor(value),
+    { story: value.work_id, event: "started", agent: "projected-checkpoint-test" },
+    { story: value.work_id, event: "build_pass", notes: "Stable implementation passed" },
+    { story: value.work_id, event: "done" },
+  ];
+  const controls = value.checkpoints.map((checkpoint) => ({ story: value.work_id, event: "checkpoint", ...checkpoint }));
+  const projection = [
+    { story: value.work_id, event: "evidence_superseded", ref: "US123-CHECKPOINT-DONE", target: { story: value.work_id, event: "done" }, reason: "Revalidate after checkpoint control" },
+    { story: "CHG-099", event: "decision", id: "CHG099-CHECKPOINT-DONE", text: "Revalidate terminal order", reason: "Review" },
+    { story: value.work_id, event: "revalidated", ref: "US123-CHECKPOINT-DONE", change: "CHG-099", as_event: "done" },
+  ];
+  assert.equal(validateAssessment(value, { feedbackRecords: [...start, ...controls, ...projection] }).complete, true);
+  expectError("WR_APPROVAL_INACTIVE", "$.approval.evidence", () => validateAssessment(value, {
+    feedbackRecords: [...start, ...projection, ...controls],
+  }));
+});
+
+test("an incomplete later first checkpoint cannot skip the exact 45-minute control", () => {
+  const value = normal();
+  value.checkpoints = [{ elapsed_minutes: 60, status: "variance", implementation_complete: false, evidence: "Late first checkpoint" }];
+  expectError("WR_CHECKPOINT_45_REQUIRED", "$.checkpoints[0].elapsed_minutes", () => classifyAssessment(value));
+
+  const completed = normal();
+  completed.checkpoints = [{ elapsed_minutes: 60, status: "on_track", implementation_complete: true, evidence: "Implementation completed before the control was due" }];
+  assert.equal(classifyAssessment(completed), "ready");
+});
+
+test("checkpoint records are strictly ordered by elapsed time", () => {
+  const value = normal();
+  value.checkpoints = [
+    { elapsed_minutes: 45, status: "on_track", implementation_complete: false, evidence: "First checkpoint" },
+    { elapsed_minutes: 45, status: "variance", implementation_complete: false, evidence: "Duplicate checkpoint" },
+  ];
+  expectError("WR_CHECKPOINT_ORDER", "$.checkpoints[1].elapsed_minutes", () => validateAssessment(value, { feedbackRecords: [decisionFor(value)] }));
+});
+
 function git(root, args, expectedStatus = 0) {
   const result = spawnSync("git", args, {
     cwd: root,
@@ -1252,6 +1424,41 @@ function approvedArtifact(workId) {
   });
   refreshDigest(value);
   return value;
+}
+
+function activateReadinessPolicy(root) {
+  writeRepoFile(root, "docs/readiness/CHG-022.json", `${JSON.stringify(bootstrap, null, 2)}\n`);
+  writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(bootstrapDecision)}\n`);
+  commitRepo(root, "docs(CHG-022): activate readiness policy", ["docs/readiness/CHG-022.json", ".nous-feedback.jsonl"]);
+}
+
+function approveAfterPolicyActivation(root, value) {
+  activateReadinessPolicy(root);
+  const priorFeedback = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+  writeRepoFile(root, `docs/readiness/${value.work_id}.json`, `${JSON.stringify(value, null, 2)}\n`);
+  writeRepoFile(root, ".nous-feedback.jsonl", `${priorFeedback}${JSON.stringify(decisionFor(value))}\n`);
+  return commitRepo(root, `docs(${value.work_id}): approve readiness`, [`docs/readiness/${value.work_id}.json`, ".nous-feedback.jsonl"]);
+}
+
+function implementationPlanHeader(value, overrides = {}) {
+  const fields = {
+    workId: value.work_id,
+    readinessPath: `docs/readiness/${value.work_id}.json`,
+    estimate: value.estimate_minutes.total,
+    ...overrides,
+  };
+  return [
+    `**Work item:** ${fields.workId}`,
+    `**Readiness assessment:** ${fields.readinessPath}`,
+    `**Approved estimate:** ${fields.estimate} minutes`,
+    "",
+    "# Fixture implementation plan",
+    "",
+    "## Tasks",
+    "",
+    "- Implement the approved outcome.",
+    "",
+  ].join("\n");
 }
 
 function writeApprovedWork(root, workId, { mutateAfterApproval = false } = {}) {
@@ -1499,7 +1706,14 @@ test("unchanged payload permits candidate on-track checkpoint and mutable actual
     };
     const priorFeedback = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
     writeRepoFile(root, "docs/readiness/US-123.json", `${JSON.stringify(candidate, null, 2)}\n`);
-    writeRepoFile(root, ".nous-feedback.jsonl", `${priorFeedback}${JSON.stringify({ story: "US-123", event: "checkpoint", elapsed_minutes: 45, status: "on_track" })}\n`);
+    writeRepoFile(root, ".nous-feedback.jsonl", `${priorFeedback}${JSON.stringify({
+      story: "US-123",
+      event: "checkpoint",
+      elapsed_minutes: 45,
+      status: "on_track",
+      implementation_complete: false,
+      evidence: "Focused slice is on estimate",
+    })}\n`);
     writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
     git(root, ["add", "docs/readiness/US-123.json", ".nous-feedback.jsonl", "apps/web/src/app/page.tsx"]);
     const result = runGit(root, ["commit", "-m", "feat(US-123): continue active checkpoint"]);
@@ -2053,9 +2267,14 @@ function commitActivationHistory(root, records) {
 function historicalOwnership(records) {
   const { root } = makeGitRepo();
   try {
-    const base = commitActivationHistory(root, records);
+    writeRepoFile(root, ".nous-feedback.jsonl", `${records.map(JSON.stringify).join("\n")}\n`);
+    const base = commitRepo(root, "docs(US-321): record historical completion", [".nous-feedback.jsonl"]);
     writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
-    const head = commitRepo(root, "feat(US-321): historical exemption fixture", ["apps/web/src/app/page.tsx"]);
+    commitRepo(root, "feat(US-321): preactivation historical repair", ["apps/web/src/app/page.tsx"]);
+    writeRepoFile(root, "docs/readiness/CHG-022.json", `${JSON.stringify(bootstrap, null, 2)}\n`);
+    const prior = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+    writeRepoFile(root, ".nous-feedback.jsonl", `${prior}${JSON.stringify({ story: "CHG-022", event: "started", agent: "codex/work-readiness-gate" })}\n${JSON.stringify(bootstrapDecision)}\n`);
+    const head = commitRepo(root, "docs(CHG-022): activate after historical repair", ["docs/readiness/CHG-022.json", ".nous-feedback.jsonl"]);
     return validateRangeOwnership({ root, base, head });
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -2073,6 +2292,275 @@ test("Git ownership extracts bounded official IDs and closes path classes", () =
   assert.equal(classifyChangedPath("scripts/test-work-readiness.mjs"), "implementation");
   assert.equal(classifyChangedPath("apps/web/src/app/page.tsx"), "implementation");
   assert.equal(classifyChangedPath("docs/stories/SPRINT_PLAN.md"), "generated-nous");
+});
+
+test("active policy rejects a new implementation plan without the exact three-line header", () => {
+  const { root } = makeGitRepo();
+  try {
+    const value = approvedArtifact("US-123");
+    const base = approveAfterPolicyActivation(root, value);
+    writeRepoFile(root, "docs/superpowers/plans/US-123.md", "# Fixture implementation plan\n\n- Implement it.\n");
+    const head = commitRepo(root, "docs(US-123): add unbound implementation plan", ["docs/superpowers/plans/US-123.md"]);
+    assert.throws(
+      () => validateRangeOwnership({ root, base, head }),
+      (error) => error.code === "WR_PLAN_HEADER_MISSING" && error.path === "docs/superpowers/plans/US-123.md",
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("implementation plan metadata is an exact byte-zero singleton block", () => {
+  const variants = [
+    ["leading prose", (header) => `# Prose before metadata\n\n${header}`, "WR_PLAN_HEADER_MISSING"],
+    ["leading whitespace", (header) => ` ${header}`, "WR_PLAN_HEADER_MISSING"],
+    ["UTF-8 BOM", (header) => `\ufeff${header}`, "WR_PLAN_HEADER_MISSING"],
+    ["second metadata block", (header) => `${header}\n${header}`, "WR_PLAN_HEADER_INVALID"],
+    ["duplicate work key", (header) => `${header}\n**Work item:** US-123\n`, "WR_PLAN_HEADER_INVALID"],
+    ["extra metadata line", (header) => header.replace("\n\n# Fixture", "\n**Owner:** user\n\n# Fixture"), "WR_PLAN_HEADER_INVALID"],
+    ["malformed estimate key", (header) => header.replace("**Approved estimate:**", "**Approved budget:**"), "WR_PLAN_HEADER_INVALID"],
+    ["duplicate metadata beyond scan prefix", (header) => `${header}${"x".repeat(17 * 1024)}\n**Work item:** US-123\n`, "WR_PLAN_HEADER_INVALID"],
+  ];
+  for (const [name, mutate, code] of variants) {
+    const { root } = makeGitRepo();
+    try {
+      const value = approvedArtifact("US-123");
+      const base = approveAfterPolicyActivation(root, value);
+      writeRepoFile(root, "docs/superpowers/plans/US-123.md", mutate(implementationPlanHeader(value)));
+      const head = commitRepo(root, `docs(US-123): ${name}`, ["docs/superpowers/plans/US-123.md"]);
+      assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === code, name);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("implementation plan header binds the exact work ID and normalized readiness path", () => {
+  for (const [overrides, code] of [
+    [{ workId: "CHG-456" }, "WR_PLAN_WORK_ID_MISMATCH"],
+    [{ readinessPath: "docs/readiness/CHG-456.json" }, "WR_PLAN_READINESS_PATH_MISMATCH"],
+    [{ readinessPath: "docs/readiness/../readiness/US-123.json" }, "WR_GIT_PATH_INVALID"],
+  ]) {
+    const { root } = makeGitRepo();
+    try {
+      const value = approvedArtifact("US-123");
+      const base = approveAfterPolicyActivation(root, value);
+      writeRepoFile(root, "docs/superpowers/plans/US-123.md", implementationPlanHeader(value, overrides));
+      const head = commitRepo(root, "docs(US-123): add mismatched implementation plan", ["docs/superpowers/plans/US-123.md"]);
+      assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === code);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("implementation plan estimate cannot exceed the approved readiness estimate", () => {
+  const { root } = makeGitRepo();
+  try {
+    const value = approvedArtifact("US-123");
+    const base = approveAfterPolicyActivation(root, value);
+    writeRepoFile(root, "docs/superpowers/plans/US-123.md", implementationPlanHeader(value, { estimate: value.estimate_minutes.total + 1 }));
+    const head = commitRepo(root, "docs(US-123): raise plan estimate", ["docs/superpowers/plans/US-123.md"]);
+    assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_PLAN_ESTIMATE_OVER_BUDGET");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("normal implementation after activation requires one valid approved plan binding", () => {
+  const missing = makeGitRepo();
+  try {
+    const value = approvedArtifact("US-123");
+    const base = approveAfterPolicyActivation(missing.root, value);
+    writeRepoFile(missing.root, "apps/web/src/app/page.tsx", "export {};\n");
+    const head = commitRepo(missing.root, "feat(US-123): implement without a plan", ["apps/web/src/app/page.tsx"]);
+    assert.throws(() => validateRangeOwnership({ root: missing.root, base, head }), (error) => error.code === "WR_IMPLEMENTATION_PLAN_MISSING");
+  } finally {
+    rmSync(missing.root, { recursive: true, force: true });
+  }
+
+  const valid = makeGitRepo();
+  try {
+    const value = approvedArtifact("US-123");
+    approveAfterPolicyActivation(valid.root, value);
+    writeRepoFile(valid.root, "docs/superpowers/plans/US-123.md", implementationPlanHeader(value));
+    commitRepo(valid.root, "docs(US-123): bind implementation plan", ["docs/superpowers/plans/US-123.md"]);
+    const base = git(valid.root, ["rev-parse", "HEAD"]);
+    writeRepoFile(valid.root, "apps/web/src/app/page.tsx", "export {};\n");
+    const head = commitRepo(valid.root, "feat(US-123): implement approved plan", ["apps/web/src/app/page.tsx"]);
+    assert.equal(validateRangeOwnership({ root: valid.root, base, head }).classification, "implementation");
+  } finally {
+    rmSync(valid.root, { recursive: true, force: true });
+  }
+});
+
+test("implementation checkpoint history is append-only and mirrors feedback evidence", () => {
+  const { root } = makeGitRepo();
+  try {
+    const value = approvedArtifact("US-123");
+    approveAfterPolicyActivation(root, value);
+    writeRepoFile(root, "docs/superpowers/plans/US-123.md", implementationPlanHeader(value));
+    commitRepo(root, "docs(US-123): bind implementation plan", ["docs/superpowers/plans/US-123.md"]);
+    const checkpoint = { elapsed_minutes: 45, status: "on_track", implementation_complete: false, evidence: "Implementation matches the approved phase budget" };
+    const candidate = clone(value);
+    candidate.checkpoints = [checkpoint];
+    const priorFeedback = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+    writeRepoFile(root, "docs/readiness/US-123.json", `${JSON.stringify(candidate, null, 2)}\n`);
+    writeRepoFile(root, ".nous-feedback.jsonl", `${priorFeedback}${JSON.stringify({ story: value.work_id, event: "checkpoint", ...checkpoint })}\n`);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    commitRepo(root, "feat(US-123): record 45-minute checkpoint", ["docs/readiness/US-123.json", ".nous-feedback.jsonl", "apps/web/src/app/page.tsx"]);
+
+    const base = git(root, ["rev-parse", "HEAD"]);
+    const rewritten = clone(candidate);
+    rewritten.checkpoints[0].evidence = "Rewritten history";
+    writeRepoFile(root, "docs/readiness/US-123.json", `${JSON.stringify(rewritten, null, 2)}\n`);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export const changed = true;\n");
+    const head = commitRepo(root, "feat(US-123): rewrite checkpoint", ["docs/readiness/US-123.json", "apps/web/src/app/page.tsx"]);
+    assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_CHECKPOINT_HISTORY_MUTATED");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("docs-only checkpoint transitions require an exact artifact-feedback bijection", () => {
+  const checkpoint = { elapsed_minutes: 45, status: "on_track", implementation_complete: false, evidence: "Implementation matches the approved phase budget" };
+  for (const mode of ["valid", "artifact-only", "feedback-only", "duplicate-feedback"]) {
+    const { root } = makeGitRepo();
+    try {
+      const value = approvedArtifact("US-123");
+      const base = approveAfterPolicyActivation(root, value);
+      const candidate = clone(value);
+      if (mode !== "feedback-only") candidate.checkpoints = [checkpoint];
+      if (mode !== "feedback-only") writeRepoFile(root, "docs/readiness/US-123.json", `${JSON.stringify(candidate, null, 2)}\n`);
+      const priorFeedback = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+      if (mode !== "artifact-only") {
+        const record = JSON.stringify({ story: value.work_id, event: "checkpoint", ...checkpoint });
+        writeRepoFile(root, ".nous-feedback.jsonl", `${priorFeedback}${record}\n${mode === "duplicate-feedback" ? `${record}\n` : ""}`);
+      }
+      const paths = [
+        ...(mode === "feedback-only" ? [] : ["docs/readiness/US-123.json"]),
+        ...(mode === "artifact-only" ? [] : [".nous-feedback.jsonl"]),
+      ];
+      const head = commitRepo(root, `docs(US-123): ${mode} checkpoint transition`, paths);
+      if (mode === "valid") {
+        assert.equal(validateRangeOwnership({ root, base, head }).classification, "bootstrap-documentation");
+      } else {
+        assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_CHECKPOINT_EVIDENCE_MISMATCH", mode);
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("docs-only checkpoint transition rejects rewrite, deletion, reorder, and duplication", () => {
+  const variants = [
+    ["rewrite", (items) => [{ ...items[0], evidence: "Rewritten evidence" }, items[1]], "WR_CHECKPOINT_HISTORY_MUTATED"],
+    ["delete", (items) => [items[0]], "WR_CHECKPOINT_HISTORY_MUTATED"],
+    ["reorder", (items) => [items[1], items[0]], "WR_CHECKPOINT_HISTORY_MUTATED"],
+    ["duplicate", (items) => [...items, items[1]], "WR_CHECKPOINT_EVIDENCE_MISMATCH"],
+  ];
+  for (const [name, mutate, code] of variants) {
+    const { root } = makeGitRepo();
+    try {
+      const value = approvedArtifact("US-123");
+      approveAfterPolicyActivation(root, value);
+      const checkpoints = [
+        { elapsed_minutes: 45, status: "variance", implementation_complete: false, evidence: "First control variance" },
+        { elapsed_minutes: 90, status: "partition_required", implementation_complete: false, evidence: "Stop and partition" },
+      ];
+      const parent = clone(value);
+      parent.checkpoints = checkpoints;
+      const priorFeedback = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+      writeRepoFile(root, "docs/readiness/US-123.json", `${JSON.stringify(parent, null, 2)}\n`);
+      writeRepoFile(root, ".nous-feedback.jsonl", `${priorFeedback}${checkpoints.map((item) => JSON.stringify({ story: value.work_id, event: "checkpoint", ...item })).join("\n")}\n`);
+      commitRepo(root, "docs(US-123): establish checkpoint history", ["docs/readiness/US-123.json", ".nous-feedback.jsonl"]);
+      const base = git(root, ["rev-parse", "HEAD"]);
+      const candidate = clone(parent);
+      candidate.checkpoints = mutate(checkpoints);
+      writeRepoFile(root, "docs/readiness/US-123.json", `${JSON.stringify(candidate, null, 2)}\n`);
+      const head = commitRepo(root, `docs(US-123): ${name} checkpoint history`, ["docs/readiness/US-123.json"]);
+      assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === code, name);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("docs-only terminal transition requires complete actuals and freezes them forever", () => {
+  for (const missingActuals of [true, false]) {
+    const { root } = makeGitRepo();
+    try {
+      const value = approvedArtifact("US-123");
+      approveAfterPolicyActivation(root, value);
+      const prior = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+      writeRepoFile(root, ".nous-feedback.jsonl", `${prior}${JSON.stringify({ story: value.work_id, event: "started", agent: "actuals-transition-test" })}\n${JSON.stringify({ story: value.work_id, event: "build_pass", notes: "Focused gate passed" })}\n`);
+      commitRepo(root, "docs(US-123): establish terminal prerequisites", [".nous-feedback.jsonl"]);
+      const base = git(root, ["rev-parse", "HEAD"]);
+      const terminal = missingActuals ? value : completed();
+      writeRepoFile(root, `docs/readiness/${value.work_id}.json`, `${JSON.stringify(terminal, null, 2)}\n`);
+      const lifecycle = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+      writeRepoFile(root, ".nous-feedback.jsonl", `${lifecycle}${JSON.stringify({ story: value.work_id, event: "done" })}\n`);
+      const head = commitRepo(root, "docs(US-123): record terminal completion", [`docs/readiness/${value.work_id}.json`, ".nous-feedback.jsonl"]);
+      if (missingActuals) {
+        assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_ACTUALS_REQUIRED");
+      } else {
+        assert.equal(validateRangeOwnership({ root, base, head }).classification, "bootstrap-documentation");
+        const frozenBase = head;
+        terminal.actuals.root_cause = "Recalibrated after done";
+        writeRepoFile(root, `docs/readiness/${value.work_id}.json`, `${JSON.stringify(terminal, null, 2)}\n`);
+        const rewritten = commitRepo(root, "docs(US-123): rewrite completed actuals", [`docs/readiness/${value.work_id}.json`]);
+        assert.throws(() => validateRangeOwnership({ root, base: frozenBase, head: rewritten }), (error) => error.code === "WR_ACTUALS_IMMUTABLE");
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("preterminal provisional actuals remain mutable", () => {
+  const { root } = makeGitRepo();
+  try {
+    const value = approvedArtifact("US-123");
+    const base = approveAfterPolicyActivation(root, value);
+    value.actuals = {
+      phase_minutes: { readiness: null, implementation: 1, focused_verification: null, review: null, integration: null },
+      total: null, changed_files: null, commits: null, review_fix_loops: null,
+      cold_mutation_attempts: null, mutation_invalidations: null,
+      estimate_variance_minutes: null, root_cause: null,
+    };
+    writeRepoFile(root, "docs/readiness/US-123.json", `${JSON.stringify(value, null, 2)}\n`);
+    commitRepo(root, "docs(US-123): record provisional actuals", ["docs/readiness/US-123.json"]);
+    value.actuals.phase_minutes.implementation = 2;
+    writeRepoFile(root, "docs/readiness/US-123.json", `${JSON.stringify(value, null, 2)}\n`);
+    const head = commitRepo(root, "docs(US-123): recalibrate provisional actuals", ["docs/readiness/US-123.json"]);
+    assert.equal(validateRangeOwnership({ root, base, head }).classification, "bootstrap-documentation");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("completed actuals reject deletion as well as recalibration", () => {
+  for (const mutation of ["delete", "recalibrate"]) {
+    const { root } = makeGitRepo();
+    try {
+      const value = approvedArtifact("US-123");
+      approveAfterPolicyActivation(root, value);
+      const prior = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+      const terminal = completed();
+      writeRepoFile(root, "docs/readiness/US-123.json", `${JSON.stringify(terminal, null, 2)}\n`);
+      writeRepoFile(root, ".nous-feedback.jsonl", `${prior}${JSON.stringify({ story: value.work_id, event: "started", agent: "immutable-actuals-test" })}\n${JSON.stringify({ story: value.work_id, event: "build_pass", notes: "Gate passed" })}\n${JSON.stringify({ story: value.work_id, event: "done" })}\n`);
+      commitRepo(root, "docs(US-123): establish immutable completion", ["docs/readiness/US-123.json", ".nous-feedback.jsonl"]);
+      const base = git(root, ["rev-parse", "HEAD"]);
+      if (mutation === "delete") terminal.actuals = null;
+      else terminal.actuals.changed_files += 1;
+      writeRepoFile(root, "docs/readiness/US-123.json", `${JSON.stringify(terminal, null, 2)}\n`);
+      const head = commitRepo(root, `docs(US-123): ${mutation} completed actuals`, ["docs/readiness/US-123.json"]);
+      assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_ACTUALS_IMMUTABLE", mutation);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
 });
 
 test("range ownership rejects same-commit approval for every implementation ID", () => {
@@ -2177,7 +2665,6 @@ test("real range requires a currently active parent authorization interval", () 
   const variants = [
     ["blocked", normal(), [decisionFor(normal()), { story: "US-123", event: "blocked", reason: "Dependency reopened" }]],
     ["blocker", normal(), [decisionFor(normal()), { story: "US-123", event: "blocker", reason: "Scope reopened" }]],
-    ["checkpoint", normal(), [decisionFor(normal()), { story: "US-123", event: "checkpoint", elapsed_minutes: 90, status: "partition_required" }]],
     ["terminal", terminalValue, [
       terminalDecision,
       { story: "US-123", event: "started", agent: "range-test" },
@@ -2676,7 +3163,7 @@ test("registered overlays fail closed on missing paths, hashes, registration, an
   }
 });
 
-test("historical grandfathering requires terminal done before CHG-022 V2 activation", () => {
+test("postactivation implementation never reuses a preactivation completed ID", () => {
   for (const beforeActivation of [true, false]) {
     const { root } = makeGitRepo();
     try {
@@ -2694,11 +3181,7 @@ test("historical grandfathering requires terminal done before CHG-022 V2 activat
       }
       writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
       const head = commitRepo(root, "feat(US-321): historical repair", ["apps/web/src/app/page.tsx"]);
-      if (beforeActivation) {
-        assert.deepEqual(validateRangeOwnership({ root, base, head }).grandfatheredWorkIds, ["US-321"]);
-      } else {
-        assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_READINESS_MISSING");
-      }
+      assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_READINESS_MISSING");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -2769,7 +3252,7 @@ test("grandfathering rejects a forged activation that does not bind the committe
   }
 });
 
-test("grandfathering honors a canonical projected terminal lifecycle", () => {
+test("postactivation implementation rejects even a canonical projected historical terminal", () => {
   const { root } = makeGitRepo();
   try {
     const records = [
@@ -2787,7 +3270,7 @@ test("grandfathering honors a canonical projected terminal lifecycle", () => {
     const base = commitActivationHistory(root, records);
     writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
     const head = commitRepo(root, "feat(US-321): projected historical exemption", ["apps/web/src/app/page.tsx"]);
-    assert.deepEqual(validateRangeOwnership({ root, base, head }).grandfatheredWorkIds, ["US-321"]);
+    assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_READINESS_MISSING");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

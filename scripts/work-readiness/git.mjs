@@ -3,7 +3,7 @@ import { lstatSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 
-import { WorkReadinessError, classifyAssessment, validateAssessment } from "./model.mjs";
+import { WorkReadinessError, classifyAssessment, validateAssessment, validateCompletionActuals } from "./model.mjs";
 
 const MAX_GIT_OUTPUT_BYTES = 1024 * 1024;
 const WORK_ID_PATTERN = /(?<![A-Z0-9-])(?:US|CHG)-[0-9]{3,}(?![A-Z0-9-])/giu;
@@ -16,12 +16,19 @@ const GENERATED_NOUS_PATHS = [
   /^docs\/stories\//u,
   /^docs\/sprints\//u,
 ];
+const IMPLEMENTATION_PLAN_PATTERN = /^docs\/superpowers\/plans\/.+\.md$/u;
+const PLAN_HEADER_LIMIT_BYTES = 16 * 1024;
 const OVERLAY_LAYER_PATTERN = /^(CHG-[0-9]{3,})\/[a-z0-9]{7,64}$/u;
 const ACTIVATION_EVIDENCE = "CHG022-READINESS-V2-APPROVAL";
 // Reviewed fail-closed raw-byte binding for the complete reconciler. Any
 // whitespace, definition rebinding, helper, build-plan, or runtime edit
 // requires an explicit review and a new digest before ownership is accepted.
 const REVIEWED_RECONCILER_SHA256 = "9ab3409f90b445ae13a3663939ad6be74296995ee5ba7f8c4bc173280883d3d8";
+
+function isTerminalEvent(event) {
+  return event === "done" || event === "verified"
+    || (typeof event === "string" && /^done_with_[a-z0-9_]+$/u.test(event));
+}
 
 function fail(code, path, message) {
   throw new WorkReadinessError(code, message, path);
@@ -325,6 +332,156 @@ function parseJson(text, path) {
     return value;
   } catch (error) {
     fail("WR_READINESS_INVALID", path, `Invalid readiness JSON: ${error.message}`);
+  }
+}
+
+function parseImplementationPlanHeader(text, path, { required = true } = {}) {
+  if (typeof text !== "string" || text.includes("\0") || Buffer.byteLength(text, "utf8") > PLAN_HEADER_LIMIT_BYTES * 64) {
+    fail("WR_PLAN_HEADER_INVALID", path, "Implementation plan must be bounded UTF-8 Markdown without NUL bytes");
+  }
+  const prefix = text.slice(0, PLAN_HEADER_LIMIT_BYTES);
+  const pattern = /^\*\*Work item:\*\* ((?:US|CHG)-[0-9]{3,})\r?\n\*\*Readiness assessment:\*\* ([^\r\n]+)\r?\n\*\*Approved estimate:\*\* ([0-9]+) minutes(?=\r?\n\r?\n|$)/u;
+  const match = pattern.exec(prefix);
+  if (match === null) {
+    if (!required) return null;
+    const code = prefix.startsWith("**Work item:**") ? "WR_PLAN_HEADER_INVALID" : "WR_PLAN_HEADER_MISSING";
+    fail(code, path, "Implementation plan requires the exact byte-zero Work item, Readiness assessment, and Approved estimate header");
+  }
+  const metadataKeys = text.match(/^\*\*(?:Work item|Readiness assessment|Approved estimate):\*\*/gmu) ?? [];
+  if (metadataKeys.length !== 3) fail("WR_PLAN_HEADER_INVALID", path, "Implementation plan metadata keys must occur exactly once in the byte-zero header");
+  const estimate = Number(match[3]);
+  if (!Number.isSafeInteger(estimate)) fail("WR_PLAN_HEADER_INVALID", path, "Approved estimate must be a safe integer number of minutes");
+  return { workId: match[1], readinessPath: match[2], estimate };
+}
+
+function validatePlanBinding({ root, revision, authorizationRevision, feedback, planPath, expectedWorkId = null }) {
+  const header = parseImplementationPlanHeader(readRevisionFile(root, revision, planPath), planPath);
+  if (expectedWorkId !== null && header.workId !== expectedWorkId) {
+    fail("WR_PLAN_WORK_ID_MISMATCH", planPath, `Plan work item ${header.workId} does not match ${expectedWorkId}`);
+  }
+  validateRelativePath(header.readinessPath);
+  const expectedPath = `docs/readiness/${header.workId}.json`;
+  if (header.readinessPath !== expectedPath) {
+    fail("WR_PLAN_READINESS_PATH_MISMATCH", planPath, `Plan readiness path must be exactly ${expectedPath}`);
+  }
+  const artifactText = readRevisionFile(root, authorizationRevision, expectedPath, { required: false });
+  if (artifactText === null) fail("WR_READINESS_MISSING", expectedPath, `Implementation plan for ${header.workId} requires prior readiness approval`);
+  const assessment = parseJson(artifactText, expectedPath);
+  if (assessment.work_id !== header.workId) fail("WR_READINESS_WORK_ID_MISMATCH", expectedPath, `Artifact work_id does not match ${header.workId}`);
+  const validated = validateAssessment(assessment, { feedbackRecords: feedback });
+  if (assessment.decision !== "ready") fail("WR_WORK_NOT_READY", expectedPath, `${header.workId} is ${String(assessment.decision)}, not ready`);
+  if (!validated.active) fail("WR_APPROVAL_INACTIVE", expectedPath, `${header.workId} readiness authorization is inactive`);
+  if (header.estimate > assessment.estimate_minutes.total) {
+    fail("WR_PLAN_ESTIMATE_OVER_BUDGET", planPath, `Plan estimate ${header.estimate} exceeds approved ${assessment.estimate_minutes.total} minutes`);
+  }
+  return { ...header, planPath };
+}
+
+function implementationPlanPaths(root, revision) {
+  const output = git(root, ["ls-tree", "-r", "--name-only", "-z", revision, "--", "docs/superpowers/plans"]);
+  return output.toString("utf8").split("\0").filter((path) => path.length > 0 && IMPLEMENTATION_PLAN_PATTERN.test(path));
+}
+
+function requireImplementationPlan({ root, revision, feedback, workId }) {
+  const matches = [];
+  for (const planPath of implementationPlanPaths(root, revision)) {
+    const text = readRevisionFile(root, revision, planPath);
+    const header = parseImplementationPlanHeader(text, planPath, { required: false });
+    if (header?.workId === workId) matches.push(planPath);
+  }
+  if (matches.length === 0) fail("WR_IMPLEMENTATION_PLAN_MISSING", `docs/superpowers/plans/${workId}.md`, `${workId} implementation requires one readiness-bound plan`);
+  if (matches.length !== 1) fail("WR_IMPLEMENTATION_PLAN_AMBIGUOUS", "docs/superpowers/plans", `${workId} has more than one readiness-bound plan`);
+  return validatePlanBinding({ root, revision, authorizationRevision: revision, feedback, planPath: matches[0], expectedWorkId: workId });
+}
+
+function canonicalFeedbackCheckpoint(record, workId) {
+  return record !== null && typeof record === "object" && !Array.isArray(record)
+    && Object.keys(record).sort().join(",") === "elapsed_minutes,event,evidence,implementation_complete,status,story"
+    && record.story === workId
+    && record.event === "checkpoint"
+    && Number.isInteger(record.elapsed_minutes) && record.elapsed_minutes >= 0
+    && ["on_track", "variance", "partition_required"].includes(record.status)
+    && typeof record.implementation_complete === "boolean"
+    && typeof record.evidence === "string" && /\S/u.test(record.evidence);
+}
+
+function validateCheckpointTransition(parentArtifact, candidateArtifact, appendedFeedback, readinessPath, workId) {
+  const parent = parentArtifact?.checkpoints ?? [];
+  const candidate = candidateArtifact?.checkpoints ?? [];
+  if (candidate.length < parent.length || parent.some((checkpoint, index) => JSON.stringify(checkpoint) !== JSON.stringify(candidate[index]))) {
+    fail("WR_CHECKPOINT_HISTORY_MUTATED", readinessPath, "Checkpoint history is append-only");
+  }
+  const appendedArtifact = candidate.slice(parent.length);
+  const appendedEvents = appendedFeedback.filter((record) => record.story === workId && record.event === "checkpoint");
+  if (appendedArtifact.length !== appendedEvents.length) {
+    fail("WR_CHECKPOINT_EVIDENCE_MISMATCH", readinessPath, "Artifact and feedback must append the same number of checkpoints in one commit");
+  }
+  appendedArtifact.forEach((checkpoint, index) => {
+    const record = appendedEvents[index];
+    if (!canonicalFeedbackCheckpoint(record, workId)
+      || record.elapsed_minutes !== checkpoint.elapsed_minutes
+      || record.status !== checkpoint.status
+      || record.implementation_complete !== checkpoint.implementation_complete
+      || record.evidence !== checkpoint.evidence) {
+      fail("WR_CHECKPOINT_EVIDENCE_MISMATCH", `$.checkpoints[${parent.length + index}]`, "Each appended checkpoint requires one exact canonical feedback record in the same commit");
+    }
+  });
+}
+
+function validateAllCheckpointTransitions({ root, parent, commit, changedPaths, parentFeedback, candidateFeedback }) {
+  const appendedFeedback = candidateFeedback.slice(parentFeedback.length);
+  const workIds = new Set();
+  changedPaths.forEach((path) => {
+    const match = /^docs\/readiness\/((?:US|CHG)-[0-9]{3,})\.json$/u.exec(path);
+    if (match) workIds.add(match[1]);
+  });
+  appendedFeedback.forEach((record) => {
+    if (record.event === "checkpoint" && typeof record.story === "string") workIds.add(record.story);
+  });
+  for (const workId of workIds) {
+    if (!/^(?:US|CHG)-[0-9]{3,}$/u.test(workId)) {
+      fail("WR_CHECKPOINT_EVIDENCE_MISMATCH", ".nous-feedback.jsonl", "Checkpoint feedback must name one official work ID");
+    }
+    const readinessPath = `docs/readiness/${workId}.json`;
+    const parentText = readRevisionFile(root, parent, readinessPath, { required: false });
+    const candidateText = readRevisionFile(root, commit, readinessPath, { required: false });
+    const parentArtifact = parentText === null ? null : parseJson(parentText, readinessPath);
+    const candidateArtifact = candidateText === null ? null : parseJson(candidateText, readinessPath);
+    if (parentArtifact === null && candidateArtifact === null) {
+      fail("WR_CHECKPOINT_EVIDENCE_MISMATCH", readinessPath, "Checkpoint feedback requires a readiness artifact in the candidate tree");
+    }
+    validateCheckpointTransition(parentArtifact, candidateArtifact, appendedFeedback, readinessPath, workId);
+  }
+}
+
+function validateAllActualTransitions({ root, parent, commit, changedPaths, parentFeedback, candidateFeedback }) {
+  const appendedFeedback = candidateFeedback.slice(parentFeedback.length);
+  const workIds = new Set();
+  changedPaths.forEach((path) => {
+    const match = /^docs\/readiness\/((?:US|CHG)-[0-9]{3,})\.json$/u.exec(path);
+    if (match) workIds.add(match[1]);
+  });
+  appendedFeedback.forEach((record) => {
+    if ((isTerminalEvent(record.event) || ["evidence_superseded", "revalidated"].includes(record.event))
+      && typeof record.story === "string" && /^(?:US|CHG)-[0-9]{3,}$/u.test(record.story)) workIds.add(record.story);
+  });
+  for (const workId of workIds) {
+    const readinessPath = `docs/readiness/${workId}.json`;
+    const parentText = readRevisionFile(root, parent, readinessPath, { required: false });
+    const candidateText = readRevisionFile(root, commit, readinessPath, { required: false });
+    const parentArtifact = parentText === null ? null : parseJson(parentText, readinessPath);
+    const candidateArtifact = candidateText === null ? null : parseJson(candidateText, readinessPath);
+    const parentComplete = parentArtifact === null ? false : validateCompletionActuals(parentArtifact, parentFeedback).complete;
+    if (parentComplete && (candidateArtifact === null || JSON.stringify(candidateArtifact.actuals) !== JSON.stringify(parentArtifact.actuals))) {
+      fail("WR_ACTUALS_IMMUTABLE", "$.actuals", "Completion actuals are immutable after the first effective terminal");
+    }
+    if (candidateArtifact === null) {
+      if (appendedFeedback.some((record) => record.story === workId && isTerminalEvent(record.event))) {
+        fail("WR_READINESS_MISSING", readinessPath, "Terminal evidence requires a readiness artifact with complete actuals");
+      }
+      continue;
+    }
+    validateCompletionActuals(candidateArtifact, candidateFeedback);
   }
 }
 
@@ -744,13 +901,44 @@ export function resolveDefaultBase(root, env = process.env) {
   return mergeBase;
 }
 
-function validateCommitOwnership({ root, parent, commit, message }) {
+function validateCommitOwnership({ root, parent, commit, message, preActivationCommit = false }) {
   const changedPaths = listChangedPaths({ root, base: parent, head: commit });
   const messageWorkIds = extractWorkIds(message);
   const pathWorkIds = extractWorkIds(changedPaths.join("\n"));
   const workIds = [...new Set([...messageWorkIds, ...pathWorkIds])];
   const candidateFeedback = validateFeedbackHistoryTransition(root, parent, commit);
+  const authorizationFeedback = parseFeedback(readRevisionFile(root, parent, ".nous-feedback.jsonl", { required: false }));
+  const policyActive = validatedActivationIndex(root, parent, authorizationFeedback) >= 0;
+  validateAllCheckpointTransitions({
+    root,
+    parent,
+    commit,
+    changedPaths,
+    parentFeedback: authorizationFeedback,
+    candidateFeedback,
+  });
+  validateAllActualTransitions({
+    root,
+    parent,
+    commit,
+    changedPaths,
+    parentFeedback: authorizationFeedback,
+    candidateFeedback,
+  });
   validateChangedMachineArtifacts(root, commit, changedPaths);
+  if (policyActive) {
+    for (const planPath of changedPaths.filter((path) => IMPLEMENTATION_PLAN_PATTERN.test(path))) {
+      const planPathWorkIds = extractWorkIds(planPath);
+      validatePlanBinding({
+        root,
+        revision: commit,
+        authorizationRevision: parent,
+        feedback: authorizationFeedback,
+        planPath,
+        expectedWorkId: planPathWorkIds.length === 1 ? planPathWorkIds[0] : null,
+      });
+    }
+  }
   const classes = changedPaths.map(classifyChangedPath);
   const generatedPaths = changedPaths.filter((path, index) => classes[index] === "generated-nous");
   for (const generatedPath of generatedPaths) {
@@ -768,13 +956,12 @@ function validateCommitOwnership({ root, parent, commit, message }) {
   // Candidate-tree machine artifacts are structurally validated above, but an
   // implementation commit cannot authorize itself. Readiness and its approval
   // must already exist in the immutable parent tree.
-  const authorizationFeedback = parseFeedback(readRevisionFile(root, parent, ".nous-feedback.jsonl", { required: false }));
   const grandfatheredWorkIds = [];
   for (const workId of workIds) {
     const readinessPath = `docs/readiness/${workId}.json`;
     const artifactText = readRevisionFile(root, parent, readinessPath, { required: false });
     if (artifactText === null) {
-      if (isHistoricalDone(root, parent, authorizationFeedback, workId)) {
+      if (preActivationCommit && hasEffectiveHistoricalTerminal(authorizationFeedback, authorizationFeedback.length, workId)) {
         grandfatheredWorkIds.push(workId);
         continue;
       }
@@ -789,6 +976,9 @@ function validateCommitOwnership({ root, parent, commit, message }) {
         fail("WR_BOOTSTRAP_EXPIRED", "$.bootstrap_authorization.expires_on_event", "The one-time CHG-022 bootstrap expired at its first valid terminal event");
       }
       fail("WR_APPROVAL_INACTIVE", readinessPath, `${workId} parent readiness authorization is inactive`);
+    }
+    if (policyActive && !parentArtifact.policy_bootstrap) {
+      requireImplementationPlan({ root, revision: parent, feedback: authorizationFeedback, workId });
     }
 
     const candidateArtifactText = readRevisionFile(root, commit, readinessPath, { required: false });
@@ -844,16 +1034,38 @@ export function validateRangeOwnership({ root, base, head = "HEAD", message }) {
   const baseSha = resolveCommit(canonicalRoot, base, "$.base");
   const headSha = resolveCommit(canonicalRoot, head, "$.head");
   const commits = linearCommits(canonicalRoot, baseSha, headSha);
+  const scanFeedback = (revision) => {
+    try {
+      return parseFeedback(readRevisionFile(canonicalRoot, revision, ".nous-feedback.jsonl", { required: false }));
+    } catch (error) {
+      if (error instanceof WorkReadinessError) return null;
+      throw error;
+    }
+  };
+  const headFeedback = scanFeedback(headSha);
+  const hasActivationMarker = (feedback) => feedback?.some((record) => record.story === "CHG-022"
+    && record.event === "decision" && record.id === ACTIVATION_EVIDENCE) === true;
+  const activationPresentAtHead = hasActivationMarker(headFeedback);
+  let activationOrdinal = -1;
+  if (activationPresentAtHead) {
+    activationOrdinal = commits.findIndex((entry) => {
+      const candidateFeedback = scanFeedback(entry.commit);
+      const parentFeedback = scanFeedback(entry.parent);
+      return hasActivationMarker(candidateFeedback) && !hasActivationMarker(parentFeedback);
+    });
+  }
   const aggregate = {
     workIds: [],
     changedPaths: [],
     classification: "bootstrap-documentation",
     grandfatheredWorkIds: [],
   };
-  for (const entry of commits) {
+  for (let ordinal = 0; ordinal < commits.length; ordinal += 1) {
+    const entry = commits[ordinal];
     const commitMessage = git(canonicalRoot, ["show", "-s", "--format=%B", entry.commit]).toString("utf8");
     const effectiveMessage = message !== undefined && entry.commit === headSha ? `${commitMessage}\n${message}` : commitMessage;
-    const result = validateCommitOwnership({ root: canonicalRoot, ...entry, message: effectiveMessage });
+    const preActivationCommit = !activationPresentAtHead || (activationOrdinal >= 0 && ordinal < activationOrdinal);
+    const result = validateCommitOwnership({ root: canonicalRoot, ...entry, message: effectiveMessage, preActivationCommit });
     aggregate.workIds.push(...result.workIds.filter((workId) => !aggregate.workIds.includes(workId)));
     aggregate.changedPaths.push(...result.changedPaths.filter((path) => !aggregate.changedPaths.includes(path)));
     aggregate.grandfatheredWorkIds.push(...result.grandfatheredWorkIds.filter((workId) => !aggregate.grandfatheredWorkIds.includes(workId)));
