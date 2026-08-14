@@ -679,7 +679,9 @@ test("bootstrap approval explicitly binds provenance, ordered paths, and first-d
 
 test("completed bootstrap remains valid but inactive and requires correct actuals", () => {
   const records = [bootstrapDecision, { story: "CHG-022", event: "done" }];
-  expectError("WR_ACTUALS_REQUIRED", "$.actuals", () => validateAssessment(bootstrap, { feedbackRecords: records }));
+  const withoutActuals = clone(bootstrap);
+  withoutActuals.actuals = null;
+  expectError("WR_ACTUALS_REQUIRED", "$.actuals", () => validateAssessment(withoutActuals, { feedbackRecords: records }));
   const value = completedBootstrap();
   assert.deepEqual(validateAssessment(value, { feedbackRecords: records }), {
     decision: "ready", active: false, complete: true, inactiveReason: "terminal",
@@ -1961,7 +1963,9 @@ test("CLI check and check-all accept completed CHG-022 as valid but inactive", (
       assert.deepEqual(output.work_ids, ["CHG-022"]);
       assert.deepEqual(output.errors, []);
     }
-    writeRepoFile(root, "docs/readiness/CHG-022.json", `${JSON.stringify(bootstrap, null, 2)}\n`);
+    const withoutActuals = clone(bootstrap);
+    withoutActuals.actuals = null;
+    writeRepoFile(root, "docs/readiness/CHG-022.json", `${JSON.stringify(withoutActuals, null, 2)}\n`);
     const missingActuals = runCli(root, ["check", "CHG-022", "--json"]);
     assert.equal(missingActuals.status, 1);
     assert.equal(parseCliJson(missingActuals).errors[0].code, "WR_ACTUALS_REQUIRED");

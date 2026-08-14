@@ -185,6 +185,37 @@ completion. The first effective terminal requires complete valid actuals, and
 after it those actuals are immutable—deletion, rewriting, or recalibration is
 rejected even in documentation-only commits.
 
+For a reproducible provisional measurement, bind every metric to named Git
+objects and reflog timestamps. Count changed files against the item's approved
+authority base and count reachable item commits from its branch point. Raw
+reflog amendments are observations, not automatically review-fix loops; count a
+loop only when the reviewed-task evidence supports a review-to-fix cycle.
+Partition one non-overlapping
+wall-clock envelope into phases using recorded boundaries; when focused checks
+or integration are interleaved and lack independent timestamps, record zero for
+the unobservable bucket and conservatively absorb that time into the enclosing
+implementation or review bucket. Document the exact refs, timestamps, rounding
+rule, and commands in `root_cause`. Before local reflogs expire, append a closed
+provisional measurement-ledger event containing the cutoff, exact object IDs,
+ISO-offset timestamps, interval counts, and formulas. That committed event is
+the durable evidence snapshot; the raw reflog remains local, mutable-by-Git, and
+expirable capture input. These values are explicitly pre-terminal and Task 9
+establishes a new cutoff and recomputes them before final verification; they do
+not become immutable until the first valid terminal event.
+
+For CHG-022 specifically, `3454e2a..HEAD` is the exact 21-path authority
+measurement diff, but it crosses the transition that made the bootstrap
+self-binding and is not claimed as a valid range under the subsequently
+activated validator. Executable range verification starts at the first exact
+binding commit, `72f5e854`.
+
+CHG-022's immutable 21-path bootstrap does not authorize updating the generated
+agent mirrors `CODEX.md`, `.cursorrules`, or
+`.github/copilot-instructions.md`. Their pre-existing CHG-001 mirror content is
+therefore preserved, not represented as CHG-022 delivery. Extending the new
+readiness text into those files is deferred and requires a separate approved,
+digest-bound change; the bootstrap manifest must not be expanded retroactively.
+
 ## Historical and activation policy
 
 Completed work with a valid terminal `done` event before CHG-022 is

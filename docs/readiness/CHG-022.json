@@ -108,7 +108,23 @@
     "evidence": "CHG022-READINESS-V2-APPROVAL",
     "payload_sha256": "c9526d8070e749820d83edfba136cd2ec129ea239bb9e94d710d0a2120a16d32"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 49,
+      "implementation": 111,
+      "focused_verification": 0,
+      "review": 344,
+      "integration": 0
+    },
+    "total": 504,
+    "changed_files": 21,
+    "commits": 11,
+    "review_fix_loops": 7,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "estimate_variance_minutes": 144,
+    "root_cause": "Provisional pre-terminal measurement at cutoff 0f5e41a52a73f77e2c79b6d0c3eda6ad02c467e7. Reproduce changed_files with git diff --name-only 3454e2a09ccdeb39f63f907bbe4fe355b1cb59c3..0f5e41a52a73f77e2c79b6d0c3eda6ad02c467e7 (21 exact bootstrap paths), commits with git rev-list --count 45efbafa1c608c80a3690110c65157caa5cbf45b..0f5e41a52a73f77e2c79b6d0c3eda6ad02c467e7 (11), and raw amend records with git reflog --date=iso-strict --format='%H|%gD|%gs' HEAD filtered to the seven CHG-022 task subjects (36). Raw amend messages do not independently prove 36 review-to-fix cycles, so review_fix_loops conservatively counts one evidenced reviewed-task interval for each of Tasks 1-7 (7), while the appended provisional measurement ledger preserves all 36 raw amend observations without relabeling them. The 3454e2a authority diff deliberately crosses the pre-binding bootstrap transition and is a measurement range, not a range claimed valid under the later validator; the first valid executable validation base is 72f5e8545ea5d98795e2a5f19e62f6ba5e7ae7cb. The wall-clock envelope runs from branch creation at 2026-08-13T21:58:45-05:00 through cutoff reflog time 2026-08-14T06:23:13-05:00; readiness is branch creation through the plan commit at 22:47:59, review is the non-overlapping union from each task's initial commit through its final amendment, and implementation is the remaining elapsed time. Whole minutes use nearest-minute rounding with largest-remainder allocation across review intervals, as recorded in the durable ledger. Focused verification and integration have no durable independent timestamps, so their interleaved time is conservatively absorbed into review and implementation rather than invented. No CHG-022 cold mutation or invalidation evidence exists and expected_mutation_shards is zero. Task 9 must establish a new cutoff and recompute all provisional values before terminal evidence. The variance reflects the knowingly oversized one-time 360-minute bootstrap and review-heavy fail-closed hardening, not permission to raise future estimates."
+  },
   "checkpoints": [],
   "policy_bootstrap": true,
   "bootstrap_exemption_rationale": "The gate cannot use its not-yet-existing validator to partition and approve its own activation. CHG-022 therefore has no official children despite its honest 360-minute, three-outcome, 21-file assessment. This immutable one-time authorization permits only the approved activation manifest; it is not normal two-hour compliance, cannot be copied, and does not authorize later expansion.",
