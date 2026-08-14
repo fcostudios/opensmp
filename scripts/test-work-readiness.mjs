@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 
 import {
   WorkReadinessError,
@@ -13,10 +18,18 @@ import {
   validateCompletionActuals,
   validatePartitionGraph,
 } from "./work-readiness/model.mjs";
+import {
+  classifyChangedPath,
+  extractWorkIds,
+  listChangedPaths,
+  resolveDefaultBase,
+  validateRangeOwnership,
+} from "./work-readiness/git.mjs";
 
 const bootstrap = JSON.parse(
   await readFile(new URL("../docs/readiness/CHG-022.json", import.meta.url), "utf8"),
 );
+const repositoryFeedback = await readFile(new URL("../.nous-feedback.jsonl", import.meta.url), "utf8");
 const bootstrapDecision = {
   story: "CHG-022",
   event: "decision",
@@ -1048,6 +1061,729 @@ test("repeated cold attempts require consistent invalidation counts and reasons"
   assert.equal(validateCompletionActuals(value, records).complete, true);
   value.actuals.mutation_invalidations = 1;
   expectError("WR_MUTATION_INVALIDATION_COUNT", "$.actuals.mutation_invalidations", () => validateCompletionActuals(value, records));
+});
+
+function git(root, args, expectedStatus = 0) {
+  const result = spawnSync("git", args, {
+    cwd: root,
+    encoding: "utf8",
+    shell: false,
+    maxBuffer: 1024 * 1024,
+  });
+  assert.equal(result.status, expectedStatus, `git ${args.join(" ")} failed: ${result.stderr}`);
+  return result.stdout.trim();
+}
+
+function writeRepoFile(root, path, contents) {
+  const absolute = join(root, path);
+  mkdirSync(join(absolute, ".."), { recursive: true });
+  writeFileSync(absolute, contents);
+}
+
+function makeGitRepo() {
+  const root = mkdtempSync(join(tmpdir(), "work-readiness-git-"));
+  git(root, ["init", "--initial-branch=main"]);
+  git(root, ["config", "user.email", "readiness@example.test"]);
+  git(root, ["config", "user.name", "Readiness Test"]);
+  writeRepoFile(root, "README.md", "fixture\n");
+  git(root, ["add", "README.md"]);
+  git(root, ["commit", "-m", "chore(CHG-900): initialize fixture"]);
+  return { root, base: git(root, ["rev-parse", "HEAD"]) };
+}
+
+function commitRepo(root, message, paths) {
+  git(root, ["add", "--", ...paths]);
+  git(root, ["commit", "-m", message]);
+  return git(root, ["rev-parse", "HEAD"]);
+}
+
+function approvedArtifact(workId) {
+  const kind = workId.startsWith("US-") ? "US" : "CHG";
+  const value = normal({
+    work_id: workId,
+    kind,
+    source: kind === "US" ? `docs/stories/${workId}.md` : `docs/changes/${workId}.md`,
+    approval: { status: "approved", approved_by: "user", evidence: `${workId.replace("-", "")}-READY`, payload_sha256: "0".repeat(64) },
+  });
+  refreshDigest(value);
+  return value;
+}
+
+function writeApprovedWork(root, workId, { mutateAfterApproval = false } = {}) {
+  const value = approvedArtifact(workId);
+  const decision = decisionFor(value);
+  if (mutateAfterApproval) {
+    value.outcomes[0].statement = "Changed after approval";
+    refreshDigest(value);
+  }
+  writeRepoFile(root, `docs/readiness/${workId}.json`, `${JSON.stringify(value, null, 2)}\n`);
+  return decision;
+}
+
+function commitActivationHistory(root, records) {
+  writeRepoFile(root, "docs/readiness/CHG-022.json", `${JSON.stringify(bootstrap, null, 2)}\n`);
+  const bootstrapStart = { story: "CHG-022", event: "started", agent: "codex/work-readiness-gate" };
+  writeRepoFile(root, ".nous-feedback.jsonl", `${[...records, bootstrapStart, bootstrapDecision].map(JSON.stringify).join("\n")}\n`);
+  return commitRepo(root, "docs(CHG-022): establish validated activation history", [
+    "docs/readiness/CHG-022.json",
+    ".nous-feedback.jsonl",
+  ]);
+}
+
+function historicalOwnership(records) {
+  const { root } = makeGitRepo();
+  try {
+    const base = commitActivationHistory(root, records);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    const head = commitRepo(root, "feat(US-321): historical exemption fixture", ["apps/web/src/app/page.tsx"]);
+    return validateRangeOwnership({ root, base, head });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+test("Git ownership extracts bounded official IDs and closes path classes", () => {
+  assert.deepEqual(extractWorkIds("feat(US-123): pair CHG-456 with US-1234, not US-12 or XUS-999Z"), ["US-123", "CHG-456", "US-1234"]);
+  assert.equal(classifyChangedPath("docs/readiness/US-123.json"), "bootstrap-documentation");
+  assert.equal(classifyChangedPath("docs/superpowers/plans/plan.md"), "bootstrap-documentation");
+  assert.equal(classifyChangedPath(".nous-feedback.jsonl"), "bootstrap-documentation");
+  assert.equal(classifyChangedPath("scripts/test-work-readiness.mjs"), "implementation");
+  assert.equal(classifyChangedPath("apps/web/src/app/page.tsx"), "implementation");
+  assert.equal(classifyChangedPath("docs/stories/SPRINT_PLAN.md"), "generated-nous");
+});
+
+test("real Git permits only a documentation bootstrap without prior approval", () => {
+  const { root, base } = makeGitRepo();
+  try {
+    writeRepoFile(root, "docs/superpowers/plans/US-321.md", "# assessment plan\n");
+    const head = commitRepo(root, "docs(US-321): assess readiness", ["docs/superpowers/plans/US-321.md"]);
+    assert.deepEqual(validateRangeOwnership({ root, base, head }), {
+      workIds: ["US-321"],
+      changedPaths: ["docs/superpowers/plans/US-321.md"],
+      classification: "bootstrap-documentation",
+      grandfatheredWorkIds: [],
+    });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("range ownership validates implementation at each commit before later approval", () => {
+  const { root, base } = makeGitRepo();
+  try {
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    commitRepo(root, "feat(US-321): implement before approval", ["apps/web/src/app/page.tsx"]);
+    const decision = writeApprovedWork(root, "US-321");
+    writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(decision)}\n`);
+    const head = commitRepo(root, "docs(US-321): approve after implementation", ["docs/readiness/US-321.json", ".nous-feedback.jsonl"]);
+    assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_READINESS_MISSING");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("range ownership accepts approval before a later implementation commit", () => {
+  const { root, base } = makeGitRepo();
+  try {
+    const decision = writeApprovedWork(root, "US-321");
+    writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(decision)}\n`);
+    commitRepo(root, "docs(US-321): approve before implementation", ["docs/readiness/US-321.json", ".nous-feedback.jsonl"]);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    const head = commitRepo(root, "feat(US-321): implement approved work", ["apps/web/src/app/page.tsx"]);
+    assert.equal(validateRangeOwnership({ root, base, head }).classification, "implementation");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("documentation bootstrap rejects malformed feedback JSONL and readiness artifacts", () => {
+  const fixtures = [
+    [".nous-feedback.jsonl", "not json\n", "WR_FEEDBACK_INVALID"],
+    [".nous-feedback.jsonl", "[]\n", "WR_FEEDBACK_INVALID"],
+    ["docs/readiness/US-321.json", "{not json}\n", "WR_READINESS_INVALID"],
+    ["docs/readiness/US-321.json", "{}\n", "WR_MISSING_PROPERTY"],
+  ];
+  for (const [path, contents, code] of fixtures) {
+    const { root, base } = makeGitRepo();
+    try {
+      writeRepoFile(root, path, contents);
+      const head = commitRepo(root, "docs(US-321): malformed machine bootstrap", [path]);
+      assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === code);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("documentation bootstrap accepts a closed pending normal assessment", () => {
+  const { root, base } = makeGitRepo();
+  try {
+    const pending = approvedArtifact("US-321");
+    pending.approval.status = "pending";
+    pending.approval.approved_by = null;
+    pending.approval.evidence = null;
+    writeRepoFile(root, "docs/readiness/US-321.json", `${JSON.stringify(pending, null, 2)}\n`);
+    const head = commitRepo(root, "docs(US-321): create pending readiness", ["docs/readiness/US-321.json"]);
+    assert.equal(validateRangeOwnership({ root, base, head }).classification, "bootstrap-documentation");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("real Git rejects missing readiness and treats tests and tools as implementation", () => {
+  for (const path of ["apps/web/src/app/page.tsx", "scripts/new-tool.mjs", "apps/web/src/page.test.ts"] ) {
+    const { root, base } = makeGitRepo();
+    try {
+      writeRepoFile(root, path, "export {};\n");
+      const head = commitRepo(root, "feat(US-321): implementation", [path]);
+      assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_READINESS_MISSING");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("real Git requires readiness for every ID named by a production range", () => {
+  const { root, base } = makeGitRepo();
+  try {
+    const decision = writeApprovedWork(root, "US-321");
+    const unready = approvedArtifact("CHG-456");
+    unready.approval.status = "pending";
+    unready.approval.approved_by = null;
+    unready.approval.evidence = null;
+    writeRepoFile(root, "docs/readiness/CHG-456.json", `${JSON.stringify(unready, null, 2)}\n`);
+    writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(decision)}\n`);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    const paths = ["docs/readiness/US-321.json", "docs/readiness/CHG-456.json", ".nous-feedback.jsonl", "apps/web/src/app/page.tsx"];
+    const head = commitRepo(root, "feat(US-321 CHG-456): production change", paths);
+    assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_APPROVAL_REQUIRED");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("ownership is the union of commit-message and changed-path work IDs", () => {
+  for (const pathWorkReady of [false, true]) {
+    const { root } = makeGitRepo();
+    try {
+      const decisions = [writeApprovedWork(root, "US-321")];
+      const paths = ["docs/readiness/US-321.json"];
+      if (pathWorkReady) {
+        decisions.push(writeApprovedWork(root, "CHG-456"));
+        paths.push("docs/readiness/CHG-456.json");
+      }
+      writeRepoFile(root, ".nous-feedback.jsonl", `${decisions.map(JSON.stringify).join("\n")}\n`);
+      paths.push(".nous-feedback.jsonl");
+      const base = commitRepo(root, "docs(US-321): approve ownership fixtures", paths);
+      writeRepoFile(root, "artifacts/CHG-456/result.txt", "implementation\n");
+      const head = commitRepo(root, "feat(US-321): implement approved message scope", ["artifacts/CHG-456/result.txt"]);
+      if (pathWorkReady) {
+        assert.deepEqual(validateRangeOwnership({ root, base, head }).workIds, ["US-321", "CHG-456"]);
+      } else {
+        assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_READINESS_MISSING" && error.path === "docs/readiness/CHG-456.json");
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("an arbitrary unregistered overlay manifest cannot authorize generated Nous changes", () => {
+  const { root, base } = makeGitRepo();
+  try {
+    const decision = writeApprovedWork(root, "CHG-456");
+    writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(decision)}\n`);
+    writeRepoFile(root, "docs/stories/SPRINT_PLAN.md", "generated mutation\n");
+    let head = commitRepo(root, "docs(CHG-456): mutate generated sprint", ["docs/readiness/CHG-456.json", ".nous-feedback.jsonl", "docs/stories/SPRINT_PLAN.md"]);
+    assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_GENERATED_NOUS_PATH");
+
+    const generated = "generated mutation\n";
+    const desired = createHash("sha256").update(generated, "utf8").digest("hex");
+    writeRepoFile(root, "infra/scripts/overrides/CHG-456/abc1234/docs/stories/SPRINT_PLAN.md", generated);
+    writeRepoFile(root, "infra/scripts/overrides/CHG-456/abc1234/manifest.json", `${JSON.stringify({
+      version: 1,
+      paths: { "docs/stories/SPRINT_PLAN.md": {
+        source_path: "overrides/CHG-001/base/docs/stories/SPRINT_PLAN.md",
+        source_sha256: "a".repeat(64),
+        desired_sha256: desired,
+      } },
+    })}\n`);
+    head = commitRepo(root, "docs(CHG-456): own exact generated sprint overlay", [
+      "infra/scripts/overrides/CHG-456/abc1234/manifest.json",
+      "infra/scripts/overrides/CHG-456/abc1234/docs/stories/SPRINT_PLAN.md",
+    ]);
+    assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_GENERATED_NOUS_PATH");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a pre-registered canonical reconciler layer owns its exact generated path", () => {
+  const { root } = makeGitRepo();
+  try {
+    const decision = writeApprovedWork(root, "CHG-456");
+    writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(decision)}\n`);
+    const sourcePath = "overrides/CHG-001/base/docs/stories/SPRINT_PLAN.md";
+    const sourceRepoPath = `infra/scripts/${sourcePath}`;
+    const desiredPath = "infra/scripts/overrides/CHG-456/abc1234/docs/stories/SPRINT_PLAN.md";
+    const source = "generated source\n";
+    const desired = "registered desired\n";
+    writeRepoFile(root, sourceRepoPath, source);
+    writeRepoFile(root, desiredPath, desired);
+    writeRepoFile(root, "docs/stories/SPRINT_PLAN.md", source);
+    writeRepoFile(root, "infra/scripts/overrides/CHG-456/abc1234/manifest.json", `${JSON.stringify({
+      version: 1,
+      paths: { "docs/stories/SPRINT_PLAN.md": {
+        source_path: sourcePath,
+        source_sha256: createHash("sha256").update(source).digest("hex"),
+        desired_sha256: createHash("sha256").update(desired).digest("hex"),
+      } },
+    })}\n`);
+    writeRepoFile(root, "infra/scripts/reconcile-sprint1-docs.py", [
+      "CHG456_PATHS = {",
+      '    "docs/stories/SPRINT_PLAN.md": (',
+      `        "${sourcePath}"`,
+      "    ),",
+      "}",
+      "LAYERED_OVERRIDE_SPECS = (",
+      '    ("CHG-456/abc1234", CHG456_PATHS),',
+      ")",
+      "def build_plan(root):",
+      "    for layer_name, expected_paths in LAYERED_OVERRIDE_SPECS:",
+      "        apply_layer(root, layer_name, expected_paths)",
+      "",
+    ].join("\n"));
+    const setupPaths = [
+      "docs/readiness/CHG-456.json", ".nous-feedback.jsonl", sourceRepoPath, desiredPath,
+      "docs/stories/SPRINT_PLAN.md", "infra/scripts/overrides/CHG-456/abc1234/manifest.json",
+      "infra/scripts/reconcile-sprint1-docs.py",
+    ];
+    const base = commitRepo(root, "docs(CHG-456): register canonical generated overlay", setupPaths);
+    writeRepoFile(root, "docs/stories/SPRINT_PLAN.md", desired);
+    const head = commitRepo(root, "docs(CHG-456): apply registered generated overlay", ["docs/stories/SPRINT_PLAN.md"]);
+    assert.equal(validateRangeOwnership({ root, base, head }).classification, "implementation");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("registered overlays fail closed on missing paths, hashes, registration, and unknown base state", () => {
+  const variants = ["missing-source-path", "source-hash", "desired-hash", "unregistered-layer", "base-state"];
+  for (const variant of variants) {
+    const { root } = makeGitRepo();
+    try {
+      const decision = writeApprovedWork(root, "CHG-456");
+      writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(decision)}\n`);
+      const sourcePath = "overrides/CHG-001/base/docs/stories/SPRINT_PLAN.md";
+      const sourceRepoPath = `infra/scripts/${sourcePath}`;
+      const desiredPath = "infra/scripts/overrides/CHG-456/abc1234/docs/stories/SPRINT_PLAN.md";
+      writeRepoFile(root, sourceRepoPath, "source\n");
+      writeRepoFile(root, desiredPath, "desired\n");
+      writeRepoFile(root, "docs/stories/SPRINT_PLAN.md", variant === "base-state" ? "tampered unknown base\n" : "source\n");
+      const metadata = {
+        source_path: sourcePath,
+        source_sha256: createHash("sha256").update("source\n").digest("hex"),
+        desired_sha256: createHash("sha256").update("desired\n").digest("hex"),
+      };
+      if (variant === "missing-source-path") delete metadata.source_path;
+      if (variant === "source-hash") metadata.source_sha256 = "0".repeat(64);
+      if (variant === "desired-hash") metadata.desired_sha256 = "0".repeat(64);
+      writeRepoFile(root, "infra/scripts/overrides/CHG-456/abc1234/manifest.json", `${JSON.stringify({
+        version: 1,
+        paths: { "docs/stories/SPRINT_PLAN.md": metadata },
+      })}\n`);
+      const registeredLayer = variant === "unregistered-layer" ? "CHG-456/different" : "CHG-456/abc1234";
+      writeRepoFile(root, "infra/scripts/reconcile-sprint1-docs.py", [
+        "CHG456_PATHS = {",
+        '    "docs/stories/SPRINT_PLAN.md": (',
+        `        "${sourcePath}"`,
+        "    ),",
+        "}",
+        "LAYERED_OVERRIDE_SPECS = (",
+        `    ("${registeredLayer}", CHG456_PATHS),`,
+        ")",
+        "for layer, paths in LAYERED_OVERRIDE_SPECS:",
+        "    apply_layer(layer, paths)",
+        "",
+      ].join("\n"));
+      const base = commitRepo(root, "docs(CHG-456): register invalid overlay fixture", [
+        "docs/readiness/CHG-456.json", ".nous-feedback.jsonl", sourceRepoPath, desiredPath,
+        "docs/stories/SPRINT_PLAN.md", "infra/scripts/overrides/CHG-456/abc1234/manifest.json",
+        "infra/scripts/reconcile-sprint1-docs.py",
+      ]);
+      writeRepoFile(root, "docs/stories/SPRINT_PLAN.md", "desired\n");
+      const head = commitRepo(root, "docs(CHG-456): apply invalid overlay", ["docs/stories/SPRINT_PLAN.md"]);
+      assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_GENERATED_NOUS_PATH");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("historical grandfathering requires terminal done before CHG-022 V2 activation", () => {
+  for (const beforeActivation of [true, false]) {
+    const { root } = makeGitRepo();
+    try {
+      const lifecycle = [
+        { story: "US-321", event: "started", agent: "historical-agent" },
+        { story: "US-321", event: "build_pass", notes: "historical build passed" },
+        { story: "US-321", event: "done", source_commit: "a".repeat(40) },
+      ];
+      const records = beforeActivation ? lifecycle : [];
+      const base = commitActivationHistory(root, records);
+      if (!beforeActivation) {
+        writeRepoFile(root, ".nous-feedback.jsonl", `${[bootstrapDecision, ...lifecycle].map(JSON.stringify).join("\n")}\n`);
+        commitRepo(root, "docs(US-321): append late terminal", [".nous-feedback.jsonl"]);
+      }
+      writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+      const head = commitRepo(root, "feat(US-321): historical repair", ["apps/web/src/app/page.tsx"]);
+      if (beforeActivation) {
+        assert.deepEqual(validateRangeOwnership({ root, base, head }).grandfatheredWorkIds, ["US-321"]);
+      } else {
+        assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_READINESS_MISSING");
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("grandfathering rejects missing lifecycle evidence, malformed done, and duplicate activation", () => {
+  const invalidHistories = [
+    [{ story: "US-321", event: "build_pass", notes: "missing start" }, { story: "US-321", event: "done" }],
+    [{ story: "US-321", event: "started", agent: "agent" }, { story: "US-321", event: "done" }],
+    [
+      { story: "US-321", event: "started", agent: "agent" },
+      { story: "US-321", event: "build_pass", notes: "ok" },
+      { story: "US-321", event: "done", source_commit: "not-a-commit" },
+    ],
+  ];
+  for (const records of invalidHistories) {
+    const { root } = makeGitRepo();
+    try {
+      const base = commitActivationHistory(root, records);
+      writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+      const head = commitRepo(root, "feat(US-321): invalid historical exemption", ["apps/web/src/app/page.tsx"]);
+      assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_READINESS_MISSING");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  const { root } = makeGitRepo();
+  try {
+    const lifecycle = [
+      { story: "US-321", event: "started", agent: "agent" },
+      { story: "US-321", event: "build_pass", notes: "ok" },
+      { story: "US-321", event: "done" },
+      { story: "CHG-022", event: "started", agent: "codex/work-readiness-gate" },
+      bootstrapDecision,
+      { ...bootstrapDecision },
+    ];
+    writeRepoFile(root, "docs/readiness/CHG-022.json", `${JSON.stringify(bootstrap, null, 2)}\n`);
+    writeRepoFile(root, ".nous-feedback.jsonl", `${lifecycle.map(JSON.stringify).join("\n")}\n`);
+    const base = commitRepo(root, "docs(CHG-022): duplicate activation fixture", ["docs/readiness/CHG-022.json", ".nous-feedback.jsonl"]);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    const head = commitRepo(root, "feat(US-321): duplicate activation exemption", ["apps/web/src/app/page.tsx"]);
+    assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_READINESS_MISSING");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("grandfathering rejects a forged activation that does not bind the committed digest", () => {
+  const { root } = makeGitRepo();
+  try {
+    const records = [
+      { story: "US-321", event: "started", agent: "agent" },
+      { story: "US-321", event: "build_pass", notes: "ok" },
+      { story: "US-321", event: "done" },
+      { story: "CHG-022", event: "started", agent: "codex/work-readiness-gate" },
+      { ...bootstrapDecision, text: `Decision ready for readiness payload SHA-256 ${"0".repeat(64)}.` },
+    ];
+    writeRepoFile(root, "docs/readiness/CHG-022.json", `${JSON.stringify(bootstrap, null, 2)}\n`);
+    writeRepoFile(root, ".nous-feedback.jsonl", `${records.map(JSON.stringify).join("\n")}\n`);
+    const base = commitRepo(root, "docs(CHG-022): forged activation fixture", ["docs/readiness/CHG-022.json", ".nous-feedback.jsonl"]);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    const head = commitRepo(root, "feat(US-321): forged activation exemption", ["apps/web/src/app/page.tsx"]);
+    assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_READINESS_MISSING");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("grandfathering honors a canonical projected terminal lifecycle", () => {
+  const { root } = makeGitRepo();
+  try {
+    const records = [
+      { story: "US-321", event: "started", agent: "agent" },
+      { story: "US-321", event: "build_pass", notes: "historical build" },
+      { story: "US-321", event: "done" },
+      { story: "CHG-099", event: "started", agent: "repair-agent" },
+      { story: "CHG-099", event: "decision", id: "CHG099-REPAIR", text: "Repair terminal evidence", reason: "review" },
+      {
+        story: "US-321", event: "evidence_superseded", ref: "US321-DONE-1",
+        target: { story: "US-321", event: "done" }, reason: "revalidate historical terminal",
+      },
+      { story: "US-321", event: "revalidated", ref: "US321-DONE-1", change: "CHG-099", as_event: "done" },
+    ];
+    const base = commitActivationHistory(root, records);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    const head = commitRepo(root, "feat(US-321): projected historical exemption", ["apps/web/src/app/page.tsx"]);
+    assert.deepEqual(validateRangeOwnership({ root, base, head }).grandfatheredWorkIds, ["US-321"]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("grandfather projection rejects noncanonical terminal lineage records", () => {
+  const canonical = [
+    { story: "US-321", event: "started", agent: "agent" },
+    { story: "US-321", event: "build_pass", notes: "historical build" },
+    { story: "US-321", event: "done" },
+    { story: "CHG-099", event: "decision", id: "CHG099-REPAIR", text: "Repair", reason: "review" },
+    {
+      story: "US-321", event: "evidence_superseded", ref: "US321-DONE-1",
+      target: { story: "US-321", event: "done" }, reason: "revalidate",
+    },
+    { story: "US-321", event: "revalidated", ref: "US321-DONE-1", change: "CHG-099", as_event: "done" },
+  ];
+  const variants = [];
+  const lateDecision = clone(canonical);
+  const decision = lateDecision.splice(3, 1)[0];
+  lateDecision.splice(4, 0, decision);
+  assert.deepEqual(historicalOwnership(lateDecision).grandfatheredWorkIds, ["US-321"]);
+  const secondGeneration = clone(canonical);
+  secondGeneration.push(
+    { story: "CHG-100", event: "decision", id: "CHG100-REPAIR", text: "Repair again", reason: "review" },
+    { story: "US-321", event: "evidence_superseded", ref: "US321-DONE-2", target: { ref: "US321-DONE-1" }, reason: "revalidate again" },
+    { story: "US-321", event: "revalidated", ref: "US321-DONE-2", change: "CHG-100", as_event: "done" },
+  );
+  assert.deepEqual(historicalOwnership(secondGeneration).grandfatheredWorkIds, ["US-321"]);
+  const extraTerminal = clone(canonical);
+  extraTerminal.at(-1).notes = "not canonical for terminal projection";
+  variants.push(extraTerminal);
+  const missingChange = clone(canonical);
+  delete missingChange.at(-1).change;
+  variants.push(missingChange);
+  const wrongKind = clone(canonical);
+  wrongKind.at(-1).as_event = "build_pass";
+  wrongKind.at(-1).notes = "wrong kind";
+  variants.push(wrongKind);
+  const duplicateReplacement = clone(canonical);
+  duplicateReplacement.push({ ...duplicateReplacement.at(-1) });
+  variants.push(duplicateReplacement);
+  const orphanReplacement = clone(canonical);
+  orphanReplacement.push({ story: "US-321", event: "revalidated", ref: "ORPHAN", change: "CHG-099", as_event: "done" });
+  variants.push(orphanReplacement);
+  const duplicateRef = clone(canonical);
+  duplicateRef.splice(-1, 0, { ...duplicateRef.at(-2) });
+  variants.push(duplicateRef);
+  const duplicateTarget = clone(canonical);
+  duplicateTarget.push(
+    { story: "US-321", event: "evidence_superseded", ref: "US321-DONE-2", target: { story: "US-321", event: "done" }, reason: "duplicate target" },
+    { story: "US-321", event: "revalidated", ref: "US321-DONE-2", change: "CHG-099", as_event: "done" },
+  );
+  variants.push(duplicateTarget);
+  const malformedDecision = clone(canonical);
+  delete malformedDecision[3].reason;
+  variants.push(malformedDecision);
+  for (const records of variants) {
+    assert.throws(() => historicalOwnership(records), (error) => error.code === "WR_READINESS_MISSING");
+  }
+});
+
+test("grandfather projection enforces exact build replacement shape", () => {
+  const canonical = [
+    { story: "US-321", event: "started", agent: "agent" },
+    { story: "US-321", event: "build_pass", notes: "old build" },
+    { story: "CHG-099", event: "decision", id: "CHG099-BUILD", text: "Repair build", reason: "review" },
+    { story: "US-321", event: "evidence_superseded", ref: "US321-BUILD-1", target: { story: "US-321", event: "build_pass" }, reason: "revalidate" },
+    { story: "US-321", event: "revalidated", ref: "US321-BUILD-1", change: "CHG-099", as_event: "build_pass", notes: "new build" },
+    { story: "US-321", event: "done" },
+  ];
+  assert.deepEqual(historicalOwnership(canonical).grandfatheredWorkIds, ["US-321"]);
+  const extra = clone(canonical);
+  extra[4].pass = true;
+  assert.throws(() => historicalOwnership(extra), (error) => error.code === "WR_READINESS_MISSING");
+  const missing = clone(canonical);
+  delete missing[4].notes;
+  assert.throws(() => historicalOwnership(missing), (error) => error.code === "WR_READINESS_MISSING");
+});
+
+test("grandfather projection enforces exact AC replacement shape", () => {
+  const canonical = [
+    { story: "US-321", event: "started", agent: "agent" },
+    { story: "US-321", event: "ac_verify", ac: 1, method: "old", pass: true, notes: "old AC" },
+    { story: "CHG-099", event: "decision", id: "CHG099-AC", text: "Repair AC", reason: "review" },
+    { story: "US-321", event: "evidence_superseded", ref: "US321-AC-1", target: { story: "US-321", event: "ac_verify", ac: 1 }, reason: "revalidate" },
+    { story: "US-321", event: "revalidated", ref: "US321-AC-1", change: "CHG-099", as_event: "ac_verify", ac: 1, method: "new", pass: true, notes: "new AC" },
+    { story: "US-321", event: "build_pass", notes: "build" },
+    { story: "US-321", event: "done" },
+  ];
+  assert.deepEqual(historicalOwnership(canonical).grandfatheredWorkIds, ["US-321"]);
+  const extra = clone(canonical);
+  extra[4].source_commit = "a".repeat(40);
+  assert.throws(() => historicalOwnership(extra), (error) => error.code === "WR_READINESS_MISSING");
+  const missing = clone(canonical);
+  delete missing[4].method;
+  assert.throws(() => historicalOwnership(missing), (error) => error.code === "WR_READINESS_MISSING");
+});
+
+test("grandfathering rejects the repository's noncanonical extra-field US-023 terminal projection", () => {
+  const { root } = makeGitRepo();
+  try {
+    writeRepoFile(root, "docs/readiness/CHG-022.json", `${JSON.stringify(bootstrap, null, 2)}\n`);
+    writeRepoFile(root, ".nous-feedback.jsonl", repositoryFeedback);
+    const base = commitRepo(root, "docs(CHG-022): install committed activation history", ["docs/readiness/CHG-022.json", ".nous-feedback.jsonl"]);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    const head = commitRepo(root, "fix(US-023): historical maintenance", ["apps/web/src/app/page.tsx"]);
+    assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_READINESS_MISSING");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a range cannot manufacture grandfathering by inserting history before activation", () => {
+  const { root } = makeGitRepo();
+  try {
+    const activation = { story: "CHG-022", event: "decision", id: "CHG022-READINESS-V2-APPROVAL", text: "activation", reason: "policy" };
+    writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(activation)}\n`);
+    const base = commitRepo(root, "docs(CHG-022): activate policy", [".nous-feedback.jsonl"]);
+    const forgedDone = { story: "US-321", event: "done", source_commit: "a".repeat(40) };
+    writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(forgedDone)}\n${JSON.stringify(activation)}\n`);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    const head = commitRepo(root, "feat(US-321): forge historical completion", [".nous-feedback.jsonl", "apps/web/src/app/page.tsx"]);
+    assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_FEEDBACK_ORDER");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("changed readiness content cannot replay an older digest", () => {
+  const { root, base } = makeGitRepo();
+  try {
+    const oldDecision = writeApprovedWork(root, "US-321", { mutateAfterApproval: true });
+    writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(oldDecision)}\n`);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    const head = commitRepo(root, "feat(US-321): replay old approval", ["docs/readiness/US-321.json", ".nous-feedback.jsonl", "apps/web/src/app/page.tsx"]);
+    assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_APPROVAL_DECISION_MISMATCH");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("CHG-022 bootstrap cannot authorize implementation after its first done", () => {
+  const { root, base } = makeGitRepo();
+  try {
+    writeRepoFile(root, "docs/readiness/CHG-022.json", `${JSON.stringify(bootstrap, null, 2)}\n`);
+    writeRepoFile(root, ".nous-feedback.jsonl", `${[
+      { story: "CHG-022", event: "started", agent: "codex/work-readiness-gate" },
+      bootstrapDecision,
+      { story: "CHG-022", event: "build_pass", notes: "bootstrap build" },
+      { story: "CHG-022", event: "done" },
+    ].map(JSON.stringify).join("\n")}\n`);
+    writeRepoFile(root, "scripts/work-readiness/git.mjs", "export {};\n");
+    const head = commitRepo(root, "feat(CHG-022): replay bootstrap", ["docs/readiness/CHG-022.json", ".nous-feedback.jsonl", "scripts/work-readiness/git.mjs"]);
+    assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_BOOTSTRAP_EXPIRED");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("CHG-022 bootstrap authorizes only its exact manifest paths before done", () => {
+  const { root, base } = makeGitRepo();
+  try {
+    writeRepoFile(root, "docs/readiness/CHG-022.json", `${JSON.stringify(bootstrap, null, 2)}\n`);
+    writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(bootstrapDecision)}\n`);
+    writeRepoFile(root, "scripts/work-readiness/git.mjs", "export {};\n");
+    const head = commitRepo(root, "feat(CHG-022): implement authorized Git classifier", ["docs/readiness/CHG-022.json", ".nous-feedback.jsonl", "scripts/work-readiness/git.mjs"]);
+    assert.equal(validateRangeOwnership({ root, base, head }).classification, "implementation");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("real Git rejects missing and ambiguous bases", () => {
+  const { root } = makeGitRepo();
+  try {
+    assert.throws(() => listChangedPaths({ root, base: "missing-ref" }), (error) => error.code === "WR_GIT_REF_INVALID");
+    git(root, ["branch", "collision"]);
+    git(root, ["tag", "collision"]);
+    assert.throws(() => listChangedPaths({ root, base: "collision" }), (error) => error.code === "WR_GIT_REF_AMBIGUOUS");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("range ownership rejects non-ancestral and merge topology", () => {
+  const { root, base } = makeGitRepo();
+  try {
+    git(root, ["checkout", "-b", "side"]);
+    writeRepoFile(root, "side.txt", "side\n");
+    const side = commitRepo(root, "feat(US-321): side", ["side.txt"]);
+    git(root, ["checkout", "main"]);
+    writeRepoFile(root, "main.txt", "main\n");
+    commitRepo(root, "feat(US-321): main", ["main.txt"]);
+    assert.throws(() => validateRangeOwnership({ root, base: "main", head: side }), (error) => error.code === "WR_GIT_NON_ANCESTRAL");
+    git(root, ["merge", "--no-ff", "side", "-m", "merge(CHG-456): unsupported topology"]);
+    const mergeHead = git(root, ["rev-parse", "HEAD"]);
+    assert.throws(() => validateRangeOwnership({ root, base, head: mergeHead }), (error) => error.code === "WR_GIT_TOPOLOGY_UNSUPPORTED");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("path validation rejects traversal, NUL, absolute paths, and escaping symlinks", () => {
+  for (const path of ["../escape", "/absolute", "bad\0path"]) {
+    assert.throws(() => classifyChangedPath(path), (error) => error.code === "WR_GIT_PATH_INVALID");
+  }
+  const { root, base } = makeGitRepo();
+  const outside = mkdtempSync(join(tmpdir(), "work-readiness-outside-"));
+  try {
+    symlinkSync(outside, join(root, "escape"));
+    git(root, ["add", "escape"]);
+    git(root, ["commit", "-m", "feat(US-321): add escaping symlink"]);
+    assert.throws(() => listChangedPaths({ root, base }), (error) => error.code === "WR_GIT_PATH_ESCAPE");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  }
+
+  const historical = makeGitRepo();
+  const historicalOutside = mkdtempSync(join(tmpdir(), "work-readiness-old-outside-"));
+  try {
+    symlinkSync(historicalOutside, join(historical.root, "old-escape"));
+    const symlinkBase = commitRepo(historical.root, "feat(US-321): add historical escaping symlink", ["old-escape"]);
+    rmSync(join(historical.root, "old-escape"));
+    const head = commitRepo(historical.root, "fix(US-321): remove historical escaping symlink", ["old-escape"]);
+    assert.throws(() => listChangedPaths({ root: historical.root, base: symlinkBase, head }), (error) => error.code === "WR_GIT_PATH_ESCAPE");
+  } finally {
+    rmSync(historical.root, { recursive: true, force: true });
+    rmSync(historicalOutside, { recursive: true, force: true });
+  }
+
+
+  const staged = makeGitRepo();
+  const stagedOutside = mkdtempSync(join(tmpdir(), "work-readiness-staged-outside-"));
+  try {
+    symlinkSync(stagedOutside, join(staged.root, "staged-escape"));
+    git(staged.root, ["add", "staged-escape"]);
+    assert.throws(() => listChangedPaths({ root: staged.root, staged: true }), (error) => error.code === "WR_GIT_PATH_ESCAPE");
+  } finally {
+    rmSync(staged.root, { recursive: true, force: true });
+    rmSync(stagedOutside, { recursive: true, force: true });
+  }
+});
+
+test("default base resolution is explicit and rejects an unavailable environment ref", () => {
+  const { root, base } = makeGitRepo();
+  try {
+    assert.equal(resolveDefaultBase(root, { WORK_READINESS_BASE: base }), base);
+    assert.throws(() => resolveDefaultBase(root, { WORK_READINESS_BASE: "missing" }), (error) => error.code === "WR_GIT_REF_INVALID");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("mutation invalidation evidence after done cannot satisfy completion", () => {
