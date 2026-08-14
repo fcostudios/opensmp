@@ -23,4 +23,6 @@ Local partition `proposal_key` values may organize a non-executable proposal,
 but they never create official work IDs or permit implementation.
 
 CHG-022 is the only policy-activation bootstrap. No later artifact may set
-`policy_bootstrap` to `true` or claim its one-time exemption.
+`policy_bootstrap` to `true` or claim its one-time exemption. Its authorization
+begins at the matching digest-bound decision and expires at CHG-022's first
+valid terminal `done`; later implementation cannot reuse it.

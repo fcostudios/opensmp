@@ -204,7 +204,7 @@
             "const": "ready"
           },
           "readiness_payload_sha256": {
-            "const": "fc425f9561885f77965b828d5daca080230214097ef27bd878cf9365b5ef22f7"
+            "const": "c9526d8070e749820d83edfba136cd2ec129ea239bb9e94d710d0a2120a16d32"
           },
           "approval": {
             "properties": {
@@ -212,10 +212,10 @@
                 "const": "approved"
               },
               "evidence": {
-                "const": "CHG022-READINESS-V1-APPROVAL"
+                "const": "CHG022-READINESS-V2-APPROVAL"
               },
               "payload_sha256": {
-                "const": "fc425f9561885f77965b828d5daca080230214097ef27bd878cf9365b5ef22f7"
+                "const": "c9526d8070e749820d83edfba136cd2ec129ea239bb9e94d710d0a2120a16d32"
               }
             }
           },
@@ -226,8 +226,9 @@
             "const": {
               "work_id": "CHG-022",
               "design_commit": "8743cbb3b8ed57ddba9b1649587439d8d4d8c920",
-              "plan_commit": "bdc0b62166c91a6e39575f163d6141c56dca4a2a",
+              "plan_commit": "3454e2a09ccdeb39f63f907bbe4fe355b1cb59c3",
               "source": "docs/superpowers/specs/2026-08-13-work-readiness-and-partitioning-design.md",
+              "expires_on_event": "done",
               "allowed_paths": [
                 "docs/dev-guide/work-readiness.schema.json",
                 "docs/dev-guide/WORK_READINESS.md",
@@ -795,6 +796,7 @@
         "design_commit",
         "plan_commit",
         "source",
+        "expires_on_event",
         "allowed_paths"
       ],
       "properties": {
@@ -805,10 +807,13 @@
           "const": "8743cbb3b8ed57ddba9b1649587439d8d4d8c920"
         },
         "plan_commit": {
-          "const": "bdc0b62166c91a6e39575f163d6141c56dca4a2a"
+          "const": "3454e2a09ccdeb39f63f907bbe4fe355b1cb59c3"
         },
         "source": {
           "const": "docs/superpowers/specs/2026-08-13-work-readiness-and-partitioning-design.md"
+        },
+        "expires_on_event": {
+          "const": "done"
         },
         "allowed_paths": {
           "type": "array",

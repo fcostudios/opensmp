@@ -67,9 +67,11 @@ only when each affected partition supplies a non-null
 `signals`, all `uncertainties`, a complete phase estimate, and `depends_on`
 proposal keys. A local `proposal_key` with `work_id: null` is valid only while
 the parent remains non-executable as `partition_required` or `blocked`. It is
-not an official ID and cannot authorize execution. Agents must never invent
-official work IDs; request them from Nous, assign them to the proposals, and
-create separately approved child artifacts before any child is executable.
+not an official ID and cannot authorize that child. A missing official child ID
+does not change a correctly classified parent from `partition_required` to
+`blocked`; it only keeps the proposed child non-executable. Agents must never
+invent official work IDs; request them from Nous, assign them to the proposals,
+and create separately approved child artifacts before any child is executable.
 
 ## Approval evidence
 
@@ -137,7 +139,7 @@ technical work honestly estimates 360 minutes, exceeds the file and outcome
 limits, and has no official child items because a gate cannot require its own
 not-yet-existing gate to allocate and approve those children. Its `ready`
 decision is therefore authorized only by `policy_bootstrap: true`, the
-digest-bound `CHG022-READINESS-V1-APPROVAL` decision, and the closed
+digest-bound `CHG022-READINESS-V2-APPROVAL` decision, and the closed
 `bootstrap_authorization` object tied to the approved design and plan commits.
 This is not normal two-hour compliance.
 
@@ -148,6 +150,12 @@ new explicit approval; it never silently inherits the activation approval.
 No other item may set the bootstrap flag, reuse its rationale, copy its
 authorization, or claim a similar exception. Later CHG-022 functional expansion
 must use the normal gate and official child workflow.
+
+The one-time bootstrap interval begins at the matching digest-bound V2 approval
+decision in `.nous-feedback.jsonl` and ends at CHG-022's first valid terminal
+`done` event, as declared by `bootstrap_authorization.expires_on_event`. The
+validator must reject every later CHG-022 implementation commit; neither the
+same payload nor any old approval can reopen or reuse the expired bootstrap.
 
 Generated sprint plans and story specifications remain Nous-owned and must not
 be hand-edited to create, rename, repartition, or approve work.
@@ -203,6 +211,7 @@ invent; each child still needs its own matching approval and readiness artifact.
 **Blocked dependency — implementation prohibited.** `US-124` declares
 `US-123` as a `blocked_by` dependency, but `US-123` is not complete. The
 decision is `blocked` until the dependency completes and the assessment is
-approved again. A proposed partition that has only a local label instead of an
-official Nous child ID is likewise `blocked`; request the official ID, update
-the proposal, and reassess before implementation.
+approved again. Separately, a `partition_required` parent may keep proposed
+children with local keys and null official IDs; the parent remains
+`partition_required`, while each such child stays non-executable until Nous
+issues its official ID and its separate readiness artifact is approved.
