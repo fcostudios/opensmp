@@ -1,0 +1,161 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "c9526d8070e749820d83edfba136cd2ec129ea239bb9e94d710d0a2120a16d32",
+  "work_id": "CHG-022",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Enforce work readiness and outcome-based partitioning",
+  "source": "docs/superpowers/specs/2026-08-13-work-readiness-and-partitioning-design.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The repository classifies every new US and CHG from a strict, outcome-based assessment and blocks oversized, unresolved, or unapproved work.",
+      "demo": "Model fixtures reject every hard-limit violation for user stories and functional or technical changes, validate vertical proposals, and accept only matching digest-bound approval.",
+      "primary": true
+    },
+    {
+      "id": "O2",
+      "statement": "Every implementation entry point enforces the same readiness decision, plan budget, checkpoint lifecycle, and completion calibration contract.",
+      "demo": "CLI, commit-hook, staged-change, Git-range, and repository-gate fixtures reject missing, stale, bypassed, or non-executable readiness while a compliant approved item passes.",
+      "primary": true
+    },
+    {
+      "id": "O3",
+      "statement": "Generated agent guidance preserves the readiness gate and Substrate receives structured sizing and estimate-versus-actual evidence.",
+      "demo": "Reconciliation tests repair all governed guidance from the immutable CHG-022 overlay, and schema-valid Nous feedback records approval provenance, verification, actuals, and recommendations.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "SC1",
+      "outcome_ids": ["O1"]
+    },
+    {
+      "id": "SC2",
+      "outcome_ids": ["O1", "O2"]
+    },
+    {
+      "id": "SC3",
+      "outcome_ids": ["O2"]
+    },
+    {
+      "id": "SC4",
+      "outcome_ids": ["O3"]
+    },
+    {
+      "id": "SC5",
+      "outcome_ids": ["O2"]
+    },
+    {
+      "id": "SC6",
+      "outcome_ids": ["O3"]
+    },
+    {
+      "id": "SC7",
+      "outcome_ids": ["O1", "O2", "O3"]
+    }
+  ],
+  "scopes": ["policy", "repository-tooling", "generator-guidance"],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 7,
+    "expected_changed_files": 21,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 30,
+    "implementation": 180,
+    "focused_verification": 60,
+    "review": 60,
+    "integration": 30,
+    "total": 360
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "The gate must activate while its own validator and enforcement entry points do not yet exist.",
+      "status": "resolved",
+      "estimate_impact_minutes": 30,
+      "resolution": "Use the digest-bound CHG-022 authorization as the sole immutable bootstrap; its exact path manifest permits only the files needed to activate and verify the gate. The impact is included in readiness and integration."
+    },
+    {
+      "id": "U2",
+      "statement": "Generated agent guidance cannot be made durable by an untracked local edit.",
+      "status": "resolved",
+      "estimate_impact_minutes": 30,
+      "resolution": "Carry the approved rule through an append-only four-file overlay plus the existing reconciler and its tests. The impact is included in implementation and review."
+    },
+    {
+      "id": "U3",
+      "statement": "Approval could be replayed after readiness scope changes if it were bound only to an evidence identifier.",
+      "status": "resolved",
+      "estimate_impact_minutes": 30,
+      "resolution": "Bind the root and approval to the canonical readiness payload SHA-256 and require the matching Nous decision to state that exact digest. The impact is included in implementation and focused verification."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "user",
+    "evidence": "CHG022-READINESS-V2-APPROVAL",
+    "payload_sha256": "c9526d8070e749820d83edfba136cd2ec129ea239bb9e94d710d0a2120a16d32"
+  },
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 49,
+      "implementation": 111,
+      "focused_verification": 0,
+      "review": 449,
+      "integration": 0
+    },
+    "total": 609,
+    "changed_files": 21,
+    "commits": 20,
+    "review_fix_loops": 15,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "estimate_variance_minutes": 249,
+    "root_cause": "Closed terminal measurement at tested source cutoff 4419d0312ec607ddd658f66279bc8ceca3a3a0a8, commit time 2026-08-14T08:07:56-05:00. Reproduce changed_files with git diff --name-only 3454e2a09ccdeb39f63f907bbe4fe355b1cb59c3..4419d0312ec607ddd658f66279bc8ceca3a3a0a8 (21 exact bootstrap paths) and commits with git rev-list --count 45efbafa1c608c80a3690110c65157caa5cbf45b..4419d0312ec607ddd658f66279bc8ceca3a3a0a8 (20). The wall-clock envelope from branch creation 2026-08-13T21:58:45-05:00 through the source cutoff is 36551 seconds, nearest-minute 609. Readiness remains the durable 49-minute branch-to-plan interval and implementation remains the durable 111-minute pre-review remainder bound by the exact bootstrap checkpoint-deviation evidence. Review is the remaining 449 minutes: the prior durable 344-minute Tasks 1-7 union plus the 105-minute rounded post-0f5e41a source-cutoff interval containing Task 8 evidence correction, Task 9 independent reviews, RED-first fixes, CI/range hardening, approval attestation, checkpoint enforcement, and the recoverable unpushed evidence-history repair. Focused verification and integration retain zero because no independent Git-cutoff phase boundaries exist; their interleaved time is conservatively absorbed into review rather than invented. review_fix_loops is 15: seven durable Tasks 1-7 loops, one Task 8 evidence-integrity loop, and seven independently reproduced Task 9 review/fix loops across repository range wiring, signed approval provenance, checkpoint enforcement, shallow-CI/main behavior, schema/signer operations, monotonic timestamps, and dependency-free trust lifecycle documentation. Raw amendments remain observations, not loops. No CHG-022 cold mutation or invalidation evidence exists and expected_mutation_shards is zero. Variance is 609-360=249 minutes. Root cause is the knowingly oversized one-time three-outcome bootstrap plus late cross-cutting fail-closed security and CI findings; this is calibration evidence for mandatory outcome partitioning, not permission to raise the normal two-hour limit. The final pnpm check passed against this source; its real database phase took 129.58 seconds, while lockfile-pinned dependency setup took 5.45 seconds and Turbo reused content-addressed worktree cache entries, confirming test execution and review scope—not dependency/cache setup—dominated elapsed time."
+  },
+  "checkpoints": [],
+  "policy_bootstrap": true,
+  "bootstrap_exemption_rationale": "The gate cannot use its not-yet-existing validator to partition and approve its own activation. CHG-022 therefore has no official children despite its honest 360-minute, three-outcome, 21-file assessment. This immutable one-time authorization permits only the approved activation manifest; it is not normal two-hour compliance, cannot be copied, and does not authorize later expansion.",
+  "bootstrap_authorization": {
+    "work_id": "CHG-022",
+    "design_commit": "8743cbb3b8ed57ddba9b1649587439d8d4d8c920",
+    "plan_commit": "3454e2a09ccdeb39f63f907bbe4fe355b1cb59c3",
+    "source": "docs/superpowers/specs/2026-08-13-work-readiness-and-partitioning-design.md",
+    "expires_on_event": "done",
+    "allowed_paths": [
+      "docs/dev-guide/work-readiness.schema.json",
+      "docs/dev-guide/WORK_READINESS.md",
+      "docs/readiness/README.md",
+      "docs/readiness/CHG-022.json",
+      ".nous-feedback.jsonl",
+      "scripts/work-readiness/model.mjs",
+      "scripts/test-work-readiness.mjs",
+      "scripts/work-readiness/git.mjs",
+      "scripts/work-readiness.mjs",
+      "package.json",
+      ".githooks/commit-msg",
+      "docs/dev-guide/COMMITS.md",
+      "infra/scripts/overrides/CHG-022/16f72c9/manifest.json",
+      "infra/scripts/overrides/CHG-022/16f72c9/AGENTS.md",
+      "infra/scripts/overrides/CHG-022/16f72c9/CLAUDE.md",
+      "infra/scripts/overrides/CHG-022/16f72c9/docs/dev-guide/DEFINITION_OF_DONE.md",
+      "infra/scripts/reconcile-sprint1-docs.py",
+      "infra/scripts/tests/test_reconcile_sprint1_docs.py",
+      "AGENTS.md",
+      "CLAUDE.md",
+      "docs/dev-guide/DEFINITION_OF_DONE.md"
+    ]
+  }
+}
