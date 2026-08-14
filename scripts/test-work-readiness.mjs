@@ -7,6 +7,7 @@ import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 
 import {
   WorkReadinessError,
@@ -1625,12 +1626,13 @@ function writeApprovedWork(root, workId, { mutateAfterApproval = false } = {}) {
   return decision;
 }
 
-function runCli(root, args) {
+function runCli(root, args, env = {}) {
   return spawnSync(process.execPath, [cliPath, ...args], {
     cwd: root,
     encoding: "utf8",
     shell: false,
     maxBuffer: 1024 * 1024,
+    env: { ...process.env, ...env },
   });
 }
 
@@ -2261,9 +2263,67 @@ test("CLI check-range defaults to the main merge base and rejects a no-verify im
   }
 });
 
+test("CLI check-range on synchronized main validates the latest non-merge commit", () => {
+  const { root } = makeGitRepo();
+  try {
+    activateReadinessPolicy(root);
+    writeRepoFile(root, "src/main-bypass.ts", "export const bypass = true;\n");
+    git(root, ["add", "--", "src/main-bypass.ts"]);
+    git(root, ["commit", "--no-verify", "-m", "feat(US-999): bypass readiness on main"]);
+    assert.equal(git(root, ["rev-parse", "main"]), git(root, ["rev-parse", "HEAD"]));
+
+    const result = runCli(root, ["check-range", "--json"]);
+    assert.equal(result.status, 1);
+    assert.equal(parseCliJson(result).errors[0].code, "WR_READINESS_MISSING");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("CLI check-range acquires exact missing GitHub base commits in depth-one PR and push clones", () => {
+  const source = makeGitRepo();
+  try {
+    activateReadinessPolicy(source.root);
+    const base = git(source.root, ["rev-parse", "HEAD"]);
+    git(source.root, ["switch", "-c", "feature/ci-shallow"]);
+    writeRepoFile(source.root, "src/ci-bypass.ts", "export const bypass = true;\n");
+    const head = commitRepo(source.root, "feat(US-999): bypass readiness in CI", ["src/ci-bypass.ts"]);
+
+    for (const [name, event] of [
+      ["pull-request", { pull_request: { base: { sha: base }, head: { sha: head } } }],
+      ["push", { before: base, after: head }],
+    ]) {
+      const cloneRoot = mkdtempSync(join(tmpdir(), `work-readiness-${name}-clone-`));
+      rmSync(cloneRoot, { recursive: true, force: true });
+      const cloned = spawnSync("git", ["clone", "--depth=1", "--branch", "feature/ci-shallow", pathToFileURL(source.root).href, cloneRoot], {
+        encoding: "utf8",
+        shell: false,
+        maxBuffer: 1024 * 1024,
+      });
+      assert.equal(cloned.status, 0, cloned.stderr);
+      try {
+        assert.notEqual(runGit(cloneRoot, ["cat-file", "-e", `${base}^{commit}`]).status, 0);
+        const eventPath = join(cloneRoot, "github-event.json");
+        writeFileSync(eventPath, `${JSON.stringify(event)}\n`);
+        const result = runCli(cloneRoot, ["check-range", "--json"], {
+          GITHUB_ACTIONS: "true",
+          GITHUB_EVENT_PATH: eventPath,
+        });
+        assert.equal(result.status, 1, `${name}: ${result.stderr}${result.stdout}`);
+        assert.equal(parseCliJson(result).errors[0].code, "WR_READINESS_MISSING");
+        assert.equal(runGit(cloneRoot, ["cat-file", "-e", `${base}^{commit}`]).status, 0);
+      } finally {
+        rmSync(cloneRoot, { recursive: true, force: true });
+      }
+    }
+  } finally {
+    rmSync(source.root, { recursive: true, force: true });
+  }
+});
+
 test("repository test gate runs the readiness range backstop before focused tests", () => {
   const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-  assert.match(manifest.scripts.test, /^pnpm run readiness:check:range && pnpm run test:work-readiness\b/u);
+  assert.match(manifest.scripts.test, /^pnpm run readiness:check:all && pnpm run readiness:check:range && pnpm run test:work-readiness\b/u);
 });
 
 test("CLI parser rejects range mixtures and treats post-separator flags as positional", () => {
@@ -3814,18 +3874,18 @@ test("default base resolution honors the exact CHG-022 executable boundary while
 });
 
 test("default base resolution uses validated GitHub event SHAs and fails closed on missing CI provenance", () => {
-  const { root } = makeGitRepo();
+  const { root, base } = makeGitRepo();
   try {
     git(root, ["switch", "-c", "feature/ci-base"]);
     writeRepoFile(root, "feature.ts", "export const feature = true;\n");
     const head = commitRepo(root, "feat(US-321): add feature", ["feature.ts"]);
     const pullRequestEvent = join(root, "pull-request-event.json");
-    writeFileSync(pullRequestEvent, `${JSON.stringify({ pull_request: { base: { sha: head } } })}\n`);
-    assert.equal(resolveDefaultBase(root, { GITHUB_ACTIONS: "true", GITHUB_EVENT_PATH: pullRequestEvent }), head);
+    writeFileSync(pullRequestEvent, `${JSON.stringify({ pull_request: { base: { sha: base }, head: { sha: head } } })}\n`);
+    assert.equal(resolveDefaultBase(root, { GITHUB_ACTIONS: "true", GITHUB_EVENT_PATH: pullRequestEvent }), base);
 
     const pushEvent = join(root, "push-event.json");
-    writeFileSync(pushEvent, `${JSON.stringify({ before: head })}\n`);
-    assert.equal(resolveDefaultBase(root, { GITHUB_ACTIONS: "true", GITHUB_EVENT_PATH: pushEvent }), head);
+    writeFileSync(pushEvent, `${JSON.stringify({ before: base, after: head })}\n`);
+    assert.equal(resolveDefaultBase(root, { GITHUB_ACTIONS: "true", GITHUB_EVENT_PATH: pushEvent }), base);
 
     const missingEvent = join(root, "missing-base-event.json");
     writeFileSync(missingEvent, "{}\n");

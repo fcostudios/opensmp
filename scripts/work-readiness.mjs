@@ -26,7 +26,7 @@ import {
   validateAssessment,
 } from "./work-readiness/model.mjs";
 import {
-  resolveDefaultBase,
+  resolveDefaultRange,
   validateRangeOwnership,
 } from "./work-readiness/git.mjs";
 
@@ -355,9 +355,10 @@ function checkRange({ root, positionals, options }) {
     cliError("WR_INVOCATION_INVALID", "Do not mix positional and named range refs", "$.arguments");
   }
   let base = options.base;
-  let head = options.head ?? "HEAD";
+  let head = options.head;
   if (base === undefined && positionals.length > 0) [base, head = "HEAD"] = positionals;
-  if (base === undefined) base = resolveDefaultBase(root);
+  if (base === undefined) ({ base, head } = resolveDefaultRange(root));
+  else head ??= "HEAD";
   if (typeof base !== "string" || positionals.length > 2) {
     cliError("WR_INVOCATION_INVALID", "Usage: check-range [<base> [head]] or check-range [--base <base>] [--head <head>]", "$.arguments");
   }

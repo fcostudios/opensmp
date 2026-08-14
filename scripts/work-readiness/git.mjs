@@ -892,37 +892,96 @@ export function listChangedPaths({ root, base, head = "HEAD", staged = false }) 
   return paths;
 }
 
-export function resolveDefaultBase(root, env = process.env) {
-  const canonicalRoot = repositoryRoot(root);
-  const explicit = env.WORK_READINESS_BASE ?? env.READINESS_BASE_SHA ?? env.GITHUB_BASE_SHA;
-  if (explicit !== undefined) return resolveCommit(canonicalRoot, explicit, "$.base");
-  if (env.GITHUB_ACTIONS === "true") {
-    const eventPath = env.GITHUB_EVENT_PATH;
-    if (typeof eventPath !== "string" || eventPath.length === 0 || eventPath.includes("\0") || !isAbsolute(eventPath)) {
-      fail("WR_GIT_CI_BASE_INVALID", "$.base", "GitHub Actions requires an absolute, NUL-free GITHUB_EVENT_PATH");
+function readGithubRangeEvent(env) {
+  const eventPath = env.GITHUB_EVENT_PATH;
+  if (typeof eventPath !== "string" || eventPath.length === 0 || eventPath.includes("\0") || !isAbsolute(eventPath)) {
+    fail("WR_GIT_CI_BASE_INVALID", "$.base", "GitHub Actions requires an absolute, NUL-free GITHUB_EVENT_PATH");
+  }
+  let event;
+  try {
+    const stat = lstatSync(eventPath);
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_CI_EVENT_BYTES) {
+      fail("WR_GIT_CI_BASE_INVALID", "$.base", "GitHub event payload must be a bounded regular file");
     }
-    let event;
-    try {
-      const stat = lstatSync(eventPath);
-      if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_CI_EVENT_BYTES) {
-        fail("WR_GIT_CI_BASE_INVALID", "$.base", "GitHub event payload must be a bounded regular file");
-      }
-      event = JSON.parse(readFileSync(eventPath, "utf8"));
-    } catch (error) {
-      if (error instanceof WorkReadinessError) throw error;
-      fail("WR_GIT_CI_BASE_INVALID", "$.base", "GitHub event payload is unavailable or invalid JSON");
-    }
-    if (event === null || typeof event !== "object" || Array.isArray(event)) {
-      fail("WR_GIT_CI_BASE_INVALID", "$.base", "GitHub event payload must be an object");
-    }
-    const candidate = event.pull_request?.base?.sha ?? event.before;
+    event = JSON.parse(readFileSync(eventPath, "utf8"));
+  } catch (error) {
+    if (error instanceof WorkReadinessError) throw error;
+    fail("WR_GIT_CI_BASE_INVALID", "$.base", "GitHub event payload is unavailable or invalid JSON");
+  }
+  if (event === null || typeof event !== "object" || Array.isArray(event)) {
+    fail("WR_GIT_CI_BASE_INVALID", "$.base", "GitHub event payload must be an object");
+  }
+  const pullRequest = event.pull_request !== null && typeof event.pull_request === "object" && !Array.isArray(event.pull_request);
+  const base = pullRequest ? event.pull_request.base?.sha : event.before;
+  const head = pullRequest ? event.pull_request.head?.sha : event.after;
+  for (const [path, candidate] of [["$.base", base], ["$.head", head]]) {
     if (typeof candidate !== "string" || !/^[0-9a-f]{40}$/u.test(candidate) || /^0{40}$/u.test(candidate)) {
-      fail("WR_GIT_CI_BASE_INVALID", "$.base", "GitHub event payload does not contain one valid base commit SHA");
+      fail("WR_GIT_CI_BASE_INVALID", path, "GitHub event payload does not contain one valid base/head commit SHA pair");
     }
-    return resolveCommit(canonicalRoot, candidate, "$.base");
+  }
+  return { base, head, pullRequest };
+}
+
+function fetchCiCommit(root, sha, depth) {
+  const result = spawnSync("git", ["fetch", "--no-tags", `--depth=${String(depth)}`, "origin", sha], {
+    cwd: root,
+    encoding: "buffer",
+    shell: false,
+    maxBuffer: MAX_GIT_OUTPUT_BYTES + 1,
+    timeout: 15000,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const stdout = result.stdout ?? Buffer.alloc(0);
+  const stderr = result.stderr ?? Buffer.alloc(0);
+  if (stdout.length > MAX_GIT_OUTPUT_BYTES || stderr.length > MAX_GIT_OUTPUT_BYTES || result.error?.code === "ENOBUFS") {
+    fail("WR_GIT_OUTPUT_LIMIT", "$.git", `Git fetch output exceeds ${MAX_GIT_OUTPUT_BYTES} bytes`);
+  }
+  if (result.error?.code === "ETIMEDOUT") fail("WR_GIT_CI_FETCH_FAILED", "$.git", "Timed out acquiring the exact GitHub event ancestry");
+  if (result.error || result.status !== 0) {
+    const detail = stderr.toString("utf8").trim();
+    fail("WR_GIT_CI_FETCH_FAILED", "$.git", detail || "Unable to acquire the exact GitHub event ancestry");
+  }
+}
+
+function acquireCiRange(root, range) {
+  const ancestryAvailable = () => git(root, ["merge-base", "--is-ancestor", range.base, range.head], { allowMissing: true }) !== null;
+  if (!ancestryAvailable()) {
+    fetchCiCommit(root, range.head, 256);
+    fetchCiCommit(root, range.base, 1);
+  }
+  const base = resolveCommit(root, range.base, "$.base");
+  const head = resolveCommit(root, range.head, "$.head");
+  if (!ancestryAvailable()) fail("WR_GIT_NON_ANCESTRAL", "$.base", "GitHub event base must be an ancestor of its head after bounded acquisition");
+  return { ...range, base, head };
+}
+
+function latestNonMergeRange(root, head, lowerBound = null) {
+  const revision = lowerBound === null ? head : `${lowerBound}..${head}`;
+  const latest = git(root, ["rev-list", "--no-merges", "-1", revision]).toString("utf8").trim();
+  if (!/^[0-9a-f]{40}$/u.test(latest)) fail("WR_GIT_REF_INVALID", "$.head", "No latest non-merge commit is available for main verification");
+  const fields = git(root, ["rev-list", "--parents", "-n", "1", latest]).toString("utf8").trim().split(/\s+/u);
+  if (fields.length !== 2 || !/^[0-9a-f]{40}$/u.test(fields[1])) {
+    fail("WR_GIT_TOPOLOGY_UNSUPPORTED", "$.base", "Latest non-merge commit must have one parent");
+  }
+  return { base: fields[1], head: latest };
+}
+
+export function resolveDefaultRange(root, env = process.env) {
+  const canonicalRoot = repositoryRoot(root);
+  const explicitBase = env.WORK_READINESS_BASE ?? env.READINESS_BASE_SHA ?? env.GITHUB_BASE_SHA;
+  if (explicitBase !== undefined) {
+    return {
+      base: resolveCommit(canonicalRoot, explicitBase, "$.base"),
+      head: resolveCommit(canonicalRoot, env.WORK_READINESS_HEAD ?? env.GITHUB_HEAD_SHA ?? "HEAD", "$.head"),
+    };
+  }
+  if (env.GITHUB_ACTIONS === "true") {
+    const range = acquireCiRange(canonicalRoot, readGithubRangeEvent(env));
+    return range.pullRequest ? { base: range.base, head: range.head } : latestNonMergeRange(canonicalRoot, range.head, range.base);
   }
   const main = resolveCommit(canonicalRoot, "main", "$.base");
   const head = resolveCommit(canonicalRoot, "HEAD", "$.head");
+  if (main === head) return latestNonMergeRange(canonicalRoot, head);
   const mergeBase = git(canonicalRoot, ["merge-base", main, head]).toString("utf8").trim();
   if (!/^[0-9a-f]{40}$/u.test(mergeBase)) fail("WR_GIT_REF_INVALID", "$.base", "Unable to resolve a unique merge base with main");
   const mergeBasePrecedesBoundary = git(
@@ -935,8 +994,14 @@ export function resolveDefaultBase(root, env = process.env) {
     ["merge-base", "--is-ancestor", CHG022_EXECUTABLE_BOUNDARY, head],
     { allowMissing: true },
   ) !== null;
-  if (mergeBasePrecedesBoundary && boundaryPrecedesHead) return CHG022_EXECUTABLE_BOUNDARY;
-  return mergeBase;
+  return {
+    base: mergeBasePrecedesBoundary && boundaryPrecedesHead ? CHG022_EXECUTABLE_BOUNDARY : mergeBase,
+    head,
+  };
+}
+
+export function resolveDefaultBase(root, env = process.env) {
+  return resolveDefaultRange(root, env).base;
 }
 
 function commitEpochSeconds(root, commit) {
