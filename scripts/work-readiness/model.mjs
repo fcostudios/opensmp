@@ -880,6 +880,22 @@ function terminalCompletionSolelySupersedesCheckpoint(value, records) {
   return effectiveTerminalIndex > lastStopIndex;
 }
 
+function hasBootstrapCheckpointDeviation(value, feedbackRecords, doneIndex, implementationMinutes) {
+  if (!value.policy_bootstrap) return false;
+  const approval = approvalIndex(feedbackRecords, value);
+  const matches = feedbackRecords.map((record, index) => ({ record, index })).filter(({ record, index }) =>
+    index > approval && index < doneIndex
+    && record.story === "CHG-022" && record.event === "deviation"
+    && Object.keys(record).sort().join(",") === "control,corrective_action,event,notes,observed_implementation_minutes,reason,story");
+  if (matches.length !== 1) return false;
+  const { record } = matches[0];
+  return record.control === "45/90-minute-checkpoints"
+    && record.observed_implementation_minutes === implementationMinutes
+    && typeof record.reason === "string" && /\S/u.test(record.reason)
+    && typeof record.corrective_action === "string" && /\S/u.test(record.corrective_action)
+    && typeof record.notes === "string" && /\S/u.test(record.notes);
+}
+
 export function validateCompletionActuals(value, feedbackRecords) {
   feedbackArray(feedbackRecords);
   const terminalProjection = buildTerminalProjection(feedbackRecords, value.work_id);
@@ -897,6 +913,20 @@ export function validateCompletionActuals(value, feedbackRecords) {
   if (value.actuals.total !== total) fail("ACTUALS_TOTAL_MISMATCH", "$.actuals.total", "Actual total must equal the five actual phase values");
   const variance = total - value.estimate_minutes.total;
   if (value.actuals.estimate_variance_minutes !== variance) fail("ACTUALS_VARIANCE_MISMATCH", "$.actuals.estimate_variance_minutes", "Estimate variance must equal actual total minus estimated total");
+  const implementationMinutes = value.actuals.phase_minutes.implementation;
+  const has45 = value.checkpoints.some((checkpoint) => checkpoint.elapsed_minutes === 45);
+  const has90Stop = value.checkpoints.some((checkpoint) => checkpoint.elapsed_minutes === 90
+    && checkpoint.status === "partition_required" && !checkpoint.implementation_complete);
+  const missedRequiredControl = (implementationMinutes >= 45 && !has45) || (implementationMinutes >= 90 && !has90Stop);
+  if (missedRequiredControl && value.policy_bootstrap) {
+    if (!hasBootstrapCheckpointDeviation(value, feedbackRecords, doneIndex, implementationMinutes)) {
+      fail("WR_BOOTSTRAP_CHECKPOINT_DEVIATION_REQUIRED", "$.checkpoints", "The one-time bootstrap must record one exact corrective deviation instead of fabricating missed 45/90 controls");
+    }
+  } else if (implementationMinutes >= 45 && !has45) {
+    fail("WR_CHECKPOINT_45_REQUIRED", "$.checkpoints", "Terminal implementation actuals at or beyond 45 minutes require the exact 45-minute control");
+  } else if (implementationMinutes >= 90 && !has90Stop) {
+    fail("WR_CHECKPOINT_PARTITION_REQUIRED", "$.checkpoints", "Terminal implementation actuals at or beyond 90 minutes require the exact partition stop");
+  }
   const attempts = value.actuals.cold_mutation_attempts;
   if (attempts === 0 && value.signals.expected_mutation_shards > 0) {
     fail("WR_MUTATION_COLD_REQUIRED", "$.actuals.cold_mutation_attempts", "At least one authoritative cold campaign is required when mutation shards are approved");

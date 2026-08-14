@@ -53,6 +53,18 @@ const sourceRoot = new URL("../", import.meta.url);
 
 const clone = (value) => structuredClone(value);
 
+function bootstrapCheckpointDeviation(implementationMinutes) {
+  return {
+    story: "CHG-022",
+    event: "deviation",
+    control: "45/90-minute-checkpoints",
+    observed_implementation_minutes: implementationMinutes,
+    reason: "CHG-022 execution crossed both controls before the repository could enforce its own new policy.",
+    corrective_action: "Record the missed controls truthfully and require Git-derived enforcement for every subsequent work item.",
+    notes: "Bootstrap-only corrective evidence; no retroactive checkpoint is claimed.",
+  };
+}
+
 function normal(overrides = {}) {
   const value = {
     schema_version: 1,
@@ -744,11 +756,14 @@ test("bootstrap approval explicitly binds provenance, ordered paths, and first-d
 });
 
 test("completed bootstrap remains valid but inactive and requires correct actuals", () => {
-  const records = [bootstrapDecision, { story: "CHG-022", event: "done" }];
+  const records = [bootstrapDecision, bootstrapCheckpointDeviation(180), { story: "CHG-022", event: "done" }];
   const withoutActuals = clone(bootstrap);
   withoutActuals.actuals = null;
   expectError("WR_ACTUALS_REQUIRED", "$.actuals", () => validateAssessment(withoutActuals, { feedbackRecords: records }));
   const value = completedBootstrap();
+  expectError("WR_BOOTSTRAP_CHECKPOINT_DEVIATION_REQUIRED", "$.checkpoints", () => validateAssessment(value, {
+    feedbackRecords: [bootstrapDecision, { story: "CHG-022", event: "done" }],
+  }));
   assert.deepEqual(validateAssessment(value, { feedbackRecords: records }), {
     decision: "ready", active: false, complete: true, inactiveReason: "terminal",
   });
@@ -759,7 +774,7 @@ test("completed bootstrap remains valid but inactive and requires correct actual
 test("bootstrap completion recognizes canonical deferral and projected terminal events", () => {
   const value = completedBootstrap();
   assert.equal(validateAssessment(value, {
-    feedbackRecords: [bootstrapDecision, { story: "CHG-022", event: "done_with_deferral" }],
+    feedbackRecords: [bootstrapDecision, bootstrapCheckpointDeviation(180), { story: "CHG-022", event: "done_with_deferral" }],
   }).active, false);
 
   const changeDecision = { story: "CHG-099", event: "decision", id: "CHG099-REPAIR", text: "Repair terminal evidence", reason: "Review" };
@@ -778,7 +793,7 @@ test("bootstrap completion recognizes canonical deferral and projected terminal 
     as_event: "done",
   };
   assert.equal(validateAssessment(value, {
-    feedbackRecords: [bootstrapDecision, changeDecision, { story: "CHG-022", event: "done" }, supersession, projectedDone],
+    feedbackRecords: [bootstrapDecision, bootstrapCheckpointDeviation(180), changeDecision, { story: "CHG-022", event: "done" }, supersession, projectedDone],
   }).complete, true);
 });
 
@@ -867,14 +882,14 @@ test("bootstrap prior ready decisions never authorize pre-V2 execution evidence"
 function completed() {
   const value = normal();
   value.actuals = {
-    phase_minutes: { readiness: 12, implementation: 50, focused_verification: 18, review: 10, integration: 5 },
-    total: 95,
+    phase_minutes: { readiness: 12, implementation: 44, focused_verification: 18, review: 10, integration: 5 },
+    total: 89,
     changed_files: 7,
     commits: 2,
     review_fix_loops: 1,
     cold_mutation_attempts: 1,
     mutation_invalidations: 0,
-    estimate_variance_minutes: -5,
+    estimate_variance_minutes: -11,
     root_cause: "Implementation reused an existing component.",
   };
   return value;
@@ -906,6 +921,19 @@ test("actuals may be null before done but are required and recomputed at done", 
   const missing = completed();
   missing.actuals.root_cause = null;
   expectError("WR_ACTUALS_INCOMPLETE", "$.actuals.root_cause", () => validateCompletionActuals(missing, [{ story: missing.work_id, event: "done" }]));
+});
+
+test("terminal implementation actuals cannot bypass crossed 45/90-minute controls", () => {
+  const value = completed();
+  value.actuals.phase_minutes.implementation = 111;
+  value.actuals.total = 156;
+  value.actuals.estimate_variance_minutes = 56;
+  expectError("WR_CHECKPOINT_45_REQUIRED", "$.checkpoints", () => validateCompletionActuals(value, [
+    decisionFor(value),
+    { story: value.work_id, event: "started", agent: "checkpoint-terminal-test" },
+    { story: value.work_id, event: "build_pass", notes: "Implementation completed after both controls" },
+    { story: value.work_id, event: "done" },
+  ]));
 });
 
 test("completed normal assessment remains valid but cannot authorize more implementation", () => {
@@ -1201,7 +1229,7 @@ test("unsuperseded raw terminal variants remain terminal", () => {
 
 test("valid terminal actuals return exact recomputed facts", () => {
   const value = completed();
-  assert.deepEqual(validateCompletionActuals(value, [{ story: value.work_id, event: "done" }]), { complete: true, total: 95, variance: -5 });
+  assert.deepEqual(validateCompletionActuals(value, [{ story: value.work_id, event: "done" }]), { complete: true, total: 89, variance: -11 });
 });
 
 test("rejects an incorrect actual estimate variance", () => {
@@ -1429,6 +1457,16 @@ function makeGitRepo() {
 function commitRepo(root, message, paths) {
   git(root, ["add", "--", ...paths]);
   git(root, ["commit", "-m", message]);
+  return git(root, ["rev-parse", "HEAD"]);
+}
+
+function commitRepoAt(root, message, paths, timestamp) {
+  git(root, ["add", "--", ...paths]);
+  const result = runGit(root, ["commit", "--no-verify", "-m", message], {
+    GIT_AUTHOR_DATE: timestamp,
+    GIT_COMMITTER_DATE: timestamp,
+  });
+  assert.equal(result.status, 0, result.stderr);
   return git(root, ["rev-parse", "HEAD"]);
 }
 
@@ -1816,6 +1854,69 @@ test("unchanged payload permits candidate on-track checkpoint and mutable actual
   }
 });
 
+test("Git-derived elapsed time requires exact 45/90-minute controls", () => {
+  const makeTimedExecution = () => {
+    const fixture = makeGitRepo();
+    const value = approvedArtifact("US-123");
+    const base = commitReadinessEvidence(fixture.root, [value]);
+    writeRepoFile(fixture.root, "apps/web/src/app/slice.ts", "export const slice = 1;\n");
+    commitRepoAt(fixture.root, "feat(US-123): begin implementation", ["apps/web/src/app/slice.ts"], "2030-01-01T00:00:00Z");
+    return { ...fixture, value, base };
+  };
+
+  const missing45 = makeTimedExecution();
+  try {
+    writeRepoFile(missing45.root, "apps/web/src/app/slice.ts", "export const slice = 2;\n");
+    const head = commitRepoAt(missing45.root, "feat(US-123): continue after first control", ["apps/web/src/app/slice.ts"], "2030-01-01T00:45:00Z");
+    assert.throws(
+      () => validateRangeOwnership({ root: missing45.root, base: missing45.base, head }),
+      (error) => error.code === "WR_CHECKPOINT_45_REQUIRED",
+    );
+  } finally {
+    rmSync(missing45.root, { recursive: true, force: true });
+  }
+
+  const missing90 = makeTimedExecution();
+  try {
+    const candidate = clone(missing90.value);
+    const checkpoint = { elapsed_minutes: 45, status: "on_track", implementation_complete: false, evidence: "Implementation remains active at the first control" };
+    candidate.checkpoints = [checkpoint];
+    const priorFeedback = readFileSync(join(missing90.root, ".nous-feedback.jsonl"), "utf8");
+    writeRepoFile(missing90.root, "docs/readiness/US-123.json", `${JSON.stringify(candidate, null, 2)}\n`);
+    writeRepoFile(missing90.root, ".nous-feedback.jsonl", `${priorFeedback}${JSON.stringify({ story: "US-123", event: "checkpoint", ...checkpoint })}\n`);
+    writeRepoFile(missing90.root, "apps/web/src/app/slice.ts", "export const slice = 2;\n");
+    commitRepoAt(missing90.root, "feat(US-123): record first control", [
+      "docs/readiness/US-123.json", ".nous-feedback.jsonl", "apps/web/src/app/slice.ts",
+    ], "2030-01-01T00:45:00Z");
+    writeRepoFile(missing90.root, "apps/web/src/app/slice.ts", "export const slice = 3;\n");
+    const head = commitRepoAt(missing90.root, "feat(US-123): continue past hard stop", ["apps/web/src/app/slice.ts"], "2030-01-01T01:30:00Z");
+    assert.throws(
+      () => validateRangeOwnership({ root: missing90.root, base: missing90.base, head }),
+      (error) => error.code === "WR_CHECKPOINT_PARTITION_REQUIRED",
+    );
+  } finally {
+    rmSync(missing90.root, { recursive: true, force: true });
+  }
+
+  const bootstrapLegacy = makeGitRepo();
+  try {
+    writeRepoFile(bootstrapLegacy.root, "docs/readiness/CHG-022.json", `${JSON.stringify(bootstrap, null, 2)}\n`);
+    writeRepoFile(bootstrapLegacy.root, ".nous-feedback.jsonl", `${JSON.stringify(bootstrapDecision)}\n`);
+    const base = commitRepo(bootstrapLegacy.root, "docs(CHG-022): approve bootstrap", ["docs/readiness/CHG-022.json", ".nous-feedback.jsonl"]);
+    writeRepoFile(bootstrapLegacy.root, "scripts/work-readiness/model.mjs", "export const bootstrap = 1;\n");
+    commitRepoAt(bootstrapLegacy.root, "feat(CHG-022): begin bootstrap", ["scripts/work-readiness/model.mjs"], "2030-01-01T00:00:00Z");
+    const priorFeedback = readFileSync(join(bootstrapLegacy.root, ".nous-feedback.jsonl"), "utf8");
+    writeRepoFile(bootstrapLegacy.root, ".nous-feedback.jsonl", `${priorFeedback}${JSON.stringify(bootstrapCheckpointDeviation(111))}\n`);
+    writeRepoFile(bootstrapLegacy.root, "scripts/work-readiness/model.mjs", "export const bootstrap = 2;\n");
+    const head = commitRepoAt(bootstrapLegacy.root, "fix(CHG-022): enforce missed controls", [
+      ".nous-feedback.jsonl", "scripts/work-readiness/model.mjs",
+    ], "2030-01-01T01:30:00Z");
+    assert.equal(validateRangeOwnership({ root: bootstrapLegacy.root, base, head }).classification, "implementation");
+  } finally {
+    rmSync(bootstrapLegacy.root, { recursive: true, force: true });
+  }
+});
+
 test("installed hook rejects rewriting selected approval bytes during implementation", () => {
   const { root } = makeGitRepo();
   try {
@@ -2044,6 +2145,7 @@ test("CLI check and check-all accept completed CHG-022 as valid but inactive", (
     writeRepoFile(root, "docs/readiness/CHG-022.json", `${JSON.stringify(completedBootstrap(), null, 2)}\n`);
     writeRepoFile(root, ".nous-feedback.jsonl", `${[
       bootstrapDecision,
+      bootstrapCheckpointDeviation(180),
       { story: "CHG-022", event: "done" },
     ].map(JSON.stringify).join("\n")}\n`);
     for (const [command, args] of [["check", ["check", "CHG-022", "--json"]], ["check-all", ["check-all", "--json"]]]) {
@@ -3544,6 +3646,7 @@ test("CHG-022 bootstrap cannot authorize implementation after its first done", (
     writeRepoFile(root, ".nous-feedback.jsonl", `${[
       { story: "CHG-022", event: "started", agent: "codex/work-readiness-gate" },
       bootstrapDecision,
+      bootstrapCheckpointDeviation(180),
       { story: "CHG-022", event: "build_pass", notes: "bootstrap build" },
       { story: "CHG-022", event: "done" },
     ].map(JSON.stringify).join("\n")}\n`);

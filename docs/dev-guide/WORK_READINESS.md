@@ -164,6 +164,23 @@ minutes, the latest incomplete checkpoint must be exactly 90 minutes with
 continued implementation remains blocked until the work is partitioned and
 approved under executable readiness artifacts. Work completed before a
 milestone does not invent a checkpoint merely to satisfy the clock.
+
+The repository range gate derives elapsed time from immutable Git history. Its
+execution-start anchor is the first implementation-class commit for the work
+item after the commit that introduced the selected approval decision; elapsed
+time is the difference between commit-object committer timestamps. A timestamp
+regression fails closed. Feedback `ts` values and provisional actuals never
+define or reset this clock. Terminal implementation actuals independently
+prove whether the 45- and 90-minute controls were crossed, so an empty
+checkpoint array cannot bypass a missed control at completion.
+
+CHG-022 is the one historical bootstrap exception because its own execution
+crossed both controls before this enforcement existed. It must not fabricate
+retroactive checkpoints. Instead, terminal evidence requires one exact
+bootstrap-only `deviation` record naming the `45/90-minute-checkpoints`
+control, the observed implementation minutes, a non-empty reason, and a
+corrective action, plus non-empty feedback `notes`. No later work item may use
+that exception.
 Checkpoint completion is determined by its explicit `implementation_complete`
 boolean; provisional or mutable actual phase minutes never override `false`.
 Only a valid effective terminal with complete actuals can supersede a prior
