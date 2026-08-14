@@ -2,10 +2,10 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { constants as fsConstants, existsSync, fsyncSync as nodeFsyncSync, mkdtempSync, mkdirSync, openSync as nodeOpenSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
 import {
@@ -25,6 +25,7 @@ import {
   resolveDefaultBase,
   validateRangeOwnership,
 } from "./work-readiness/git.mjs";
+import { createAssessmentFile, readCanonicalMessageFile } from "./work-readiness.mjs";
 
 const bootstrap = JSON.parse(
   await readFile(new URL("../docs/readiness/CHG-022.json", import.meta.url), "utf8"),
@@ -37,6 +38,7 @@ const bootstrapDecision = {
   text: `Decision ready for readiness payload SHA-256 ${bootstrap.readiness_payload_sha256} as the one-time, immutable, non-repeatable CHG-022 policy bootstrap, based on design commit ${bootstrap.bootstrap_authorization.design_commit} and refreshed authority plan commit ${bootstrap.bootstrap_authorization.plan_commit}. Exact authorized paths, in order: ${bootstrap.bootstrap_authorization.allowed_paths.join("; ")}. This authorization interval begins at this matching decision and expires on CHG-022's first valid terminal done event; every later implementation commit must be rejected and cannot reuse this or any earlier bootstrap approval.`,
   reason: "Policy activation",
 };
+const cliPath = new URL("./work-readiness.mjs", import.meta.url).pathname;
 
 const clone = (value) => structuredClone(value);
 
@@ -1119,6 +1121,383 @@ function writeApprovedWork(root, workId, { mutateAfterApproval = false } = {}) {
   writeRepoFile(root, `docs/readiness/${workId}.json`, `${JSON.stringify(value, null, 2)}\n`);
   return decision;
 }
+
+function runCli(root, args) {
+  return spawnSync(process.execPath, [cliPath, ...args], {
+    cwd: root,
+    encoding: "utf8",
+    shell: false,
+    maxBuffer: 1024 * 1024,
+  });
+}
+
+function writeGitMessage(root, contents) {
+  const path = resolve(root, git(root, ["rev-parse", "--git-path", "COMMIT_EDITMSG"]));
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, contents);
+  return path;
+}
+
+function parseCliJson(result) {
+  assert.equal(result.stderr, "");
+  const lines = result.stdout.trim().split("\n");
+  assert.equal(lines.length, 1);
+  const output = JSON.parse(lines[0]);
+  assert.deepEqual(Object.keys(output), ["ok", "command", "work_ids", "errors", "summary"]);
+  return output;
+}
+
+test("CLI init normalizes an explicit ID, creates exclusively, and never invents IDs", () => {
+  const { root } = makeGitRepo();
+  try {
+    const created = runCli(root, ["init", "chg-123", "--json"]);
+    assert.equal(created.status, 0);
+    assert.deepEqual(parseCliJson(created), {
+      ok: true,
+      command: "init",
+      work_ids: ["CHG-123"],
+      errors: [],
+      summary: "Created docs/readiness/CHG-123.json",
+    });
+    const createdPath = join(root, "docs/readiness/CHG-123.json");
+    assert.equal(existsSync(createdPath), true);
+    const createdBytes = readFileSync(createdPath, "utf8");
+    const createdValue = JSON.parse(createdBytes);
+    assert.equal(createdValue.work_id, "CHG-123");
+    assert.equal(createdValue.decision, "blocked");
+    assert.equal(createdValue.approval.status, "pending");
+    assert.equal(createdValue.readiness_payload_sha256, computeReadinessPayloadSha256(createdValue));
+
+    const overwrite = runCli(root, ["init", "CHG-123", "--json"]);
+    assert.equal(overwrite.status, 1);
+    assert.equal(parseCliJson(overwrite).errors[0].code, "WR_READINESS_EXISTS");
+    assert.equal(readFileSync(createdPath, "utf8"), createdBytes);
+    assert.deepEqual(readdirSync(join(root, "docs/readiness")), ["CHG-123.json"]);
+
+    const missing = runCli(root, ["init", "--json"]);
+    assert.equal(missing.status, 2);
+    assert.equal(parseCliJson(missing).errors[0].code, "WR_INVOCATION_INVALID");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("CLI check and check-all load repository feedback and validate completion state", () => {
+  const { root } = makeGitRepo();
+  try {
+    writeRepoFile(root, "docs/readiness/US-321.json", `${JSON.stringify(approvedArtifact("US-321"), null, 2)}\n`);
+    const artifact = JSON.parse(readFileSync(join(root, "docs/readiness/US-321.json"), "utf8"));
+    writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(decisionFor(artifact))}\n`);
+    for (const [command, args] of [["check", ["check", "US-321", "--json"]], ["check-all", ["check-all", "--json"]]]) {
+      const result = runCli(root, args);
+      assert.equal(result.status, 0);
+      const output = parseCliJson(result);
+      assert.equal(output.command, command);
+      assert.deepEqual(output.work_ids, ["US-321"]);
+      assert.deepEqual(output.errors, []);
+    }
+    writeRepoFile(root, ".nous-feedback.jsonl", `${[
+      decisionFor(artifact),
+      { story: "US-321", event: "started", agent: "cli-test" },
+      { story: "US-321", event: "build_pass", notes: "Focused verification passed" },
+      { story: "US-321", event: "done" },
+    ].map(JSON.stringify).join("\n")}\n`);
+    const incomplete = runCli(root, ["check", "US-321", "--json"]);
+    assert.equal(incomplete.status, 1);
+    assert.equal(parseCliJson(incomplete).errors[0].code, "WR_ACTUALS_REQUIRED");
+
+    writeRepoFile(root, "docs/readiness/US-321.json", "{}\n");
+    const rejected = runCli(root, ["check", "US-321", "--json"]);
+    assert.equal(rejected.status, 1);
+    assert.equal(parseCliJson(rejected).errors[0].code.startsWith("WR_"), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("CLI check-range supports named refs and maps invalid Git environment to exit 2", () => {
+  const { root, base } = makeGitRepo();
+  try {
+    writeRepoFile(root, "docs/readiness/README.md", "range bootstrap docs\n");
+    const head = commitRepo(root, "docs(CHG-123): document readiness range", ["docs/readiness/README.md"]);
+    const accepted = runCli(root, ["check-range", "--base", base, "--head", head, "--json"]);
+    assert.equal(accepted.status, 0);
+    assert.deepEqual(parseCliJson(accepted), {
+      ok: true,
+      command: "check-range",
+      work_ids: ["CHG-123"],
+      errors: [],
+      summary: "Range readiness is valid for 1 changed path",
+    });
+    const separated = runCli(root, ["check-range", "--json", base, "--", head]);
+    assert.equal(separated.status, 0);
+    assert.deepEqual(parseCliJson(separated).work_ids, ["CHG-123"]);
+    const result = runCli(root, ["check-range", "--base", "1".repeat(40), "--head", "HEAD", "--json"]);
+    assert.equal(result.status, 2);
+    const output = parseCliJson(result);
+    assert.equal(output.command, "check-range");
+    assert.equal(output.errors[0].code, "WR_GIT_REF_INVALID");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("CLI parser rejects range mixtures and treats post-separator flags as positional", () => {
+  const { root } = makeGitRepo();
+  try {
+    for (const args of [
+      ["check-range", "HEAD", "--head", "missing", "--json"],
+      ["check-range", "--base", "HEAD", "HEAD", "--json"],
+      ["check", "--json", "--", "US-321", "--json"],
+      ["check", "--json", "--", "US-321", "--", "extra"],
+    ]) {
+      const result = runCli(root, args);
+      assert.equal(result.status, 2);
+      assert.equal(parseCliJson(result).errors[0].code, "WR_INVOCATION_INVALID");
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("CLI init rejects a symlink ancestor before creating anything outside", () => {
+  const { root } = makeGitRepo();
+  const outside = mkdtempSync(join(tmpdir(), "work-readiness-init-outside-"));
+  try {
+    symlinkSync(outside, join(root, "docs"));
+    const result = runCli(root, ["init", "CHG-123", "--json"]);
+    assert.equal(result.status, 2);
+    assert.equal(parseCliJson(result).errors[0].code, "WR_PATH_ESCAPE");
+    assert.equal(existsSync(join(outside, "readiness")), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+test("exclusive init cleans a short write and remains retryable", () => {
+  const { root } = makeGitRepo();
+  try {
+    assert.throws(
+      () => createAssessmentFile({ root, workId: "CHG-123", fsOps: { writeSync: () => 1 } }),
+      (error) => error.code === "WR_FILE_WRITE_FAILED",
+    );
+    assert.equal(existsSync(join(root, "docs/readiness/CHG-123.json")), false);
+    assert.deepEqual(readdirSync(join(root, "docs/readiness")), []);
+    const retry = runCli(root, ["init", "CHG-123", "--json"]);
+    assert.equal(retry.status, 0);
+    assert.equal(existsSync(join(root, "docs/readiness/CHG-123.json")), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("exclusive init removes a published final when directory durability fails", () => {
+  const { root } = makeGitRepo();
+  try {
+    let syncCalls = 0;
+    assert.throws(
+      () => createAssessmentFile({
+        root,
+        workId: "CHG-123",
+        fsOps: {
+          fsyncSync(descriptor) {
+            syncCalls += 1;
+            if (syncCalls === 2) {
+              const error = new Error("injected directory sync failure");
+              error.code = "EIO";
+              throw error;
+            }
+            nodeFsyncSync(descriptor);
+          },
+        },
+      }),
+      (error) => error.code === "WR_FILE_WRITE_FAILED",
+    );
+    assert.equal(syncCalls, 2);
+    assert.deepEqual(readdirSync(join(root, "docs/readiness")), []);
+    const retry = runCli(root, ["init", "CHG-123", "--json"]);
+    assert.equal(retry.status, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("CLI check-staged reads the real message file and staged index", () => {
+  const { root } = makeGitRepo();
+  try {
+    writeRepoFile(root, "docs/readiness/README.md", "bootstrap docs\n");
+    const messagePath = writeGitMessage(root, "docs(CHG-123): document readiness\n");
+    git(root, ["add", "docs/readiness/README.md"]);
+    const result = runCli(root, ["check-staged", "--message-file", messagePath, "--json"]);
+    assert.equal(result.status, 0);
+    assert.deepEqual(parseCliJson(result), {
+      ok: true,
+      command: "check-staged",
+      work_ids: ["CHG-123"],
+      errors: [],
+      summary: "Staged readiness ownership is valid for 1 changed path",
+    });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("CLI check-staged validates the index snapshot rather than unstaged authorization", () => {
+  const { root } = makeGitRepo();
+  try {
+    git(root, ["update-index", "--split-index"]);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    git(root, ["add", "apps/web/src/app/page.tsx"]);
+    const messagePath = writeGitMessage(root, "feat(US-321): staged implementation\n");
+
+    writeRepoFile(root, "docs/readiness/US-321.json", `${JSON.stringify(approvedArtifact("US-321"), null, 2)}\n`);
+    const unstaged = JSON.parse(readFileSync(join(root, "docs/readiness/US-321.json"), "utf8"));
+    writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(decisionFor(unstaged))}\n`);
+    const missingFromIndex = runCli(root, ["check-staged", "--message-file", messagePath, "--json"]);
+    assert.equal(missingFromIndex.status, 1);
+    assert.equal(parseCliJson(missingFromIndex).errors[0].code, "WR_READINESS_MISSING");
+
+    writeRepoFile(root, "docs/readiness/US-321.json", "{}\n");
+    writeRepoFile(root, ".nous-feedback.jsonl", "{\"story\":\"US-321\",\"event\":\"decision\"}\n");
+    git(root, ["add", "docs/readiness/US-321.json", ".nous-feedback.jsonl"]);
+    writeRepoFile(root, "docs/readiness/US-321.json", `${JSON.stringify(unstaged, null, 2)}\n`);
+    writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(decisionFor(unstaged))}\n`);
+    const maskedMalformedIndex = runCli(root, ["check-staged", "--message-file", messagePath, "--json"]);
+    assert.equal(maskedMalformedIndex.status, 1);
+    assert.equal(parseCliJson(maskedMalformedIndex).errors[0].code.startsWith("WR_"), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("CLI check-staged accepts implementation only after readiness evidence is committed", () => {
+  const { root } = makeGitRepo();
+  try {
+    const artifact = approvedArtifact("US-321");
+    writeRepoFile(root, "docs/readiness/US-321.json", `${JSON.stringify(artifact, null, 2)}\n`);
+    writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(decisionFor(artifact))}\n`);
+    commitRepo(root, "docs(US-321): approve readiness", ["docs/readiness/US-321.json", ".nous-feedback.jsonl"]);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    git(root, ["add", "apps/web/src/app/page.tsx"]);
+    writeRepoFile(root, ".nous-feedback.jsonl", "not valid unstaged feedback\n");
+    const messagePath = writeGitMessage(root, "feat(US-321): staged approved implementation\n");
+    const result = runCli(root, ["check-staged", "--message-file", messagePath, "--json"]);
+    assert.equal(result.status, 0);
+    assert.deepEqual(parseCliJson(result).work_ids, ["US-321"]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("CLI check-staged accepts the actual linked-worktree Git message path", () => {
+  const primary = makeGitRepo();
+  const linkedRoot = mkdtempSync(join(tmpdir(), "work-readiness-linked-"));
+  rmSync(linkedRoot, { recursive: true, force: true });
+  try {
+    git(primary.root, ["worktree", "add", "-b", "linked-readiness", linkedRoot]);
+    writeRepoFile(linkedRoot, "docs/readiness/README.md", "linked bootstrap docs\n");
+    git(linkedRoot, ["add", "docs/readiness/README.md"]);
+    const messagePath = writeGitMessage(linkedRoot, "docs(CHG-123): linked worktree readiness\n");
+    const result = runCli(linkedRoot, ["check-staged", "--message-file", messagePath, "--json"]);
+    assert.equal(result.status, 0);
+    assert.equal(parseCliJson(result).summary, "Staged readiness ownership is valid for 1 changed path");
+  } finally {
+    rmSync(linkedRoot, { recursive: true, force: true });
+    rmSync(primary.root, { recursive: true, force: true });
+  }
+});
+
+test("CLI check-staged rejects noncanonical, symlink, directory, and oversized message paths", () => {
+  const { root } = makeGitRepo();
+  const outside = mkdtempSync(join(tmpdir(), "work-readiness-message-"));
+  try {
+    writeRepoFile(root, "docs/readiness/README.md", "bootstrap docs\n");
+    git(root, ["add", "docs/readiness/README.md"]);
+    const canonical = writeGitMessage(root, "docs(CHG-123): canonical\n");
+    const arbitrary = join(outside, "COMMIT_EDITMSG");
+    writeFileSync(arbitrary, "docs(CHG-123): arbitrary\n");
+    const oversized = join(outside, "OVERSIZED");
+    writeFileSync(oversized, "x".repeat((4 * 1024 * 1024) + 1));
+    for (const path of [arbitrary, outside, oversized]) {
+      const result = runCli(root, ["check-staged", "--message-file", path, "--json"]);
+      assert.equal(result.status, 2);
+      assert.equal(parseCliJson(result).errors[0].code, "WR_FILE_INVALID");
+    }
+    rmSync(canonical);
+    symlinkSync(arbitrary, canonical);
+    const canonicalSymlink = runCli(root, ["check-staged", "--message-file", canonical, "--json"]);
+    assert.equal(canonicalSymlink.status, 2);
+    assert.equal(parseCliJson(canonicalSymlink).errors[0].code, "WR_FILE_INVALID");
+    rmSync(canonical);
+    writeFileSync(canonical, "x".repeat((4 * 1024 * 1024) + 1));
+    const canonicalOversized = runCli(root, ["check-staged", "--message-file", canonical, "--json"]);
+    assert.equal(canonicalOversized.status, 2);
+    assert.equal(parseCliJson(canonicalOversized).errors[0].code, "WR_FILE_INVALID");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+test("CLI commit-message reader keeps reading the opened file after pathname replacement", () => {
+  const { root } = makeGitRepo();
+  try {
+    const original = "docs(CHG-123): original message\n";
+    const external = "feat(US-999): replacement message\n";
+    const messagePath = writeGitMessage(root, original);
+    const movedPath = `${messagePath}.opened`;
+    let swapped = false;
+    const contents = readCanonicalMessageFile(root, messagePath, {
+      openSync(path, flags, mode) {
+        assert.equal(flags, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+        const descriptor = nodeOpenSync(path, flags, mode);
+        renameSync(path, movedPath);
+        writeFileSync(path, external);
+        swapped = true;
+        return descriptor;
+      },
+    });
+    assert.equal(swapped, true);
+    assert.equal(contents, original);
+    assert.equal(readFileSync(messagePath, "utf8"), external);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("CLI check-staged fails closed for unborn and merge HEAD states", () => {
+  const unborn = mkdtempSync(join(tmpdir(), "work-readiness-unborn-"));
+  const merged = makeGitRepo();
+  try {
+    git(unborn, ["init", "--initial-branch=main"]);
+    git(unborn, ["config", "user.email", "readiness@example.test"]);
+    git(unborn, ["config", "user.name", "Readiness Test"]);
+    writeRepoFile(unborn, "docs/readiness/README.md", "unborn\n");
+    git(unborn, ["add", "docs/readiness/README.md"]);
+    const unbornMessage = writeGitMessage(unborn, "docs(CHG-123): unborn\n");
+    const unbornResult = runCli(unborn, ["check-staged", "--message-file", unbornMessage, "--json"]);
+    assert.equal(unbornResult.status, 2);
+    assert.equal(parseCliJson(unbornResult).errors[0].code, "WR_GIT_COMMAND_FAILED");
+
+    git(merged.root, ["checkout", "-b", "side"]);
+    writeRepoFile(merged.root, "side.txt", "side\n");
+    commitRepo(merged.root, "docs(CHG-123): side", ["side.txt"]);
+    git(merged.root, ["checkout", "main"]);
+    writeRepoFile(merged.root, "main.txt", "main\n");
+    commitRepo(merged.root, "docs(CHG-123): main", ["main.txt"]);
+    git(merged.root, ["merge", "--no-ff", "side", "-m", "merge(CHG-123): fixture"]);
+    writeRepoFile(merged.root, "docs/readiness/README.md", "after merge\n");
+    git(merged.root, ["add", "docs/readiness/README.md"]);
+    const mergeMessage = writeGitMessage(merged.root, "docs(CHG-123): after merge\n");
+    const mergeResult = runCli(merged.root, ["check-staged", "--message-file", mergeMessage, "--json"]);
+    assert.equal(mergeResult.status, 2);
+    assert.equal(parseCliJson(mergeResult).errors[0].code, "WR_GIT_TOPOLOGY_UNSUPPORTED");
+  } finally {
+    rmSync(unborn, { recursive: true, force: true });
+    rmSync(merged.root, { recursive: true, force: true });
+  }
+});
 
 function commitActivationHistory(root, records) {
   writeRepoFile(root, "docs/readiness/CHG-022.json", `${JSON.stringify(bootstrap, null, 2)}\n`);
