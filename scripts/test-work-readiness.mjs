@@ -1947,6 +1947,30 @@ test("Git-derived elapsed time requires exact 45/90-minute controls", () => {
     rmSync(missing90.root, { recursive: true, force: true });
   }
 
+  const regressedAfterCheckpoint = makeTimedExecution();
+  try {
+    const candidate = clone(regressedAfterCheckpoint.value);
+    const checkpoint = { elapsed_minutes: 45, status: "on_track", implementation_complete: false, evidence: "First control recorded before the regressed candidate" };
+    candidate.checkpoints = [checkpoint];
+    const priorFeedback = readFileSync(join(regressedAfterCheckpoint.root, ".nous-feedback.jsonl"), "utf8");
+    writeRepoFile(regressedAfterCheckpoint.root, "docs/readiness/US-123.json", `${JSON.stringify(candidate, null, 2)}\n`);
+    writeRepoFile(regressedAfterCheckpoint.root, ".nous-feedback.jsonl", `${priorFeedback}${JSON.stringify({ story: "US-123", event: "checkpoint", ...checkpoint })}\n`);
+    writeRepoFile(regressedAfterCheckpoint.root, "apps/web/src/app/slice.ts", "export const slice = 2;\n");
+    commitRepoAt(regressedAfterCheckpoint.root, "feat(US-123): record exact 45 control", [
+      "docs/readiness/US-123.json", ".nous-feedback.jsonl", "apps/web/src/app/slice.ts",
+    ], "2030-01-01T01:29:00Z");
+    writeRepoFile(regressedAfterCheckpoint.root, "apps/web/src/app/slice.ts", "export const slice = 3;\n");
+    const head = commitRepoAt(regressedAfterCheckpoint.root, "feat(US-123): regress clock after checkpoint", [
+      "apps/web/src/app/slice.ts",
+    ], "2030-01-01T00:01:00Z");
+    assert.throws(
+      () => validateRangeOwnership({ root: regressedAfterCheckpoint.root, base: regressedAfterCheckpoint.base, head }),
+      (error) => error.code === "WR_GIT_TIMESTAMP_REGRESSION",
+    );
+  } finally {
+    rmSync(regressedAfterCheckpoint.root, { recursive: true, force: true });
+  }
+
   const bootstrapLegacy = makeGitRepo();
   try {
     writeRepoFile(bootstrapLegacy.root, "docs/readiness/CHG-022.json", `${JSON.stringify(bootstrap, null, 2)}\n`);

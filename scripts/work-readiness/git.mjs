@@ -1013,11 +1013,12 @@ function commitEpochSeconds(root, commit) {
   return value;
 }
 
-function findExecutionAnchor(root, commit, workId, approvalEvidence, cache) {
+function findExecutionTimeline(root, commit, workId, approvalEvidence, cache) {
   const key = `${workId}\0${approvalEvidence}`;
   if (cache.has(key)) return cache.get(key);
   const history = git(root, ["rev-list", "--reverse", "--first-parent", "--parents", commit]).toString("utf8").trim();
   let approvalObserved = false;
+  let timeline = null;
   for (const line of history === "" ? [] : history.split("\n")) {
     const fields = line.trim().split(/\s+/u);
     const revision = fields[0];
@@ -1029,16 +1030,29 @@ function findExecutionAnchor(root, commit, workId, approvalEvidence, cache) {
     const firstParent = fields[1];
     if (firstParent === undefined) continue;
     const changedPaths = listChangedPaths({ root, base: firstParent, head: revision });
-    const classes = changedPaths.map(classifyChangedPath);
-    if (classes.every((classification) => classification === "bootstrap-documentation")) continue;
     const revisionMessage = git(root, ["show", "-s", "--format=%B", revision]).toString("utf8");
     const revisionIds = new Set([...extractWorkIds(revisionMessage), ...extractWorkIds(changedPaths.join("\n"))]);
     if (!revisionIds.has(workId)) continue;
-    const anchor = { commit: revision, epochSeconds: commitEpochSeconds(root, revision) };
-    cache.set(key, anchor);
-    return anchor;
+    const epochSeconds = commitEpochSeconds(root, revision);
+    if (timeline === null) {
+      const classes = changedPaths.map(classifyChangedPath);
+      if (classes.every((classification) => classification === "bootstrap-documentation")) continue;
+      timeline = {
+        anchorCommit: revision,
+        anchorEpochSeconds: epochSeconds,
+        maxRelevantEpochSeconds: revision === commit ? null : epochSeconds,
+      };
+      continue;
+    }
+    if (revision !== commit) {
+      timeline.maxRelevantEpochSeconds = Math.max(timeline.maxRelevantEpochSeconds ?? epochSeconds, epochSeconds);
+    }
   }
-  fail("WR_EXECUTION_ANCHOR_MISSING", `docs/readiness/${workId}.json`, `${workId} implementation has no durable Git execution anchor after its selected approval`);
+  if (timeline === null) {
+    fail("WR_EXECUTION_ANCHOR_MISSING", `docs/readiness/${workId}.json`, `${workId} implementation has no durable Git execution anchor after its selected approval`);
+  }
+  cache.set(key, timeline);
+  return timeline;
 }
 
 function hasBootstrapElapsedDeviation(artifact, feedback) {
@@ -1054,13 +1068,20 @@ function hasBootstrapElapsedDeviation(artifact, feedback) {
 }
 
 function validateElapsedCheckpoint({ root, commit, workId, artifact, feedback, executionAnchors, bootstrapCorrectiveDeviation }) {
-  const anchor = findExecutionAnchor(root, commit, workId, artifact.approval.evidence, executionAnchors);
+  const timeline = findExecutionTimeline(root, commit, workId, artifact.approval.evidence, executionAnchors);
   const candidateEpoch = commitEpochSeconds(root, commit);
-  if (candidateEpoch < anchor.epochSeconds) {
-    fail("WR_GIT_TIMESTAMP_REGRESSION", "$.git", `${workId} candidate timestamp precedes its execution anchor`);
+  if (candidateEpoch < timeline.anchorEpochSeconds
+    || (timeline.maxRelevantEpochSeconds !== null && candidateEpoch < timeline.maxRelevantEpochSeconds)) {
+    fail("WR_GIT_TIMESTAMP_REGRESSION", "$.git", `${workId} candidate timestamp precedes prior relevant first-parent history`);
   }
-  const elapsedSeconds = candidateEpoch - anchor.epochSeconds;
-  if (artifact.policy_bootstrap && (bootstrapCorrectiveDeviation || hasBootstrapElapsedDeviation(artifact, feedback))) return;
+  const elapsedSeconds = candidateEpoch - timeline.anchorEpochSeconds;
+  const advanceTimeline = () => {
+    timeline.maxRelevantEpochSeconds = Math.max(timeline.maxRelevantEpochSeconds ?? candidateEpoch, candidateEpoch);
+  };
+  if (artifact.policy_bootstrap && (bootstrapCorrectiveDeviation || hasBootstrapElapsedDeviation(artifact, feedback))) {
+    advanceTimeline();
+    return;
+  }
   const completion = artifact.checkpoints.find((checkpoint) => checkpoint.implementation_complete);
   if (elapsedSeconds >= 45 * 60 && completion === undefined
     && !artifact.checkpoints.some((checkpoint) => checkpoint.elapsed_minutes === 45)) {
@@ -1071,6 +1092,7 @@ function validateElapsedCheckpoint({ root, commit, workId, artifact, feedback, e
       && checkpoint.status === "partition_required" && !checkpoint.implementation_complete)) {
     fail("WR_CHECKPOINT_PARTITION_REQUIRED", "$.checkpoints", `${workId} crossed 90 Git-derived execution minutes without the exact partition stop`);
   }
+  advanceTimeline();
 }
 
 function validateCommitOwnership({
