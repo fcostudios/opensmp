@@ -93,6 +93,22 @@ child IDs when applicable. A decision for an older digest cannot be replayed
 after an assessment edit. An agent may author an assessment but cannot claim
 user approval without matching digest-bound evidence.
 
+For each non-bootstrap item, `approved_by` is non-empty and the selected
+decision is a closed Ed25519-signed attestation. Its signature binds the
+evidence ID, exact text/digest, reason, approver, subject, relationship,
+controller story, and key ID. Verification uses the protected Nous public-key
+map in `WORK_READINESS_APPROVAL_KEYS_JSON`; missing or invalid trust fails
+closed. CI must run the trusted base range gate with that public-key map. Never
+commit a production-trusted private key or trust a committed test key or
+agent-authored field.
+
+Cross-item approval requires a digest-covered `controlling_change` naming one
+exact official CHG, `relationship: "readiness_governance"`, and a reason. The
+signed event names the subject and uses `relationship:
+"controlling_change"`; otherwise the relationship is `self` and the story
+equals the subject. The immutable CHG-022 V2 bootstrap is the only unsigned
+legacy exception and retains its exact digest, provenance, paths, and expiry.
+
 Assessment/design/feedback-only commits may be made while approval is pending.
 Implementation-class changes require every referenced work ID to be approved
 and `ready`.

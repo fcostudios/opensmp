@@ -217,6 +217,7 @@ function skeleton(workId) {
     policy_bootstrap: false,
     bootstrap_exemption_rationale: null,
     bootstrap_authorization: null,
+    controlling_change: null,
   };
   const digest = computeReadinessPayloadSha256(value);
   value.readiness_payload_sha256 = digest;

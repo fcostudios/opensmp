@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, createPublicKey, verify as verifySignature } from "node:crypto";
 
 const TOP_LEVEL_KEYS = [
   "schema_version", "readiness_payload_sha256", "work_id", "kind", "work_type", "title", "source",
@@ -189,7 +189,7 @@ function validateCheckpointPolicy(checkpoints) {
 }
 
 function validateShape(value) {
-  object(value, "$", TOP_LEVEL_KEYS);
+  object(value, "$", value.policy_bootstrap === true ? TOP_LEVEL_KEYS : [...TOP_LEVEL_KEYS, "controlling_change"]);
   if (value.schema_version !== 1) fail("UNSUPPORTED_SCHEMA_VERSION", "$.schema_version", "Only schema version 1 is supported");
   if (typeof value.readiness_payload_sha256 !== "string" || !/^[0-9a-f]{64}$/u.test(value.readiness_payload_sha256)) fail("INVALID_SHA256", "$.readiness_payload_sha256", "Root digest must be lowercase SHA-256");
   validateWorkId(value.work_id, "$.work_id");
@@ -272,6 +272,13 @@ function validateShape(value) {
   validateCheckpointPolicy(value.checkpoints);
   if (typeof value.policy_bootstrap !== "boolean") fail("INVALID_TYPE", "$.policy_bootstrap", "policy_bootstrap must be boolean");
   string(value.bootstrap_exemption_rationale, "$.bootstrap_exemption_rationale", { nullable: true });
+  if (!value.policy_bootstrap && value.controlling_change !== null) {
+    object(value.controlling_change, "$.controlling_change", ["work_id", "relationship", "reason"]);
+    validateWorkId(value.controlling_change.work_id, "$.controlling_change.work_id");
+    if (!value.controlling_change.work_id.startsWith("CHG-") || value.controlling_change.work_id === value.work_id) fail("WR_APPROVAL_CONTROL_INVALID", "$.controlling_change.work_id", "Controller must be a different official CHG");
+    if (value.controlling_change.relationship !== "readiness_governance") fail("WR_APPROVAL_CONTROL_INVALID", "$.controlling_change.relationship", "Controller relationship must be readiness_governance");
+    string(value.controlling_change.reason, "$.controlling_change.reason");
+  }
 }
 
 function canonicalize(value, path = "$") {
@@ -472,23 +479,87 @@ function readinessTokens(text) {
   };
 }
 
-function validateDecisionRecordShape(record) {
-  const keys = ["story", "event", "id", "text", "reason"];
+const ATTESTED_DECISION_KEYS = [
+  "story", "event", "id", "text", "reason", "approved_by", "subject_work_id",
+  "relationship", "key_id", "signature",
+];
+
+export function canonicalApprovalAttestation(record) {
+  const payload = Object.fromEntries(ATTESTED_DECISION_KEYS
+    .filter((key) => key !== "signature")
+    .map((key) => [key, record[key]]));
+  return `ledger-work-readiness-approval-v1\n${JSON.stringify(canonicalize(payload))}`;
+}
+
+function approvalAuthorities() {
+  const encoded = process.env.WORK_READINESS_APPROVAL_KEYS_JSON;
+  if (typeof encoded !== "string" || encoded.length === 0) {
+    fail("WR_APPROVAL_TRUST_UNAVAILABLE", "$.approval.evidence", "No protected Nous approval public-key map is provisioned");
+  }
+  if (Buffer.byteLength(encoded, "utf8") > 32 * 1024) {
+    fail("WR_APPROVAL_TRUST_INVALID", "$.approval.evidence", "Approval public-key map exceeds 32 KiB");
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(encoded);
+  } catch {
+    fail("WR_APPROVAL_TRUST_INVALID", "$.approval.evidence", "Approval public-key map is not valid JSON");
+  }
+  if (!isPlainObject(parsed)) fail("WR_APPROVAL_TRUST_INVALID", "$.approval.evidence", "Approval public-key map must be an object");
+  return parsed;
+}
+
+function verifyDecisionAttestation(record) {
+  const authorities = approvalAuthorities();
+  if (!Object.hasOwn(authorities, record.key_id) || typeof authorities[record.key_id] !== "string") {
+    fail("WR_APPROVAL_KEY_UNTRUSTED", "$.approval.evidence", `Approval key ${record.key_id} is not trusted`);
+  }
+  let key;
+  let signature;
+  try {
+    key = createPublicKey(authorities[record.key_id]);
+    signature = Buffer.from(record.signature, "base64");
+  } catch {
+    fail("WR_APPROVAL_ATTESTATION_INVALID", "$.approval.evidence", "Approval attestation key or signature is malformed");
+  }
+  if (key.asymmetricKeyType !== "ed25519" || signature.length !== 64 || signature.toString("base64") !== record.signature) {
+    fail("WR_APPROVAL_ATTESTATION_INVALID", "$.approval.evidence", "Approval attestation must use canonical Ed25519");
+  }
+  if (!verifySignature(null, Buffer.from(canonicalApprovalAttestation(record), "utf8"), key, signature)) {
+    fail("WR_APPROVAL_ATTESTATION_INVALID", "$.approval.evidence", "Approval attestation signature is invalid");
+  }
+}
+
+function validateDecisionRecordShape(record, { requireAttestation = false } = {}) {
+  const keys = requireAttestation ? ATTESTED_DECISION_KEYS : ["story", "event", "id", "text", "reason"];
   if (Object.keys(record).length !== keys.length || !keys.every((key) => Object.hasOwn(record, key))) {
+    const legacyKeys = ["story", "event", "id", "text", "reason"];
+    const isLegacy = Object.keys(record).length === legacyKeys.length && legacyKeys.every((key) => Object.hasOwn(record, key));
+    if (requireAttestation && isLegacy) fail("WR_APPROVAL_ATTESTATION_REQUIRED", "$.approval.evidence", "Normal approval decisions require a closed signed attestation");
     fail("WR_APPROVAL_EVIDENCE_INVALID", "$.approval.evidence", "Approval decisions must use the closed feedback decision shape");
   }
   for (const key of ["story", "id", "text", "reason"]) {
     if (typeof record[key] !== "string" || !/\S/u.test(record[key])) fail("WR_APPROVAL_EVIDENCE_INVALID", "$.approval.evidence", `Prior decision ${key} must be non-empty`);
   }
   if (record.event !== "decision") fail("WR_APPROVAL_EVIDENCE_INVALID", "$.approval.evidence", "Prior approval evidence must be a decision event");
+  if (requireAttestation) {
+    for (const key of ["approved_by", "subject_work_id", "relationship", "key_id", "signature"]) {
+      if (typeof record[key] !== "string" || !/\S/u.test(record[key])) fail("WR_APPROVAL_ATTESTATION_REQUIRED", "$.approval.evidence", `Approval decision ${key} must be non-empty`);
+    }
+    if (!/^(?:US|CHG)-[0-9]{3,}$/u.test(record.subject_work_id)) fail("WR_APPROVAL_ATTESTATION_INVALID", "$.approval.evidence", "Approval subject must be an official work ID");
+    if (!/^[A-Za-z0-9._-]{1,128}$/u.test(record.key_id)) fail("WR_APPROVAL_ATTESTATION_INVALID", "$.approval.evidence", "Approval key ID is invalid");
+    if (!['self', 'controlling_change'].includes(record.relationship)) fail("WR_APPROVAL_ATTESTATION_INVALID", "$.approval.evidence", "Approval relationship is invalid");
+    verifyDecisionAttestation(record);
+  }
 }
 
-function validatePriorDecisionRecord(record, seenIds) {
-  validateDecisionRecordShape(record);
+function validatePriorDecisionRecord(record, seenIds, { allowLegacyReadiness = false } = {}) {
+  const readinessLike = /\bDecision\s+(?:ready|partition_required|blocked)\b/iu.test(record.text) || /SHA-256\b/iu.test(record.text);
+  const bootstrapLegacy = record.story === "CHG-022" && record.id === BOOTSTRAP_EVIDENCE;
+  validateDecisionRecordShape(record, { requireAttestation: readinessLike && !bootstrapLegacy && !allowLegacyReadiness });
   if (seenIds.has(record.id)) fail("WR_APPROVAL_EVIDENCE_DUPLICATE", "$.approval.evidence", `Duplicate prior decision evidence id ${record.id}`);
   seenIds.add(record.id);
   const tokens = readinessTokens(record.text);
-  const readinessLike = /\bDecision\s+(?:ready|partition_required|blocked)\b/iu.test(record.text) || /SHA-256\b/iu.test(record.text);
   if (readinessLike && (tokens.decisions.length !== 1 || tokens.digests.length !== 1)) {
     fail("WR_APPROVAL_EVIDENCE_INVALID", "$.approval.evidence", "Readiness decisions must contain exactly one canonical Decision token and one SHA-256 token");
   }
@@ -630,7 +701,7 @@ function validatePreapprovalHistory(value, feedbackRecords, evidenceIndex, termi
     const record = feedbackRecords[index];
     if (record.story !== value.work_id) continue;
     if (record.event === "decision") {
-      const { decisions, digests } = validatePriorDecisionRecord(record, seenDecisionIds);
+      const { decisions, digests } = validatePriorDecisionRecord(record, seenDecisionIds, { allowLegacyReadiness: value.policy_bootstrap });
       if (decisions.length === 1 && ["blocked", "partition_required"].includes(decisions[0])) authorized = false;
       if (decisions.length === 1 && decisions[0] === "ready" && digests.length === 1) {
         const globalOccurrences = feedbackRecords.filter((candidate) => candidate.event === "decision" && candidate.id === record.id).length;
@@ -727,14 +798,29 @@ export function validateApproval(value, feedbackRecords) {
   if (value.readiness_payload_sha256 !== recomputed) fail("WR_APPROVAL_DIGEST_MISMATCH", "$.readiness_payload_sha256", "Root readiness digest does not match the canonical payload");
   if (value.approval.payload_sha256 !== value.readiness_payload_sha256) fail("WR_APPROVAL_DIGEST_MISMATCH", "$.approval.payload_sha256", "Approval digest must equal the root readiness digest");
   if (value.approval.status !== "approved") fail("APPROVAL_REQUIRED", "$.approval.status", "The declared decision requires approved evidence");
+  if (typeof value.approval.approved_by !== "string" || !/\S/u.test(value.approval.approved_by)) {
+    fail("WR_APPROVER_REQUIRED", "$.approval.approved_by", "Normal ready approval requires a non-empty approver identity");
+  }
   string(value.approval.evidence, "$.approval.evidence");
   const candidates = feedbackRecords.filter((record) => record.event === "decision" && record.id === value.approval.evidence);
   if (candidates.length === 0) fail("APPROVAL_EVIDENCE_MISSING", "$.approval.evidence", "No matching decision event exists");
   if (candidates.length !== 1) fail("APPROVAL_EVIDENCE_DUPLICATE", "$.approval.evidence", "Approval evidence must identify exactly one decision event");
   const evidence = candidates[0];
   const evidenceIndex = feedbackRecords.indexOf(evidence);
-  validateDecisionRecordShape(evidence);
-  if (evidence.story !== value.work_id) fail("APPROVAL_STORY_MISMATCH", "$.approval.evidence", "Decision evidence belongs to another work item");
+  validateDecisionRecordShape(evidence, { requireAttestation: !value.policy_bootstrap });
+  if (!value.policy_bootstrap) {
+    if (evidence.approved_by !== value.approval.approved_by) fail("WR_APPROVER_MISMATCH", "$.approval.approved_by", "Artifact approver must match the signed decision approver");
+    if (evidence.subject_work_id !== value.work_id) fail("APPROVAL_STORY_MISMATCH", "$.approval.evidence", "Signed decision subject belongs to another work item");
+    const controlling = value.controlling_change ?? null;
+    if (controlling === null) {
+      if (evidence.relationship !== "self") fail("WR_APPROVAL_CONTROL_MISMATCH", "$.approval.evidence", "Self approval must declare the self relationship");
+      if (evidence.story !== value.work_id) fail("APPROVAL_STORY_MISMATCH", "$.approval.evidence", "Decision evidence belongs to another work item");
+    } else if (evidence.relationship !== "controlling_change" || evidence.story !== controlling.work_id) {
+      fail("WR_APPROVAL_CONTROL_MISMATCH", "$.approval.evidence", "Controlling approval must be signed by the exact CHG declared in the digest-bound assessment");
+    }
+  } else if (evidence.story !== value.work_id) {
+    fail("APPROVAL_STORY_MISMATCH", "$.approval.evidence", "Decision evidence belongs to another work item");
+  }
   validatePreapprovalHistory(value, feedbackRecords, evidenceIndex, terminalProjection);
   const { decisions, digests } = readinessTokens(evidence.text);
   if (decisions.length !== 1 || decisions[0] !== value.decision || digests.length !== 1 || digests[0] !== value.readiness_payload_sha256) {

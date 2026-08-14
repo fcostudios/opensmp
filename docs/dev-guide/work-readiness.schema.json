@@ -134,6 +134,12 @@
           "$ref": "#/$defs/bootstrap_authorization"
         }
       ]
+    },
+    "controlling_change": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/controlling_change" }
+      ]
     }
   },
   "allOf": [
@@ -154,6 +160,7 @@
         }
       },
       "else": {
+        "required": ["controlling_change"],
         "properties": {
           "work_id": {
             "pattern": "^CHG-[0-9]{3,}$"
@@ -407,6 +414,16 @@
     }
   ],
   "$defs": {
+    "controlling_change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["work_id", "relationship", "reason"],
+      "properties": {
+        "work_id": { "pattern": "^CHG-[0-9]{3,}$", "type": "string" },
+        "relationship": { "const": "readiness_governance" },
+        "reason": { "$ref": "#/$defs/nonempty_string" }
+      }
+    },
     "nonempty_string": {
       "type": "string",
       "minLength": 1,

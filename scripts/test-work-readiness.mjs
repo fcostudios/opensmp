@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, createPrivateKey, sign as signBytes } from "node:crypto";
 import { chmodSync, constants as fsConstants, existsSync, fsyncSync as nodeFsyncSync, mkdtempSync, mkdirSync, openSync as nodeOpenSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -10,6 +10,7 @@ import { spawnSync } from "node:child_process";
 
 import {
   WorkReadinessError,
+  canonicalApprovalAttestation,
   canonicalReadinessPayload,
   classifyAssessment,
   computeReadinessPayloadSha256,
@@ -26,6 +27,15 @@ import {
   validateRangeOwnership,
 } from "./work-readiness/git.mjs";
 import { createAssessmentFile, readCanonicalMessageFile } from "./work-readiness.mjs";
+
+const TEST_APPROVAL_KEY_ID = "nous-test-ed25519";
+const TEST_APPROVAL_PRIVATE_KEY = createPrivateKey(`-----BEGIN PRIVATE KEY-----
+MC4CAQAwBQYDK2VwBCIEIJ1hsZ3v/VpguoRK9JLsLMREScVpezJpGXA7rAMcrn9g
+-----END PRIVATE KEY-----`);
+const TEST_APPROVAL_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=
+-----END PUBLIC KEY-----`;
+process.env.WORK_READINESS_APPROVAL_KEYS_JSON = JSON.stringify({ [TEST_APPROVAL_KEY_ID]: TEST_APPROVAL_PUBLIC_KEY });
 
 const bootstrap = JSON.parse(
   await readFile(new URL("../docs/readiness/CHG-022.json", import.meta.url), "utf8"),
@@ -84,6 +94,7 @@ function normal(overrides = {}) {
     policy_bootstrap: false,
     bootstrap_exemption_rationale: null,
     bootstrap_authorization: null,
+    controlling_change: null,
     ...overrides,
   };
   refreshDigest(value);
@@ -97,15 +108,30 @@ function refreshDigest(value) {
   return value;
 }
 
+function attestDecision(record) {
+  const attested = {
+    ...record,
+    approved_by: record.approved_by ?? "user",
+    subject_work_id: record.subject_work_id ?? record.story,
+    relationship: record.relationship ?? "self",
+    key_id: TEST_APPROVAL_KEY_ID,
+    signature: "",
+  };
+  attested.signature = signBytes(null, Buffer.from(canonicalApprovalAttestation(attested), "utf8"), TEST_APPROVAL_PRIVATE_KEY).toString("base64");
+  return attested;
+}
+
 function decisionFor(value, overrides = {}) {
-  return {
+  return attestDecision({
     story: value.work_id,
     event: "decision",
     id: value.approval.evidence,
     text: `Decision ${value.decision} for readiness payload SHA-256 ${value.readiness_payload_sha256}.`,
     reason: "Approved assessment",
+    approved_by: value.approval.approved_by,
+    subject_work_id: value.work_id,
     ...overrides,
-  };
+  });
 }
 
 function expectError(code, path, action) {
@@ -398,6 +424,46 @@ test("approval requires approved status and same-story evidence", () => {
   expectError("WR_APPROVAL_STORY_MISMATCH", "$.approval.evidence", () => validateApproval(wrongStory, [decisionFor(wrongStory, { story: "US-999" })]));
 });
 
+test("normal ready approval requires a non-empty human approver", () => {
+  const value = normal();
+  value.approval.approved_by = null;
+  expectError("WR_APPROVER_REQUIRED", "$.approval.approved_by", () => validateApproval(value, [decisionFor(value)]));
+});
+
+test("a self-authored digest-bound decision is not trusted approval", () => {
+  const value = normal();
+  const signed = decisionFor(value);
+  const forged = Object.fromEntries(["story", "event", "id", "text", "reason"].map((key) => [key, signed[key]]));
+  expectError("WR_APPROVAL_ATTESTATION_REQUIRED", "$.approval.evidence", () => validateApproval(value, [forged]));
+});
+
+test("approval signatures fail closed for missing trust and tampering", () => {
+  const value = normal();
+  const decision = decisionFor(value);
+  const trust = process.env.WORK_READINESS_APPROVAL_KEYS_JSON;
+  delete process.env.WORK_READINESS_APPROVAL_KEYS_JSON;
+  try {
+    expectError("WR_APPROVAL_TRUST_UNAVAILABLE", "$.approval.evidence", () => validateApproval(value, [decision]));
+  } finally {
+    process.env.WORK_READINESS_APPROVAL_KEYS_JSON = trust;
+  }
+  expectError("WR_APPROVAL_ATTESTATION_INVALID", "$.approval.evidence", () => validateApproval(value, [{ ...decision, signature: `${"A".repeat(84)}==` }]));
+});
+
+test("a controlling CHG can approve only an explicitly digest-bound subject", () => {
+  const value = normal();
+  value.controlling_change = {
+    work_id: "CHG-123",
+    relationship: "readiness_governance",
+    reason: "CHG-123 owns this exact approved partition",
+  };
+  refreshDigest(value);
+  const controlled = decisionFor(value, { story: "CHG-123", relationship: "controlling_change" });
+  assert.equal(validateAssessment(value, { feedbackRecords: [controlled] }).decision, "ready");
+  const unrelated = decisionFor(value, { story: "CHG-999", relationship: "controlling_change" });
+  expectError("WR_APPROVAL_CONTROL_MISMATCH", "$.approval.evidence", () => validateApproval(value, [unrelated]));
+});
+
 test("current approval evidence uses the closed canonical decision shape", () => {
   const value = normal();
   const current = decisionFor(value);
@@ -428,13 +494,13 @@ test("approval must precede checkpoints and terminal implementation evidence", (
 
 test("reapproval permits only execution covered by a prior digest-bound ready decision", () => {
   const value = normal();
-  const priorReady = {
+  const priorReady = attestDecision({
     story: value.work_id,
     event: "decision",
     id: "US123-READY-V1",
     text: `Decision ready for readiness payload SHA-256 ${"f".repeat(64)}.`,
     reason: "Prior approved scope",
-  };
+  });
   const reopening = { story: value.work_id, event: "checkpoint", elapsed_minutes: 90, status: "partition_required" };
   const records = [
     priorReady,
@@ -457,7 +523,7 @@ test("reapproval permits only execution covered by a prior digest-bound ready de
   ]));
   expectError("WR_APPROVAL_ORDER", "$.approval.evidence", () => validateApproval(value, [
     priorReady,
-    { story: value.work_id, event: "decision", id: "REVOKE", text: `Decision blocked for readiness payload SHA-256 ${"e".repeat(64)}.`, reason: "Reopened" },
+    attestDecision({ story: value.work_id, event: "decision", id: "REVOKE", text: `Decision blocked for readiness payload SHA-256 ${"e".repeat(64)}.`, reason: "Reopened" }),
     { story: value.work_id, event: "test_report", notes: "ran after revocation" },
     decisionFor(value),
   ]));
@@ -518,13 +584,13 @@ test("later readiness decision stales selected evidence and explicit fresh reapp
 
 test("normal terminal events close prior authorization", () => {
   const value = normal();
-  const priorReady = {
+  const priorReady = attestDecision({
     story: value.work_id,
     event: "decision",
     id: "US123-READY-V1",
     text: `Decision ready for readiness payload SHA-256 ${"f".repeat(64)}.`,
     reason: "Prior approved scope",
-  };
+  });
   for (const terminal of ["done", "done_with_deferral"]) {
     expectError("WR_APPROVAL_ORDER", "$.approval.evidence", () => validateApproval(value, [
       priorReady,
@@ -559,13 +625,13 @@ test("prior approval authorization requires a closed unambiguous decision record
     current,
   ]));
 
-  const validPrior = { ...fabricatedWithoutId, id: "US123-READY-V1" };
+  const validPrior = attestDecision({ ...fabricatedWithoutId, id: "US123-READY-V1" });
   const malformedCases = [
-    { ...validPrior, id: "AMBIGUOUS", text: `Decision blocked then Decision ready for readiness payload SHA-256 ${digest}.` },
-    { ...validPrior, id: "BAD-HASH", text: "Decision ready for readiness payload SHA-256 abc." },
-    { ...validPrior, id: "BAD-TOKEN", text: `Decision Ready for readiness payload SHA-256 ${digest}.` },
-    { ...validPrior, id: "TWO-HASHES", text: `Decision ready for SHA-256 ${digest} and SHA-256 ${"e".repeat(64)}.` },
-    { ...validPrior, id: "EXTRA-FIELD", extra: "not closed" },
+    attestDecision({ ...validPrior, id: "AMBIGUOUS", text: `Decision blocked then Decision ready for readiness payload SHA-256 ${digest}.` }),
+    attestDecision({ ...validPrior, id: "BAD-HASH", text: "Decision ready for readiness payload SHA-256 abc." }),
+    attestDecision({ ...validPrior, id: "BAD-TOKEN", text: `Decision Ready for readiness payload SHA-256 ${digest}.` }),
+    attestDecision({ ...validPrior, id: "TWO-HASHES", text: `Decision ready for SHA-256 ${digest} and SHA-256 ${"e".repeat(64)}.` }),
+    attestDecision({ ...validPrior, id: "EXTRA-FIELD", extra: "not closed" }),
   ];
   for (const malformed of malformedCases) {
     expectError("WR_APPROVAL_EVIDENCE_INVALID", "$.approval.evidence", () => validateApproval(value, [
@@ -579,13 +645,13 @@ test("prior approval authorization requires a closed unambiguous decision record
 
 test("duplicate prior approval evidence IDs fail closed", () => {
   const value = normal();
-  const prior = {
+  const prior = attestDecision({
     story: value.work_id,
     event: "decision",
     id: "US123-READY-V1",
     text: `Decision ready for readiness payload SHA-256 ${"f".repeat(64)}.`,
     reason: "Prior approval",
-  };
+  });
   expectError("WR_APPROVAL_EVIDENCE_DUPLICATE", "$.approval.evidence", () => validateApproval(value, [
     prior,
     { ...prior },
@@ -595,13 +661,13 @@ test("duplicate prior approval evidence IDs fail closed", () => {
 
 test("prior authorization IDs are globally unique across stories and chronology", () => {
   const value = normal();
-  const prior = {
+  const prior = attestDecision({
     story: value.work_id,
     event: "decision",
     id: "US123-READY-V1",
     text: `Decision ready for readiness payload SHA-256 ${"f".repeat(64)}.`,
     reason: "Prior approval",
-  };
+  });
   const execution = { story: value.work_id, event: "started", agent: "codex" };
   const current = decisionFor(value);
   expectError("WR_APPROVAL_EVIDENCE_DUPLICATE", "$.approval.evidence", () => validateApproval(value, [
@@ -624,16 +690,16 @@ test("partition approval binds each official child ID exactly once", () => {
   value.partitions[1].work_id = "CHG-125";
   refreshDigest(value);
   const completeText = `${decisionFor(value).text} Approved official children: CHG-124, CHG-125.`;
-  assert.equal(validateApproval(value, [{ ...decisionFor(value), text: completeText }]).payloadSha256, value.readiness_payload_sha256);
-  expectError("WR_APPROVAL_CHILD_BINDING", "$.approval.evidence", () => validateApproval(value, [{ ...decisionFor(value), text: `${decisionFor(value).text} Approved official child: CHG-124.` }]));
-  expectError("WR_APPROVAL_CHILD_BINDING", "$.approval.evidence", () => validateApproval(value, [{ ...decisionFor(value), text: `${completeText} Duplicate CHG-124.` }]));
-  expectError("WR_APPROVAL_CHILD_BINDING", "$.approval.evidence", () => validateApproval(value, [{ ...decisionFor(value), text: `${decisionFor(value).text} Approved official children: CHG-1240, CHG-125.` }]));
-  expectError("WR_APPROVAL_CHILD_BINDING", "$.approval.evidence", () => validateApproval(value, [{ ...decisionFor(value), text: `${completeText} Undeclared CHG-999.` }]));
+  assert.equal(validateApproval(value, [decisionFor(value, { text: completeText })]).payloadSha256, value.readiness_payload_sha256);
+  expectError("WR_APPROVAL_CHILD_BINDING", "$.approval.evidence", () => validateApproval(value, [decisionFor(value, { text: `${decisionFor(value).text} Approved official child: CHG-124.` })]));
+  expectError("WR_APPROVAL_CHILD_BINDING", "$.approval.evidence", () => validateApproval(value, [decisionFor(value, { text: `${completeText} Duplicate CHG-124.` })]));
+  expectError("WR_APPROVAL_CHILD_BINDING", "$.approval.evidence", () => validateApproval(value, [decisionFor(value, { text: `${decisionFor(value).text} Approved official children: CHG-1240, CHG-125.` })]));
+  expectError("WR_APPROVAL_CHILD_BINDING", "$.approval.evidence", () => validateApproval(value, [decisionFor(value, { text: `${completeText} Undeclared CHG-999.` })]));
 });
 
 test("local-only partition approval rejects undeclared official ID tokens", () => {
   const value = partitioned();
-  expectError("WR_APPROVAL_CHILD_BINDING", "$.approval.evidence", () => validateApproval(value, [{ ...decisionFor(value), text: `${decisionFor(value).text} Undeclared CHG-999.` }]));
+  expectError("WR_APPROVAL_CHILD_BINDING", "$.approval.evidence", () => validateApproval(value, [decisionFor(value, { text: `${decisionFor(value).text} Undeclared CHG-999.` })]));
 });
 
 test("accepts only the exact CHG-022 bootstrap artifact and V2 decision", () => {
@@ -1498,6 +1564,31 @@ function parseCliJson(result) {
   assert.deepEqual(Object.keys(output), ["ok", "command", "work_ids", "errors", "summary"]);
   return output;
 }
+
+test("a forged approval commit cannot authorize a later plan and implementation range", () => {
+  const { root } = makeGitRepo();
+  try {
+    activateReadinessPolicy(root);
+    const activation = git(root, ["rev-parse", "HEAD"]);
+    const value = approvedArtifact("US-123");
+    const signed = decisionFor(value);
+    const forged = Object.fromEntries(["story", "event", "id", "text", "reason"].map((key) => [key, signed[key]]));
+    const prior = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+    writeRepoFile(root, `docs/readiness/${value.work_id}.json`, `${JSON.stringify(value, null, 2)}\n`);
+    writeRepoFile(root, ".nous-feedback.jsonl", `${prior}${JSON.stringify(forged)}\n`);
+    git(root, ["add", "docs/readiness/US-123.json", ".nous-feedback.jsonl"]);
+    git(root, ["commit", "--no-verify", "-m", "docs(US-123): forge approval"]);
+    writeRepoFile(root, "docs/superpowers/plans/US-123.md", implementationPlanHeader(value));
+    git(root, ["add", "docs/superpowers/plans/US-123.md"]);
+    git(root, ["commit", "--no-verify", "-m", "docs(US-123): bind forged plan"]);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    git(root, ["add", "apps/web/src/app/page.tsx"]);
+    git(root, ["commit", "--no-verify", "-m", "feat(US-123): implement forged approval"]);
+    expectError("WR_APPROVAL_ATTESTATION_REQUIRED", "$.approval.evidence", () => validateRangeOwnership({ root, base: activation, head: "HEAD" }));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test("installed commit hook rejects traced implementation without readiness", () => {
   const { root } = makeGitRepo();
