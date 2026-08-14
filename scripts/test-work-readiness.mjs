@@ -116,24 +116,6 @@ function normal(overrides = {}) {
   return value;
 }
 
-function schemaValidationErrors(artifact) {
-  const program = [
-    "import json, sys",
-    "from jsonschema import Draft202012Validator",
-    "value = json.load(sys.stdin)",
-    "errors = sorted(error.message for error in Draft202012Validator(value['schema']).iter_errors(value['artifact']))",
-    "json.dump(errors, sys.stdout)",
-  ].join("\n");
-  const result = spawnSync("python3", ["-c", program], {
-    encoding: "utf8",
-    input: JSON.stringify({ schema: readinessSchema, artifact }),
-    shell: false,
-    maxBuffer: 1024 * 1024,
-  });
-  assert.equal(result.status, 0, result.stderr);
-  return JSON.parse(result.stdout);
-}
-
 function refreshDigest(value) {
   const digest = computeReadinessPayloadSha256(value);
   value.readiness_payload_sha256 = digest;
@@ -189,16 +171,22 @@ function test(name, body) {
   }
 }
 
-test("JSON Schema preserves exact bootstrap and requires controller metadata on normal US and CHG", () => {
-  assert.deepEqual(schemaValidationErrors(bootstrap), []);
+test("schema structure and runtime preserve bootstrap while requiring normal controller metadata", () => {
+  const bootstrapRule = readinessSchema.allOf.find((rule) => rule.if?.properties?.policy_bootstrap?.const === true);
+  const kindRule = readinessSchema.allOf.find((rule) => rule.if?.properties?.kind?.const === "US");
+  assert.deepEqual(bootstrapRule.else.required, ["controlling_change"]);
+  assert.equal(bootstrapRule.then.required?.includes("controlling_change") ?? false, false);
+  assert.equal(kindRule.else.required?.includes("controlling_change") ?? false, false);
+  assert.equal(readinessSchema.required.includes("controlling_change"), false);
+  assert.equal(validateAssessment(bootstrap, { feedbackRecords: [bootstrapDecision] }).decision, "ready");
   const us = normal();
   const change = normal({ work_id: "CHG-123", kind: "CHG", source: "docs/changes/CHG-123.md" });
-  assert.deepEqual(schemaValidationErrors(us), []);
-  assert.deepEqual(schemaValidationErrors(change), []);
+  assert.equal(validateAssessment(us, { feedbackRecords: [decisionFor(us)] }).decision, "ready");
+  assert.equal(validateAssessment(change, { feedbackRecords: [decisionFor(change)] }).decision, "ready");
   for (const artifact of [us, change]) {
     const missing = clone(artifact);
     delete missing.controlling_change;
-    assert.ok(schemaValidationErrors(missing).some((message) => message.includes("controlling_change")));
+    expectError("WR_MISSING_PROPERTY", "$.controlling_change", () => validateAssessment(missing, { feedbackRecords: [decisionFor(missing)] }));
   }
 });
 
@@ -211,8 +199,10 @@ test("approval guide preserves the external signer wire and provisioning contrac
     "repository CLI deliberately has no signing command",
     "does not inject it and is outside the",
     "immutable CHG-022 bootstrap path set",
-    "For rotation, add",
-    "the new public key under a new `key_id`",
+    "verification trust set is append-only",
+    "retain every previously trusted public key",
+    "historical verification even after",
+    "cutoff/revocation policy",
   ]) assert.ok(workReadinessGuide.includes(required), required);
 });
 

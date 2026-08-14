@@ -123,11 +123,20 @@ environment; GitHub variables and secrets are not injected automatically.
 The current `.github/workflows/ci.yml` does not inject it and is outside the
 immutable CHG-022 bootstrap path set. Therefore a separately approved CHG must
 provision the protected variable/workflow before the first normal signed work
-item; until then normal approval is intentionally blocked. For rotation, add
-the new public key under a new `key_id`, overlap old and new keys while active
-approvals still reference the old ID, then remove the old key only after those
-items terminate or are explicitly reapproved. Never commit a production-trusted
-private key or trust a committed test key or agent-authored field.
+item; until then normal approval is intentionally blocked.
+
+The verification trust set is append-only: add each rotated public key under a
+new `key_id`, and retain every previously trusted public key because immutable
+feedback and readiness history may still reference it. Old keys must remain
+available for historical verification even after their signing service stops
+using them. A compromised key cannot simply be removed without making history
+unverifiable. Handling compromise requires a separately approved
+cutoff/revocation policy that binds an exact key ID and repository commit or
+trusted time boundary, rejects signatures authorized after that cutoff, and
+defines reapproval/revalidation of affected work. That policy and CI public-key
+provisioning are explicit follow-up blockers, not capabilities delivered by
+CHG-022. Never commit a production-trusted private key or trust a committed
+test key or agent-authored field.
 
 Cross-item approval requires a digest-covered `controlling_change` naming one
 exact official CHG, `relationship: "readiness_governance"`, and a reason. The
