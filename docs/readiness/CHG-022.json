@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "fc425f9561885f77965b828d5daca080230214097ef27bd878cf9365b5ef22f7",
+  "work_id": "CHG-022",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Enforce work readiness and outcome-based partitioning",
+  "source": "docs/superpowers/specs/2026-08-13-work-readiness-and-partitioning-design.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The repository classifies every new US and CHG from a strict, outcome-based assessment and blocks oversized, unresolved, or unapproved work.",
+      "demo": "Model fixtures reject every hard-limit violation for user stories and functional or technical changes, validate vertical proposals, and accept only matching digest-bound approval.",
+      "primary": true
+    },
+    {
+      "id": "O2",
+      "statement": "Every implementation entry point enforces the same readiness decision, plan budget, checkpoint lifecycle, and completion calibration contract.",
+      "demo": "CLI, commit-hook, staged-change, Git-range, and repository-gate fixtures reject missing, stale, bypassed, or non-executable readiness while a compliant approved item passes.",
+      "primary": true
+    },
+    {
+      "id": "O3",
+      "statement": "Generated agent guidance preserves the readiness gate and Substrate receives structured sizing and estimate-versus-actual evidence.",
+      "demo": "Reconciliation tests repair all governed guidance from the immutable CHG-022 overlay, and schema-valid Nous feedback records approval provenance, verification, actuals, and recommendations.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "SC1",
+      "outcome_ids": ["O1"]
+    },
+    {
+      "id": "SC2",
+      "outcome_ids": ["O1", "O2"]
+    },
+    {
+      "id": "SC3",
+      "outcome_ids": ["O2"]
+    },
+    {
+      "id": "SC4",
+      "outcome_ids": ["O3"]
+    },
+    {
+      "id": "SC5",
+      "outcome_ids": ["O2"]
+    },
+    {
+      "id": "SC6",
+      "outcome_ids": ["O3"]
+    },
+    {
+      "id": "SC7",
+      "outcome_ids": ["O1", "O2", "O3"]
+    }
+  ],
+  "scopes": ["policy", "repository-tooling", "generator-guidance"],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 7,
+    "expected_changed_files": 21,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 30,
+    "implementation": 180,
+    "focused_verification": 60,
+    "review": 60,
+    "integration": 30,
+    "total": 360
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "The gate must activate while its own validator and enforcement entry points do not yet exist.",
+      "status": "resolved",
+      "estimate_impact_minutes": 30,
+      "resolution": "Use the digest-bound CHG-022 authorization as the sole immutable bootstrap; its exact path manifest permits only the files needed to activate and verify the gate. The impact is included in readiness and integration."
+    },
+    {
+      "id": "U2",
+      "statement": "Generated agent guidance cannot be made durable by an untracked local edit.",
+      "status": "resolved",
+      "estimate_impact_minutes": 30,
+      "resolution": "Carry the approved rule through an append-only four-file overlay plus the existing reconciler and its tests. The impact is included in implementation and review."
+    },
+    {
+      "id": "U3",
+      "statement": "Approval could be replayed after readiness scope changes if it were bound only to an evidence identifier.",
+      "status": "resolved",
+      "estimate_impact_minutes": 30,
+      "resolution": "Bind the root and approval to the canonical readiness payload SHA-256 and require the matching Nous decision to state that exact digest. The impact is included in implementation and focused verification."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "user",
+    "evidence": "CHG022-READINESS-V1-APPROVAL",
+    "payload_sha256": "fc425f9561885f77965b828d5daca080230214097ef27bd878cf9365b5ef22f7"
+  },
+  "actuals": null,
+  "checkpoints": [],
+  "policy_bootstrap": true,
+  "bootstrap_exemption_rationale": "The gate cannot use its not-yet-existing validator to partition and approve its own activation. CHG-022 therefore has no official children despite its honest 360-minute, three-outcome, 21-file assessment. This immutable one-time authorization permits only the approved activation manifest; it is not normal two-hour compliance, cannot be copied, and does not authorize later expansion.",
+  "bootstrap_authorization": {
+    "work_id": "CHG-022",
+    "design_commit": "8743cbb3b8ed57ddba9b1649587439d8d4d8c920",
+    "plan_commit": "bdc0b62166c91a6e39575f163d6141c56dca4a2a",
+    "source": "docs/superpowers/specs/2026-08-13-work-readiness-and-partitioning-design.md",
+    "allowed_paths": [
+      "docs/dev-guide/work-readiness.schema.json",
+      "docs/dev-guide/WORK_READINESS.md",
+      "docs/readiness/README.md",
+      "docs/readiness/CHG-022.json",
+      ".nous-feedback.jsonl",
+      "scripts/work-readiness/model.mjs",
+      "scripts/test-work-readiness.mjs",
+      "scripts/work-readiness/git.mjs",
+      "scripts/work-readiness.mjs",
+      "package.json",
+      ".githooks/commit-msg",
+      "docs/dev-guide/COMMITS.md",
+      "infra/scripts/overrides/CHG-022/16f72c9/manifest.json",
+      "infra/scripts/overrides/CHG-022/16f72c9/AGENTS.md",
+      "infra/scripts/overrides/CHG-022/16f72c9/CLAUDE.md",
+      "infra/scripts/overrides/CHG-022/16f72c9/docs/dev-guide/DEFINITION_OF_DONE.md",
+      "infra/scripts/reconcile-sprint1-docs.py",
+      "infra/scripts/tests/test_reconcile_sprint1_docs.py",
+      "AGENTS.md",
+      "CLAUDE.md",
+      "docs/dev-guide/DEFINITION_OF_DONE.md"
+    ]
+  }
+}

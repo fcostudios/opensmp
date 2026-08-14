@@ -1,0 +1,896 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ledger.local/schemas/work-readiness-v1.json",
+  "title": "Ledger work readiness assessment",
+  "description": "Canonical readiness contract for US-* and CHG-* work items.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "readiness_payload_sha256",
+    "work_id",
+    "kind",
+    "work_type",
+    "title",
+    "source",
+    "outcomes",
+    "acceptance_criteria",
+    "scopes",
+    "signals",
+    "estimate_minutes",
+    "uncertainties",
+    "dependencies",
+    "decision",
+    "partitions",
+    "approval",
+    "actuals",
+    "checkpoints",
+    "policy_bootstrap",
+    "bootstrap_exemption_rationale",
+    "bootstrap_authorization"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "readiness_payload_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "work_id": {
+      "$ref": "#/$defs/work_id"
+    },
+    "kind": {
+      "enum": ["US", "CHG"]
+    },
+    "work_type": {
+      "enum": ["functional", "technical", "mixed"]
+    },
+    "title": {
+      "$ref": "#/$defs/nonempty_string"
+    },
+    "source": {
+      "$ref": "#/$defs/nonempty_string"
+    },
+    "outcomes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/outcome"
+      }
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/acceptance_criterion"
+      }
+    },
+    "scopes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/nonempty_string"
+      }
+    },
+    "signals": {
+      "$ref": "#/$defs/signals"
+    },
+    "estimate_minutes": {
+      "$ref": "#/$defs/estimate_minutes"
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/uncertainty"
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/dependency"
+      }
+    },
+    "decision": {
+      "enum": ["ready", "partition_required", "blocked"]
+    },
+    "partitions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/partition"
+      }
+    },
+    "approval": {
+      "$ref": "#/$defs/approval"
+    },
+    "actuals": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/actuals"
+        }
+      ]
+    },
+    "checkpoints": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/checkpoint"
+      }
+    },
+    "policy_bootstrap": {
+      "type": "boolean"
+    },
+    "bootstrap_exemption_rationale": {
+      "$ref": "#/$defs/nullable_string"
+    },
+    "bootstrap_authorization": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/bootstrap_authorization"
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "US"
+          }
+        },
+        "required": ["kind"]
+      },
+      "then": {
+        "properties": {
+          "work_id": {
+            "pattern": "^US-[0-9]{3,}$"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "work_id": {
+            "pattern": "^CHG-[0-9]{3,}$"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["policy_bootstrap"],
+        "properties": {
+          "policy_bootstrap": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "work_id": {
+            "const": "CHG-022"
+          },
+          "kind": {
+            "const": "CHG"
+          },
+          "work_type": {
+            "const": "technical"
+          },
+          "title": {
+            "const": "Enforce work readiness and outcome-based partitioning"
+          },
+          "source": {
+            "const": "docs/superpowers/specs/2026-08-13-work-readiness-and-partitioning-design.md"
+          },
+          "scopes": {
+            "const": ["policy", "repository-tooling", "generator-guidance"]
+          },
+          "estimate_minutes": {
+            "const": {
+              "readiness": 30,
+              "implementation": 180,
+              "focused_verification": 60,
+              "review": 60,
+              "integration": 30,
+              "total": 360
+            }
+          },
+          "decision": {
+            "const": "ready"
+          },
+          "readiness_payload_sha256": {
+            "const": "fc425f9561885f77965b828d5daca080230214097ef27bd878cf9365b5ef22f7"
+          },
+          "approval": {
+            "properties": {
+              "status": {
+                "const": "approved"
+              },
+              "evidence": {
+                "const": "CHG022-READINESS-V1-APPROVAL"
+              },
+              "payload_sha256": {
+                "const": "fc425f9561885f77965b828d5daca080230214097ef27bd878cf9365b5ef22f7"
+              }
+            }
+          },
+          "bootstrap_exemption_rationale": {
+            "$ref": "#/$defs/nonempty_string"
+          },
+          "bootstrap_authorization": {
+            "const": {
+              "work_id": "CHG-022",
+              "design_commit": "8743cbb3b8ed57ddba9b1649587439d8d4d8c920",
+              "plan_commit": "bdc0b62166c91a6e39575f163d6141c56dca4a2a",
+              "source": "docs/superpowers/specs/2026-08-13-work-readiness-and-partitioning-design.md",
+              "allowed_paths": [
+                "docs/dev-guide/work-readiness.schema.json",
+                "docs/dev-guide/WORK_READINESS.md",
+                "docs/readiness/README.md",
+                "docs/readiness/CHG-022.json",
+                ".nous-feedback.jsonl",
+                "scripts/work-readiness/model.mjs",
+                "scripts/test-work-readiness.mjs",
+                "scripts/work-readiness/git.mjs",
+                "scripts/work-readiness.mjs",
+                "package.json",
+                ".githooks/commit-msg",
+                "docs/dev-guide/COMMITS.md",
+                "infra/scripts/overrides/CHG-022/16f72c9/manifest.json",
+                "infra/scripts/overrides/CHG-022/16f72c9/AGENTS.md",
+                "infra/scripts/overrides/CHG-022/16f72c9/CLAUDE.md",
+                "infra/scripts/overrides/CHG-022/16f72c9/docs/dev-guide/DEFINITION_OF_DONE.md",
+                "infra/scripts/reconcile-sprint1-docs.py",
+                "infra/scripts/tests/test_reconcile_sprint1_docs.py",
+                "AGENTS.md",
+                "CLAUDE.md",
+                "docs/dev-guide/DEFINITION_OF_DONE.md"
+              ]
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "bootstrap_exemption_rationale": {
+            "type": "null"
+          },
+          "bootstrap_authorization": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "allOf": [
+          {
+            "properties": {
+              "decision": {
+                "const": "ready"
+              }
+            },
+            "required": ["decision"]
+          },
+          {
+            "not": {
+              "properties": {
+                "policy_bootstrap": {
+                  "const": true
+                }
+              },
+              "required": ["policy_bootstrap"]
+            }
+          }
+        ]
+      },
+      "then": {
+        "properties": {
+          "work_type": {
+            "enum": ["functional", "technical"]
+          },
+          "outcomes": {
+            "contains": {
+              "type": "object",
+              "required": ["primary"],
+              "properties": {
+                "primary": {
+                  "const": true
+                }
+              }
+            },
+            "minContains": 1,
+            "maxContains": 1
+          },
+          "scopes": {
+            "maxItems": 3
+          },
+          "signals": {
+            "properties": {
+              "routes_or_screens": {
+                "maximum": 2
+              },
+              "acceptance_flows": {
+                "maximum": 3
+              },
+              "expected_changed_files": {
+                "maximum": 20
+              },
+              "lifecycle_or_concurrency_boundaries": {
+                "maximum": 1
+              }
+            }
+          },
+          "estimate_minutes": {
+            "properties": {
+              "total": {
+                "maximum": 120
+              }
+            }
+          },
+          "partitions": {
+            "maxItems": 0
+          },
+          "approval": {
+            "properties": {
+              "status": {
+                "const": "approved"
+              },
+              "approved_by": {
+                "$ref": "#/$defs/nonempty_string"
+              },
+              "evidence": {
+                "$ref": "#/$defs/nonempty_string"
+              }
+            }
+          }
+        },
+        "allOf": [
+          {
+            "not": {
+              "properties": {
+                "work_type": {
+                  "const": "functional"
+                },
+                "signals": {
+                  "properties": {
+                    "tooling_change": {
+                      "const": true
+                    }
+                  },
+                  "required": ["tooling_change"]
+                }
+              },
+              "required": ["work_type", "signals"]
+            }
+          },
+          {
+            "not": {
+              "properties": {
+                "work_type": {
+                  "const": "functional"
+                },
+                "scopes": {
+                  "contains": {
+                    "const": "tooling"
+                  }
+                }
+              },
+              "required": ["work_type", "scopes"]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "const": "partition_required"
+          }
+        },
+        "required": ["decision"]
+      },
+      "then": {
+        "properties": {
+          "partitions": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "nonempty_string": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "work_id": {
+      "type": "string",
+      "pattern": "^(US|CHG)-[0-9]{3,}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "nonnegative_integer": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "nullable_nonnegative_integer": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "nullable_integer": {
+      "type": ["integer", "null"]
+    },
+    "nullable_string": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "statement", "demo", "primary"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nonempty_string"
+        },
+        "statement": {
+          "$ref": "#/$defs/nonempty_string"
+        },
+        "demo": {
+          "$ref": "#/$defs/nonempty_string"
+        },
+        "primary": {
+          "type": "boolean"
+        }
+      }
+    },
+    "acceptance_criterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "outcome_ids"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nonempty_string"
+        },
+        "outcome_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonempty_string"
+          }
+        }
+      }
+    },
+    "signals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "routes_or_screens",
+        "acceptance_flows",
+        "expected_changed_files",
+        "expected_mutation_shards",
+        "lifecycle_or_concurrency_boundaries",
+        "external_integrations",
+        "schema_or_migration_changes",
+        "authorization_or_audit_boundaries",
+        "tooling_change"
+      ],
+      "properties": {
+        "routes_or_screens": {
+          "$ref": "#/$defs/nonnegative_integer"
+        },
+        "acceptance_flows": {
+          "$ref": "#/$defs/nonnegative_integer"
+        },
+        "expected_changed_files": {
+          "$ref": "#/$defs/nonnegative_integer"
+        },
+        "expected_mutation_shards": {
+          "$ref": "#/$defs/nonnegative_integer"
+        },
+        "lifecycle_or_concurrency_boundaries": {
+          "$ref": "#/$defs/nonnegative_integer"
+        },
+        "external_integrations": {
+          "$ref": "#/$defs/nonnegative_integer"
+        },
+        "schema_or_migration_changes": {
+          "$ref": "#/$defs/nonnegative_integer"
+        },
+        "authorization_or_audit_boundaries": {
+          "$ref": "#/$defs/nonnegative_integer"
+        },
+        "tooling_change": {
+          "type": "boolean"
+        }
+      }
+    },
+    "estimate_minutes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "readiness",
+        "implementation",
+        "focused_verification",
+        "review",
+        "integration",
+        "total"
+      ],
+      "properties": {
+        "readiness": {
+          "$ref": "#/$defs/nonnegative_integer"
+        },
+        "implementation": {
+          "$ref": "#/$defs/nonnegative_integer"
+        },
+        "focused_verification": {
+          "$ref": "#/$defs/nonnegative_integer"
+        },
+        "review": {
+          "$ref": "#/$defs/nonnegative_integer"
+        },
+        "integration": {
+          "$ref": "#/$defs/nonnegative_integer"
+        },
+        "total": {
+          "$ref": "#/$defs/nonnegative_integer"
+        }
+      }
+    },
+    "uncertainty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "statement",
+        "status",
+        "estimate_impact_minutes",
+        "resolution"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nonempty_string"
+        },
+        "statement": {
+          "$ref": "#/$defs/nonempty_string"
+        },
+        "status": {
+          "enum": ["resolved", "budgeted", "unresolved"]
+        },
+        "estimate_impact_minutes": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "resolution": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["work_id", "type", "reason"],
+      "properties": {
+        "work_id": {
+          "$ref": "#/$defs/work_id"
+        },
+        "type": {
+          "enum": ["blocks", "blocked_by"]
+        },
+        "reason": {
+          "$ref": "#/$defs/nonempty_string"
+        }
+      }
+    },
+    "partition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposal_key",
+        "work_id",
+        "title",
+        "outcome",
+        "demo",
+        "acceptance_criteria",
+        "work_type",
+        "scopes",
+        "signals",
+        "uncertainties",
+        "estimate_minutes",
+        "depends_on",
+        "cross_cutting_rationale"
+      ],
+      "properties": {
+        "proposal_key": {
+          "$ref": "#/$defs/nonempty_string"
+        },
+        "work_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/work_id"
+            }
+          ]
+        },
+        "title": {
+          "$ref": "#/$defs/nonempty_string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/nonempty_string"
+        },
+        "demo": {
+          "$ref": "#/$defs/nonempty_string"
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonempty_string"
+          }
+        },
+        "work_type": {
+          "enum": ["functional", "technical"]
+        },
+        "scopes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonempty_string"
+          }
+        },
+        "signals": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/signals"
+            },
+            {
+              "properties": {
+                "routes_or_screens": {
+                  "maximum": 2
+                },
+                "acceptance_flows": {
+                  "maximum": 3
+                },
+                "expected_changed_files": {
+                  "maximum": 20
+                },
+                "lifecycle_or_concurrency_boundaries": {
+                  "maximum": 1
+                }
+              }
+            }
+          ]
+        },
+        "uncertainties": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/uncertainty"
+          }
+        },
+        "estimate_minutes": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/estimate_minutes"
+            },
+            {
+              "properties": {
+                "total": {
+                  "maximum": 120
+                }
+              }
+            }
+          ]
+        },
+        "depends_on": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonempty_string"
+          }
+        },
+        "cross_cutting_rationale": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      },
+      "allOf": [
+        {
+          "not": {
+            "properties": {
+              "work_type": {
+                "const": "functional"
+              },
+              "signals": {
+                "properties": {
+                  "tooling_change": {
+                    "const": true
+                  }
+                },
+                "required": ["tooling_change"]
+              }
+            },
+            "required": ["work_type", "signals"]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "work_type": {
+                "const": "functional"
+              },
+              "scopes": {
+                "contains": {
+                  "const": "tooling"
+                }
+              }
+            },
+            "required": ["work_type", "scopes"]
+          }
+        }
+      ]
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "approved_by", "evidence", "payload_sha256"],
+      "properties": {
+        "status": {
+          "enum": ["pending", "approved", "rejected"]
+        },
+        "approved_by": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "evidence": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "payload_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "elapsed_minutes",
+        "status",
+        "implementation_complete",
+        "evidence"
+      ],
+      "properties": {
+        "elapsed_minutes": {
+          "$ref": "#/$defs/nonnegative_integer"
+        },
+        "status": {
+          "enum": ["on_track", "variance", "partition_required"]
+        },
+        "implementation_complete": {
+          "type": "boolean"
+        },
+        "evidence": {
+          "$ref": "#/$defs/nonempty_string"
+        }
+      }
+    },
+    "bootstrap_authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "work_id",
+        "design_commit",
+        "plan_commit",
+        "source",
+        "allowed_paths"
+      ],
+      "properties": {
+        "work_id": {
+          "const": "CHG-022"
+        },
+        "design_commit": {
+          "const": "8743cbb3b8ed57ddba9b1649587439d8d4d8c920"
+        },
+        "plan_commit": {
+          "const": "bdc0b62166c91a6e39575f163d6141c56dca4a2a"
+        },
+        "source": {
+          "const": "docs/superpowers/specs/2026-08-13-work-readiness-and-partitioning-design.md"
+        },
+        "allowed_paths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonempty_string"
+          }
+        }
+      }
+    },
+    "actual_phase_minutes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "readiness",
+        "implementation",
+        "focused_verification",
+        "review",
+        "integration"
+      ],
+      "properties": {
+        "readiness": {
+          "$ref": "#/$defs/nullable_nonnegative_integer"
+        },
+        "implementation": {
+          "$ref": "#/$defs/nullable_nonnegative_integer"
+        },
+        "focused_verification": {
+          "$ref": "#/$defs/nullable_nonnegative_integer"
+        },
+        "review": {
+          "$ref": "#/$defs/nullable_nonnegative_integer"
+        },
+        "integration": {
+          "$ref": "#/$defs/nullable_nonnegative_integer"
+        }
+      }
+    },
+    "actuals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase_minutes",
+        "total",
+        "changed_files",
+        "commits",
+        "review_fix_loops",
+        "cold_mutation_attempts",
+        "mutation_invalidations",
+        "estimate_variance_minutes",
+        "root_cause"
+      ],
+      "properties": {
+        "phase_minutes": {
+          "$ref": "#/$defs/actual_phase_minutes"
+        },
+        "total": {
+          "$ref": "#/$defs/nullable_nonnegative_integer"
+        },
+        "changed_files": {
+          "$ref": "#/$defs/nullable_nonnegative_integer"
+        },
+        "commits": {
+          "$ref": "#/$defs/nullable_nonnegative_integer"
+        },
+        "review_fix_loops": {
+          "$ref": "#/$defs/nullable_nonnegative_integer"
+        },
+        "cold_mutation_attempts": {
+          "$ref": "#/$defs/nullable_nonnegative_integer"
+        },
+        "mutation_invalidations": {
+          "$ref": "#/$defs/nullable_nonnegative_integer"
+        },
+        "estimate_variance_minutes": {
+          "$ref": "#/$defs/nullable_integer"
+        },
+        "root_cause": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      }
+    }
+  }
+}
