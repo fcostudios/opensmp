@@ -10,7 +10,15 @@
 
 **Work item:** `CHG-022`
 
-**Readiness authority:** Policy-bootstrap approval `CHG022-READINESS-APPROVAL` in `.nous-feedback.jsonl`. This one-time bootstrap creates the gate itself; it is not an exemption available to later US or CHG work.
+**Readiness assessment:** `docs/readiness/CHG-022.json`
+
+**Approved estimate:** 360 minutes (one-time policy activation bootstrap; this
+does not satisfy the normal 120-minute execution limit)
+
+**Intended readiness evidence:** `CHG022-READINESS-V2-APPROVAL` in
+`.nous-feedback.jsonl`. This digest-bound, exact-path bootstrap creates the gate
+itself and expires at CHG-022's first valid terminal `done`; it is not an
+exemption available to later US or CHG work.
 
 ---
 
@@ -27,8 +35,12 @@
 | `scripts/work-readiness.mjs` | CLI orchestration and stable human/JSON output |
 | `scripts/test-work-readiness.mjs` | Real-file and temporary-Git-repository contract tests |
 | `.githooks/commit-msg` | Local implementation-commit blocking gate |
+| `docs/dev-guide/COMMITS.md` | Commit-gate workflow and recovery guidance |
 | `package.json` | Public readiness commands and repository test integration |
-| `infra/scripts/overrides/CHG-022/16f72c9/**` | Append-only desired guidance derived from the current generated package |
+| `infra/scripts/overrides/CHG-022/16f72c9/manifest.json` | Exact append-only overlay manifest |
+| `infra/scripts/overrides/CHG-022/16f72c9/AGENTS.md` | Desired agent guidance |
+| `infra/scripts/overrides/CHG-022/16f72c9/CLAUDE.md` | Desired project guidance |
+| `infra/scripts/overrides/CHG-022/16f72c9/docs/dev-guide/DEFINITION_OF_DONE.md` | Desired completion guidance |
 | `infra/scripts/reconcile-sprint1-docs.py` | Ordered CHG-022 overlay application and fail-closed hash checks |
 | `infra/scripts/tests/test_reconcile_sprint1_docs.py` | Overlay repair, check, and tamper regressions |
 | `AGENTS.md`, `CLAUDE.md` | Short mandatory agent entry-point contract |
@@ -58,19 +70,38 @@ Define these required top-level keys with `additionalProperties: false`:
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema_version", "work_id", "kind", "title", "source",
+    "schema_version", "readiness_payload_sha256", "work_id", "kind",
+    "work_type", "title", "source",
     "outcomes", "acceptance_criteria", "scopes", "signals",
     "estimate_minutes", "uncertainties", "dependencies", "decision",
-    "partitions", "approval", "actuals"
+    "partitions", "approval", "actuals", "checkpoints", "policy_bootstrap",
+    "bootstrap_exemption_rationale", "bootstrap_authorization"
   ]
 }
 ```
 
 Define closed objects for outcomes, AC mappings, signals, phase estimates,
-uncertainties, dependencies, partitions, approval, and actuals. Work IDs match
-`^(US|CHG)-[0-9]{3,}$`; official child IDs use the same expression. Phase counts
-are non-negative integers. Decisions are `ready`, `partition_required`, or
+uncertainties, dependencies, partitions, approval, checkpoints, bootstrap
+authorization, and actuals. Work IDs match `^(US|CHG)-[0-9]{3,}$`. Parent and
+child `work_type` values are `functional`, `technical`, or `mixed`, with mixed
+work and functional/tooling combinations non-executable. Phase/count values are
+non-negative integers. Decisions are `ready`, `partition_required`, or
 `blocked`.
+
+Each partition child carries a local `proposal_key`, nullable official
+`work_id`, title, one outcome/demo, inherited AC IDs, `work_type`, scopes, full
+signals, uncertainties, a complete phase estimate totaling at most 120 minutes,
+proposal-key dependencies, and nullable cross-cutting rationale. A null official
+ID is valid only for a non-executable `partition_required` or `blocked` parent;
+execution requires a Nous-issued ID and a separate approved child artifact.
+
+Define canonical approval hashing: recursively sort object keys
+lexicographically, preserve array order, serialize with `JSON.stringify` as
+UTF-8, and hash SHA-256 after excluding top-level
+`readiness_payload_sha256`, `approval`, `actuals`, and `checkpoints`.
+`approval.payload_sha256`, the root digest, and decision evidence must match.
+Const-bind CHG-022's exact design/plan provenance, source, expiry event, and
+ordered 21-path bootstrap authorization.
 
 - [ ] **Step 2: Write the canonical guide and artifact README**
 
@@ -90,33 +121,53 @@ that readiness artifacts never create official IDs.
 
 - [ ] **Step 3: Add CHG-022's explicit bootstrap assessment**
 
-Record CHG-022 as the one policy-activation bootstrap:
+Record CHG-022 honestly as the one policy-activation bootstrap. The complete
+artifact uses `kind: "CHG"`, `work_type: "technical"`, three accurately
+described primary operational outcomes, all seven mapped acceptance flows, 21
+expected files, and phase minutes `30 + 180 + 60 + 60 + 30 = 360`. It sets
+`decision: "ready"` only through `policy_bootstrap: true`, uses evidence
+`CHG022-READINESS-V2-APPROVAL`, and stores the same recomputed canonical digest
+in `readiness_payload_sha256` and `approval.payload_sha256`. Initialize
+`actuals` as `null` and `checkpoints` as `[]` until later lifecycle tasks.
 
-```json
-{
-  "schema_version": 1,
-  "work_id": "CHG-022",
-  "kind": "CHG",
-  "title": "Enforce work readiness and outcome-based partitioning",
-  "source": "docs/superpowers/specs/2026-08-13-work-readiness-and-partitioning-design.md",
-  "decision": "ready",
-  "policy_bootstrap": true,
-  "approval": {
-    "status": "approved",
-    "approved_by": "user",
-    "evidence": "CHG022-READINESS-APPROVAL"
-  }
-}
-```
+The closed `bootstrap_authorization` binds `work_id: "CHG-022"`, design commit
+`8743cbb3b8ed57ddba9b1649587439d8d4d8c920`, the 40-character SHA of this
+committed authority refresh, the exact design source path, and
+`expires_on_event: "done"`. Its ordered `allowed_paths` is exactly:
 
-Include the complete fields required by the schema. The assessment documents
-that the bootstrap exemption is non-repeatable and does not grandfather later
-CHG-022 functional expansion. Initialize actuals as `null` until Task 8.
+1. `docs/dev-guide/work-readiness.schema.json`
+2. `docs/dev-guide/WORK_READINESS.md`
+3. `docs/readiness/README.md`
+4. `docs/readiness/CHG-022.json`
+5. `.nous-feedback.jsonl`
+6. `scripts/work-readiness/model.mjs`
+7. `scripts/test-work-readiness.mjs`
+8. `scripts/work-readiness/git.mjs`
+9. `scripts/work-readiness.mjs`
+10. `package.json`
+11. `.githooks/commit-msg`
+12. `docs/dev-guide/COMMITS.md`
+13. `infra/scripts/overrides/CHG-022/16f72c9/manifest.json`
+14. `infra/scripts/overrides/CHG-022/16f72c9/AGENTS.md`
+15. `infra/scripts/overrides/CHG-022/16f72c9/CLAUDE.md`
+16. `infra/scripts/overrides/CHG-022/16f72c9/docs/dev-guide/DEFINITION_OF_DONE.md`
+17. `infra/scripts/reconcile-sprint1-docs.py`
+18. `infra/scripts/tests/test_reconcile_sprint1_docs.py`
+19. `AGENTS.md`
+20. `CLAUDE.md`
+21. `docs/dev-guide/DEFINITION_OF_DONE.md`
+
+This assessment does not pretend to satisfy the normal outcome, flow, file, or
+two-hour limits and has no invented child IDs. Its exact, non-repeatable
+authorization exists only because the gate cannot gate its own activation.
 
 - [ ] **Step 4: Append the approval decision if it is not already present**
 
-Require exactly one decision with ID `CHG022-READINESS-APPROVAL`; do not append
-a duplicate when the design commit already contains it.
+Append exactly one new decision with ID `CHG022-READINESS-V2-APPROVAL`. It must
+state `ready`, the exact canonical digest, the full design and refreshed-plan
+commits, the exact ordered allowed paths, and the interval ending at the first
+valid terminal `done`. Preserve all older approval decisions append-only; they
+cannot approve the refreshed payload.
 
 - [ ] **Step 5: Validate and commit the policy artifacts**
 
@@ -124,7 +175,7 @@ a duplicate when the design commit already contains it.
 rtk git add docs/dev-guide/work-readiness.schema.json \
   docs/dev-guide/WORK_READINESS.md docs/readiness \
   .nous-feedback.jsonl
-rtk git commit -m "docs(CHG-022): define work readiness contract"
+rtk git commit -m "docs(CHG-022): bind one-time readiness bootstrap"
 ```
 
 ### Task 2: Implement fail-closed assessment and partition validation
@@ -144,10 +195,12 @@ expectFailure(ready({ outcomes: [outcome("O1"), outcome("O2")] }), "WR_MULTIPLE_
 expectFailure(ready({ scopes: ["contracts", "db", "server", "ui"] }), "WR_TOO_MANY_SCOPES");
 expectFailure(ready({ signals: { expected_changed_files: 21 } }), "WR_TOO_MANY_FILES");
 expectFailure(ready({ signals: { tooling_change: true }, scopes: ["ui", "tooling"] }), "WR_MIXED_FUNCTIONAL_TOOLING");
-expectFailure(partitioned({ partitions: [child("US-123"), child("US-123")] }), "WR_DUPLICATE_CHILD");
-expectFailure(partitioned({ partitions: [child("US-123", ["AC1"])] }, ["AC1", "AC2"]), "WR_ORPHAN_AC");
-expectFailure(partitioned({ dependencies: [["US-123", "US-124"], ["US-124", "US-123"]] }), "WR_DEPENDENCY_CYCLE");
-expectFailure(partitioned({ partitions: [child("US-123-P1")] }), "WR_UNOFFICIAL_CHILD_ID");
+expectFailure(ready({ approval: { payload_sha256: staleDigest } }), "WR_APPROVAL_DIGEST_MISMATCH");
+expectFailure(partitioned({ partitions: [child("P1"), child("P1")] }), "WR_DUPLICATE_CHILD");
+expectFailure(partitioned({ partitions: [child("P1", ["AC1"])] }, ["AC1", "AC2"]), "WR_ORPHAN_AC");
+expectFailure(partitioned({ dependencies: [["P1", "P2"], ["P2", "P1"]] }), "WR_DEPENDENCY_CYCLE");
+expectFailure(executableChild({ proposal_key: "P1", work_id: null }), "WR_UNOFFICIAL_CHILD_ID");
+expectFailure(bootstrapAfterFirstDone(), "WR_BOOTSTRAP_EXPIRED");
 ```
 
 Add a functional `CHG-*` fixture and prove it receives the same outcome and
@@ -193,9 +246,12 @@ estimate, and both implementation and verification scopes.
 - [ ] **Step 5: Implement approval and actuals lifecycle checks**
 
 Approval passes only when `.nous-feedback.jsonl` has one earlier matching
-`decision` for the same work item or controlling CHG. Terminal `done` requires
-non-null actuals with phase minutes, changed files, commits, review loops, cold
-attempts, invalidations, variance, and root cause.
+`decision` for the same work item or controlling CHG and its recomputed payload
+digest matches the root, approval object, and decision text. The CHG-022
+bootstrap interval begins at its matching V2 decision and expires at the first
+valid terminal `done`; any reuse after that event fails. Terminal `done`
+requires non-null actuals with phase minutes, changed files, commits, review
+loops, cold attempts, invalidations, variance, and root cause.
 
 - [ ] **Step 6: Run focused tests**
 
@@ -231,6 +287,9 @@ Do not mock Git. Test:
 - a test or executable-tooling file is implementation-class;
 - a generated sprint-plan edit is rejected;
 - an already-completed historical story is grandfathered;
+- a changed readiness payload cannot replay approval for an older digest;
+- a CHG-022 implementation commit after the first valid terminal `done` cannot
+  reuse the bootstrap authorization;
 - a missing or ambiguous base ref fails closed;
 - paths containing `..`, symlinks escaping the repository, and NUL input fail.
 
