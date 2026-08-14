@@ -2,7 +2,7 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { constants as fsConstants, existsSync, fsyncSync as nodeFsyncSync, mkdtempSync, mkdirSync, openSync as nodeOpenSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, constants as fsConstants, existsSync, fsyncSync as nodeFsyncSync, mkdtempSync, mkdirSync, openSync as nodeOpenSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -39,6 +39,7 @@ const bootstrapDecision = {
   reason: "Policy activation",
 };
 const cliPath = new URL("./work-readiness.mjs", import.meta.url).pathname;
+const sourceRoot = new URL("../", import.meta.url);
 
 const clone = (value) => structuredClone(value);
 
@@ -143,7 +144,9 @@ test("canonical payload recursively sorts objects, preserves arrays, and exclude
 
 test("accepts an approved ready US", () => {
   const value = normal();
-  assert.deepEqual(validateAssessment(value, { feedbackRecords: [decisionFor(value)] }), { decision: "ready" });
+  assert.deepEqual(validateAssessment(value, { feedbackRecords: [decisionFor(value)] }), {
+    decision: "ready", active: true, complete: false, inactiveReason: null,
+  });
   assert.equal(classifyAssessment(value), "ready");
 });
 
@@ -460,6 +463,59 @@ test("reapproval permits only execution covered by a prior digest-bound ready de
   ]));
 });
 
+test("selected approval becomes inactive after a blocker or 90-minute partition checkpoint", () => {
+  const value = normal();
+  for (const revocation of [
+    { story: value.work_id, event: "blocked", reason: "Dependency reopened" },
+    { story: value.work_id, event: "blocker", reason: "Scope is unresolved" },
+    { story: value.work_id, event: "checkpoint", elapsed_minutes: 90, status: "partition_required" },
+    { story: value.work_id, event: "checkpoint", elapsed_minutes: 90, status: "blocked" },
+  ]) {
+    expectError("WR_APPROVAL_INACTIVE", "$.approval.evidence", () => validateApproval(value, [decisionFor(value), revocation]));
+  }
+});
+
+test("selected approval becomes inactive after raw, deferred, and projected terminals", () => {
+  const value = normal();
+  for (const terminal of ["done", "done_with_deferral", "done_with_external_deferral"]) {
+    assert.deepEqual(validateApproval(value, [
+      decisionFor(value),
+      { story: value.work_id, event: terminal },
+    ]), {
+      evidence: value.approval.evidence,
+      payloadSha256: value.readiness_payload_sha256,
+      active: false,
+      inactiveReason: "terminal",
+    });
+  }
+  const changeDecision = { story: "CHG-099", event: "decision", id: "CHG099-TERMINAL", text: "Repair terminal", reason: "Review" };
+  assert.equal(validateApproval(value, [
+    decisionFor(value),
+    changeDecision,
+    { story: value.work_id, event: "done" },
+    {
+      story: value.work_id, event: "evidence_superseded", ref: "US123-DONE-ACTIVE",
+      target: { story: value.work_id, event: "done" }, reason: "Revalidate terminal",
+    },
+    { story: value.work_id, event: "revalidated", ref: "US123-DONE-ACTIVE", change: "CHG-099", as_event: "done" },
+  ]).active, false);
+});
+
+test("later readiness decision stales selected evidence and explicit fresh reapproval restores it", () => {
+  const value = normal();
+  const selected = decisionFor(value);
+  const later = decisionFor(value, { id: "US123-READY-V2", reason: "Fresh review" });
+  expectError("WR_APPROVAL_INACTIVE", "$.approval.evidence", () => validateApproval(value, [selected, later]));
+
+  const refreshed = clone(value);
+  refreshed.approval.evidence = later.id;
+  assert.equal(validateApproval(refreshed, [
+    selected,
+    { story: value.work_id, event: "blocker", reason: "Scope reopened" },
+    later,
+  ]).active, true);
+});
+
 test("normal terminal events close prior authorization", () => {
   const value = normal();
   const priorReady = {
@@ -621,15 +677,22 @@ test("bootstrap approval explicitly binds provenance, ordered paths, and first-d
   }
 });
 
-test("bootstrap cannot be reused after the first done", () => {
+test("completed bootstrap remains valid but inactive and requires correct actuals", () => {
   const records = [bootstrapDecision, { story: "CHG-022", event: "done" }];
-  expectError("WR_BOOTSTRAP_EXPIRED", "$.bootstrap_authorization.expires_on_event", () => validateAssessment(bootstrap, { feedbackRecords: records }));
+  expectError("WR_ACTUALS_REQUIRED", "$.actuals", () => validateAssessment(bootstrap, { feedbackRecords: records }));
+  const value = completedBootstrap();
+  assert.deepEqual(validateAssessment(value, { feedbackRecords: records }), {
+    decision: "ready", active: false, complete: true, inactiveReason: "terminal",
+  });
+  value.actuals.total += 1;
+  expectError("WR_ACTUALS_TOTAL_MISMATCH", "$.actuals.total", () => validateAssessment(value, { feedbackRecords: records }));
 });
 
-test("bootstrap expires on canonical deferral and projected terminal events", () => {
-  expectError("WR_BOOTSTRAP_EXPIRED", "$.bootstrap_authorization.expires_on_event", () => validateAssessment(bootstrap, {
+test("bootstrap completion recognizes canonical deferral and projected terminal events", () => {
+  const value = completedBootstrap();
+  assert.equal(validateAssessment(value, {
     feedbackRecords: [bootstrapDecision, { story: "CHG-022", event: "done_with_deferral" }],
-  }));
+  }).active, false);
 
   const changeDecision = { story: "CHG-099", event: "decision", id: "CHG099-REPAIR", text: "Repair terminal evidence", reason: "Review" };
   const supersession = {
@@ -646,9 +709,9 @@ test("bootstrap expires on canonical deferral and projected terminal events", ()
     change: "CHG-099",
     as_event: "done",
   };
-  expectError("WR_BOOTSTRAP_EXPIRED", "$.bootstrap_authorization.expires_on_event", () => validateAssessment(bootstrap, {
+  assert.equal(validateAssessment(value, {
     feedbackRecords: [bootstrapDecision, changeDecision, { story: "CHG-022", event: "done" }, supersession, projectedDone],
-  }));
+  }).complete, true);
 });
 
 test("bootstrap rejects terminal evidence before V2 approval", () => {
@@ -749,6 +812,22 @@ function completed() {
   return value;
 }
 
+function completedBootstrap() {
+  const value = clone(bootstrap);
+  value.actuals = {
+    phase_minutes: { readiness: 30, implementation: 180, focused_verification: 60, review: 60, integration: 30 },
+    total: 360,
+    changed_files: 5,
+    commits: 1,
+    review_fix_loops: 1,
+    cold_mutation_attempts: 1,
+    mutation_invalidations: 0,
+    estimate_variance_minutes: 0,
+    root_cause: "Completed the authorized policy bootstrap within its recorded estimate.",
+  };
+  return value;
+}
+
 test("actuals may be null before done but are required and recomputed at done", () => {
   const value = normal();
   assert.deepEqual(validateCompletionActuals(value, []), { complete: false });
@@ -759,6 +838,20 @@ test("actuals may be null before done but are required and recomputed at done", 
   const missing = completed();
   missing.actuals.root_cause = null;
   expectError("WR_ACTUALS_INCOMPLETE", "$.actuals.root_cause", () => validateCompletionActuals(missing, [{ story: missing.work_id, event: "done" }]));
+});
+
+test("completed normal assessment remains valid but cannot authorize more implementation", () => {
+  const value = completed();
+  const records = [decisionFor(value), { story: value.work_id, event: "done" }];
+  assert.deepEqual(validateAssessment(value, { feedbackRecords: records }), {
+    decision: "ready", active: false, complete: true, inactiveReason: "terminal",
+  });
+  const missing = normal();
+  expectError("WR_ACTUALS_REQUIRED", "$.actuals", () => validateAssessment(missing, {
+    feedbackRecords: [decisionFor(missing), { story: missing.work_id, event: "done" }],
+  }));
+  value.actuals.estimate_variance_minutes += 1;
+  expectError("WR_ACTUALS_VARIANCE_MISMATCH", "$.actuals.estimate_variance_minutes", () => validateAssessment(value, { feedbackRecords: records }));
 });
 
 test("canonical done-with-deferral requires and completes actuals", () => {
@@ -867,9 +960,9 @@ test("terminal projection accepts a closed change decision after supersession bu
     as_event: "done",
   };
 
-  assert.equal(validateAssessment(value, {
-    feedbackRecords: [approval, rawTerminal, supersession, changeDecision, replacement],
-  }).decision, "ready");
+  const validRecords = [approval, rawTerminal, supersession, changeDecision, replacement];
+  assert.equal(validateCompletionActuals(value, validRecords).complete, true);
+  assert.equal(validateApproval(value, validRecords).active, false);
   expectError("WR_APPROVAL_EVENT_INVALID", "$.approval.evidence", () => validateAssessment(value, {
     feedbackRecords: [approval, rawTerminal, supersession, replacement, changeDecision],
   }));
@@ -1099,6 +1192,56 @@ function commitRepo(root, message, paths) {
   return git(root, ["rev-parse", "HEAD"]);
 }
 
+function runGit(root, args, env = {}) {
+  return spawnSync("git", args, {
+    cwd: root,
+    encoding: "utf8",
+    shell: false,
+    maxBuffer: 1024 * 1024,
+    env: { ...process.env, ...env },
+  });
+}
+
+function installReadinessHook(root) {
+  for (const path of [
+    ".githooks/commit-msg",
+    "scripts/work-readiness.mjs",
+    "scripts/work-readiness/model.mjs",
+    "scripts/work-readiness/git.mjs",
+  ]) {
+    writeRepoFile(root, path, readFileSync(new URL(path, sourceRoot), "utf8"));
+  }
+  chmodSync(join(root, ".githooks/commit-msg"), 0o755);
+  git(root, ["config", "core.hooksPath", ".githooks"]);
+}
+
+function commitReadinessEvidence(root, values) {
+  const records = [];
+  const paths = [];
+  for (const value of values) {
+    writeRepoFile(root, `docs/readiness/${value.work_id}.json`, `${JSON.stringify(value, null, 2)}\n`);
+    paths.push(`docs/readiness/${value.work_id}.json`);
+    if (value.approval.status === "approved") records.push(decisionFor(value));
+  }
+  if (records.length > 0) {
+    writeRepoFile(root, ".nous-feedback.jsonl", `${records.map(JSON.stringify).join("\n")}\n`);
+    paths.push(".nous-feedback.jsonl");
+  }
+  const result = runGit(root, ["add", "--", ...paths]);
+  assert.equal(result.status, 0, result.stderr);
+  const committed = runGit(root, ["commit", "-m", `docs(${values.map((value) => value.work_id).join(" ")}): approve readiness`]);
+  assert.equal(committed.status, 0, committed.stderr);
+  return git(root, ["rev-parse", "HEAD"]);
+}
+
+function pendingArtifact(workId) {
+  const value = approvedArtifact(workId);
+  value.approval.status = "pending";
+  value.approval.approved_by = null;
+  value.approval.evidence = null;
+  return value;
+}
+
 function approvedArtifact(workId) {
   const kind = workId.startsWith("US-") ? "US" : "CHG";
   const value = normal({
@@ -1146,6 +1289,362 @@ function parseCliJson(result) {
   assert.deepEqual(Object.keys(output), ["ok", "command", "work_ids", "errors", "summary"]);
   return output;
 }
+
+test("installed commit hook rejects traced implementation without readiness", () => {
+  const { root } = makeGitRepo();
+  try {
+    installReadinessHook(root);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    git(root, ["add", "apps/web/src/app/page.tsx"]);
+    for (const env of [{}, { WORK_READINESS_BYPASS: "1", READINESS_BYPASS: "1" }]) {
+      const result = runGit(root, ["commit", "-m", "feat: code (US-123)"], env);
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /WR_READINESS_MISSING/u);
+    }
+    assert.equal(git(root, ["rev-list", "--count", "HEAD"]), "1");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("installed commit hook rejects partition-required implementation", () => {
+  const { root } = makeGitRepo();
+  try {
+    installReadinessHook(root);
+    const value = partitioned();
+    commitReadinessEvidence(root, [value]);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    git(root, ["add", "apps/web/src/app/page.tsx"]);
+    const result = runGit(root, ["commit", "-m", "feat(CHG-123): implement oversized parent"]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /WR_WORK_NOT_READY/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("installed commit hook accepts approved ready implementation", () => {
+  const { root } = makeGitRepo();
+  try {
+    installReadinessHook(root);
+    commitReadinessEvidence(root, [approvedArtifact("US-123")]);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    git(root, ["add", "apps/web/src/app/page.tsx"]);
+    const result = runGit(root, ["commit", "-m", "feat(US-123): implement approved outcome"]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(git(root, ["show", "--format=%s", "--no-patch", "HEAD"]), "feat(US-123): implement approved outcome");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("installed commit hook permits docs-only assessment bootstrap before approval", () => {
+  const { root } = makeGitRepo();
+  try {
+    installReadinessHook(root);
+    const value = pendingArtifact("US-123");
+    writeRepoFile(root, "docs/readiness/US-123.json", `${JSON.stringify(value, null, 2)}\n`);
+    git(root, ["add", "docs/readiness/US-123.json"]);
+    const result = runGit(root, ["commit", "-m", "docs(US-123): bootstrap readiness assessment"]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(git(root, ["show", "--format=%s", "--no-patch", "HEAD"]), "docs(US-123): bootstrap readiness assessment");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("installed commit hook requires readiness for every referenced ID", () => {
+  const { root } = makeGitRepo();
+  try {
+    installReadinessHook(root);
+    commitReadinessEvidence(root, [approvedArtifact("US-123")]);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    git(root, ["add", "apps/web/src/app/page.tsx"]);
+    const result = runGit(root, ["commit", "-m", "feat(US-123 CHG-456): implement joint outcome"]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /WR_READINESS_MISSING.*CHG-456/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("COMMIT_MSG_NO_US bypasses missing-ID messaging but not staged readiness", () => {
+  const { root } = makeGitRepo();
+  try {
+    installReadinessHook(root);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    git(root, ["add", "apps/web/src/app/page.tsx"]);
+    const committed = runGit(root, ["commit", "-m", "fix: emergency implementation"], { COMMIT_MSG_NO_US: "1" });
+    assert.equal(committed.status, 1);
+    assert.match(committed.stderr, /missing-ID traceability check bypassed/u);
+    assert.match(committed.stderr, /WR_WORK_ID_MISSING/u);
+    assert.equal(git(root, ["rev-list", "--count", "HEAD"]), "1");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("COMMIT_MSG_NO_US permits only a readiness-safe docs bootstrap", () => {
+  const { root } = makeGitRepo();
+  try {
+    installReadinessHook(root);
+    writeRepoFile(root, "docs/superpowers/plans/emergency.md", "# Emergency assessment\n");
+    git(root, ["add", "docs/superpowers/plans/emergency.md"]);
+    const committed = runGit(root, ["commit", "-m", "docs: emergency assessment"], { COMMIT_MSG_NO_US: "1" });
+    assert.equal(committed.status, 0, committed.stderr);
+    assert.match(committed.stderr, /missing-ID traceability check bypassed/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("installed hook rejects approval and implementation staged in the same commit", () => {
+  const { root } = makeGitRepo();
+  try {
+    installReadinessHook(root);
+    const value = approvedArtifact("US-123");
+    writeRepoFile(root, "docs/readiness/US-123.json", `${JSON.stringify(value, null, 2)}\n`);
+    writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(decisionFor(value))}\n`);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    git(root, ["add", "docs/readiness/US-123.json", ".nous-feedback.jsonl", "apps/web/src/app/page.tsx"]);
+    const result = runGit(root, ["commit", "-m", "feat(US-123): approve and implement together"]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /WR_READINESS_MISSING/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("installed hook rejects candidate blocker after parent approval", () => {
+  const { root } = makeGitRepo();
+  try {
+    installReadinessHook(root);
+    const value = approvedArtifact("US-123");
+    commitReadinessEvidence(root, [value]);
+    const priorFeedback = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+    writeRepoFile(root, ".nous-feedback.jsonl", `${priorFeedback}${JSON.stringify({ story: "US-123", event: "blocker", reason: "Scope reopened" })}\n`);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    git(root, ["add", ".nous-feedback.jsonl", "apps/web/src/app/page.tsx"]);
+    const result = runGit(root, ["commit", "-m", "feat(US-123): implement after candidate blocker"]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /WR_APPROVAL_INACTIVE/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("candidate readiness payload cannot change during its implementation commit", () => {
+  const { root } = makeGitRepo();
+  try {
+    installReadinessHook(root);
+    const parentValue = approvedArtifact("US-123");
+    const parent = commitReadinessEvidence(root, [parentValue]);
+    const changed = clone(parentValue);
+    changed.title = "Expanded outcome after parent approval";
+    changed.approval.evidence = "US123-READY-V2";
+    refreshDigest(changed);
+    const priorFeedback = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+    writeRepoFile(root, "docs/readiness/US-123.json", `${JSON.stringify(changed, null, 2)}\n`);
+    writeRepoFile(root, ".nous-feedback.jsonl", `${priorFeedback}${JSON.stringify(decisionFor(changed))}\n`);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    git(root, ["add", "docs/readiness/US-123.json", ".nous-feedback.jsonl", "apps/web/src/app/page.tsx"]);
+    const hook = runGit(root, ["commit", "-m", "feat(US-123): mutate approval and implement"]);
+    assert.equal(hook.status, 1);
+    assert.match(hook.stderr, /WR_CANDIDATE_PAYLOAD_CHANGED/u);
+    const bypassed = runGit(root, ["commit", "--no-verify", "-m", "feat(US-123): mutate approval and implement"]);
+    assert.equal(bypassed.status, 0, bypassed.stderr);
+    assert.throws(
+      () => validateRangeOwnership({ root, base: parent, head: "HEAD" }),
+      (error) => error.code === "WR_CANDIDATE_PAYLOAD_CHANGED",
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("candidate approval binding cannot switch during its implementation commit", () => {
+  const { root } = makeGitRepo();
+  try {
+    installReadinessHook(root);
+    const parentValue = approvedArtifact("US-123");
+    commitReadinessEvidence(root, [parentValue]);
+    const candidate = clone(parentValue);
+    candidate.approval.evidence = "US123-READY-V2";
+    const priorFeedback = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+    writeRepoFile(root, "docs/readiness/US-123.json", `${JSON.stringify(candidate, null, 2)}\n`);
+    writeRepoFile(root, ".nous-feedback.jsonl", `${priorFeedback}${JSON.stringify(decisionFor(candidate))}\n`);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    git(root, ["add", "docs/readiness/US-123.json", ".nous-feedback.jsonl", "apps/web/src/app/page.tsx"]);
+    const hook = runGit(root, ["commit", "-m", "feat(US-123): switch approval and implement"]);
+    assert.equal(hook.status, 1);
+    assert.match(hook.stderr, /WR_CANDIDATE_APPROVAL_CHANGED/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("unchanged payload permits candidate on-track checkpoint and mutable actuals", () => {
+  const { root } = makeGitRepo();
+  try {
+    installReadinessHook(root);
+    const value = approvedArtifact("US-123");
+    commitReadinessEvidence(root, [value]);
+    const candidate = clone(value);
+    candidate.checkpoints = [{ elapsed_minutes: 45, status: "on_track", implementation_complete: false, evidence: "Focused slice is on estimate" }];
+    candidate.actuals = {
+      phase_minutes: { readiness: null, implementation: null, focused_verification: null, review: null, integration: null },
+      total: null, changed_files: null, commits: null, review_fix_loops: null,
+      cold_mutation_attempts: null, mutation_invalidations: null,
+      estimate_variance_minutes: null, root_cause: null,
+    };
+    const priorFeedback = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+    writeRepoFile(root, "docs/readiness/US-123.json", `${JSON.stringify(candidate, null, 2)}\n`);
+    writeRepoFile(root, ".nous-feedback.jsonl", `${priorFeedback}${JSON.stringify({ story: "US-123", event: "checkpoint", elapsed_minutes: 45, status: "on_track" })}\n`);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    git(root, ["add", "docs/readiness/US-123.json", ".nous-feedback.jsonl", "apps/web/src/app/page.tsx"]);
+    const result = runGit(root, ["commit", "-m", "feat(US-123): continue active checkpoint"]);
+    assert.equal(result.status, 0, result.stderr);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("installed hook rejects rewriting selected approval bytes during implementation", () => {
+  const { root } = makeGitRepo();
+  try {
+    installReadinessHook(root);
+    const value = approvedArtifact("US-123");
+    commitReadinessEvidence(root, [value]);
+    const rewritten = decisionFor(value, {
+      text: `${decisionFor(value).text} Reworded without changing its binding.`,
+      reason: "Rewritten historical reason",
+    });
+    writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(rewritten)}\n`);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    git(root, ["add", ".nous-feedback.jsonl", "apps/web/src/app/page.tsx"]);
+    const result = runGit(root, ["commit", "-m", "feat(US-123): rewrite approval and implement"]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /WR_FEEDBACK_HISTORY_MUTATED/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("feedback history rejects deletion, reorder, truncation, and partial appended records", () => {
+  const mutations = [
+    ["deletion", (lines) => `${lines[0]}\n`],
+    ["reorder", (lines) => `${lines[1]}\n${lines[0]}\n`],
+    ["truncation", (lines) => `${lines[0].slice(0, -1)}\n${lines[1]}\n`],
+    ["partial append", (lines) => `${lines.join("\n")}\n{\"story\":`],
+  ];
+  for (const [name, mutate] of mutations) {
+    const { root, base } = makeGitRepo();
+    try {
+      installReadinessHook(root);
+      const value = approvedArtifact("US-123");
+      const lines = [
+        JSON.stringify(decisionFor(value)),
+        JSON.stringify({ story: "US-123", event: "feedback", title: "Sizing", description: "Baseline", images: [] }),
+      ];
+      writeRepoFile(root, "docs/readiness/US-123.json", `${JSON.stringify(value, null, 2)}\n`);
+      writeRepoFile(root, ".nous-feedback.jsonl", `${lines.join("\n")}\n`);
+      commitRepo(root, "docs(US-123): establish append-only history", ["docs/readiness/US-123.json", ".nous-feedback.jsonl"]);
+      writeRepoFile(root, ".nous-feedback.jsonl", mutate(lines));
+      git(root, ["add", ".nous-feedback.jsonl"]);
+      const hook = runGit(root, ["commit", "-m", `docs(US-123): ${name} history`]);
+      assert.equal(hook.status, 1, name);
+      assert.match(hook.stderr, /WR_FEEDBACK_HISTORY_MUTATED/u, name);
+      const bypassed = runGit(root, ["commit", "--no-verify", "-m", `docs(US-123): ${name} history`]);
+      assert.equal(bypassed.status, 0, bypassed.stderr);
+      assert.throws(
+        () => validateRangeOwnership({ root, base, head: "HEAD" }),
+        (error) => error.code === "WR_FEEDBACK_HISTORY_MUTATED",
+        name,
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("installed hook accepts exact complete feedback append with active implementation", () => {
+  const { root } = makeGitRepo();
+  try {
+    installReadinessHook(root);
+    const value = approvedArtifact("US-123");
+    commitReadinessEvidence(root, [value]);
+    const parentFeedback = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+    const appended = { story: "US-123", event: "feedback", title: "Checkpoint note", description: "No scope change", images: [] };
+    writeRepoFile(root, ".nous-feedback.jsonl", `${parentFeedback}${JSON.stringify(appended)}\n`);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    git(root, ["add", ".nous-feedback.jsonl", "apps/web/src/app/page.tsx"]);
+    const result = runGit(root, ["commit", "-m", "feat(US-123): append feedback and implement"]);
+    assert.equal(result.status, 0, result.stderr);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("traceability-exempt release and revert commits remain readiness-gated", () => {
+  const release = makeGitRepo();
+  try {
+    installReadinessHook(release.root);
+    writeRepoFile(release.root, "docs/superpowers/plans/release.md", "# Release notes\n");
+    git(release.root, ["add", "docs/superpowers/plans/release.md"]);
+    const documentation = runGit(release.root, ["commit", "-m", "chore(release): docs only"]);
+    assert.equal(documentation.status, 0, documentation.stderr);
+    writeRepoFile(release.root, "apps/web/src/app/release.ts", "export {};\n");
+    git(release.root, ["add", "apps/web/src/app/release.ts"]);
+    const committed = runGit(release.root, ["commit", "-m", "chore(release): v1.2.3"]);
+    assert.equal(committed.status, 1);
+    assert.match(committed.stderr, /WR_WORK_ID_MISSING/u);
+    const bypassed = runGit(release.root, ["commit", "--no-verify", "-m", "chore(release): v1.2.3"]);
+    assert.equal(bypassed.status, 0, bypassed.stderr);
+    assert.throws(
+      () => validateRangeOwnership({ root: release.root, base: release.base, head: "HEAD" }),
+      (error) => error.code === "WR_WORK_ID_MISSING",
+    );
+  } finally {
+    rmSync(release.root, { recursive: true, force: true });
+  }
+
+  const revert = makeGitRepo();
+  try {
+    writeRepoFile(revert.root, "apps/web/src/app/reverted.ts", "export {};\n");
+    commitRepo(revert.root, "feat(CHG-900): implementation later reverted", ["apps/web/src/app/reverted.ts"]);
+    installReadinessHook(revert.root);
+    const committed = runGit(revert.root, ["revert", "--no-edit", "HEAD"]);
+    assert.equal(committed.status, 0, committed.stderr);
+    assert.throws(
+      () => validateRangeOwnership({ root: revert.root, base: revert.base, head: "HEAD" }),
+      (error) => error.code === "WR_READINESS_MISSING",
+    );
+  } finally {
+    rmSync(revert.root, { recursive: true, force: true });
+  }
+});
+
+test("traceability-exempt merge commit remains locally and range readiness-gated", () => {
+  const { root, base } = makeGitRepo();
+  try {
+    git(root, ["checkout", "-b", "side"]);
+    writeRepoFile(root, "apps/web/src/app/side.ts", "export {};\n");
+    commitRepo(root, "feat(CHG-900): unassessed side implementation", ["apps/web/src/app/side.ts"]);
+    git(root, ["checkout", "main"]);
+    installReadinessHook(root);
+    const committed = runGit(root, ["merge", "--no-ff", "side", "-m", "Merge branch 'side'"]);
+    assert.equal(committed.status, 1);
+    assert.match(committed.stderr, /WR_FILE_INVALID/u);
+    const bypassed = runGit(root, ["commit", "--no-verify", "-m", "Merge branch 'side'"]);
+    assert.equal(bypassed.status, 0, bypassed.stderr);
+    assert.throws(
+      () => validateRangeOwnership({ root, base, head: "HEAD" }),
+      (error) => error.code === "WR_GIT_TOPOLOGY_UNSUPPORTED",
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test("CLI init normalizes an explicit ID, creates exclusively, and never invents IDs", () => {
   const { root } = makeGitRepo();
@@ -1206,10 +1705,52 @@ test("CLI check and check-all load repository feedback and validate completion s
     assert.equal(incomplete.status, 1);
     assert.equal(parseCliJson(incomplete).errors[0].code, "WR_ACTUALS_REQUIRED");
 
+    const completedArtifact = approvedArtifact("US-321");
+    completedArtifact.actuals = clone(completed().actuals);
+    writeRepoFile(root, "docs/readiness/US-321.json", `${JSON.stringify(completedArtifact, null, 2)}\n`);
+    for (const [command, args] of [["check", ["check", "US-321", "--json"]], ["check-all", ["check-all", "--json"]]]) {
+      const result = runCli(root, args);
+      assert.equal(result.status, 0);
+      const output = parseCliJson(result);
+      assert.equal(output.command, command);
+      assert.deepEqual(output.work_ids, ["US-321"]);
+      assert.deepEqual(output.errors, []);
+    }
+    completedArtifact.actuals.estimate_variance_minutes += 1;
+    writeRepoFile(root, "docs/readiness/US-321.json", `${JSON.stringify(completedArtifact, null, 2)}\n`);
+    const badActuals = runCli(root, ["check", "US-321", "--json"]);
+    assert.equal(badActuals.status, 1);
+    assert.equal(parseCliJson(badActuals).errors[0].code, "WR_ACTUALS_VARIANCE_MISMATCH");
+
     writeRepoFile(root, "docs/readiness/US-321.json", "{}\n");
     const rejected = runCli(root, ["check", "US-321", "--json"]);
     assert.equal(rejected.status, 1);
     assert.equal(parseCliJson(rejected).errors[0].code.startsWith("WR_"), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("CLI check and check-all accept completed CHG-022 as valid but inactive", () => {
+  const { root } = makeGitRepo();
+  try {
+    writeRepoFile(root, "docs/readiness/CHG-022.json", `${JSON.stringify(completedBootstrap(), null, 2)}\n`);
+    writeRepoFile(root, ".nous-feedback.jsonl", `${[
+      bootstrapDecision,
+      { story: "CHG-022", event: "done" },
+    ].map(JSON.stringify).join("\n")}\n`);
+    for (const [command, args] of [["check", ["check", "CHG-022", "--json"]], ["check-all", ["check-all", "--json"]]]) {
+      const result = runCli(root, args);
+      assert.equal(result.status, 0);
+      const output = parseCliJson(result);
+      assert.equal(output.command, command);
+      assert.deepEqual(output.work_ids, ["CHG-022"]);
+      assert.deepEqual(output.errors, []);
+    }
+    writeRepoFile(root, "docs/readiness/CHG-022.json", `${JSON.stringify(bootstrap, null, 2)}\n`);
+    const missingActuals = runCli(root, ["check", "CHG-022", "--json"]);
+    assert.equal(missingActuals.status, 1);
+    assert.equal(parseCliJson(missingActuals).errors[0].code, "WR_ACTUALS_REQUIRED");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -1522,13 +2063,67 @@ function historicalOwnership(records) {
 }
 
 test("Git ownership extracts bounded official IDs and closes path classes", () => {
-  assert.deepEqual(extractWorkIds("feat(US-123): pair CHG-456 with US-1234, not US-12 or XUS-999Z"), ["US-123", "CHG-456", "US-1234"]);
+  assert.deepEqual(
+    extractWorkIds("feat(us-123): pair CHG-456 with Us-1234 and US-123, not US-12 or XUS-999Z"),
+    ["US-123", "CHG-456", "US-1234"],
+  );
   assert.equal(classifyChangedPath("docs/readiness/US-123.json"), "bootstrap-documentation");
   assert.equal(classifyChangedPath("docs/superpowers/plans/plan.md"), "bootstrap-documentation");
   assert.equal(classifyChangedPath(".nous-feedback.jsonl"), "bootstrap-documentation");
   assert.equal(classifyChangedPath("scripts/test-work-readiness.mjs"), "implementation");
   assert.equal(classifyChangedPath("apps/web/src/app/page.tsx"), "implementation");
   assert.equal(classifyChangedPath("docs/stories/SPRINT_PLAN.md"), "generated-nous");
+});
+
+test("range ownership rejects same-commit approval for every implementation ID", () => {
+  const { root, base } = makeGitRepo();
+  try {
+    const first = approvedArtifact("US-321");
+    const second = approvedArtifact("CHG-456");
+    writeRepoFile(root, "docs/readiness/US-321.json", `${JSON.stringify(first, null, 2)}\n`);
+    writeRepoFile(root, "docs/readiness/CHG-456.json", `${JSON.stringify(second, null, 2)}\n`);
+    writeRepoFile(root, ".nous-feedback.jsonl", `${[decisionFor(first), decisionFor(second)].map(JSON.stringify).join("\n")}\n`);
+    writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+    const head = commitRepo(root, "feat(US-321 CHG-456): approve and implement together", [
+      "docs/readiness/US-321.json",
+      "docs/readiness/CHG-456.json",
+      ".nous-feedback.jsonl",
+      "apps/web/src/app/page.tsx",
+    ]);
+    assert.throws(
+      () => validateRangeOwnership({ root, base, head }),
+      (error) => error.code === "WR_READINESS_MISSING" && error.path === "docs/readiness/US-321.json",
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("lowercase message and path work references normalize to parent-approved IDs", () => {
+  const messageFixture = makeGitRepo();
+  try {
+    installReadinessHook(messageFixture.root);
+    commitReadinessEvidence(messageFixture.root, [approvedArtifact("US-123")]);
+    writeRepoFile(messageFixture.root, "apps/web/src/app/page.tsx", "export {};\n");
+    git(messageFixture.root, ["add", "apps/web/src/app/page.tsx"]);
+    const committed = runGit(messageFixture.root, ["commit", "-m", "feat(us-123): lowercase ownership"]);
+    assert.equal(committed.status, 0, committed.stderr);
+  } finally {
+    rmSync(messageFixture.root, { recursive: true, force: true });
+  }
+
+  const pathFixture = makeGitRepo();
+  try {
+    const decision = writeApprovedWork(pathFixture.root, "US-123");
+    writeRepoFile(pathFixture.root, ".nous-feedback.jsonl", `${JSON.stringify(decision)}\n`);
+    commitRepo(pathFixture.root, "docs(US-123): approve lowercase path fixture", ["docs/readiness/US-123.json", ".nous-feedback.jsonl"]);
+    const base = git(pathFixture.root, ["rev-parse", "HEAD"]);
+    writeRepoFile(pathFixture.root, "artifacts/us-123/result.txt", "implementation\n");
+    const head = commitRepo(pathFixture.root, "feat: lowercase path ownership", ["artifacts/us-123/result.txt"]);
+    assert.deepEqual(validateRangeOwnership({ root: pathFixture.root, base, head }).workIds, ["US-123"]);
+  } finally {
+    rmSync(pathFixture.root, { recursive: true, force: true });
+  }
 });
 
 test("real Git permits only a documentation bootstrap without prior approval", () => {
@@ -1572,6 +2167,82 @@ test("range ownership accepts approval before a later implementation commit", ()
     assert.equal(validateRangeOwnership({ root, base, head }).classification, "implementation");
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("real range requires a currently active parent authorization interval", () => {
+  const terminalValue = completed();
+  const terminalDecision = decisionFor(terminalValue);
+  const changeDecision = { story: "CHG-099", event: "decision", id: "CHG099-RANGE-TERMINAL", text: "Repair terminal", reason: "Review" };
+  const variants = [
+    ["blocked", normal(), [decisionFor(normal()), { story: "US-123", event: "blocked", reason: "Dependency reopened" }]],
+    ["blocker", normal(), [decisionFor(normal()), { story: "US-123", event: "blocker", reason: "Scope reopened" }]],
+    ["checkpoint", normal(), [decisionFor(normal()), { story: "US-123", event: "checkpoint", elapsed_minutes: 90, status: "partition_required" }]],
+    ["terminal", terminalValue, [
+      terminalDecision,
+      { story: "US-123", event: "started", agent: "range-test" },
+      { story: "US-123", event: "build_pass", notes: "Build passed" },
+      { story: "US-123", event: "done" },
+    ]],
+    ["deferred terminal", terminalValue, [
+      terminalDecision,
+      { story: "US-123", event: "started", agent: "range-test" },
+      { story: "US-123", event: "build_pass", notes: "Build passed" },
+      { story: "US-123", event: "done_with_deferral" },
+    ]],
+    ["projected terminal", terminalValue, [
+      terminalDecision,
+      { story: "US-123", event: "started", agent: "range-test" },
+      { story: "US-123", event: "build_pass", notes: "Build passed" },
+      { story: "US-123", event: "done" },
+      changeDecision,
+      {
+        story: "US-123", event: "evidence_superseded", ref: "US123-RANGE-DONE",
+        target: { story: "US-123", event: "done" }, reason: "Revalidate",
+      },
+      { story: "US-123", event: "revalidated", ref: "US123-RANGE-DONE", change: "CHG-099", as_event: "done" },
+    ]],
+    ["later decision", normal(), [
+      decisionFor(normal()),
+      decisionFor(normal(), { id: "US123-READY-LATER", reason: "Later readiness review" }),
+    ]],
+  ];
+  for (const [name, value, records] of variants) {
+    const { root } = makeGitRepo();
+    try {
+      writeRepoFile(root, "docs/readiness/US-123.json", `${JSON.stringify(value, null, 2)}\n`);
+      writeRepoFile(root, ".nous-feedback.jsonl", `${records.map(JSON.stringify).join("\n")}\n`);
+      const base = commitRepo(root, `docs(US-123): ${name} authorization fixture`, ["docs/readiness/US-123.json", ".nous-feedback.jsonl"]);
+      writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
+      const head = commitRepo(root, "feat(US-123): attempt inactive implementation", ["apps/web/src/app/page.tsx"]);
+      assert.throws(
+        () => validateRangeOwnership({ root, base, head }),
+        (error) => error.code === "WR_APPROVAL_INACTIVE",
+        name,
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  const refreshedRepo = makeGitRepo();
+  try {
+    const value = approvedArtifact("US-123");
+    const oldDecision = decisionFor(value);
+    value.approval.evidence = "US123-READY-V2";
+    const freshDecision = decisionFor(value);
+    writeRepoFile(refreshedRepo.root, "docs/readiness/US-123.json", `${JSON.stringify(value, null, 2)}\n`);
+    writeRepoFile(refreshedRepo.root, ".nous-feedback.jsonl", `${[
+      oldDecision,
+      { story: "US-123", event: "blocker", reason: "Scope reopened" },
+      freshDecision,
+    ].map(JSON.stringify).join("\n")}\n`);
+    const base = commitRepo(refreshedRepo.root, "docs(US-123): record fresh reapproval", ["docs/readiness/US-123.json", ".nous-feedback.jsonl"]);
+    writeRepoFile(refreshedRepo.root, "apps/web/src/app/page.tsx", "export {};\n");
+    const head = commitRepo(refreshedRepo.root, "feat(US-123): implement freshly approved scope", ["apps/web/src/app/page.tsx"]);
+    assert.equal(validateRangeOwnership({ root: refreshedRepo.root, base, head }).classification, "implementation");
+  } finally {
+    rmSync(refreshedRepo.root, { recursive: true, force: true });
   }
 });
 
@@ -1632,9 +2303,11 @@ test("real Git requires readiness for every ID named by a production range", () 
     unready.approval.evidence = null;
     writeRepoFile(root, "docs/readiness/CHG-456.json", `${JSON.stringify(unready, null, 2)}\n`);
     writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(decision)}\n`);
+    commitRepo(root, "docs(US-321 CHG-456): record readiness before implementation", [
+      "docs/readiness/US-321.json", "docs/readiness/CHG-456.json", ".nous-feedback.jsonl",
+    ]);
     writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
-    const paths = ["docs/readiness/US-321.json", "docs/readiness/CHG-456.json", ".nous-feedback.jsonl", "apps/web/src/app/page.tsx"];
-    const head = commitRepo(root, "feat(US-321 CHG-456): production change", paths);
+    const head = commitRepo(root, "feat(US-321 CHG-456): production change", ["apps/web/src/app/page.tsx"]);
     assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_APPROVAL_REQUIRED");
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -1811,7 +2484,8 @@ test("historical grandfathering requires terminal done before CHG-022 V2 activat
       const records = beforeActivation ? lifecycle : [];
       const base = commitActivationHistory(root, records);
       if (!beforeActivation) {
-        writeRepoFile(root, ".nous-feedback.jsonl", `${[bootstrapDecision, ...lifecycle].map(JSON.stringify).join("\n")}\n`);
+        const activationHistory = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+        writeRepoFile(root, ".nous-feedback.jsonl", `${activationHistory}${lifecycle.map(JSON.stringify).join("\n")}\n`);
         commitRepo(root, "docs(US-321): append late terminal", [".nous-feedback.jsonl"]);
       }
       writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
@@ -1829,21 +2503,21 @@ test("historical grandfathering requires terminal done before CHG-022 V2 activat
 
 test("grandfathering rejects missing lifecycle evidence, malformed done, and duplicate activation", () => {
   const invalidHistories = [
-    [{ story: "US-321", event: "build_pass", notes: "missing start" }, { story: "US-321", event: "done" }],
-    [{ story: "US-321", event: "started", agent: "agent" }, { story: "US-321", event: "done" }],
-    [
+    [[{ story: "US-321", event: "build_pass", notes: "missing start" }, { story: "US-321", event: "done" }], "WR_FEEDBACK_ORDER"],
+    [[{ story: "US-321", event: "started", agent: "agent" }, { story: "US-321", event: "done" }], "WR_FEEDBACK_ORDER"],
+    [[
       { story: "US-321", event: "started", agent: "agent" },
       { story: "US-321", event: "build_pass", notes: "ok" },
       { story: "US-321", event: "done", source_commit: "not-a-commit" },
-    ],
+    ], "WR_READINESS_MISSING"],
   ];
-  for (const records of invalidHistories) {
+  for (const [records, expectedCode] of invalidHistories) {
     const { root } = makeGitRepo();
     try {
       const base = commitActivationHistory(root, records);
       writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
       const head = commitRepo(root, "feat(US-321): invalid historical exemption", ["apps/web/src/app/page.tsx"]);
-      assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_READINESS_MISSING");
+      assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === expectedCode);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -1968,7 +2642,10 @@ test("grandfather projection rejects noncanonical terminal lineage records", () 
   delete malformedDecision[3].reason;
   variants.push(malformedDecision);
   for (const records of variants) {
-    assert.throws(() => historicalOwnership(records), (error) => error.code === "WR_READINESS_MISSING");
+    assert.throws(
+      () => historicalOwnership(records),
+      (error) => ["WR_READINESS_MISSING", "WR_FEEDBACK_INVALID"].includes(error.code),
+    );
   }
 });
 
@@ -2033,7 +2710,7 @@ test("a range cannot manufacture grandfathering by inserting history before acti
     writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(forgedDone)}\n${JSON.stringify(activation)}\n`);
     writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
     const head = commitRepo(root, "feat(US-321): forge historical completion", [".nous-feedback.jsonl", "apps/web/src/app/page.tsx"]);
-    assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_FEEDBACK_ORDER");
+    assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_FEEDBACK_HISTORY_MUTATED");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -2044,8 +2721,9 @@ test("changed readiness content cannot replay an older digest", () => {
   try {
     const oldDecision = writeApprovedWork(root, "US-321", { mutateAfterApproval: true });
     writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(oldDecision)}\n`);
+    commitRepo(root, "docs(US-321): persist stale approval fixture", ["docs/readiness/US-321.json", ".nous-feedback.jsonl"]);
     writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
-    const head = commitRepo(root, "feat(US-321): replay old approval", ["docs/readiness/US-321.json", ".nous-feedback.jsonl", "apps/web/src/app/page.tsx"]);
+    const head = commitRepo(root, "feat(US-321): replay old approval", ["apps/web/src/app/page.tsx"]);
     assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_APPROVAL_DECISION_MISMATCH");
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -2055,15 +2733,16 @@ test("changed readiness content cannot replay an older digest", () => {
 test("CHG-022 bootstrap cannot authorize implementation after its first done", () => {
   const { root, base } = makeGitRepo();
   try {
-    writeRepoFile(root, "docs/readiness/CHG-022.json", `${JSON.stringify(bootstrap, null, 2)}\n`);
+    writeRepoFile(root, "docs/readiness/CHG-022.json", `${JSON.stringify(completedBootstrap(), null, 2)}\n`);
     writeRepoFile(root, ".nous-feedback.jsonl", `${[
       { story: "CHG-022", event: "started", agent: "codex/work-readiness-gate" },
       bootstrapDecision,
       { story: "CHG-022", event: "build_pass", notes: "bootstrap build" },
       { story: "CHG-022", event: "done" },
     ].map(JSON.stringify).join("\n")}\n`);
+    commitRepo(root, "docs(CHG-022): record expired bootstrap fixture", ["docs/readiness/CHG-022.json", ".nous-feedback.jsonl"]);
     writeRepoFile(root, "scripts/work-readiness/git.mjs", "export {};\n");
-    const head = commitRepo(root, "feat(CHG-022): replay bootstrap", ["docs/readiness/CHG-022.json", ".nous-feedback.jsonl", "scripts/work-readiness/git.mjs"]);
+    const head = commitRepo(root, "feat(CHG-022): replay bootstrap", ["scripts/work-readiness/git.mjs"]);
     assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_BOOTSTRAP_EXPIRED");
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -2075,8 +2754,9 @@ test("CHG-022 bootstrap authorizes only its exact manifest paths before done", (
   try {
     writeRepoFile(root, "docs/readiness/CHG-022.json", `${JSON.stringify(bootstrap, null, 2)}\n`);
     writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(bootstrapDecision)}\n`);
+    commitRepo(root, "docs(CHG-022): establish bootstrap authority", ["docs/readiness/CHG-022.json", ".nous-feedback.jsonl"]);
     writeRepoFile(root, "scripts/work-readiness/git.mjs", "export {};\n");
-    const head = commitRepo(root, "feat(CHG-022): implement authorized Git classifier", ["docs/readiness/CHG-022.json", ".nous-feedback.jsonl", "scripts/work-readiness/git.mjs"]);
+    const head = commitRepo(root, "feat(CHG-022): implement authorized Git classifier", ["scripts/work-readiness/git.mjs"]);
     assert.equal(validateRangeOwnership({ root, base, head }).classification, "implementation");
   } finally {
     rmSync(root, { recursive: true, force: true });

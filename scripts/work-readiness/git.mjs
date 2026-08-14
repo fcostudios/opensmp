@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 import { WorkReadinessError, classifyAssessment, validateAssessment } from "./model.mjs";
 
 const MAX_GIT_OUTPUT_BYTES = 1024 * 1024;
-const WORK_ID_PATTERN = /(?<![A-Z0-9-])(?:US|CHG)-[0-9]{3,}(?![A-Z0-9-])/gu;
+const WORK_ID_PATTERN = /(?<![A-Z0-9-])(?:US|CHG)-[0-9]{3,}(?![A-Z0-9-])/giu;
 const BOOTSTRAP_DOCUMENT_PREFIXES = [
   "docs/readiness/",
   "docs/superpowers/specs/",
@@ -234,6 +234,7 @@ const KNOWN_FEEDBACK_EVENTS = new Set([
   "blocked", "blocker", "deviation", "ac_fail", "ac_unverifiable", "test_report", "feedback", "nav_gap",
   "evidence_superseded", "revalidated", "decision", "build_pass", "closed_with_deferrals", "adversarial_review",
   "deferred_memory_saved", "closure_hygiene", "implemented_with_external_verification", "mutation_invalidation",
+  "checkpoint",
 ]);
 
 function validateFeedbackStructure(records) {
@@ -254,6 +255,7 @@ function validateFeedbackStructure(records) {
         : record.event === "ac_verify" ? [["ac", "integer"], ["method", "string"], ["pass", "boolean"], ["notes", "string"]]
           : record.event === "build_pass" ? [["notes", "string"]]
             : record.event === "decision" ? [["id", "string"], ["text", "string"], ["reason", "string"]]
+              : record.event === "checkpoint" ? [["elapsed_minutes", "integer"], ["status", "string"]]
               : record.event === "feedback" ? [["title", "string"], ["description", "string"], ["images", "array"]]
                 : ["blocked", "blocker"].includes(record.event) ? [["reason", "string"]]
                   : record.event === "nav_gap" ? [["route", "string"]]
@@ -281,6 +283,35 @@ function validateFeedbackStructure(records) {
     if (record.event === "build_pass") state.buildPassed = true;
     lifecycle.set(record.story, state);
   });
+}
+
+function validateFeedbackHistoryTransition(root, parent, candidate) {
+  const path = ".nous-feedback.jsonl";
+  const parentBytes = readRevisionBytes(root, parent, path, { required: false }) ?? Buffer.alloc(0);
+  const candidateBytes = readRevisionBytes(root, candidate, path, { required: false }) ?? Buffer.alloc(0);
+  const historyError = (message) => fail("WR_FEEDBACK_HISTORY_MUTATED", path, message);
+
+  if (!candidateBytes.subarray(0, parentBytes.length).equals(parentBytes)) {
+    historyError("Feedback history must preserve every parent byte in exact order");
+  }
+  if (candidateBytes.length !== parentBytes.length) {
+    if (candidateBytes.at(-1) !== 0x0a) historyError("Appended feedback must end at a complete newline-delimited record boundary");
+    let appended = candidateBytes.subarray(parentBytes.length);
+    if (parentBytes.length > 0 && parentBytes.at(-1) !== 0x0a) {
+      if (appended[0] !== 0x0a) historyError("Appending after a non-newline parent requires an exact record separator");
+      appended = appended.subarray(1);
+    } else if (appended[0] === 0x0a) {
+      historyError("Appended feedback cannot insert an empty JSONL record");
+    }
+    if (appended.length === 0) historyError("A feedback transition must append at least one complete JSON object");
+    const appendedLines = appended.toString("utf8").slice(0, -1).split("\n");
+    for (const line of appendedLines) {
+      if (line.replace(/\r$/u, "").length === 0) historyError("Appended feedback cannot contain empty JSONL records");
+    }
+  }
+  const candidateRecords = parseFeedback(candidateBytes.toString("utf8"));
+  validateFeedbackStructure(candidateRecords);
+  return candidateRecords;
 }
 
 function parseJson(text, path) {
@@ -576,7 +607,16 @@ function exactOverlayOwns({ root, base, head, workIds, generatedPath }) {
 
 export function extractWorkIds(message) {
   if (typeof message !== "string" || message.includes("\0")) fail("WR_COMMIT_MESSAGE_INVALID", "$.message", "Commit message must be a NUL-free string");
-  return [...new Set(message.match(WORK_ID_PATTERN) ?? [])];
+  const seen = new Set();
+  const normalized = [];
+  for (const match of message.match(WORK_ID_PATTERN) ?? []) {
+    const workId = match.toUpperCase();
+    if (!seen.has(workId)) {
+      seen.add(workId);
+      normalized.push(workId);
+    }
+  }
+  return normalized;
 }
 
 export function classifyChangedPath(path) {
@@ -626,6 +666,7 @@ function validateCommitOwnership({ root, parent, commit, message }) {
   const messageWorkIds = extractWorkIds(message);
   const pathWorkIds = extractWorkIds(changedPaths.join("\n"));
   const workIds = [...new Set([...messageWorkIds, ...pathWorkIds])];
+  const candidateFeedback = validateFeedbackHistoryTransition(root, parent, commit);
   validateChangedMachineArtifacts(root, commit, changedPaths);
   const classes = changedPaths.map(classifyChangedPath);
   const generatedPaths = changedPaths.filter((path, index) => classes[index] === "generated-nous");
@@ -641,25 +682,55 @@ function validateCommitOwnership({ root, parent, commit, message }) {
     return { workIds, changedPaths, classification, grandfatheredWorkIds: [] };
   }
   if (workIds.length === 0) fail("WR_WORK_ID_MISSING", "$.message", "Implementation changes require at least one US-* or CHG-* reference");
-  const feedback = parseFeedback(readRevisionFile(root, commit, ".nous-feedback.jsonl", { required: false }));
-  const baseFeedback = parseFeedback(readRevisionFile(root, parent, ".nous-feedback.jsonl", { required: false }));
+  // Candidate-tree machine artifacts are structurally validated above, but an
+  // implementation commit cannot authorize itself. Readiness and its approval
+  // must already exist in the immutable parent tree.
+  const authorizationFeedback = parseFeedback(readRevisionFile(root, parent, ".nous-feedback.jsonl", { required: false }));
   const grandfatheredWorkIds = [];
   for (const workId of workIds) {
     const readinessPath = `docs/readiness/${workId}.json`;
-    const artifactText = readRevisionFile(root, commit, readinessPath, { required: false });
+    const artifactText = readRevisionFile(root, parent, readinessPath, { required: false });
     if (artifactText === null) {
-      if (isHistoricalDone(root, parent, baseFeedback, workId)) {
+      if (isHistoricalDone(root, parent, authorizationFeedback, workId)) {
         grandfatheredWorkIds.push(workId);
         continue;
       }
       fail("WR_READINESS_MISSING", readinessPath, `Implementation for ${workId} requires ${readinessPath}`);
     }
-    const artifact = parseJson(artifactText, readinessPath);
-    if (artifact.work_id !== workId) fail("WR_READINESS_WORK_ID_MISMATCH", readinessPath, `Artifact work_id does not match ${workId}`);
-    validateAssessment(artifact, { feedbackRecords: feedback });
-    if (artifact.decision !== "ready") fail("WR_WORK_NOT_READY", readinessPath, `${workId} is ${String(artifact.decision)}, not ready`);
-    if (artifact.policy_bootstrap) {
-      const allowed = new Set(artifact.bootstrap_authorization.allowed_paths);
+    const parentArtifact = parseJson(artifactText, readinessPath);
+    if (parentArtifact.work_id !== workId) fail("WR_READINESS_WORK_ID_MISMATCH", readinessPath, `Artifact work_id does not match ${workId}`);
+    const parentAssessment = validateAssessment(parentArtifact, { feedbackRecords: authorizationFeedback });
+    if (parentArtifact.decision !== "ready") fail("WR_WORK_NOT_READY", readinessPath, `${workId} is ${String(parentArtifact.decision)}, not ready`);
+    if (!parentAssessment.active) {
+      if (parentArtifact.policy_bootstrap && parentAssessment.complete) {
+        fail("WR_BOOTSTRAP_EXPIRED", "$.bootstrap_authorization.expires_on_event", "The one-time CHG-022 bootstrap expired at its first valid terminal event");
+      }
+      fail("WR_APPROVAL_INACTIVE", readinessPath, `${workId} parent readiness authorization is inactive`);
+    }
+
+    const candidateArtifactText = readRevisionFile(root, commit, readinessPath, { required: false });
+    if (candidateArtifactText === null) fail("WR_READINESS_MISSING", readinessPath, `Candidate implementation removes readiness for ${workId}`);
+    const candidateArtifact = parseJson(candidateArtifactText, readinessPath);
+    if (candidateArtifact.work_id !== workId) fail("WR_READINESS_WORK_ID_MISMATCH", readinessPath, `Candidate artifact work_id does not match ${workId}`);
+    const candidateAssessment = validateAssessment(candidateArtifact, { feedbackRecords: candidateFeedback });
+    if (candidateArtifact.decision !== "ready") fail("WR_WORK_NOT_READY", readinessPath, `${workId} candidate state is ${String(candidateArtifact.decision)}, not ready`);
+    if (!candidateAssessment.active) {
+      if (candidateArtifact.policy_bootstrap && candidateAssessment.complete) {
+        fail("WR_BOOTSTRAP_EXPIRED", "$.bootstrap_authorization.expires_on_event", "The one-time CHG-022 bootstrap expired at its first valid terminal event");
+      }
+      fail("WR_APPROVAL_INACTIVE", readinessPath, `${workId} candidate readiness authorization is inactive`);
+    }
+    if (candidateArtifact.readiness_payload_sha256 !== parentArtifact.readiness_payload_sha256) {
+      fail("WR_CANDIDATE_PAYLOAD_CHANGED", readinessPath, `${workId} canonical readiness payload cannot change in its implementation commit`);
+    }
+    if (candidateArtifact.approval.evidence !== parentArtifact.approval.evidence
+      || candidateArtifact.approval.payload_sha256 !== parentArtifact.approval.payload_sha256
+      || candidateArtifact.approval.status !== parentArtifact.approval.status
+      || candidateArtifact.approval.approved_by !== parentArtifact.approval.approved_by) {
+      fail("WR_CANDIDATE_APPROVAL_CHANGED", readinessPath, `${workId} approval binding cannot change in its implementation commit`);
+    }
+    if (parentArtifact.policy_bootstrap) {
+      const allowed = new Set(parentArtifact.bootstrap_authorization.allowed_paths);
       const unauthorized = changedPaths.find((path) => !allowed.has(path));
       if (unauthorized) fail("WR_BOOTSTRAP_PATH_UNAUTHORIZED", unauthorized, `CHG-022 bootstrap does not authorize ${unauthorized}`);
     }

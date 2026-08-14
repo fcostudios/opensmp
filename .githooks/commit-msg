@@ -9,15 +9,15 @@
 # after Sprint 4-10, where several routes shipped with no US in the commit
 # message and became orphans in the pipeline.
 #
-# Exempt commit types (skipped):
+# Traceability-exempt commit types (readiness still runs):
 #   - Merge commits       (Merge branch ..., Merge pull request ...)
 #   - Revert commits      (Revert "...")
 #   - Fixup/squash        (fixup! ..., squash! ...)
 #   - Release tags        (chore(release): ...)
 #
-# Escape hatch:
-#   Set COMMIT_MSG_NO_US=1 before committing to bypass (for emergencies only —
-#   will show up in drift detector with no owner and trigger a pipeline review).
+# Traceability escape hatch:
+#   Set COMMIT_MSG_NO_US=1 before committing to bypass the work-ID check for an
+#   emergency. It does not approve readiness or bypass the range/server gate.
 #
 # Install:
 #   git config core.hooksPath .githooks
@@ -36,10 +36,12 @@ fi
 
 MSG="$(cat "$COMMIT_MSG_FILE")"
 
-# Emergency bypass (leaves an audit trail via env var usage)
+# Traceability-only emergency bypass (leaves an audit trail via env var usage).
+# Readiness still runs below.
+TRACEABILITY_EXEMPT=0
 if [ "${COMMIT_MSG_NO_US:-0}" = "1" ]; then
-  echo "commit-msg: bypassed via COMMIT_MSG_NO_US=1 — expect drift detector flag" >&2
-  exit 0
+  echo "commit-msg: missing-ID traceability check bypassed via COMMIT_MSG_NO_US=1 — staged readiness still applies; expect drift detector and pipeline review" >&2
+  TRACEABILITY_EXEMPT=1
 fi
 
 # Trim leading empty lines / whitespace
@@ -47,21 +49,17 @@ FIRST_LINE="$(echo "$MSG" | sed -E '/^\s*$/d' | head -n 1)"
 
 # Skip exempt commit types
 case "$FIRST_LINE" in
-  "Merge "*|"Merge pull"*) exit 0 ;;
-  "Revert "*|"revert: "*) exit 0 ;;
-  "fixup! "*|"squash! "*|"amend! "*) exit 0 ;;
-  "chore(release):"*|"release: "*) exit 0 ;;
+  "Merge "*|"Merge pull"*) TRACEABILITY_EXEMPT=1 ;;
+  "Revert "*|"revert: "*) TRACEABILITY_EXEMPT=1 ;;
+  "fixup! "*|"squash! "*|"amend! "*) TRACEABILITY_EXEMPT=1 ;;
+  "chore(release):"*|"release: "*) TRACEABILITY_EXEMPT=1 ;;
 esac
 
 # Require at least one US-NNN or CHG-NNN anywhere in the commit message
 # Case-insensitive so both `feat(chg-021):` (Conventional Commits scope) and
 # `... CHG-021 ...` in the body are accepted.
-if echo "$MSG" | grep -qiE '\b(US|CHG)-[0-9]{2,}\b'; then
-  exit 0
-fi
-
-# Reject
-cat >&2 <<'EOF'
+if [ "$TRACEABILITY_EXEMPT" = "0" ] && ! echo "$MSG" | grep -qiE '\b(US|CHG)-[0-9]{2,}\b'; then
+  cat >&2 <<'EOF'
 ✗ commit rejected: no US-NNN or CHG-NNN reference in commit message.
 
 Every commit must trace back to a user story or change request so the
@@ -79,4 +77,10 @@ Emergency bypass (leaves audit trail — will appear in drift detector):
 Discover open stories:  cat docs/stories/SPRINT_PLAN.md
                         grep -l "backlog\|in_development" docs/stories/sprint-*/*.md
 EOF
-exit 1
+  exit 1
+fi
+
+# Traceability handling completed. Validate the exact staged index and canonical
+# Git message through the same readiness engine used by the repository range gate.
+# There is intentionally no readiness-specific bypass.
+node scripts/work-readiness.mjs check-staged --message-file "$COMMIT_MSG_FILE"

@@ -606,6 +606,9 @@ function validatePreapprovalHistory(value, feedbackRecords, evidenceIndex, termi
     }
     if (NON_EXECUTION_EVENTS.has(record.event)) continue;
     if (REVOCATION_EVENTS.has(record.event)) {
+      if (typeof record.reason !== "string" || !/\S/u.test(record.reason)) {
+        fail("WR_APPROVAL_EVENT_INVALID", "$.approval.evidence", `${record.event} requires a non-empty reason`);
+      }
       authorized = false;
       continue;
     }
@@ -626,6 +629,57 @@ function validatePreapprovalHistory(value, feedbackRecords, evidenceIndex, termi
     }
     if (terminalProjection.terminalIndices.has(index)) authorized = false;
   }
+}
+
+function validatePostapprovalHistory(value, feedbackRecords, evidenceIndex, terminalProjection) {
+  let active = value.decision === "ready";
+  let stale = false;
+  let inactiveReason = active ? null : "decision_not_ready";
+  const seenDecisionIds = new Set([value.approval.evidence]);
+  for (let index = evidenceIndex + 1; index < feedbackRecords.length; index += 1) {
+    if (terminalProjection.omittedIndices.has(index)) continue;
+    const record = feedbackRecords[index];
+    if (record.story !== value.work_id) continue;
+    if (record.event === "decision") {
+      const { decisions } = validatePriorDecisionRecord(record, seenDecisionIds);
+      if (decisions.length === 1) {
+        stale = true;
+        active = false;
+      }
+      continue;
+    }
+    if (NON_EXECUTION_EVENTS.has(record.event)) continue;
+    if (REVOCATION_EVENTS.has(record.event)) {
+      if (typeof record.reason !== "string" || !/\S/u.test(record.reason)) {
+        fail("WR_APPROVAL_EVENT_INVALID", "$.approval.evidence", `${record.event} requires a non-empty reason`);
+      }
+      stale = true;
+      active = false;
+      continue;
+    }
+    if (record.event === "checkpoint") {
+      if (!["on_track", "variance", "partition_required", "blocked"].includes(record.status)) {
+        fail("WR_APPROVAL_EVENT_INVALID", "$.approval.evidence", "Checkpoint status is outside the closed readiness vocabulary");
+      }
+      if (["partition_required", "blocked"].includes(record.status)) {
+        stale = true;
+        active = false;
+      }
+      continue;
+    }
+    if (terminalProjection.terminalIndices.has(index)) {
+      active = false;
+      inactiveReason = "terminal";
+      continue;
+    }
+    if (!active && IMPLEMENTATION_EVIDENCE_EVENTS.has(record.event)) {
+      fail("WR_APPROVAL_ORDER", "$.approval.evidence", "Implementation evidence occurs after readiness authorization became inactive");
+    }
+  }
+  if (stale) {
+    fail("WR_APPROVAL_INACTIVE", "$.approval.evidence", "Selected approval is no longer the active readiness decision");
+  }
+  return { active, inactiveReason };
 }
 
 export function validateApproval(value, feedbackRecords) {
@@ -672,7 +726,8 @@ export function validateApproval(value, feedbackRecords) {
       if (mentionedIds.filter((workId) => workId === childId).length !== 1) fail("WR_APPROVAL_CHILD_BINDING", "$.approval.evidence", `Approval decision must bind official child ${childId} exactly once`);
     }
   }
-  return { evidence: value.approval.evidence, payloadSha256: recomputed };
+  const authorization = validatePostapprovalHistory(value, feedbackRecords, evidenceIndex, terminalProjection);
+  return { evidence: value.approval.evidence, payloadSha256: recomputed, ...authorization };
 }
 
 function approvalIndex(records, value) {
@@ -728,8 +783,15 @@ export function validateAssessment(value, { feedbackRecords = [] } = {}) {
   }
   if (value.decision === "ready" && value.partitions.length !== 0) fail("PARTITIONS_NOT_ALLOWED", "$.partitions", "Ready normal work cannot contain partitions");
   if (value.decision === "partition_required" && value.partitions.length === 0) fail("PARTITIONS_REQUIRED", "$.partitions", "Partition-required work must propose at least one child");
-  validateApproval(value, feedbackRecords);
-  if (value.policy_bootstrap && terminalDoneIndex(feedbackRecords, value) >= 0) fail("BOOTSTRAP_EXPIRED", "$.bootstrap_authorization.expires_on_event", "The one-time CHG-022 bootstrap expired at its first done event after V2 approval");
-  validateCompletionActuals(value, feedbackRecords);
-  return { decision: computedDecision };
+  const completion = validateCompletionActuals(value, feedbackRecords);
+  const authorization = validateApproval(value, feedbackRecords);
+  if (value.decision === "ready" && !authorization.active && !completion.complete) {
+    fail("WR_APPROVAL_INACTIVE", "$.approval.evidence", "Inactive ready authorization requires valid terminal completion actuals");
+  }
+  return {
+    decision: computedDecision,
+    active: authorization.active,
+    complete: completion.complete,
+    inactiveReason: authorization.inactiveReason,
+  };
 }
