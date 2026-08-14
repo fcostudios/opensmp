@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "paths": {
+    "AGENTS.md": {
+      "source_path": "overrides/CHG-001/825e882/AGENTS.md",
+      "source_sha256": "bb1ea10060b98594128d2d00ad1df403dbcde007e0aefb76970edecafe6d999a",
+      "desired_sha256": "842f91e9f4c4f333d5ac80267a511663e781a8c7b3a377302e4ae03aa128068f"
+    },
+    "CLAUDE.md": {
+      "source_path": "overrides/CHG-001/825e882/CLAUDE.md",
+      "source_sha256": "bf6182a5c7ef8b51158181b8de3f91eda8e4107e1dbfa1b4adee230be4a66ea6",
+      "desired_sha256": "9c3afc5674204928660976df3181c28c241d1add69167077d484a229500d5b5e"
+    },
+    "docs/dev-guide/DEFINITION_OF_DONE.md": {
+      "source_path": "overrides/CHG-001/825e882/docs/dev-guide/DEFINITION_OF_DONE.md",
+      "source_sha256": "b96bf4aaf1a2e7f6a22c1342eba1854b29170060d895e07eb8d9ea4f07fcf473",
+      "desired_sha256": "d51b857bb091c98a498a094dc1834f3c7ba7cbcd1adf6e97cef8510e3d09a51b"
+    }
+  }
+}

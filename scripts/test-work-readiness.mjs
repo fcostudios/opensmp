@@ -2370,7 +2370,7 @@ test("an arbitrary unregistered overlay manifest cannot authorize generated Nous
   }
 });
 
-test("a pre-registered canonical reconciler layer owns its exact generated path", () => {
+test("an unreviewed tautological loader cannot own a generated path", () => {
   const { root } = makeGitRepo();
   try {
     const decision = writeApprovedWork(root, "CHG-456");
@@ -2400,9 +2400,17 @@ test("a pre-registered canonical reconciler layer owns its exact generated path"
       "LAYERED_OVERRIDE_SPECS = (",
       '    ("CHG-456/abc1234", CHG456_PATHS),',
       ")",
-      "def build_plan(root):",
+      "def load_layered_overrides():",
+      "    layers = []",
       "    for layer_name, expected_paths in LAYERED_OVERRIDE_SPECS:",
-      "        apply_layer(root, layer_name, expected_paths)",
+      "        pinned = {}",
+      '        override_root = data_root / "overrides" / layer_name',
+      '        source_path = expected_paths["docs/stories/SPRINT_PLAN.md"]',
+      '        if source_path != expected_paths["docs/stories/SPRINT_PLAN.md"]:',
+      '            raise ValueError("source")',
+      "        pinned[source_path] = override_root",
+      "        layers.append((layer_name, pinned))",
+      "    return layers",
       "",
     ].join("\n"));
     const setupPaths = [
@@ -2413,7 +2421,194 @@ test("a pre-registered canonical reconciler layer owns its exact generated path"
     const base = commitRepo(root, "docs(CHG-456): register canonical generated overlay", setupPaths);
     writeRepoFile(root, "docs/stories/SPRINT_PLAN.md", desired);
     const head = commitRepo(root, "docs(CHG-456): apply registered generated overlay", ["docs/stories/SPRINT_PLAN.md"]);
+    assert.throws(
+      () => validateRangeOwnership({ root, base, head }),
+      (error) => error.code === "WR_GENERATED_NOUS_PATH",
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("the committed ordered CHG-004 and CHG-022 layers authorize the real CHG-004 transition", () => {
+  const { root } = makeGitRepo();
+  try {
+    const decision = writeApprovedWork(root, "CHG-004");
+    writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(decision)}\n`);
+    const fixturePaths = [
+      "infra/scripts/reconcile-sprint1-docs.py",
+      "infra/scripts/overrides/CHG-001/825e882/docs/stories/CHANGES.md",
+      "infra/scripts/overrides/CHG-004/e4b9a06/docs/stories/CHANGES.md",
+      "infra/scripts/overrides/CHG-004/e4b9a06/testing/critical-paths.md",
+      "infra/scripts/overrides/CHG-004/e4b9a06/manifest.json",
+      "infra/scripts/overrides/CHG-022/16f72c9/AGENTS.md",
+      "infra/scripts/overrides/CHG-022/16f72c9/CLAUDE.md",
+      "infra/scripts/overrides/CHG-022/16f72c9/docs/dev-guide/DEFINITION_OF_DONE.md",
+      "infra/scripts/overrides/CHG-022/16f72c9/manifest.json",
+    ];
+    for (const path of fixturePaths) {
+      writeRepoFile(root, path, readFileSync(new URL(`../${path}`, import.meta.url)));
+    }
+    const generatedPath = "docs/stories/CHANGES.md";
+    const sourcePath = "infra/scripts/overrides/CHG-001/825e882/docs/stories/CHANGES.md";
+    const desiredPath = "infra/scripts/overrides/CHG-004/e4b9a06/docs/stories/CHANGES.md";
+    writeRepoFile(root, generatedPath, readFileSync(new URL(`../${sourcePath}`, import.meta.url)));
+    const base = commitRepo(root, "docs(CHG-004): register real ordered overlay fixture", [
+      "docs/readiness/CHG-004.json", ".nous-feedback.jsonl", generatedPath, ...fixturePaths,
+    ]);
+    writeRepoFile(root, generatedPath, readFileSync(new URL(`../${desiredPath}`, import.meta.url)));
+    const head = commitRepo(root, "docs(CHG-004): apply real ordered overlay fixture", [generatedPath]);
+
     assert.equal(validateRangeOwnership({ root, base, head }).classification, "implementation");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("the reviewed overlay specs reject an altered manifest hash helper implementation", () => {
+  const { root } = makeGitRepo();
+  try {
+    const decision = writeApprovedWork(root, "CHG-004");
+    writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(decision)}\n`);
+    const fixturePaths = [
+      "infra/scripts/overrides/CHG-001/825e882/docs/stories/CHANGES.md",
+      "infra/scripts/overrides/CHG-004/e4b9a06/docs/stories/CHANGES.md",
+      "infra/scripts/overrides/CHG-004/e4b9a06/testing/critical-paths.md",
+      "infra/scripts/overrides/CHG-004/e4b9a06/manifest.json",
+      "infra/scripts/overrides/CHG-022/16f72c9/AGENTS.md",
+      "infra/scripts/overrides/CHG-022/16f72c9/CLAUDE.md",
+      "infra/scripts/overrides/CHG-022/16f72c9/docs/dev-guide/DEFINITION_OF_DONE.md",
+      "infra/scripts/overrides/CHG-022/16f72c9/manifest.json",
+    ];
+    for (const path of fixturePaths) {
+      writeRepoFile(root, path, readFileSync(new URL(`../${path}`, import.meta.url)));
+    }
+    const reconcilerPath = "infra/scripts/reconcile-sprint1-docs.py";
+    const reviewed = readFileSync(new URL(`../${reconcilerPath}`, import.meta.url), "utf8");
+    const altered = reviewed.replace(
+      "return hashlib.sha256(content).hexdigest()",
+      'return "0" * 64',
+    );
+    assert.notEqual(altered, reviewed);
+    writeRepoFile(root, reconcilerPath, altered);
+    const generatedPath = "docs/stories/CHANGES.md";
+    const sourcePath = "infra/scripts/overrides/CHG-001/825e882/docs/stories/CHANGES.md";
+    const desiredPath = "infra/scripts/overrides/CHG-004/e4b9a06/docs/stories/CHANGES.md";
+    writeRepoFile(root, generatedPath, readFileSync(new URL(`../${sourcePath}`, import.meta.url)));
+    const base = commitRepo(root, "docs(CHG-004): register altered helper fixture", [
+      "docs/readiness/CHG-004.json", ".nous-feedback.jsonl", reconcilerPath,
+      generatedPath, ...fixturePaths,
+    ]);
+    writeRepoFile(root, generatedPath, readFileSync(new URL(`../${desiredPath}`, import.meta.url)));
+    const head = commitRepo(root, "docs(CHG-004): apply altered helper fixture", [generatedPath]);
+
+    assert.throws(
+      () => validateRangeOwnership({ root, base, head }),
+      (error) => error.code === "WR_GENERATED_NOUS_PATH",
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("the reviewed reconciler binding rejects late rebinding and ignored-layer runtime changes", () => {
+  const mutations = [
+    ["whitespace-only", (source) => source.replace(
+      "#!/usr/bin/env python3\n",
+      "#!/usr/bin/env python3\n\n",
+    )],
+    ["late-rebind", (source) => `${source}\nload_layered_overrides = lambda: []\n`],
+    ["ignore-layers", (source) => source.replace(
+      "layers = load_layered_overrides()",
+      "layers = ()  # maliciously ignore registered overlays",
+    )],
+  ];
+  for (const [variant, mutate] of mutations) {
+    const { root } = makeGitRepo();
+    try {
+      const decision = writeApprovedWork(root, "CHG-004");
+      writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(decision)}\n`);
+      const fixturePaths = [
+        "infra/scripts/overrides/CHG-001/825e882/docs/stories/CHANGES.md",
+        "infra/scripts/overrides/CHG-004/e4b9a06/docs/stories/CHANGES.md",
+        "infra/scripts/overrides/CHG-004/e4b9a06/testing/critical-paths.md",
+        "infra/scripts/overrides/CHG-004/e4b9a06/manifest.json",
+        "infra/scripts/overrides/CHG-022/16f72c9/AGENTS.md",
+        "infra/scripts/overrides/CHG-022/16f72c9/CLAUDE.md",
+        "infra/scripts/overrides/CHG-022/16f72c9/docs/dev-guide/DEFINITION_OF_DONE.md",
+        "infra/scripts/overrides/CHG-022/16f72c9/manifest.json",
+      ];
+      for (const path of fixturePaths) {
+        writeRepoFile(root, path, readFileSync(new URL(`../${path}`, import.meta.url)));
+      }
+      const reconcilerPath = "infra/scripts/reconcile-sprint1-docs.py";
+      const reviewed = readFileSync(new URL(`../${reconcilerPath}`, import.meta.url), "utf8");
+      const altered = mutate(reviewed);
+      assert.notEqual(altered, reviewed, variant);
+      writeRepoFile(root, reconcilerPath, altered);
+      const generatedPath = "docs/stories/CHANGES.md";
+      const sourcePath = "infra/scripts/overrides/CHG-001/825e882/docs/stories/CHANGES.md";
+      const desiredPath = "infra/scripts/overrides/CHG-004/e4b9a06/docs/stories/CHANGES.md";
+      writeRepoFile(root, generatedPath, readFileSync(new URL(`../${sourcePath}`, import.meta.url)));
+      const base = commitRepo(root, `docs(CHG-004): register ${variant} fixture`, [
+        "docs/readiness/CHG-004.json", ".nous-feedback.jsonl", reconcilerPath,
+        generatedPath, ...fixturePaths,
+      ]);
+      writeRepoFile(root, generatedPath, readFileSync(new URL(`../${desiredPath}`, import.meta.url)));
+      const head = commitRepo(root, `docs(CHG-004): apply ${variant} fixture`, [generatedPath]);
+
+      assert.throws(
+        () => validateRangeOwnership({ root, base, head }),
+        (error) => error.code === "WR_GENERATED_NOUS_PATH",
+        variant,
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("a literal overlay tuple that is never applied cannot own generated Nous output", () => {
+  const { root } = makeGitRepo();
+  try {
+    const decision = writeApprovedWork(root, "CHG-456");
+    writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(decision)}\n`);
+    const generatedPath = "docs/stories/SPRINT_PLAN.md";
+    const sourcePath = "overrides/CHG-001/base/docs/stories/SPRINT_PLAN.md";
+    const sourceRepoPath = `infra/scripts/${sourcePath}`;
+    const desiredPath = "infra/scripts/overrides/CHG-456/abc1234/docs/stories/SPRINT_PLAN.md";
+    const source = "source\n";
+    const desired = "desired\n";
+    writeRepoFile(root, sourceRepoPath, source);
+    writeRepoFile(root, desiredPath, desired);
+    writeRepoFile(root, generatedPath, source);
+    writeRepoFile(root, "infra/scripts/overrides/CHG-456/abc1234/manifest.json", `${JSON.stringify({
+      version: 1,
+      paths: { [generatedPath]: {
+        source_path: sourcePath,
+        source_sha256: createHash("sha256").update(source).digest("hex"),
+        desired_sha256: createHash("sha256").update(desired).digest("hex"),
+      } },
+    })}\n`);
+    writeRepoFile(root, "infra/scripts/reconcile-sprint1-docs.py", [
+      `CHG456_PATHS = {"${generatedPath}": "${sourcePath}"}`,
+      'LAYERED_OVERRIDE_SPECS = (("CHG-456/abc1234", CHG456_PATHS),)',
+      "for layer, paths in LAYERED_OVERRIDE_SPECS:",
+      "    audit_only(layer, paths)",
+      "",
+    ].join("\n"));
+    const base = commitRepo(root, "docs(CHG-456): register unapplied tuple", [
+      "docs/readiness/CHG-456.json", ".nous-feedback.jsonl", sourceRepoPath,
+      desiredPath, generatedPath, "infra/scripts/overrides/CHG-456/abc1234/manifest.json",
+      "infra/scripts/reconcile-sprint1-docs.py",
+    ]);
+    writeRepoFile(root, generatedPath, desired);
+    const head = commitRepo(root, "docs(CHG-456): attempt unapplied overlay", [generatedPath]);
+
+    assert.throws(
+      () => validateRangeOwnership({ root, base, head }),
+      (error) => error.code === "WR_GENERATED_NOUS_PATH",
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -2454,8 +2649,17 @@ test("registered overlays fail closed on missing paths, hashes, registration, an
         "LAYERED_OVERRIDE_SPECS = (",
         `    ("${registeredLayer}", CHG456_PATHS),`,
         ")",
-        "for layer, paths in LAYERED_OVERRIDE_SPECS:",
-        "    apply_layer(layer, paths)",
+        "def load_layered_overrides():",
+        "    layers = []",
+        "    for layer, paths in LAYERED_OVERRIDE_SPECS:",
+        "        pinned = {}",
+        '        override_root = data_root / "overrides" / layer',
+        '        source_path = paths["docs/stories/SPRINT_PLAN.md"]',
+        '        if source_path != paths["docs/stories/SPRINT_PLAN.md"]:',
+        '            raise ValueError("source")',
+        "        pinned[source_path] = override_root",
+        "        layers.append((layer, pinned))",
+        "    return layers",
         "",
       ].join("\n"));
       const base = commitRepo(root, "docs(CHG-456): register invalid overlay fixture", [

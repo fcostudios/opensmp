@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 import unittest
 from pathlib import Path
 
@@ -24,6 +25,12 @@ KNOWN_SUBSTRATE_ROOT = Path(__file__).parent / "fixtures/825e882"
 PINNED_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-001/825e882"
 LATEST_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-004/e4b9a06"
 STORY_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-005/277b64e"
+READINESS_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-022/16f72c9"
+READINESS_GUIDES = (
+    "AGENTS.md",
+    "CLAUDE.md",
+    "docs/dev-guide/DEFINITION_OF_DONE.md",
+)
 PINNED_GUIDES = (
     "AGENTS.md",
     "CLAUDE.md",
@@ -69,6 +76,9 @@ def desired_guide(relative_path: str) -> bytes:
 
 
 def latest_desired_guide(relative_path: str) -> bytes:
+    readiness = READINESS_OVERRIDE_ROOT / relative_path
+    if readiness.is_file():
+        return readiness.read_bytes()
     latest = LATEST_OVERRIDE_ROOT / relative_path
     return latest.read_bytes() if latest.is_file() else desired_guide(relative_path)
 
@@ -119,6 +129,10 @@ def copy_reconciler_data(root: Path) -> Path:
         STORY_OVERRIDE_ROOT,
         data_root / "overrides/CHG-005/277b64e",
     )
+    shutil.copytree(
+        READINESS_OVERRIDE_ROOT,
+        data_root / "overrides/CHG-022/16f72c9",
+    )
     return data_root
 
 
@@ -126,9 +140,12 @@ def run_reconciler(
     root: Path,
     *arguments: str,
     data_root: Path = SCRIPT_DATA_ROOT,
+    extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     environment = os.environ.copy()
     environment["RECONCILER_DATA_ROOT"] = str(data_root)
+    if extra_env:
+        environment.update(extra_env)
     return subprocess.run(
         [sys.executable, str(SCRIPT), str(root), *arguments],
         check=False,
@@ -138,7 +155,555 @@ def run_reconciler(
     )
 
 
+def fault_environment(point: str, sync_dir: Path | None = None) -> dict[str, str]:
+    environment = {
+        "RECONCILER_FAULT_TOKEN": "CHG022-TRANSACTION-TEST",
+        "RECONCILER_FAULT_POINT": point,
+    }
+    if sync_dir is not None:
+        environment["RECONCILER_FAULT_SYNC_DIR"] = str(sync_dir)
+    return environment
+
+
+def create_chg022_drift(root: Path) -> None:
+    create_project(root)
+    for relative_path in READINESS_GUIDES:
+        (root / relative_path).write_bytes(desired_guide(relative_path))
+    claude = desired_guide("CLAUDE.md")
+    for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
+        (root / mirror).write_bytes(claude)
+    write(
+        root,
+        "docs/dev-guide/PACKAGE_MAP.md",
+        f"{EXPECTED_PACKAGE_ENTITY}\n{EXPECTED_PACKAGE_SCOPE}\n",
+    )
+
+
+def transaction_artifacts(root: Path) -> list[Path]:
+    return sorted(
+        path
+        for path in root.rglob("*")
+        if path.is_file()
+        and (path.name.endswith(".tmp") or ".reconcile-sprint1-transactions" in str(path))
+    )
+
+
 class ReconciliationBehaviorTests(unittest.TestCase):
+    def test_initializing_transaction_crashes_restart_all_old_without_orphans(self) -> None:
+        for point in (
+            "during_initial_journal",
+            "after_initializing",
+            "during_desired:1",
+            "after_desired:1",
+            "during_backup:1",
+            "after_backup:1",
+            "after_staging_dir_fsync",
+        ):
+            with self.subTest(point=point), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                create_chg022_drift(root)
+                modes = {
+                    relative_path: (root / relative_path).stat().st_mode
+                    for relative_path in READINESS_GUIDES
+                }
+
+                crashed = run_reconciler(root, extra_env=fault_environment(point))
+                self.assertEqual(crashed.returncode, 86, crashed.stderr)
+                recovered = run_reconciler(root, "--check")
+
+                self.assertEqual(recovered.returncode, 1, recovered.stderr)
+                for relative_path in READINESS_GUIDES:
+                    self.assertEqual(
+                        (root / relative_path).read_bytes(),
+                        desired_guide(relative_path),
+                    )
+                    self.assertEqual(
+                        (root / relative_path).stat().st_mode,
+                        modes[relative_path],
+                    )
+                self.assertEqual(transaction_artifacts(root), [])
+
+                applied = run_reconciler(root)
+
+                self.assertEqual(applied.returncode, 0, applied.stderr)
+                for relative_path in READINESS_GUIDES:
+                    self.assertEqual(
+                        (root / relative_path).read_bytes(),
+                        (READINESS_OVERRIDE_ROOT / relative_path).read_bytes(),
+                    )
+                self.assertEqual(transaction_artifacts(root), [])
+
+    def test_transaction_crashes_roll_back_or_forward_without_orphans(self) -> None:
+        for point, expected_new in (
+            ("after_publish:1", False),
+            ("after_publish:2", False),
+            ("after_committed", True),
+        ):
+            with self.subTest(point=point), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                create_chg022_drift(root)
+                modes = {
+                    relative_path: (root / relative_path).stat().st_mode
+                    for relative_path in READINESS_GUIDES
+                }
+
+                crashed = run_reconciler(root, extra_env=fault_environment(point))
+                self.assertEqual(crashed.returncode, 86, crashed.stderr)
+                recovered = run_reconciler(root, "--check")
+
+                self.assertEqual(recovered.returncode, 0 if expected_new else 1)
+                for relative_path in READINESS_GUIDES:
+                    expected = (
+                        (READINESS_OVERRIDE_ROOT / relative_path).read_bytes()
+                        if expected_new
+                        else desired_guide(relative_path)
+                    )
+                    self.assertEqual((root / relative_path).read_bytes(), expected)
+                    self.assertEqual((root / relative_path).stat().st_mode, modes[relative_path])
+                self.assertEqual(transaction_artifacts(root), [])
+
+    def test_recovery_itself_can_crash_then_resume_to_all_old(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_chg022_drift(root)
+            self.assertEqual(
+                run_reconciler(
+                    root, extra_env=fault_environment("after_publish:2")
+                ).returncode,
+                86,
+            )
+            self.assertEqual(
+                run_reconciler(
+                    root,
+                    "--check",
+                    extra_env=fault_environment("recovery:1"),
+                ).returncode,
+                86,
+            )
+
+            recovered = run_reconciler(root, "--check")
+
+            self.assertEqual(recovered.returncode, 1)
+            for relative_path in READINESS_GUIDES:
+                self.assertEqual(
+                    (root / relative_path).read_bytes(), desired_guide(relative_path)
+                )
+            self.assertEqual(transaction_artifacts(root), [])
+
+    def test_concurrent_edit_after_validation_fails_with_zero_publications(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "project"
+            sync_dir = Path(directory) / "sync"
+            create_chg022_drift(root)
+            environment = os.environ.copy()
+            environment["RECONCILER_DATA_ROOT"] = str(SCRIPT_DATA_ROOT)
+            environment.update(fault_environment("after_global_check", sync_dir))
+            process = subprocess.Popen(
+                [sys.executable, str(SCRIPT), str(root)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=environment,
+            )
+            deadline = time.monotonic() + 10
+            while not (sync_dir / "ready").exists():
+                self.assertIsNone(process.poll(), "reconciler exited before pause")
+                self.assertLess(time.monotonic(), deadline, "pause marker timed out")
+                time.sleep(0.01)
+            competing = subprocess.Popen(
+                [sys.executable, str(SCRIPT), str(root), "--check"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "RECONCILER_DATA_ROOT": str(SCRIPT_DATA_ROOT)},
+            )
+            time.sleep(0.1)
+            self.assertIsNone(competing.poll(), "cross-process lock did not block")
+            concurrent = root / "CLAUDE.md"
+            concurrent.write_bytes(b"concurrent operator edit\n")
+            write(sync_dir, "continue", "continue\n")
+
+            stdout, stderr = process.communicate(timeout=10)
+            competing_stdout, competing_stderr = competing.communicate(timeout=10)
+
+            self.assertNotEqual(process.returncode, 0, stdout)
+            self.assertIn("changed immediately before publication", stderr)
+            self.assertNotEqual(competing.returncode, 0, competing_stdout)
+            self.assertIn("unknown generated guidance state", competing_stderr)
+            self.assertEqual(concurrent.read_bytes(), b"concurrent operator edit\n")
+            self.assertEqual((root / "AGENTS.md").read_bytes(), desired_guide("AGENTS.md"))
+            self.assertEqual(transaction_artifacts(root), [])
+
+    def test_concurrent_edit_between_publications_rolls_back_prior_publish(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "project"
+            sync_dir = Path(directory) / "sync"
+            create_chg022_drift(root)
+            environment = {
+                **os.environ,
+                "RECONCILER_DATA_ROOT": str(SCRIPT_DATA_ROOT),
+                **fault_environment("between_publish:1", sync_dir),
+            }
+            process = subprocess.Popen(
+                [sys.executable, str(SCRIPT), str(root)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=environment,
+            )
+            deadline = time.monotonic() + 10
+            while not (sync_dir / "ready").exists():
+                self.assertIsNone(process.poll(), "reconciler exited before pause")
+                self.assertLess(time.monotonic(), deadline, "pause marker timed out")
+                time.sleep(0.01)
+            concurrent = root / "CLAUDE.md"
+            concurrent.write_bytes(b"editor bytes between replacements\n")
+            write(sync_dir, "continue", "continue\n")
+
+            stdout, stderr = process.communicate(timeout=10)
+
+            self.assertNotEqual(process.returncode, 0, stdout)
+            self.assertIn("prior files rolled back and editor bytes preserved", stderr)
+            self.assertEqual(
+                (root / "AGENTS.md").read_bytes(), desired_guide("AGENTS.md")
+            )
+            self.assertEqual(
+                concurrent.read_bytes(), b"editor bytes between replacements\n"
+            )
+            self.assertEqual(
+                (root / "docs/dev-guide/DEFINITION_OF_DONE.md").read_bytes(),
+                desired_guide("docs/dev-guide/DEFINITION_OF_DONE.md"),
+            )
+            self.assertEqual(transaction_artifacts(root), [])
+
+    def test_tampered_initializing_journal_rejects_before_recovery_writes(self) -> None:
+        for variant in ("escape", "hash"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                create_chg022_drift(root)
+                self.assertEqual(
+                    run_reconciler(
+                        root, extra_env=fault_environment("after_initializing")
+                    ).returncode,
+                    86,
+                )
+                journal_path = root / ".reconcile-sprint1-transactions/active.json"
+                journal = json.loads(journal_path.read_text(encoding="utf-8"))
+                if variant == "escape":
+                    journal["entries"][0]["desired"] = "../outside-desired.tmp"
+                else:
+                    journal["entries"][0]["original_sha256"] = "0" * 64
+                journal_path.write_text(
+                    json.dumps(journal, sort_keys=True, separators=(",", ":")) + "\n",
+                    encoding="utf-8",
+                )
+                before = snapshot(root)
+
+                result = run_reconciler(root, "--check")
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(snapshot(root), before)
+                self.assertNotIn("Traceback", result.stderr)
+
+    def test_initializing_recovery_removes_incomplete_regular_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_chg022_drift(root)
+            self.assertEqual(
+                run_reconciler(
+                    root, extra_env=fault_environment("after_desired:1")
+                ).returncode,
+                86,
+            )
+            journal_path = root / ".reconcile-sprint1-transactions/active.json"
+            journal = json.loads(journal_path.read_text(encoding="utf-8"))
+            declared = root / journal["entries"][0]["desired"]
+            declared.write_bytes(b"incomplete staged bytes\n")
+
+            recovered = run_reconciler(root, "--check")
+
+            self.assertEqual(recovered.returncode, 1, recovered.stderr)
+            for relative_path in READINESS_GUIDES:
+                self.assertEqual(
+                    (root / relative_path).read_bytes(), desired_guide(relative_path)
+                )
+            self.assertEqual(transaction_artifacts(root), [])
+
+    def test_orphan_initial_journal_auxiliary_rejects_conflicting_context(self) -> None:
+        for variant in ("symlink", "extra"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory) / "project"
+                create_chg022_drift(root)
+                self.assertEqual(
+                    run_reconciler(
+                        root, extra_env=fault_environment("during_initial_journal")
+                    ).returncode,
+                    86,
+                )
+                transaction_dir = root / ".reconcile-sprint1-transactions"
+                journal_next = transaction_dir / ".active.json.next.tmp"
+                if variant == "symlink":
+                    journal_next.unlink()
+                    journal_next.symlink_to(Path(directory) / "outside")
+                else:
+                    (transaction_dir / "conflict").write_bytes(b"conflict\n")
+                before = snapshot(root)
+
+                result = run_reconciler(root, "--check")
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("conflicting or tampered", result.stderr)
+                self.assertEqual(snapshot(root), before)
+                self.assertNotIn("Traceback", result.stderr)
+
+    def test_valid_initial_journal_rejects_conflicting_context_before_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_chg022_drift(root)
+            self.assertEqual(
+                run_reconciler(
+                    root, extra_env=fault_environment("after_initializing")
+                ).returncode,
+                86,
+            )
+            transaction_dir = root / ".reconcile-sprint1-transactions"
+            (transaction_dir / "conflict").write_bytes(b"conflict\n")
+            before = snapshot(root)
+
+            result = run_reconciler(root, "--check")
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("conflicting or tampered", result.stderr)
+            self.assertEqual(snapshot(root), before)
+            self.assertNotIn("Traceback", result.stderr)
+
+    def test_tampered_or_escaping_journal_fails_before_recovery_writes(self) -> None:
+        for variant in ("escape", "hash"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                create_chg022_drift(root)
+                self.assertEqual(
+                    run_reconciler(
+                        root, extra_env=fault_environment("after_publish:1")
+                    ).returncode,
+                    86,
+                )
+                journal_path = root / ".reconcile-sprint1-transactions/active.json"
+                journal = json.loads(journal_path.read_text(encoding="utf-8"))
+                if variant == "escape":
+                    journal["entries"][0]["backup"] = "../outside-backup"
+                else:
+                    journal["entries"][0]["original_sha256"] = "0" * 64
+                journal_path.write_text(
+                    json.dumps(journal, sort_keys=True, separators=(",", ":")) + "\n",
+                    encoding="utf-8",
+                )
+                before = snapshot(root)
+
+                result = run_reconciler(root, "--check")
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(snapshot(root), before)
+                self.assertNotIn("Traceback", result.stderr)
+
+    def test_fault_contract_cleans_staging_and_retries_cleanup_without_mocks(self) -> None:
+        for point, expected_code in (
+            ("stage_failure:3", 1),
+            ("staging_dir_fsync_failure", 1),
+            ("after_global_check", 1),
+            ("cleanup_unlink_once", 0),
+        ):
+            with self.subTest(point=point), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                create_chg022_drift(root)
+                before = snapshot(root)
+
+                result = run_reconciler(root, extra_env=fault_environment(point))
+
+                self.assertEqual(result.returncode, expected_code, result.stderr)
+                if point != "cleanup_unlink_once":
+                    self.assertEqual(snapshot(root), before)
+                else:
+                    for relative_path in READINESS_GUIDES:
+                        self.assertEqual(
+                            (root / relative_path).read_bytes(),
+                            (READINESS_OVERRIDE_ROOT / relative_path).read_bytes(),
+                        )
+                self.assertEqual(transaction_artifacts(root), [])
+
+    def test_persistent_rollback_failure_preserves_recovery_then_resumes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_chg022_drift(root)
+            result = run_reconciler(
+                root,
+                extra_env=fault_environment(
+                    "publish_failure:2,rollback_replace_persistent"
+                ),
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("mixed state", result.stderr)
+            self.assertIn("recovery backup", result.stderr)
+            backups = list(root.rglob("*.backup.*.tmp"))
+            self.assertEqual(len(backups), 1)
+            self.assertIn("AGENTS.md", backups[0].name)
+            unrelated_temps = [
+                path
+                for path in transaction_artifacts(root)
+                if path != backups[0]
+                and path.name != "active.json"
+            ]
+            self.assertEqual(unrelated_temps, [])
+
+            recovered = run_reconciler(root, "--check")
+
+            self.assertEqual(recovered.returncode, 1)
+            for relative_path in READINESS_GUIDES:
+                self.assertEqual(
+                    (root / relative_path).read_bytes(), desired_guide(relative_path)
+                )
+            self.assertEqual(transaction_artifacts(root), [])
+
+    def test_chg022_manifest_binds_exact_source_and_desired_artifacts(self) -> None:
+        manifest = json.loads(
+            (READINESS_OVERRIDE_ROOT / "manifest.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(set(manifest), {"version", "paths"})
+        self.assertEqual(manifest["version"], 1)
+        self.assertEqual(set(manifest["paths"]), set(READINESS_GUIDES))
+        for relative_path in READINESS_GUIDES:
+            metadata = manifest["paths"][relative_path]
+            self.assertEqual(
+                set(metadata),
+                {"source_path", "source_sha256", "desired_sha256"},
+            )
+            self.assertEqual(
+                metadata["source_path"],
+                f"overrides/CHG-001/825e882/{relative_path}",
+            )
+            self.assertEqual(
+                metadata["source_sha256"],
+                hashlib.sha256(desired_guide(relative_path)).hexdigest(),
+            )
+            self.assertEqual(
+                metadata["desired_sha256"],
+                hashlib.sha256(
+                    (READINESS_OVERRIDE_ROOT / relative_path).read_bytes()
+                ).hexdigest(),
+            )
+
+    def test_chg022_upgrades_current_chg001_guidance_to_readiness_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_project(root)
+            for relative_path in READINESS_GUIDES:
+                (root / relative_path).write_bytes(desired_guide(relative_path))
+
+            result = run_reconciler(root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for relative_path in READINESS_GUIDES:
+                self.assertEqual(
+                    (root / relative_path).read_bytes(),
+                    (READINESS_OVERRIDE_ROOT / relative_path).read_bytes(),
+                    relative_path,
+                )
+
+    def test_chg022_check_reports_drift_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_project(root)
+            for relative_path in READINESS_GUIDES:
+                (root / relative_path).write_bytes(desired_guide(relative_path))
+            before = snapshot(root)
+
+            result = run_reconciler(root, "--check")
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(snapshot(root), before)
+            for relative_path in READINESS_GUIDES:
+                self.assertIn(relative_path, result.stderr)
+
+    def test_chg022_repairs_all_three_governed_files_together(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_project(root)
+            for relative_path in READINESS_GUIDES:
+                (root / relative_path).write_bytes(desired_guide(relative_path))
+
+            result = run_reconciler(root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for relative_path in READINESS_GUIDES:
+                self.assertEqual(
+                    (root / relative_path).read_bytes(),
+                    (READINESS_OVERRIDE_ROOT / relative_path).read_bytes(),
+                )
+            self.assertEqual(run_reconciler(root, "--check").returncode, 0)
+
+    def test_chg022_source_and_desired_tamper_fail_before_writes(self) -> None:
+        for artifact_kind in ("source", "desired"):
+            with self.subTest(artifact_kind=artifact_kind), tempfile.TemporaryDirectory() as directory:
+                base = Path(directory)
+                root = base / "project"
+                create_project(root)
+                data_root = copy_reconciler_data(base)
+                artifact = (
+                    data_root / "overrides/CHG-001/825e882/AGENTS.md"
+                    if artifact_kind == "source"
+                    else data_root / "overrides/CHG-022/16f72c9/AGENTS.md"
+                )
+                artifact.write_bytes(artifact.read_bytes() + b"tampered\n")
+                before = snapshot(root)
+
+                result = run_reconciler(root, data_root=data_root)
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(snapshot(root), before)
+                self.assertIn("CHG-022", result.stderr)
+                self.assertIn("hash mismatch", result.stderr)
+
+    def test_unknown_post_chg022_state_fails_closed_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_project(root)
+            agents = root / "AGENTS.md"
+            agents.write_bytes(agents.read_bytes() + b"unknown future state\n")
+            before = snapshot(root)
+
+            result = run_reconciler(root)
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(snapshot(root), before)
+            self.assertIn("AGENTS.md: unknown generated guidance state", result.stderr)
+
+    def test_chg022_leaves_unauthorized_claude_mirrors_on_chg001_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_project(root)
+            # CHG-022's immutable higher-authority allowed_paths excludes these
+            # mirrors; they remain byte-pinned to CHG-001 until separately approved.
+            for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
+                (root / mirror).write_bytes(desired_guide("CLAUDE.md"))
+            before = {
+                mirror: (root / mirror).read_bytes()
+                for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md")
+            }
+
+            result = run_reconciler(root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for mirror, content in before.items():
+                self.assertEqual((root / mirror).read_bytes(), content)
+
+    def test_chg022_guidance_contains_readiness_command_and_two_hour_rule(self) -> None:
+        for relative_path in READINESS_GUIDES:
+            text = (READINESS_OVERRIDE_ROOT / relative_path).read_text(encoding="utf-8")
+            self.assertIn("pnpm readiness:check -- <WORK-ID>", text, relative_path)
+            self.assertIn("above 120 minutes", text, relative_path)
+            self.assertIn("docs/dev-guide/WORK_READINESS.md", text, relative_path)
+
     def test_committed_override_manifest_is_independent_exact_oracle(self) -> None:
         manifest_path = PINNED_OVERRIDE_ROOT / "manifest.json"
 

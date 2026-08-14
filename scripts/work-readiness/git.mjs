@@ -18,6 +18,10 @@ const GENERATED_NOUS_PATHS = [
 ];
 const OVERLAY_LAYER_PATTERN = /^(CHG-[0-9]{3,})\/[a-z0-9]{7,64}$/u;
 const ACTIVATION_EVIDENCE = "CHG022-READINESS-V2-APPROVAL";
+// Reviewed fail-closed raw-byte binding for the complete reconciler. Any
+// whitespace, definition rebinding, helper, build-plan, or runtime edit
+// requires an explicit review and a new digest before ownership is accepted.
+const REVIEWED_RECONCILER_SHA256 = "9ab3409f90b445ae13a3663939ad6be74296995ee5ba7f8c4bc173280883d3d8";
 
 function fail(code, path, message) {
   throw new WorkReadinessError(code, message, path);
@@ -515,39 +519,118 @@ function isHistoricalDone(root, base, feedback, workId) {
 }
 
 function registeredOverlayLayers(source) {
-  const lines = source.split(/\r?\n/u);
-  const start = lines.findIndex((line) => line.trim() === "LAYERED_OVERRIDE_SPECS = (");
-  if (start < 0) return [];
-  const layers = [];
-  let end = -1;
-  for (let index = start + 1; index < lines.length; index += 1) {
-    if (lines[index].trim() === ")") {
-      end = index;
-      break;
-    }
-    if (lines[index].trim() === "") continue;
-    const match = /^\s*\("(CHG-[0-9]{3,}\/[a-z0-9]{7,64})",\s*([A-Z][A-Z0-9_]*)\),\s*$/u.exec(lines[index]);
-    if (!match) return [];
-    layers.push({ layer: match[1], pathsConstant: match[2] });
-  }
-  if (end < 0) return [];
-  const applicationIndex = lines.findIndex((line, index) => index > end
-    && /^\s*for\s+[a-z_][a-z0-9_]*,\s*[a-z_][a-z0-9_]*\s+in\s+LAYERED_OVERRIDE_SPECS:\s*$/u.test(line));
-  if (applicationIndex < 0) return [];
-  const loopMatch = /^\s*for\s+([a-z_][a-z0-9_]*),\s*([a-z_][a-z0-9_]*)\s+in\s+LAYERED_OVERRIDE_SPECS:\s*$/u.exec(lines[applicationIndex]);
-  const applicationLines = lines.slice(applicationIndex + 1, applicationIndex + 13);
-  if (!loopMatch || !applicationLines.some((line) => line.includes(loopMatch[1]) && line.includes(loopMatch[2])
-    && /^\s+[a-z_][a-z0-9_]*\([^\n]*\)\s*$/iu.test(line))) return [];
-  return layers.map((entry) => {
-    const constantPattern = new RegExp(`${entry.pathsConstant}\\s*=\\s*\\{([\\s\\S]*?)\\}`, "u");
-    const body = constantPattern.exec(source)?.[1];
-    if (body === undefined) return { ...entry, paths: new Map() };
-    const mappingPattern = /["']([^"']+)["']\s*:\s*(?:\(\s*)?["']([^"']+)["'](?:\s*\))?\s*,?/gu;
-    const mappings = [...body.matchAll(mappingPattern)];
-    const residual = body.replace(mappingPattern, "");
-    if (mappings.length === 0 || /\S/u.test(residual)) return { ...entry, paths: new Map() };
-    return { ...entry, paths: new Map(mappings.map((match) => [match[1], match[2]])) };
+  if (createHash("sha256").update(source, "utf8").digest("hex") !== REVIEWED_RECONCILER_SHA256) return [];
+  const analyzer = String.raw`
+import ast
+import json
+import sys
+
+try:
+    source = sys.stdin.read()
+    tree = ast.parse(source)
+except (SyntaxError, UnicodeError):
+    print("[]")
+    raise SystemExit(0)
+
+assignments = {}
+for node in tree.body:
+    if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+        assignments[node.targets[0].id] = node.value
+
+spec = assignments.get("LAYERED_OVERRIDE_SPECS")
+if not isinstance(spec, (ast.Tuple, ast.List)):
+    print("[]")
+    raise SystemExit(0)
+
+layers = []
+for item in spec.elts:
+    if not (isinstance(item, (ast.Tuple, ast.List)) and len(item.elts) == 2
+            and isinstance(item.elts[0], ast.Constant) and isinstance(item.elts[0].value, str)
+            and isinstance(item.elts[1], ast.Name)):
+        print("[]")
+        raise SystemExit(0)
+    layer, constant = item.elts[0].value, item.elts[1].id
+    mapping = assignments.get(constant)
+    if not isinstance(mapping, ast.Dict) or len(mapping.keys) == 0:
+        print("[]")
+        raise SystemExit(0)
+    paths = []
+    for key, value in zip(mapping.keys, mapping.values):
+        if not (isinstance(key, ast.Constant) and isinstance(key.value, str)
+                and isinstance(value, ast.Constant) and isinstance(value.value, str)):
+            print("[]")
+            raise SystemExit(0)
+        paths.append([key.value, value.value])
+    layers.append({"layer": layer, "pathsConstant": constant, "paths": paths})
+
+applied = False
+for loader in (node for node in tree.body if isinstance(node, ast.FunctionDef)
+               and node.name == "load_layered_overrides"):
+    returns_layers = any(
+        isinstance(node, ast.Return)
+        and ((isinstance(node.value, ast.Name) and node.value.id == "layers")
+             or (isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name)
+                 and node.value.func.id == "tuple" and len(node.value.args) == 1
+                 and isinstance(node.value.args[0], ast.Name)
+                 and node.value.args[0].id == "layers"))
+        for node in ast.walk(loader)
+    )
+    for loop in (node for node in ast.walk(loader) if isinstance(node, ast.For)):
+        if not (isinstance(loop.iter, ast.Name) and loop.iter.id == "LAYERED_OVERRIDE_SPECS"
+                and isinstance(loop.target, (ast.Tuple, ast.List)) and len(loop.target.elts) == 2
+                and all(isinstance(item, ast.Name) for item in loop.target.elts)):
+            continue
+        layer_name, paths_name = [item.id for item in loop.target.elts]
+        body = ast.Module(body=loop.body, type_ignores=[])
+        calls = [node for node in ast.walk(body) if isinstance(node, ast.Call)]
+        layer_builds_override_root = any(
+            isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "override_root" for target in node.targets)
+            and any(isinstance(name, ast.Name) and name.id == layer_name for name in ast.walk(node.value))
+            and any(isinstance(value, ast.Constant) and value.value == "overrides" for value in ast.walk(node.value))
+            for node in ast.walk(body)
+        )
+        paths_validate_source = any(
+            isinstance(node, ast.Compare)
+            and any(isinstance(child, ast.Subscript)
+                    and isinstance(child.value, ast.Name) and child.value.id == paths_name
+                    for child in ast.walk(node))
+            for node in ast.walk(body)
+        )
+        appends_loaded_layer = any(
+            isinstance(call.func, ast.Attribute) and call.func.attr == "append"
+            and isinstance(call.func.value, ast.Name) and call.func.value.id == "layers"
+            and any(isinstance(name, ast.Name) and name.id == "pinned"
+                    for argument in call.args for name in ast.walk(argument))
+            for call in calls
+        )
+        if returns_layers and layer_builds_override_root and paths_validate_source and appends_loaded_layer:
+            applied = True
+            break
+    if applied:
+        break
+
+print(json.dumps(layers if applied else [], separators=(",", ":")))
+`;
+  const result = spawnSync("python3", ["-c", analyzer], {
+    input: source,
+    encoding: "utf8",
+    shell: false,
+    maxBuffer: MAX_GIT_OUTPUT_BYTES,
+    timeout: 5000,
   });
+  if (result.error || result.status !== 0 || typeof result.stdout !== "string") return [];
+  try {
+    const parsed = JSON.parse(result.stdout);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((entry) => ({
+      layer: entry.layer,
+      pathsConstant: entry.pathsConstant,
+      paths: new Map(entry.paths),
+    }));
+  } catch {
+    return [];
+  }
 }
 
 function exactOverlayOwns({ root, base, head, workIds, generatedPath }) {
