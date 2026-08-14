@@ -50,6 +50,8 @@ const bootstrapDecision = {
 };
 const cliPath = new URL("./work-readiness.mjs", import.meta.url).pathname;
 const sourceRoot = new URL("../", import.meta.url);
+const readinessSchema = JSON.parse(await readFile(new URL("../docs/dev-guide/work-readiness.schema.json", import.meta.url), "utf8"));
+const workReadinessGuide = await readFile(new URL("../docs/dev-guide/WORK_READINESS.md", import.meta.url), "utf8");
 
 const clone = (value) => structuredClone(value);
 
@@ -113,6 +115,24 @@ function normal(overrides = {}) {
   return value;
 }
 
+function schemaValidationErrors(artifact) {
+  const program = [
+    "import json, sys",
+    "from jsonschema import Draft202012Validator",
+    "value = json.load(sys.stdin)",
+    "errors = sorted(error.message for error in Draft202012Validator(value['schema']).iter_errors(value['artifact']))",
+    "json.dump(errors, sys.stdout)",
+  ].join("\n");
+  const result = spawnSync("python3", ["-c", program], {
+    encoding: "utf8",
+    input: JSON.stringify({ schema: readinessSchema, artifact }),
+    shell: false,
+    maxBuffer: 1024 * 1024,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout);
+}
+
 function refreshDigest(value) {
   const digest = computeReadinessPayloadSha256(value);
   value.readiness_payload_sha256 = digest;
@@ -167,6 +187,33 @@ function test(name, body) {
     throw error;
   }
 }
+
+test("JSON Schema preserves exact bootstrap and requires controller metadata on normal US and CHG", () => {
+  assert.deepEqual(schemaValidationErrors(bootstrap), []);
+  const us = normal();
+  const change = normal({ work_id: "CHG-123", kind: "CHG", source: "docs/changes/CHG-123.md" });
+  assert.deepEqual(schemaValidationErrors(us), []);
+  assert.deepEqual(schemaValidationErrors(change), []);
+  for (const artifact of [us, change]) {
+    const missing = clone(artifact);
+    delete missing.controlling_change;
+    assert.ok(schemaValidationErrors(missing).some((message) => message.includes("controlling_change")));
+  }
+});
+
+test("approval guide preserves the external signer wire and provisioning contract", () => {
+  for (const required of [
+    "exact closed ten-field Ed25519 attestation",
+    "ledger-work-readiness-approval-v1\\n",
+    "canonical RFC 4648 Base64",
+    "Ed25519 SPKI public key in PEM form",
+    "repository CLI deliberately has no signing command",
+    "does not inject it and is outside the",
+    "immutable CHG-022 bootstrap path set",
+    "For rotation, add",
+    "the new public key under a new `key_id`",
+  ]) assert.ok(workReadinessGuide.includes(required), required);
+});
 
 test("canonical payload recursively sorts objects, preserves arrays, and excludes mutable fields", () => {
   const a = normal();

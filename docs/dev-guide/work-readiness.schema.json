@@ -160,7 +160,6 @@
         }
       },
       "else": {
-        "required": ["controlling_change"],
         "properties": {
           "work_id": {
             "pattern": "^CHG-[0-9]{3,}$"
@@ -264,6 +263,7 @@
         }
       },
       "else": {
+        "required": ["controlling_change"],
         "properties": {
           "bootstrap_exemption_rationale": {
             "type": "null"

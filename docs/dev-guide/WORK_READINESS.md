@@ -94,13 +94,40 @@ after an assessment edit. An agent may author an assessment but cannot claim
 user approval without matching digest-bound evidence.
 
 For each non-bootstrap item, `approved_by` is non-empty and the selected
-decision is a closed Ed25519-signed attestation. Its signature binds the
-evidence ID, exact text/digest, reason, approver, subject, relationship,
-controller story, and key ID. Verification uses the protected Nous public-key
-map in `WORK_READINESS_APPROVAL_KEYS_JSON`; missing or invalid trust fails
-closed. CI must run the trusted base range gate with that public-key map. Never
-commit a production-trusted private key or trust a committed test key or
-agent-authored field.
+decision is this exact closed ten-field Ed25519 attestation (no other fields):
+
+```json
+{"story":"US-123","event":"decision","id":"US123-READY","text":"Decision ready for readiness payload SHA-256 <64 lowercase hex>.","reason":"Approved assessment","approved_by":"human identity","subject_work_id":"US-123","relationship":"self","key_id":"nous-prod-2026q3","signature":"<canonical Base64>"}
+```
+
+To form the signed bytes, omit only `signature`, recursively sort object keys
+lexicographically, serialize with JavaScript `JSON.stringify`, and prepend the
+literal domain separator `ledger-work-readiness-approval-v1\n`. UTF-8 encode
+that complete string, sign it with Ed25519, and encode the exact 64-byte
+signature as canonical RFC 4648 Base64 (including required padding). Thus the
+signature binds `approved_by`, `event`, `id`, `key_id`, `reason`,
+`relationship`, `story`, `subject_work_id`, and the exact `text` containing the
+decision and digest.
+
+Nous (or another independently controlled human-approval service) owns the
+private key and emits this signed event only after the human decision. The
+repository CLI deliberately has no signing command; a local coding agent must
+never possess or invoke the production signer. Verification reads a protected
+JSON object from `WORK_READINESS_APPROVAL_KEYS_JSON`, mapping each `key_id` to
+one Node.js-compatible Ed25519 SPKI public key in PEM form, for example
+`{"nous-prod-2026q3":"-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"}`.
+Missing, malformed, unknown, non-Ed25519, or invalid trust fails closed.
+
+Provision that public-key map explicitly in every protected CI/range-gate
+environment; GitHub variables and secrets are not injected automatically.
+The current `.github/workflows/ci.yml` does not inject it and is outside the
+immutable CHG-022 bootstrap path set. Therefore a separately approved CHG must
+provision the protected variable/workflow before the first normal signed work
+item; until then normal approval is intentionally blocked. For rotation, add
+the new public key under a new `key_id`, overlap old and new keys while active
+approvals still reference the old ID, then remove the old key only after those
+items terminate or are explicitly reapproved. Never commit a production-trusted
+private key or trust a committed test key or agent-authored field.
 
 Cross-item approval requires a digest-covered `controlling_change` naming one
 exact official CHG, `relationship: "readiness_governance"`, and a reason. The
