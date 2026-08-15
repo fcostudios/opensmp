@@ -80,6 +80,29 @@ EOF
   exit 1
 fi
 
+# CHG-031: resolve the approval trust map from the repository when the operator
+# has not exported it, so a routine commit does not fail with
+# WR_APPROVAL_TRUST_UNAVAILABLE.
+#
+# Deliberately confined to this hook. Git never runs hooks in CI, so CI and the
+# repository range gate keep reading ONLY the protected
+# WORK_READINESS_APPROVAL_KEYS_JSON variable and still fail closed when it is
+# absent (WORK_READINESS.md lines 119-126; CI provisioning stays CHG-027).
+# Reading trust from a tracked file would weaken CI, because a pushed commit
+# could add a public key alongside the signature it validates. Locally it grants
+# nothing new: anyone who can edit that file can already export any value.
+#
+# Never overrides an explicit export, and never validates the contents --
+# model.mjs still rejects missing, malformed, unknown or non-Ed25519 trust, so a
+# corrupt file fails closed exactly as before.
+if [ -z "${WORK_READINESS_APPROVAL_KEYS_JSON:-}" ]; then
+  TRUST_FILE="$(git rev-parse --show-toplevel)/.work-readiness-trust.json"
+  if [ -f "$TRUST_FILE" ]; then
+    WORK_READINESS_APPROVAL_KEYS_JSON="$(cat "$TRUST_FILE")"
+    export WORK_READINESS_APPROVAL_KEYS_JSON
+  fi
+fi
+
 # Traceability handling completed. Validate the exact staged index and canonical
 # Git message through the same readiness engine used by the repository range gate.
 # There is intentionally no readiness-specific bypass.
