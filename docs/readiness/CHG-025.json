@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "70b3b2c15afe1e7dc964bb9ecf4037552873d15e5a88ae7073603785d5c80907",
+  "work_id": "CHG-025",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Staged readiness validates a merge HEAD against its first parent",
+  "source": "docs/changes/NOUS-DELIVERY-2026-08-15.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "A commit can pass the readiness commit gate when HEAD is a merge commit, so the first commit after any merge is no longer ungateable.",
+      "demo": "With a two-parent HEAD, check-staged validates the staged tree against the first parent and succeeds, while an unowned staged implementation path is still rejected."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 2,
+    "expected_changed_files": 2,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 5,
+    "implementation": 25,
+    "focused_verification": 25,
+    "review": 10,
+    "integration": 5,
+    "total": 70
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "status": "resolved",
+      "statement": "Whether first-parent selection weakens ownership by skipping the merged side branch.",
+      "estimate_impact_minutes": 10,
+      "resolution": "Side-branch commits were already gated on their own branch; first-parent matches the existing range-gate ancestry rule in linearCommits, so no path escapes ownership."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "70b3b2c15afe1e7dc964bb9ecf4037552873d15e5a88ae7073603785d5c80907"
+  },
+  "actuals": null,
+  "checkpoints": [],
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}

@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "a0ba5161f278317fc55abd9f7ef851f04e63c42b67e7d796572d7237878e9f55",
+  "work_id": "CHG-024",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Agent guidance mirrors track the layered CLAUDE.md",
+  "source": "docs/changes/NOUS-DELIVERY-2026-08-15.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "CODEX.md, .cursorrules and .github/copilot-instructions.md always equal the fully layered CLAUDE.md, so every assistant reads the same governing guidance including the CHG-022 Work Readiness Gate.",
+      "demo": "reconcile-sprint1-docs.py rewrites all three mirrors to the layered CLAUDE.md text; sha256 equality holds across CLAUDE.md and the three mirrors, and --check passes on the reconciled tree."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "infra",
+    "tooling"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 6,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 5,
+    "implementation": 30,
+    "focused_verification": 25,
+    "review": 10,
+    "integration": 5,
+    "total": 75
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "status": "resolved",
+      "statement": "infra/scripts/reconcile-sprint1-docs.py is byte-pinned by REVIEWED_RECONCILER_SHA256 in scripts/work-readiness/git.mjs; editing it makes registeredOverlayLayers() fail closed and silently drops overlay ownership for docs/stories/**.",
+      "estimate_impact_minutes": 15,
+      "resolution": "Re-pin REVIEWED_RECONCILER_SHA256 to the new reconciler digest in the same commit and record the reviewer sign-off the constant's comment requires."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "a0ba5161f278317fc55abd9f7ef851f04e63c42b67e7d796572d7237878e9f55"
+  },
+  "actuals": null,
+  "checkpoints": [],
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}

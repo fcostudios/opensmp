@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "2134538fcea1246ecb71ef9248e9220f1b52a650c042a655cf8602a9c413d61e",
+  "work_id": "CHG-026",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Commit the measured Stryker sandbox exclusions",
+  "source": "docs/changes/NOUS-DELIVERY-2026-08-15.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "Every Stryker startup uses the committed ignorePatterns set and preprocesses no generated screen HTML.",
+      "demo": "A cold single-shard run on the main checkout reports 0 DisableTypeChecksPreprocessor warnings against the measured 29, with mutation score unchanged at 100.00%."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 2,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 5,
+    "implementation": 5,
+    "focused_verification": 15,
+    "review": 5,
+    "integration": 5,
+    "total": 35
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "status": "resolved",
+      "statement": "The CHG-014 representative fixture campaign cannot observe this change, so it is not a valid verification vehicle.",
+      "estimate_impact_minutes": 0,
+      "resolution": "Verify on the main checkout per docs/benchmarks/stryker-sandbox-exclusions.md; a fresh detached worktree structurally contains none of the 4,513 .turbo files the exclusion set targets."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "2134538fcea1246ecb71ef9248e9220f1b52a650c042a655cf8602a9c413d61e"
+  },
+  "actuals": null,
+  "checkpoints": [],
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
