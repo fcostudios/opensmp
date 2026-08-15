@@ -507,3 +507,4 @@
 {"story":"CHG-024","event":"started","agent":"claude-opus-5"}
 {"story":"CHG-026","event":"started","agent":"claude-opus-5"}
 {"story":"CHG-029","event":"decision","id":"CHG029-READY","text":"Decision ready for readiness payload SHA-256 40cbc6669a373c6e8ceeeeaa1d4715b057607b989573ccf47d7fedab5d3c960a.","reason":"Approved assessment","approved_by":"Francisco Lomas","subject_work_id":"CHG-029","relationship":"self","key_id":"nous-prod-2026q3","signature":"qWH12Kdm/IR9SWfCiZCcBIyj4JSDvvCFxKxShdN9/EiEtfVIBwDPjLpymVA+/MMLOcXPJLLCXLsApHnXfGQZAQ=="}
+{"story":"CHG-031","event":"decision","id":"CHG031-READY","text":"Decision ready for readiness payload SHA-256 44f96a69ac7fd99e52a7534012174cf75dfc306dad393113e1965d02815308f1.","reason":"Approved assessment","approved_by":"Francisco Lomas","subject_work_id":"CHG-031","relationship":"self","key_id":"nous-prod-2026q3","signature":"NA9ZECsOJRgZn3Xpci04g0moTb7WrmbPdmvhgGP8w3a/i9ZDitPCJpcDfzz5VzUS3kh6RkxpbJFYC1fuSx6CDQ=="}

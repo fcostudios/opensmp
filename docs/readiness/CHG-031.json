@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "44f96a69ac7fd99e52a7534012174cf75dfc306dad393113e1965d02815308f1",
+  "work_id": "CHG-031",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Commit hook resolves the approval trust map from the repo when the env var is unset",
+  "source": "docs/changes/NOUS-DELIVERY-2026-08-15.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "A commit succeeds without the operator exporting WORK_READINESS_APPROVAL_KEYS_JSON by hand, because the hook resolves the committed public-key map itself.",
+      "demo": "With the variable unset, git commit passes the readiness gate; with a corrupt .work-readiness-trust.json and the variable unset, it still fails closed."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 2,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 5,
+    "implementation": 15,
+    "focused_verification": 20,
+    "review": 10,
+    "integration": 5,
+    "total": 55
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "status": "resolved",
+      "statement": "Whether resolving trust from a repository file weakens the gate, since a pushed commit could add an attacker's public key alongside the signature it validates.",
+      "estimate_impact_minutes": 15,
+      "resolution": "It would weaken CI, so the fallback is confined to .githooks/commit-msg, which git never runs in CI. CI and the range gate keep reading only WORK_READINESS_APPROVAL_KEYS_JSON and still fail closed when it is absent (WORK_READINESS.md:119-126, still tracked as CHG-027). Locally the fallback grants nothing new: an operator who can edit the trust file can already export any value they like, so the trust boundary is unchanged on a machine its owner controls."
+    },
+    {
+      "id": "U2",
+      "status": "resolved",
+      "statement": "Whether the fallback could mask a genuinely missing or malformed trust map.",
+      "estimate_impact_minutes": 5,
+      "resolution": "The hook only sets the variable when it is unset AND the file exists; it never overrides an explicitly exported value, and it does not validate the contents. model.mjs still rejects missing, malformed, unknown, or non-Ed25519 trust, so a corrupt file fails closed exactly as before."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG031-READY",
+    "payload_sha256": "44f96a69ac7fd99e52a7534012174cf75dfc306dad393113e1965d02815308f1"
+  },
+  "actuals": null,
+  "checkpoints": [],
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
