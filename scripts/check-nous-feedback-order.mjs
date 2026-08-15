@@ -241,6 +241,13 @@ for (const { record, line } of canonicalRecords) {
   if (record.event === "started") {
     if (state.started) fail(line, `story ${record.story} started more than once`);
     state.started = true;
+  } else if (record.event === "decision") {
+    // FEEDBACK.md's canonical vocabulary lists "Decision (registered)" as its
+    // own category, separate from "Lifecycle (flip story status)". A signed
+    // approval is required BEFORE work begins (WORK_READINESS.md:112-114), so
+    // it necessarily precedes `started` -- and a partition record like
+    // CHG-023 is never started at all. Ordering it after `started` would make
+    // the readiness gate and this checker mutually unsatisfiable.
   } else if (!state.started) {
     fail(line, `story ${record.story} event ${record.event} occurs before started`);
   } else if (record.event === "build_pass") {

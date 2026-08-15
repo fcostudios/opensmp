@@ -26,6 +26,23 @@ run("later valid story", [
   { story: "US-001", event: "done", ts: "2026-07-24T08:03:00.000Z" },
   { story: "US-002", event: "started", agent: "test", ts: "2026-07-24T08:04:00.000Z" },
 ], 0);
+// CHG-029: a signed approval is required BEFORE work begins, so `decision`
+// necessarily precedes `started`; a partition record is never started at all.
+run("decision before started is allowed", [
+  { story: "CHG-100", event: "decision", id: "CHG100-READY", text: `Decision ready for readiness payload SHA-256 ${"a".repeat(64)}.`, reason: "Approved assessment", ts: "2026-07-24T08:00:00.000Z" },
+  { story: "CHG-100", event: "started", agent: "test", ts: "2026-07-24T08:01:00.000Z" },
+  { story: "CHG-100", event: "build_pass", notes: "ok", ts: "2026-07-24T08:02:00.000Z" },
+  { story: "CHG-100", event: "done", ts: "2026-07-24T08:03:00.000Z" },
+], 0);
+run("decision with no started at all is allowed (partition record)", [
+  { story: "CHG-101", event: "decision", id: "CHG101-PARTITION", text: `Decision partition_required for readiness payload SHA-256 ${"b".repeat(64)}.`, reason: "Approved assessment", ts: "2026-07-24T08:00:00.000Z" },
+], 0);
+// RED fixture: the exemption must stay narrow. A real progress event before
+// `started` must still fail; if this ever exits 0 the guard has been lost.
+run("non-decision event before started still fails", [
+  { story: "US-900", event: "ac_pass", ac: 1, notes: "ok", ts: "2026-07-24T08:00:00.000Z" },
+  { story: "US-900", event: "started", agent: "test", ts: "2026-07-24T08:01:00.000Z" },
+], 1);
 run("out of order timestamps", [
   { story: "US-001", event: "started", agent: "test", ts: "2026-07-24T08:01:00.000Z" },
   { story: "US-001", event: "ac_verify", ac: 1, method: "test", pass: true, notes: "ok", ts: "2026-07-24T08:00:00.000Z" },
