@@ -25,7 +25,12 @@ const CHG022_EXECUTABLE_BOUNDARY = "72f5e8545ea5d98795e2a5f19e62f6ba5e7ae7cb";
 // Reviewed fail-closed raw-byte binding for the complete reconciler. Any
 // whitespace, definition rebinding, helper, build-plan, or runtime edit
 // requires an explicit review and a new digest before ownership is accepted.
-const REVIEWED_RECONCILER_SHA256 = "9ab3409f90b445ae13a3663939ad6be74296995ee5ba7f8c4bc173280883d3d8";
+// Re-pinned by CHG-024. Reviewed delta against 9ab3409f…d3d8: build_plan's
+// mirror source changes from the CHG-001 pinned CLAUDE.md to the layered
+// desired text, plus a None-guard so an unresolved CLAUDE.md still surfaces its
+// own diagnostic. No helper, overlay-registration, or runtime path is touched.
+// test-work-readiness.mjs asserts this constant against the file on disk.
+const REVIEWED_RECONCILER_SHA256 = "f81342681bd1138e2966f7fa6ac23b7fce8be214f9b9345df046fa5ce4d5f089";
 
 function isTerminalEvent(event) {
   return event === "done" || event === "verified"

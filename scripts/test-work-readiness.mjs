@@ -2623,6 +2623,22 @@ test("CLI check-staged accepts a documentation change staged on a merge HEAD", (
   }
 });
 
+test("REVIEWED_RECONCILER_SHA256 matches the reconciler on disk", () => {
+  const gitModule = readFileSync(new URL("./work-readiness/git.mjs", import.meta.url), "utf8");
+  const pinned = /const REVIEWED_RECONCILER_SHA256 = "([0-9a-f]{64})";/u.exec(gitModule);
+  assert.ok(pinned, "REVIEWED_RECONCILER_SHA256 must be a 64-hex constant");
+  const reconciler = readFileSync(
+    new URL("../infra/scripts/reconcile-sprint1-docs.py", import.meta.url),
+  );
+  const actual = createHash("sha256").update(reconciler).digest("hex");
+  assert.equal(
+    pinned[1],
+    actual,
+    "registeredOverlayLayers() fails closed on a digest mismatch, silently dropping "
+      + "overlay ownership for docs/stories/**; re-pin the constant with the reconciler edit",
+  );
+});
+
 test("CLI check-staged still rejects an unowned implementation path on a merge HEAD", () => {
   const repo = makeMergeHeadRepo();
   try {

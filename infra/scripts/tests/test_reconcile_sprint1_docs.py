@@ -678,24 +678,50 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             self.assertEqual(snapshot(root), before)
             self.assertIn("AGENTS.md: unknown generated guidance state", result.stderr)
 
-    def test_chg022_leaves_unauthorized_claude_mirrors_on_chg001_contract(self) -> None:
+    def test_stale_chg001_mirrors_are_relayered_onto_claude(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             create_project(root)
-            # CHG-022's immutable higher-authority allowed_paths excludes these
-            # mirrors; they remain byte-pinned to CHG-001 until separately approved.
+            # CHG-024 governs these mirrors, which CHG-022's closed allowed_paths
+            # could not touch. A mirror left on the CHG-001 baseline is drift and
+            # must be relayered onto the current CLAUDE.md rather than preserved.
             for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
                 (root / mirror).write_bytes(desired_guide("CLAUDE.md"))
-            before = {
-                mirror: (root / mirror).read_bytes()
-                for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md")
-            }
 
             result = run_reconciler(root)
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            for mirror, content in before.items():
-                self.assertEqual((root / mirror).read_bytes(), content)
+            claude = (root / "CLAUDE.md").read_bytes()
+            for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
+                self.assertEqual((root / mirror).read_bytes(), claude, mirror)
+
+    def test_mirrors_equal_the_layered_claude_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_project(root)
+
+            result = run_reconciler(root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            claude = (root / "CLAUDE.md").read_bytes()
+            self.assertIn(b"## Work Readiness Gate", claude)
+            for mirror in (
+                "CODEX.md",
+                ".cursorrules",
+                ".github/copilot-instructions.md",
+            ):
+                self.assertEqual((root / mirror).read_bytes(), claude, mirror)
+
+    def test_check_reports_a_mirror_that_drifts_from_layered_claude(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_project(root)
+            self.assertEqual(run_reconciler(root).returncode, 0)
+            (root / "CODEX.md").write_bytes(desired_guide("CLAUDE.md"))
+
+            result = run_reconciler(root, "--check")
+
+            self.assertNotEqual(result.returncode, 0)
 
     def test_chg022_guidance_contains_readiness_command_and_two_hour_rule(self) -> None:
         for relative_path in READINESS_GUIDES:
@@ -782,7 +808,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             ).read_text(encoding="utf-8")
             self.assertIn("filtered by `company_id`", critical_paths)
             self.assertNotIn("filtered by `org_id`", critical_paths)
-            claude = desired_guide("CLAUDE.md")
+            claude = latest_desired_guide("CLAUDE.md")
             for mirror in (
                 "CODEX.md",
                 ".cursorrules",
@@ -798,7 +824,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             result = run_reconciler(root)
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            claude = desired_guide("CLAUDE.md")
+            claude = latest_desired_guide("CLAUDE.md")
             for relative_path in PINNED_GUIDES:
                 self.assertEqual(
                     (root / relative_path).read_bytes(),
@@ -1229,7 +1255,7 @@ class SyncIntegrationTests(unittest.TestCase):
                 "| Sprint 1 | 🔨 in_development |",
                 changes,
             )
-            claude = desired_guide("CLAUDE.md")
+            claude = latest_desired_guide("CLAUDE.md")
             for mirror in (
                 "CODEX.md",
                 ".cursorrules",

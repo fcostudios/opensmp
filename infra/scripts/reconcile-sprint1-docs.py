@@ -660,12 +660,16 @@ def build_plan(root: Path) -> dict[Path, PlanEntry]:
                 )
         desired[path] = updated
 
-    # CHG-022 is authorized to update CLAUDE.md, but its closed bootstrap path
-    # manifest does not authorize touching the generated mirrors. Preserve the
-    # pre-existing CHG-001 mirror contract while layering CHG-022 onto only its
-    # three explicitly governed files.
-    mirrored_claude = pinned["CLAUDE.md"][3]
-    for relative_path in MIRRORS:
+    # CHG-024: the mirrors track the fully layered CLAUDE.md computed above, so
+    # every assistant reads the same governing guidance. Sourcing them from the
+    # CHG-001 baseline left Codex, Cursor and Copilot without CHG-022's Work
+    # Readiness Gate. Reading desired[] keeps every future layer propagating
+    # here with no further change.
+    # When CLAUDE.md is in an unknown state the loop above records an error and
+    # skips it, leaving no desired text. Mirroring is skipped too so that the
+    # recorded CLAUDE.md diagnostic is what surfaces, not a KeyError.
+    mirrored_claude = desired.get(project_output_path(root, "CLAUDE.md"))
+    for relative_path in MIRRORS if mirrored_claude is not None else ():
         path = project_output_path(root, relative_path)
         original[path] = read_text(path)
         desired[path] = mirrored_claude
