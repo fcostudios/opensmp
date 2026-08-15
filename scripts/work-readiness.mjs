@@ -371,8 +371,10 @@ function checkStaged({ root, positionals, options }) {
   const message = readCanonicalMessageFile(root, options.messageFile);
   const head = git(root, ["rev-parse", "--verify", "HEAD^{commit}"]);
   if (!/^[0-9a-f]{40}$/u.test(head)) cliError("WR_GIT_REF_INVALID", "HEAD did not resolve to one full commit", "$.head");
-  const headLine = git(root, ["rev-list", "--parents", "-n", "1", head]).split(/\s+/u);
-  if (headLine.length > 2) cliError("WR_GIT_TOPOLOGY_UNSUPPORTED", "Staged readiness does not support a merge HEAD", "$.head");
+  // HEAD's own parent count is irrelevant: the ephemeral commit below has
+  // exactly one parent (HEAD) by construction, so linearCommits sees a linear
+  // range containing precisely the staged diff. Refusing a merge HEAD made the
+  // first commit after every merge ungateable (CHG-025).
   const tree = git(root, ["write-tree"]);
   if (!/^[0-9a-f]{40}$/u.test(tree)) cliError("WR_GIT_COMMAND_FAILED", "Git index did not produce one tree", "$.git");
   const commit = git(root, ["commit-tree", tree, "-p", head, "-F", "-"], { input: message });

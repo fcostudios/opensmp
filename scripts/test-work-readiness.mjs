@@ -2589,11 +2589,51 @@ test("CLI check-staged fails closed for unborn and merge HEAD states", () => {
     git(merged.root, ["add", "docs/readiness/README.md"]);
     const mergeMessage = writeGitMessage(merged.root, "docs(CHG-123): after merge\n");
     const mergeResult = runCli(merged.root, ["check-staged", "--message-file", mergeMessage, "--json"]);
-    assert.equal(mergeResult.status, 2);
-    assert.equal(parseCliJson(mergeResult).errors[0].code, "WR_GIT_TOPOLOGY_UNSUPPORTED");
+    assert.equal(mergeResult.status, 0);
   } finally {
     rmSync(unborn, { recursive: true, force: true });
     rmSync(merged.root, { recursive: true, force: true });
+  }
+});
+
+function makeMergeHeadRepo() {
+  const repo = makeGitRepo();
+  git(repo.root, ["checkout", "-b", "side"]);
+  writeRepoFile(repo.root, "side.txt", "side\n");
+  commitRepo(repo.root, "docs(CHG-123): side", ["side.txt"]);
+  git(repo.root, ["checkout", "main"]);
+  writeRepoFile(repo.root, "main.txt", "main\n");
+  commitRepo(repo.root, "docs(CHG-123): main", ["main.txt"]);
+  git(repo.root, ["merge", "--no-ff", "side", "-m", "merge(CHG-123): fixture"]);
+  const parents = git(repo.root, ["rev-list", "--parents", "-n", "1", "HEAD"]).split(/\s+/u);
+  assert.equal(parents.length, 3, "fixture HEAD must be a two-parent merge");
+  return repo;
+}
+
+test("CLI check-staged accepts a documentation change staged on a merge HEAD", () => {
+  const repo = makeMergeHeadRepo();
+  try {
+    writeRepoFile(repo.root, "docs/readiness/README.md", "after merge\n");
+    git(repo.root, ["add", "docs/readiness/README.md"]);
+    const messagePath = writeGitMessage(repo.root, "docs(CHG-123): after merge\n");
+    const result = runCli(repo.root, ["check-staged", "--message-file", messagePath, "--json"]);
+    assert.equal(result.status, 0, result.stderr);
+  } finally {
+    rmSync(repo.root, { recursive: true, force: true });
+  }
+});
+
+test("CLI check-staged still rejects an unowned implementation path on a merge HEAD", () => {
+  const repo = makeMergeHeadRepo();
+  try {
+    writeRepoFile(repo.root, "src/app.ts", "export const value = 1;\n");
+    git(repo.root, ["add", "src/app.ts"]);
+    const messagePath = writeGitMessage(repo.root, "chore: unowned implementation\n");
+    const result = runCli(repo.root, ["check-staged", "--message-file", messagePath, "--json"]);
+    assert.notEqual(result.status, 0);
+    assert.equal(parseCliJson(result).errors[0].code, "WR_WORK_ID_MISSING");
+  } finally {
+    rmSync(repo.root, { recursive: true, force: true });
   }
 });
 
