@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "40cbc6669a373c6e8ceeeeaa1d4715b057607b989573ccf47d7fedab5d3c960a",
+  "work_id": "CHG-029",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Feedback lifecycle checker must not require started before a decision",
+  "source": "docs/changes/NOUS-DELIVERY-2026-08-15.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "A signed approval decision can be appended before work starts, so the readiness gate and the feedback lifecycle checker no longer contradict each other and pnpm test passes.",
+      "demo": "check-nous-feedback-order.mjs exits 0 on a log whose story has a decision before started, and still exits 1 when a genuine progress event precedes started."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 2,
+    "expected_changed_files": 2,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 5,
+    "implementation": 15,
+    "focused_verification": 15,
+    "review": 5,
+    "integration": 5,
+    "total": 45
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "status": "resolved",
+      "statement": "Whether exempting decision weakens the ordering guarantee for real progress events.",
+      "estimate_impact_minutes": 5,
+      "resolution": "FEEDBACK.md's canonical vocabulary lists 'Decision (registered)' as its own category, separate from 'Lifecycle (flip story status)'. decision is already excluded from terminalEvents; only the blanket !state.started branch catches it. Exempting it restores agreement with the authoritative vocabulary and leaves every Lifecycle and Annotation event still ordered after started."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG029-READY",
+    "payload_sha256": "40cbc6669a373c6e8ceeeeaa1d4715b057607b989573ccf47d7fedab5d3c960a"
+  },
+  "actuals": null,
+  "checkpoints": [],
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
