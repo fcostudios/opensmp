@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "3444b9b73ca63a75cd26e0cc1ddcca1bf7ad73c063aa986b157550119867e3ba",
+  "work_id": "US-061",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Admin-side connector capabilities with interface conformance",
+  "source": "docs/stories/sprint-3/r1_misc_us_018.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "provision, deprovision and syncMembers work against the admin endpoints, the connector reports an accurate capability descriptor, and no vendor specifics leak outside the provider directory.",
+      "demo": "The dispatcher resolves the rest protocol and reports capabilities matching the implemented methods; the provider-boundary lint passes; Pact contracts for organization, members and invites are green, including id_cursor pagination."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "contracts",
+    "server"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 10,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 1,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 10,
+    "implementation": 45,
+    "focused_verification": 35,
+    "review": 15,
+    "integration": 10,
+    "total": 115
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "status": "resolved",
+      "statement": "No live Anthropic credentials exist; the live provider probe is blocked on per-org keys and invite-canary authorization.",
+      "estimate_impact_minutes": 0,
+      "resolution": "Only the Pact consumer side is in scope. Provider verification against the real API is deferred to the gated live run named in AC4."
+    },
+    {
+      "id": "U2",
+      "status": "resolved",
+      "statement": "AC3 does not state how many VendorConnector methods must be functional versus conformant-but-unsupported. The built-in none connector proves unsupported is a legitimate return, so the two readings differ by roughly three times in scope.",
+      "estimate_impact_minutes": 0,
+      "resolution": "The functional reading is the only one consistent with the sprint's own dependency graph. US-019 AC1 requires an invite created within 15 minutes and AC2 requires membership polling to detect acceptance; US-026 AC1 requires a daily ActivityRecord upsert, AC2 a CostRecord upsert, and AC4 confirms the live API path for ingestion_mode=api orgs. Both stories are blocked by US-018, so a connector returning unsupported would make them impossible. Derived from committed acceptance criteria, not preference; if the operator intended the minimal reading, this partition is void and US-058 collapses to a single small item."
+    },
+    {
+      "id": "U3",
+      "status": "resolved",
+      "statement": "AC4 spans both children, so this one alone does not satisfy it.",
+      "estimate_impact_minutes": 0,
+      "resolution": "AC4 is met only when US-061 and US-062 have both landed. AC3 is carried here alone and does close with this child."
+    }
+  ],
+  "dependencies": [
+    {
+      "work_id": "US-062",
+      "type": "blocks",
+      "reason": "The analytics capabilities are written against the interface conformance and capability descriptor delivered here."
+    }
+  ],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "US061-READY",
+    "payload_sha256": "3444b9b73ca63a75cd26e0cc1ddcca1bf7ad73c063aa986b157550119867e3ba"
+  },
+  "actuals": null,
+  "checkpoints": [],
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
