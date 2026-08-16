@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "a7257fe435f91f10346762578f658363dd07e85e4d4ddd13c501079489807344",
+  "work_id": "US-043",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Alert log acknowledgment",
+  "source": "docs/stories/sprint-3/r1_misc_us_043.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "A group admin can acknowledge an alert from SCR-alerts, and the alert records who acknowledged it and when, so triage state is visible to the next admin instead of living in someone's memory.",
+      "demo": "On the alertas screen, acknowledge a row from the 'sin reconocer' tab; the row moves out of that tab, shows the acknowledging user and timestamp in the 'todas' tab, and the unacknowledged badge count drops."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "contracts",
+    "server",
+    "ui"
+  ],
+  "signals": {
+    "routes_or_screens": 1,
+    "acceptance_flows": 3,
+    "expected_changed_files": 10,
+    "expected_mutation_shards": 1,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 10,
+    "implementation": 40,
+    "focused_verification": 30,
+    "review": 10,
+    "integration": 10,
+    "total": 100
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "status": "resolved",
+      "statement": "Whether acknowledgment needs a migration for column privileges, since alert_event is otherwise append-only.",
+      "estimate_impact_minutes": 0,
+      "resolution": "No migration. V20260725180000__core_schema_register_integrity.sql already carries GRANT UPDATE (acknowledged_by, acknowledged_at) for ledger_app, and packages/db/src/schema.ts already declares both columns."
+    },
+    {
+      "id": "U2",
+      "status": "resolved",
+      "statement": "How much of the story's read surface already exists from the alerting delivery that precedes it.",
+      "estimate_impact_minutes": 0,
+      "resolution": "AC2 is already satisfied by components/alerts/alert-list.tsx via alertSubjectDestination, and AC3 by the scope column the alertas page already renders. Remaining work is the write path and its row action; AC2 and AC3 are covered by regression assertions rather than new behavior."
+    },
+    {
+      "id": "U3",
+      "status": "resolved",
+      "statement": "Concurrency semantics when two admins acknowledge the same alert.",
+      "estimate_impact_minutes": 10,
+      "resolution": "First writer wins: the update is conditional on acknowledged_at IS NULL, and a second acknowledgment is a no-op that returns the existing acknowledger rather than overwriting attribution."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "US043-READY",
+    "payload_sha256": "a7257fe435f91f10346762578f658363dd07e85e4d4ddd13c501079489807344"
+  },
+  "actuals": null,
+  "checkpoints": [],
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
