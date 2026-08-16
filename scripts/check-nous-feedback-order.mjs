@@ -43,6 +43,7 @@ for (const [index, line] of readFileSync(path, "utf8").trimEnd().split("\n").ent
     if (record.event === "build_pass" && typeof record.notes !== "string") throw new Error("build_pass requires notes");
     if (["deviation", "ac_fail", "ac_unverifiable"].includes(record.event) && typeof record.notes !== "string") throw new Error(`${record.event} requires notes`);
     if (["blocked", "blocker"].includes(record.event) && typeof record.reason !== "string") throw new Error(`${record.event} requires reason`);
+    if (record.event === "checkpoint" && (!Number.isInteger(record.elapsed_minutes) || typeof record.status !== "string" || typeof record.implementation_complete !== "boolean" || typeof record.evidence !== "string")) throw new Error("checkpoint requires elapsed_minutes, status, implementation_complete, and evidence");
     if (record.event === "decision" && (typeof record.id !== "string" || typeof record.text !== "string" || typeof record.reason !== "string")) throw new Error("decision requires id, text, and reason");
     if (record.event === "feedback" && (typeof record.title !== "string" || typeof record.description !== "string" || !Array.isArray(record.images))) throw new Error("feedback requires title, description, and images");
     if (record.event === "nav_gap" && typeof record.route !== "string") throw new Error("nav_gap requires route");
