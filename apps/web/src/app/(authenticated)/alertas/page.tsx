@@ -9,7 +9,9 @@ import {
   alertScopeText,
   type AlertPresentationSource,
 } from "@/components/alerts/alert-list";
+import { AcknowledgeAlertButton } from "@/components/alerts/acknowledge-alert-button";
 import { loadCurrentLedgerAuthorization } from "@/modules/identity-access/server-authorization";
+import { ackAlert } from "@/modules/alerts/actions";
 import {
   createAlertRepository,
   type CompanyAlertEvent,
@@ -145,6 +147,21 @@ export default async function ScrAlertsPage({
             unacknowledged: t("filters.unacknowledged"),
           }}
           locale={locale as "en-US" | "es-EC"}
+          renderRowAction={(item) => (
+            <AcknowledgeAlertButton
+              acknowledge={ackAlert}
+              alertEventId={item.id}
+              labels={{
+                action: t("acknowledge.action"),
+                cancel: t("acknowledge.cancel"),
+                confirm: t("acknowledge.confirm"),
+                confirmBody: t("acknowledge.confirmBody"),
+                confirmTitle: t("acknowledge.confirmTitle"),
+                error: t("acknowledge.error"),
+                success: t("acknowledge.success"),
+              }}
+            />
+          )}
           unacknowledgedCount={unacknowledgedCount}
           unacknowledgedHref="?filter=unacknowledged"
         />

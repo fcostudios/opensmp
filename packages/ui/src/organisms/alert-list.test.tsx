@@ -116,4 +116,48 @@ describe("AlertList", () => {
     expect(html).toContain(expected);
     expect(html).not.toContain(absent);
   });
+
+  it("renders a row action only for unacknowledged rows", () => {
+    const html = renderToStaticMarkup(
+      <AlertList
+        activeFilter="all"
+        allCount="2"
+        allHref="?filter=all"
+        items={[
+          {
+            acknowledgedAt: null,
+            acknowledgedBy: null,
+            firedAt: "2026-07-29T14:00:00.000Z",
+            href: "/solicitudes/request-new",
+            id: "open",
+            notified: "Sent",
+            scope: "Company A",
+            subject: "request-new",
+            type: "Approval aging",
+          },
+          {
+            acknowledgedAt: "2026-07-29T13:30:00.000Z",
+            acknowledgedBy: "admin@example.test",
+            firedAt: "2026-07-29T13:00:00.000Z",
+            href: null,
+            id: "closed",
+            notified: "Pending",
+            scope: "Company A",
+            subject: "Malformed subject",
+            type: "Low pool",
+          },
+        ]}
+        labels={labels}
+        locale="en-US"
+        renderRowAction={(item) => (
+          <button data-testid={`ack-${item.id}`} />
+        )}
+        unacknowledgedCount="1"
+        unacknowledgedHref="?filter=unacknowledged"
+      />,
+    );
+
+    expect(html).toContain('data-testid="ack-open"');
+    expect(html).not.toContain('data-testid="ack-closed"');
+  });
 });
