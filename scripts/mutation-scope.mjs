@@ -1498,6 +1498,12 @@ export const DIRECT_TEST_ROUTES = {
     "apps/web/src/components/users/users-roles-panel.test.tsx",
     "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts",
   ],
+  "apps/web/src/app/(authenticated)/alertas/page.tsx": [
+    "apps/web/src/components/alerts/alert-page-boundaries.test.ts",
+  ],
+  "apps/web/src/modules/alerts/actions.ts": [
+    "apps/web/src/modules/alerts/actions.test.ts",
+  ],
   "apps/web/src/modules/identity-access/actions/manage-users.ts": [
     "apps/web/src/components/users/users-roles-panel.test.tsx",
     "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts",
