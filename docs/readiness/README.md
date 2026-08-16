@@ -27,7 +27,34 @@ CHG-022 is the only policy-activation bootstrap. No later artifact may set
 begins at the matching digest-bound decision and expires at CHG-022's first
 valid terminal `done`; later implementation cannot reuse it.
 
-## Verify assumptions against source before declaring an estimate
+## Requesting approval: batch, and do not send digests
+
+Approval is requested in **batches**, not per work item. Author as many
+artifacts as the work needs, then send Nous **one** message naming the work IDs.
+Nous signs everything pending in one pass, wires each `approval.evidence`,
+commits, and reports back once.
+
+Do **not** send digests. Nous recomputes every digest from the artifact's own
+bytes before signing and will not trust a value from the request, so computing
+and transcribing one is wasted work and an extra chance to be wrong. Name the
+work IDs; the artifacts on disk are the input.
+
+Request approval when a batch is genuinely ready, or when you are blocked —
+whichever comes first. A partly-authored batch is fine to hold; an artifact that
+would leave `readiness:check:all` red is not, because it blocks `pnpm test` for
+everyone.
+
+What Nous verifies on each item, so you can pre-empt a refusal:
+
+- the recomputed digest equals `readiness_payload_sha256`
+- `classifyAssessment` equals the declared `decision` — a `ready` artifact whose
+  estimate exceeds the limit is refused, not silently partitioned
+- `controlling_change` is null for a `self` relationship
+- for a partition parent, `partitions[].work_id` are the official IDs Nous
+  issued, each named exactly once in the attestation text and no other work ID
+  named at all
+
+
 
 Before declaring `ready`, verify every assumption the estimate rests on against
 the code that must satisfy it, and record each one as an entry in
