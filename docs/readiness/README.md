@@ -96,14 +96,45 @@ a way around the wall.
 The wall is enforced by `checkpointRequiresPartition`: an artifact whose last
 checkpoint is `elapsed_minutes: 90`, `status: partition_required`, and
 `implementation_complete: false` classifies as `partition_required` no matter
-what it declares. Verified: adding the exact 45-then-90 checkpoint sequence to a
-`ready` artifact flips `classifyAssessment` to `partition_required`, and a
-`ready` decision can no longer be signed for it because declared no longer
-equals computed. Checkpoints are excluded from the payload digest, so this
-cannot be dodged by re-signing either.
+what it declares. A `ready` decision can then no longer be signed for it,
+because declared stops equalling computed. Checkpoints are excluded from the
+payload digest, so re-signing does not dodge it either.
 
-So re-approval resets the clock; it cannot clear a recorded 90-minute stop. The
-real weakness is that **appending the checkpoint is voluntary** — an implementer
-who stops early, or simply never records it, leaves nothing for the gate to act
-on. That is the same failure mode as an unrecorded assumption: the gate cannot
-see what was never written down.
+A recorded 90-minute stop is durable. All three exits were tested:
+
+| Appended after the 90 | Result |
+| --- | --- |
+| a lower checkpoint (45) | refused — elapsed minutes must be strictly increasing |
+| a higher checkpoint (135), incomplete | refused — an incomplete item at or past 90 must stop at exactly 90 / `partition_required` |
+| a higher checkpoint (135), `implementation_complete: true` | `ready` |
+
+So the only way past a recorded stop is asserting that implementation is
+complete — a factual claim, and if it is true the partition is moot anyway.
+
+### The seam: the requirement tests are existence-based
+
+`validateElapsedCheckpoint` asks whether a matching checkpoint **exists**, not
+whether one exists for the current approval:
+
+```js
+!artifact.checkpoints.some((checkpoint) => checkpoint.elapsed_minutes === 45)
+```
+
+`checkpoints` is append-only and never scoped to `approval.evidence`, while the
+elapsed-time anchor **is**. So after one cycle has filed its 45-minute
+checkpoint, `WR_CHECKPOINT_45_REQUIRED` can never fire again for that work item,
+and the same holds for the 90-minute requirement once a partition stop exists.
+
+The consequence: a second or later cycle of a re-approved item runs with the
+clock restarted and **no checkpoint prompt at all**. Reaching the 90-minute
+partition remedy requires a single cycle to run 90 minutes without re-approval.
+
+Whether that is intended is a design question, not a code question. It is
+coherent as "the control is per work item, not per attempt — a human signs each
+re-approval, so the discipline lives in that decision." It is equally coherent
+as a gap. If it is a gap, the seam is to scope the existence test to the
+selected approval evidence, exactly as the anchor already is.
+
+Until that is settled, treat the checkpoint as an obligation you owe each cycle
+rather than one the gate will remind you of. As with an unrecorded assumption,
+the gate cannot see what was never written down.
