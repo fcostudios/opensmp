@@ -916,12 +916,17 @@ describe("acknowledgeEvent", () => {
       });
 
       const audit = await readPool.query(
-        `SELECT action, entity_type, actor_user_id::text
+        `SELECT action, entity_type, actor_user_id::text, company_id::text
          FROM audit_log WHERE entity_id = $1`,
         [event],
       );
       expect(audit.rows).toEqual([
-        { action: "alert.acknowledged", entity_type: "AlertEvent", actor_user_id: actor },
+        {
+          action: "alert.acknowledged",
+          entity_type: "AlertEvent",
+          actor_user_id: actor,
+          company_id: ids.companyA,
+        },
       ]);
     } finally {
       await repository.close();
