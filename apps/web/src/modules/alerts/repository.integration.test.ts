@@ -45,6 +45,16 @@ function authorization(
   };
 }
 
+async function seedAlertEvent(ruleId: string, companyId: string): Promise<string> {
+  const id = randomUUID();
+  await readPool.query(
+    `INSERT INTO alert_event (id, alert_rule_id, fired_at, subject_ref, notified, dedupe_key)
+     VALUES ($1, $2, now(), $3::jsonb, '{"status":"pending"}'::jsonb, $4)`,
+    [id, ruleId, JSON.stringify({ requestId: companyId }), `ack-test-${id}`],
+  );
+  return id;
+}
+
 async function companyEvents(
   repository: ReturnType<typeof createAlertRepository>,
   companyId: string,
@@ -120,6 +130,24 @@ beforeAll(async () => {
        ($3, 'low_pool', 'company', $1, '{"floor":2}', 'email', true, now(), '00000000-0000-0000-0000-000000000001'),
        ($4, 'low_pool', 'company', $2, '{"floor":2}', 'email', true, now(), '00000000-0000-0000-0000-000000000001')`,
     [ids.companyA, ids.companyB, ids.ruleA, ids.ruleB],
+  );
+  // Seed the two acknowledgeEvent test actors: alert_event.acknowledged_by
+  // and audit_log.actor_user_id both carry a FOREIGN KEY REFERENCES
+  // user_account(id), so the acknowledging actor must already exist.
+  // ON CONFLICT DO NOTHING (rather than DELETE + INSERT) keeps this safe to
+  // rerun against the persistent US042_MUTATION_DATABASE_URL fixture, where
+  // audit_log rows from a prior run FK-reference these same actor ids and
+  // are not covered by the TRUNCATE above.
+  const ackActorA = "00000000-0000-4000-8000-000000004301";
+  const ackActorB = "00000000-0000-4000-8000-000000004302";
+  await ownerQuery(
+    `INSERT INTO user_account
+       (id, email, idp_subject, status, created_at, created_by)
+     VALUES
+       ($1, 'ack-actor-1@account.example', 'ack-actor-1', 'active', now(), '00000000-0000-0000-0000-000000000001'),
+       ($2, 'ack-actor-2@account.example', 'ack-actor-2', 'active', now(), '00000000-0000-0000-0000-000000000001')
+     ON CONFLICT (id) DO NOTHING`,
+    [ackActorA, ackActorB],
   );
   readPool = new pg.Pool({ connectionString: fixture.appUrl });
 }, 120_000);
@@ -810,6 +838,165 @@ describe("US-042 alert repository with real PostgreSQL", () => {
       });
     } finally {
       await Promise.all([repositoryA.close(), repositoryB.close()]);
+    }
+  });
+});
+
+describe("acknowledgeEvent", () => {
+  const admin = authorization([ids.companyA], "group_admin");
+  const actor = "00000000-0000-4000-8000-000000004301";
+  const at = new Date("2026-08-15T12:00:00.000Z");
+
+  it("records who acknowledged and when", async () => {
+    const repository = createAlertRepository(fixture.appUrl);
+    try {
+      const event = await seedAlertEvent(ids.ruleA, ids.companyA);
+      const result = await repository.acknowledgeEvent({
+        alertEventId: event,
+        actorUserAccountId: actor,
+        authorization: admin,
+        occurredAt: at,
+      });
+
+      expect(result).toEqual({
+        status: "acknowledged",
+        acknowledgedBy: actor,
+        acknowledgedAt: at,
+      });
+      const row = await readPool.query(
+        "SELECT acknowledged_by::text, acknowledged_at FROM alert_event WHERE id = $1",
+        [event],
+      );
+      expect(row.rows[0].acknowledged_by).toBe(actor);
+      expect(row.rows[0].acknowledged_at).toEqual(at);
+    } finally {
+      await repository.close();
+    }
+  });
+
+  it("keeps the first acknowledger when a second admin acknowledges", async () => {
+    const repository = createAlertRepository(fixture.appUrl);
+    const second = "00000000-0000-4000-8000-000000004302";
+    try {
+      const event = await seedAlertEvent(ids.ruleA, ids.companyA);
+      await repository.acknowledgeEvent({
+        alertEventId: event, actorUserAccountId: actor,
+        authorization: admin, occurredAt: at,
+      });
+
+      const result = await repository.acknowledgeEvent({
+        alertEventId: event,
+        actorUserAccountId: second,
+        authorization: admin,
+        occurredAt: new Date("2026-08-15T13:00:00.000Z"),
+      });
+
+      expect(result).toEqual({
+        status: "already_acknowledged",
+        acknowledgedBy: actor,
+        acknowledgedAt: at,
+      });
+    } finally {
+      await repository.close();
+    }
+  });
+
+  it("writes exactly one audit row for the first acknowledgment", async () => {
+    const repository = createAlertRepository(fixture.appUrl);
+    try {
+      const event = await seedAlertEvent(ids.ruleA, ids.companyA);
+      await repository.acknowledgeEvent({
+        alertEventId: event, actorUserAccountId: actor,
+        authorization: admin, occurredAt: at,
+      });
+      await repository.acknowledgeEvent({
+        alertEventId: event, actorUserAccountId: actor,
+        authorization: admin, occurredAt: at,
+      });
+
+      const audit = await readPool.query(
+        `SELECT action, entity_type, actor_user_id::text
+         FROM audit_log WHERE entity_id = $1`,
+        [event],
+      );
+      expect(audit.rows).toEqual([
+        { action: "alert.acknowledged", entity_type: "AlertEvent", actor_user_id: actor },
+      ]);
+    } finally {
+      await repository.close();
+    }
+  });
+
+  it("does not acknowledge an alert outside the actor's scope", async () => {
+    const repository = createAlertRepository(fixture.appUrl);
+    try {
+      const event = await seedAlertEvent(ids.ruleB, ids.companyB);
+      const result = await repository.acknowledgeEvent({
+        alertEventId: event,
+        actorUserAccountId: actor,
+        authorization: authorization([ids.companyA]),
+        occurredAt: at,
+      });
+
+      expect(result).toEqual({ status: "not_found" });
+      const row = await readPool.query(
+        "SELECT acknowledged_at FROM alert_event WHERE id = $1",
+        [event],
+      );
+      expect(row.rows[0].acknowledged_at).toBeNull();
+    } finally {
+      await repository.close();
+    }
+  });
+
+  it("acknowledges a global-scope alert only for group_admin authorization", async () => {
+    const repository = createAlertRepository(fixture.appUrl);
+    try {
+      const globalRule = await readPool.query<{ id: string }>(
+        `SELECT id FROM alert_rule WHERE scope_kind = 'global' AND type = 'low_pool' LIMIT 1`,
+      );
+      const globalRuleId = globalRule.rows[0]!.id;
+      const event = await seedAlertEvent(globalRuleId, ids.companyA);
+
+      const nonAdmin = await repository.acknowledgeEvent({
+        alertEventId: event,
+        actorUserAccountId: actor,
+        authorization: authorization([ids.companyA]),
+        occurredAt: at,
+      });
+      expect(nonAdmin).toEqual({ status: "not_found" });
+      const unacknowledgedRow = await readPool.query(
+        "SELECT acknowledged_at FROM alert_event WHERE id = $1",
+        [event],
+      );
+      expect(unacknowledgedRow.rows[0].acknowledged_at).toBeNull();
+
+      const adminResult = await repository.acknowledgeEvent({
+        alertEventId: event,
+        actorUserAccountId: actor,
+        authorization: admin,
+        occurredAt: at,
+      });
+      expect(adminResult).toEqual({
+        status: "acknowledged",
+        acknowledgedBy: actor,
+        acknowledgedAt: at,
+      });
+      const audit = await readPool.query(
+        `SELECT action, entity_type, actor_user_id::text, company_id
+         FROM audit_log WHERE entity_id = $1`,
+        [event],
+      );
+      expect(audit.rows).toEqual([
+        {
+          action: "alert.acknowledged",
+          entity_type: "AlertEvent",
+          actor_user_id: actor,
+          company_id: null,
+        },
+      ]);
+    } finally {
+      await repository.close();
     }
   });
 });
