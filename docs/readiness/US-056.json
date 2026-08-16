@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "8dec4d97fb4c5c5bbc356fc52862c755b27c80031f6ca04ec40685ff3e56ba97",
+  "work_id": "US-056",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Anthropic transport with separated credentials and bounded retry",
+  "source": "docs/stories/sprint-3/r1_misc_us_018.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "Calls reach the vendor API under an endpoint-specific header policy with declared rate limits and bounded retry/backoff, and a credential routed to the wrong capability fails closed before any request leaves the process.",
+      "demo": "An Analytics key routed to a user-management endpoint is rejected without issuing a request; the per-minute budget and retry ceiling are observable against deterministic fixtures."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "contracts",
+    "server"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 7,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 1,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 10,
+    "implementation": 45,
+    "focused_verification": 35,
+    "review": 15,
+    "integration": 10,
+    "total": 115
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "status": "resolved",
+      "statement": "No live Anthropic credentials exist; the live provider probe is blocked on per-org keys and invite-canary authorization.",
+      "estimate_impact_minutes": 0,
+      "resolution": "Scope is deterministic fixtures backed by passing Pact consumer contracts. Live credential-scope, organization-binding, pagination, rate-limit and invite acceptance stay gated behind the authorized provider run named in the parent story's AC4, and must not be claimed here."
+    },
+    {
+      "id": "U2",
+      "status": "resolved",
+      "statement": "Probe code under scripts/probes/** cannot be imported by the connector, because that path is exempted from the provider-boundary lint for the probe's benefit only.",
+      "estimate_impact_minutes": 10,
+      "resolution": "Semantics are ported into packages/connectors/src/providers/anthropic/, the other exempt path, and re-implemented against the connector's own contracts so core code keeps importing only the vendor-neutral interface."
+    },
+    {
+      "id": "U3",
+      "status": "resolved",
+      "statement": "Retry must not amplify load against a rate-limited provider.",
+      "estimate_impact_minutes": 10,
+      "resolution": "The retry budget shares the same limiter as first attempts, asserted by a test proving a retry storm cannot exceed the declared per-minute ceiling."
+    },
+    {
+      "id": "U4",
+      "status": "resolved",
+      "statement": "The documented rate limits are declared, not measured.",
+      "estimate_impact_minutes": 0,
+      "resolution": "They are encoded as configuration (100/min user management, 60/min analytics, 1200 invites/hour) and asserted against fixtures. Confirming real provider behavior belongs to the gated live provider run."
+    }
+  ],
+  "dependencies": [
+    {
+      "work_id": "US-057",
+      "type": "blocks",
+      "reason": "The sanitized journal wraps this transport's request and response objects, so the seam must exist first."
+    },
+    {
+      "work_id": "US-058",
+      "type": "blocks",
+      "reason": "Capability conformance and the Pact consumer contracts are written against this transport."
+    }
+  ],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "US056-READY",
+    "payload_sha256": "8dec4d97fb4c5c5bbc356fc52862c755b27c80031f6ca04ec40685ff3e56ba97"
+  },
+  "actuals": null,
+  "checkpoints": [],
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}

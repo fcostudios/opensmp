@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "9fc58af1736b33811d3d8ee37d8dbbfeb9b3070cd05f41b4f0a2cdef7101e092",
+  "work_id": "US-057",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Sanitized ProvisioningAction request and response journaling",
+  "source": "docs/stories/sprint-3/r1_misc_us_018.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "Every connector call persists a canonical sanitized request and response summary that provably excludes credentials, authorization headers, raw PII, full provider identifiers and raw provider bodies.",
+      "demo": "A call writes a ProvisioningAction row whose summary survives a property-based check asserting no forbidden token appears for any generated payload."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "server",
+    "db"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 2,
+    "expected_changed_files": 6,
+    "expected_mutation_shards": 1,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 10,
+    "implementation": 35,
+    "focused_verification": 35,
+    "review": 10,
+    "integration": 10,
+    "total": 100
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "status": "resolved",
+      "statement": "No live Anthropic credentials exist; the live provider probe is blocked on per-org keys and invite-canary authorization.",
+      "estimate_impact_minutes": 0,
+      "resolution": "Scope is deterministic fixtures backed by passing Pact consumer contracts. Live credential-scope, organization-binding, pagination, rate-limit and invite acceptance stay gated behind the authorized provider run named in the parent story's AC4, and must not be claimed here."
+    },
+    {
+      "id": "U2",
+      "status": "resolved",
+      "statement": "Probe code under scripts/probes/** cannot be imported by the connector, because that path is exempted from the provider-boundary lint for the probe's benefit only.",
+      "estimate_impact_minutes": 10,
+      "resolution": "Semantics are ported into packages/connectors/src/providers/anthropic/, the other exempt path, and re-implemented against the connector's own contracts so core code keeps importing only the vendor-neutral interface."
+    },
+    {
+      "id": "U3",
+      "status": "resolved",
+      "statement": "This work needs the transport seam, which US-056 delivers, but a blocked_by dependency is unconditionally blocking in this validator and would permanently prevent a ready decision.",
+      "estimate_impact_minutes": 0,
+      "resolution": "The edge is recorded as a blocks dependency on US-056 instead. Execution is sequenced after US-056 lands; no separate readiness state is required because the seam exists before this starts."
+    },
+    {
+      "id": "U4",
+      "status": "resolved",
+      "statement": "An allow-list and a deny-list sanitizer fail differently on unexpected provider fields.",
+      "estimate_impact_minutes": 10,
+      "resolution": "Canonical summaries are built from an explicit allow-list, so an unknown provider field is dropped rather than leaked. That is the fail-closed direction and is asserted directly."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "US057-READY",
+    "payload_sha256": "9fc58af1736b33811d3d8ee37d8dbbfeb9b3070cd05f41b4f0a2cdef7101e092"
+  },
+  "actuals": null,
+  "checkpoints": [],
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
