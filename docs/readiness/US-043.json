@@ -91,7 +91,14 @@
     "payload_sha256": "a7257fe435f91f10346762578f658363dd07e85e4d4ddd13c501079489807344"
   },
   "actuals": null,
-  "checkpoints": [],
+  "checkpoints": [
+    {
+      "elapsed_minutes": 45,
+      "status": "variance",
+      "implementation_complete": false,
+      "evidence": "Git-derived execution crossed 45 minutes since the first implementation commit (7dcbe53 at 19:22:46). Contracts, server write path, and UI wiring landed, but Task 2 surfaced a real tenant-isolation gap (global-scope alerts ack'able without group_admin) requiring a plan deviation, and a follow-on refactor (eee5f7a) to extract the shared alert-scope predicate plus a matching mutation-probe update -- exceeding the 40-minute implementation estimate. Remaining work is the build-verification gate before done."
+    }
+  ],
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
