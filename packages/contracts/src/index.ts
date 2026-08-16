@@ -33,9 +33,9 @@ import {
 
 export { SYSTEM_USER_EMAIL, SYSTEM_USER_ID } from "@smp/db/system-ids";
 export * from "./alert-acknowledgment";
-export * from "./imports";
 export * from "./capacity";
 export * from "./identity-access";
+export * from "./imports";
 export * from "./locale";
 export * from "./people";
 export * from "./register";
