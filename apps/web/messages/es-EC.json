@@ -240,6 +240,15 @@
   "alerts": {
     "countOverflow": "99+",
     "acknowledgementNote": "Reconocer una alerta registra que fue revisada; no resuelve la condición que la originó.",
+    "acknowledge": {
+      "action": "Reconocer",
+      "confirmTitle": "Reconocer alerta",
+      "confirmBody": "Vas a marcar esta alerta como revisada. Quedará registrado tu usuario y la hora.",
+      "confirm": "Reconocer",
+      "cancel": "Cancelar",
+      "success": "Alerta reconocida. Gracias por revisarla.",
+      "error": "No pudimos reconocer la alerta."
+    },
     "columns": { "acknowledgedAt": "Reconocida el", "acknowledgedBy": "Reconocida por", "firedAt": "Disparada", "notified": "Notificación", "scope": "Alcance", "subject": "Asunto", "type": "Tipo" },
     "configure": "Configurar reglas",
     "empty": { "all": "No se ha disparado ninguna alerta.", "unacknowledged": "No hay alertas pendientes de revisión." },

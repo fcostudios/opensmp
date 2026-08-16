@@ -240,6 +240,15 @@
   "alerts": {
     "countOverflow": "99+",
     "acknowledgementNote": "Acknowledging an alert records that it was reviewed; it does not resolve the underlying condition.",
+    "acknowledge": {
+      "action": "Acknowledge",
+      "confirmTitle": "Acknowledge alert",
+      "confirmBody": "You are marking this alert as reviewed. Your user and the time will be recorded.",
+      "confirm": "Acknowledge",
+      "cancel": "Cancel",
+      "success": "Alert acknowledged. Thanks for reviewing it.",
+      "error": "We couldn't acknowledge the alert."
+    },
     "columns": { "acknowledgedAt": "Acknowledged at", "acknowledgedBy": "Acknowledged by", "firedAt": "Fired", "notified": "Notification", "scope": "Scope", "subject": "Subject", "type": "Type" },
     "configure": "Configure rules",
     "empty": { "all": "No alerts have fired.", "unacknowledged": "No alerts need review." },
