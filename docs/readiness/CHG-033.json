@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "a889f81b648fc9bf8175661c2b9ddd42239466345b214eea6ee231e879a5f9fd",
+  "work_id": "CHG-033",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Force a partition after repeated ready re-approvals of one work item",
+  "source": "docs/readiness/README.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "A work item cannot be re-approved as ready indefinitely: past a fixed number of ready approvals the gate refuses, so a stalled item must be partitioned instead of having its execution window reset again.",
+      "demo": "A work item carrying two prior ready decisions is refused a third with an explicit error naming the count and the remedy, while an item with one prior ready decision is still re-approved normally."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 2,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 10,
+    "implementation": 30,
+    "focused_verification": 25,
+    "review": 10,
+    "integration": 5,
+    "total": 80
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "status": "resolved",
+      "statement": "Whether scoping the checkpoint existence test to approval.evidence, the seam originally identified, is the smaller fix.",
+      "estimate_impact_minutes": 20,
+      "resolution": "It is not, and it was rejected. Checkpoint items are a closed shape — the JSON Schema sets additionalProperties false with exactly elapsed_minutes, status, implementation_complete, evidence, and model.mjs:266 enforces the same four keys — so carrying an approval reference needs a schema change. Worse, elapsed_minutes must be strictly increasing across the whole array, so a second cycle cannot express its own 45-minute checkpoint at all; the sequence rules would have to become per-cycle too. That is five sites plus a schema change. Counting approvals needs neither: the decisions already exist in .nous-feedback.jsonl and are already loaded where approval is validated."
+    },
+    {
+      "id": "U2",
+      "status": "resolved",
+      "statement": "Whether a threshold would retroactively invalidate work items already approved more than once.",
+      "estimate_impact_minutes": 10,
+      "resolution": "Measured before choosing the threshold: the maximum ready-decision count across every work item in .nous-feedback.jsonl is 2 (CHG-022 and US-043; every other item has 1). Refusing the THIRD ready approval therefore breaks nothing that exists today and lands as a live tripwire rather than a retroactive failure. The threshold is a named constant so it can be tuned without hunting for the comparison."
+    },
+    {
+      "id": "U3",
+      "status": "resolved",
+      "statement": "Whether refusing a third approval could strand an item with no legal path forward.",
+      "estimate_impact_minutes": 10,
+      "resolution": "It cannot. Partitioning is always available and is the intended remedy: the parent takes a partition_required decision and its children are approved on their own artifacts, each with a fresh count. This is the same route already exercised by US-018, US-056 and US-058 in this project, so the escape path is proven rather than theoretical."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG033-READY",
+    "payload_sha256": "a889f81b648fc9bf8175661c2b9ddd42239466345b214eea6ee231e879a5f9fd"
+  },
+  "actuals": null,
+  "checkpoints": [],
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
