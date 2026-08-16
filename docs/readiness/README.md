@@ -62,3 +62,48 @@ do not derive your way past it. Record it as `unresolved` and let the item sit
 at `blocked` until a human answers. If you resolve it by derivation from other
 committed artifacts, cite them and state the falsifier in the `resolution`, so a
 reader can see what would void it.
+
+## Parse structured data; never grep it
+
+`.nous-feedback.jsonl` and the readiness artifacts are JSON. Read them with a
+parser and compare fields. A grep pattern over serialized JSON tests a guess
+about whitespace and key order, not the data.
+
+Both 2026-08-15 near-misses were verification steps that returned a *confident
+wrong answer*, which is worse than an error:
+
+- `'"story":"US-043","event":"checkpoint"'` matched zero lines against a file
+  written with `"story": "US-043"`. Read as "no checkpoint exists", it nearly
+  produced a duplicate 45-minute checkpoint and broken the exactly-one bijection.
+- A UTF-8 sequence made `grep` treat a stream as binary and silently truncate a
+  listing.
+
+The same rule covers commands whose failure output looks like success:
+`git rev-parse HEAD^2` prints its own argument on a non-merge commit, so
+`[ -n "$(git rev-parse HEAD^2)" ]` reports every commit as a merge. Count
+parents with `rev-list --parents` instead.
+
+Before believing a negative result, confirm the check can produce a positive
+one. A fixture that cannot observe the condition proves nothing about it.
+
+## The 90-minute control is the checkpoint, not the clock
+
+Re-approving a work item under a new decision id re-anchors the elapsed-time
+window, because `findExecutionTimeline` selects the first implementation commit
+after the approval named in `approval.evidence`. That is intended, and it is not
+a way around the wall.
+
+The wall is enforced by `checkpointRequiresPartition`: an artifact whose last
+checkpoint is `elapsed_minutes: 90`, `status: partition_required`, and
+`implementation_complete: false` classifies as `partition_required` no matter
+what it declares. Verified: adding the exact 45-then-90 checkpoint sequence to a
+`ready` artifact flips `classifyAssessment` to `partition_required`, and a
+`ready` decision can no longer be signed for it because declared no longer
+equals computed. Checkpoints are excluded from the payload digest, so this
+cannot be dodged by re-signing either.
+
+So re-approval resets the clock; it cannot clear a recorded 90-minute stop. The
+real weakness is that **appending the checkpoint is voluntary** — an implementer
+who stops early, or simply never records it, leaves nothing for the gate to act
+on. That is the same failure mode as an unrecorded assumption: the gate cannot
+see what was never written down.
