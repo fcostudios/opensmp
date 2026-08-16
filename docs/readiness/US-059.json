@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "12209cc99d0c3bd7cc859030e52c4549a07ec7be89b60049151040e9d92dc3d6",
+  "work_id": "US-059",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Endpoint-specific header policy with fail-closed credential routing",
+  "source": "docs/stories/sprint-3/r1_misc_us_018.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "A request carries the correct endpoint header policy, and a credential routed to the wrong capability is rejected before any network call is issued.",
+      "demo": "An Analytics key routed to a user-management endpoint throws before fetch is reached; an Admin key on the same endpoint issues a request carrying the expected headers."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "contracts",
+    "server"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 2,
+    "expected_changed_files": 6,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 1,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 5,
+    "implementation": 30,
+    "focused_verification": 25,
+    "review": 10,
+    "integration": 5,
+    "total": 75
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "status": "resolved",
+      "statement": "No live Anthropic credentials exist; the live provider probe is blocked on per-org keys and invite-canary authorization.",
+      "estimate_impact_minutes": 0,
+      "resolution": "Scope is deterministic fixtures backed by Pact consumer contracts. Live acceptance stays gated behind the authorized provider run named in the parent story's AC4."
+    },
+    {
+      "id": "U2",
+      "status": "resolved",
+      "statement": "AC1 is a single criterion covering both credential separation and rate limiting, so this child alone does not satisfy it.",
+      "estimate_impact_minutes": 0,
+      "resolution": "AC1 is satisfied only when US-059 and US-060 have both landed. Closing this child on its own must not be read as meeting AC1; the sibling carries the other half."
+    },
+    {
+      "id": "U3",
+      "status": "resolved",
+      "statement": "Probe code under scripts/probes/** cannot be imported: that path is exempted from the provider-boundary lint for the probe only.",
+      "estimate_impact_minutes": 10,
+      "resolution": "Header-policy semantics are ported into packages/connectors/src/providers/anthropic/, the other exempt path, and re-implemented against the connector's own contracts."
+    }
+  ],
+  "dependencies": [
+    {
+      "work_id": "US-060",
+      "type": "blocks",
+      "reason": "The limiter and bounded retry are written against this transport seam, so it must exist first."
+    }
+  ],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "US059-READY",
+    "payload_sha256": "12209cc99d0c3bd7cc859030e52c4549a07ec7be89b60049151040e9d92dc3d6"
+  },
+  "actuals": null,
+  "checkpoints": [],
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}

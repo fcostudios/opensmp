@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "1888f2fed02403b5c9b0656c2968fb8c60b729f19910741b8539f16c86b16e90",
+  "work_id": "US-060",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Declared rate-limit budgets and bounded retry sharing the limiter",
+  "source": "docs/stories/sprint-3/r1_misc_us_018.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "Requests are held to the declared per-endpoint budgets and retries are bounded and counted against the same budget, so a retry storm cannot exceed the ceiling.",
+      "demo": "With an injected clock, a burst past 100/min user management is deferred rather than issued; a retry sequence provably cannot exceed the declared per-minute ceiling; a Retry-After header is honored."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "server"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 2,
+    "expected_changed_files": 6,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 1,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 5,
+    "implementation": 35,
+    "focused_verification": 30,
+    "review": 10,
+    "integration": 5,
+    "total": 85
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "status": "resolved",
+      "statement": "No live Anthropic credentials exist; the live provider probe is blocked on per-org keys and invite-canary authorization.",
+      "estimate_impact_minutes": 0,
+      "resolution": "Scope is deterministic fixtures backed by Pact consumer contracts. Live acceptance stays gated behind the authorized provider run named in the parent story's AC4."
+    },
+    {
+      "id": "U2",
+      "status": "resolved",
+      "statement": "AC1 is a single criterion covering both credential separation and rate limiting, so this child alone does not satisfy it.",
+      "estimate_impact_minutes": 0,
+      "resolution": "AC1 is satisfied only when US-059 and US-060 have both landed. Closing this child on its own must not be read as meeting AC1; the sibling carries the other half."
+    },
+    {
+      "id": "U3",
+      "status": "resolved",
+      "statement": "No rate-limit or retry machinery exists anywhere in the workspace, and packages/connectors declares zero runtime dependencies.",
+      "estimate_impact_minutes": 0,
+      "resolution": "Hand-roll the limiter against an injected clock, keeping the package dependency-free and the tests deterministic. This is the greenfield work that forced the US-056 partition."
+    },
+    {
+      "id": "U4",
+      "status": "resolved",
+      "statement": "Retry must not amplify load against a rate-limited provider.",
+      "estimate_impact_minutes": 10,
+      "resolution": "Retries draw from the same limiter as first attempts, asserted by a test proving a retry storm cannot exceed the declared ceiling."
+    },
+    {
+      "id": "U5",
+      "status": "resolved",
+      "statement": "The declared limits are documented values, not measured.",
+      "estimate_impact_minutes": 0,
+      "resolution": "Encoded as configuration (100/min user management, 60/min analytics, 1200 invites/hour) and asserted against fixtures. Confirming real provider behavior belongs to the gated live run."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "US060-READY",
+    "payload_sha256": "1888f2fed02403b5c9b0656c2968fb8c60b729f19910741b8539f16c86b16e90"
+  },
+  "actuals": null,
+  "checkpoints": [],
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
