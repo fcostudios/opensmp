@@ -90,4 +90,41 @@ describe("AcknowledgeAlertButton", () => {
     expect(acknowledge).not.toHaveBeenCalled();
     expect(screen.queryByText(labels.confirmBody)).toBeNull();
   });
+
+  it("disables cancel while a confirmation is in flight, so it can't hide a running mutation", async () => {
+    let resolveAcknowledge!: (value: { ok: boolean }) => void;
+    const pendingAcknowledge = new Promise<{ ok: boolean }>((resolve) => {
+      resolveAcknowledge = resolve;
+    });
+    const acknowledge = vi.fn().mockReturnValue(pendingAcknowledge);
+    render(
+      <AcknowledgeAlertButton
+        alertEventId={eventId} labels={labels} acknowledge={acknowledge}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("act_reconocer"));
+    fireEvent.click(screen.getByTestId("act_reconocer_confirm"));
+
+    expect((screen.getByTestId("act_reconocer_cancel") as HTMLButtonElement).disabled).toBe(true);
+
+    resolveAcknowledge({ ok: true });
+    expect(await screen.findByText(labels.success)).toBeDefined();
+  });
+
+  it("surfaces an error when the acknowledge call throws instead of resolving", async () => {
+    const acknowledge = vi.fn().mockRejectedValue(new Error("DATABASE_URL is required"));
+    render(
+      <AcknowledgeAlertButton
+        alertEventId={eventId} labels={labels} acknowledge={acknowledge}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("act_reconocer"));
+    fireEvent.click(screen.getByTestId("act_reconocer_confirm"));
+
+    expect(await screen.findByText(labels.error)).toBeDefined();
+    expect(screen.queryByText(labels.success)).toBeNull();
+    expect(navigation.refresh).not.toHaveBeenCalled();
+  });
 });

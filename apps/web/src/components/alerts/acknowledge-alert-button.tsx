@@ -57,9 +57,13 @@ export function AcknowledgeAlertButton({
         disabled={pending}
         onClick={() => {
           startTransition(async () => {
-            const result = await acknowledge({ alertEventId });
-            setOutcome(result.ok ? "success" : "error");
-            if (result.ok) router.refresh();
+            try {
+              const result = await acknowledge({ alertEventId });
+              setOutcome(result.ok ? "success" : "error");
+              if (result.ok) router.refresh();
+            } catch {
+              setOutcome("error");
+            }
           });
         }}
         type="button"
@@ -69,6 +73,7 @@ export function AcknowledgeAlertButton({
       <button
         className="rounded border border-border px-3 py-2 text-sm font-semibold text-text-primary"
         data-testid="act_reconocer_cancel"
+        disabled={pending}
         onClick={() => setConfirming(false)}
         type="button"
       >

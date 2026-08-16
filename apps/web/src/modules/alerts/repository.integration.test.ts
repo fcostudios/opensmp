@@ -8,6 +8,7 @@ import { createAlertNotificationOutbox } from "@smp/notifications";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { ackAlertPolicy } from "./ack-alert-policy";
 import { createAlertRepository } from "./repository";
 import {
   listAuthorizedAlertEvents,
@@ -995,6 +996,107 @@ describe("acknowledgeEvent", () => {
           company_id: null,
         },
       ]);
+    } finally {
+      await repository.close();
+    }
+  });
+
+  // Task 5's DoD (docs/superpowers/plans/2026-08-15-us-043-alert-acknowledgment.md,
+  // commit d63b725) requires re-verifying tenant isolation end-to-end
+  // through `ackAlert`/the UI, not just at the repository. This composes the
+  // REAL policy (Task 3, `ackAlertPolicy`) with the REAL repository (Task 2,
+  // `repository.acknowledgeEvent`) -- no mocks -- to prove the seam between
+  // the policy's group_admin gate and the repository's scope gate actually
+  // holds when wired together, the way `ackAlert` wires them in
+  // `apps/web/src/modules/alerts/actions.ts`.
+  //
+  // NOTE on the DoD's exact wording: it predicted a non-group_admin
+  // acknowledging a global-scope alert would get "not_found" end-to-end.
+  // That's not what actually happens (verified below, case 2):
+  // `ackAlertPolicy` returns `{ ok: false, error: "forbidden" }` for any
+  // non-group_admin authorization *before* ever calling `acknowledge` -- the
+  // repository's own scope gate (the thing that returns "not_found") is
+  // never reached on that path. This is a *stronger* guarantee than the DoD
+  // anticipated: the caller is rejected before touching the database at
+  // all, not merely denied a specific row. Case 3 drives an authorization
+  // that clears the policy's group_admin gate but still misses the
+  // repository's own scope predicate -- the scenario that actually produces
+  // "not_found" through the composed call -- proving the repository's scope
+  // gate still binds even for a caller the policy lets through.
+  it("composes the real ackAlertPolicy with the real repository.acknowledgeEvent across the group_admin/scope seam", async () => {
+    const repository = createAlertRepository(fixture.appUrl);
+    try {
+      const globalRule = await readPool.query<{ id: string }>(
+        `SELECT id FROM alert_rule WHERE scope_kind = 'global' AND type = 'low_pool' LIMIT 1`,
+      );
+      const globalRuleId = globalRule.rows[0]!.id;
+      const globalEvent = await seedAlertEvent(globalRuleId, ids.companyA);
+
+      // Case 2 (the DoD's discriminating check, corrected): a
+      // non-group_admin authorization must not acknowledge a global-scope
+      // alert, and must be denied before the repository is ever reached.
+      const denied = await ackAlertPolicy(
+        {
+          authorization: authorization([ids.companyA]),
+          acknowledge: repository.acknowledgeEvent,
+          now: () => at,
+        },
+        { alertEventId: globalEvent },
+      );
+      expect(denied).toEqual({ ok: false, error: "forbidden" });
+      const deniedRow = await readPool.query(
+        "SELECT acknowledged_at FROM alert_event WHERE id = $1",
+        [globalEvent],
+      );
+      expect(deniedRow.rows[0].acknowledged_at).toBeNull();
+
+      // Case 1 (proves the wiring is real, not silently mocked): a
+      // group_admin acknowledging the same global-scope alert through the
+      // composed call must reach the real repository and actually write
+      // the row.
+      const admitted = await ackAlertPolicy(
+        {
+          authorization: admin,
+          acknowledge: repository.acknowledgeEvent,
+          now: () => at,
+        },
+        { alertEventId: globalEvent },
+      );
+      expect(admitted).toEqual({
+        ok: true,
+        acknowledgedBy: admin.userAccountId,
+        acknowledgedAt: at.toISOString(),
+      });
+      const admittedRow = await readPool.query(
+        "SELECT acknowledged_by::text, acknowledged_at FROM alert_event WHERE id = $1",
+        [globalEvent],
+      );
+      expect(admittedRow.rows[0].acknowledged_by).toBe(admin.userAccountId);
+      expect(admittedRow.rows[0].acknowledged_at).toEqual(at);
+
+      // Case 3: an authorization that clears the policy's group_admin gate
+      // but is (synthetically, though type-validly) scoped to no
+      // companies -- the real `authorization.load()` always grants
+      // group_admin every company id, so this shape only exists here to
+      // drive the repository's own scope predicate through the policy. It
+      // proves the repository's scope gate still binds after the policy
+      // gate passes: a company-scoped alert outside `companyIds` is
+      // "not_found" even for an authorization the policy itself accepts.
+      const companyEvent = await seedAlertEvent(ids.ruleB, ids.companyB);
+      const scopedOut = await ackAlertPolicy(
+        {
+          authorization: authorization([], "group_admin"),
+          acknowledge: repository.acknowledgeEvent,
+          now: () => at,
+        },
+        { alertEventId: companyEvent },
+      );
+      expect(scopedOut).toEqual({ ok: false, error: "not_found" });
+      const scopedOutRow = await readPool.query(
+        "SELECT acknowledged_at FROM alert_event WHERE id = $1",
+        [companyEvent],
+      );
+      expect(scopedOutRow.rows[0].acknowledged_at).toBeNull();
     } finally {
       await repository.close();
     }
