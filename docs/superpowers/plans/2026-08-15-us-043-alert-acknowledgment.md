@@ -999,7 +999,18 @@ Per `docs/dev-guide/DEFINITION_OF_DONE.md`, before any `done` event:
   - AC1: acknowledge twice concurrently; the first acknowledger must survive
   - AC1: acknowledge as `central_finance`; must be `forbidden` with no DB write
   - AC2/AC3: assertions above
-  - Tenant isolation: acknowledge an out-of-scope alert; must be `not_found` with no write
+  - Tenant isolation, company scope: acknowledge a company-scoped alert in
+    another company; must be `not_found` with no write
+  - Tenant isolation, global scope: acknowledge a global-scope alert as a
+    **non-**`group_admin`; must be `not_found` with no write. This is the
+    discriminating check — the company-scope check above passes under both
+    the broken and the fixed predicate (see the Task 2 correction above), so
+    it alone proves nothing about the actual defect that was found and
+    fixed. Already covered at the repository layer by
+    `apps/web/src/modules/alerts/repository.integration.test.ts` →
+    `"acknowledges a global-scope alert only for group_admin authorization"`
+    (commit f65097e) — re-verify end-to-end through `ackAlert`/the UI at
+    this step, don't just point at the existing repository test.
 - [ ] Append `ac_pass`, `build_pass`, then `done` to `.nous-feedback.jsonl`
 - [ ] Record completion actuals against the 100-minute estimate
 
