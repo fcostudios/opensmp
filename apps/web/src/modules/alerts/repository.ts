@@ -5,6 +5,7 @@ import {
 import pg from "pg";
 
 import {
+  buildAlertScopeClause,
   countAuthorizedAlertEvents,
   listAuthorizedAlertEvents,
   type AlertEventCounts,
@@ -71,22 +72,17 @@ export function createAlertRepository(connectionString: string): AlertRepository
       try {
         await client.query("BEGIN");
         // Scope first: an out-of-scope id must be indistinguishable from a missing one.
-        // Mirrors the same scope predicate as listAuthorizedAlertEvents/countAuthorizedAlertEvents:
-        // global-scope alerts are only in scope for group_admin authorization.
-        const includeGlobal = authorization.globalRole === "group_admin";
+        // Uses the same shared scope predicate as listAuthorizedAlertEvents/
+        // countAuthorizedAlertEvents: global-scope alerts are only in scope for
+        // group_admin authorization.
+        const scope = buildAlertScopeClause(authorization, "rule", 2);
         const scoped = await client.query<{ id: string }>(
           `SELECT event.id::text AS id
            FROM alert_event event
            JOIN alert_rule rule ON rule.id = event.alert_rule_id
            WHERE event.id = $1::uuid
-             AND (
-               ($2::boolean AND rule.scope_kind::text = 'global')
-               OR (
-                 rule.scope_kind::text = 'company'
-                 AND rule.company_id = ANY($3::uuid[])
-               )
-             )`,
-          [alertEventId, includeGlobal, [...new Set(authorization.companyIds)]],
+             AND ${scope.clause}`,
+          [alertEventId, ...scope.params],
         );
         if (scoped.rows.length === 0) {
           await client.query("ROLLBACK");

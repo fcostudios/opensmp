@@ -41,12 +41,45 @@ export function formatOperationalBadgeCount(
   return count > BigInt(99) ? overflowLabel : count.toString();
 }
 
+export type AlertScopeClause = {
+  readonly clause: string;
+  readonly params: [boolean, string[]];
+};
+
+/**
+ * Builds the scope-authorization predicate shared by every query that reads
+ * or mutates `alert_event` rows: global-scope alerts are in scope only for
+ * `group_admin` authorization; company-scope alerts are in scope only for
+ * the caller's own `companyIds`.
+ *
+ * `alias` is the SQL alias for the joined `alert_rule` table in the caller's
+ * query. `firstPlaceholder` is the 1-based index of the first of the two
+ * `$N` parameters this predicate consumes (it always consumes exactly two,
+ * in order: includeGlobal, companyIds) — pass the next free placeholder
+ * index for queries with preceding params (e.g. an id filter).
+ */
+export function buildAlertScopeClause(
+  authorization: LedgerAuthorization,
+  alias: string,
+  firstPlaceholder: number,
+): AlertScopeClause {
+  const includeGlobal = authorization.globalRole === "group_admin";
+  const companyIds = [...new Set(authorization.companyIds)];
+  const clause = `(
+              ($${firstPlaceholder}::boolean AND ${alias}.scope_kind::text = 'global')
+              OR (
+                ${alias}.scope_kind::text = 'company'
+                AND ${alias}.company_id = ANY($${firstPlaceholder + 1}::uuid[])
+              )
+            )`;
+  return { clause, params: [includeGlobal, companyIds] };
+}
+
 export async function countAuthorizedAlertEvents(
   pool: pg.Pool,
   authorization: LedgerAuthorization,
 ): Promise<AlertEventCounts> {
-  const includeGlobal = authorization.globalRole === "group_admin";
-  const companyIds = [...new Set(authorization.companyIds)];
+  const scope = buildAlertScopeClause(authorization, "count_rule", 1);
   const result = await pool.query<{
     all_count: string;
     unacknowledged_count: string;
@@ -58,14 +91,8 @@ export async function countAuthorizedAlertEvents(
        FROM alert_event AS count_event
        INNER JOIN alert_rule AS count_rule
          ON count_rule.id = count_event.alert_rule_id
-      WHERE (
-        ($1::boolean AND count_rule.scope_kind::text = 'global')
-        OR (
-          count_rule.scope_kind::text = 'company'
-          AND count_rule.company_id = ANY($2::uuid[])
-        )
-      )`,
-    [includeGlobal, companyIds],
+      WHERE ${scope.clause}`,
+    scope.params,
   );
   const [row] = result.rows;
   return {
@@ -121,8 +148,7 @@ export async function listAuthorizedAlertEvents(
     MAX_ALERT_LIMIT,
     Math.max(1, Math.trunc(options.limit ?? DEFAULT_ALERT_LIMIT)),
   );
-  const includeGlobal = authorization.globalRole === "group_admin";
-  const companyIds = [...new Set(authorization.companyIds)];
+  const scope = buildAlertScopeClause(authorization, "rule", 1);
   const result = await pool.query<EventRow>(
     `SELECT event.id, event.alert_rule_id, event.fired_at,
                 event.subject_ref,
@@ -188,13 +214,7 @@ export async function listAuthorizedAlertEvents(
            LIMIT 1
          ) request_target ON rule.scope_kind::text = 'global'
          LEFT JOIN user_account actor ON actor.id = event.acknowledged_by
-         WHERE (
-              ($1::boolean AND rule.scope_kind::text = 'global')
-              OR (
-                rule.scope_kind::text = 'company'
-                AND rule.company_id = ANY($2::uuid[])
-              )
-            )
+         WHERE ${scope.clause}
            AND (NOT $3::boolean OR event.acknowledged_at IS NULL)
            AND (
              $4::timestamptz IS NULL
@@ -203,8 +223,7 @@ export async function listAuthorizedAlertEvents(
          ORDER BY event.fired_at DESC, event.id DESC
          LIMIT $6`,
     [
-      includeGlobal,
-      companyIds,
+      ...scope.params,
       (options.filter ?? "unacknowledged") === "unacknowledged",
       cursor?.firedAt ?? null,
       cursor?.id ?? null,
