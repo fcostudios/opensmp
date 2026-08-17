@@ -87,7 +87,7 @@
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "US043-READY-2",
+    "evidence": "US043-READY-3",
     "payload_sha256": "a7257fe435f91f10346762578f658363dd07e85e4d4ddd13c501079489807344"
   },
   "actuals": null,
