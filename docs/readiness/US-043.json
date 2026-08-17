@@ -91,7 +91,20 @@
     "payload_sha256": "a7257fe435f91f10346762578f658363dd07e85e4d4ddd13c501079489807344"
   },
   "actuals": null,
-  "checkpoints": [],
+  "checkpoints": [
+    {
+      "elapsed_minutes": 45,
+      "status": "variance",
+      "implementation_complete": false,
+      "evidence": "Git-derived execution crossed 45 minutes since the first implementation commit (7dcbe53 at 19:22:46). Contracts, server write path, and UI wiring landed, but Task 2 surfaced a real tenant-isolation gap (global-scope alerts ack'able without group_admin) requiring a plan deviation, and a follow-on refactor (eee5f7a) to extract the shared alert-scope predicate plus a matching mutation-probe update -- exceeding the 40-minute implementation estimate. Remaining work is the build-verification gate before done."
+    },
+    {
+      "elapsed_minutes": 94,
+      "status": "variance",
+      "implementation_complete": true,
+      "evidence": "Task 4 complete: i18n keys added to both message files, acknowledge-alert-button.test.tsx written first (confirmed RED: cannot resolve ./acknowledge-alert-button), acknowledge-alert-button.tsx and actions.ts implemented (confirmed GREEN: 4/4 component tests), full alerts suites green (7 files / 60 tests including audited-actions-enforcement.test.ts), tsc --noEmit clean, pnpm lint clean (eslint + check-audited-actions + lint:ds). elapsed_minutes here is git-derived wall clock since the work item's original first implementation commit (7dcbe53 at 19:22:46), matching this array's existing anchor convention so the sequence stays strictly increasing; per e0a557c, US043-READY-2 rescopes the *live gating* anchor to the first implementation commit after that decision (1e148cb at 20:36:42), against which this Task-4 session's own active elapsed time is ~18 minutes, well inside the 90-minute gate. Only Task 5 (wire the row action into the list, lock in AC2/AC3, full pnpm type-check/lint/build/test gate) remains."
+    }
+  ],
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,

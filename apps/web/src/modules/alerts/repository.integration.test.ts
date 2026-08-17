@@ -8,6 +8,7 @@ import { createAlertNotificationOutbox } from "@smp/notifications";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { ackAlertPolicy } from "./ack-alert-policy";
 import { createAlertRepository } from "./repository";
 import {
   listAuthorizedAlertEvents,
@@ -43,6 +44,16 @@ function authorization(
     userAccountId: "00000000-0000-0000-0000-000000000001",
     userId: "00000000-0000-0000-0000-000000000001",
   };
+}
+
+async function seedAlertEvent(ruleId: string, companyId: string): Promise<string> {
+  const id = randomUUID();
+  await readPool.query(
+    `INSERT INTO alert_event (id, alert_rule_id, fired_at, subject_ref, notified, dedupe_key)
+     VALUES ($1, $2, now(), $3::jsonb, '{"status":"pending"}'::jsonb, $4)`,
+    [id, ruleId, JSON.stringify({ requestId: companyId }), `ack-test-${id}`],
+  );
+  return id;
 }
 
 async function companyEvents(
@@ -120,6 +131,24 @@ beforeAll(async () => {
        ($3, 'low_pool', 'company', $1, '{"floor":2}', 'email', true, now(), '00000000-0000-0000-0000-000000000001'),
        ($4, 'low_pool', 'company', $2, '{"floor":2}', 'email', true, now(), '00000000-0000-0000-0000-000000000001')`,
     [ids.companyA, ids.companyB, ids.ruleA, ids.ruleB],
+  );
+  // Seed the two acknowledgeEvent test actors: alert_event.acknowledged_by
+  // and audit_log.actor_user_id both carry a FOREIGN KEY REFERENCES
+  // user_account(id), so the acknowledging actor must already exist.
+  // ON CONFLICT DO NOTHING (rather than DELETE + INSERT) keeps this safe to
+  // rerun against the persistent US042_MUTATION_DATABASE_URL fixture, where
+  // audit_log rows from a prior run FK-reference these same actor ids and
+  // are not covered by the TRUNCATE above.
+  const ackActorA = "00000000-0000-4000-8000-000000004301";
+  const ackActorB = "00000000-0000-4000-8000-000000004302";
+  await ownerQuery(
+    `INSERT INTO user_account
+       (id, email, idp_subject, status, created_at, created_by)
+     VALUES
+       ($1, 'ack-actor-1@account.example', 'ack-actor-1', 'active', now(), '00000000-0000-0000-0000-000000000001'),
+       ($2, 'ack-actor-2@account.example', 'ack-actor-2', 'active', now(), '00000000-0000-0000-0000-000000000001')
+     ON CONFLICT (id) DO NOTHING`,
+    [ackActorA, ackActorB],
   );
   readPool = new pg.Pool({ connectionString: fixture.appUrl });
 }, 120_000);
@@ -810,6 +839,271 @@ describe("US-042 alert repository with real PostgreSQL", () => {
       });
     } finally {
       await Promise.all([repositoryA.close(), repositoryB.close()]);
+    }
+  });
+});
+
+describe("acknowledgeEvent", () => {
+  const admin = authorization([ids.companyA], "group_admin");
+  const actor = "00000000-0000-4000-8000-000000004301";
+  const at = new Date("2026-08-15T12:00:00.000Z");
+
+  it("records who acknowledged and when", async () => {
+    const repository = createAlertRepository(fixture.appUrl);
+    try {
+      const event = await seedAlertEvent(ids.ruleA, ids.companyA);
+      const result = await repository.acknowledgeEvent({
+        alertEventId: event,
+        actorUserAccountId: actor,
+        authorization: admin,
+        occurredAt: at,
+      });
+
+      expect(result).toEqual({
+        status: "acknowledged",
+        acknowledgedBy: actor,
+        acknowledgedAt: at,
+      });
+      const row = await readPool.query(
+        "SELECT acknowledged_by::text, acknowledged_at FROM alert_event WHERE id = $1",
+        [event],
+      );
+      expect(row.rows[0].acknowledged_by).toBe(actor);
+      expect(row.rows[0].acknowledged_at).toEqual(at);
+    } finally {
+      await repository.close();
+    }
+  });
+
+  it("keeps the first acknowledger when a second admin acknowledges", async () => {
+    const repository = createAlertRepository(fixture.appUrl);
+    const second = "00000000-0000-4000-8000-000000004302";
+    try {
+      const event = await seedAlertEvent(ids.ruleA, ids.companyA);
+      await repository.acknowledgeEvent({
+        alertEventId: event, actorUserAccountId: actor,
+        authorization: admin, occurredAt: at,
+      });
+
+      const result = await repository.acknowledgeEvent({
+        alertEventId: event,
+        actorUserAccountId: second,
+        authorization: admin,
+        occurredAt: new Date("2026-08-15T13:00:00.000Z"),
+      });
+
+      expect(result).toEqual({
+        status: "already_acknowledged",
+        acknowledgedBy: actor,
+        acknowledgedAt: at,
+      });
+    } finally {
+      await repository.close();
+    }
+  });
+
+  it("writes exactly one audit row for the first acknowledgment", async () => {
+    const repository = createAlertRepository(fixture.appUrl);
+    try {
+      const event = await seedAlertEvent(ids.ruleA, ids.companyA);
+      await repository.acknowledgeEvent({
+        alertEventId: event, actorUserAccountId: actor,
+        authorization: admin, occurredAt: at,
+      });
+      await repository.acknowledgeEvent({
+        alertEventId: event, actorUserAccountId: actor,
+        authorization: admin, occurredAt: at,
+      });
+
+      const audit = await readPool.query(
+        `SELECT action, entity_type, actor_user_id::text, company_id::text
+         FROM audit_log WHERE entity_id = $1`,
+        [event],
+      );
+      expect(audit.rows).toEqual([
+        {
+          action: "alert.acknowledged",
+          entity_type: "AlertEvent",
+          actor_user_id: actor,
+          company_id: ids.companyA,
+        },
+      ]);
+    } finally {
+      await repository.close();
+    }
+  });
+
+  it("does not acknowledge an alert outside the actor's scope", async () => {
+    const repository = createAlertRepository(fixture.appUrl);
+    try {
+      const event = await seedAlertEvent(ids.ruleB, ids.companyB);
+      const result = await repository.acknowledgeEvent({
+        alertEventId: event,
+        actorUserAccountId: actor,
+        authorization: authorization([ids.companyA]),
+        occurredAt: at,
+      });
+
+      expect(result).toEqual({ status: "not_found" });
+      const row = await readPool.query(
+        "SELECT acknowledged_at FROM alert_event WHERE id = $1",
+        [event],
+      );
+      expect(row.rows[0].acknowledged_at).toBeNull();
+    } finally {
+      await repository.close();
+    }
+  });
+
+  it("acknowledges a global-scope alert only for group_admin authorization", async () => {
+    const repository = createAlertRepository(fixture.appUrl);
+    try {
+      const globalRule = await readPool.query<{ id: string }>(
+        `SELECT id FROM alert_rule WHERE scope_kind = 'global' AND type = 'low_pool' LIMIT 1`,
+      );
+      const globalRuleId = globalRule.rows[0]!.id;
+      const event = await seedAlertEvent(globalRuleId, ids.companyA);
+
+      const nonAdmin = await repository.acknowledgeEvent({
+        alertEventId: event,
+        actorUserAccountId: actor,
+        authorization: authorization([ids.companyA]),
+        occurredAt: at,
+      });
+      expect(nonAdmin).toEqual({ status: "not_found" });
+      const unacknowledgedRow = await readPool.query(
+        "SELECT acknowledged_at FROM alert_event WHERE id = $1",
+        [event],
+      );
+      expect(unacknowledgedRow.rows[0].acknowledged_at).toBeNull();
+
+      const adminResult = await repository.acknowledgeEvent({
+        alertEventId: event,
+        actorUserAccountId: actor,
+        authorization: admin,
+        occurredAt: at,
+      });
+      expect(adminResult).toEqual({
+        status: "acknowledged",
+        acknowledgedBy: actor,
+        acknowledgedAt: at,
+      });
+      const audit = await readPool.query(
+        `SELECT action, entity_type, actor_user_id::text, company_id
+         FROM audit_log WHERE entity_id = $1`,
+        [event],
+      );
+      expect(audit.rows).toEqual([
+        {
+          action: "alert.acknowledged",
+          entity_type: "AlertEvent",
+          actor_user_id: actor,
+          company_id: null,
+        },
+      ]);
+    } finally {
+      await repository.close();
+    }
+  });
+
+  // Task 5's DoD (docs/superpowers/plans/2026-08-15-us-043-alert-acknowledgment.md,
+  // commit d63b725) requires re-verifying tenant isolation end-to-end
+  // through `ackAlert`/the UI, not just at the repository. This composes the
+  // REAL policy (Task 3, `ackAlertPolicy`) with the REAL repository (Task 2,
+  // `repository.acknowledgeEvent`) -- no mocks -- to prove the seam between
+  // the policy's group_admin gate and the repository's scope gate actually
+  // holds when wired together, the way `ackAlert` wires them in
+  // `apps/web/src/modules/alerts/actions.ts`.
+  //
+  // NOTE on the DoD's exact wording: it predicted a non-group_admin
+  // acknowledging a global-scope alert would get "not_found" end-to-end.
+  // That's not what actually happens (verified below, case 2):
+  // `ackAlertPolicy` returns `{ ok: false, error: "forbidden" }` for any
+  // non-group_admin authorization *before* ever calling `acknowledge` -- the
+  // repository's own scope gate (the thing that returns "not_found") is
+  // never reached on that path. This is a *stronger* guarantee than the DoD
+  // anticipated: the caller is rejected before touching the database at
+  // all, not merely denied a specific row. Case 3 drives an authorization
+  // that clears the policy's group_admin gate but still misses the
+  // repository's own scope predicate -- the scenario that actually produces
+  // "not_found" through the composed call -- proving the repository's scope
+  // gate still binds even for a caller the policy lets through.
+  it("composes the real ackAlertPolicy with the real repository.acknowledgeEvent across the group_admin/scope seam", async () => {
+    const repository = createAlertRepository(fixture.appUrl);
+    try {
+      const globalRule = await readPool.query<{ id: string }>(
+        `SELECT id FROM alert_rule WHERE scope_kind = 'global' AND type = 'low_pool' LIMIT 1`,
+      );
+      const globalRuleId = globalRule.rows[0]!.id;
+      const globalEvent = await seedAlertEvent(globalRuleId, ids.companyA);
+
+      // Case 2 (the DoD's discriminating check, corrected): a
+      // non-group_admin authorization must not acknowledge a global-scope
+      // alert, and must be denied before the repository is ever reached.
+      const denied = await ackAlertPolicy(
+        {
+          authorization: authorization([ids.companyA]),
+          acknowledge: repository.acknowledgeEvent,
+          now: () => at,
+        },
+        { alertEventId: globalEvent },
+      );
+      expect(denied).toEqual({ ok: false, error: "forbidden" });
+      const deniedRow = await readPool.query(
+        "SELECT acknowledged_at FROM alert_event WHERE id = $1",
+        [globalEvent],
+      );
+      expect(deniedRow.rows[0].acknowledged_at).toBeNull();
+
+      // Case 1 (proves the wiring is real, not silently mocked): a
+      // group_admin acknowledging the same global-scope alert through the
+      // composed call must reach the real repository and actually write
+      // the row.
+      const admitted = await ackAlertPolicy(
+        {
+          authorization: admin,
+          acknowledge: repository.acknowledgeEvent,
+          now: () => at,
+        },
+        { alertEventId: globalEvent },
+      );
+      expect(admitted).toEqual({
+        ok: true,
+        acknowledgedBy: admin.userAccountId,
+        acknowledgedAt: at.toISOString(),
+      });
+      const admittedRow = await readPool.query(
+        "SELECT acknowledged_by::text, acknowledged_at FROM alert_event WHERE id = $1",
+        [globalEvent],
+      );
+      expect(admittedRow.rows[0].acknowledged_by).toBe(admin.userAccountId);
+      expect(admittedRow.rows[0].acknowledged_at).toEqual(at);
+
+      // Case 3: an authorization that clears the policy's group_admin gate
+      // but is (synthetically, though type-validly) scoped to no
+      // companies -- the real `authorization.load()` always grants
+      // group_admin every company id, so this shape only exists here to
+      // drive the repository's own scope predicate through the policy. It
+      // proves the repository's scope gate still binds after the policy
+      // gate passes: a company-scoped alert outside `companyIds` is
+      // "not_found" even for an authorization the policy itself accepts.
+      const companyEvent = await seedAlertEvent(ids.ruleB, ids.companyB);
+      const scopedOut = await ackAlertPolicy(
+        {
+          authorization: authorization([], "group_admin"),
+          acknowledge: repository.acknowledgeEvent,
+          now: () => at,
+        },
+        { alertEventId: companyEvent },
+      );
+      expect(scopedOut).toEqual({ ok: false, error: "not_found" });
+      const scopedOutRow = await readPool.query(
+        "SELECT acknowledged_at FROM alert_event WHERE id = $1",
+        [companyEvent],
+      );
+      expect(scopedOutRow.rows[0].acknowledged_at).toBeNull();
+    } finally {
+      await repository.close();
     }
   });
 });

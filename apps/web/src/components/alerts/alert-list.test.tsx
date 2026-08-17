@@ -86,4 +86,23 @@ describe("alertDestination", () => {
     expect(html).toContain('href="/solicitudes/request-1"');
     expect(html).not.toContain("rawSubject");
   });
+
+  it("AC2: dispatches each alert type to its own subject destination", () => {
+    expect(alertDestination("low_pool", {
+      licenseTypeId: "lt-1", vendorAccountId: "va-1",
+    })).toBe("/cupos?vendorAccountId=va-1&licenseTypeId=lt-1");
+    expect(alertDestination("approval_aging", { requestId: "req-1" }))
+      .toBe("/solicitudes/req-1");
+    expect(alertDestination("credential_failure", { vendorAccountId: "va-1" }))
+      .toBe("/credenciales");
+    expect(alertDestination("register_drift", { reconciliationId: "rec-1" }))
+      .toBe("/excepciones");
+    expect(alertDestination("nonsense", { requestId: "req-1" })).toBeNull();
+  });
+
+  it("AC3: labels company scope by name and falls back to global", () => {
+    const labels = { company: (name: string) => `Compañía: ${name}`, global: "Global" };
+    expect(alertScopeText("company", "Corporativo", labels)).toBe("Compañía: Corporativo");
+    expect(alertScopeText("global", null, labels)).toBe("Global");
+  });
 });

@@ -21,16 +21,18 @@ const testArgs = [
 
 const mutants = [
   {
-    name: "company authorization predicate removed",
+    name: "alert scope company authorization removed",
     source: "apps/web/src/modules/operational-alert-read.ts",
-    search: "AND rule.company_id = ANY($2::uuid[])",
-    replacement: "AND rule.company_id IS NOT NULL",
+    search:
+      "AND ${alias}.company_id = ANY($${firstPlaceholder + 1}::uuid[])",
+    replacement: "AND ${alias}.company_id IS NOT NULL",
   },
   {
-    name: "global events allowed without group admin",
+    name: "alert scope global authorization removed",
     source: "apps/web/src/modules/operational-alert-read.ts",
-    search: "($1::boolean AND rule.scope_kind::text = 'global')",
-    replacement: "(TRUE AND rule.scope_kind::text = 'global')",
+    search:
+      "($${firstPlaceholder}::boolean AND ${alias}.scope_kind::text = 'global')",
+    replacement: "(TRUE AND ${alias}.scope_kind::text = 'global')",
   },
   {
     name: "active alert filter removed",
@@ -86,19 +88,6 @@ const mutants = [
     source: "apps/web/src/modules/operational-alert-read.ts",
     search: "Number.isFinite(firedAt.getTime()) &&",
     replacement: "true &&",
-  },
-  {
-    name: "alert count company authorization removed",
-    source: "apps/web/src/modules/operational-alert-read.ts",
-    search: "AND count_rule.company_id = ANY($2::uuid[])",
-    replacement: "AND count_rule.company_id IS NOT NULL",
-  },
-  {
-    name: "alert count global authorization removed",
-    source: "apps/web/src/modules/operational-alert-read.ts",
-    search:
-      "($1::boolean AND count_rule.scope_kind::text = 'global')",
-    replacement: "(TRUE AND count_rule.scope_kind::text = 'global')",
   },
   {
     name: "alert unacknowledged count status removed",

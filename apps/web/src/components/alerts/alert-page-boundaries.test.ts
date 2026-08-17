@@ -31,4 +31,11 @@ test("gates the global alert read before constructing or querying the repository
   expect(source).not.toContain("listGlobalEvents");
   expect(source).not.toContain("listCompanyEvents");
   expect(source).toContain('redirect("/acceso-denegado")');
+  expect(source).toContain('import { ackAlert } from "@/modules/alerts/actions"');
+  expect(source).toContain(
+    'import { AcknowledgeAlertButton } from "@/components/alerts/acknowledge-alert-button"',
+  );
+  expect(source).toContain("renderRowAction={(item) => (");
+  expect(source).toContain("acknowledge={ackAlert}");
+  expect(source).toContain("alertEventId={item.id}");
 });

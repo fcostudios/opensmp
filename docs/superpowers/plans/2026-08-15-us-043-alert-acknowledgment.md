@@ -147,6 +147,31 @@ git commit -m "feat(US-043): add ackAlert input contract"
 
 `not_found` covers both "no such event" and "outside your scope" deliberately — a caller must not be able to probe for the existence of another tenant's alert.
 
+> **Correction (found during Task 2 implementation, confirmed by the plan author):**
+> Two defects in this task's sample code, both fixed in the actual implementation
+> commit rather than in this text:
+> 1. **Step 1** samples call `createAlertRepository(fixture.connectionString)`.
+>    `PostgresFixture` has no `connectionString` field — only `appUrl`
+>    (`packages/db/src/testing/postgres-container.ts:18-24`), which the existing
+>    suite already uses throughout. Use `fixture.appUrl`.
+> 2. **Step 3**'s sample scope predicate — `rule.scope_kind = 'global' OR
+>    rule.company_id = ANY($2::uuid[])` — is a real tenant/role-isolation gap: it
+>    drops both the `includeGlobal` boolean gate *and* the `scope_kind = 'company'`
+>    qualifier that the actual predicate in `operational-alert-read.ts:192-195`
+>    uses for the identical check, so it lets any authenticated caller (not just
+>    `group_admin`) acknowledge a global-scope alert, and lets a global-scope rule
+>    with a matching `company_id` slip through the company arm too. This
+>    contradicts this task's own Global Constraint above ("reuse the scope
+>    predicate already used by `listAuthorizedAlertEvents`"). The plan's own
+>    adversarial DoD check (acknowledge an out-of-scope alert) does not catch this
+>    — it only seeds a company-scoped alert in a different company, never a
+>    global-scope one, so this would have shipped unnoticed. The implementation
+>    uses the same `includeGlobal`-gated, scope-kind-qualified predicate as the
+>    read path instead, gated by `authorization.globalRole === "group_admin"`, and
+>    adds a test that fails under this text's literal predicate and passes under
+>    the fix. See the `deviation` event in `.nous-feedback.jsonl` and commit
+>    `f65097e` for the corrected SQL.
+
 - [ ] **Step 1: Write the failing tests**
 
 Append to `apps/web/src/modules/alerts/repository.integration.test.ts`:
@@ -974,7 +999,18 @@ Per `docs/dev-guide/DEFINITION_OF_DONE.md`, before any `done` event:
   - AC1: acknowledge twice concurrently; the first acknowledger must survive
   - AC1: acknowledge as `central_finance`; must be `forbidden` with no DB write
   - AC2/AC3: assertions above
-  - Tenant isolation: acknowledge an out-of-scope alert; must be `not_found` with no write
+  - Tenant isolation, company scope: acknowledge a company-scoped alert in
+    another company; must be `not_found` with no write
+  - Tenant isolation, global scope: acknowledge a global-scope alert as a
+    **non-**`group_admin`; must be `not_found` with no write. This is the
+    discriminating check — the company-scope check above passes under both
+    the broken and the fixed predicate (see the Task 2 correction above), so
+    it alone proves nothing about the actual defect that was found and
+    fixed. Already covered at the repository layer by
+    `apps/web/src/modules/alerts/repository.integration.test.ts` →
+    `"acknowledges a global-scope alert only for group_admin authorization"`
+    (commit f65097e) — re-verify end-to-end through `ackAlert`/the UI at
+    this step, don't just point at the existing repository test.
 - [ ] Append `ac_pass`, `build_pass`, then `done` to `.nous-feedback.jsonl`
 - [ ] Record completion actuals against the 100-minute estimate
 

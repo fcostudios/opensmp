@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 export type AlertListFilter = "all" | "unacknowledged";
 
@@ -35,6 +36,7 @@ export interface AlertListProps {
   readonly items: readonly AlertListItem[];
   readonly labels: AlertListLabels;
   readonly locale: "en-US" | "es-EC";
+  readonly renderRowAction?: (item: AlertListItem) => ReactNode;
   readonly unacknowledgedCount: string;
   readonly unacknowledgedHref: string;
 }
@@ -64,6 +66,7 @@ export function AlertList({
   items,
   labels,
   locale,
+  renderRowAction,
   unacknowledgedCount,
   unacknowledgedHref,
 }: AlertListProps) {
@@ -122,6 +125,9 @@ export function AlertList({
               <th className="px-3 py-2 font-medium" data-testid="acknowledged_at" scope="col">
                 {labels.acknowledgedAt}
               </th>
+              {renderRowAction ? (
+                <th className="px-3 py-2 font-medium" scope="col" />
+              ) : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -155,13 +161,18 @@ export function AlertList({
                     <DateTime locale={locale} value={item.acknowledgedAt} />
                   ) : null}
                 </td>
+                {renderRowAction ? (
+                  <td className="px-3 py-3">
+                    {item.acknowledgedAt === null ? renderRowAction(item) : null}
+                  </td>
+                ) : null}
               </tr>
             ))}
             {items.length === 0 ? (
               <tr>
                 <td
                   className="px-4 py-10 text-center text-text-secondary"
-                  colSpan={7}
+                  colSpan={renderRowAction ? 8 : 7}
                 >
                   {activeFilter === "all"
                     ? labels.emptyAll
