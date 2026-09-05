@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "ab0332a3fc582609f373ac7735943164a7b6267c01703adb87b253a53b22fe4c",
+  "work_id": "CHG-035",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Re-baseline the work-readiness execution budget from 120 to 320 minutes",
+  "source": "docs/changes/CHG-035-readiness-budget-rebaseline.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "The tenant gate and the substrate gate enforce the same execution budget, and that budget is calibrated against the story-point scale the design phase actually uses rather than a figure derived from one incident.",
+      "demo": "`pnpm readiness:check` accepts a 320-minute single-outcome estimate and refuses 321 with WR_ESTIMATE_OVER_BUDGET; a grep for a budget-related 120 across the gate's scripts, schema and docs returns nothing."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling",
+    "planning"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 2,
+    "expected_changed_files": 6,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 1,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 10,
+    "implementation": 35,
+    "focused_verification": 20,
+    "review": 10,
+    "integration": 5,
+    "total": 80
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "status": "resolved",
+      "statement": "Whether the substrate already enforces 320, so the two gates genuinely disagree today.",
+      "estimate_impact_minutes": 10,
+      "resolution": "It does. fcostudios__smp's project_configs carries execution_budget {enabled: true, max_readiness_minutes: 320, minutes_per_story_point: 104, calibration.min_samples: 2}, and the [Execution Budget Sizing] drift section names exactly US-019 and US-034 \u2014 the two 5SP stories \u2014 as over budget. The tenant gate still refuses anything above 120."
+    },
+    {
+      "id": "U2",
+      "status": "resolved",
+      "statement": "Whether the scope table's line references are still accurate after CHG-034's four cuts landed.",
+      "estimate_impact_minutes": 10,
+      "resolution": "The SITES are all correct; the LINE NUMBERS drifted, as expected. Re-located 2026-09-05: model.mjs:277 (was 305), schema:337 and :709 (were 340/712, shifted by the dead $defs.checkpoint removal), WORK_READINESS.md:31/56/335 (368 became 335 when the clock section was replaced), CLAUDE.md:67, test-work-readiness.mjs:225/398."
+    },
+    {
+      "id": "U3",
+      "status": "resolved",
+      "statement": "Whether 320 is defensible given the calibration pairs are estimates, not actuals.",
+      "estimate_impact_minutes": 15,
+      "resolution": "It is provisional and the CHG says so. docs/readiness/README.md records estimates running 2-3x under actuals. The rate is persisted in config, so revisiting it is a one-line diff once actuals.total exists on two items \u2014 that follow-through is named in the CHG, not deferred silently."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG035-READY",
+    "payload_sha256": "ab0332a3fc582609f373ac7735943164a7b6267c01703adb87b253a53b22fe4c"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
