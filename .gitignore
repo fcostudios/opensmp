@@ -38,6 +38,10 @@ Thumbs.db
 
 # Ephemeral, checksum-verified test binaries (never commit encryption keys/tools).
 .tmp/backup-restore-tools/
+# Generated mutation shards (GENERATED_SHARD_DIR in scripts/mutation-scope.mjs).
+# Per-run scratch carrying commit-specific base/head provenance — stale the
+# moment HEAD moves, and machine-specific.
+.tmp/stryker-shards/
 infra/backups/
 
 # Operator-managed backup signing secrets belong outside the checkout.
