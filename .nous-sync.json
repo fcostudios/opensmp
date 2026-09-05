@@ -1,5 +1,5 @@
 {
-  "synced_at": "2026-08-03T03:05:25.857637+00:00",
+  "synced_at": "2026-08-13T12:52:29.575898+00:00",
   "project_id": "fcostudios__smp",
   "files": {
     "docs/stories/SPRINT_PLAN.md": {
@@ -311,7 +311,7 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/14_legal.md"
     },
     "docs/decisions/DECISION_MATRIX.md": {
-      "hash": "c3b8da3698780383",
+      "hash": "7dc4b744e0c59974",
       "source": "/Users/fcolomas/Projects/nous/Nous/WorkControl/fcostudios/smp/DECISION_MATRIX.md"
     },
     "docs/dashboard.html": {

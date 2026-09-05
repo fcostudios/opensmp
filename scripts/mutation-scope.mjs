@@ -1860,7 +1860,17 @@ export async function runMutationScope(options = {}) {
     return { manifest: null, performance: null };
   }
 
+  // IMP-360 / L3 — absent and unreadable are different problems with different
+  // fixes, and collapsing them cost a real debugging cycle: a tenant whose
+  // toolchain sync delivered THIS script but not its config was told to check
+  // its working directory, which was already correct. Existence is established
+  // by existsSync, never by the catch.
   let baseConf = {};
+  if (!existsSync(BASE_CONFIG)) {
+    fail(`${BASE_CONFIG} is missing`,
+         "the substrate emits it — deliver it with: " +
+         "python3 nous_package.py sync --target <pkg> --categories toolchain");
+  }
   try {
     baseConf = JSON.parse(readFileSync(BASE_CONFIG, "utf8"));
   } catch {
