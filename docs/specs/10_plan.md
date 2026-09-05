@@ -1,7 +1,7 @@
 # 10 — Plan: Ledger (`fcostudios__smp`)
 
 **Step:** 10 — Plan · **Date:** 2026-07-22 (rev 2, post plan-review) · **Report language:** en-US
-**Inputs:** `08_scope.md` (55 stories, cycle-free DAG) · `09_architecture.md` · `09b` · PRD §16 (D4) · sizing (tier M).
+**Inputs:** `08_scope.md` (58 story IDs, including the partitioned US-018 parent; cycle-free DAG) · `09_architecture.md` · `09b` · PRD §16 (D4) · sizing (tier M).
 
 ## SEC1 — Sprint plan (PRD §16 mirror; hydrator forbids Sprint 0 → PRD "Sprint 0" folds into Sprint 1)
 
@@ -45,24 +45,26 @@ Capacity model: 2 FTEs, AI-assisted; target ≈ 30–40 SP/week-sprint (velocity
 | US-045 | Connector interface + orchestration routing | 3 | US-003 |
 | US-020 | Orchestration mode: checklist + confirm + verification | 3 | US-014, US-045 |
 
-### Sprint 3 — Automation + monitoring (40 SP)
+### Sprint 3 — Automation + monitoring (41 SP)
 
 **Milestone:** Automation + monitoring: connector live (interface from Sprint 2, capability semantics via US-025), invite≤15min, hygiene, reclamation, drift, API-less ingestion (CSV import + manual upkeep, DEC-SMP-018). Beta-API risk retired here (surprise-detection already pulled to the Sprint-1 probe). Connector jobs run on Compose-secret keys (ADR-13) until US-031 lands the managed credential store in Sprint 4.
 
 | Story | Title | SP | Blocked By |
 |---|---|---|---|
 | US-011 | Users, roles and delegation-ready grants | 3 | US-005 |
-| US-018 | Anthropic connector client | 3 | US-003, US-045, US-025 |
-| US-019 | Automated provisioning: invite ≤ 15 min → Active | 5 | US-018, US-014, US-046, US-042 |
+| US-056 | Anthropic transport with separated credentials and bounded retry | 1 | US-003, US-045, US-025 |
+| US-057 | Append-only sanitized connector-call journal | 2 | US-056 |
+| US-058 | Anthropic connector conformance and Pact contracts | 1 | US-056, US-057 |
+| US-019 | Automated provisioning: invite ≤ 15 min → Active | 5 | US-056, US-057, US-058, US-014, US-046, US-042 |
 | US-021 | Invite hygiene | 2 | US-019, US-042 |
 | US-023 | Blocked-no-seat + purchase-or-reclaim flow | 3 | US-022, US-042 |
 | US-024 | Offboarding + deprovisioning | 3 | US-019, US-020 |
 | US-025 | Vendor accounts + capability descriptor | 3 | US-005 |
-| US-026 | Analytics sync: activity + cost | 3 | US-018, US-046 |
+| US-026 | Analytics sync: activity + cost | 3 | US-056, US-057, US-058, US-046 |
 | US-027 | Inactivity flags + usage surface | 2 | US-026 |
 | US-028 | Reclamation proposals: approve or dismiss | 3 | US-027, US-024 |
 | US-029 | Freshness labels + staleness alert | 2 | US-026, US-042 |
-| US-030 | Drift detection + retroactive claim | 3 | US-018, US-046, US-042 |
+| US-030 | Drift detection + retroactive claim | 3 | US-056, US-057, US-058, US-046, US-042 |
 | US-055 | API-less ingestion: member/usage CSV import + manual register upkeep | 3 | US-003, US-025, US-026, US-030 |
 | US-043 | Alert log + acknowledgment | 2 | US-042 |
 
@@ -105,6 +107,7 @@ Bugfix/go-live reserve (1 FTE-week); go-live as system of record when the US-052
 ## SEC2 — Sequencing rationale (risk-first)
 - Orchestration path (US-020/045) lands in Sprint 2 WITHOUT the API client (DEC-SMP-007): a beta-API problem cannot slip the usable-product milestone.
 - Beta-API surprise-detection pulled to Sprint 1 (US-054 probe spike, real keys); implementation risk retired at the start of Sprint 3.
+- US-018 is a non-executable partition parent after CHG-045 exposed the required connector-call journal migration. Its previously approved official children run in order: US-056 transport (1 SP), US-057 journal/migration (2 SP), US-058 conformance/Pact (1 SP). Each child is below the 320-minute execution ceiling; the aggregate grows from 3 SP to 4 SP rather than hiding the migration inside the old estimate.
 - **Sprint-3 slip fallback:** Sprint 4 proceeds with rates + license-line-only close drafts + statement template (US-032, US-034, US-044, US-049 — no analytics dependency); US-050 and its dependents (US-035/036/037/038/039/051) join when US-026 lands.
 - Register migration (US-003, slug=core_schema_register_integrity) is Sprint 1 (HR-25 slugs in story Meta; no Vxxx).
 - Close split (US-034→050→051) inside Sprint 4; US-049 unblocked from the close (prereq = schema) so the template runs parallel.

@@ -1,13 +1,13 @@
 {
-  "synced_at": "2026-09-05T17:10:16.458337+00:00",
+  "synced_at": "2026-09-05T21:40:53.665778+00:00",
   "project_id": "fcostudios__smp",
   "files": {
     "docs/stories/SPRINT_PLAN.md": {
-      "hash": "2c5f8a8dc215fbe2",
+      "hash": "5a5c7e70aa444554",
       "source": "generated"
     },
     "docs/stories/CHANGES.md": {
-      "hash": "369ece28be1eab9c",
+      "hash": "cc53f4bddb468dd2",
       "source": "generated"
     },
     "docs/stories/ASSIGNMENTS.md": {
@@ -19,11 +19,11 @@
       "source": "generated"
     },
     ".nous-project.json": {
-      "hash": "9e5ced039a7108af",
+      "hash": "939cfd3986c7dcc5",
       "source": "generated"
     },
     "docs/stories/INDEX.md": {
-      "hash": "6a26fbd97ea9c2c1",
+      "hash": "bb7be5b8861d84f5",
       "source": "generated"
     },
     "docs/stories/sprint-1/r1_misc_us_001.md": {
@@ -95,11 +95,11 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_017.md"
     },
     "docs/stories/sprint-3/r1_misc_us_018.md": {
-      "hash": "3107c1dc714c5395",
+      "hash": "a0a4538a59077f75",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_018.md"
     },
     "docs/stories/sprint-3/r1_misc_us_019.md": {
-      "hash": "e8124a89736fa8ae",
+      "hash": "f229ed6ee1c7490d",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_019.md"
     },
     "docs/stories/sprint-2/r1_misc_us_020.md": {
@@ -127,7 +127,7 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_025.md"
     },
     "docs/stories/sprint-3/r1_misc_us_026.md": {
-      "hash": "f8d0fc9ba3a8f173",
+      "hash": "2f90b3b92e608438",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_026.md"
     },
     "docs/stories/sprint-3/r1_misc_us_027.md": {
@@ -143,7 +143,7 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_029.md"
     },
     "docs/stories/sprint-3/r1_misc_us_030.md": {
-      "hash": "53c0c53b39c3d167",
+      "hash": "80acd1a5556b2702",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_030.md"
     },
     "docs/stories/sprint-4/r1_misc_us_031.md": {
@@ -259,7 +259,7 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/03_cx_journeys.md"
     },
     "docs/specs/04_er_model.md": {
-      "hash": "5dbe54e9d433c099",
+      "hash": "66006a1bb1198779",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/04_er_model.md"
     },
     "docs/specs/05_brand.md": {
@@ -283,15 +283,15 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/07c_navigation_map.json"
     },
     "docs/specs/08_scope.md": {
-      "hash": "3c475f99cc4ae595",
+      "hash": "0c5cef36a38f1624",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/08_scope.md"
     },
     "docs/specs/09_architecture.md": {
-      "hash": "9ab872749296722a",
+      "hash": "689dd3832003cec9",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/09_architecture.md"
     },
     "docs/specs/10_plan.md": {
-      "hash": "d3d8bc531f316472",
+      "hash": "a5c200e0da0d09d7",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/10_plan.md"
     },
     "docs/specs/11_estimates.md": {
@@ -557,6 +557,18 @@
     "scripts/mutation-scope.mjs": {
       "hash": "27d6fdc5405297e1",
       "source": "toolchain"
+    },
+    "docs/stories/sprint-3/r1_misc_us_056.md": {
+      "hash": "716b0d40106f306e",
+      "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_056.md"
+    },
+    "docs/stories/sprint-3/r1_misc_us_057.md": {
+      "hash": "4d9f93788ba08cbf",
+      "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_057.md"
+    },
+    "docs/stories/sprint-3/r1_misc_us_058.md": {
+      "hash": "d0a56bec9297e3f1",
+      "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_058.md"
     }
   }
 }

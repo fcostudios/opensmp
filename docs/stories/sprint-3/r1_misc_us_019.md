@@ -22,7 +22,7 @@ As a End User (persona_05), I want to get my seat without human touch so that
 | Server Actions | retryProvisioning |
 | Entities | ProvisioningAction (CU), LicenseAssignment (C), LicenseRequest (U) |
 | Business Rules | BR-09 |
-| Blocked By | US-018, US-014, US-046, US-042 |
+| Blocked By | US-056, US-057, US-058, US-014, US-046, US-042 |
 
 ## Acceptance Criteria
 

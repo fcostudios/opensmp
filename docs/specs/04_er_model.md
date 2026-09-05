@@ -8,11 +8,11 @@
 
 ## ER Model Executive Summary
 
-Ledger's model is the **vendor-neutral license lifecycle core** (DEC-SMP-008): every vendor — Claude today, Microsoft 365 / OpenAI (SCIM) / SAP B1 later — maps onto the same spine: `Vendor → VendorAccount → LicenseType`, requests flow through `LicenseRequest` (the §10 state machine), and every held seat is a `LicenseAssignment` row in the append-only **register**, the chargeback source of truth (DEC-SMP-009). Money derives from the register: effective-dated `RateCard` × register seat-days → `Statement`/`StatementLine`, reconciled per period in `Reconciliation`.
+Ledger's model is the **vendor-neutral license lifecycle core** (DEC-SMP-008): every vendor — Claude today, Microsoft 365 / OpenAI (SCIM) / SAP B1 later — maps onto the same spine: `Vendor → VendorAccount → LicenseType`, requests flow through `LicenseRequest` (the §10 state machine), and every held seat is a `LicenseAssignment` row in the append-only **register**, the chargeback source of truth (DEC-SMP-009). Money derives from the register: effective-dated `RateCard` × register seat-days → `Statement`/`StatementLine`, reconciled per period in `Reconciliation`. Every outbound connector attempt is evidenced independently in the provider-neutral append-only `ConnectorCallObservation` journal.
 
-Eight data domains: **org registry** (Company, Person + platform identity), **vendor catalog** (vendors, accounts, license types, credentials), **request workflow**, **register** (assignments + provisioning actions), **telemetry** (activity/cost sync), **billing**, **alerts**, **audit**. Cross-cutting concerns: company-scoping on every company-owned row (`company_id`, the PRD §15 highest-severity bug class), DB-level register integrity (no overlapping assignments — Postgres exclusion constraint), append-only audit (no UPDATE/DELETE grants), raw vendor payloads stored beside parsed rows for replay (PRD §13).
+Eight data domains: **org registry** (Company, Person + platform identity), **vendor catalog** (vendors, accounts, license types, credentials, connector-call observations), **request workflow**, **register** (assignments + provisioning actions), **telemetry** (activity/cost sync), **billing**, **alerts**, **audit**. Cross-cutting concerns: company-scoping on every company-owned row (`company_id`, the PRD §15 highest-severity bug class), DB-level register integrity (no overlapping assignments — Postgres exclusion constraint), append-only audit (no UPDATE/DELETE grants), and sanitized connector evidence separated from parsed telemetry payloads.
 
-22 persistent entities: the 18 from PRD §14 plus 4 `[DERIVED_ENTITY]` normalizations (UserAccount, CompanyRoleAssignment, VendorAccountCapacity, RequestTransition) required for RBAC, per-org capacity, and transition history.
+27 persistent entities: the 18 from PRD §14 plus 9 `[DERIVED_ENTITY]` normalizations, including `ConnectorCallObservation`, required for RBAC, per-org capacity, transition history, workflow support, and durable connector evidence.
 
 ---SECTION: SEC1---
 
@@ -47,6 +47,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | vendor_catalog_context | VendorAccountCapacity | Purchased quantity per (account, license type) | [DERIVED_ENTITY] ("capacity by license_type") |
 | vendor_catalog_context | LicenseType | Seat/SKU dimension per vendor | [SRC:RAW] |
 | vendor_catalog_context | IntegrationCredential | Encrypted scoped keys per account; health state | [SRC:RAW] |
+| vendor_catalog_context | ConnectorCallObservation | Append-only sanitized request/outcome evidence per connector attempt | [DERIVED_ENTITY] (CHG-045) |
 | request_workflow_context | LicenseRequest | §10 state-machine object; approver decision | [SRC:RAW] |
 | request_workflow_context | RequestTransition | One row per state transition (who/when/note) | [DERIVED_ENTITY] ("timestamps per transition") |
 | register_context | LicenseAssignment | THE register: person/company/account/type, start/end/reason | [SRC:RAW] |
@@ -253,6 +254,26 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `created_at` | `timestamptz` |  | no |  |  | — |
 | `created_by` | `uuid` | FK => UserAccount.id | no |  |  | — |
 
+### `ConnectorCallObservation`
+
+- **Domain:** `vendor_catalog_context` **[DERIVED_ENTITY]**
+- **Business purpose.** Provider-neutral, append-only evidence of each outbound connector attempt. It journals sanitized intent and known outcome without forcing sync calls through a `LicenseRequest` or turning the generic `AuditLog` into an operational call ledger. `[SRC:CJ]` CHG-045.
+- **Lifecycle.** The composition layer commits one `requested` row before the network boundary and then appends one `succeeded` or `failed` row when the outcome is known. Retries use new attempt numbers under the same correlation. An unmatched `requested` row is an honest uncertain outcome after interruption; prior rows are never updated or deleted.
+- **Flags.** `requires_versioning: append-only event stream` · `has_soft_delete: no` · `audit_required: is connector evidence` · `multi_tenant_scoped: via vendor account; provisioning company scope derives through the optional action→request link`
+
+| Attribute | Type | PK/FK/IDX | Nullable | Description | Example | Source(s) |
+|---|---|---|---|---|---|---|
+| `id` | `uuid` (v7) | PK | no | Observation event identifier | … | A-ER-1 |
+| `vendor_account_id` | `uuid` | FK => VendorAccount.id, IDX | no | Account whose connector was called | … | CHG-045 |
+| `provisioning_action_id` | `uuid` | FK => ProvisioningAction.id, IDX | yes | Optional workflow ownership for provision/deprovision; null for syncs | … | CHG-045 |
+| `correlation_id` | `uuid` | IDX | no | Stable neutral operation correlation across retries | … | CHG-045 |
+| `operation` | `text` (enum) | IDX | no | `provision / deprovision / sync_members / sync_activity / sync_cost` | `sync_members` | CHG-045 |
+| `attempt` | `integer` | UNIQUE(correlation_id, attempt, phase) | no | One-based network-attempt number; CHECK ≥ 1 | `1` | CHG-045 |
+| `phase` | `text` (enum) | UNIQUE(correlation_id, attempt, phase) | no | `requested / succeeded / failed` | `requested` | CHG-045 |
+| `classification` | `text` |  | yes | Neutral outcome/error classification; null only for requested | `rate_limited` | CHG-045 |
+| `summary` | `jsonb` |  | no | Strict allowlist only: endpoint class, method, status class, page/count, retry/rate hints, schema shape, keyed correlation hashes | `{ "endpoint_class": "members", "method": "GET" }` | CHG-045 |
+| `occurred_at` | `timestamptz` | IDX | no | Commit timestamp for this immutable event | … | CHG-045 |
+
 ### `LicenseRequest`
 
 - **Domain:** `request_workflow_context`
@@ -322,7 +343,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 ### `ProvisioningAction`
 
 - **Domain:** `register_context`
-- **Business purpose.** One vendor-side execution: invite, removal, SKU assign, invite withdrawal, or orchestration checklist — with the **raw request/response payloads** stored for audit and replay (PRD §13). Both execution modes write here identically (DEC-SMP-007).
+- **Business purpose.** One request-owned vendor-side execution: invite, removal, SKU assign, invite withdrawal, or orchestration checklist. Durable automated-call evidence lives in `ConnectorCallObservation`; `ProvisioningAction` remains the workflow object and never becomes the owner of account-level sync calls. Both execution modes write here identically (DEC-SMP-007).
 - **Lifecycle.** Created by the engine at S3/J2; status advances on poll/confirmation; orchestration rows carry the checklist and the admin's confirmation, then sync verification ("verification failed" flag).
 - **Flags.** `requires_versioning: no (status transitions audit-logged)` · `has_soft_delete: no` · `audit_required: yes` · `multi_tenant_scoped: yes (via request)`
 
@@ -336,8 +357,8 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `vendor_ref` | `text` |  | yes | anthropic_invite_id / graph request id / checklist id | … | [SRC:RAW] §14 |
 | `status` | `text` (enum) |  | no | `pending / sent / confirmed / failed / verification_failed / withdrawn` | `confirmed` | [SRC:RAW] Module C |
 | `failure_reason` | `text` |  | yes | Human-readable reason set when `status` transitions to `failed` (mapped from the provider error in `raw_response`) or `verification_failed` (sync verification has no provider payload — DEC-SMP-007); localized es-EC; raw payloads remain the forensic source | … | [SRC:CJ] J4 |
-| `raw_request` | `jsonb` |  | yes | Full API request payload | … | [SRC:RAW] §13 |
-| `raw_response` | `jsonb` |  | yes | Full API response payload | … | [SRC:RAW] §13 |
+| `raw_request` | `jsonb` |  | yes | Orchestration checklist structure only; automated provider request bodies are forbidden | … | [SRC:RAW] §13, CHG-045 |
+| `raw_response` | `jsonb` |  | yes | Orchestration attestation/verification summary only; raw provider response bodies are forbidden | … | [SRC:RAW] §13, CHG-045 |
 | `sent_at` | `timestamptz` |  | yes |  |  | [SRC:RAW] §14 |
 | `resolved_at` | `timestamptz` |  | yes |  |  | [SRC:RAW] §14 |
 | `created_at` | `timestamptz` |  | no |  |  | — |
@@ -604,6 +625,8 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | VendorAccount | VendorAccountCapacity | 1:N | mandatory | composition | FK `VendorAccountCapacity.vendor_account_id` | [DERIVED_ENTITY] |
 | LicenseType | VendorAccountCapacity | 1:N | mandatory | reference | FK `VendorAccountCapacity.license_type_id` | [DERIVED_ENTITY] |
 | VendorAccount | IntegrationCredential | 1:N | mandatory | composition | FK `IntegrationCredential.vendor_account_id` | [SRC:RAW] |
+| VendorAccount | ConnectorCallObservation | 1:N | mandatory | composition | FK `ConnectorCallObservation.vendor_account_id` | [DERIVED_ENTITY] CHG-045 |
+| ProvisioningAction | ConnectorCallObservation | 1:N | optional | reference | FK `ConnectorCallObservation.provisioning_action_id` (nullable for sync operations) | [DERIVED_ENTITY] CHG-045 |
 | Person | LicenseRequest | 1:N | mandatory | aggregation | FK `LicenseRequest.person_id` | [SRC:RAW] |
 | Company | LicenseRequest | 1:N | mandatory | aggregation | FK `LicenseRequest.company_id` | [SRC:RAW] |
 | VendorAccount | LicenseRequest | 1:N | mandatory | reference | FK `LicenseRequest.vendor_account_id` | [SRC:RAW] |
@@ -661,12 +684,12 @@ No legacy model — Ledger is greenfield (DEC-SMP-001 rejected the Snipe-IT fork
 
 ## Cross-Cutting Concerns
 
-- **Audit.** `created_at`/`created_by` (+ `updated_*` where updates are legal) on all operator-mutable entities; every mutation additionally writes `AuditLog` (before/after JSON). `AuditLog`, `RequestTransition`, `LicenseAssignment`, `AlertEvent`, `ProvisioningAction` are **append-only**; DB role for the app has no UPDATE/DELETE grants on `AuditLog` (PRD §13). Legal UPDATEs on the otherwise append-only tables: `LicenseAssignment` — closing the open row (`ended_on`, `end_reason`); `ProvisioningAction` — status advancement on poll/confirmation (`status`, `sent_at`, `resolved_at`); `AlertEvent` — acknowledgment (`acknowledged_by`, `acknowledged_at`). No other columns may be updated; rows are never deleted.
+- **Audit.** `created_at`/`created_by` (+ `updated_*` where updates are legal) on all operator-mutable entities; every mutation additionally writes `AuditLog` (before/after JSON). `AuditLog`, `RequestTransition`, `LicenseAssignment`, `AlertEvent`, `ProvisioningAction`, and `ConnectorCallObservation` are **append-only**; DB role for the app has no UPDATE/DELETE grants on `AuditLog` or `ConnectorCallObservation`. Legal UPDATEs on the otherwise append-only tables: `LicenseAssignment` — closing the open row (`ended_on`, `end_reason`); `ProvisioningAction` — status advancement on poll/confirmation (`status`, `sent_at`, `resolved_at`); `AlertEvent` — acknowledgment (`acknowledged_by`, `acknowledged_at`). No other columns may be updated; rows are never deleted.
 - **Soft delete.** Status-based everywhere (`status` enums); hard DELETE is denied on all core tables — history integrity depends on it. Exception: `CompanyRoleAssignment` grants may be removed (audit-logged).
 - **Versioning.** Effective-dating for money/config history: `RateCard` and `VendorAccountCapacity` version by `effective_from` rows. Request history versions via `RequestTransition`. No SCD2 tables needed in R1.
 - **Register integrity (DEC-SMP-009).** DB-level: `EXCLUDE USING gist (person_id WITH =, vendor_account_id WITH =, license_type_id WITH =, daterange(started_on, coalesce(ended_on,'infinity'), '[]') WITH &&)` on `LicenseAssignment` (requires `btree_gist`). Drizzle cannot express EXCLUDE natively → ships as raw SQL in the migration (Step 9 detail). Gap/contiguity is ALSO DB-level per §15/DEC-SMP-009: a deferred CONSTRAINT TRIGGER on `LicenseAssignment` validates at transaction commit that closing a row with `end_reason = reallocated` has a successor row for the same (person, vendor account, license type) starting ≤ `ended_on` + 1 day — shipped in the same raw-SQL migration as the EXCLUDE constraint (Step 9 detail). Step 9b close-run business rules re-verify "every assigned seat-day belongs to exactly one company" as defense-in-depth, not primary enforcement. The UNIQUE on `LicenseAssignment.source_request_id` (NULLs distinct) enforces the 1:0..1 request→register cardinality declared in SEC4.
 - **Company scoping (multi-tenancy-lite).** `company_id` on every company-owned row (`Person`, `LicenseRequest`, `LicenseAssignment`, `Statement`, scoped `AlertRule`, audit scope hint). Server-side enforcement: scoped roles resolve permitted `company_id` sets from `CompanyRoleAssignment`; every query filters on them (PRD §15 — mandatory automated test coverage; precondition for MSP 🔴). Vendor-catalog entities are deliberately global: a `VendorAccount` serves many companies (D1).
-- **Raw payload replay.** `ProvisioningAction.raw_request/raw_response`, `ActivityRecord.raw_payload`, `CostRecord.raw_payload` — beta-API resilience (PRD §13/§18).
+- **Connector evidence and replay.** `ConnectorCallObservation.summary` is an allowlisted operational journal and never contains credentials, authorization headers, email addresses, raw PII, full provider identifiers, or raw provider bodies. `ProvisioningAction.raw_*` is restricted to orchestration checklist/attestation data. Parsed `ActivityRecord.raw_payload` and `CostRecord.raw_payload` remain telemetry replay inputs under their separate data-retention rules.
 - **Freshness.** `synced_at` on telemetry rows is the source for UI freshness labels + staleness alerts (Module D).
 
 ---SECTION: SEC7---
@@ -720,6 +743,7 @@ erDiagram
     VendorAccount ||--o{ VendorAccountCapacity : "capacity_rows"
     LicenseType ||--o{ VendorAccountCapacity : "dimensioned_by"
     VendorAccount ||--o{ IntegrationCredential : "authenticates_via"
+    VendorAccount ||--o{ ConnectorCallObservation : "journals_calls"
     Vendor {
         uuid id PK
         text name "UNIQUE"
@@ -757,6 +781,18 @@ erDiagram
         text health
         text status
     }
+    ConnectorCallObservation {
+        uuid id PK
+        uuid vendor_account_id FK
+        uuid provisioning_action_id FK
+        uuid correlation_id
+        text operation
+        integer attempt
+        text phase
+        text classification
+        jsonb summary
+        timestamptz occurred_at
+    }
 ```
 
 ### request_workflow_context + register_context
@@ -776,6 +812,7 @@ erDiagram
     VendorAccount ||--o{ LicenseAssignment : "pooled_in"
     LicenseType ||--o{ LicenseAssignment : "of_type"
     VendorAccount ||--o{ ProvisioningAction : "against"
+    ProvisioningAction |o--o{ ConnectorCallObservation : "evidenced_by"
     UserAccount |o--o{ LicenseRequest : "requested_or_decided_by"
     UserAccount |o--o{ RequestTransition : "acted_by"
     LicenseRequest {
@@ -814,8 +851,8 @@ erDiagram
         text kind "invite/remove/checklist"
         text mode
         text status
-        jsonb raw_request
-        jsonb raw_response
+        jsonb raw_request "orchestration only"
+        jsonb raw_response "orchestration only"
     }
     ReclamationProposal {
         uuid id PK
@@ -960,6 +997,7 @@ erDiagram
     Vendor ||--o{ LicenseType : "defines"
     VendorAccount ||--o{ VendorAccountCapacity : "capacity"
     VendorAccount ||--o{ IntegrationCredential : "keys"
+    VendorAccount ||--o{ ConnectorCallObservation : "call_evidence"
     Person ||--o{ LicenseRequest : "requests"
     VendorAccount ||--o{ LicenseRequest : "serves"
     LicenseRequest ||--o{ RequestTransition : "history"
@@ -989,6 +1027,7 @@ erDiagram
     VendorAccountCapacity { uuid id PK }
     LicenseType { uuid id PK }
     IntegrationCredential { uuid id PK }
+    ConnectorCallObservation { uuid id PK }
     LicenseRequest { uuid id PK }
     RequestTransition { uuid id PK }
     LicenseAssignment { uuid id PK }
@@ -1020,9 +1059,9 @@ erDiagram
 | Company Approver | J2 reclamation sign-off | ReclamationProposal U (approve/dismiss + decision_note), LicenseRequest U (flagged_inactive→offboarding), RequestTransition C | U/A | [SRC:CJ] |
 | Group Admin (persona_01) | J1 S2 override / J4 exceptions | LicenseRequest U, VendorAccountCapacity C, AlertEvent U (ack) | U/A | [SRC:CJ] |
 | Group Admin | credential rotation (J4S4) | IntegrationCredential C (new) + U (retire), AuditLog C | C/U | [SRC:PER] |
-| System jobs | J1 S3/S4 provisioning + polling | ProvisioningAction C/U, LicenseAssignment C (on activation), RequestTransition C | C/U | [SRC:CJ] |
-| System jobs | J1 S5 syncs | ActivityRecord C, CostRecord C, AlertEvent C (drift/staleness) | C | [SRC:CJ] |
-| System jobs | J2 offboarding execution | ProvisioningAction C, LicenseAssignment U (close row), RequestTransition C | C/U | [SRC:CJ] |
+| System jobs | J1 S3/S4 provisioning + polling | ProvisioningAction C/U, ConnectorCallObservation C, LicenseAssignment C (on activation), RequestTransition C | C/U | [SRC:CJ] |
+| System jobs | J1 S5 syncs | ConnectorCallObservation C, ActivityRecord C, CostRecord C, AlertEvent C (drift/staleness) | C | [SRC:CJ] |
+| System jobs | J2 offboarding execution | ProvisioningAction C, ConnectorCallObservation C, LicenseAssignment U (close row), RequestTransition C | C/U | [SRC:CJ] |
 | System jobs | J3 close run (TB_J3_1) | CloseRun C/U, Statement C, StatementLine C (reads LicenseAssignment, RateCard, CostRecord) | C/U | [SRC:CJ] |
 | Central Finance (persona_04) | J3 reconcile (TB_J3_2) | Reconciliation C/U, ReconciliationVarianceLine C, Statement U (status) | C/U/A | [SRC:CJ] |
 | Company Finance (persona_03) | J3 verification drill-down | Statement R, StatementLine R, LicenseAssignment R | R | [SRC:CJ] |

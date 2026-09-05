@@ -1,7 +1,9 @@
 {
-  "dirty": false,
-  "dirty_paths": [],
-  "git_sha": "fd7741faa6dc",
+  "dirty": true,
+  "dirty_paths": [
+    "Nous/System/IMP_SESSION_PLAYBOOK.md"
+  ],
+  "git_sha": "d246c6ff15d4",
   "project_id": "fcostudios__smp",
   "schema_version": 1
 }

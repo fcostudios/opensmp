@@ -34,6 +34,9 @@
 | US-016 | Lifecycle notifications (email) | End User | FEAT-009 | (email) |
 | US-017 | Approval aging: reminder + escalation job | Company Approver | FEAT-010 | (email), SCR-alerts |
 | US-018 | Anthropic connector client | Group Admin | FEAT-011 (enabler), FEAT-041 | (connector) |
+| US-056 | Anthropic transport with separated credentials and bounded retry | Group Admin | FEAT-011 (child of US-018) | (connector) |
+| US-057 | Append-only sanitized connector-call journal | Group Admin | FEAT-011 (child of US-018) | (connector) |
+| US-058 | Anthropic connector conformance and Pact contracts | Group Admin | FEAT-011, FEAT-041 (child of US-018) | (connector) |
 | US-019 | Automated provisioning: invite ≤ 15 min → Active | End User | FEAT-011, FEAT-012 | SCR-request-detail, SCR-exceptions |
 | US-020 | Orchestration mode: checklist + confirm + verification | Group Admin | FEAT-013 | SCR-request-detail, SCR-exceptions |
 | US-021 | Invite hygiene | Group Admin | FEAT-014 | SCR-exceptions |
@@ -253,20 +256,54 @@
 ### US-018 — Anthropic connector client
 - **As**: Group Admin (persona_01) | **Want to**: talk to the vendor API safely | **So that**: automation is reliable and forensically replayable
 - **AC1**: Client wraps User Management + Analytics APIs with endpoint-specific header policy, documented rate limits (100/min UM, 60/min Analytics, 1200 invites/h), and bounded retry/backoff; Admin and Analytics credentials are distinct and fail closed when routed to the wrong capability
-- **AC2**: Every call persists a sanitized canonical ProvisioningAction/sync request+response summary; credentials, authorization headers, raw PII, full provider identifiers, and raw provider bodies are forbidden
+- **AC2**: Every network attempt persists an append-only sanitized canonical `ConnectorCallObservation`: requested before transport and succeeded/failed when known; provisioning observations may link to the request-owned `ProvisioningAction`, while sync observations remain vendor-account scoped. Credentials, authorization headers, raw PII, full provider identifiers, and raw provider bodies are forbidden
 - **AC3**: Connector implements the Connector capability interface (US-045) — nothing Claude-specific outside it (DEC-SMP-008); capability descriptor semantics per US-025
 - **AC4**: Every deterministic Anthropic network fixture is backed by a passing Pact consumer contract; live credential-scope, organization-binding, pagination, rate-limit, invite-create, and invite-cleanup acceptance remains gated by the authorized US-054 provider run
 - **Prerequisites**: US-003, US-045, US-025
 - **Feature**: FEAT-011 (enabler), FEAT-041 | **Journey**: J1 S3 | **Release**: R1
 - **Screens**: (connector)
-- **Entities (CRUD)**: ProvisioningAction (C)
+- **Entities (CRUD)**: ConnectorCallObservation (C), ProvisioningAction (R/link only)
+- **Execution partition**: parent only; the migration raises the aggregate estimate above the 320-minute readiness ceiling. Execute the previously approved official children US-056 → US-057 → US-058.
+
+### US-056 — Anthropic transport with separated credentials and bounded retry
+- **As**: Group Admin (persona_01) | **Want to**: reach each Anthropic API with the correct credential and bounded transport policy | **So that**: later connector operations fail closed and cannot amplify provider load
+- **AC1**: A single endpoint-policy module owns origin, method, `anthropic-version`, media headers, endpoint-specific beta header, and required credential kind for User Management and Analytics routes
+- **AC2**: Initial attempts and retries share per-vendor-account budgets of 100/min User Management, 60/min Analytics, and 1200 invites/h; safe reads and idempotent deletes retry only bounded 429/5xx classes, while ambiguous invite creation is not replayed automatically
+- **AC3**: Missing, blank, duplicate, identical, unhealthy, or wrong-kind Admin/Analytics credentials fail before transport; tests assert zero network calls for every fail-closed path
+- **Prerequisites**: US-003, US-045, US-025
+- **Feature**: FEAT-011 | **Journey**: J1 S3 | **Release**: R1
+- **Screens**: (connector)
+- **Server actions**: —
+- **Entities (CRUD)**: IntegrationCredential (R), VendorAccount (R)
+
+### US-057 — Append-only sanitized connector-call journal
+- **As**: Group Admin (persona_01) | **Want to**: retain durable, privacy-safe evidence for every connector attempt | **So that**: known and uncertain provider outcomes can be reconciled without leaking secrets or fabricating requests
+- **AC1**: Migration `slug=connector_call_observation` creates the provider-neutral append-only journal, uniqueness/check constraints, optional ProvisioningAction link, and runtime INSERT/SELECT privileges with UPDATE/DELETE denied
+- **AC2**: Each attempted call commits `requested` before transport and appends `succeeded` or `failed` when known; retries share a correlation and increment attempt, while interruption or ambiguous outcome leaves the unmatched requested event intact
+- **AC3**: Summaries are built from an explicit allowlist and property-tested to exclude credentials, authorization headers, email addresses, raw PII, full provider identifiers, and raw provider bodies; persistence failure before transport prevents the call
+- **Prerequisites**: US-056
+- **Feature**: FEAT-011 | **Journey**: J1 S3 | **Release**: R1
+- **Screens**: (connector evidence)
+- **Server actions**: —
+- **Entities (CRUD)**: ConnectorCallObservation (C), ProvisioningAction (R/link only), VendorAccount (R)
+
+### US-058 — Anthropic connector conformance and Pact contracts
+- **As**: Group Admin (persona_01) | **Want to**: use Anthropic through Ledger's neutral connector contract | **So that**: provisioning and sync consumers stay vendor-independent
+- **AC1**: The adapter implements provision, deprovision, syncMembers, syncActivity, and syncCost; pagination is bounded to 100 pages and cost decimals remain exact strings
+- **AC2**: The `rest` dispatcher resolves Anthropic and advertises only implemented capabilities; Anthropic names, routes, headers, and provider response shapes remain under the provider directory, and no raw provider body crosses the connector result seam
+- **AC3**: Every deterministic User Management and Analytics fixture is exercised by passing Pact consumer contracts covering headers, pagination, nullability, error classes, and rate-limit responses; live-provider acceptance remains exclusively US-054
+- **Prerequisites**: US-056, US-057
+- **Feature**: FEAT-011, FEAT-041 | **Journey**: J1 S3 | **Release**: R1
+- **Screens**: (connector)
+- **Server actions**: —
+- **Entities (CRUD)**: ConnectorCallObservation (C), ProvisioningAction (R/link only), VendorAccount (R)
 
 ### US-019 — Automated provisioning: invite ≤ 15 min → Active
 - **As**: End User (persona_05) | **Want to**: get my seat without human touch | **So that**: G1 is met on the happy path (J1 S3–S4)
 - **AC1**: On approval with free pool: invite created ≤15 min; state→provisioning→invited; failure→failed + `failure_reason` + provisioning_failure alert; `retryProvisioning` returns to provisioning
 - **AC2**: Membership polling (15-min job) detects acceptance → state active + LicenseAssignment row opens (started_on, source_request_id)
 - **AC3**: 400-no-seat → blocked_no_seat path (US-023); all transitions via the engine
-- **Prerequisites**: US-018, US-014, US-046, US-042
+- **Prerequisites**: US-056, US-057, US-058, US-014, US-046, US-042
 - **Feature**: FEAT-011, FEAT-012 | **Journey**: J1 S3–S4 | **Release**: R1
 - **Screens**: SCR-request-detail, SCR-exceptions
 - **Server actions**: retryProvisioning
@@ -345,7 +382,7 @@
 - **AC2**: Cost sync upserts CostRecord within the 30-day revision window
 - **AC3**: Identity matched via Vendor.identity_matching (email); unmatched rows surfaced as warnings
 - **AC4**: The job only auto-syncs orgs with ingestion_mode=api; csv_import/manual orgs reach the SAME upserts through US-055 (source=csv_import/manual) — freshness labels and sync_stale semantics (US-029) are channel-agnostic, keyed on synced_at
-- **Prerequisites**: US-018, US-046
+- **Prerequisites**: US-056, US-057, US-058, US-046
 - **Feature**: FEAT-020 | **Journey**: J1 S5 | **Release**: R1
 - **Screens**: (jobs)
 - **Entities (CRUD)**: ActivityRecord (CU), CostRecord (CU)
@@ -387,7 +424,7 @@
 - **AC1**: Hourly member sync diffs console vs register (ingestion_mode=api orgs); for csv_import/manual orgs the SAME diff runs on every `importMembersCsv` (US-055) — unknown members → register_drift alert + Deriva tab entry either way
 - **AC2**: `claimDriftMember` assigns company retroactively: creates LicenseAssignment (source_kind=reconciliation, note=comentario) + system-materialized request
 - **AC3**: Drift metric on dashboard trends to zero (PRD §17)
-- **Prerequisites**: US-018, US-046, US-042
+- **Prerequisites**: US-056, US-057, US-058, US-046, US-042
 - **Feature**: FEAT-023 | **Journey**: J4 | **Release**: R1
 - **Screens**: SCR-exceptions
 - **Server actions**: claimDriftMember
@@ -674,7 +711,7 @@
 | FEAT-008 | US-015 |
 | FEAT-009 | US-016 |
 | FEAT-010 | US-017 |
-| FEAT-011 | US-018, US-019 |
+| FEAT-011 | US-018, US-056, US-057, US-058, US-019 |
 | FEAT-012 | US-019 |
 | FEAT-013 | US-020 |
 | FEAT-014 | US-021 |
@@ -704,7 +741,7 @@
 | FEAT-038 | US-008 |
 | FEAT-039 | US-004 |
 | FEAT-040 | US-014 |
-| FEAT-041 | US-018, US-025, US-045 |
+| FEAT-041 | US-018, US-058, US-025, US-045 |
 | FEAT-042 | US-025 |
 | FEAT-043 | US-006 |
 | FEAT-044 | US-044 |
@@ -722,14 +759,15 @@
 | UserAccount | US-004:R/U idp_subject; US-006:U ui_language; US-011:CRU |
 | CompanyRoleAssignment | US-005:R; US-011:CRD |
 | Vendor | US-007:C seed: Anthropic; US-025:R; US-045:R |
-| VendorAccount | US-007:C seed per org inventory OQ-SMP-1; US-025:CRU; US-055:U ingestion_mode |
+| VendorAccount | US-007:C seed per org inventory OQ-SMP-1; US-056:R; US-057:R; US-058:R; US-025:CRU; US-055:U ingestion_mode |
 | VendorAccountCapacity | US-007:C seed; US-022:R; US-023:C |
 | LicenseType | US-007:C seed: Claude tiers; US-025:R |
-| IntegrationCredential | US-007:C per org; US-031:CRU |
+| IntegrationCredential | US-007:C per org; US-056:R; US-031:CRU |
+| ConnectorCallObservation | US-018:C; US-057:C; US-058:C |
 | LicenseRequest | US-007:C system; US-012:C; US-013:R; US-014:U; US-015:U; US-019:U; US-023:U; US-027:U; US-028:U; US-030:C system; US-055:C system |
 | RequestTransition | US-012:C; US-013:R; US-014:C; US-015:C |
 | LicenseAssignment | US-007:C; US-019:C; US-024:U close; US-030:C; US-033:R; US-055:CU |
-| ProvisioningAction | US-018:C; US-019:CU; US-020:U; US-021:U; US-024:C |
+| ProvisioningAction | US-018:R/link only; US-057:R/link only; US-058:R/link only; US-019:CU; US-020:U; US-021:U; US-024:C |
 | ReclamationProposal | US-027:C; US-028:U |
 | ActivityRecord | US-026:CU; US-055:CU |
 | CostRecord | US-026:CU; US-036:R; US-050:R; US-055:CU |

@@ -28,6 +28,12 @@
 | **CHG-037** | 📦 delivered | Replace the wall-clock lock with a task-boundary self-report and collapse to one ledger | — | — |
 | **CHG-038** | 📦 delivered | Collapse the fine-grained git-plumbing codes into one message-carrying error | — | — |
 | **CHG-039** | 📦 delivered | Make the WR_* code set countable: one spelling at every call site | — | — |
+| **CHG-040** | 📦 delivered | Restore operational deadline rules to the effectiveness-critical set | — | — |
+| **CHG-041** | 📦 delivered | Allow honest legacy closure actuals for pre-CHG-037 work | — | — |
+| **CHG-042** | 📦 delivered | Re-pin regenerated guidance and propagate the 320-minute budget | — | — |
+| **CHG-043** | 📦 delivered | Fix the root test runner: two workspaces declare vitest without a config, and the delivered mock lint fails on alerts/actions.test.ts | — | — |
+| **CHG-044** | 📦 delivered | Re-pin testing/critical-paths.md after CHG-040 regenerates the critical set | — | — |
+| **CHG-045** | 📦 delivered | Add a durable connector call observation ledger for US-018 | US-056, US-057, US-058 | S3 |
 
 ---
 
@@ -347,4 +353,89 @@ Child 4 of **CHG-034** (`partition_required`), the
 CHG-034's execution-pass correction log clai...
 
 _No stories linked to this change yet._
+
+### CHG-040: Restore operational deadline rules to the effectiveness-critical set
+
+**Status:** 📦 `delivered`
+**Source:** developer_feedback
+**Requested by:** Francisco Lomas
+**Notes:** Widen the canonical critical set in v1/09b_business_rules.md from nine to twelve rules by restoring BR-08 approval aging, BR-11 low-pool alerting, and BR-14 same-business-day deprovisioning. Regenerate testing/critical-paths.md from the spec; do not hand-edit the generated projection. Preserve th...
+**Feedback:** BR-08
+
+_No stories linked to this change yet._
+
+### CHG-041: Allow honest legacy closure actuals for pre-CHG-037 work
+
+**Status:** 📦 `delivered`
+**Source:** developer_feedback
+**Requested by:** Francisco Lomas
+**Notes:** Add a narrow readiness compatibility path for work started before CHG-037: permit terminal actuals to carry reconstructable primary-source counts while phase_minutes is explicitly unreconstructable with a mandatory reason. Scope the exception to legacy items only and keep all modern actuals stric...
+**Feedback:** US-043
+
+_No stories linked to this change yet._
+
+### CHG-042: Re-pin regenerated guidance and propagate the 320-minute budget
+
+**Status:** 📦 `delivered`
+**Source:** developer_feedback
+**Requested by:** Francisco Lomas
+**Notes:** Add an immutable reconcile migration layer for the 2026-09-05 generated CHANGES.md, CLAUDE.md, and testing/critical-paths.md states; propagate CHG-035's 320-minute limit to AGENTS.md, CODEX.md, .cursorrules, .github/copilot-instructions.md, and DEFINITION_OF_DONE.md; and bind every new source/des...
+**Feedback:** CHG-035
+
+_No stories linked to this change yet._
+
+### CHG-043: Fix the root test runner: two workspaces declare vitest without a config, and the delivered mock lint fails on alerts/actions.test.ts
+
+**Status:** 📦 `delivered`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** # CHG-043 — Fix the root test runner: two workspaces declare a vitest `test` script without a config, and the delivered mock lint fails on `alerts/actions.test.ts`
+
+## Status
+
+Filed in `nous.db` as **CHG-043** (`kind: technical`, per IMP-370) against
+`fcostudios__smp` on 2026-09-05. Tenant verifi...
+
+_No stories linked to this change yet._
+
+### CHG-044: Re-pin testing/critical-paths.md after CHG-040 regenerates the critical set
+
+**Status:** 📦 `delivered`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** # CHG-044 — Re-pin `testing/critical-paths.md` after CHG-040 regenerates the critical set
+
+## Status
+
+Filed in `nous.db` as **CHG-044** (`kind: technical`, per IMP-370) against
+`fcostudios__smp` on 2026-09-05, as the companion the smp session asked for.
+Tooling only: one pinned migration in `infr...
+
+_No stories linked to this change yet._
+
+### CHG-045: Add a durable connector call observation ledger for US-018
+
+**Status:** 📦 `delivered`
+**Source:** developer_feedback
+**Requested by:** Francisco Lomas
+**Notes:** # US-018 Anthropic Connector Design
+
+**Date:** 2026-09-05
+**Status:** Approved
+**Story:** `docs/stories/sprint-3/r1_misc_us_018.md`
+**Readiness:** `docs/readiness/US-018.json`
+
+## Goal
+
+Deliver the R1 Anthropic adapter behind Ledger's vendor-neutral connector
+interface. The adapter must keep Admi...
+**Feedback:** US-018
+
+**Stories created by this change:**
+
+| Story | Name | Sprint | Status | File |
+|-------|------|--------|--------|------|
+| **US-056** | Anthropic transport with separated credentials and bounded retry | Sprint 3 | ⬜ backlog | [r1_misc_us_056.md](sprint-3/r1_misc_us_056.md) |
+| **US-057** | Append-only sanitized connector-call journal | Sprint 3 | ⬜ backlog | [r1_misc_us_057.md](sprint-3/r1_misc_us_057.md) |
+| **US-058** | Anthropic connector conformance and Pact contracts | Sprint 3 | ⬜ backlog | [r1_misc_us_058.md](sprint-3/r1_misc_us_058.md) |
 

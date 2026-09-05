@@ -22,7 +22,7 @@ As a Group Admin (persona_01), I want to ingest per-user daily activity and cost
 | Server Actions | — |
 | Entities | ActivityRecord (CU), CostRecord (CU) |
 | Business Rules | — |
-| Blocked By | US-018, US-046 |
+| Blocked By | US-056, US-057, US-058, US-046 |
 
 ## Acceptance Criteria
 
