@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "paths": {
+    "AGENTS.md": {
+      "source_path": "overrides/CHG-022/16f72c9/AGENTS.md",
+      "source_sha256": "842f91e9f4c4f333d5ac80267a511663e781a8c7b3a377302e4ae03aa128068f",
+      "desired_sha256": "9c5ddc0ab43724ea40f15b63444ccc16f3064af52c3155cef3efc31a9ad3f075"
+    },
+    "CLAUDE.md": {
+      "source_path": "overrides/CHG-022/16f72c9/CLAUDE.md",
+      "source_sha256": "9c3afc5674204928660976df3181c28c241d1add69167077d484a229500d5b5e",
+      "desired_sha256": "9cba977d283301e1b925035b9c62ee5b64ee860fb8b049adc3b075f1f3a09283"
+    },
+    "docs/dev-guide/DEFINITION_OF_DONE.md": {
+      "source_path": "overrides/CHG-022/16f72c9/docs/dev-guide/DEFINITION_OF_DONE.md",
+      "source_sha256": "bd6de13018729de07323b7dc426fb69e57f060f04db9fea0d9ecc5fc997056e9",
+      "desired_sha256": "bb19763d0e8ca8640635d0c8c4c11f16fa9938ed92984269f5d81826cfa92ce4"
+    },
+    "docs/stories/CHANGES.md": {
+      "source_path": "overrides/CHG-004/e4b9a06/docs/stories/CHANGES.md",
+      "source_sha256": "646b39d559efc890db5d5ebab96dc2b0c2f78eb35ab204ef34f335a2a282c96e",
+      "desired_sha256": "369ece28be1eab9cde031dd8cb8524aa9ca625164aca12eac0a15ef9c692a11b"
+    },
+    "testing/critical-paths.md": {
+      "source_path": "overrides/CHG-004/e4b9a06/testing/critical-paths.md",
+      "source_sha256": "fb0d9c5d94224dbfa96b02db67194f67f07077ecf6aae449edbd59e35364b73e",
+      "desired_sha256": "e765dfe6daa2ac1c3d56024136a09a4acc459054c352534230ffe54ac49d52b7"
+    }
+  }
+}

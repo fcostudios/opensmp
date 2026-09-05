@@ -48,9 +48,23 @@ CHG022_PATHS = {
         "overrides/CHG-001/825e882/docs/dev-guide/DEFINITION_OF_DONE.md"
     ),
 }
+CHG042_PATHS = {
+    "AGENTS.md": "overrides/CHG-022/16f72c9/AGENTS.md",
+    "CLAUDE.md": "overrides/CHG-022/16f72c9/CLAUDE.md",
+    "docs/dev-guide/DEFINITION_OF_DONE.md": (
+        "overrides/CHG-022/16f72c9/docs/dev-guide/DEFINITION_OF_DONE.md"
+    ),
+    "docs/stories/CHANGES.md": (
+        "overrides/CHG-004/e4b9a06/docs/stories/CHANGES.md"
+    ),
+    "testing/critical-paths.md": (
+        "overrides/CHG-004/e4b9a06/testing/critical-paths.md"
+    ),
+}
 LAYERED_OVERRIDE_SPECS = (
     ("CHG-004/e4b9a06", CHG004_PATHS),
     ("CHG-022/16f72c9", CHG022_PATHS),
+    ("CHG-042/fd7741f", CHG042_PATHS),
 )
 CHG005_PATHS = {
     "docs/stories/sprint-2/r1_misc_us_014.md",

@@ -26,6 +26,7 @@ PINNED_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-001/825e882"
 LATEST_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-004/e4b9a06"
 STORY_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-005/277b64e"
 READINESS_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-022/16f72c9"
+REPINNED_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-042/fd7741f"
 READINESS_GUIDES = (
     "AGENTS.md",
     "CLAUDE.md",
@@ -76,6 +77,9 @@ def desired_guide(relative_path: str) -> bytes:
 
 
 def latest_desired_guide(relative_path: str) -> bytes:
+    repinned = REPINNED_OVERRIDE_ROOT / relative_path
+    if repinned.is_file():
+        return repinned.read_bytes()
     readiness = READINESS_OVERRIDE_ROOT / relative_path
     if readiness.is_file():
         return readiness.read_bytes()
@@ -132,6 +136,10 @@ def copy_reconciler_data(root: Path) -> Path:
     shutil.copytree(
         READINESS_OVERRIDE_ROOT,
         data_root / "overrides/CHG-022/16f72c9",
+    )
+    shutil.copytree(
+        REPINNED_OVERRIDE_ROOT,
+        data_root / "overrides/CHG-042/fd7741f",
     )
     return data_root
 
@@ -229,7 +237,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 for relative_path in READINESS_GUIDES:
                     self.assertEqual(
                         (root / relative_path).read_bytes(),
-                        (READINESS_OVERRIDE_ROOT / relative_path).read_bytes(),
+                        latest_desired_guide(relative_path),
                     )
                 self.assertEqual(transaction_artifacts(root), [])
 
@@ -254,7 +262,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 self.assertEqual(recovered.returncode, 0 if expected_new else 1)
                 for relative_path in READINESS_GUIDES:
                     expected = (
-                        (READINESS_OVERRIDE_ROOT / relative_path).read_bytes()
+                        latest_desired_guide(relative_path)
                         if expected_new
                         else desired_guide(relative_path)
                     )
@@ -527,7 +535,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                     for relative_path in READINESS_GUIDES:
                         self.assertEqual(
                             (root / relative_path).read_bytes(),
-                            (READINESS_OVERRIDE_ROOT / relative_path).read_bytes(),
+                            latest_desired_guide(relative_path),
                         )
                 self.assertEqual(transaction_artifacts(root), [])
 
@@ -606,7 +614,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             for relative_path in READINESS_GUIDES:
                 self.assertEqual(
                     (root / relative_path).read_bytes(),
-                    (READINESS_OVERRIDE_ROOT / relative_path).read_bytes(),
+                    latest_desired_guide(relative_path),
                     relative_path,
                 )
 
@@ -638,7 +646,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             for relative_path in READINESS_GUIDES:
                 self.assertEqual(
                     (root / relative_path).read_bytes(),
-                    (READINESS_OVERRIDE_ROOT / relative_path).read_bytes(),
+                    latest_desired_guide(relative_path),
                 )
             self.assertEqual(run_reconciler(root, "--check").returncode, 0)
 
@@ -738,6 +746,41 @@ class ReconciliationBehaviorTests(unittest.TestCase):
         self.assertIn("completion actuals", definition)
         self.assertIn("estimate variance", definition)
 
+    def test_chg042_layer_binds_reviewed_sources_and_320_minute_guidance(self) -> None:
+        manifest = json.loads(
+            (REPINNED_OVERRIDE_ROOT / "manifest.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(manifest["version"], 1)
+        self.assertEqual(
+            set(manifest["paths"]),
+            {
+                "AGENTS.md",
+                "CLAUDE.md",
+                "docs/dev-guide/DEFINITION_OF_DONE.md",
+                "docs/stories/CHANGES.md",
+                "testing/critical-paths.md",
+            },
+        )
+        for relative_path, metadata in manifest["paths"].items():
+            source = SCRIPT_DATA_ROOT / metadata["source_path"]
+            desired = REPINNED_OVERRIDE_ROOT / relative_path
+            self.assertEqual(
+                hashlib.sha256(source.read_bytes()).hexdigest(),
+                metadata["source_sha256"],
+                relative_path,
+            )
+            self.assertEqual(
+                hashlib.sha256(desired.read_bytes()).hexdigest(),
+                metadata["desired_sha256"],
+                relative_path,
+            )
+        for relative_path in READINESS_GUIDES:
+            self.assertIn(
+                "above 320 minutes",
+                (REPINNED_OVERRIDE_ROOT / relative_path).read_text(encoding="utf-8"),
+                relative_path,
+            )
+
     def test_committed_override_manifest_is_independent_exact_oracle(self) -> None:
         manifest_path = PINNED_OVERRIDE_ROOT / "manifest.json"
 
@@ -799,10 +842,10 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 changes,
             )
             self.assertIn(
-                "**Notes:**\n> # CHG-001 — Reconcile Sprint 1 execution contract",
+                "**Notes:** # CHG-001 — Reconcile Sprint 1 execution contract",
                 changes,
             )
-            self.assertIn("> ## Required changes", changes)
+            self.assertIn("## Required changes", changes)
             critical_paths = (
                 root / "testing/critical-paths.md"
             ).read_text(encoding="utf-8")
@@ -882,9 +925,9 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             changes = root / "docs/stories/CHANGES.md"
             changes.write_text(
                 changes.read_text(encoding="utf-8").replace(
-                    "> Sprint 1 readiness review found generator-owned guidance "
+                    "Sprint 1 readiness review found generator-owned guidance "
                     "that contradicts the\n"
-                    "> authoritative ER model and architecture.",
+                    "authoritative ER model and architecture.",
                     "**Notes:** unreviewed but superficially harmless guidance",
                 ),
                 encoding="utf-8",
@@ -1247,7 +1290,7 @@ class SyncIntegrationTests(unittest.TestCase):
                 )
             changes = (root / "docs/stories/CHANGES.md").read_text(encoding="utf-8")
             self.assertIn(
-                "**Notes:**\n> # CHG-001 — Reconcile Sprint 1 execution contract",
+                "**Notes:** # CHG-001 — Reconcile Sprint 1 execution contract",
                 changes,
             )
             self.assertIn(

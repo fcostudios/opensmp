@@ -30,11 +30,13 @@ MUTATIONS = (
     Mutation(
         "M01",
         "disable the pinned source-hash migration branch",
-        """        latest_override = latest.get(relative_path)
+        """        completed_layer = -1
         if current_hash == source_hash:
+            candidate = desired_text
 """,
-        """        latest_override = latest.get(relative_path)
+        """        completed_layer = -1
         if False and current_hash == source_hash:
+            candidate = desired_text
 """,
         (
             "ReconciliationBehaviorTests."
@@ -113,7 +115,7 @@ MUTATIONS = (
     Mutation(
         "M06",
         "preserve stale mirrors instead of copying desired CLAUDE data",
-        """        desired[path] = claude
+        """        desired[path] = mirrored_claude
 """,
         """        desired[path] = original[path]
 """,
@@ -137,10 +139,10 @@ MUTATIONS = (
     Mutation(
         "M08",
         "make preview mode write its pinned plan",
-        """def preview_plan(plan: dict[Path, str], root: Path) -> None:
+        """def preview_plan(plan: dict[Path, PlanEntry], root: Path) -> None:
     if not plan:
 """,
-        """def preview_plan(plan: dict[Path, str], root: Path) -> None:
+        """def preview_plan(plan: dict[Path, PlanEntry], root: Path) -> None:
     apply_plan(plan, root)
     if not plan:
 """,
@@ -151,10 +153,10 @@ MUTATIONS = (
     ),
     Mutation(
         "M09",
-        "skip atomic application of a valid pinned plan",
-        """        atomic_write(path, text)
+        "stage original bytes instead of the validated desired guidance",
+        """                plan_entry.desired_text.encode("utf-8"),
 """,
-        """        # mutant: validated output is never committed
+        """                plan_entry.original_bytes,
 """,
         (
             "ReconciliationBehaviorTests."
@@ -182,15 +184,15 @@ MUTATIONS = (
     Mutation(
         "M11",
         "accept a CHG-004 manifest outside its exact output path set",
-        """    if set(entries) != set(CHG004_PATHS):
-        raise ReconciliationError(
-            "CHG-004 override manifest paths do not match the allowed path set"
-        )
+        """        if set(entries) != set(allowed_paths):
+            raise ReconciliationError(
+                f"{change_id} override manifest paths do not match the allowed path set"
+            )
 """,
-        """    if False and set(entries) != set(CHG004_PATHS):
-        raise ReconciliationError(
-            "CHG-004 override manifest paths do not match the allowed path set"
-        )
+        """        if False and set(entries) != set(allowed_paths):
+            raise ReconciliationError(
+                f"{change_id} override manifest paths do not match the allowed path set"
+            )
 """,
         (
             "ReconciliationBehaviorTests."
@@ -218,15 +220,15 @@ MUTATIONS = (
     Mutation(
         "M13",
         "accept a CHG-004 source artifact from an unrelated reviewed path",
-        """        if source_path != CHG004_PATHS[relative_path]:
-            raise ReconciliationError(
-                f"{relative_path}: invalid CHG-004 source path"
-            )
+        """            if source_path != allowed_paths[relative_path]:
+                raise ReconciliationError(
+                    f"{relative_path}: invalid {change_id} source path"
+                )
 """,
-        """        if False and source_path != CHG004_PATHS[relative_path]:
-            raise ReconciliationError(
-                f"{relative_path}: invalid CHG-004 source path"
-            )
+        """            if False and source_path != allowed_paths[relative_path]:
+                raise ReconciliationError(
+                    f"{relative_path}: invalid {change_id} source path"
+                )
 """,
         (
             "ReconciliationBehaviorTests."
