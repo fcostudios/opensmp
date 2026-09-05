@@ -1401,7 +1401,9 @@ function makeGitRepo() {
   return { root, base: git(root, ["rev-parse", "HEAD"]) };
 }
 
-function writeExactNousSyncEnvelope(root, generatedPath, generated) {
+function writeExactNousSyncEnvelope(root, generatedPath, generated, {
+  provenance: provenanceOverrides = {}, project: projectOverrides = {}, sync: syncOverrides = {},
+} = {}) {
   writeRepoFile(root, generatedPath, generated);
   writeRepoFile(root, ".nous-provenance.json", `${JSON.stringify({
     schema_version: 1,
@@ -1409,6 +1411,7 @@ function writeExactNousSyncEnvelope(root, generatedPath, generated) {
     git_sha: "d246c6ff15d4",
     dirty: false,
     dirty_paths: [],
+    ...provenanceOverrides,
   }, null, 2)}\n`);
   writeRepoFile(root, ".nous-project.json", `${JSON.stringify({
     schema_version: 1,
@@ -1418,6 +1421,7 @@ function writeExactNousSyncEnvelope(root, generatedPath, generated) {
     generated_at: "2026-09-05T21:40:53Z",
     substrate_commit: "d246c6ff",
     checksum: "82f3e0de92a5834b",
+    ...projectOverrides,
   }, null, 2)}\n`);
   writeRepoFile(root, ".nous-sync.json", `${JSON.stringify({
     synced_at: "2026-09-05T21:40:53.665778+00:00",
@@ -1428,6 +1432,7 @@ function writeExactNousSyncEnvelope(root, generatedPath, generated) {
         source: "generated",
       },
     },
+    ...syncOverrides,
   }, null, 2)}\n`);
 }
 
@@ -2949,6 +2954,57 @@ test("an exact Nous sync envelope authorizes generated documentation", () => {
     assert.equal(validateRangeOwnership({ root, base, head }).classification, "bootstrap-documentation");
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("an exact Nous sync envelope requires an eight-hex substrate revision", () => {
+  for (const substrateCommit of ["d246c6f", "d246c6ff1", "d246c6ff15d4"]) {
+    const { root, base } = makeGitRepo();
+    try {
+      const generatedPath = "docs/stories/SPRINT_PLAN.md";
+      writeExactNousSyncEnvelope(root, generatedPath, "# Sprint plan from Nous\n", {
+        project: { substrate_commit: substrateCommit },
+      });
+      const head = commitRepo(root, "docs(CHG-045): malformed substrate revision", [
+        generatedPath, ".nous-provenance.json", ".nous-project.json", ".nous-sync.json",
+      ]);
+
+      assert.throws(
+        () => validateRangeOwnership({ root, base, head }),
+        (error) => error.code === "WR_GENERATED_NOUS_PATH",
+        substrateCommit,
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("an exact Nous sync envelope requires equal UTC-second timestamps", () => {
+  const variants = [
+    { project: { generated_at: "2026-09-05T21:40:53" } },
+    { project: { generated_at: "2026-09-05T16:40:53-05:00" } },
+    { sync: { synced_at: "2026-09-05T21:40:53.665778" } },
+    { sync: { synced_at: "2026-09-05T16:40:53.665778-05:00" } },
+    { sync: { synced_at: "2026-09-05T21:40:54.000000+00:00" } },
+  ];
+  for (const envelopeOverrides of variants) {
+    const { root, base } = makeGitRepo();
+    try {
+      const generatedPath = "docs/stories/SPRINT_PLAN.md";
+      writeExactNousSyncEnvelope(root, generatedPath, "# Sprint plan from Nous\n", envelopeOverrides);
+      const head = commitRepo(root, "docs(CHG-045): malformed sync timestamp", [
+        generatedPath, ".nous-provenance.json", ".nous-project.json", ".nous-sync.json",
+      ]);
+
+      assert.throws(
+        () => validateRangeOwnership({ root, base, head }),
+        (error) => error.code === "WR_GENERATED_NOUS_PATH",
+        JSON.stringify(envelopeOverrides),
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   }
 });
 

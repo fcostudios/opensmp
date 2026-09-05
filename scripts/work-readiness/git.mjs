@@ -27,6 +27,7 @@ const PROVENANCE_MANAGED_PATHS = [
   /^docs\/sprints\//u,
   /^docs\/specs\//u,
 ];
+const UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|\+00:00)$/u;
 const IMPLEMENTATION_PLAN_PATTERN = /^docs\/superpowers\/plans\/.+\.md$/u;
 const PLAN_HEADER_LIMIT_BYTES = 16 * 1024;
 const OVERLAY_LAYER_PATTERN = /^(CHG-[0-9]{3,})\/[a-z0-9]{7,64}$/u;
@@ -839,15 +840,17 @@ function exactNousSyncOwns({ root, base, head, changedPaths }) {
     if (provenance.schema_version !== 1 || project.schema_version !== 1
       || !isNonEmptyString(provenance.project_id) || provenance.project_id !== project.project_id
       || provenance.project_id !== sync.project_id || !/^[0-9a-f]{12}$/u.test(provenance.git_sha)
-      || !/^[0-9a-f]{7,12}$/u.test(project.substrate_commit)
-      || !provenance.git_sha.startsWith(project.substrate_commit)
+      || !/^[0-9a-f]{8}$/u.test(project.substrate_commit)
+      || project.substrate_commit !== provenance.git_sha.slice(0, 8)
       || !isNonEmptyString(project.organization) || !isNonEmptyString(project.nous_namespace)
       || !/^[0-9a-f]{16}$/u.test(project.checksum) || provenance.dirty !== false
       || !Array.isArray(provenance.dirty_paths) || provenance.dirty_paths.length !== 0) return false;
 
     const generatedAt = Date.parse(project.generated_at);
     const syncedAt = Date.parse(sync.synced_at);
-    if (!Number.isFinite(generatedAt) || !Number.isFinite(syncedAt) || syncedAt < generatedAt
+    if (!UTC_TIMESTAMP_PATTERN.test(project.generated_at) || !UTC_TIMESTAMP_PATTERN.test(sync.synced_at)
+      || !Number.isFinite(generatedAt) || !Number.isFinite(syncedAt)
+      || Math.trunc(generatedAt / 1000) !== Math.trunc(syncedAt / 1000)
       || !hasExactKeys(sync.files, Object.keys(sync.files)) || Object.keys(sync.files).length !== generatedPaths.length) return false;
 
     const manifestPaths = Object.keys(sync.files).sort();
