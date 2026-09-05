@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "292b0ba33f62301a3c7daae363d47f1f2b991da254fae95435bf42c4d9991725",
+  "work_id": "CHG-042",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Re-pin regenerated guidance and propagate the 320-minute budget",
+  "source": "docs/changes/CHG-042.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The reconciler accepts the reviewed 2026-09-05 generated guidance and deterministically converges every agent-facing readiness limit to 320 minutes without rewriting historical migration layers.",
+      "demo": "Run the focused reconciler suite and check mode from both prior-pinned and newly generated fixtures; both converge to the SHA-256-pinned current guidance, and all five mirrors say 320 minutes.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 2,
+    "expected_changed_files": 12,
+    "expected_mutation_shards": 1,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 15,
+    "implementation": 35,
+    "focused_verification": 25,
+    "review": 15,
+    "integration": 20,
+    "total": 110
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Whether re-pinning should mutate the historical CHG-004 and CHG-022 artifacts or append a new migration layer.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Append CHG-042 as a new layer whose source artifacts are the prior reviewed outputs and whose desired artifacts are the reviewed 2026-09-05 states. Historical layers remain byte-for-byte immutable."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG042-READY-3",
+    "payload_sha256": "292b0ba33f62301a3c7daae363d47f1f2b991da254fae95435bf42c4d9991725"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
