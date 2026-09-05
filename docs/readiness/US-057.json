@@ -1,91 +1,96 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "9fc58af1736b33811d3d8ee37d8dbbfeb9b3070cd05f41b4f0a2cdef7101e092",
+  "readiness_payload_sha256": "95dfb105b7ed50299c240d5cc79e17f5df58223b1830a0b73681933d4a33fadd",
   "work_id": "US-057",
   "kind": "US",
   "work_type": "functional",
-  "title": "Sanitized ProvisioningAction request and response journaling",
-  "source": "docs/stories/sprint-3/r1_misc_us_018.md",
+  "title": "Append-only sanitized connector-call journal",
+  "source": "docs/stories/sprint-3/r1_misc_us_057.md",
   "outcomes": [
     {
       "id": "O1",
       "primary": true,
-      "statement": "Every connector call persists a canonical sanitized request and response summary that provably excludes credentials, authorization headers, raw PII, full provider identifiers and raw provider bodies.",
-      "demo": "A call writes a ProvisioningAction row whose summary survives a property-based check asserting no forbidden token appears for any generated payload."
+      "statement": "Every connector attempt has durable, append-only ConnectorCallObservation evidence that distinguishes requested, known success, known failure, and unresolved outcomes without transferring request ownership from ProvisioningAction.",
+      "demo": "A deterministic interrupted-call scenario commits requested before transport and leaves it unmatched; success and failure scenarios append terminal observations sharing correlation and incremented attempt values, while UPDATE and DELETE are refused for the runtime role."
+    },
+    {
+      "id": "O2",
+      "primary": false,
+      "statement": "Persisted connector-call summaries are privacy-safe by construction.",
+      "demo": "Property-generated provider payloads containing credentials, authorization headers, email addresses, raw PII, full provider identifiers, and arbitrary unknown fields produce only allowlisted summaries, with no raw provider body stored."
     }
   ],
   "acceptance_criteria": [
-    {
-      "id": "AC2",
-      "outcome_ids": [
-        "O1"
-      ]
-    }
+    { "id": "AC1", "outcome_ids": ["O1"] },
+    { "id": "AC2", "outcome_ids": ["O1"] },
+    { "id": "AC3", "outcome_ids": ["O1", "O2"] }
   ],
-  "scopes": [
-    "server",
-    "db"
-  ],
+  "scopes": ["contracts", "db", "server"],
   "signals": {
     "routes_or_screens": 0,
-    "acceptance_flows": 2,
-    "expected_changed_files": 6,
+    "acceptance_flows": 3,
+    "expected_changed_files": 10,
     "expected_mutation_shards": 1,
     "lifecycle_or_concurrency_boundaries": 1,
     "external_integrations": 0,
-    "schema_or_migration_changes": 0,
+    "schema_or_migration_changes": 1,
     "authorization_or_audit_boundaries": 1,
     "tooling_change": false
   },
   "estimate_minutes": {
-    "readiness": 10,
-    "implementation": 35,
-    "focused_verification": 35,
-    "review": 10,
-    "integration": 10,
-    "total": 100
+    "readiness": 15,
+    "implementation": 90,
+    "focused_verification": 65,
+    "review": 20,
+    "integration": 18,
+    "total": 208
   },
   "uncertainties": [
     {
       "id": "U1",
       "status": "resolved",
-      "statement": "No live Anthropic credentials exist; the live provider probe is blocked on per-org keys and invite-canary authorization.",
-      "estimate_impact_minutes": 0,
-      "resolution": "Scope is deterministic fixtures backed by passing Pact consumer contracts. Live credential-scope, organization-binding, pagination, rate-limit and invite acceptance stay gated behind the authorized provider run named in the parent story's AC4, and must not be claimed here."
+      "statement": "The previous readiness assessment assigned connector evidence to ProvisioningAction and omitted a schema migration.",
+      "estimate_impact_minutes": 80,
+      "resolution": "CHG-045 makes ConnectorCallObservation the provider-neutral append-only transport-evidence owner. ProvisioningAction remains the orchestration request and may be linked optionally; automated provider request or response bodies are never written to it."
     },
     {
       "id": "U2",
       "status": "resolved",
-      "statement": "Probe code under scripts/probes/** cannot be imported by the connector, because that path is exempted from the provider-boundary lint for the probe's benefit only.",
-      "estimate_impact_minutes": 10,
-      "resolution": "Semantics are ported into packages/connectors/src/providers/anthropic/, the other exempt path, and re-implemented against the connector's own contracts so core code keeps importing only the vendor-neutral interface."
+      "statement": "An append-only claim is incomplete unless database privileges and constraints enforce it.",
+      "estimate_impact_minutes": 24,
+      "resolution": "Migration slug connector_call_observation creates the table, uniqueness and check constraints, optional ProvisioningAction link, and runtime INSERT/SELECT grants while denying UPDATE/DELETE."
     },
     {
       "id": "U3",
       "status": "resolved",
-      "statement": "This work needs the transport seam, which US-056 delivers, but a blocked_by dependency is unconditionally blocking in this validator and would permanently prevent a ready decision.",
-      "estimate_impact_minutes": 0,
-      "resolution": "The edge is recorded as a blocks dependency on US-056 instead. Execution is sequenced after US-056 lands; no separate readiness state is required because the seam exists before this starts."
+      "statement": "A denylist sanitizer could leak unexpected provider fields or raw bodies.",
+      "estimate_impact_minutes": 12,
+      "resolution": "Construct summaries exclusively from an explicit allowlist and property-test forbidden and unknown fields; persistence failure before transport prevents the call."
     },
     {
       "id": "U4",
       "status": "resolved",
-      "statement": "An allow-list and a deny-list sanitizer fail differently on unexpected provider fields.",
-      "estimate_impact_minutes": 10,
-      "resolution": "Canonical summaries are built from an explicit allow-list, so an unknown provider field is dropped rather than leaked. That is the fail-closed direction and is asserted directly."
+      "statement": "Transport sequencing must exist before the journal can be integrated.",
+      "estimate_impact_minutes": 0,
+      "resolution": "The canonical story is blocked by US-056 and must be started only after that story lands. This readiness assessment can still be approved in advance because the dependency is enforced by the story/Nous execution gate rather than misclassifying the bounded child."
     }
   ],
-  "dependencies": [],
+  "dependencies": [
+    {
+      "work_id": "US-058",
+      "type": "blocks",
+      "reason": "Connector conformance must emit the durable observation contract delivered here."
+    }
+  ],
   "decision": "ready",
   "partitions": [],
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "US057-READY",
-    "payload_sha256": "9fc58af1736b33811d3d8ee37d8dbbfeb9b3070cd05f41b4f0a2cdef7101e092"
+    "evidence": "US057-READY-CHG045",
+    "payload_sha256": "95dfb105b7ed50299c240d5cc79e17f5df58223b1830a0b73681933d4a33fadd"
   },
   "actuals": null,
-  "checkpoints": [],
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,

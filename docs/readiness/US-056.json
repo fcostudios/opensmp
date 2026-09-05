@@ -1,197 +1,89 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "f32f69a5e70f424c1a98a4f9da12ab43c2f566238557acf4256919c0d0013bfc",
+  "readiness_payload_sha256": "89f52545c0a9370745920fdbd882ea43eab938842b9a940d283b4f061d084716",
   "work_id": "US-056",
   "kind": "US",
   "work_type": "functional",
   "title": "Anthropic transport with separated credentials and bounded retry",
-  "source": "docs/stories/sprint-3/r1_misc_us_018.md",
+  "source": "docs/stories/sprint-3/r1_misc_us_056.md",
   "outcomes": [
     {
       "id": "O1",
       "primary": true,
-      "statement": "Calls reach the vendor API under an endpoint-specific header policy with declared rate limits and bounded retry, and a credential routed to the wrong capability fails closed before any request is issued.",
-      "demo": "An Analytics key routed to a user-management endpoint is rejected without a request; the per-minute budget and retry ceiling are observable against deterministic fixtures with an injected clock."
+      "statement": "Anthropic requests use one endpoint-policy module and share bounded per-vendor-account rate and retry budgets, including non-replay of ambiguous invite creation.",
+      "demo": "Against deterministic transport fixtures with an injected clock, User Management and Analytics calls carry their declared headers, bursts respect 100/min and 60/min budgets, invite traffic respects 1200/hour, and bounded retries consume the same budget."
+    },
+    {
+      "id": "O2",
+      "primary": false,
+      "statement": "Invalid Admin or Analytics credential configurations fail closed before transport.",
+      "demo": "Missing, blank, duplicate, identical, unhealthy, and wrong-kind credential fixtures each return a deterministic rejection while the network-call counter remains zero."
     }
   ],
   "acceptance_criteria": [
-    {
-      "id": "AC1",
-      "outcome_ids": [
-        "O1"
-      ]
-    }
+    { "id": "AC1", "outcome_ids": ["O1"] },
+    { "id": "AC2", "outcome_ids": ["O1"] },
+    { "id": "AC3", "outcome_ids": ["O2"] }
   ],
-  "scopes": [
-    "contracts",
-    "server"
-  ],
+  "scopes": ["contracts", "server"],
   "signals": {
     "routes_or_screens": 0,
     "acceptance_flows": 3,
-    "expected_changed_files": 12,
-    "expected_mutation_shards": 0,
-    "lifecycle_or_concurrency_boundaries": 2,
+    "expected_changed_files": 8,
+    "expected_mutation_shards": 1,
+    "lifecycle_or_concurrency_boundaries": 1,
     "external_integrations": 1,
     "schema_or_migration_changes": 0,
     "authorization_or_audit_boundaries": 1,
     "tooling_change": false
   },
   "estimate_minutes": {
-    "readiness": 10,
-    "implementation": 65,
-    "focused_verification": 55,
-    "review": 20,
+    "readiness": 8,
+    "implementation": 45,
+    "focused_verification": 31,
+    "review": 10,
     "integration": 10,
-    "total": 160
+    "total": 104
   },
   "uncertainties": [
     {
       "id": "U1",
       "status": "resolved",
-      "statement": "No live Anthropic credentials exist; the live provider probe is blocked on per-org keys and invite-canary authorization.",
+      "statement": "No live Anthropic credentials or invite-canary authorization are available.",
       "estimate_impact_minutes": 0,
-      "resolution": "Scope is deterministic fixtures backed by Pact consumer contracts. Live acceptance stays gated behind the authorized provider run named in the parent story's AC4."
+      "resolution": "This child uses deterministic transport fixtures. Real credential scope, organization binding, and provider behavior remain exclusively in US-054 and cannot be claimed here."
     },
     {
       "id": "U2",
       "status": "resolved",
-      "statement": "The original 115-minute estimate assumed the probe supplied portable rate-limit and retry semantics. It does not: probe.ts request() only sets a fixed header set and has no limiter, no retry and no Retry-After handling. schemas.ts classifies 429 as rate_limited but never acts on it, and no rate-limit or retry machinery exists anywhere in the workspace.",
-      "estimate_impact_minutes": 45,
-      "resolution": "The limiter and retry are greenfield, which is what pushes this item past the 120-minute limit and forces this partition. Recorded rather than absorbed."
+      "statement": "Retries could amplify traffic or replay an invite whose provider outcome is ambiguous.",
+      "estimate_impact_minutes": 8,
+      "resolution": "Initial attempts and retries consume one injected-clock limiter; only safe reads and idempotent deletes retry bounded 429/5xx classes, and ambiguous invite creation is never automatically replayed."
     },
     {
       "id": "U3",
       "status": "resolved",
-      "statement": "packages/connectors declares zero runtime dependencies, so a rate-limit library would be a new dependency in a deliberately dependency-free vendor-neutral package.",
+      "statement": "The connector package has no runtime rate-limit dependency and its tests must remain deterministic.",
       "estimate_impact_minutes": 0,
-      "resolution": "Hand-roll the limiter against an injected clock. That keeps the package dependency-free and makes the tests deterministic, which the testing standard requires anyway."
-    },
-    {
-      "id": "U4",
-      "status": "resolved",
-      "statement": "Whether AC1's rate limiting means client-side budgets or honoring provider headers.",
-      "estimate_impact_minutes": 0,
-      "resolution": "Both. AC1 names explicit client-side numbers, and the probe's SanitizedObservation already reserves response_headers.retry_after and response_headers.rate_limit, so provider-driven backoff is the established intent. Both land in the rate-limit child."
+      "resolution": "Implement the limiter against an injected clock inside the provider transport boundary, preserving the dependency-free package and deterministic verification."
     }
   ],
-  "dependencies": [],
-  "decision": "partition_required",
-  "partitions": [
+  "dependencies": [
     {
-      "proposal_key": "transport-credential-routing",
-      "work_id": "US-059",
-      "title": "Endpoint-specific header policy with fail-closed credential routing",
-      "outcome": "A request carries the correct endpoint header policy, and a credential routed to the wrong capability is rejected before any network call is issued.",
-      "demo": "An Analytics key routed to a user-management endpoint throws before fetch is reached; an Admin key on the same endpoint issues a request carrying the expected headers.",
-      "acceptance_criteria": [
-        "AC1"
-      ],
-      "work_type": "functional",
-      "scopes": [
-        "contracts",
-        "server"
-      ],
-      "signals": {
-        "routes_or_screens": 0,
-        "acceptance_flows": 2,
-        "expected_changed_files": 6,
-        "expected_mutation_shards": 0,
-        "lifecycle_or_concurrency_boundaries": 0,
-        "external_integrations": 1,
-        "schema_or_migration_changes": 0,
-        "authorization_or_audit_boundaries": 1,
-        "tooling_change": false
-      },
-      "uncertainties": [
-        {
-          "id": "U1",
-          "status": "resolved",
-          "statement": "No live Anthropic credentials exist; the live provider probe is blocked on per-org keys and invite-canary authorization.",
-          "estimate_impact_minutes": 0,
-          "resolution": "Scope is deterministic fixtures backed by Pact consumer contracts. Live acceptance stays gated behind the authorized provider run named in the parent story's AC4."
-        }
-      ],
-      "estimate_minutes": {
-        "readiness": 5,
-        "implementation": 30,
-        "focused_verification": 25,
-        "review": 10,
-        "integration": 5,
-        "total": 75
-      },
-      "depends_on": [],
-      "cross_cutting_rationale": "AC1 bundles credential separation with rate limiting in one criterion. This child owns the credential-routing and header-policy half; the rate-limit child owns the budget and retry half. Neither alone satisfies AC1, so both declare it and AC1 is met only when both land."
-    },
-    {
-      "proposal_key": "rate-limit-and-bounded-retry",
-      "work_id": "US-060",
-      "title": "Declared rate-limit budgets and bounded retry sharing the limiter",
-      "outcome": "Requests are held to the declared per-endpoint budgets and retries are bounded and counted against the same budget, so a retry storm cannot exceed the ceiling.",
-      "demo": "With an injected clock, a burst past 100/min user-management is deferred rather than issued; a retry sequence provably cannot exceed the declared per-minute ceiling; a Retry-After header is honored.",
-      "acceptance_criteria": [
-        "AC1"
-      ],
-      "work_type": "functional",
-      "scopes": [
-        "server"
-      ],
-      "signals": {
-        "routes_or_screens": 0,
-        "acceptance_flows": 2,
-        "expected_changed_files": 6,
-        "expected_mutation_shards": 0,
-        "lifecycle_or_concurrency_boundaries": 1,
-        "external_integrations": 1,
-        "schema_or_migration_changes": 0,
-        "authorization_or_audit_boundaries": 0,
-        "tooling_change": false
-      },
-      "uncertainties": [
-        {
-          "id": "U1",
-          "status": "resolved",
-          "statement": "No live Anthropic credentials exist; the live provider probe is blocked on per-org keys and invite-canary authorization.",
-          "estimate_impact_minutes": 0,
-          "resolution": "Scope is deterministic fixtures backed by Pact consumer contracts. Live acceptance stays gated behind the authorized provider run named in the parent story's AC4."
-        },
-        {
-          "id": "U2",
-          "status": "resolved",
-          "statement": "Retry must not amplify load against a rate-limited provider.",
-          "estimate_impact_minutes": 10,
-          "resolution": "Retries draw from the same limiter as first attempts, asserted by a test proving a retry storm cannot exceed the declared per-minute ceiling."
-        },
-        {
-          "id": "U3",
-          "status": "resolved",
-          "statement": "The declared limits are documented values, not measured.",
-          "estimate_impact_minutes": 0,
-          "resolution": "Encoded as configuration (100/min user management, 60/min analytics, 1200 invites/hour) and asserted against fixtures. Confirming real provider behavior belongs to the gated live run."
-        }
-      ],
-      "estimate_minutes": {
-        "readiness": 5,
-        "implementation": 35,
-        "focused_verification": 30,
-        "review": 10,
-        "integration": 5,
-        "total": 85
-      },
-      "depends_on": [
-        "transport-credential-routing"
-      ],
-      "cross_cutting_rationale": "AC1 bundles rate limiting with credential separation in one criterion. This child owns the budget and bounded-retry half and is written against the transport seam the sibling delivers; AC1 is met only when both land."
+      "work_id": "US-057",
+      "type": "blocks",
+      "reason": "The connector-call journal is integrated with the transport attempt seam delivered here."
     }
   ],
+  "decision": "ready",
+  "partitions": [],
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "US056-PARTITION",
-    "payload_sha256": "f32f69a5e70f424c1a98a4f9da12ab43c2f566238557acf4256919c0d0013bfc"
+    "evidence": "US056-READY-CHG045",
+    "payload_sha256": "89f52545c0a9370745920fdbd882ea43eab938842b9a940d283b4f061d084716"
   },
   "actuals": null,
-  "checkpoints": [],
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
