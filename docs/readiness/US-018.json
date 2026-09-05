@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "e3747b792407e0cb7a31277bad6079f326b96d88a46c759bbc13af38f88e5a30",
+  "readiness_payload_sha256": "0392cd6d43f071c9e246062551cb7e9cd6a46ddefeb444e55900250735739ddf",
   "work_id": "US-018",
   "kind": "US",
   "work_type": "functional",
@@ -47,10 +47,10 @@
   ],
   "signals": {
     "routes_or_screens": 0,
-    "acceptance_flows": 4,
+    "acceptance_flows": 3,
     "expected_changed_files": 18,
     "expected_mutation_shards": 1,
-    "lifecycle_or_concurrency_boundaries": 2,
+    "lifecycle_or_concurrency_boundaries": 1,
     "external_integrations": 1,
     "schema_or_migration_changes": 0,
     "authorization_or_audit_boundaries": 1,
@@ -95,154 +95,13 @@
     }
   ],
   "dependencies": [],
-  "decision": "partition_required",
-  "partitions": [
-    {
-      "proposal_key": "anthropic-transport",
-      "work_id": "US-056",
-      "title": "Anthropic transport with separated credentials and bounded retry",
-      "outcome": "Calls reach the vendor API under an endpoint-specific header policy with declared rate limits and bounded retry/backoff, and a credential routed to the wrong capability fails closed.",
-      "demo": "An Analytics key routed to a user-management endpoint is rejected before any request is issued; the rate-limit budget and retry ceiling are observable against deterministic fixtures.",
-      "acceptance_criteria": [
-        "AC1"
-      ],
-      "work_type": "functional",
-      "scopes": [
-        "contracts",
-        "server"
-      ],
-      "signals": {
-        "routes_or_screens": 0,
-        "acceptance_flows": 3,
-        "expected_changed_files": 7,
-        "expected_mutation_shards": 0,
-        "lifecycle_or_concurrency_boundaries": 1,
-        "external_integrations": 1,
-        "schema_or_migration_changes": 0,
-        "authorization_or_audit_boundaries": 1,
-        "tooling_change": false
-      },
-      "uncertainties": [
-        {
-          "id": "U1",
-          "status": "resolved",
-          "statement": "Retry must not amplify load against a rate-limited provider.",
-          "estimate_impact_minutes": 10,
-          "resolution": "Retry budget is bounded and shares the same limiter as first attempts, asserted by a test that a retry storm cannot exceed the declared per-minute ceiling."
-        }
-      ],
-      "estimate_minutes": {
-        "readiness": 10,
-        "implementation": 45,
-        "focused_verification": 35,
-        "review": 15,
-        "integration": 10,
-        "total": 115
-      },
-      "depends_on": [],
-      "cross_cutting_rationale": null
-    },
-    {
-      "proposal_key": "sanitized-action-journal",
-      "work_id": "US-057",
-      "title": "Sanitized ProvisioningAction request and response journaling",
-      "outcome": "Every connector call persists a canonical sanitized request/response summary that provably excludes credentials, authorization headers, raw PII, full provider identifiers and raw provider bodies.",
-      "demo": "A call writes a ProvisioningAction row whose summary survives a property-based check asserting no forbidden token appears for any generated payload.",
-      "acceptance_criteria": [
-        "AC2"
-      ],
-      "work_type": "functional",
-      "scopes": [
-        "server",
-        "db"
-      ],
-      "signals": {
-        "routes_or_screens": 0,
-        "acceptance_flows": 2,
-        "expected_changed_files": 6,
-        "expected_mutation_shards": 1,
-        "lifecycle_or_concurrency_boundaries": 1,
-        "external_integrations": 0,
-        "schema_or_migration_changes": 0,
-        "authorization_or_audit_boundaries": 1,
-        "tooling_change": false
-      },
-      "uncertainties": [
-        {
-          "id": "U1",
-          "status": "resolved",
-          "statement": "An allow-list and a deny-list sanitizer fail differently on unexpected provider fields.",
-          "estimate_impact_minutes": 10,
-          "resolution": "Canonical summaries are built from an explicit allow-list so an unknown provider field is dropped rather than leaked, which is the fail-closed direction."
-        }
-      ],
-      "estimate_minutes": {
-        "readiness": 10,
-        "implementation": 35,
-        "focused_verification": 35,
-        "review": 10,
-        "integration": 10,
-        "total": 100
-      },
-      "depends_on": [
-        "anthropic-transport"
-      ],
-      "cross_cutting_rationale": null
-    },
-    {
-      "proposal_key": "connector-conformance-and-contracts",
-      "work_id": "US-058",
-      "title": "Capability-interface conformance and Pact consumer contracts",
-      "outcome": "The Anthropic connector satisfies the neutral capability interface and every deterministic network fixture is backed by a passing Pact consumer contract, with no vendor specifics outside the provider directory.",
-      "demo": "The dispatcher resolves the rest protocol to the connector and reports its capability descriptor; the provider-boundary lint passes; the Pact consumer suite is green.",
-      "acceptance_criteria": [
-        "AC3",
-        "AC4"
-      ],
-      "work_type": "functional",
-      "scopes": [
-        "contracts",
-        "server"
-      ],
-      "signals": {
-        "routes_or_screens": 0,
-        "acceptance_flows": 3,
-        "expected_changed_files": 7,
-        "expected_mutation_shards": 0,
-        "lifecycle_or_concurrency_boundaries": 0,
-        "external_integrations": 1,
-        "schema_or_migration_changes": 0,
-        "authorization_or_audit_boundaries": 0,
-        "tooling_change": false
-      },
-      "uncertainties": [
-        {
-          "id": "U1",
-          "status": "resolved",
-          "statement": "Whether contract tests can pass without live provider verification.",
-          "estimate_impact_minutes": 0,
-          "resolution": "Only the consumer side is in scope. Provider verification against the real API is explicitly deferred to US-054 by AC4."
-        }
-      ],
-      "estimate_minutes": {
-        "readiness": 10,
-        "implementation": 40,
-        "focused_verification": 35,
-        "review": 10,
-        "integration": 10,
-        "total": 105
-      },
-      "depends_on": [
-        "anthropic-transport"
-      ],
-      "cross_cutting_rationale": null
-    }
-  ],
+  "decision": "ready",
+  "partitions": [],
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "US018-PARTITION",
-    "payload_sha256": "e3747b792407e0cb7a31277bad6079f326b96d88a46c759bbc13af38f88e5a30"
+    "evidence": "US018-READY-320",
+    "payload_sha256": "0392cd6d43f071c9e246062551cb7e9cd6a46ddefeb444e55900250735739ddf"
   },
   "actuals": null,
   "checkpoints": [],
