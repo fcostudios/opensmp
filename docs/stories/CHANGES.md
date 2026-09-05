@@ -22,12 +22,12 @@
 | **CHG-031** | 📦 delivered | Commit hook resolves the approval trust map from the repo when the env var is unset | — | — |
 | **CHG-032** | 🟡 proposed | Readiness CLI resolves approval trust from the repo outside CI | — | — |
 | **CHG-033** | 🟡 proposed | Force a partition after repeated ready re-approvals of one work item | — | — |
-| **CHG-034** | 🔷 spec_applied | Work-readiness gate simplification: retire Ed25519 signing, wall-clock checkpoints, dual ledger, and git-code sprawl | — | — |
-| **CHG-035** | 🔷 spec_applied | Re-baseline the work-readiness execution budget from 120 to 320 minutes, calibrated by IMP-374 | — | — |
-| **CHG-036** | 🔷 spec_applied | Retire Ed25519 approval signing, keeping signed history readable | — | — |
-| **CHG-037** | 🔷 spec_applied | Replace the wall-clock lock with a task-boundary self-report and collapse to one ledger | — | — |
-| **CHG-038** | 🔷 spec_applied | Collapse the fine-grained git-plumbing codes into one message-carrying error | — | — |
-| **CHG-039** | 🔷 spec_applied | Make the WR_* code set countable: one spelling at every call site | — | — |
+| **CHG-034** | 📦 delivered | Work-readiness gate simplification: retire Ed25519 signing, wall-clock checkpoints, dual ledger, and git-code sprawl | — | — |
+| **CHG-035** | 📦 delivered | Re-baseline the work-readiness execution budget from 120 to 320 minutes, calibrated by IMP-374 | — | — |
+| **CHG-036** | 📦 delivered | Retire Ed25519 approval signing, keeping signed history readable | — | — |
+| **CHG-037** | 📦 delivered | Replace the wall-clock lock with a task-boundary self-report and collapse to one ledger | — | — |
+| **CHG-038** | 📦 delivered | Collapse the fine-grained git-plumbing codes into one message-carrying error | — | — |
+| **CHG-039** | 📦 delivered | Make the WR_* code set countable: one spelling at every call site | — | — |
 
 ---
 
@@ -256,7 +256,7 @@ _No stories linked to this change yet._
 
 ### CHG-034: Work-readiness gate simplification: retire Ed25519 signing, wall-clock checkpoints, dual ledger, and git-code sprawl
 
-**Status:** 🔷 `spec_applied`
+**Status:** 📦 `delivered`
 **Source:** developer_feedback
 **Requested by:** Francisco
 **Notes:** # Work-readiness gate simplification — design
@@ -272,7 +272,7 @@ _No stories linked to this change yet._
 
 ### CHG-035: Re-baseline the work-readiness execution budget from 120 to 320 minutes, calibrated by IMP-374
 
-**Status:** 🔷 `spec_applied`
+**Status:** 📦 `delivered`
 **Source:** developer_feedback
 **Requested by:** Francisco
 **Notes:** # CHG-035 — Re-baseline the work-readiness execution budget from 120 to 320 minutes, calibrated by IMP-374
@@ -287,7 +287,7 @@ _No stories linked to this change yet._
 
 ### CHG-036: Retire Ed25519 approval signing, keeping signed history readable
 
-**Status:** 🔷 `spec_applied`
+**Status:** 📦 `delivered`
 **Source:** developer_feedback
 **Requested by:** Francisco
 **Notes:** # CHG-036 — Retire Ed25519 approval signing, keeping signed history readable
@@ -304,7 +304,7 @@ _No stories linked to this change yet._
 
 ### CHG-037: Replace the wall-clock lock with a task-boundary self-report and collapse to one ledger
 
-**Status:** 🔷 `spec_applied`
+**Status:** 📦 `delivered`
 **Source:** developer_feedback
 **Requested by:** Francisco
 **Notes:** # CHG-037 — Replace the wall-clock lock with a task-boundary self-report, and collapse to one ledger
@@ -317,7 +317,7 @@ _No stories linked to this change yet._
 
 ### CHG-038: Collapse the fine-grained git-plumbing codes into one message-carrying error
 
-**Status:** 🔷 `spec_applied`
+**Status:** 📦 `delivered`
 **Source:** developer_feedback
 **Requested by:** Francisco
 **Notes:** # CHG-038 — Collapse the fine-grained git-plumbing codes into one message-carrying error
@@ -334,7 +334,7 @@ _No stories linked to this change yet._
 
 ### CHG-039: Make the WR_* code set countable: one spelling at every call site
 
-**Status:** 🔷 `spec_applied`
+**Status:** 📦 `delivered`
 **Source:** developer_feedback
 **Requested by:** Francisco
 **Notes:** # CHG-039 — Make the `WR_*` code set countable: one spelling at every call site
