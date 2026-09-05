@@ -401,66 +401,16 @@ function requireImplementationPlan({ root, revision, feedback, workId }) {
   return validatePlanBinding({ root, revision, authorizationRevision: revision, feedback, planPath: matches[0], expectedWorkId: workId });
 }
 
-function canonicalFeedbackCheckpoint(record, workId) {
-  return record !== null && typeof record === "object" && !Array.isArray(record)
-    && Object.keys(record).sort().join(",") === "elapsed_minutes,event,evidence,implementation_complete,status,story"
-    && record.story === workId
-    && record.event === "checkpoint"
-    && Number.isInteger(record.elapsed_minutes) && record.elapsed_minutes >= 0
-    && ["on_track", "variance", "partition_required"].includes(record.status)
-    && typeof record.implementation_complete === "boolean"
-    && typeof record.evidence === "string" && /\S/u.test(record.evidence);
-}
-
-function validateCheckpointTransition(parentArtifact, candidateArtifact, appendedFeedback, readinessPath, workId) {
-  const parent = parentArtifact?.checkpoints ?? [];
-  const candidate = candidateArtifact?.checkpoints ?? [];
-  if (candidate.length < parent.length || parent.some((checkpoint, index) => JSON.stringify(checkpoint) !== JSON.stringify(candidate[index]))) {
-    fail("WR_CHECKPOINT_HISTORY_MUTATED", readinessPath, "Checkpoint history is append-only");
-  }
-  const appendedArtifact = candidate.slice(parent.length);
-  const appendedEvents = appendedFeedback.filter((record) => record.story === workId && record.event === "checkpoint");
-  if (appendedArtifact.length !== appendedEvents.length) {
-    fail("WR_CHECKPOINT_EVIDENCE_MISMATCH", readinessPath, "Artifact and feedback must append the same number of checkpoints in one commit");
-  }
-  appendedArtifact.forEach((checkpoint, index) => {
-    const record = appendedEvents[index];
-    if (!canonicalFeedbackCheckpoint(record, workId)
-      || record.elapsed_minutes !== checkpoint.elapsed_minutes
-      || record.status !== checkpoint.status
-      || record.implementation_complete !== checkpoint.implementation_complete
-      || record.evidence !== checkpoint.evidence) {
-      fail("WR_CHECKPOINT_EVIDENCE_MISMATCH", `$.checkpoints[${parent.length + index}]`, "Each appended checkpoint requires one exact canonical feedback record in the same commit");
-    }
-  });
-}
-
-function validateAllCheckpointTransitions({ root, parent, commit, changedPaths, parentFeedback, candidateFeedback }) {
-  const appendedFeedback = candidateFeedback.slice(parentFeedback.length);
-  const workIds = new Set();
-  changedPaths.forEach((path) => {
-    const match = /^docs\/readiness\/((?:US|CHG)-[0-9]{3,})\.json$/u.exec(path);
-    if (match) workIds.add(match[1]);
-  });
-  appendedFeedback.forEach((record) => {
-    if (record.event === "checkpoint" && typeof record.story === "string") workIds.add(record.story);
-  });
-  for (const workId of workIds) {
-    if (!/^(?:US|CHG)-[0-9]{3,}$/u.test(workId)) {
-      fail("WR_CHECKPOINT_EVIDENCE_MISMATCH", ".nous-feedback.jsonl", "Checkpoint feedback must name one official work ID");
-    }
-    const readinessPath = `docs/readiness/${workId}.json`;
-    const parentText = readRevisionFile(root, parent, readinessPath, { required: false });
-    const candidateText = readRevisionFile(root, commit, readinessPath, { required: false });
-    const parentArtifact = parentText === null ? null : parseJson(parentText, readinessPath);
-    const candidateArtifact = candidateText === null ? null : parseJson(candidateText, readinessPath);
-    if (parentArtifact === null && candidateArtifact === null) {
-      fail("WR_CHECKPOINT_EVIDENCE_MISMATCH", readinessPath, "Checkpoint feedback requires a readiness artifact in the candidate tree");
-    }
-    validateCheckpointTransition(parentArtifact, candidateArtifact, appendedFeedback, readinessPath, workId);
-  }
-}
-
+// CHG-037 §3 — the artifact↔feedback checkpoint bijection is gone:
+// canonicalFeedbackCheckpoint, validateCheckpointTransition and
+// validateAllCheckpointTransitions. It existed only to mirror the clock above,
+// so with the clock removed it guarded an empty set.
+//
+// validateFeedbackHistoryTransition SURVIVES. The parent design listed
+// WR_FEEDBACK_HISTORY_MUTATED as bijection machinery; it is not. That function is
+// a pure byte-prefix append-only guard on .nous-feedback.jsonl and never reads the
+// artifact side — it is what makes the ONE surviving ledger trustworthy.
+// validateAllActualTransitions survives too; actuals are not checkpoints.
 function validateAllActualTransitions({ root, parent, commit, changedPaths, parentFeedback, candidateFeedback }) {
   const appendedFeedback = candidateFeedback.slice(parentFeedback.length);
   const workIds = new Set();
@@ -1009,99 +959,18 @@ export function resolveDefaultBase(root, env = process.env) {
   return resolveDefaultRange(root, env).base;
 }
 
-function commitEpochSeconds(root, commit) {
-  const text = git(root, ["show", "-s", "--format=%ct", commit]).toString("utf8").trim();
-  const value = Number(text);
-  if (!/^[0-9]+$/u.test(text) || !Number.isSafeInteger(value)) {
-    fail("WR_GIT_TIMESTAMP_INVALID", "$.git", `Commit ${commit} has an invalid committer timestamp`);
-  }
-  return value;
-}
-
-function findExecutionTimeline(root, commit, workId, approvalEvidence, cache) {
-  const key = `${workId}\0${approvalEvidence}`;
-  if (cache.has(key)) return cache.get(key);
-  const history = git(root, ["rev-list", "--reverse", "--first-parent", "--parents", commit]).toString("utf8").trim();
-  let approvalObserved = false;
-  let timeline = null;
-  for (const line of history === "" ? [] : history.split("\n")) {
-    const fields = line.trim().split(/\s+/u);
-    const revision = fields[0];
-    const feedback = parseFeedback(readRevisionFile(root, revision, ".nous-feedback.jsonl", { required: false }));
-    if (!approvalObserved) {
-      approvalObserved = feedback.some((record) => record.story === workId && record.event === "decision" && record.id === approvalEvidence);
-      continue;
-    }
-    const firstParent = fields[1];
-    if (firstParent === undefined) continue;
-    const changedPaths = listChangedPaths({ root, base: firstParent, head: revision });
-    const revisionMessage = git(root, ["show", "-s", "--format=%B", revision]).toString("utf8");
-    const revisionIds = new Set([...extractWorkIds(revisionMessage), ...extractWorkIds(changedPaths.join("\n"))]);
-    if (!revisionIds.has(workId)) continue;
-    const epochSeconds = commitEpochSeconds(root, revision);
-    if (timeline === null) {
-      const classes = changedPaths.map(classifyChangedPath);
-      if (classes.every((classification) => classification === "bootstrap-documentation")) continue;
-      timeline = {
-        anchorCommit: revision,
-        anchorEpochSeconds: epochSeconds,
-        maxRelevantEpochSeconds: revision === commit ? null : epochSeconds,
-      };
-      continue;
-    }
-    if (revision !== commit) {
-      timeline.maxRelevantEpochSeconds = Math.max(timeline.maxRelevantEpochSeconds ?? epochSeconds, epochSeconds);
-    }
-  }
-  if (timeline === null) {
-    fail("WR_EXECUTION_ANCHOR_MISSING", `docs/readiness/${workId}.json`, `${workId} implementation has no durable Git execution anchor after its selected approval`);
-  }
-  cache.set(key, timeline);
-  return timeline;
-}
-
-function hasBootstrapElapsedDeviation(artifact, feedback) {
-  if (!artifact.policy_bootstrap || !Number.isInteger(artifact.actuals?.phase_minutes?.implementation)) return false;
-  const matches = feedback.filter((record) => record.story === "CHG-022" && record.event === "deviation"
-    && Object.keys(record).sort().join(",") === "control,corrective_action,event,notes,observed_implementation_minutes,reason,story");
-  return matches.length === 1
-    && matches[0].control === "45/90-minute-checkpoints"
-    && matches[0].observed_implementation_minutes === artifact.actuals.phase_minutes.implementation
-    && typeof matches[0].reason === "string" && /\S/u.test(matches[0].reason)
-    && typeof matches[0].corrective_action === "string" && /\S/u.test(matches[0].corrective_action)
-    && typeof matches[0].notes === "string" && /\S/u.test(matches[0].notes);
-}
-
-function validateElapsedCheckpoint({ root, commit, workId, artifact, feedback, executionAnchors, bootstrapCorrectiveDeviation }) {
-  const timeline = findExecutionTimeline(root, commit, workId, artifact.approval.evidence, executionAnchors);
-  const candidateEpoch = commitEpochSeconds(root, commit);
-  if (candidateEpoch < timeline.anchorEpochSeconds
-    || (timeline.maxRelevantEpochSeconds !== null && candidateEpoch < timeline.maxRelevantEpochSeconds)) {
-    fail("WR_GIT_TIMESTAMP_REGRESSION", "$.git", `${workId} candidate timestamp precedes prior relevant first-parent history`);
-  }
-  const elapsedSeconds = candidateEpoch - timeline.anchorEpochSeconds;
-  const advanceTimeline = () => {
-    timeline.maxRelevantEpochSeconds = Math.max(timeline.maxRelevantEpochSeconds ?? candidateEpoch, candidateEpoch);
-  };
-  if (artifact.policy_bootstrap && (bootstrapCorrectiveDeviation || hasBootstrapElapsedDeviation(artifact, feedback))) {
-    advanceTimeline();
-    return;
-  }
-  const completion = artifact.checkpoints.find((checkpoint) => checkpoint.implementation_complete);
-  if (elapsedSeconds >= 45 * 60 && completion === undefined
-    && !artifact.checkpoints.some((checkpoint) => checkpoint.elapsed_minutes === 45)) {
-    fail("WR_CHECKPOINT_45_REQUIRED", "$.checkpoints", `${workId} crossed 45 Git-derived execution minutes without the exact first control`);
-  }
-  if (elapsedSeconds >= 90 * 60 && completion === undefined
-    && !artifact.checkpoints.some((checkpoint) => checkpoint.elapsed_minutes === 90
-      && checkpoint.status === "partition_required" && !checkpoint.implementation_complete)) {
-    fail("WR_CHECKPOINT_PARTITION_REQUIRED", "$.checkpoints", `${workId} crossed 90 Git-derived execution minutes without the exact partition stop`);
-  }
-  advanceTimeline();
-}
-
+// CHG-037 §2 — the git-timestamp execution clock is gone: findExecutionTimeline,
+// commitEpochSeconds, validateElapsedCheckpoint and hasBootstrapElapsedDeviation.
+// It fired twice in the project's history, and both times it stopped work at a
+// point the task structure did not choose. A clock cannot know where a safe
+// stopping point is; the plan's task list can, so the contract moved there.
+//
+// Removing it also retires a latent defect: findExecutionTimeline matched a
+// decision by `story === workId`, but a `controlling_change` decision necessarily
+// carries `story === <parent>` — so a controlling-change-approved item could never
+// satisfy WR_EXECUTION_ANCHOR_MISSING and could never land an implementation commit.
 function validateCommitOwnership({
-  root, parent, commit, message, preActivationCommit = false, executionAnchors, bootstrapCorrectiveDeviation,
+  root, parent, commit, message, preActivationCommit = false,
 }) {
   const changedPaths = listChangedPaths({ root, base: parent, head: commit });
   const messageWorkIds = extractWorkIds(message);
@@ -1110,14 +979,6 @@ function validateCommitOwnership({
   const candidateFeedback = validateFeedbackHistoryTransition(root, parent, commit);
   const authorizationFeedback = parseFeedback(readRevisionFile(root, parent, ".nous-feedback.jsonl", { required: false }));
   const policyActive = validatedActivationIndex(root, parent, authorizationFeedback) >= 0;
-  validateAllCheckpointTransitions({
-    root,
-    parent,
-    commit,
-    changedPaths,
-    parentFeedback: authorizationFeedback,
-    candidateFeedback,
-  });
   validateAllActualTransitions({
     root,
     parent,
@@ -1203,10 +1064,6 @@ function validateCommitOwnership({
       || candidateArtifact.approval.approved_by !== parentArtifact.approval.approved_by) {
       fail("WR_CANDIDATE_APPROVAL_CHANGED", readinessPath, `${workId} approval binding cannot change in its implementation commit`);
     }
-    validateElapsedCheckpoint({
-      root, commit, workId, artifact: candidateArtifact, feedback: candidateFeedback, executionAnchors,
-      bootstrapCorrectiveDeviation,
-    });
     if (parentArtifact.policy_bootstrap) {
       const allowed = new Set(parentArtifact.bootstrap_authorization.allowed_paths);
       const unauthorized = changedPaths.find((path) => !allowed.has(path));
@@ -1251,10 +1108,6 @@ export function validateRangeOwnership({ root, base, head = "HEAD", message }) {
   const hasActivationMarker = (feedback) => feedback?.some((record) => record.story === "CHG-022"
     && record.event === "decision" && record.id === ACTIVATION_EVIDENCE) === true;
   const activationPresentAtHead = hasActivationMarker(headFeedback);
-  const headBootstrapText = readRevisionFile(canonicalRoot, headSha, "docs/readiness/CHG-022.json", { required: false });
-  const headBootstrap = headBootstrapText === null ? null : parseJson(headBootstrapText, "docs/readiness/CHG-022.json");
-  const bootstrapCorrectiveDeviation = headBootstrap !== null
-    && hasBootstrapElapsedDeviation(headBootstrap, headFeedback ?? []);
   let activationOrdinal = -1;
   if (activationPresentAtHead) {
     activationOrdinal = commits.findIndex((entry) => {
@@ -1269,15 +1122,13 @@ export function validateRangeOwnership({ root, base, head = "HEAD", message }) {
     classification: "bootstrap-documentation",
     grandfatheredWorkIds: [],
   };
-  const executionAnchors = new Map();
   for (let ordinal = 0; ordinal < commits.length; ordinal += 1) {
     const entry = commits[ordinal];
     const commitMessage = git(canonicalRoot, ["show", "-s", "--format=%B", entry.commit]).toString("utf8");
     const effectiveMessage = message !== undefined && entry.commit === headSha ? `${commitMessage}\n${message}` : commitMessage;
     const preActivationCommit = !activationPresentAtHead || (activationOrdinal >= 0 && ordinal < activationOrdinal);
     const result = validateCommitOwnership({
-      root: canonicalRoot, ...entry, message: effectiveMessage, preActivationCommit, executionAnchors,
-      bootstrapCorrectiveDeviation,
+      root: canonicalRoot, ...entry, message: effectiveMessage, preActivationCommit,
     });
     aggregate.workIds.push(...result.workIds.filter((workId) => !aggregate.workIds.includes(workId)));
     aggregate.changedPaths.push(...result.changedPaths.filter((path) => !aggregate.changedPaths.includes(path)));

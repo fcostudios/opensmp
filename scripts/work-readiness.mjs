@@ -213,7 +213,6 @@ function skeleton(workId) {
     partitions: [],
     approval: { status: "pending", approved_by: null, evidence: null, payload_sha256: "0".repeat(64) },
     actuals: null,
-    checkpoints: [],
     policy_bootstrap: false,
     bootstrap_exemption_rationale: null,
     bootstrap_authorization: null,

@@ -24,7 +24,6 @@
     "partitions",
     "approval",
     "actuals",
-    "checkpoints",
     "policy_bootstrap",
     "bootstrap_exemption_rationale",
     "bootstrap_authorization"
@@ -115,9 +114,7 @@
     },
     "checkpoints": {
       "type": "array",
-      "items": {
-        "$ref": "#/$defs/checkpoint"
-      }
+      "description": "Legacy (pre-CHG-037). Accepted where history recorded it; not emitted for new artifacts and not validated. The 45/90-minute checkpoint policy and the artifact-feedback bijection were retired with the wall clock."
     },
     "policy_bootstrap": {
       "type": "boolean"
@@ -778,30 +775,6 @@
         },
         "payload_sha256": {
           "$ref": "#/$defs/sha256"
-        }
-      }
-    },
-    "checkpoint": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "elapsed_minutes",
-        "status",
-        "implementation_complete",
-        "evidence"
-      ],
-      "properties": {
-        "elapsed_minutes": {
-          "$ref": "#/$defs/nonnegative_integer"
-        },
-        "status": {
-          "enum": ["on_track", "variance", "partition_required"]
-        },
-        "implementation_complete": {
-          "type": "boolean"
-        },
-        "evidence": {
-          "$ref": "#/$defs/nonempty_string"
         }
       }
     },

@@ -79,7 +79,7 @@ Approval is digest-bound evidence, not a checkbox. Compute
 `readiness_payload_sha256` from the readiness payload as follows:
 
 1. From the top-level artifact, exclude `readiness_payload_sha256`, `approval`,
-   `actuals`, and `checkpoints`.
+   and `actuals` (plus the legacy, optional `checkpoints`).
 2. Recursively order every object's keys lexicographically. Preserve array
    order exactly.
 3. Serialize that value with JavaScript `JSON.stringify`, encode the result as
@@ -167,63 +167,34 @@ Generated sprint plans and story specifications remain documentation-class and
 Nous-owned, but that classification does not exempt an implementation plan from
 this binding before code starts.
 
-## Checkpoints and mutation evidence
+## Task-boundary self-report
 
-- At 45 elapsed minutes, compare progress with the approved phase estimate and
-  append an `on_track` or `variance` checkpoint with evidence.
-- At 90 elapsed minutes, if production implementation is incomplete, stop and
-  append a `partition_required` checkpoint and return to outcome partitioning
-  and approval.
-- Before mutation, focused shards, dry admission, representative cold/warm
-  checks, and mutation-scope review must be green.
-- Run one authoritative cold mutation campaign per stable implementation SHA.
-  A source change invalidates that SHA's campaign; stabilize again before the
-  next authoritative cold run.
+There is **no wall clock.** CHG-037 retired the git-timestamp execution anchor and
+the mandatory 45- and 90-minute checkpoints, along with the artifact↔feedback
+checkpoint bijection.
 
-An estimate cannot be raised in a plan or during implementation. New scope,
-missed boundaries, or a forecast above the approved limits returns the item to
-readiness review.
+They were removed because a clock cannot know where a safe stopping point is. The
+mechanism fired twice in this project's history, and both times it forced a stop
+at a point the task structure did not choose — the 90-minute gate landing mid-task
+with later tasks not yet started. A task list knows where the seams are; elapsed
+git time does not.
 
-Checkpoint entries are append-only, strictly ordered by `elapsed_minutes`, and
-must have one exact canonical appended feedback record carrying the same
-status, completion flag, and evidence in the same commit. The mapping is
-bijective: artifact-only or feedback-only records, duplicates, rewrites,
-deletions, and reorderings fail even in documentation-only commits. Once an
-incomplete execution records elapsed time at or beyond 45 minutes, its first
-checkpoint must be the exact 45-minute `on_track` or `variance` control. At 90
-minutes, the latest incomplete checkpoint must be exactly 90 minutes with
-`partition_required`; the classifier then returns `partition_required` and
-continued implementation remains blocked until the work is partitioned and
-approved under executable readiness artifacts. Work completed before a
-milestone does not invent a checkpoint merely to satisfy the clock.
+What replaces it is one line added to the implementation-plan contract:
 
-The repository range gate derives elapsed time from immutable Git history. Its
-execution-start anchor is the first implementation-class commit for the work
-item after the commit that introduced the selected approval decision; elapsed
-time is the difference between commit-object committer timestamps. A timestamp
-regression fails closed. Feedback `ts` values and provisional actuals never
-define or reset this clock. Terminal implementation actuals independently
-prove whether the 45- and 90-minute controls were crossed, so an empty
-checkpoint array cannot bypass a missed control at completion.
+> **If, at any task boundary, you judge that the remaining work will exceed the
+> approved estimate, stop there and file a `blocked` or `deviation` feedback event
+> before continuing.**
 
-CHG-022 is the one historical bootstrap exception because its own execution
-crossed both controls before this enforcement existed. It must not fabricate
-retroactive checkpoints. Instead, terminal evidence requires one exact
-bootstrap-only `deviation` record naming the `45/90-minute-checkpoints`
-control, the observed implementation minutes, a non-empty reason, and a
-corrective action, plus non-empty feedback `notes`. No later work item may use
-that exception.
-Checkpoint completion is determined by its explicit `implementation_complete`
-boolean; provisional or mutable actual phase minutes never override `false`.
-Only a valid effective terminal with complete actuals can supersede a prior
-checkpoint stop once execution is no longer active.
+That is the pattern two work items already used by hand, without gate support,
+because the clock-based mechanism did not fit what they were doing. It is now the
+supported path rather than an improvisation.
 
-Current-state validation also enforces this bijection in both directions: each
-artifact checkpoint has exactly one canonical feedback checkpoint and each
-canonical feedback checkpoint has exactly one artifact entry.
-Every same-story `checkpoint` feedback record is validated before cardinality;
-extra or missing fields, wrong types, invalid states, and empty evidence fail
-closed instead of being filtered out.
+`checkpoints` is a **legacy artifact field**: accepted where history already
+recorded it, never validated, and not emitted for new artifacts. One artifact
+carries two real checkpoint events and stays valid as written.
+
+Mutation evidence is unaffected — `cold_mutation_attempts` and
+`mutation_invalidations` remain part of `actuals` below.
 
 ## Actuals and calibration
 

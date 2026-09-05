@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 const TOP_LEVEL_KEYS = [
   "schema_version", "readiness_payload_sha256", "work_id", "kind", "work_type", "title", "source",
   "outcomes", "acceptance_criteria", "scopes", "signals", "estimate_minutes", "uncertainties",
-  "dependencies", "decision", "partitions", "approval", "actuals", "checkpoints", "policy_bootstrap",
+  "dependencies", "decision", "partitions", "approval", "actuals", "policy_bootstrap",
   "bootstrap_exemption_rationale", "bootstrap_authorization",
 ];
 const SIGNAL_KEYS = [
@@ -70,13 +70,16 @@ function isPlainObject(value) {
   return prototype === Object.prototype || prototype === null;
 }
 
-function object(value, path, keys) {
+function object(value, path, keys, { optional = [] } = {}) {
   if (!isPlainObject(value)) fail("UNSAFE_OBJECT", path, `${path} must be a plain object`);
   for (const key of keys) {
     if (!Object.hasOwn(value, key)) fail("MISSING_PROPERTY", `${path}.${key}`, `${path}.${key} is required`);
   }
+  // CHG-037: `optional` keys are ACCEPTED but not required — the shape stays closed
+  // (an unlisted key is still refused), it simply tolerates a field history recorded
+  // and new artifacts no longer emit.
   for (const key of Object.keys(value)) {
-    if (!keys.includes(key)) fail("UNKNOWN_PROPERTY", `${path}.${key}`, `${path}.${key} is not allowed`);
+    if (!keys.includes(key) && !optional.includes(key)) fail("UNKNOWN_PROPERTY", `${path}.${key}`, `${path}.${key} is not allowed`);
   }
 }
 
@@ -159,37 +162,13 @@ function validateActualsShape(value, path) {
   string(value.root_cause, `${path}.root_cause`, { nullable: true });
 }
 
-function validateCheckpointPolicy(checkpoints) {
-  let previousElapsed = -1;
-  let completionObserved = false;
-  checkpoints.forEach((checkpoint, index) => {
-    const path = `$.checkpoints[${index}]`;
-    if (checkpoint.elapsed_minutes <= previousElapsed) {
-      fail("WR_CHECKPOINT_ORDER", `${path}.elapsed_minutes`, "Checkpoint elapsed minutes must be strictly increasing");
-    }
-    previousElapsed = checkpoint.elapsed_minutes;
-    if (completionObserved && !checkpoint.implementation_complete) {
-      fail("WR_CHECKPOINT_COMPLETION_REGRESSION", `${path}.implementation_complete`, "Checkpoint completion cannot regress from complete to incomplete");
-    }
-    completionObserved ||= checkpoint.implementation_complete;
-    if (checkpoint.elapsed_minutes === 45 && !["on_track", "variance"].includes(checkpoint.status)) {
-      fail("WR_CHECKPOINT_STATUS_INVALID", `${path}.status`, "The 45-minute checkpoint must be on_track or variance");
-    }
-  });
-  const latest = checkpoints.at(-1);
-  if (latest === undefined) return { partitionRequired: false };
-  if (latest.elapsed_minutes >= 45 && !latest.implementation_complete && checkpoints[0].elapsed_minutes !== 45) {
-    fail("WR_CHECKPOINT_45_REQUIRED", "$.checkpoints[0].elapsed_minutes", "Incomplete execution at or after 45 minutes requires the exact 45-minute checkpoint first");
-  }
-  if (latest.elapsed_minutes >= 90 && !latest.implementation_complete
-    && (latest.elapsed_minutes !== 90 || latest.status !== "partition_required")) {
-    fail("WR_CHECKPOINT_PARTITION_REQUIRED", `$.checkpoints[${checkpoints.length - 1}].status`, "Incomplete implementation at 90 minutes must stop at an exact partition_required checkpoint");
-  }
-  return { partitionRequired: latest.elapsed_minutes === 90 && !latest.implementation_complete && latest.status === "partition_required" };
-}
-
 function validateShape(value) {
-  object(value, "$", value.policy_bootstrap === true ? TOP_LEVEL_KEYS : [...TOP_LEVEL_KEYS, "controlling_change"]);
+  // CHG-037 §3: `checkpoints` is OPTIONAL — dropped from new artifacts, tolerated
+  // where history already recorded it. Listing it keeps `object()`'s closed-key
+  // check from rejecting the artifacts that still carry it.
+  object(value, "$",
+    value.policy_bootstrap === true ? TOP_LEVEL_KEYS : [...TOP_LEVEL_KEYS, "controlling_change"],
+    { optional: ["checkpoints"] });
   if (value.schema_version !== 1) fail("UNSUPPORTED_SCHEMA_VERSION", "$.schema_version", "Only schema version 1 is supported");
   if (typeof value.readiness_payload_sha256 !== "string" || !/^[0-9a-f]{64}$/u.test(value.readiness_payload_sha256)) fail("INVALID_SHA256", "$.readiness_payload_sha256", "Root digest must be lowercase SHA-256");
   validateWorkId(value.work_id, "$.work_id");
@@ -260,16 +239,9 @@ function validateShape(value) {
   string(value.approval.evidence, "$.approval.evidence", { nullable: true });
   if (typeof value.approval.payload_sha256 !== "string" || !/^[0-9a-f]{64}$/u.test(value.approval.payload_sha256)) fail("INVALID_SHA256", "$.approval.payload_sha256", "Approval digest must be lowercase SHA-256");
   if (value.actuals !== null) validateActualsShape(value.actuals, "$.actuals");
-  array(value.checkpoints, "$.checkpoints");
-  value.checkpoints.forEach((item, index) => {
-    const path = `$.checkpoints[${index}]`;
-    object(item, path, ["elapsed_minutes", "status", "implementation_complete", "evidence"]);
-    integer(item.elapsed_minutes, `${path}.elapsed_minutes`);
-    oneOf(item.status, ["on_track", "variance", "partition_required"], `${path}.status`);
-    if (typeof item.implementation_complete !== "boolean") fail("INVALID_TYPE", `${path}.implementation_complete`, `${path}.implementation_complete must be boolean`);
-    string(item.evidence, `${path}.evidence`);
-  });
-  validateCheckpointPolicy(value.checkpoints);
+  // CHG-037: legacy field, accepted and ignored. Must still be an array so a
+  // malformed artifact is still a malformed artifact.
+  if (Object.hasOwn(value, "checkpoints")) array(value.checkpoints, "$.checkpoints");
   if (typeof value.policy_bootstrap !== "boolean") fail("INVALID_TYPE", "$.policy_bootstrap", "policy_bootstrap must be boolean");
   string(value.bootstrap_exemption_rationale, "$.bootstrap_exemption_rationale", { nullable: true });
   if (!value.policy_bootstrap && value.controlling_change !== null) {
@@ -327,11 +299,6 @@ function uncertaintyBlocks(value) {
   return value.uncertainties.some((item) => item.status === "unresolved" || item.resolution === null || item.estimate_impact_minutes === null);
 }
 
-function checkpointRequiresPartition(value) {
-  const latest = value.checkpoints.at(-1);
-  return latest?.elapsed_minutes === 90 && latest.status === "partition_required" && !latest.implementation_complete;
-}
-
 export function classifyAssessment(value) {
   validateShape(value);
   if (value.policy_bootstrap) {
@@ -342,7 +309,6 @@ export function classifyAssessment(value) {
     return "ready";
   }
   if (blockingViolation(value)) return "blocked";
-  if (checkpointRequiresPartition(value)) return "partition_required";
   return hardLimitViolation(value) ? "partition_required" : "ready";
 }
 
@@ -831,41 +797,6 @@ function terminalDoneIndex(records, value, terminalProjection = buildTerminalPro
   return records.findIndex((record, index) => index > afterIndex && record.story === value.work_id && terminalProjection.terminalIndices.has(index));
 }
 
-function terminalCompletionSolelySupersedesCheckpoint(value, records) {
-  const selectedApproval = approvalIndex(records, value);
-  if (selectedApproval < 0) return false;
-  let lastStopIndex = -1;
-  for (let index = selectedApproval + 1; index < records.length; index += 1) {
-    const record = records[index];
-    if (record.story !== value.work_id) continue;
-    if (record.event === "checkpoint" && record.status === "partition_required") {
-      lastStopIndex = index;
-      continue;
-    }
-    if (record.event === "decision" || REVOCATION_EVENTS.has(record.event)) return false;
-  }
-  if (lastStopIndex < 0) return false;
-  const projection = buildTerminalProjection(records, value.work_id);
-  const effectiveTerminalIndex = terminalDoneIndex(records, value, projection);
-  return effectiveTerminalIndex > lastStopIndex;
-}
-
-function hasBootstrapCheckpointDeviation(value, feedbackRecords, doneIndex, implementationMinutes) {
-  if (!value.policy_bootstrap) return false;
-  const approval = approvalIndex(feedbackRecords, value);
-  const matches = feedbackRecords.map((record, index) => ({ record, index })).filter(({ record, index }) =>
-    index > approval && index < doneIndex
-    && record.story === "CHG-022" && record.event === "deviation"
-    && Object.keys(record).sort().join(",") === "control,corrective_action,event,notes,observed_implementation_minutes,reason,story");
-  if (matches.length !== 1) return false;
-  const { record } = matches[0];
-  return record.control === "45/90-minute-checkpoints"
-    && record.observed_implementation_minutes === implementationMinutes
-    && typeof record.reason === "string" && /\S/u.test(record.reason)
-    && typeof record.corrective_action === "string" && /\S/u.test(record.corrective_action)
-    && typeof record.notes === "string" && /\S/u.test(record.notes);
-}
-
 export function validateCompletionActuals(value, feedbackRecords) {
   feedbackArray(feedbackRecords);
   const terminalProjection = buildTerminalProjection(feedbackRecords, value.work_id);
@@ -883,20 +814,10 @@ export function validateCompletionActuals(value, feedbackRecords) {
   if (value.actuals.total !== total) fail("ACTUALS_TOTAL_MISMATCH", "$.actuals.total", "Actual total must equal the five actual phase values");
   const variance = total - value.estimate_minutes.total;
   if (value.actuals.estimate_variance_minutes !== variance) fail("ACTUALS_VARIANCE_MISMATCH", "$.actuals.estimate_variance_minutes", "Estimate variance must equal actual total minus estimated total");
-  const implementationMinutes = value.actuals.phase_minutes.implementation;
-  const has45 = value.checkpoints.some((checkpoint) => checkpoint.elapsed_minutes === 45);
-  const has90Stop = value.checkpoints.some((checkpoint) => checkpoint.elapsed_minutes === 90
-    && checkpoint.status === "partition_required" && !checkpoint.implementation_complete);
-  const missedRequiredControl = (implementationMinutes >= 45 && !has45) || (implementationMinutes >= 90 && !has90Stop);
-  if (missedRequiredControl && value.policy_bootstrap) {
-    if (!hasBootstrapCheckpointDeviation(value, feedbackRecords, doneIndex, implementationMinutes)) {
-      fail("WR_BOOTSTRAP_CHECKPOINT_DEVIATION_REQUIRED", "$.checkpoints", "The one-time bootstrap must record one exact corrective deviation instead of fabricating missed 45/90 controls");
-    }
-  } else if (implementationMinutes >= 45 && !has45) {
-    fail("WR_CHECKPOINT_45_REQUIRED", "$.checkpoints", "Terminal implementation actuals at or beyond 45 minutes require the exact 45-minute control");
-  } else if (implementationMinutes >= 90 && !has90Stop) {
-    fail("WR_CHECKPOINT_PARTITION_REQUIRED", "$.checkpoints", "Terminal implementation actuals at or beyond 90 minutes require the exact partition stop");
-  }
+  // CHG-037 §2: actuals no longer have to evidence 45/90-minute controls. The
+  // gate demanded a checkpoint for every long phase, which is why the bootstrap
+  // needed a "corrective deviation" escape to avoid fabricating controls it never
+  // took. Both the demand and the escape are gone.
   const attempts = value.actuals.cold_mutation_attempts;
   if (attempts === 0 && value.signals.expected_mutation_shards > 0) {
     fail("WR_MUTATION_COLD_REQUIRED", "$.actuals.cold_mutation_attempts", "At least one authoritative cold campaign is required when mutation shards are approved");
@@ -910,35 +831,16 @@ export function validateCompletionActuals(value, feedbackRecords) {
   return { complete: true, total, variance };
 }
 
-function validateCheckpointEvidence(value, feedbackRecords) {
-  const checkpointFeedback = feedbackRecords.map((record, index) => ({ record, index }))
-    .filter(({ record }) => record.story === value.work_id && record.event === "checkpoint");
-  checkpointFeedback.forEach(({ record, index }) => {
-    const canonical = Object.keys(record).sort().join(",") === "elapsed_minutes,event,evidence,implementation_complete,status,story"
-      && Number.isInteger(record.elapsed_minutes) && record.elapsed_minutes >= 0
-      && ["on_track", "variance", "partition_required"].includes(record.status)
-      && typeof record.implementation_complete === "boolean"
-      && typeof record.evidence === "string" && /\S/u.test(record.evidence);
-    if (!canonical) {
-      fail("WR_CHECKPOINT_EVIDENCE_INVALID", `$.feedbackRecords[${index}]`, "Checkpoint feedback must use the exact closed canonical shape and field types");
-    }
-  });
-  const canonicalFeedback = checkpointFeedback.map(({ record }) => record);
-  value.checkpoints.forEach((checkpoint, index) => {
-    const matches = canonicalFeedback.filter((record) => record.story === value.work_id
-      && record.elapsed_minutes === checkpoint.elapsed_minutes
-      && record.status === checkpoint.status
-      && record.implementation_complete === checkpoint.implementation_complete
-      && record.evidence === checkpoint.evidence);
-    if (matches.length !== 1) {
-      fail("WR_CHECKPOINT_EVIDENCE_MISMATCH", `$.checkpoints[${index}]`, "Each artifact checkpoint requires one exact canonical feedback record");
-    }
-  });
-  if (canonicalFeedback.length !== value.checkpoints.length) {
-    fail("WR_CHECKPOINT_EVIDENCE_MISMATCH", "$.checkpoints", "Canonical checkpoint feedback and artifact checkpoints must have exact bijective cardinality");
-  }
-}
-
+// CHG-037 §2/§3 — the checkpoint machinery is gone: validateCheckpointPolicy (the
+// 45/90-minute policy), checkpointRequiresPartition, validateCheckpointEvidence,
+// terminalCompletionSolelySupersedesCheckpoint and hasBootstrapCheckpointDeviation.
+// It produced 2 feedback events in 547, and both stopped work at a point the task
+// structure did not choose.
+//
+// `checkpoints` remains an ACCEPTED but unvalidated artifact key. One artifact records
+// two real checkpoint events, and the closed-key shape check would reject it outright
+// if the key were dropped — the same history-preserving reasoning as CHG-036's optional
+// attestation keys. `init` no longer emits it for new artifacts.
 export function validateAssessment(value, { feedbackRecords = [] } = {}) {
   validateShape(value);
   feedbackArray(feedbackRecords);
@@ -949,12 +851,8 @@ export function validateAssessment(value, { feedbackRecords = [] } = {}) {
     if (value.bootstrap_authorization !== null) fail("INVALID_BOOTSTRAP", "$.bootstrap_authorization", "Normal work cannot carry bootstrap authorization");
   }
   validatePartitionGraph(value);
-  validateCheckpointEvidence(value, feedbackRecords);
   const completion = validateCompletionActuals(value, feedbackRecords);
-  let computedDecision = value.policy_bootstrap ? "ready" : classifyAssessment(value);
-  if (completion.complete && checkpointRequiresPartition(value)) {
-    computedDecision = blockingViolation(value) ? "blocked" : hardLimitViolation(value) ? "partition_required" : "ready";
-  }
+  const computedDecision = value.policy_bootstrap ? "ready" : classifyAssessment(value);
   if (computedDecision !== value.decision) {
     const violation = computedDecision === "blocked" ? blockingViolation(value) : hardLimitViolation(value);
     if (value.decision === "ready" && violation) fail(violation[0], `$.${violation[1]}`, violation[2]);
@@ -962,18 +860,9 @@ export function validateAssessment(value, { feedbackRecords = [] } = {}) {
   }
   if (value.decision === "ready" && value.partitions.length !== 0) fail("PARTITIONS_NOT_ALLOWED", "$.partitions", "Ready normal work cannot contain partitions");
   if (value.decision === "partition_required" && value.partitions.length === 0) fail("PARTITIONS_REQUIRED", "$.partitions", "Partition-required work must propose at least one child");
-  let authorization;
-  try {
-    authorization = validateApproval(value, feedbackRecords);
-  } catch (error) {
-    if (completion.complete && checkpointRequiresPartition(value)
-      && terminalCompletionSolelySupersedesCheckpoint(value, feedbackRecords)
-      && error instanceof WorkReadinessError && error.code === "WR_APPROVAL_INACTIVE") {
-      authorization = { active: false, inactiveReason: "terminal" };
-    } else {
-      throw error;
-    }
-  }
+  // CHG-037 §3: the checkpoint-supersession escape hatch went with the clock —
+  // it existed so a terminal completion could override a 90-minute partition stop.
+  const authorization = validateApproval(value, feedbackRecords);
   if (value.decision === "ready" && !authorization.active && !completion.complete) {
     fail("WR_APPROVAL_INACTIVE", "$.approval.evidence", "Inactive ready authorization requires valid terminal completion actuals");
   }
