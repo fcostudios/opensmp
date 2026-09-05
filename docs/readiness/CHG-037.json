@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "dd6e9696c5a6d3dce8e79d63d39044a84512b404c24b69600c8fcef446f53453",
+  "work_id": "CHG-037",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Replace the wall-clock lock with a task-boundary self-report and collapse to one ledger",
+  "source": "docs/changes/CHG-037-retire-checkpoint-clock.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "No git-timestamp checkpoint can force a stop disconnected from task structure, and the artifact no longer carries a checkpoints[] array that must byte-match the feedback log.",
+      "demo": "A work item whose commits span more than 90 minutes of git time passes check-staged; the artifact schema no longer accepts checkpoints[], and no WR_CHECKPOINT_* or WR_EXECUTION_ANCHOR_* code is reachable."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC5",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling",
+    "infra"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 2,
+    "expected_changed_files": 5,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 1,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 15,
+    "implementation": 60,
+    "focused_verification": 30,
+    "review": 10,
+    "integration": 5,
+    "total": 120
+  },
+  "uncertainties": [
+    {
+      "id": "U3",
+      "status": "resolved",
+      "statement": "Whether the clock removal and the dual-ledger collapse can be separate children.",
+      "estimate_impact_minutes": 30,
+      "resolution": "They cannot be separated safely \u2014 the artifact side mirrors the clock, so landing the clock removal alone leaves three checkpoint validators dead-but-passing. Declared as one child."
+    },
+    {
+      "id": "U5",
+      "status": "resolved",
+      "statement": "Whether WR_FEEDBACK_HISTORY_MUTATED is bijection machinery, as the parent design states.",
+      "estimate_impact_minutes": 15,
+      "resolution": "It is not. validateFeedbackHistoryTransition (git.mjs:306) is a pure byte-prefix append-only guard on .nous-feedback.jsonl and never reads the artifact side. It stays; removing it would leave the surviving single ledger silently rewritable."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG037-READY",
+    "payload_sha256": "dd6e9696c5a6d3dce8e79d63d39044a84512b404c24b69600c8fcef446f53453"
+  },
+  "actuals": null,
+  "checkpoints": [],
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
