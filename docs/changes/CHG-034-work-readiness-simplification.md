@@ -248,7 +248,43 @@ than ceremony. The actual
 number is measured when the technical CHG(s) executing this design land, and
 `docs/dev-guide/WORK_READINESS.md` is rewritten to describe only what remains.
 
-## Rollout
+## Rollout — as executed
+
+All four children landed 2026-09-05, in the design's order.
+
+**Divergence from the plan below: CHG-035 did NOT land first.** The plan sequences
+the budget re-baseline (120 → 320) ahead of this CHG so its children can be
+approved "without artificial partition". That was not needed — CHG-034 totals 495
+minutes, so it partitions under either budget, and each child was sized under 120
+independently. CHG-035 remains `accepted` and unstarted. Had it landed first, the
+four children could have been re-partitioned into fewer, larger ones.
+
+| child | scope | codes removed | commit |
+|---|---|---:|---|
+| **CHG-036** | retire Ed25519 signing | 5 | `fbfbe06` |
+| **CHG-037** | retire the wall clock + collapse the dual ledger | 12 | `526b483` |
+| **CHG-038** | collapse ten git-plumbing codes into `WR_GIT_ERROR` | 9 net | `ef780ce` |
+| **CHG-039** | one code spelling, so the set is countable (re-scoped) | 0 | `3f622fc` |
+
+**Measured** (canonical census per §0.1 — codes raised by enforcement, both
+spellings normalised):
+
+| | start | end |
+|---|---:|---:|
+| codes raised by enforcement | 113 | **87** |
+| total subsystem LOC | 8,060 | **7,483** |
+| implementation LOC | 2,775 | **2,484** |
+| behavioural tests | 188 | **175** |
+
+The "Net expected shape" target above (15–20 codes, low hundreds of
+implementation lines) was **not** met, and was not reachable by these four cuts.
+Most of the remaining 87 codes are the artifact contract's own shape-validation
+vocabulary — `WR_MISSING_PROPERTY`, `WR_INVALID_TYPE`, `WR_UNKNOWN_PROPERTY` and
+their kin — not ceremony. What the cuts removed is exactly what the design
+identified: signing, the clock, the bijection, and a redundant error taxonomy.
+The estimate was made before anyone had counted what the remainder consisted of.
+
+### Original plan
 
 1. **CHG-035 lands first** (budget re-baseline 120 → 320, calibrated by
    IMP-374; filed 2026-09-05) so this CHG's children can be approved without
