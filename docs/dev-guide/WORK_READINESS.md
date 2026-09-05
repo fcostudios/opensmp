@@ -94,56 +94,52 @@ after an assessment edit. An agent may author an assessment but cannot claim
 user approval without matching digest-bound evidence.
 
 For each non-bootstrap item, `approved_by` is non-empty and the selected
-decision is this exact closed ten-field Ed25519 attestation (no other fields):
+decision is a `.nous-feedback.jsonl` `decision` event of this shape:
 
 ```json
-{"story":"US-123","event":"decision","id":"US123-READY","text":"Decision ready for readiness payload SHA-256 <64 lowercase hex>.","reason":"Approved assessment","approved_by":"human identity","subject_work_id":"US-123","relationship":"self","key_id":"nous-prod-2026q3","signature":"<canonical Base64>"}
+{"story":"US-123","event":"decision","id":"US123-READY","text":"Decision ready for readiness payload SHA-256 <64 lowercase hex>.","reason":"Approved assessment","approved_by":"human identity","subject_work_id":"US-123","relationship":"self"}
 ```
 
-To form the signed bytes, omit only `signature`, recursively sort object keys
-lexicographically, serialize with JavaScript `JSON.stringify`, and prepend the
-literal domain separator `ledger-work-readiness-approval-v1\n`. UTF-8 encode
-that complete string, sign it with Ed25519, and encode the exact 64-byte
-signature as canonical RFC 4648 Base64 (including required padding). Thus the
-signature binds `approved_by`, `event`, `id`, `key_id`, `reason`,
-`relationship`, `story`, `subject_work_id`, and the exact `text` containing the
-decision and digest.
+Every one of those eight fields is required, and each binds something the gate
+relies on:
 
-Nous (or another independently controlled human-approval service) owns the
-private key and emits this signed event only after the human decision. The
-repository CLI deliberately has no signing command; a local coding agent must
-never possess or invoke the production signer. Verification reads a protected
-JSON object from `WORK_READINESS_APPROVAL_KEYS_JSON`, mapping each `key_id` to
-one Node.js-compatible Ed25519 SPKI public key in PEM form, for example
-`{"nous-prod-2026q3":"-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"}`.
-Missing, malformed, unknown, non-Ed25519, or invalid trust fails closed.
+| field | what it binds |
+|---|---|
+| `text` | the decision (`ready` / `partition_required` / `blocked`) **and the exact digest** — this is the tamper-evidence |
+| `approved_by` | the human on record; must equal the artifact's `approval.approved_by` |
+| `subject_work_id` | which work item is approved |
+| `relationship` | `self`, or `controlling_change` when a CHG approves a story |
+| `story`, `id`, `event`, `reason` | ledger identity and the reason on record |
 
-Provision that public-key map explicitly in every protected CI/range-gate
-environment; GitHub variables and secrets are not injected automatically.
-The current `.github/workflows/ci.yml` does not inject it and is outside the
-immutable CHG-022 bootstrap path set. Therefore a separately approved CHG must
-provision the protected variable/workflow before the first normal signed work
-item; until then normal approval is intentionally blocked.
+**Ed25519 signing was retired by CHG-034 §1.** There is no `key_id`, no
+`signature`, no `WORK_READINESS_APPROVAL_KEYS_JSON` trust map, no key
+rotation/revocation policy, and no signing service. That machinery was
+separation-of-duties infrastructure for a threat model this project does not
+have — one human approver, no adversarial second party — and it never defended
+against the failure it was meant to prevent: two unsound estimates (US-056,
+US-058) both returned `ready` because the gate compares a *declared* number
+against a limit and cannot know the number is wrong.
 
-The verification trust set is append-only: add each rotated public key under a
-new `key_id`, and retain every previously trusted public key because immutable
-feedback and readiness history may still reference it. Old keys must remain
-available for historical verification even after their signing service stops
-using them. A compromised key cannot simply be removed without making history
-unverifiable. Handling compromise requires a separately approved
-cutoff/revocation policy that binds an exact key ID and repository commit or
-trusted time boundary, rejects signatures authorized after that cutoff, and
-defines reapproval/revalidation of affected work. That policy and CI public-key
-provisioning are explicit follow-up blockers, not capabilities delivered by
-CHG-022. Never commit a production-trusted private key or trust a committed
-test key or agent-authored field.
+What still makes a decision tamper-evident is the digest binding, which is
+unchanged: `readiness_payload_sha256` is recomputed from the artifact's own
+bytes, and a decision naming a stale digest cannot authorize an edited
+assessment.
+
+**Historical records stay readable.** The ledger holds 62 `decision` events —
+20 carrying the old `key_id`/`signature` fields and 42 without. Both validate:
+those two fields are accepted where present and verified nowhere. No re-signing,
+no migration, and no old key needs to be retained, because there is no future
+signature that could ever need one.
+
+Never commit a private key or trust an agent-authored approval field.
 
 Cross-item approval requires a digest-covered `controlling_change` naming one
 exact official CHG, `relationship: "readiness_governance"`, and a reason. The
-signed event names the subject and uses `relationship:
+decision event names the subject and uses `relationship:
 "controlling_change"`; otherwise the relationship is `self` and the story
-equals the subject. The immutable CHG-022 V2 bootstrap is the only unsigned
-legacy exception and retains its exact digest, provenance, paths, and expiry.
+equals the subject. The immutable CHG-022 V2 bootstrap remains a legacy
+exception exempt from the `approved_by`/`subject_work_id` binding, and retains
+its exact digest, provenance, paths, and expiry.
 
 Assessment/design/feedback-only commits may be made while approval is pending.
 Implementation-class changes require every referenced work ID to be approved

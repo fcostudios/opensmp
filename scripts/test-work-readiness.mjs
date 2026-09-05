@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
-import { createHash, createPrivateKey, sign as signBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { chmodSync, constants as fsConstants, existsSync, fsyncSync as nodeFsyncSync, mkdtempSync, mkdirSync, openSync as nodeOpenSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -11,7 +11,6 @@ import { pathToFileURL } from "node:url";
 
 import {
   WorkReadinessError,
-  canonicalApprovalAttestation,
   canonicalReadinessPayload,
   classifyAssessment,
   computeReadinessPayloadSha256,
@@ -29,14 +28,6 @@ import {
 } from "./work-readiness/git.mjs";
 import { createAssessmentFile, readCanonicalMessageFile } from "./work-readiness.mjs";
 
-const TEST_APPROVAL_KEY_ID = "nous-test-ed25519";
-const TEST_APPROVAL_PRIVATE_KEY = createPrivateKey(`-----BEGIN PRIVATE KEY-----
-MC4CAQAwBQYDK2VwBCIEIJ1hsZ3v/VpguoRK9JLsLMREScVpezJpGXA7rAMcrn9g
------END PRIVATE KEY-----`);
-const TEST_APPROVAL_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=
------END PUBLIC KEY-----`;
-process.env.WORK_READINESS_APPROVAL_KEYS_JSON = JSON.stringify({ [TEST_APPROVAL_KEY_ID]: TEST_APPROVAL_PUBLIC_KEY });
 
 const bootstrap = JSON.parse(
   await readFile(new URL("../docs/readiness/CHG-022.json", import.meta.url), "utf8"),
@@ -123,17 +114,37 @@ function refreshDigest(value) {
   return value;
 }
 
+// CHG-034 §1 — was `attestDecision`: built a record and Ed25519-signed it.
+// Signing is retired, but this still emits the HISTORICAL 10-key shape on
+// purpose: 20 of the ledger's 62 decision records look like this, and the
+// optional-attestation-keys contract that keeps them readable needs an oracle.
+// `legacyDecision()` below covers the 42 five-key records.
 function attestDecision(record) {
-  const attested = {
+  return {
     ...record,
     approved_by: record.approved_by ?? "user",
     subject_work_id: record.subject_work_id ?? record.story,
     relationship: record.relationship ?? "self",
-    key_id: TEST_APPROVAL_KEY_ID,
-    signature: "",
+    key_id: "nous-historical-ed25519",
+    signature: "A".repeat(86) + "==",
   };
-  attested.signature = signBytes(null, Buffer.from(canonicalApprovalAttestation(attested), "utf8"), TEST_APPROVAL_PRIVATE_KEY).toString("base64");
-  return attested;
+}
+
+// The shape a NEW decision takes now that signing is gone: everything except
+// `key_id` and `signature`.
+//
+// §1's prose said to cut "approved_by/key_id/relationship Ed25519 attestation",
+// but three of those five fields are BINDING, not ceremony, and the approval
+// path still requires them (model.mjs:782-789):
+//   approved_by      → WR_APPROVER_MISMATCH        ("What stays" item 3: the
+//                       recorded human decision binds to the artifact)
+//   subject_work_id  → APPROVAL_STORY_MISMATCH     (which work item this approves)
+//   relationship     → WR_APPROVAL_CONTROL_MISMATCH (self vs controlling-CHG —
+//                       how a CHG approves a story, "What stays" item 4)
+// Only `key_id` and `signature` are the ceremony, and only those two go.
+function currentDecision(record) {
+  const { key_id: _k, signature: _g, ...rest } = attestDecision(record);
+  return rest;
 }
 
 function decisionFor(value, overrides = {}) {
@@ -188,22 +199,6 @@ test("schema structure and runtime preserve bootstrap while requiring normal con
     delete missing.controlling_change;
     expectError("WR_MISSING_PROPERTY", "$.controlling_change", () => validateAssessment(missing, { feedbackRecords: [decisionFor(missing)] }));
   }
-});
-
-test("approval guide preserves the external signer wire and provisioning contract", () => {
-  for (const required of [
-    "exact closed ten-field Ed25519 attestation",
-    "ledger-work-readiness-approval-v1\\n",
-    "canonical RFC 4648 Base64",
-    "Ed25519 SPKI public key in PEM form",
-    "repository CLI deliberately has no signing command",
-    "does not inject it and is outside the",
-    "immutable CHG-022 bootstrap path set",
-    "verification trust set is append-only",
-    "retain every previously trusted public key",
-    "historical verification even after",
-    "cutoff/revocation policy",
-  ]) assert.ok(workReadinessGuide.includes(required), required);
 });
 
 test("canonical payload recursively sorts objects, preserves arrays, and excludes mutable fields", () => {
@@ -480,24 +475,60 @@ test("normal ready approval requires a non-empty human approver", () => {
   expectError("WR_APPROVER_REQUIRED", "$.approval.approved_by", () => validateApproval(value, [decisionFor(value)]));
 });
 
-test("a self-authored digest-bound decision is not trusted approval", () => {
+// CHG-034 §1 — replaces "a self-authored digest-bound decision is not trusted
+// approval" and "approval signatures fail closed for missing trust and
+// tampering". Both asserted the signing ceremony; both are now removed
+// behaviour, and a suite that still exercised them would be theatre.
+//
+// What replaces them is the contract that actually has to hold: BOTH ledger
+// shapes validate, and neither is cryptographically checked. This is the
+// assertion that would have failed had §1 been implemented as the flag flip the
+// design's prose implied — the 5-key path alone would have rejected all 20
+// historical signed records.
+test("both historical (signed) and current (unsigned) decision shapes validate", () => {
+  // Guards the §1 correction: the design's prose read as a flag flip, but the
+  // shape check is exact-length, so flipping it would have rejected all 20
+  // historical signed records. Both shapes must pass, and neither is verified.
   const value = normal();
-  const signed = decisionFor(value);
-  const forged = Object.fromEntries(["story", "event", "id", "text", "reason"].map((key) => [key, signed[key]]));
-  expectError("WR_APPROVAL_ATTESTATION_REQUIRED", "$.approval.evidence", () => validateApproval(value, [forged]));
+  assert.equal(validateAssessment(value, { feedbackRecords: [decisionFor(value)] }).decision, "ready");
+  assert.equal(
+    validateAssessment(value, { feedbackRecords: [currentDecision(decisionFor(value))] }).decision,
+    "ready",
+    "an unsigned decision must be accepted — it is the shape every new decision takes",
+  );
 });
 
-test("approval signatures fail closed for missing trust and tampering", () => {
+test("a leftover attestation key is shape-checked but never verified", () => {
   const value = normal();
-  const decision = decisionFor(value);
+  const historical = decisionFor(value);
+  // Garbage signature: pre-CHG-034 this failed WR_APPROVAL_ATTESTATION_INVALID.
+  // Now it is simply not consulted — the digest binding is the tamper-evidence.
+  assert.equal(
+    validateAssessment(value, { feedbackRecords: [{ ...historical, signature: "not-a-signature" }] }).decision,
+    "ready",
+  );
+  // But an EMPTY one is still a malformed record, not a silently-ignored field.
+  expectError("WR_APPROVAL_EVIDENCE_INVALID", "$.approval.evidence",
+    () => validateApproval(value, [{ ...historical, key_id: "   " }]));
+});
+
+test("the recorded human approver still binds the artifact to its decision", () => {
+  // "What stays" item 3. Signing went; the human decision on record did not.
+  const value = normal();
+  const wrongApprover = { ...currentDecision(decisionFor(value)), approved_by: "someone-else" };
+  expectError("WR_APPROVER_MISMATCH", "$.approval.approved_by", () => validateApproval(value, [wrongApprover]));
+});
+
+test("no signing trust map is consulted anywhere", () => {
+  const value = normal();
   const trust = process.env.WORK_READINESS_APPROVAL_KEYS_JSON;
   delete process.env.WORK_READINESS_APPROVAL_KEYS_JSON;
   try {
-    expectError("WR_APPROVAL_TRUST_UNAVAILABLE", "$.approval.evidence", () => validateApproval(value, [decision]));
+    assert.equal(validateAssessment(value, { feedbackRecords: [decisionFor(value)] }).decision, "ready");
   } finally {
-    process.env.WORK_READINESS_APPROVAL_KEYS_JSON = trust;
+    if (trust === undefined) delete process.env.WORK_READINESS_APPROVAL_KEYS_JSON;
+    else process.env.WORK_READINESS_APPROVAL_KEYS_JSON = trust;
   }
-  expectError("WR_APPROVAL_ATTESTATION_INVALID", "$.approval.evidence", () => validateApproval(value, [{ ...decision, signature: `${"A".repeat(84)}==` }]));
 });
 
 test("a controlling CHG can approve only an explicitly digest-bound subject", () => {
@@ -1649,6 +1680,11 @@ test("a forged approval commit cannot authorize a later plan and implementation 
     const activation = git(root, ["rev-parse", "HEAD"]);
     const value = approvedArtifact("US-123");
     const signed = decisionFor(value);
+    // CHG-034 §1: the "forgery" is a decision stripped to its 5 core keys. Before
+    // the cut it was refused for lacking a signature; it is STILL refused, now
+    // because it binds no approver to the artifact (WR_APPROVER_MISMATCH). The
+    // guard survives the cut — only the reason it gives changed, and the new
+    // reason is the one "What stays" item 3 actually cares about.
     const forged = Object.fromEntries(["story", "event", "id", "text", "reason"].map((key) => [key, signed[key]]));
     const prior = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
     writeRepoFile(root, `docs/readiness/${value.work_id}.json`, `${JSON.stringify(value, null, 2)}\n`);
@@ -1661,7 +1697,7 @@ test("a forged approval commit cannot authorize a later plan and implementation 
     writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
     git(root, ["add", "apps/web/src/app/page.tsx"]);
     git(root, ["commit", "--no-verify", "-m", "feat(US-123): implement forged approval"]);
-    expectError("WR_APPROVAL_ATTESTATION_REQUIRED", "$.approval.evidence", () => validateRangeOwnership({ root, base: activation, head: "HEAD" }));
+    expectError("WR_APPROVER_MISMATCH", "$.approval.approved_by", () => validateRangeOwnership({ root, base: activation, head: "HEAD" }));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -1,4 +1,4 @@
-import { createHash, createPublicKey, verify as verifySignature } from "node:crypto";
+import { createHash } from "node:crypto";
 
 const TOP_LEVEL_KEYS = [
   "schema_version", "readiness_payload_sha256", "work_id", "kind", "work_type", "title", "source",
@@ -479,84 +479,54 @@ function readinessTokens(text) {
   };
 }
 
-const ATTESTED_DECISION_KEYS = [
-  "story", "event", "id", "text", "reason", "approved_by", "subject_work_id",
-  "relationship", "key_id", "signature",
-];
+// CHG-034 §1 — Ed25519 signing retired.
+//
+// What went: `approvalAuthorities()` (the WORK_READINESS_APPROVAL_KEYS_JSON trust
+// map) and `verifyDecisionAttestation()` (key lookup + signature verification),
+// with their five codes: WR_APPROVAL_TRUST_{UNAVAILABLE,INVALID},
+// WR_APPROVAL_KEY_UNTRUSTED, WR_APPROVAL_ATTESTATION_{INVALID,REQUIRED}.
+// Separation-of-duties infrastructure for a threat model this project does not
+// have — one human approver, no adversarial second party — and it never defended
+// against the failure that actually occurred (unsound estimates, US-056/US-058).
+//
+// What stayed, and why it is not a flag flip: the ledger holds 62 decision
+// events in TWO shapes — 20 signed (10 keys) and 42 legacy (5 keys) — and this
+// function enforces an EXACT-LENGTH closed key set. Simply passing
+// `requireAttestation: false` would have made all 20 signed records fail the
+// 5-key match with WR_APPROVAL_EVIDENCE_INVALID, breaking every one of the 17
+// existing artifacts. So the attestation keys are now OPTIONAL-BUT-ACCEPTED:
+// present or absent both validate, and neither is cryptographically checked.
+// That is what keeps the already-signed history readable (success criterion 3)
+// without carrying its verification machinery forward.
+//
+// The digest binding (readiness_payload_sha256, "What stays" item 2) is
+// untouched and remains the tamper-evidence for every decision, old and new.
+const OPTIONAL_ATTESTATION_KEYS = ["approved_by", "subject_work_id", "relationship", "key_id", "signature"];
 
-export function canonicalApprovalAttestation(record) {
-  const payload = Object.fromEntries(ATTESTED_DECISION_KEYS
-    .filter((key) => key !== "signature")
-    .map((key) => [key, record[key]]));
-  return `ledger-work-readiness-approval-v1\n${JSON.stringify(canonicalize(payload))}`;
-}
-
-function approvalAuthorities() {
-  const encoded = process.env.WORK_READINESS_APPROVAL_KEYS_JSON;
-  if (typeof encoded !== "string" || encoded.length === 0) {
-    fail("WR_APPROVAL_TRUST_UNAVAILABLE", "$.approval.evidence", "No protected Nous approval public-key map is provisioned");
-  }
-  if (Buffer.byteLength(encoded, "utf8") > 32 * 1024) {
-    fail("WR_APPROVAL_TRUST_INVALID", "$.approval.evidence", "Approval public-key map exceeds 32 KiB");
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(encoded);
-  } catch {
-    fail("WR_APPROVAL_TRUST_INVALID", "$.approval.evidence", "Approval public-key map is not valid JSON");
-  }
-  if (!isPlainObject(parsed)) fail("WR_APPROVAL_TRUST_INVALID", "$.approval.evidence", "Approval public-key map must be an object");
-  return parsed;
-}
-
-function verifyDecisionAttestation(record) {
-  const authorities = approvalAuthorities();
-  if (!Object.hasOwn(authorities, record.key_id) || typeof authorities[record.key_id] !== "string") {
-    fail("WR_APPROVAL_KEY_UNTRUSTED", "$.approval.evidence", `Approval key ${record.key_id} is not trusted`);
-  }
-  let key;
-  let signature;
-  try {
-    key = createPublicKey(authorities[record.key_id]);
-    signature = Buffer.from(record.signature, "base64");
-  } catch {
-    fail("WR_APPROVAL_ATTESTATION_INVALID", "$.approval.evidence", "Approval attestation key or signature is malformed");
-  }
-  if (key.asymmetricKeyType !== "ed25519" || signature.length !== 64 || signature.toString("base64") !== record.signature) {
-    fail("WR_APPROVAL_ATTESTATION_INVALID", "$.approval.evidence", "Approval attestation must use canonical Ed25519");
-  }
-  if (!verifySignature(null, Buffer.from(canonicalApprovalAttestation(record), "utf8"), key, signature)) {
-    fail("WR_APPROVAL_ATTESTATION_INVALID", "$.approval.evidence", "Approval attestation signature is invalid");
-  }
-}
-
-function validateDecisionRecordShape(record, { requireAttestation = false } = {}) {
-  const keys = requireAttestation ? ATTESTED_DECISION_KEYS : ["story", "event", "id", "text", "reason"];
-  if (Object.keys(record).length !== keys.length || !keys.every((key) => Object.hasOwn(record, key))) {
-    const legacyKeys = ["story", "event", "id", "text", "reason"];
-    const isLegacy = Object.keys(record).length === legacyKeys.length && legacyKeys.every((key) => Object.hasOwn(record, key));
-    if (requireAttestation && isLegacy) fail("WR_APPROVAL_ATTESTATION_REQUIRED", "$.approval.evidence", "Normal approval decisions require a closed signed attestation");
+function validateDecisionRecordShape(record) {
+  const required = ["story", "event", "id", "text", "reason"];
+  const missing = required.filter((key) => !Object.hasOwn(record, key));
+  const unexpected = Object.keys(record)
+    .filter((key) => !required.includes(key) && !OPTIONAL_ATTESTATION_KEYS.includes(key));
+  if (missing.length > 0 || unexpected.length > 0) {
     fail("WR_APPROVAL_EVIDENCE_INVALID", "$.approval.evidence", "Approval decisions must use the closed feedback decision shape");
   }
   for (const key of ["story", "id", "text", "reason"]) {
     if (typeof record[key] !== "string" || !/\S/u.test(record[key])) fail("WR_APPROVAL_EVIDENCE_INVALID", "$.approval.evidence", `Prior decision ${key} must be non-empty`);
   }
   if (record.event !== "decision") fail("WR_APPROVAL_EVIDENCE_INVALID", "$.approval.evidence", "Prior approval evidence must be a decision event");
-  if (requireAttestation) {
-    for (const key of ["approved_by", "subject_work_id", "relationship", "key_id", "signature"]) {
-      if (typeof record[key] !== "string" || !/\S/u.test(record[key])) fail("WR_APPROVAL_ATTESTATION_REQUIRED", "$.approval.evidence", `Approval decision ${key} must be non-empty`);
+  // Historical signed records keep their shape checked — a malformed leftover
+  // attestation is still a malformed record — but nothing is verified against a key.
+  for (const key of OPTIONAL_ATTESTATION_KEYS) {
+    if (Object.hasOwn(record, key) && (typeof record[key] !== "string" || !/\S/u.test(record[key]))) {
+      fail("WR_APPROVAL_EVIDENCE_INVALID", "$.approval.evidence", `Prior decision ${key}, when present, must be non-empty`);
     }
-    if (!/^(?:US|CHG)-[0-9]{3,}$/u.test(record.subject_work_id)) fail("WR_APPROVAL_ATTESTATION_INVALID", "$.approval.evidence", "Approval subject must be an official work ID");
-    if (!/^[A-Za-z0-9._-]{1,128}$/u.test(record.key_id)) fail("WR_APPROVAL_ATTESTATION_INVALID", "$.approval.evidence", "Approval key ID is invalid");
-    if (!['self', 'controlling_change'].includes(record.relationship)) fail("WR_APPROVAL_ATTESTATION_INVALID", "$.approval.evidence", "Approval relationship is invalid");
-    verifyDecisionAttestation(record);
   }
 }
 
-function validatePriorDecisionRecord(record, seenIds, { allowLegacyReadiness = false } = {}) {
+function validatePriorDecisionRecord(record, seenIds) {
   const readinessLike = /\bDecision\s+(?:ready|partition_required|blocked)\b/iu.test(record.text) || /SHA-256\b/iu.test(record.text);
-  const bootstrapLegacy = record.story === "CHG-022" && record.id === BOOTSTRAP_EVIDENCE;
-  validateDecisionRecordShape(record, { requireAttestation: readinessLike && !bootstrapLegacy && !allowLegacyReadiness });
+  validateDecisionRecordShape(record);
   if (seenIds.has(record.id)) fail("WR_APPROVAL_EVIDENCE_DUPLICATE", "$.approval.evidence", `Duplicate prior decision evidence id ${record.id}`);
   seenIds.add(record.id);
   const tokens = readinessTokens(record.text);
@@ -701,7 +671,7 @@ function validatePreapprovalHistory(value, feedbackRecords, evidenceIndex, termi
     const record = feedbackRecords[index];
     if (record.story !== value.work_id) continue;
     if (record.event === "decision") {
-      const { decisions, digests } = validatePriorDecisionRecord(record, seenDecisionIds, { allowLegacyReadiness: value.policy_bootstrap });
+      const { decisions, digests } = validatePriorDecisionRecord(record, seenDecisionIds);
       if (decisions.length === 1 && ["blocked", "partition_required"].includes(decisions[0])) authorized = false;
       if (decisions.length === 1 && decisions[0] === "ready" && digests.length === 1) {
         const globalOccurrences = feedbackRecords.filter((candidate) => candidate.event === "decision" && candidate.id === record.id).length;
@@ -807,7 +777,7 @@ export function validateApproval(value, feedbackRecords) {
   if (candidates.length !== 1) fail("APPROVAL_EVIDENCE_DUPLICATE", "$.approval.evidence", "Approval evidence must identify exactly one decision event");
   const evidence = candidates[0];
   const evidenceIndex = feedbackRecords.indexOf(evidence);
-  validateDecisionRecordShape(evidence, { requireAttestation: !value.policy_bootstrap });
+  validateDecisionRecordShape(evidence);
   if (!value.policy_bootstrap) {
     if (evidence.approved_by !== value.approval.approved_by) fail("WR_APPROVER_MISMATCH", "$.approval.approved_by", "Artifact approver must match the signed decision approver");
     if (evidence.subject_work_id !== value.work_id) fail("APPROVAL_STORY_MISMATCH", "$.approval.evidence", "Signed decision subject belongs to another work item");
