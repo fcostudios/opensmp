@@ -1,0 +1,311 @@
+{
+  "schema_version": 1,
+  "work_id": "CHG-034",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Simplify the work-readiness gate to the checks that have caught something",
+  "source": "docs/changes/CHG-034-work-readiness-simplification.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "The work-readiness gate enforces only mechanisms that have caught a real failure or close a gap the retro identified, so its cost is proportional to what it prevents.",
+      "demo": "WR_* codes raised by enforcement and readiness-subsystem LOC are measured before and after each child and trend down; check-all returns the same verdict for all 17 existing artifacts at every step."
+    },
+    {
+      "id": "O2",
+      "primary": false,
+      "statement": "Already-approved history stays readable and digest-verifiable without carrying its verification machinery forward.",
+      "demo": "check-all validates all 17 artifacts with no trust map provisioned; the 20 signed and 42 unsigned ledger decision records both validate."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC5",
+      "outcome_ids": [
+        "O2"
+      ]
+    },
+    {
+      "id": "AC6",
+      "outcome_ids": [
+        "O2"
+      ]
+    },
+    {
+      "id": "AC7",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling",
+    "infra",
+    "planning"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 6,
+    "expected_changed_files": 5,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 1,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 45,
+    "implementation": 240,
+    "focused_verification": 120,
+    "review": 60,
+    "integration": 30,
+    "total": 495
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "status": "resolved",
+      "statement": "Whether removing signature verification breaks validation of the 20 already-signed historical decision records (success criterion 3).",
+      "estimate_impact_minutes": 30,
+      "resolution": "Measured before cutting: validateDecisionRecordShape enforces an exact-length closed key set and the ledger holds two shapes (20 signed / 42 legacy). The replacement makes the attestation keys optional-but-accepted rather than flipping a flag, so both validate. Verified against a pre-cut baseline: identical verdict for all 17 artifacts."
+    },
+    {
+      "id": "U2",
+      "status": "resolved",
+      "statement": "Whether the WR_BOOTSTRAP_* codes are part of the signing ceremony, as the design states.",
+      "estimate_impact_minutes": 15,
+      "resolution": "They are not. WR_BOOTSTRAP_EXPIRED / WR_BOOTSTRAP_PATH_UNAUTHORIZED guard CHG-022's one-time authorization window and path scope; WR_BOOTSTRAP_CHECKPOINT_DEVIATION_REQUIRED belongs to the checkpoint clock. They survive the signing cut."
+    },
+    {
+      "id": "U3",
+      "status": "resolved",
+      "statement": "Whether the checkpoint-clock removal can land without the dual-ledger collapse.",
+      "estimate_impact_minutes": 30,
+      "resolution": "It cannot, safely. The design's own \u00a73 says the artifact-side checkpoints[] exists only to mirror the clock, so landing \u00a72 alone leaves validateCheckpointEvidence, terminalCompletionSolelySupersedesCheckpoint and hasBootstrapCheckpointDeviation dead-but-passing \u2014 the theatre Rollout \u00a73 forbids. C2 and C3 are declared as one child with a depends_on edge, not two."
+    }
+  ],
+  "dependencies": [],
+  "decision": "partition_required",
+  "partitions": [
+    {
+      "proposal_key": "retire-signing",
+      "work_id": "CHG-036",
+      "title": "Retire Ed25519 approval signing, keeping signed history readable",
+      "outcome": "Approval decisions are digest-bound records with a named human approver and no cryptographic attestation; the 20 already-signed records still validate.",
+      "demo": "With WORK_READINESS_APPROVAL_KEYS_JSON unset, check-all validates all 17 artifacts (pre-cut it validated zero and failed WR_APPROVAL_TRUST_UNAVAILABLE).",
+      "acceptance_criteria": [
+        "AC1",
+        "AC5",
+        "AC6"
+      ],
+      "work_type": "technical",
+      "scopes": [
+        "tooling",
+        "infra"
+      ],
+      "signals": {
+        "routes_or_screens": 0,
+        "acceptance_flows": 3,
+        "expected_changed_files": 4,
+        "expected_mutation_shards": 0,
+        "lifecycle_or_concurrency_boundaries": 0,
+        "external_integrations": 0,
+        "schema_or_migration_changes": 0,
+        "authorization_or_audit_boundaries": 1,
+        "tooling_change": true
+      },
+      "uncertainties": [
+        {
+          "id": "U1",
+          "status": "resolved",
+          "statement": "Whether removing signature verification breaks the 20 signed historical records.",
+          "estimate_impact_minutes": 30,
+          "resolution": "Attestation keys become optional-but-accepted, not absent. Verified against a pre-cut baseline: identical verdict for all 17 artifacts."
+        }
+      ],
+      "estimate_minutes": {
+        "readiness": 15,
+        "implementation": 45,
+        "focused_verification": 30,
+        "review": 15,
+        "integration": 5,
+        "total": 110
+      },
+      "depends_on": [],
+      "cross_cutting_rationale": null
+    },
+    {
+      "proposal_key": "retire-clock-and-dual-ledger",
+      "work_id": null,
+      "title": "Replace the wall-clock lock with a task-boundary self-report and collapse to one ledger",
+      "outcome": "No git-timestamp checkpoint can force a stop disconnected from task structure, and the artifact no longer carries a checkpoints[] array that must byte-match the feedback log.",
+      "demo": "A work item whose commits span more than 90 minutes of git time passes check-staged; the artifact schema no longer accepts checkpoints[], and no WR_CHECKPOINT_* or WR_EXECUTION_ANCHOR_* code is reachable.",
+      "acceptance_criteria": [
+        "AC2",
+        "AC3"
+      ],
+      "work_type": "technical",
+      "scopes": [
+        "tooling",
+        "infra"
+      ],
+      "signals": {
+        "routes_or_screens": 0,
+        "acceptance_flows": 2,
+        "expected_changed_files": 5,
+        "expected_mutation_shards": 0,
+        "lifecycle_or_concurrency_boundaries": 0,
+        "external_integrations": 0,
+        "schema_or_migration_changes": 1,
+        "authorization_or_audit_boundaries": 0,
+        "tooling_change": true
+      },
+      "uncertainties": [
+        {
+          "id": "U3",
+          "status": "resolved",
+          "statement": "Whether the clock removal and the dual-ledger collapse can be separate children.",
+          "estimate_impact_minutes": 30,
+          "resolution": "They cannot be separated safely \u2014 the artifact side mirrors the clock, so landing the clock removal alone leaves three checkpoint validators dead-but-passing. Declared as one child."
+        }
+      ],
+      "estimate_minutes": {
+        "readiness": 15,
+        "implementation": 60,
+        "focused_verification": 30,
+        "review": 10,
+        "integration": 5,
+        "total": 120
+      },
+      "depends_on": [
+        "retire-signing"
+      ],
+      "cross_cutting_rationale": null
+    },
+    {
+      "proposal_key": "collapse-git-codes",
+      "work_id": null,
+      "title": "Collapse the fine-grained git-plumbing codes to one message-carrying error",
+      "outcome": "The residual git operations raise a single WR_GIT_ERROR carrying the underlying message, instead of twelve variants distinguishing shades of the same failure.",
+      "demo": "Every WR_GIT_* variant except WR_GIT_ERROR is absent from enforcement, and the git-failure tests assert the carried message rather than a code taxonomy.",
+      "acceptance_criteria": [
+        "AC4"
+      ],
+      "work_type": "technical",
+      "scopes": [
+        "tooling",
+        "infra"
+      ],
+      "signals": {
+        "routes_or_screens": 0,
+        "acceptance_flows": 1,
+        "expected_changed_files": 4,
+        "expected_mutation_shards": 0,
+        "lifecycle_or_concurrency_boundaries": 0,
+        "external_integrations": 0,
+        "schema_or_migration_changes": 0,
+        "authorization_or_audit_boundaries": 0,
+        "tooling_change": true
+      },
+      "uncertainties": [],
+      "estimate_minutes": {
+        "readiness": 10,
+        "implementation": 45,
+        "focused_verification": 25,
+        "review": 10,
+        "integration": 5,
+        "total": 95
+      },
+      "depends_on": [
+        "retire-clock-and-dual-ledger"
+      ],
+      "cross_cutting_rationale": null
+    },
+    {
+      "proposal_key": "reconcile-doc-and-schema-codes",
+      "work_id": null,
+      "title": "Reconcile the documented and schema-declared code set with what enforcement can raise",
+      "outcome": "WORK_READINESS.md and work-readiness.schema.json declare exactly the codes the implementation can raise \u2014 no more phantom codes.",
+      "demo": "A check comparing the codes named in the doc and schema against those raised in scripts/work-readiness{.mjs,/} reports an empty symmetric difference.",
+      "acceptance_criteria": [
+        "AC7"
+      ],
+      "work_type": "technical",
+      "scopes": [
+        "tooling",
+        "planning"
+      ],
+      "signals": {
+        "routes_or_screens": 0,
+        "acceptance_flows": 1,
+        "expected_changed_files": 3,
+        "expected_mutation_shards": 0,
+        "lifecycle_or_concurrency_boundaries": 0,
+        "external_integrations": 0,
+        "schema_or_migration_changes": 1,
+        "authorization_or_audit_boundaries": 0,
+        "tooling_change": true
+      },
+      "uncertainties": [
+        {
+          "id": "U4",
+          "status": "resolved",
+          "statement": "Whether the doc/schema code set matches the implementation today.",
+          "estimate_impact_minutes": 10,
+          "resolution": "It does not: 115 codes appear across doc+schema+implementation but only 92 were referenced in the implementation before this CHG, so 23 are declared and unraisable. Measured 2026-09-05."
+        }
+      ],
+      "estimate_minutes": {
+        "readiness": 10,
+        "implementation": 40,
+        "focused_verification": 20,
+        "review": 10,
+        "integration": 5,
+        "total": 85
+      },
+      "depends_on": [
+        "collapse-git-codes"
+      ],
+      "cross_cutting_rationale": null
+    }
+  ],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG034-READY",
+    "payload_sha256": "a4259b913efbbe6b0a7b7edf802245fc03c60edf4ddbbd408ec9e9f3c2268214"
+  },
+  "actuals": null,
+  "checkpoints": [],
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null,
+  "readiness_payload_sha256": "a4259b913efbbe6b0a7b7edf802245fc03c60edf4ddbbd408ec9e9f3c2268214"
+}

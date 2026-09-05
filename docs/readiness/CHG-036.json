@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "bb2f6ec12c2d6bd83aeeab1d60d1d49a60a84f9526aae3a8c4edc172bffbb88b",
+  "work_id": "CHG-036",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Retire Ed25519 approval signing, keeping signed history readable",
+  "source": "docs/changes/CHG-036-retire-approval-signing.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "Approval decisions are digest-bound records with a named human approver and no cryptographic attestation; the 20 already-signed records still validate.",
+      "demo": "With WORK_READINESS_APPROVAL_KEYS_JSON unset, check-all validates all 17 artifacts (pre-cut it validated zero and failed WR_APPROVAL_TRUST_UNAVAILABLE)."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC5",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC6",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling",
+    "infra"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 4,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 15,
+    "implementation": 45,
+    "focused_verification": 30,
+    "review": 15,
+    "integration": 5,
+    "total": 110
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "status": "resolved",
+      "statement": "Whether removing signature verification breaks the 20 signed historical records.",
+      "estimate_impact_minutes": 30,
+      "resolution": "Attestation keys become optional-but-accepted, not absent. Verified against a pre-cut baseline: identical verdict for all 17 artifacts."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG036-READY",
+    "payload_sha256": "bb2f6ec12c2d6bd83aeeab1d60d1d49a60a84f9526aae3a8c4edc172bffbb88b"
+  },
+  "actuals": null,
+  "checkpoints": [],
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
