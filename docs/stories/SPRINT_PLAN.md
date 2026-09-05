@@ -1,5 +1,5 @@
 <!-- nous-sprint-stamp
-generated_at: 2026-08-03T03:05:23Z
+generated_at: 2026-09-05T16:33:58Z
 current_sprint: sprint-3
 sprints_hash: c7d586bba20b4cb5
 -->
@@ -91,9 +91,9 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | # | Track | Story | Name | Size | Where to Code | CHG | Blocked By | Blocks | Assignee | File |
 |---|-------|-------|------|------|---------------|-----|------------|--------|----------|------|
 | 1 | full-stack | **US-011** ✅ | Users, roles and delegation-ready grants | 3SP | `See story file` | CHG-001 | US-005 | — | — | [r1_misc_us_011.md](sprint-3/r1_misc_us_011.md) |
-| 2 | full-stack | **US-023** ⬜ | Blocked-no-seat + purchase-or-reclaim flow | 3SP | `See story file` | — | US-022, US-042 | — | — | [r1_misc_us_023.md](sprint-3/r1_misc_us_023.md) |
-| 3 | full-stack | **US-025** ⬜ | Vendor accounts + capability descriptor | 3SP | `See story file` | — | US-005 | →2 | — | [r1_misc_us_025.md](sprint-3/r1_misc_us_025.md) |
-| 4 | full-stack | **US-043** ⬜ | Alert log + acknowledgment | 2SP | `See story file` | — | US-042 | — | — | [r1_misc_us_043.md](sprint-3/r1_misc_us_043.md) |
+| 2 | full-stack | **US-023** ✅ | Blocked-no-seat + purchase-or-reclaim flow | 3SP | `See story file` | — | US-022, US-042 | — | — | [r1_misc_us_023.md](sprint-3/r1_misc_us_023.md) |
+| 3 | full-stack | **US-025** ✅ | Vendor accounts + capability descriptor | 3SP | `See story file` | — | US-005 | →2 | — | [r1_misc_us_025.md](sprint-3/r1_misc_us_025.md) |
+| 4 | full-stack | **US-043** 🔨 | Alert log + acknowledgment | 2SP | `See story file` | — | US-042 | — | — | [r1_misc_us_043.md](sprint-3/r1_misc_us_043.md) |
 | 5 | full-stack | **US-018** ⬜ | Anthropic connector client | 3SP | `See story file` | — | US-003, US-025, US-045 | →3 | — | [r1_misc_us_018.md](sprint-3/r1_misc_us_018.md) |
 | 6 | full-stack | **US-019** ⬜ | Automated provisioning: invite ≤ 15 min → Active | 5SP | `See story file` | — | US-014, US-018, US-042, US-046 | →2 | — | [r1_misc_us_019.md](sprint-3/r1_misc_us_019.md) |
 | 7 | full-stack | **US-021** ⬜ | Invite hygiene | 2SP | `See story file` | — | US-019, US-042 | — | — | [r1_misc_us_021.md](sprint-3/r1_misc_us_021.md) |
@@ -168,3 +168,4 @@ See `docs/specs/09_architecture.md` for bounded context details.
 - Architecture: [docs/specs/09_architecture.md](../specs/09_architecture.md)
 - Design system: [packages/design-system/tokens.json](../../packages/design-system/tokens.json)
 - Screen specs (TOON): [docs/screens/](../screens/)
+

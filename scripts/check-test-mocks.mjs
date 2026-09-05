@@ -87,3 +87,4 @@ for (const f of walkRoots(root, ROOTS, EXTS)) {
 if (files) console.error(`[test-mocks] diagnostic: ${mocks} mock(s) across ${files} test file(s) (ratio ${(mocks / files).toFixed(2)})`);
 if (failed) process.exit(1);
 console.log("[test-mocks] ok");
+// nous-emitted: sha256=11996379fc46543f

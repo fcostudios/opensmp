@@ -104,3 +104,4 @@ for (const f of cfgs) {
 if (testFiles) console.error(`[test-oracles] diagnostic: ${assertFree}/${testFiles} test file(s) assertion-free (${printOnly} print-only)`);
 if (failed) process.exit(1);
 console.log("[test-oracles] ok");
+// nous-emitted: sha256=8c68d79272628d9e
