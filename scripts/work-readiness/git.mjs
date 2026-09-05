@@ -55,41 +55,41 @@ function git(root, args, { allowMissing = false } = {}) {
   const stdout = result.stdout ?? Buffer.alloc(0);
   const stderr = result.stderr ?? Buffer.alloc(0);
   if (stdout.length > MAX_GIT_OUTPUT_BYTES || stderr.length > MAX_GIT_OUTPUT_BYTES || result.error?.code === "ENOBUFS") {
-    fail("WR_GIT_OUTPUT_LIMIT", "$.git", `Git output exceeds ${MAX_GIT_OUTPUT_BYTES} bytes`);
+    fail("WR_GIT_ERROR", "$.git", `Git output exceeds ${MAX_GIT_OUTPUT_BYTES} bytes`);
   }
-  if (result.error) fail("WR_GIT_EXEC_FAILED", "$.git", `Unable to execute Git: ${result.error.message}`);
+  if (result.error) fail("WR_GIT_ERROR", "$.git", `Unable to execute Git: ${result.error.message}`);
   if (result.status !== 0) {
     if (allowMissing) return null;
     const detail = stderr.toString("utf8").trim();
-    fail("WR_GIT_COMMAND_FAILED", "$.git", detail || `Git exited with status ${String(result.status)}`);
+    fail("WR_GIT_ERROR", "$.git", detail || `Git exited with status ${String(result.status)}`);
   }
   return stdout;
 }
 
 function repositoryRoot(root) {
   if (typeof root !== "string" || root.includes("\0") || !isAbsolute(root)) {
-    fail("WR_GIT_ROOT_INVALID", "$.root", "Repository root must be an absolute NUL-free path");
+    fail("WR_GIT_ERROR", "$.root", "Repository root must be an absolute NUL-free path");
   }
   let canonical;
   try {
     canonical = realpathSync(root);
   } catch {
-    fail("WR_GIT_ROOT_INVALID", "$.root", "Repository root does not exist");
+    fail("WR_GIT_ERROR", "$.root", "Repository root does not exist");
   }
   const reported = git(canonical, ["rev-parse", "--show-toplevel"]).toString("utf8").trim();
   let reportedCanonical;
   try {
     reportedCanonical = realpathSync(reported);
   } catch {
-    fail("WR_GIT_ROOT_INVALID", "$.root", "Git reported an unavailable repository root");
+    fail("WR_GIT_ERROR", "$.root", "Git reported an unavailable repository root");
   }
-  if (reportedCanonical !== canonical) fail("WR_GIT_ROOT_INVALID", "$.root", "Root must name the repository top level exactly");
+  if (reportedCanonical !== canonical) fail("WR_GIT_ERROR", "$.root", "Root must name the repository top level exactly");
   return canonical;
 }
 
 function resolveCommit(root, ref, path) {
   if (typeof ref !== "string" || !/\S/u.test(ref) || ref.includes("\0") || ref.startsWith("-")) {
-    fail("WR_GIT_REF_INVALID", path, "Git ref must be a non-empty NUL-free non-option string");
+    fail("WR_GIT_ERROR", path, "Git ref must be a non-empty NUL-free non-option string");
   }
   const result = spawnSync("git", ["rev-parse", "--verify", `${ref}^{commit}`], {
     cwd: root,
@@ -101,16 +101,16 @@ function resolveCommit(root, ref, path) {
   const stdout = result.stdout ?? Buffer.alloc(0);
   const stderr = result.stderr ?? Buffer.alloc(0);
   if (stdout.length > MAX_GIT_OUTPUT_BYTES || stderr.length > MAX_GIT_OUTPUT_BYTES || result.error?.code === "ENOBUFS") {
-    fail("WR_GIT_OUTPUT_LIMIT", path, `Git output exceeds ${MAX_GIT_OUTPUT_BYTES} bytes`);
+    fail("WR_GIT_ERROR", path, `Git output exceeds ${MAX_GIT_OUTPUT_BYTES} bytes`);
   }
-  if (result.error) fail("WR_GIT_EXEC_FAILED", path, `Unable to execute Git: ${result.error.message}`);
+  if (result.error) fail("WR_GIT_ERROR", path, `Unable to execute Git: ${result.error.message}`);
   const detail = stderr.toString("utf8");
-  if (/ambiguous/iu.test(detail)) fail("WR_GIT_REF_AMBIGUOUS", path, `Git ref ${ref} is ambiguous`);
+  if (/ambiguous/iu.test(detail)) fail("WR_GIT_ERROR", path, `Git ref ${ref} is ambiguous`);
   if (result.status !== 0) {
-    fail("WR_GIT_REF_INVALID", path, `Git ref ${ref} does not resolve to one commit`);
+    fail("WR_GIT_ERROR", path, `Git ref ${ref} does not resolve to one commit`);
   }
   const sha = stdout.toString("utf8").trim();
-  if (!/^[0-9a-f]{40}$/u.test(sha)) fail("WR_GIT_REF_INVALID", path, `Git ref ${ref} did not resolve to a full commit ID`);
+  if (!/^[0-9a-f]{40}$/u.test(sha)) fail("WR_GIT_ERROR", path, `Git ref ${ref} did not resolve to a full commit ID`);
   return sha;
 }
 
@@ -158,18 +158,18 @@ function parseNameStatus(buffer, root) {
     const status = fields[index];
     index += 1;
     if (/^[AMDT]$/u.test(status)) {
-      if (index >= fields.length) fail("WR_GIT_STATUS_INVALID", "$.git", `Missing path for status ${status}`);
+      if (index >= fields.length) fail("WR_GIT_ERROR", "$.git", `Missing path for status ${status}`);
       paths.push(validateRelativePath(fields[index], root));
       index += 1;
       continue;
     }
     if (/^[RC][0-9]{1,3}$/u.test(status)) {
-      if (index + 1 >= fields.length) fail("WR_GIT_STATUS_INVALID", "$.git", `Missing rename/copy paths for status ${status}`);
+      if (index + 1 >= fields.length) fail("WR_GIT_ERROR", "$.git", `Missing rename/copy paths for status ${status}`);
       paths.push(validateRelativePath(fields[index], root), validateRelativePath(fields[index + 1], root));
       index += 2;
       continue;
     }
-    fail("WR_GIT_STATUS_INVALID", "$.git", `Unexpected Git name-status record ${String(status)}`);
+    fail("WR_GIT_ERROR", "$.git", `Unexpected Git name-status record ${String(status)}`);
   }
   return [...new Set(paths)].sort();
 }
@@ -178,9 +178,9 @@ function validateRevisionSymlink(root, revision, path) {
   const record = git(root, ["ls-tree", "-z", revision, "--", path]).toString("utf8");
   if (record === "") return;
   const entries = record.split("\0").filter(Boolean);
-  if (entries.length !== 1) fail("WR_GIT_STATUS_INVALID", path, `Expected one tree entry for ${path}`);
+  if (entries.length !== 1) fail("WR_GIT_ERROR", path, `Expected one tree entry for ${path}`);
   const match = /^(\d{6}) (?:blob|tree) [0-9a-f]{40}\t(.+)$/u.exec(entries[0]);
-  if (!match || match[2] !== path) fail("WR_GIT_STATUS_INVALID", path, `Unexpected tree entry for ${path}`);
+  if (!match || match[2] !== path) fail("WR_GIT_ERROR", path, `Unexpected tree entry for ${path}`);
   if (match[1] !== "120000") return;
   const target = git(root, ["show", `${revision}:${path}`]).toString("utf8");
   if (target.length === 0 || target.includes("\0") || isAbsolute(target)) {
@@ -205,9 +205,9 @@ function validateIndexSymlink(root, path) {
   const record = git(root, ["ls-files", "--stage", "-z", "--", path]).toString("utf8");
   if (record === "") return;
   const entries = record.split("\0").filter(Boolean);
-  if (entries.length !== 1) fail("WR_GIT_STATUS_INVALID", path, `Expected one index entry for ${path}`);
+  if (entries.length !== 1) fail("WR_GIT_ERROR", path, `Expected one index entry for ${path}`);
   const match = /^(\d{6}) [0-9a-f]{40} 0\t(.+)$/u.exec(entries[0]);
-  if (!match || match[2] !== path) fail("WR_GIT_STATUS_INVALID", path, `Unexpected index entry for ${path}`);
+  if (!match || match[2] !== path) fail("WR_GIT_ERROR", path, `Unexpected index entry for ${path}`);
   if (match[1] !== "120000") return;
   const target = git(root, ["show", `:${path}`]).toString("utf8");
   if (target.length === 0 || target.includes("\0") || isAbsolute(target)) {
@@ -223,14 +223,14 @@ function validateIndexSymlink(root, path) {
 function readRevisionFile(root, revision, path, { required = true } = {}) {
   validateRelativePath(path);
   const contents = git(root, ["show", `${revision}:${path}`], { allowMissing: !required });
-  if (contents === null && required) fail("WR_GIT_FILE_MISSING", path, `Required file ${path} is unavailable at ${revision}`);
+  if (contents === null && required) fail("WR_GIT_ERROR", path, `Required file ${path} is unavailable at ${revision}`);
   return contents?.toString("utf8") ?? null;
 }
 
 function readRevisionBytes(root, revision, path, { required = true } = {}) {
   validateRelativePath(path);
   const contents = git(root, ["show", `${revision}:${path}`], { allowMissing: !required });
-  if (contents === null && required) fail("WR_GIT_FILE_MISSING", path, `Required file ${path} is unavailable at ${revision}`);
+  if (contents === null && required) fail("WR_GIT_ERROR", path, `Required file ${path} is unavailable at ${revision}`);
   return contents;
 }
 
@@ -850,28 +850,28 @@ export function listChangedPaths({ root, base, head = "HEAD", staged = false }) 
 function readGithubRangeEvent(env) {
   const eventPath = env.GITHUB_EVENT_PATH;
   if (typeof eventPath !== "string" || eventPath.length === 0 || eventPath.includes("\0") || !isAbsolute(eventPath)) {
-    fail("WR_GIT_CI_BASE_INVALID", "$.base", "GitHub Actions requires an absolute, NUL-free GITHUB_EVENT_PATH");
+    fail("WR_GIT_ERROR", "$.base", "GitHub Actions requires an absolute, NUL-free GITHUB_EVENT_PATH");
   }
   let event;
   try {
     const stat = lstatSync(eventPath);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_CI_EVENT_BYTES) {
-      fail("WR_GIT_CI_BASE_INVALID", "$.base", "GitHub event payload must be a bounded regular file");
+      fail("WR_GIT_ERROR", "$.base", "GitHub event payload must be a bounded regular file");
     }
     event = JSON.parse(readFileSync(eventPath, "utf8"));
   } catch (error) {
     if (error instanceof WorkReadinessError) throw error;
-    fail("WR_GIT_CI_BASE_INVALID", "$.base", "GitHub event payload is unavailable or invalid JSON");
+    fail("WR_GIT_ERROR", "$.base", "GitHub event payload is unavailable or invalid JSON");
   }
   if (event === null || typeof event !== "object" || Array.isArray(event)) {
-    fail("WR_GIT_CI_BASE_INVALID", "$.base", "GitHub event payload must be an object");
+    fail("WR_GIT_ERROR", "$.base", "GitHub event payload must be an object");
   }
   const pullRequest = event.pull_request !== null && typeof event.pull_request === "object" && !Array.isArray(event.pull_request);
   const base = pullRequest ? event.pull_request.base?.sha : event.before;
   const head = pullRequest ? event.pull_request.head?.sha : event.after;
   for (const [path, candidate] of [["$.base", base], ["$.head", head]]) {
     if (typeof candidate !== "string" || !/^[0-9a-f]{40}$/u.test(candidate) || /^0{40}$/u.test(candidate)) {
-      fail("WR_GIT_CI_BASE_INVALID", path, "GitHub event payload does not contain one valid base/head commit SHA pair");
+      fail("WR_GIT_ERROR", path, "GitHub event payload does not contain one valid base/head commit SHA pair");
     }
   }
   return { base, head, pullRequest };
@@ -889,12 +889,12 @@ function fetchCiCommit(root, sha, depth) {
   const stdout = result.stdout ?? Buffer.alloc(0);
   const stderr = result.stderr ?? Buffer.alloc(0);
   if (stdout.length > MAX_GIT_OUTPUT_BYTES || stderr.length > MAX_GIT_OUTPUT_BYTES || result.error?.code === "ENOBUFS") {
-    fail("WR_GIT_OUTPUT_LIMIT", "$.git", `Git fetch output exceeds ${MAX_GIT_OUTPUT_BYTES} bytes`);
+    fail("WR_GIT_ERROR", "$.git", `Git fetch output exceeds ${MAX_GIT_OUTPUT_BYTES} bytes`);
   }
-  if (result.error?.code === "ETIMEDOUT") fail("WR_GIT_CI_FETCH_FAILED", "$.git", "Timed out acquiring the exact GitHub event ancestry");
+  if (result.error?.code === "ETIMEDOUT") fail("WR_GIT_ERROR", "$.git", "Timed out acquiring the exact GitHub event ancestry");
   if (result.error || result.status !== 0) {
     const detail = stderr.toString("utf8").trim();
-    fail("WR_GIT_CI_FETCH_FAILED", "$.git", detail || "Unable to acquire the exact GitHub event ancestry");
+    fail("WR_GIT_ERROR", "$.git", detail || "Unable to acquire the exact GitHub event ancestry");
   }
 }
 
@@ -913,7 +913,7 @@ function acquireCiRange(root, range) {
 function latestNonMergeRange(root, head, lowerBound = null) {
   const revision = lowerBound === null ? head : `${lowerBound}..${head}`;
   const latest = git(root, ["rev-list", "--no-merges", "-1", revision]).toString("utf8").trim();
-  if (!/^[0-9a-f]{40}$/u.test(latest)) fail("WR_GIT_REF_INVALID", "$.head", "No latest non-merge commit is available for main verification");
+  if (!/^[0-9a-f]{40}$/u.test(latest)) fail("WR_GIT_ERROR", "$.head", "No latest non-merge commit is available for main verification");
   const fields = git(root, ["rev-list", "--parents", "-n", "1", latest]).toString("utf8").trim().split(/\s+/u);
   if (fields.length !== 2 || !/^[0-9a-f]{40}$/u.test(fields[1])) {
     fail("WR_GIT_TOPOLOGY_UNSUPPORTED", "$.base", "Latest non-merge commit must have one parent");
@@ -938,7 +938,7 @@ export function resolveDefaultRange(root, env = process.env) {
   const head = resolveCommit(canonicalRoot, "HEAD", "$.head");
   if (main === head) return latestNonMergeRange(canonicalRoot, head);
   const mergeBase = git(canonicalRoot, ["merge-base", main, head]).toString("utf8").trim();
-  if (!/^[0-9a-f]{40}$/u.test(mergeBase)) fail("WR_GIT_REF_INVALID", "$.base", "Unable to resolve a unique merge base with main");
+  if (!/^[0-9a-f]{40}$/u.test(mergeBase)) fail("WR_GIT_ERROR", "$.base", "Unable to resolve a unique merge base with main");
   const mergeBasePrecedesBoundary = git(
     canonicalRoot,
     ["merge-base", "--is-ancestor", mergeBase, CHG022_EXECUTABLE_BOUNDARY],

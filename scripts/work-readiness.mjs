@@ -91,7 +91,7 @@ function git(root, args, { input } = {}) {
   });
   if (result.error || result.status !== 0) {
     const detail = result.stderr?.trim();
-    cliError("WR_GIT_COMMAND_FAILED", detail ? `Git command failed: ${detail}` : "Git command failed", "$.git");
+    cliError("WR_GIT_ERROR", detail ? `Git command failed: ${detail}` : "Git command failed", "$.git");
   }
   return result.stdout.trim();
 }
@@ -369,15 +369,15 @@ function checkStaged({ root, positionals, options }) {
   if (positionals.length !== 0 || typeof options.messageFile !== "string") cliError("WR_INVOCATION_INVALID", "Usage: check-staged --message-file <path>", "$.arguments");
   const message = readCanonicalMessageFile(root, options.messageFile);
   const head = git(root, ["rev-parse", "--verify", "HEAD^{commit}"]);
-  if (!/^[0-9a-f]{40}$/u.test(head)) cliError("WR_GIT_REF_INVALID", "HEAD did not resolve to one full commit", "$.head");
+  if (!/^[0-9a-f]{40}$/u.test(head)) cliError("WR_GIT_ERROR", "HEAD did not resolve to one full commit", "$.head");
   // HEAD's own parent count is irrelevant: the ephemeral commit below has
   // exactly one parent (HEAD) by construction, so linearCommits sees a linear
   // range containing precisely the staged diff. Refusing a merge HEAD made the
   // first commit after every merge ungateable (CHG-025).
   const tree = git(root, ["write-tree"]);
-  if (!/^[0-9a-f]{40}$/u.test(tree)) cliError("WR_GIT_COMMAND_FAILED", "Git index did not produce one tree", "$.git");
+  if (!/^[0-9a-f]{40}$/u.test(tree)) cliError("WR_GIT_ERROR", "Git index did not produce one tree", "$.git");
   const commit = git(root, ["commit-tree", tree, "-p", head, "-F", "-"], { input: message });
-  if (!/^[0-9a-f]{40}$/u.test(commit)) cliError("WR_GIT_COMMAND_FAILED", "Git did not produce one ephemeral commit", "$.git");
+  if (!/^[0-9a-f]{40}$/u.test(commit)) cliError("WR_GIT_ERROR", "Git did not produce one ephemeral commit", "$.git");
   const result = validateRangeOwnership({ root, base: head, head: commit });
   return {
     workIds: result.workIds,

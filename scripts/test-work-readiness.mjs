@@ -2046,7 +2046,7 @@ test("CLI check-range supports named refs and maps invalid Git environment to ex
     assert.equal(result.status, 2);
     const output = parseCliJson(result);
     assert.equal(output.command, "check-range");
-    assert.equal(output.errors[0].code, "WR_GIT_REF_INVALID");
+    assert.equal(output.errors[0].code, "WR_GIT_ERROR");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -2371,7 +2371,7 @@ test("CLI check-staged fails closed for unborn and merge HEAD states", () => {
     const unbornMessage = writeGitMessage(unborn, "docs(CHG-123): unborn\n");
     const unbornResult = runCli(unborn, ["check-staged", "--message-file", unbornMessage, "--json"]);
     assert.equal(unbornResult.status, 2);
-    assert.equal(parseCliJson(unbornResult).errors[0].code, "WR_GIT_COMMAND_FAILED");
+    assert.equal(parseCliJson(unbornResult).errors[0].code, "WR_GIT_ERROR");
 
     git(merged.root, ["checkout", "-b", "side"]);
     writeRepoFile(merged.root, "side.txt", "side\n");
@@ -3555,15 +3555,57 @@ test("CHG-022 bootstrap authorizes only its exact manifest paths before done", (
   }
 });
 
-test("real Git rejects missing and ambiguous bases", () => {
+test("real Git rejects missing and ambiguous bases, and the MESSAGE tells them apart", () => {
+  // CHG-038 collapsed WR_GIT_REF_INVALID and WR_GIT_REF_AMBIGUOUS into
+  // WR_GIT_ERROR. That is only acceptable because the message still
+  // discriminates — asserting the shared code alone would make this test unable
+  // to tell the two conditions apart, which is exactly the diagnostic loss the
+  // collapse must not cause.
   const { root } = makeGitRepo();
   try {
-    assert.throws(() => listChangedPaths({ root, base: "missing-ref" }), (error) => error.code === "WR_GIT_REF_INVALID");
+    assert.throws(() => listChangedPaths({ root, base: "missing-ref" }), (error) => {
+      assert.equal(error.code, "WR_GIT_ERROR");
+      assert.match(error.message, /does not resolve to one commit/u);
+      return true;
+    });
     git(root, ["branch", "collision"]);
     git(root, ["tag", "collision"]);
-    assert.throws(() => listChangedPaths({ root, base: "collision" }), (error) => error.code === "WR_GIT_REF_AMBIGUOUS");
+    assert.throws(() => listChangedPaths({ root, base: "collision" }), (error) => {
+      assert.equal(error.code, "WR_GIT_ERROR");
+      assert.match(error.message, /is ambiguous/u);
+      return true;
+    });
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("collapsing the git codes preserved every message verbatim", () => {
+  // The contract of a message-carrying error: the taxonomy went, the diagnosis
+  // did not. Asserted structurally over the source so a future edit that drops a
+  // message back to a bare code fails here.
+  const sources = ["scripts/work-readiness/git.mjs", "scripts/work-readiness.mjs"]
+    .map((rel) => readFileSync(new URL(`../${rel}`, import.meta.url), "utf8"))
+    .join("\n");
+  const calls = [...sources.matchAll(/(?:fail|cliError)\(\s*"WR_GIT_ERROR",\s*([^,]+),\s*(.+?)\);/gsu)];
+  assert.ok(calls.length >= 30, `expected the collapsed call sites, found ${calls.length}`);
+  for (const [whole, , message] of calls) {
+    const trimmed = message.trim();
+    assert.ok(
+      trimmed.length > 2 && trimmed !== '""' && trimmed !== "''",
+      `WR_GIT_ERROR raised without a message: ${whole.slice(0, 90)}`,
+    );
+  }
+  // And the ten collapsed names are gone from enforcement entirely.
+  for (const gone of ["WR_GIT_EXEC_FAILED", "WR_GIT_COMMAND_FAILED", "WR_GIT_OUTPUT_LIMIT",
+    "WR_GIT_REF_AMBIGUOUS", "WR_GIT_REF_INVALID", "WR_GIT_ROOT_INVALID", "WR_GIT_FILE_MISSING",
+    "WR_GIT_CI_FETCH_FAILED", "WR_GIT_CI_BASE_INVALID", "WR_GIT_STATUS_INVALID"]) {
+    assert.equal(sources.includes(`"${gone}"`), false, `${gone} is still raised`);
+  }
+  // The five that carry a distinct remedy stay.
+  for (const kept of ["WR_GIT_PATH_ESCAPE", "WR_GIT_PATH_INVALID", "WR_GIT_ARGUMENT_INVALID",
+    "WR_GIT_NON_ANCESTRAL", "WR_GIT_TOPOLOGY_UNSUPPORTED"]) {
+    assert.ok(sources.includes(`"${kept}"`), `${kept} was collapsed but carries a distinct remedy`);
   }
 });
 
@@ -3631,7 +3673,7 @@ test("default base resolution is explicit and rejects an unavailable environment
   const { root, base } = makeGitRepo();
   try {
     assert.equal(resolveDefaultBase(root, { WORK_READINESS_BASE: base }), base);
-    assert.throws(() => resolveDefaultBase(root, { WORK_READINESS_BASE: "missing" }), (error) => error.code === "WR_GIT_REF_INVALID");
+    assert.throws(() => resolveDefaultBase(root, { WORK_READINESS_BASE: "missing" }), (error) => error.code === "WR_GIT_ERROR");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -3672,7 +3714,7 @@ test("default base resolution uses validated GitHub event SHAs and fails closed 
     writeFileSync(missingEvent, "{}\n");
     assert.throws(
       () => resolveDefaultBase(root, { GITHUB_ACTIONS: "true", GITHUB_EVENT_PATH: missingEvent }),
-      (error) => error.code === "WR_GIT_CI_BASE_INVALID",
+      (error) => error.code === "WR_GIT_ERROR",
     );
   } finally {
     rmSync(root, { recursive: true, force: true });
