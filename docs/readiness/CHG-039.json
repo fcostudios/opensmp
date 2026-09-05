@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "7bbfa88967ed0799af2c4053e7be002f5564d7f2977277c1cd202e2b7573ddc6",
+  "work_id": "CHG-039",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Make the WR_* code set countable: one spelling at every call site",
+  "source": "docs/changes/CHG-039-normalise-code-spelling.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "Every fail()/cliError() call site spells its code with the WR_ prefix, so the code set is greppable and countable rather than split across two spellings normalised at throw time.",
+      "demo": "A source-level test finds zero bare codes; the full suite passes unchanged because every surfaced code string is identical."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC5",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC7",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling",
+    "planning"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 1,
+    "expected_changed_files": 3,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 1,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 10,
+    "implementation": 40,
+    "focused_verification": 20,
+    "review": 10,
+    "integration": 5,
+    "total": 85
+  },
+  "uncertainties": [
+    {
+      "id": "U4",
+      "status": "resolved",
+      "statement": "Whether the doc and schema declare 23 codes the implementation cannot raise, as CHG-034's correction log states.",
+      "estimate_impact_minutes": 10,
+      "resolution": "They declare ZERO. The doc and schema name no WR_* code as a token, at CHG-034's start or today; the 23-code gap was my own census globbing scripts/*.mjs and picking up the test file. AC7 is re-scoped to the real defect the same measurement exposed: 36 of 88 call sites use a bare spelling that fail() prefixes at throw time, so the true code set is 87, not the 52 every figure in this rollout has reported."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG039-READY",
+    "payload_sha256": "7bbfa88967ed0799af2c4053e7be002f5564d7f2977277c1cd202e2b7573ddc6"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
