@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "292b0ba33f62301a3c7daae363d47f1f2b991da254fae95435bf42c4d9991725",
+  "readiness_payload_sha256": "0fedf179f01a46bb40f2298b11562c4892aa062c05032c552a90476931d99026",
   "work_id": "CHG-042",
   "kind": "CHG",
   "work_type": "technical",
@@ -34,7 +34,7 @@
   "signals": {
     "routes_or_screens": 0,
     "acceptance_flows": 2,
-    "expected_changed_files": 12,
+    "expected_changed_files": 13,
     "expected_mutation_shards": 1,
     "lifecycle_or_concurrency_boundaries": 0,
     "external_integrations": 0,
@@ -65,8 +65,8 @@
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "CHG042-READY-3",
-    "payload_sha256": "292b0ba33f62301a3c7daae363d47f1f2b991da254fae95435bf42c4d9991725"
+    "evidence": "CHG042-READY-4",
+    "payload_sha256": "0fedf179f01a46bb40f2298b11562c4892aa062c05032c552a90476931d99026"
   },
   "actuals": null,
   "policy_bootstrap": false,
