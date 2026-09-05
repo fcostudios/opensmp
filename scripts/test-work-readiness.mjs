@@ -2961,6 +2961,44 @@ test("an exact Nous sync envelope authorizes generated documentation", () => {
   }
 });
 
+test("a full Nous manifest retains unrelated entries and authorizes a generated source with unrelated dirtiness", () => {
+  const { root } = makeGitRepo();
+  try {
+    const generatedPath = "docs/stories/SPRINT_PLAN.md";
+    const retainedFiles = {
+      "docs/specs/unchanged.md": "# Unchanged specification\n",
+      "docs/dev-guide/retained.md": "# Retained guidance\n",
+    };
+    const retainEntries = ({ project, sync }) => {
+      for (const [path, bytes] of Object.entries(retainedFiles)) {
+        sync.files[path] = { hash: createHash("sha256").update(bytes).digest("hex").slice(0, 16), source: "generated" };
+      }
+      sync.files[".nous-project.json"] = {
+        hash: createHash("sha256").update(`${JSON.stringify(project, null, 2)}\n`).digest("hex").slice(0, 16),
+        source: "generated",
+      };
+    };
+    for (const [path, bytes] of Object.entries(retainedFiles)) writeRepoFile(root, path, bytes);
+    writeExactNousSyncEnvelope(root, generatedPath, "# Previous sprint plan\n", { mutate: retainEntries });
+    const base = commitRepo(root, "docs(CHG-045): seed full manifest", [
+      generatedPath, ...Object.keys(retainedFiles), ".nous-provenance.json", ".nous-project.json", ".nous-sync.json",
+    ]);
+    writeExactNousSyncEnvelope(root, generatedPath, "# Sprint plan from Nous\n", {
+      provenance: { dirty: true, dirty_paths: ["Nous/System/IMP_SESSION_PLAYBOOK.md"] },
+      project: { generated_at: "2026-09-05T21:41:53Z" },
+      sync: { synced_at: "2026-09-05T21:41:53.665778+00:00" },
+      mutate: retainEntries,
+    });
+    const head = commitRepo(root, "docs(CHG-045): sync full manifest with unrelated dirtiness", [
+      generatedPath, ".nous-provenance.json", ".nous-project.json", ".nous-sync.json",
+    ]);
+
+    assert.equal(validateRangeOwnership({ root, base, head }).classification, "bootstrap-documentation");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("a generated document edited after an exact Nous sync fails closed", () => {
   const { root, base } = makeGitRepo();
   try {
@@ -2979,6 +3017,69 @@ test("a generated document edited after an exact Nous sync fails closed", () => 
       (error) => error.code === "WR_GENERATED_NOUS_PATH"
         && error.path === generatedPath,
     );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a Nous sync cannot replay an unchanged parent entry by reformatting the envelope", () => {
+  const { root } = makeGitRepo();
+  try {
+    const generatedPath = "docs/stories/SPRINT_PLAN.md";
+    const generated = "# Manifest-bound sprint plan\n";
+    writeExactNousSyncEnvelope(root, generatedPath, generated);
+    writeRepoFile(root, generatedPath, "# Parent bytes differ from the stale manifest\n");
+    const base = commitRepo(root, "docs(CHG-045): seed stale manifest", [
+      generatedPath, ".nous-provenance.json", ".nous-project.json", ".nous-sync.json",
+    ]);
+    writeExactNousSyncEnvelope(root, generatedPath, generated, {
+      project: { generated_at: "2026-09-05T21:41:53Z" },
+      sync: { synced_at: "2026-09-05T21:41:53.665778+00:00" },
+      mutate: ({ sync }) => {
+        const { hash, source } = sync.files[generatedPath];
+        sync.files[generatedPath] = { source, hash };
+      },
+    });
+    const provenance = JSON.parse(readFileSync(join(root, ".nous-provenance.json"), "utf8"));
+    writeRepoFile(root, ".nous-provenance.json", `${JSON.stringify(provenance)}\n`);
+    const head = commitRepo(root, "docs(CHG-045): replay old entry with new envelope bytes", [
+      generatedPath, ".nous-provenance.json", ".nous-project.json", ".nous-sync.json",
+    ]);
+
+    assert.throws(() => validateRangeOwnership({ root, base, head }),
+      (error) => error.code === "WR_GENERATED_NOUS_PATH" && error.path === generatedPath);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a full Nous manifest cannot authorize an implementation path", () => {
+  const { root } = makeGitRepo();
+  try {
+    const implementationPath = "apps/web/src/app/page.tsx";
+    const generatedPath = "docs/specs/unchanged.md";
+    writeExactNousSyncEnvelope(root, generatedPath, "# Retained specification\n");
+    const base = commitRepo(root, "docs(CHG-045): seed retained specification", [
+      generatedPath, ".nous-provenance.json", ".nous-project.json", ".nous-sync.json",
+    ]);
+    const retained = JSON.parse(readFileSync(join(root, ".nous-sync.json"), "utf8")).files;
+    writeExactNousSyncEnvelope(root, implementationPath, "export {};\n", {
+      provenance: { git_sha: "123456789abc" },
+      project: { substrate_commit: "12345678" },
+      mutate: ({ project, sync }) => {
+        Object.assign(sync.files, retained);
+        sync.files[".nous-project.json"] = {
+          hash: createHash("sha256").update(`${JSON.stringify(project, null, 2)}\n`).digest("hex").slice(0, 16),
+          source: "generated",
+        };
+      },
+    });
+    const head = commitRepo(root, "feat(CHG-045): forge implementation manifest entry", [
+      implementationPath, ".nous-provenance.json", ".nous-project.json", ".nous-sync.json",
+    ]);
+
+    assert.throws(() => validateRangeOwnership({ root, base, head }),
+      (error) => error.code === "WR_READINESS_MISSING" && error.path === "docs/readiness/CHG-045.json");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -3023,7 +3124,9 @@ test("forged Nous sync provenance cannot authorize generated documentation", () 
   const generatedPath = "docs/stories/SPRINT_PLAN.md";
   const sourcePath = "/fixture/Nous/Specs/fixture/ledger/v1/stories/SPRINT_PLAN.md";
   const forgeries = [
-    ["project mismatch", ({ provenance }) => { provenance.project_id = "other__project"; }],
+    ["provenance-to-project mismatch", ({ project }) => { project.project_id = "other__project"; }],
+    ["provenance-to-sync mismatch", ({ sync }) => { sync.project_id = "other__project"; }],
+    ["array checksum", ({ project }) => { project.checksum = ["82f3e0de92a5834b"]; }],
     ["revision mismatch", ({ project }) => { project.substrate_commit = "00000000"; }],
     ["stale blob hash", ({ sync }) => { sync.files[generatedPath].hash = "0".repeat(16); }],
     ["affected dirty source", ({ provenance, sync }) => {
@@ -3112,10 +3215,6 @@ test("malformed or ambiguous dirty-source metadata fails closed", () => {
       provenance.dirty = true;
       provenance.dirty_paths = [unrelatedPath];
       sync.files[generatedPath].source = "/fixture/Nous/cache/Nous/Specs/fixture/ledger/v1/stories/SPRINT_PLAN.md";
-    }],
-    ["uncomparable generated source", ({ provenance }) => {
-      provenance.dirty = true;
-      provenance.dirty_paths = [unrelatedPath];
     }],
     ["unbounded dirty paths", ({ provenance, sync }) => {
       provenance.dirty = true;

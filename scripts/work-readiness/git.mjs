@@ -889,7 +889,8 @@ function exactNousSyncOwns({ root, base, head, changedPaths }) {
       || !/^[0-9a-f]{8}$/u.test(project.substrate_commit)
       || project.substrate_commit !== provenance.git_sha.slice(0, 8)
       || !isNonEmptyString(project.organization) || !isNonEmptyString(project.nous_namespace)
-      || !/^[0-9a-f]{16}$/u.test(project.checksum) || typeof provenance.dirty !== "boolean"
+      || typeof project.checksum !== "string" || !/^[0-9a-f]{16}$/u.test(project.checksum)
+      || typeof provenance.dirty !== "boolean"
       || !Array.isArray(provenance.dirty_paths)
       || provenance.dirty_paths.length > MAX_NOUS_DIRTY_PATHS
       || provenance.dirty !== (provenance.dirty_paths.length > 0)) return false;
@@ -902,19 +903,25 @@ function exactNousSyncOwns({ root, base, head, changedPaths }) {
     const syncedAt = parseUtcTimestamp(sync.synced_at);
     if (generatedAt === null || syncedAt === null
       || Math.trunc(generatedAt / 1000) !== Math.trunc(syncedAt / 1000)
-      || !isPlainObject(sync.files) || Object.keys(sync.files).length !== generatedPaths.length
+      || !isPlainObject(sync.files)
       || Object.keys(sync.files).length > MAX_NOUS_SYNC_FILES) return false;
 
-    const manifestPaths = Object.keys(sync.files).sort();
-    if (manifestPaths.join(",") !== [...generatedPaths].sort().join(",")) return false;
+    const parentSyncBytes = readRevisionFile(root, base, ".nous-sync.json", { required: false });
+    const parentSync = parentSyncBytes === null ? null : parseJson(parentSyncBytes, ".nous-sync.json");
+    if (parentSyncBytes !== null && (revisionMode(root, base, ".nous-sync.json") !== "100644"
+      || !isPlainObject(parentSync) || !isPlainObject(parentSync.files))) return false;
+
     for (const path of generatedPaths) {
       validateRelativePath(path);
       const entry = sync.files[path];
       if (!hasExactKeys(entry, ["hash", "source"]) || !/^[0-9a-f]{16}$/u.test(entry.hash)) return false;
+      const parentEntry = parentSync?.files[path];
+      if (hasExactKeys(parentEntry, ["hash", "source"])
+        && parentEntry.hash === entry.hash && parentEntry.source === entry.source) return false;
       const sourcePath = entry.source === "generated" ? null : normalizeNousSource(entry.source);
       if (entry.source !== "generated" && sourcePath === null) return false;
-      if (provenance.dirty && (sourcePath === null
-        || dirtyPaths.some((dirtyPath) => pathsOverlap(dirtyPath, sourcePath)))) return false;
+      if (provenance.dirty && sourcePath !== null
+        && dirtyPaths.some((dirtyPath) => pathsOverlap(dirtyPath, sourcePath))) return false;
       const bytes = readRevisionBytes(root, head, path, { required: false });
       if (bytes === null || createHash("sha256").update(bytes).digest("hex").slice(0, 16) !== entry.hash) return false;
     }

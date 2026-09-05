@@ -156,19 +156,25 @@ Generated Nous paths have exactly two authorization routes:
    candidate commit changes `.nous-provenance.json`, `.nous-project.json`, and
    `.nous-sync.json` together with only the generated paths they describe. The
    three closed-shape documents must agree on project, substrate revision, and
-   UTC sync second, and every manifest entry must bind the exact candidate blob
-   through its SHA-256 prefix.
+   UTC sync second. The full manifest may retain unchanged entries and other
+   categories, but it authorizes changed content only under `docs/stories/`,
+   `docs/sprints/`, and `docs/specs/`. Every affected entry must bind the exact
+   candidate blob through its SHA-256 prefix and be new or semantically changed
+   from the immutable parent manifest; envelope reformatting or timestamp
+   changes alone cannot replay an unchanged entry.
 
 The sync provenance is consistency evidence for this repository's single-human
 threat model; it is not a cryptographic signature or an independent-party
 attestation. A later hand edit, a partial envelope, or a fully present but
 internally inconsistent envelope fails closed and cannot reuse an earlier sync.
-When the provenance declares substrate dirtiness, every affected manifest
-source must be an absolute path containing one unambiguous `/Nous/` segment.
-The gate compares its normalized `Nous/...` path with every canonical declared
-dirty path. Unrelated substrate dirtiness is allowed only when those paths are
-disjoint from every affected source; an equal, ancestor, descendant, malformed,
-or otherwise uncomparable source relationship fails closed.
+An affected manifest source is either the reserved non-path category
+`generated` or an absolute path containing one unambiguous `/Nous/` segment.
+The `generated` category remains candidate-byte-bound and does not name a dirty
+source file. For absolute sources, the gate compares the normalized `Nous/...`
+path with every canonical declared dirty path. Unrelated substrate dirtiness
+is allowed only when those paths are disjoint from every affected absolute
+source; an equal, ancestor, descendant, malformed, or otherwise uncomparable
+source relationship fails closed.
 
 ## Implementation-plan binding
 
