@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "f81a6a5c85e80c04323cf436dfe679e9b7a39abb138c28aa2bc39d920d8ff196",
+  "work_id": "CHG-038",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Collapse the fine-grained git-plumbing codes to one message-carrying error",
+  "source": "docs/changes/CHG-038-collapse-git-codes.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "The residual git operations raise a single WR_GIT_ERROR carrying the underlying message, instead of twelve variants distinguishing shades of the same failure.",
+      "demo": "Every WR_GIT_* variant except WR_GIT_ERROR is absent from enforcement, and the git-failure tests assert the carried message rather than a code taxonomy."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC5",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling",
+    "infra"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 1,
+    "expected_changed_files": 4,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 10,
+    "implementation": 45,
+    "focused_verification": 25,
+    "review": 10,
+    "integration": 5,
+    "total": 95
+  },
+  "uncertainties": [
+    {
+      "id": "U6",
+      "status": "resolved",
+      "statement": "Whether the clock removal made most git-plumbing failure modes go away, as the parent design \u00a74 states.",
+      "estimate_impact_minutes": 10,
+      "resolution": "It did not. Measured after CHG-037: 13 git invocations across 8 subcommands remain (show x4, rev-list x3, ls-tree x3, merge-base x2, ls-files, rev-parse x2, write-tree, commit-tree). The collapse stands on \u00a74's other ground \u2014 these codes have no distinct remedy \u2014 and covers 10 of the 15 WR_GIT_* codes, not 12+ of them."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG038-READY",
+    "payload_sha256": "f81a6a5c85e80c04323cf436dfe679e9b7a39abb138c28aa2bc39d920d8ff196"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
