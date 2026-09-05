@@ -71,55 +71,55 @@ function isPlainObject(value) {
 }
 
 function object(value, path, keys, { optional = [] } = {}) {
-  if (!isPlainObject(value)) fail("UNSAFE_OBJECT", path, `${path} must be a plain object`);
+  if (!isPlainObject(value)) fail("WR_UNSAFE_OBJECT", path, `${path} must be a plain object`);
   for (const key of keys) {
-    if (!Object.hasOwn(value, key)) fail("MISSING_PROPERTY", `${path}.${key}`, `${path}.${key} is required`);
+    if (!Object.hasOwn(value, key)) fail("WR_MISSING_PROPERTY", `${path}.${key}`, `${path}.${key} is required`);
   }
   // CHG-037: `optional` keys are ACCEPTED but not required — the shape stays closed
   // (an unlisted key is still refused), it simply tolerates a field history recorded
   // and new artifacts no longer emit.
   for (const key of Object.keys(value)) {
-    if (!keys.includes(key) && !optional.includes(key)) fail("UNKNOWN_PROPERTY", `${path}.${key}`, `${path}.${key} is not allowed`);
+    if (!keys.includes(key) && !optional.includes(key)) fail("WR_UNKNOWN_PROPERTY", `${path}.${key}`, `${path}.${key} is not allowed`);
   }
 }
 
 function array(value, path, { min = 0 } = {}) {
-  if (!Array.isArray(value)) fail("INVALID_TYPE", path, `${path} must be an array`);
-  if (value.length < min) fail("MIN_ITEMS", path, `${path} must contain at least ${min} item(s)`);
+  if (!Array.isArray(value)) fail("WR_INVALID_TYPE", path, `${path} must be an array`);
+  if (value.length < min) fail("WR_MIN_ITEMS", path, `${path} must contain at least ${min} item(s)`);
 }
 
 function string(value, path, { nullable = false } = {}) {
   if (nullable && value === null) return;
-  if (typeof value !== "string" || !/\S/u.test(value)) fail("INVALID_STRING", path, `${path} must be a non-empty string`);
+  if (typeof value !== "string" || !/\S/u.test(value)) fail("WR_INVALID_STRING", path, `${path} must be a non-empty string`);
 }
 
 function integer(value, path, { nullable = false, signed = false } = {}) {
   if (nullable && value === null) return;
-  if (!Number.isInteger(value) || (!signed && value < 0)) fail("INVALID_INTEGER", path, `${path} must be ${signed ? "an" : "a non-negative"} integer`);
+  if (!Number.isInteger(value) || (!signed && value < 0)) fail("WR_INVALID_INTEGER", path, `${path} must be ${signed ? "an" : "a non-negative"} integer`);
 }
 
 function oneOf(value, allowed, path) {
-  if (!allowed.includes(value)) fail("INVALID_VALUE", path, `${path} must be one of: ${allowed.join(", ")}`);
+  if (!allowed.includes(value)) fail("WR_INVALID_VALUE", path, `${path} must be one of: ${allowed.join(", ")}`);
 }
 
 function uniqueStrings(values, path) {
   const seen = new Set();
   values.forEach((value, index) => {
     string(value, `${path}[${index}]`);
-    if (seen.has(value)) fail("DUPLICATE_ID", `${path}[${index}]`, `${path} contains duplicate value ${value}`);
+    if (seen.has(value)) fail("WR_DUPLICATE_ID", `${path}[${index}]`, `${path} contains duplicate value ${value}`);
     seen.add(value);
   });
 }
 
 function validateWorkId(value, path) {
   string(value, path);
-  if (!/^(?:US|CHG)-[0-9]{3,}$/u.test(value)) fail("INVALID_WORK_ID", path, `${path} must be an official US-* or CHG-* identifier`);
+  if (!/^(?:US|CHG)-[0-9]{3,}$/u.test(value)) fail("WR_INVALID_WORK_ID", path, `${path} must be an official US-* or CHG-* identifier`);
 }
 
 function validateSignals(value, path) {
   object(value, path, SIGNAL_KEYS);
   for (const key of SIGNAL_KEYS.slice(0, -1)) integer(value[key], `${path}.${key}`);
-  if (typeof value.tooling_change !== "boolean") fail("INVALID_TYPE", `${path}.tooling_change`, `${path}.tooling_change must be boolean`);
+  if (typeof value.tooling_change !== "boolean") fail("WR_INVALID_TYPE", `${path}.tooling_change`, `${path}.tooling_change must be boolean`);
 }
 
 function phaseSum(value) {
@@ -129,7 +129,7 @@ function phaseSum(value) {
 function validateEstimate(value, path) {
   object(value, path, ESTIMATE_KEYS);
   for (const key of ESTIMATE_KEYS) integer(value[key], `${path}.${key}`);
-  if (phaseSum(value) !== value.total) fail("PHASE_TOTAL_MISMATCH", `${path}.total`, `${path}.total must equal the five phase values`);
+  if (phaseSum(value) !== value.total) fail("WR_PHASE_TOTAL_MISMATCH", `${path}.total`, `${path}.total must equal the five phase values`);
 }
 
 function validateUncertainties(values, path) {
@@ -139,7 +139,7 @@ function validateUncertainties(values, path) {
     const itemPath = `${path}[${index}]`;
     object(item, itemPath, ["id", "statement", "status", "estimate_impact_minutes", "resolution"]);
     string(item.id, `${itemPath}.id`);
-    if (ids.has(item.id)) fail("DUPLICATE_ID", `${itemPath}.id`, `Duplicate uncertainty id ${item.id}`);
+    if (ids.has(item.id)) fail("WR_DUPLICATE_ID", `${itemPath}.id`, `Duplicate uncertainty id ${item.id}`);
     ids.add(item.id);
     string(item.statement, `${itemPath}.statement`);
     oneOf(item.status, ["resolved", "budgeted", "unresolved"], `${itemPath}.status`);
@@ -169,11 +169,11 @@ function validateShape(value) {
   object(value, "$",
     value.policy_bootstrap === true ? TOP_LEVEL_KEYS : [...TOP_LEVEL_KEYS, "controlling_change"],
     { optional: ["checkpoints"] });
-  if (value.schema_version !== 1) fail("UNSUPPORTED_SCHEMA_VERSION", "$.schema_version", "Only schema version 1 is supported");
-  if (typeof value.readiness_payload_sha256 !== "string" || !/^[0-9a-f]{64}$/u.test(value.readiness_payload_sha256)) fail("INVALID_SHA256", "$.readiness_payload_sha256", "Root digest must be lowercase SHA-256");
+  if (value.schema_version !== 1) fail("WR_UNSUPPORTED_SCHEMA_VERSION", "$.schema_version", "Only schema version 1 is supported");
+  if (typeof value.readiness_payload_sha256 !== "string" || !/^[0-9a-f]{64}$/u.test(value.readiness_payload_sha256)) fail("WR_INVALID_SHA256", "$.readiness_payload_sha256", "Root digest must be lowercase SHA-256");
   validateWorkId(value.work_id, "$.work_id");
   oneOf(value.kind, ["US", "CHG"], "$.kind");
-  if (!value.work_id.startsWith(`${value.kind}-`)) fail("WORK_KIND_MISMATCH", "$.kind", "kind must match the work_id prefix");
+  if (!value.work_id.startsWith(`${value.kind}-`)) fail("WR_WORK_KIND_MISMATCH", "$.kind", "kind must match the work_id prefix");
   oneOf(value.work_type, ["functional", "technical", "mixed"], "$.work_type");
   string(value.title, "$.title");
   string(value.source, "$.source");
@@ -184,11 +184,11 @@ function validateShape(value) {
     const path = `$.outcomes[${index}]`;
     object(item, path, ["id", "statement", "demo", "primary"]);
     string(item.id, `${path}.id`);
-    if (outcomeIds.has(item.id)) fail("DUPLICATE_ID", `${path}.id`, `Duplicate outcome id ${item.id}`);
+    if (outcomeIds.has(item.id)) fail("WR_DUPLICATE_ID", `${path}.id`, `Duplicate outcome id ${item.id}`);
     outcomeIds.add(item.id);
     string(item.statement, `${path}.statement`);
     string(item.demo, `${path}.demo`);
-    if (typeof item.primary !== "boolean") fail("INVALID_TYPE", `${path}.primary`, `${path}.primary must be boolean`);
+    if (typeof item.primary !== "boolean") fail("WR_INVALID_TYPE", `${path}.primary`, `${path}.primary must be boolean`);
   });
 
   array(value.acceptance_criteria, "$.acceptance_criteria", { min: 1 });
@@ -197,12 +197,12 @@ function validateShape(value) {
     const path = `$.acceptance_criteria[${index}]`;
     object(item, path, ["id", "outcome_ids"]);
     string(item.id, `${path}.id`);
-    if (acceptanceIds.has(item.id)) fail("DUPLICATE_ID", `${path}.id`, `Duplicate acceptance criterion id ${item.id}`);
+    if (acceptanceIds.has(item.id)) fail("WR_DUPLICATE_ID", `${path}.id`, `Duplicate acceptance criterion id ${item.id}`);
     acceptanceIds.add(item.id);
     array(item.outcome_ids, `${path}.outcome_ids`, { min: 1 });
     uniqueStrings(item.outcome_ids, `${path}.outcome_ids`);
     item.outcome_ids.forEach((id, refIndex) => {
-      if (!outcomeIds.has(id)) fail("UNRESOLVED_REFERENCE", `${path}.outcome_ids[${refIndex}]`, `Unknown outcome id ${id}`);
+      if (!outcomeIds.has(id)) fail("WR_UNRESOLVED_REFERENCE", `${path}.outcome_ids[${refIndex}]`, `Unknown outcome id ${id}`);
     });
   });
 
@@ -219,13 +219,13 @@ function validateShape(value) {
     const path = `$.dependencies[${index}]`;
     object(item, path, ["work_id", "type", "reason"]);
     validateWorkId(item.work_id, `${path}.work_id`);
-    if (item.work_id === value.work_id) fail("DEPENDENCY_CYCLE", `${path}.work_id`, "A work item cannot depend on itself");
+    if (item.work_id === value.work_id) fail("WR_DEPENDENCY_CYCLE", `${path}.work_id`, "A work item cannot depend on itself");
     const edge = `${item.type}:${item.work_id}`;
-    if (dependencyIds.has(edge)) fail("DUPLICATE_DEPENDENCY", `${path}.work_id`, `Duplicate dependency ${edge}`);
+    if (dependencyIds.has(edge)) fail("WR_DUPLICATE_DEPENDENCY", `${path}.work_id`, `Duplicate dependency ${edge}`);
     dependencyIds.add(edge);
     oneOf(item.type, ["blocks", "blocked_by"], `${path}.type`);
     if (dependencyDirections.has(item.work_id) && dependencyDirections.get(item.work_id) !== item.type) {
-      fail("DEPENDENCY_CYCLE", `${path}.work_id`, `Contradictory dependency edges with ${item.work_id} form a cycle`);
+      fail("WR_DEPENDENCY_CYCLE", `${path}.work_id`, `Contradictory dependency edges with ${item.work_id} form a cycle`);
     }
     dependencyDirections.set(item.work_id, item.type);
     string(item.reason, `${path}.reason`);
@@ -237,12 +237,12 @@ function validateShape(value) {
   oneOf(value.approval.status, ["pending", "approved", "rejected"], "$.approval.status");
   string(value.approval.approved_by, "$.approval.approved_by", { nullable: true });
   string(value.approval.evidence, "$.approval.evidence", { nullable: true });
-  if (typeof value.approval.payload_sha256 !== "string" || !/^[0-9a-f]{64}$/u.test(value.approval.payload_sha256)) fail("INVALID_SHA256", "$.approval.payload_sha256", "Approval digest must be lowercase SHA-256");
+  if (typeof value.approval.payload_sha256 !== "string" || !/^[0-9a-f]{64}$/u.test(value.approval.payload_sha256)) fail("WR_INVALID_SHA256", "$.approval.payload_sha256", "Approval digest must be lowercase SHA-256");
   if (value.actuals !== null) validateActualsShape(value.actuals, "$.actuals");
   // CHG-037: legacy field, accepted and ignored. Must still be an array so a
   // malformed artifact is still a malformed artifact.
   if (Object.hasOwn(value, "checkpoints")) array(value.checkpoints, "$.checkpoints");
-  if (typeof value.policy_bootstrap !== "boolean") fail("INVALID_TYPE", "$.policy_bootstrap", "policy_bootstrap must be boolean");
+  if (typeof value.policy_bootstrap !== "boolean") fail("WR_INVALID_TYPE", "$.policy_bootstrap", "policy_bootstrap must be boolean");
   string(value.bootstrap_exemption_rationale, "$.bootstrap_exemption_rationale", { nullable: true });
   if (!value.policy_bootstrap && value.controlling_change !== null) {
     object(value.controlling_change, "$.controlling_change", ["work_id", "relationship", "reason"]);
@@ -256,14 +256,14 @@ function validateShape(value) {
 function canonicalize(value, path = "$") {
   if (Array.isArray(value)) return value.map((item, index) => canonicalize(item, `${path}[${index}]`));
   if (value !== null && typeof value === "object") {
-    if (!isPlainObject(value)) fail("UNSAFE_OBJECT", path, `${path} must be a plain object`);
+    if (!isPlainObject(value)) fail("WR_UNSAFE_OBJECT", path, `${path} must be a plain object`);
     return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalize(value[key], `${path}.${key}`)]));
   }
   return value;
 }
 
 export function canonicalReadinessPayload(value) {
-  if (!isPlainObject(value)) fail("UNSAFE_OBJECT", "$", "Readiness payload must be a plain object");
+  if (!isPlainObject(value)) fail("WR_UNSAFE_OBJECT", "$", "Readiness payload must be a plain object");
   const excluded = new Set(["readiness_payload_sha256", "approval", "actuals", "checkpoints"]);
   const payload = Object.fromEntries(Object.keys(value).filter((key) => !excluded.has(key)).map((key) => [key, value[key]]));
   return JSON.stringify(canonicalize(payload));
@@ -316,7 +316,7 @@ function validatePartitionLimits(partition, path) {
   const pseudo = { outcomes: [{ primary: true }], ...partition };
   const violation = hardLimitViolation(pseudo);
   if (violation) fail(violation[0], `${path}.${violation[1]}`, violation[2]);
-  if (uncertaintyBlocks(partition)) fail("PARTITION_UNCERTAINTY", `${path}.uncertainties`, "Partition uncertainties must be resolved and budgeted");
+  if (uncertaintyBlocks(partition)) fail("WR_PARTITION_UNCERTAINTY", `${path}.uncertainties`, "Partition uncertainties must be resolved and budgeted");
   const deliveryScopes = new Set(["contracts", "db", "server", "ui", "infra", "tooling"]);
   if (!partition.scopes.some((scope) => deliveryScopes.has(scope))) fail("WR_VERTICAL_SLICE_INCOMPLETE", `${path}.scopes`, "A child must include an implementation or delivery scope");
   if (partition.estimate_minutes.implementation === 0) fail("WR_VERTICAL_SLICE_INCOMPLETE", `${path}.estimate_minutes.implementation`, "A child must budget implementation work");
@@ -324,8 +324,8 @@ function validatePartitionLimits(partition, path) {
 }
 
 export function validatePartitionGraph(value) {
-  if (!isPlainObject(value)) fail("UNSAFE_OBJECT", "$", "Assessment must be a plain object");
-  if (!Array.isArray(value.partitions)) fail("INVALID_TYPE", "$.partitions", "partitions must be an array");
+  if (!isPlainObject(value)) fail("WR_UNSAFE_OBJECT", "$", "Assessment must be a plain object");
+  if (!Array.isArray(value.partitions)) fail("WR_INVALID_TYPE", "$.partitions", "partitions must be an array");
   if (value.partitions.length === 0) return { executableWorkIds: [] };
   const acceptanceIds = new Set((value.acceptance_criteria ?? []).map((item) => item.id));
   const keys = new Map();
@@ -353,7 +353,7 @@ export function validatePartitionGraph(value) {
     array(partition.acceptance_criteria, `${path}.acceptance_criteria`, { min: 1 });
     uniqueStrings(partition.acceptance_criteria, `${path}.acceptance_criteria`);
     partition.acceptance_criteria.forEach((id, refIndex) => {
-      if (!acceptanceIds.has(id)) fail("UNRESOLVED_REFERENCE", `${path}.acceptance_criteria[${refIndex}]`, `Unknown acceptance criterion ${id}`);
+      if (!acceptanceIds.has(id)) fail("WR_UNRESOLVED_REFERENCE", `${path}.acceptance_criteria[${refIndex}]`, `Unknown acceptance criterion ${id}`);
     });
     oneOf(partition.work_type, ["functional", "technical"], `${path}.work_type`);
     array(partition.scopes, `${path}.scopes`, { min: 1 });
@@ -371,8 +371,8 @@ export function validatePartitionGraph(value) {
   value.partitions.forEach((partition, index) => {
     partition.acceptance_criteria.forEach((id) => coverage.get(id).push(index));
     partition.depends_on.forEach((key, dependencyIndex) => {
-      if (!keys.has(key)) fail("UNRESOLVED_REFERENCE", `$.partitions[${index}].depends_on[${dependencyIndex}]`, `Unknown proposal key ${key}`);
-      if (key === partition.proposal_key) fail("DEPENDENCY_CYCLE", "$.partitions", "Partition dependency graph contains a cycle");
+      if (!keys.has(key)) fail("WR_UNRESOLVED_REFERENCE", `$.partitions[${index}].depends_on[${dependencyIndex}]`, `Unknown proposal key ${key}`);
+      if (key === partition.proposal_key) fail("WR_DEPENDENCY_CYCLE", "$.partitions", "Partition dependency graph contains a cycle");
     });
   });
   for (const [id, indexes] of coverage) {
@@ -384,14 +384,14 @@ export function validatePartitionGraph(value) {
   for (const [id, indexes] of coverage) {
     if (indexes.length > 1) {
       for (const index of indexes) {
-        if (value.partitions[index].cross_cutting_rationale === null) fail("CROSS_CUTTING_RATIONALE_REQUIRED", `$.partitions[${index}].cross_cutting_rationale`, `Duplicate coverage of ${id} requires rationale on every affected partition`);
+        if (value.partitions[index].cross_cutting_rationale === null) fail("WR_CROSS_CUTTING_RATIONALE_REQUIRED", `$.partitions[${index}].cross_cutting_rationale`, `Duplicate coverage of ${id} requires rationale on every affected partition`);
       }
     }
   }
 
   const state = new Map();
   const visit = (key) => {
-    if (state.get(key) === "visiting") fail("DEPENDENCY_CYCLE", "$.partitions", "Partition dependency graph contains a cycle");
+    if (state.get(key) === "visiting") fail("WR_DEPENDENCY_CYCLE", "$.partitions", "Partition dependency graph contains a cycle");
     if (state.get(key) === "done") return;
     state.set(key, "visiting");
     const partition = value.partitions[keys.get(key)];
@@ -418,10 +418,10 @@ function exactBootstrap(value) {
     [value.approval?.payload_sha256 === BOOTSTRAP_DIGEST, "$.approval.payload_sha256"],
     [typeof value.bootstrap_exemption_rationale === "string" && /\S/u.test(value.bootstrap_exemption_rationale), "$.bootstrap_exemption_rationale"],
   ];
-  for (const [valid, path] of checks) if (!valid) fail("INVALID_BOOTSTRAP", path, "CHG-022 bootstrap does not match its committed authorization");
-  if (!isPlainObject(value.bootstrap_authorization)) fail("INVALID_BOOTSTRAP", "$.bootstrap_authorization", "Bootstrap authorization is required");
+  for (const [valid, path] of checks) if (!valid) fail("WR_INVALID_BOOTSTRAP", path, "CHG-022 bootstrap does not match its committed authorization");
+  if (!isPlainObject(value.bootstrap_authorization)) fail("WR_INVALID_BOOTSTRAP", "$.bootstrap_authorization", "Bootstrap authorization is required");
   for (const key of Object.keys(BOOTSTRAP_AUTHORIZATION)) {
-    if (!deepSemanticEqual(value.bootstrap_authorization[key], BOOTSTRAP_AUTHORIZATION[key])) fail("INVALID_BOOTSTRAP", `$.bootstrap_authorization.${key}`, `Bootstrap ${key} differs from the committed authorization`);
+    if (!deepSemanticEqual(value.bootstrap_authorization[key], BOOTSTRAP_AUTHORIZATION[key])) fail("WR_INVALID_BOOTSTRAP", `$.bootstrap_authorization.${key}`, `Bootstrap ${key} differs from the committed authorization`);
   }
   object(value.bootstrap_authorization, "$.bootstrap_authorization", Object.keys(BOOTSTRAP_AUTHORIZATION));
 }
@@ -431,9 +431,9 @@ function deepSemanticEqual(left, right) {
 }
 
 function feedbackArray(records) {
-  if (!Array.isArray(records)) fail("INVALID_TYPE", "$feedback", "feedbackRecords must be an array");
+  if (!Array.isArray(records)) fail("WR_INVALID_TYPE", "$feedback", "feedbackRecords must be an array");
   records.forEach((record, index) => {
-    if (!isPlainObject(record)) fail("UNSAFE_OBJECT", `$feedback[${index}]`, "Feedback records must be plain objects");
+    if (!isPlainObject(record)) fail("WR_UNSAFE_OBJECT", `$feedback[${index}]`, "Feedback records must be plain objects");
   });
 }
 
@@ -733,37 +733,37 @@ export function validateApproval(value, feedbackRecords) {
   const recomputed = computeReadinessPayloadSha256(value);
   if (value.readiness_payload_sha256 !== recomputed) fail("WR_APPROVAL_DIGEST_MISMATCH", "$.readiness_payload_sha256", "Root readiness digest does not match the canonical payload");
   if (value.approval.payload_sha256 !== value.readiness_payload_sha256) fail("WR_APPROVAL_DIGEST_MISMATCH", "$.approval.payload_sha256", "Approval digest must equal the root readiness digest");
-  if (value.approval.status !== "approved") fail("APPROVAL_REQUIRED", "$.approval.status", "The declared decision requires approved evidence");
+  if (value.approval.status !== "approved") fail("WR_APPROVAL_REQUIRED", "$.approval.status", "The declared decision requires approved evidence");
   if (typeof value.approval.approved_by !== "string" || !/\S/u.test(value.approval.approved_by)) {
     fail("WR_APPROVER_REQUIRED", "$.approval.approved_by", "Normal ready approval requires a non-empty approver identity");
   }
   string(value.approval.evidence, "$.approval.evidence");
   const candidates = feedbackRecords.filter((record) => record.event === "decision" && record.id === value.approval.evidence);
-  if (candidates.length === 0) fail("APPROVAL_EVIDENCE_MISSING", "$.approval.evidence", "No matching decision event exists");
-  if (candidates.length !== 1) fail("APPROVAL_EVIDENCE_DUPLICATE", "$.approval.evidence", "Approval evidence must identify exactly one decision event");
+  if (candidates.length === 0) fail("WR_APPROVAL_EVIDENCE_MISSING", "$.approval.evidence", "No matching decision event exists");
+  if (candidates.length !== 1) fail("WR_APPROVAL_EVIDENCE_DUPLICATE", "$.approval.evidence", "Approval evidence must identify exactly one decision event");
   const evidence = candidates[0];
   const evidenceIndex = feedbackRecords.indexOf(evidence);
   validateDecisionRecordShape(evidence);
   if (!value.policy_bootstrap) {
     if (evidence.approved_by !== value.approval.approved_by) fail("WR_APPROVER_MISMATCH", "$.approval.approved_by", "Artifact approver must match the signed decision approver");
-    if (evidence.subject_work_id !== value.work_id) fail("APPROVAL_STORY_MISMATCH", "$.approval.evidence", "Signed decision subject belongs to another work item");
+    if (evidence.subject_work_id !== value.work_id) fail("WR_APPROVAL_STORY_MISMATCH", "$.approval.evidence", "Signed decision subject belongs to another work item");
     const controlling = value.controlling_change ?? null;
     if (controlling === null) {
       if (evidence.relationship !== "self") fail("WR_APPROVAL_CONTROL_MISMATCH", "$.approval.evidence", "Self approval must declare the self relationship");
-      if (evidence.story !== value.work_id) fail("APPROVAL_STORY_MISMATCH", "$.approval.evidence", "Decision evidence belongs to another work item");
+      if (evidence.story !== value.work_id) fail("WR_APPROVAL_STORY_MISMATCH", "$.approval.evidence", "Decision evidence belongs to another work item");
     } else if (evidence.relationship !== "controlling_change" || evidence.story !== controlling.work_id) {
       fail("WR_APPROVAL_CONTROL_MISMATCH", "$.approval.evidence", "Controlling approval must be signed by the exact CHG declared in the digest-bound assessment");
     }
   } else if (evidence.story !== value.work_id) {
-    fail("APPROVAL_STORY_MISMATCH", "$.approval.evidence", "Decision evidence belongs to another work item");
+    fail("WR_APPROVAL_STORY_MISMATCH", "$.approval.evidence", "Decision evidence belongs to another work item");
   }
   validatePreapprovalHistory(value, feedbackRecords, evidenceIndex, terminalProjection);
   const { decisions, digests } = readinessTokens(evidence.text);
   if (decisions.length !== 1 || decisions[0] !== value.decision || digests.length !== 1 || digests[0] !== value.readiness_payload_sha256) {
-    fail("APPROVAL_DECISION_MISMATCH", "$.approval.evidence", "Decision evidence must bind the declared decision and exact digest");
+    fail("WR_APPROVAL_DECISION_MISMATCH", "$.approval.evidence", "Decision evidence must bind the declared decision and exact digest");
   }
   if (value.policy_bootstrap) {
-    if (value.approval.evidence !== BOOTSTRAP_EVIDENCE) fail("BOOTSTRAP_APPROVAL_REPLAY", "$.approval.evidence", "Only the CHG-022 V2 approval can authorize this bootstrap");
+    if (value.approval.evidence !== BOOTSTRAP_EVIDENCE) fail("WR_BOOTSTRAP_APPROVAL_REPLAY", "$.approval.evidence", "Only the CHG-022 V2 approval can authorize this bootstrap");
     const authorization = value.bootstrap_authorization;
     const orderedPaths = `Exact authorized paths, in order: ${authorization.allowed_paths.join("; ")}.`;
     const bindings = [
@@ -773,7 +773,7 @@ export function validateApproval(value, feedbackRecords) {
       "interval begins at this matching decision",
       "expires on CHG-022's first valid terminal done event",
     ];
-    if (!bindings.every((binding) => evidence.text.includes(binding))) fail("BOOTSTRAP_APPROVAL_BINDING", "$.approval.evidence", "Bootstrap decision must bind provenance, ordered paths, and expiry");
+    if (!bindings.every((binding) => evidence.text.includes(binding))) fail("WR_BOOTSTRAP_APPROVAL_BINDING", "$.approval.evidence", "Bootstrap decision must bind provenance, ordered paths, and expiry");
   }
   if (value.decision === "partition_required") {
     const childIds = value.partitions.map((partition) => partition.work_id).filter((workId) => workId !== null);
@@ -802,18 +802,18 @@ export function validateCompletionActuals(value, feedbackRecords) {
   const terminalProjection = buildTerminalProjection(feedbackRecords, value.work_id);
   const doneIndex = terminalDoneIndex(feedbackRecords, value, terminalProjection);
   if (doneIndex < 0) return { complete: false };
-  if (value.actuals === null || value.actuals === undefined) fail("ACTUALS_REQUIRED", "$.actuals", "Terminal done requires completion actuals");
+  if (value.actuals === null || value.actuals === undefined) fail("WR_ACTUALS_REQUIRED", "$.actuals", "Terminal done requires completion actuals");
   validateActualsShape(value.actuals, "$.actuals");
   for (const key of PHASE_KEYS) {
-    if (value.actuals.phase_minutes[key] === null) fail("ACTUALS_INCOMPLETE", `$.actuals.phase_minutes.${key}`, "All actual phase minutes are required at done");
+    if (value.actuals.phase_minutes[key] === null) fail("WR_ACTUALS_INCOMPLETE", `$.actuals.phase_minutes.${key}`, "All actual phase minutes are required at done");
   }
   for (const key of ["total", "changed_files", "commits", "review_fix_loops", "cold_mutation_attempts", "mutation_invalidations", "estimate_variance_minutes", "root_cause"]) {
-    if (value.actuals[key] === null) fail("ACTUALS_INCOMPLETE", `$.actuals.${key}`, `actuals.${key} is required at done`);
+    if (value.actuals[key] === null) fail("WR_ACTUALS_INCOMPLETE", `$.actuals.${key}`, `actuals.${key} is required at done`);
   }
   const total = phaseSum(value.actuals.phase_minutes);
-  if (value.actuals.total !== total) fail("ACTUALS_TOTAL_MISMATCH", "$.actuals.total", "Actual total must equal the five actual phase values");
+  if (value.actuals.total !== total) fail("WR_ACTUALS_TOTAL_MISMATCH", "$.actuals.total", "Actual total must equal the five actual phase values");
   const variance = total - value.estimate_minutes.total;
-  if (value.actuals.estimate_variance_minutes !== variance) fail("ACTUALS_VARIANCE_MISMATCH", "$.actuals.estimate_variance_minutes", "Estimate variance must equal actual total minus estimated total");
+  if (value.actuals.estimate_variance_minutes !== variance) fail("WR_ACTUALS_VARIANCE_MISMATCH", "$.actuals.estimate_variance_minutes", "Estimate variance must equal actual total minus estimated total");
   // CHG-037 §2: actuals no longer have to evidence 45/90-minute controls. The
   // gate demanded a checkpoint for every long phase, which is why the bootstrap
   // needed a "corrective deviation" escape to avoid fabricating controls it never
@@ -823,10 +823,10 @@ export function validateCompletionActuals(value, feedbackRecords) {
     fail("WR_MUTATION_COLD_REQUIRED", "$.actuals.cold_mutation_attempts", "At least one authoritative cold campaign is required when mutation shards are approved");
   }
   const expectedInvalidations = Math.max(0, attempts - 1);
-  if (value.actuals.mutation_invalidations !== expectedInvalidations) fail("MUTATION_INVALIDATION_COUNT", "$.actuals.mutation_invalidations", "Mutation invalidations must equal cold attempts minus one");
+  if (value.actuals.mutation_invalidations !== expectedInvalidations) fail("WR_MUTATION_INVALIDATION_COUNT", "$.actuals.mutation_invalidations", "Mutation invalidations must equal cold attempts minus one");
   if (attempts > 1) {
     const evidence = feedbackRecords.slice(0, doneIndex).filter((record) => record.story === value.work_id && record.event === "mutation_invalidation" && typeof record.reason === "string" && /\S/u.test(record.reason));
-    if (evidence.length !== value.actuals.mutation_invalidations) fail("MUTATION_INVALIDATION_EVIDENCE", "$.actuals.mutation_invalidations", "Each mutation invalidation requires one non-empty reason event");
+    if (evidence.length !== value.actuals.mutation_invalidations) fail("WR_MUTATION_INVALIDATION_EVIDENCE", "$.actuals.mutation_invalidations", "Each mutation invalidation requires one non-empty reason event");
   }
   return { complete: true, total, variance };
 }
@@ -847,8 +847,8 @@ export function validateAssessment(value, { feedbackRecords = [] } = {}) {
   if (value.policy_bootstrap) {
     exactBootstrap(value);
   } else {
-    if (value.bootstrap_exemption_rationale !== null) fail("INVALID_BOOTSTRAP", "$.bootstrap_exemption_rationale", "Normal work cannot claim a bootstrap exemption");
-    if (value.bootstrap_authorization !== null) fail("INVALID_BOOTSTRAP", "$.bootstrap_authorization", "Normal work cannot carry bootstrap authorization");
+    if (value.bootstrap_exemption_rationale !== null) fail("WR_INVALID_BOOTSTRAP", "$.bootstrap_exemption_rationale", "Normal work cannot claim a bootstrap exemption");
+    if (value.bootstrap_authorization !== null) fail("WR_INVALID_BOOTSTRAP", "$.bootstrap_authorization", "Normal work cannot carry bootstrap authorization");
   }
   validatePartitionGraph(value);
   const completion = validateCompletionActuals(value, feedbackRecords);
@@ -856,10 +856,10 @@ export function validateAssessment(value, { feedbackRecords = [] } = {}) {
   if (computedDecision !== value.decision) {
     const violation = computedDecision === "blocked" ? blockingViolation(value) : hardLimitViolation(value);
     if (value.decision === "ready" && violation) fail(violation[0], `$.${violation[1]}`, violation[2]);
-    fail("DECISION_MISMATCH", "$.decision", `Declared decision ${value.decision} does not match recomputed decision ${computedDecision}`);
+    fail("WR_DECISION_MISMATCH", "$.decision", `Declared decision ${value.decision} does not match recomputed decision ${computedDecision}`);
   }
-  if (value.decision === "ready" && value.partitions.length !== 0) fail("PARTITIONS_NOT_ALLOWED", "$.partitions", "Ready normal work cannot contain partitions");
-  if (value.decision === "partition_required" && value.partitions.length === 0) fail("PARTITIONS_REQUIRED", "$.partitions", "Partition-required work must propose at least one child");
+  if (value.decision === "ready" && value.partitions.length !== 0) fail("WR_PARTITIONS_NOT_ALLOWED", "$.partitions", "Ready normal work cannot contain partitions");
+  if (value.decision === "partition_required" && value.partitions.length === 0) fail("WR_PARTITIONS_REQUIRED", "$.partitions", "Partition-required work must propose at least one child");
   // CHG-037 §3: the checkpoint-supersession escape hatch went with the clock —
   // it existed so a terminal completion could override a 90-minute partition stop.
   const authorization = validateApproval(value, feedbackRecords);

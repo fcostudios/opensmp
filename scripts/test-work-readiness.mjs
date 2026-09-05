@@ -3580,6 +3580,33 @@ test("real Git rejects missing and ambiguous bases, and the MESSAGE tells them a
   }
 });
 
+test("every raised code is spelled with the WR_ prefix at its call site", () => {
+  // CHG-039. `fail()` prepends WR_ to a bare code at throw time, so both
+  // spellings surfaced identically and the code set was split across two
+  // vocabularies — which made it uncountable. Two separate censuses during this
+  // rollout got the total wrong because of it (reporting 52 when the real figure
+  // was 87), and the parent's success criterion 1 asks for exactly that count.
+  //
+  // Normalising the source makes the set greppable and leaves `stableCode` as a
+  // no-op safety net. This test is what stops it drifting back.
+  const bare = [];
+  for (const rel of ["scripts/work-readiness.mjs", "scripts/work-readiness/model.mjs", "scripts/work-readiness/git.mjs"]) {
+    const source = readFileSync(new URL(`../${rel}`, import.meta.url), "utf8");
+    for (const m of source.matchAll(/(?:fail|cliError)\(\s*"([A-Z][A-Z0-9_]+)"/gu)) {
+      if (!m[1].startsWith("WR_")) bare.push(`${rel}: ${m[1]}`);
+    }
+  }
+  assert.deepEqual(bare, [], `these call sites raise a bare code; spell it WR_*:\n${bare.join("\n")}`);
+});
+
+test("the WR_ normalisation in fail() is now a no-op safety net", () => {
+  // Kept deliberately: it costs nothing and catches a future call site that
+  // forgets. But it must no longer be doing real translation work — that is what
+  // hid the second vocabulary.
+  const source = readFileSync(new URL("../scripts/work-readiness/model.mjs", import.meta.url), "utf8");
+  assert.match(source, /startsWith\("WR_"\)/u, "the safety net should stay");
+});
+
 test("collapsing the git codes preserved every message verbatim", () => {
   // The contract of a message-carrying error: the taxonomy went, the diagnosis
   // did not. Asserted structurally over the source so a future edit that drops a
