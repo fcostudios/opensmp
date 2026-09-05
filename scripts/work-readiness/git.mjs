@@ -17,6 +17,16 @@ const GENERATED_NOUS_PATHS = [
   /^docs\/stories\//u,
   /^docs\/sprints\//u,
 ];
+const NOUS_SYNC_ENVELOPE_PATHS = new Set([
+  ".nous-project.json",
+  ".nous-provenance.json",
+  ".nous-sync.json",
+]);
+const PROVENANCE_MANAGED_PATHS = [
+  /^docs\/stories\//u,
+  /^docs\/sprints\//u,
+  /^docs\/specs\//u,
+];
 const IMPLEMENTATION_PLAN_PATTERN = /^docs\/superpowers\/plans\/.+\.md$/u;
 const PLAN_HEADER_LIMIT_BYTES = 16 * 1024;
 const OVERLAY_LAYER_PATTERN = /^(CHG-[0-9]{3,})\/[a-z0-9]{7,64}$/u;
@@ -802,6 +812,60 @@ function exactOverlayOwns({ root, base, head, workIds, generatedPath }) {
   });
 }
 
+function exactNousSyncOwns({ root, base, head, changedPaths }) {
+  const hasExactKeys = (value, keys) => value !== null && typeof value === "object" && !Array.isArray(value)
+    && Object.keys(value).sort().join(",") === [...keys].sort().join(",");
+  const isNonEmptyString = (value) => typeof value === "string" && /\S/u.test(value);
+  const isManagedPath = (path) => PROVENANCE_MANAGED_PATHS.some((pattern) => pattern.test(path));
+
+  try {
+    const changed = new Set(changedPaths);
+    if (changed.size !== changedPaths.length
+      || [...NOUS_SYNC_ENVELOPE_PATHS].some((path) => !changed.has(path))) return false;
+    const generatedPaths = changedPaths.filter((path) => !NOUS_SYNC_ENVELOPE_PATHS.has(path));
+    if (generatedPaths.length === 0 || generatedPaths.some((path) => !isManagedPath(path))) return false;
+
+    for (const path of [...NOUS_SYNC_ENVELOPE_PATHS, ...generatedPaths]) {
+      validateRelativePath(path);
+      if (revisionMode(root, head, path) !== "100644") return false;
+    }
+
+    const provenance = parseJson(readRevisionFile(root, head, ".nous-provenance.json"), ".nous-provenance.json");
+    const project = parseJson(readRevisionFile(root, head, ".nous-project.json"), ".nous-project.json");
+    const sync = parseJson(readRevisionFile(root, head, ".nous-sync.json"), ".nous-sync.json");
+    if (!hasExactKeys(provenance, ["schema_version", "project_id", "git_sha", "dirty", "dirty_paths"])
+      || !hasExactKeys(project, ["schema_version", "project_id", "organization", "nous_namespace", "generated_at", "substrate_commit", "checksum"])
+      || !hasExactKeys(sync, ["synced_at", "project_id", "files"])) return false;
+    if (provenance.schema_version !== 1 || project.schema_version !== 1
+      || !isNonEmptyString(provenance.project_id) || provenance.project_id !== project.project_id
+      || provenance.project_id !== sync.project_id || !/^[0-9a-f]{12}$/u.test(provenance.git_sha)
+      || !/^[0-9a-f]{7,12}$/u.test(project.substrate_commit)
+      || !provenance.git_sha.startsWith(project.substrate_commit)
+      || !isNonEmptyString(project.organization) || !isNonEmptyString(project.nous_namespace)
+      || !/^[0-9a-f]{16}$/u.test(project.checksum) || provenance.dirty !== false
+      || !Array.isArray(provenance.dirty_paths) || provenance.dirty_paths.length !== 0) return false;
+
+    const generatedAt = Date.parse(project.generated_at);
+    const syncedAt = Date.parse(sync.synced_at);
+    if (!Number.isFinite(generatedAt) || !Number.isFinite(syncedAt) || syncedAt < generatedAt
+      || !hasExactKeys(sync.files, Object.keys(sync.files)) || Object.keys(sync.files).length !== generatedPaths.length) return false;
+
+    const manifestPaths = Object.keys(sync.files).sort();
+    if (manifestPaths.join(",") !== [...generatedPaths].sort().join(",")) return false;
+    for (const path of generatedPaths) {
+      validateRelativePath(path);
+      const entry = sync.files[path];
+      if (!hasExactKeys(entry, ["hash", "source"]) || entry.source !== "generated"
+        || !/^[0-9a-f]{16}$/u.test(entry.hash)) return false;
+      const bytes = readRevisionBytes(root, head, path, { required: false });
+      if (bytes === null || createHash("sha256").update(bytes).digest("hex").slice(0, 16) !== entry.hash) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function extractWorkIds(message) {
   if (typeof message !== "string" || message.includes("\0")) fail("WR_COMMIT_MESSAGE_INVALID", "$.message", "Commit message must be a NUL-free string");
   const seen = new Set();
@@ -1000,6 +1064,9 @@ function validateCommitOwnership({
         expectedWorkId: planPathWorkIds.length === 1 ? planPathWorkIds[0] : null,
       });
     }
+  }
+  if (exactNousSyncOwns({ root, base: parent, head: commit, changedPaths })) {
+    return { workIds, changedPaths, classification: "bootstrap-documentation", grandfatheredWorkIds: [] };
   }
   const classes = changedPaths.map(classifyChangedPath);
   const generatedPaths = changedPaths.filter((path, index) => classes[index] === "generated-nous");

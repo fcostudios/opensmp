@@ -1401,6 +1401,36 @@ function makeGitRepo() {
   return { root, base: git(root, ["rev-parse", "HEAD"]) };
 }
 
+function writeExactNousSyncEnvelope(root, generatedPath, generated) {
+  writeRepoFile(root, generatedPath, generated);
+  writeRepoFile(root, ".nous-provenance.json", `${JSON.stringify({
+    schema_version: 1,
+    project_id: "fixture__ledger",
+    git_sha: "d246c6ff15d4",
+    dirty: false,
+    dirty_paths: [],
+  }, null, 2)}\n`);
+  writeRepoFile(root, ".nous-project.json", `${JSON.stringify({
+    schema_version: 1,
+    project_id: "fixture__ledger",
+    organization: "org_fixture",
+    nous_namespace: "fixture/ledger",
+    generated_at: "2026-09-05T21:40:53Z",
+    substrate_commit: "d246c6ff",
+    checksum: "82f3e0de92a5834b",
+  }, null, 2)}\n`);
+  writeRepoFile(root, ".nous-sync.json", `${JSON.stringify({
+    synced_at: "2026-09-05T21:40:53.665778+00:00",
+    project_id: "fixture__ledger",
+    files: {
+      [generatedPath]: {
+        hash: createHash("sha256").update(generated).digest("hex").slice(0, 16),
+        source: "generated",
+      },
+    },
+  }, null, 2)}\n`);
+}
+
 function commitRepo(root, message, paths) {
   git(root, ["add", "--", ...paths]);
   git(root, ["commit", "-m", message]);
@@ -2901,6 +2931,22 @@ test("real Git requires readiness for every ID named by a production range", () 
     writeRepoFile(root, "apps/web/src/app/page.tsx", "export {};\n");
     const head = commitRepo(root, "feat(US-321 CHG-456): production change", ["apps/web/src/app/page.tsx"]);
     assert.throws(() => validateRangeOwnership({ root, base, head }), (error) => error.code === "WR_APPROVAL_REQUIRED");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("an exact Nous sync envelope authorizes generated documentation", () => {
+  const { root, base } = makeGitRepo();
+  try {
+    const generatedPath = "docs/stories/SPRINT_PLAN.md";
+    const generated = "# Sprint plan from Nous\n";
+    writeExactNousSyncEnvelope(root, generatedPath, generated);
+    const head = commitRepo(root, "docs(CHG-045): sync generated sprint", [
+      generatedPath, ".nous-provenance.json", ".nous-project.json", ".nous-sync.json",
+    ]);
+
+    assert.equal(validateRangeOwnership({ root, base, head }).classification, "bootstrap-documentation");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
