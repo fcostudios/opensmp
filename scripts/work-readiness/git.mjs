@@ -27,7 +27,10 @@ const PROVENANCE_MANAGED_PATHS = [
   /^docs\/sprints\//u,
   /^docs\/specs\//u,
 ];
-const UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|\+00:00)$/u;
+const MAX_NOUS_DIRTY_PATHS = 1024;
+const MAX_NOUS_SYNC_FILES = 1024;
+const MAX_NOUS_PATH_BYTES = 4096;
+const UTC_TIMESTAMP_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|\+00:00)$/u;
 const IMPLEMENTATION_PLAN_PATTERN = /^docs\/superpowers\/plans\/.+\.md$/u;
 const PLAN_HEADER_LIMIT_BYTES = 16 * 1024;
 const OVERLAY_LAYER_PATTERN = /^(CHG-[0-9]{3,})\/[a-z0-9]{7,64}$/u;
@@ -814,17 +817,60 @@ function exactOverlayOwns({ root, base, head, workIds, generatedPath }) {
 }
 
 function exactNousSyncOwns({ root, base, head, changedPaths }) {
-  const hasExactKeys = (value, keys) => value !== null && typeof value === "object" && !Array.isArray(value)
+  const isPlainObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value)
+    && Object.getPrototypeOf(value) === Object.prototype;
+  const hasExactKeys = (value, keys) => isPlainObject(value)
     && Object.keys(value).sort().join(",") === [...keys].sort().join(",");
-  const isNonEmptyString = (value) => typeof value === "string" && /\S/u.test(value);
+  const isNonEmptyString = (value) => typeof value === "string" && value.length <= 1024
+    && value === value.trim() && !/[\u0000-\u001f\u007f\ufffd]/u.test(value) && value.length > 0;
   const isManagedPath = (path) => PROVENANCE_MANAGED_PATHS.some((pattern) => pattern.test(path));
+  const isCanonicalNousPath = (path) => {
+    if (typeof path !== "string" || !path.startsWith("Nous/")
+      || Buffer.byteLength(path, "utf8") > MAX_NOUS_PATH_BYTES) return false;
+    try {
+      validateRelativePath(path);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const normalizeNousSource = (source) => {
+    if (typeof source !== "string" || !isAbsolute(source)
+      || source.length === 0 || source.endsWith("/") || source.includes("\\")
+      || /[\u0000-\u001f\u007f\ufffd]/u.test(source)
+      || Buffer.byteLength(source, "utf8") > MAX_NOUS_PATH_BYTES) return null;
+    const segments = source.split("/");
+    if (segments[0] !== "" || segments.slice(1).some((segment) => segment === "" || segment === "." || segment === "..")) return null;
+    const marker = "/Nous/";
+    const markerIndex = source.indexOf(marker);
+    if (markerIndex < 0 || markerIndex !== source.lastIndexOf(marker)) return null;
+    const normalized = `Nous/${source.slice(markerIndex + marker.length)}`;
+    return isCanonicalNousPath(normalized) ? normalized : null;
+  };
+  const parseUtcTimestamp = (value) => {
+    if (typeof value !== "string") return null;
+    const match = UTC_TIMESTAMP_PATTERN.exec(value);
+    if (!match) return null;
+    const timestamp = Date.parse(value);
+    if (!Number.isFinite(timestamp)) return null;
+    const date = new Date(timestamp);
+    const parts = match.slice(1, 7).map(Number);
+    if (date.getUTCFullYear() !== parts[0] || date.getUTCMonth() + 1 !== parts[1]
+      || date.getUTCDate() !== parts[2] || date.getUTCHours() !== parts[3]
+      || date.getUTCMinutes() !== parts[4] || date.getUTCSeconds() !== parts[5]) return null;
+    return timestamp;
+  };
+  const pathsOverlap = (left, right) => left === right
+    || left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
 
   try {
     const changed = new Set(changedPaths);
     if (changed.size !== changedPaths.length
       || [...NOUS_SYNC_ENVELOPE_PATHS].some((path) => !changed.has(path))) return false;
     const generatedPaths = changedPaths.filter((path) => !NOUS_SYNC_ENVELOPE_PATHS.has(path));
-    if (generatedPaths.length === 0 || generatedPaths.some((path) => !isManagedPath(path))) return false;
+    if (generatedPaths.length === 0 || generatedPaths.length > MAX_NOUS_SYNC_FILES
+      || generatedPaths.some((path) => !isManagedPath(path)
+        || Buffer.byteLength(path, "utf8") > MAX_NOUS_PATH_BYTES)) return false;
 
     for (const path of [...NOUS_SYNC_ENVELOPE_PATHS, ...generatedPaths]) {
       validateRelativePath(path);
@@ -843,23 +889,32 @@ function exactNousSyncOwns({ root, base, head, changedPaths }) {
       || !/^[0-9a-f]{8}$/u.test(project.substrate_commit)
       || project.substrate_commit !== provenance.git_sha.slice(0, 8)
       || !isNonEmptyString(project.organization) || !isNonEmptyString(project.nous_namespace)
-      || !/^[0-9a-f]{16}$/u.test(project.checksum) || provenance.dirty !== false
-      || !Array.isArray(provenance.dirty_paths) || provenance.dirty_paths.length !== 0) return false;
+      || !/^[0-9a-f]{16}$/u.test(project.checksum) || typeof provenance.dirty !== "boolean"
+      || !Array.isArray(provenance.dirty_paths)
+      || provenance.dirty_paths.length > MAX_NOUS_DIRTY_PATHS
+      || provenance.dirty !== (provenance.dirty_paths.length > 0)) return false;
 
-    const generatedAt = Date.parse(project.generated_at);
-    const syncedAt = Date.parse(sync.synced_at);
-    if (!UTC_TIMESTAMP_PATTERN.test(project.generated_at) || !UTC_TIMESTAMP_PATTERN.test(sync.synced_at)
-      || !Number.isFinite(generatedAt) || !Number.isFinite(syncedAt)
+    const dirtyPaths = provenance.dirty_paths;
+    if (new Set(dirtyPaths).size !== dirtyPaths.length
+      || dirtyPaths.some((path) => !isCanonicalNousPath(path))) return false;
+
+    const generatedAt = parseUtcTimestamp(project.generated_at);
+    const syncedAt = parseUtcTimestamp(sync.synced_at);
+    if (generatedAt === null || syncedAt === null
       || Math.trunc(generatedAt / 1000) !== Math.trunc(syncedAt / 1000)
-      || !hasExactKeys(sync.files, Object.keys(sync.files)) || Object.keys(sync.files).length !== generatedPaths.length) return false;
+      || !isPlainObject(sync.files) || Object.keys(sync.files).length !== generatedPaths.length
+      || Object.keys(sync.files).length > MAX_NOUS_SYNC_FILES) return false;
 
     const manifestPaths = Object.keys(sync.files).sort();
     if (manifestPaths.join(",") !== [...generatedPaths].sort().join(",")) return false;
     for (const path of generatedPaths) {
       validateRelativePath(path);
       const entry = sync.files[path];
-      if (!hasExactKeys(entry, ["hash", "source"]) || entry.source !== "generated"
-        || !/^[0-9a-f]{16}$/u.test(entry.hash)) return false;
+      if (!hasExactKeys(entry, ["hash", "source"]) || !/^[0-9a-f]{16}$/u.test(entry.hash)) return false;
+      const sourcePath = entry.source === "generated" ? null : normalizeNousSource(entry.source);
+      if (entry.source !== "generated" && sourcePath === null) return false;
+      if (provenance.dirty && (sourcePath === null
+        || dirtyPaths.some((dirtyPath) => pathsOverlap(dirtyPath, sourcePath)))) return false;
       const bytes = readRevisionBytes(root, head, path, { required: false });
       if (bytes === null || createHash("sha256").update(bytes).digest("hex").slice(0, 16) !== entry.hash) return false;
     }
