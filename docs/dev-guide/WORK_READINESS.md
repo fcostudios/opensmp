@@ -28,7 +28,7 @@ For every normal work item, a `ready` decision is invalid when any of these
 conditions is true. CHG-022's exact, const-bound activation payload is the sole
 non-repeatable exception; changing or copying it does not create another one.
 
-1. The total estimate exceeds 120 minutes.
+1. The total estimate exceeds 320 minutes.
 2. More than one primary outcome exists.
 3. More than three major technical scopes are touched.
 4. More than two routes or screens are changed.
@@ -53,7 +53,7 @@ layers. Every child must:
 - map its inherited acceptance criteria without orphaning or silently deferring
   behavior;
 - declare acyclic ordering and dependencies;
-- have a phase estimate totaling no more than 120 minutes and satisfy every
+- have a phase estimate totaling no more than 320 minutes and satisfy every
   other hard limit;
 - include implementation and verification in one vertical slice, never
   “frontend only,” “backend only,” or “tests later”; and
@@ -332,7 +332,7 @@ two independent business outcomes or 24 expected files. Its decision is
 `partition_required`, so implementation is not permitted. A valid proposal
 maps all acceptance criteria into vertical children such as official Nous IDs
 `CHG-124` and `CHG-125`, each with an independent demo, implementation and
-verification, complete dependency ordering, and a total at or below 120
+verification, complete dependency ordering, and a total at or below 320
 minutes. Those IDs are examples of IDs supplied by Nous, not IDs an agent may
 invent; each child still needs its own matching approval and readiness artifact.
 

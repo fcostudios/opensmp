@@ -11,6 +11,25 @@ const SIGNAL_KEYS = [
   "lifecycle_or_concurrency_boundaries", "external_integrations", "schema_or_migration_changes",
   "authorization_or_audit_boundaries", "tooling_change",
 ];
+// CHG-035 — the execution budget, in ONE place.
+//
+// 320, not the original 120. The 120 came from a single incident (one 11-hour,
+// 57-file, 47-commit story) and was never calibrated against the story-point
+// scale the design phase actually sizes in. IMP-374 measured that scale on this
+// project: 104 min/SP, the SLOWEST of the two observed rates. At 104, the modal
+// 3SP story projects to 312 minutes, so a 120-minute ceiling partitioned
+// essentially every remaining story for budget reasons alone — 30 of 30
+// unstarted. At 320 it is 2 of 30, both genuine 5SP outliers.
+//
+// Provisional, and deliberately so: the two calibration pairs are ESTIMATES, and
+// docs/readiness/README.md records estimates running two to three times under
+// actuals. Once actuals.total exists on two items the recalibrator can be pointed
+// at them and this becomes a one-line diff.
+//
+// Both schema `maximum` values must equal this; a test asserts it, because a
+// constant the schema does not track is two sources of truth again.
+export const MAX_READINESS_MINUTES = 320;
+
 const PHASE_KEYS = ["readiness", "implementation", "focused_verification", "review", "integration"];
 const ESTIMATE_KEYS = [...PHASE_KEYS, "total"];
 const BOOTSTRAP_DIGEST = "c9526d8070e749820d83edfba136cd2ec129ea239bb9e94d710d0a2120a16d32";
@@ -274,7 +293,7 @@ export function computeReadinessPayloadSha256(value) {
 }
 
 function hardLimitViolation(value) {
-  if (value.estimate_minutes.total > 120) return ["WR_ESTIMATE_OVER_BUDGET", "estimate_minutes.total", "Estimate exceeds 120 minutes"];
+  if (value.estimate_minutes.total > MAX_READINESS_MINUTES) return ["WR_ESTIMATE_OVER_BUDGET", "estimate_minutes.total", `Estimate exceeds ${MAX_READINESS_MINUTES} minutes`];
   if (value.outcomes.filter((outcome) => outcome.primary).length > 1) return ["WR_MULTIPLE_OUTCOMES", "outcomes", "More than one primary outcome requires partitioning"];
   if (value.scopes.length > 3) return ["WR_TOO_MANY_SCOPES", "scopes", "More than three scopes are not cohesive"];
   if (value.signals.routes_or_screens > 2) return ["WR_TOO_MANY_ROUTES", "signals.routes_or_screens", "More than two routes or screens requires partitioning"];

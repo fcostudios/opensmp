@@ -64,7 +64,7 @@ from the nav map. Never edit it. After any nav map change, run
 
 Before writing a design, implementation plan, production code, test, migration,
 or executable tooling for any US-* or CHG-*, run its approved readiness
-assessment. A work item above 120 minutes or any cohesion limit is not
+assessment. A work item above 320 minutes or any cohesion limit is not
 execution-ready; partition it into official, approved vertical children first.
 
 Run `pnpm readiness:check -- <WORK-ID>`. The complete mandatory contract is in

@@ -334,7 +334,7 @@
           "estimate_minutes": {
             "properties": {
               "total": {
-                "maximum": 120
+                "maximum": 320
               }
             }
           },
@@ -706,7 +706,7 @@
             {
               "properties": {
                 "total": {
-                  "maximum": 120
+                  "maximum": 320
                 }
               }
             }

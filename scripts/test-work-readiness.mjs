@@ -10,6 +10,7 @@ import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 import {
+  MAX_READINESS_MINUTES,
   WorkReadinessError,
   canonicalReadinessPayload,
   classifyAssessment,
@@ -222,7 +223,7 @@ test("accepts an approved ready US", () => {
 });
 
 for (const [name, mutate, code, path] of [
-  ["normal estimate above 120", (v) => { v.estimate_minutes.implementation = 76; v.estimate_minutes.total = 121; }, "WR_ESTIMATE_OVER_BUDGET", "$.estimate_minutes.total"],
+  ["normal estimate above the budget", (v) => { v.estimate_minutes.implementation = 276; v.estimate_minutes.total = 321; }, "WR_ESTIMATE_OVER_BUDGET", "$.estimate_minutes.total"],
   ["multiple primary outcomes", (v) => { v.outcomes.push({ id: "O2", statement: "Second", demo: "Second demo", primary: true }); }, "WR_MULTIPLE_OUTCOMES", "$.outcomes"],
   ["more than three scopes", (v) => { v.scopes = ["a", "b", "c", "d"]; }, "WR_TOO_MANY_SCOPES", "$.scopes"],
   ["more than two routes", (v) => { v.signals.routes_or_screens = 3; }, "WR_TOO_MANY_ROUTES", "$.signals.routes_or_screens"],
@@ -394,8 +395,8 @@ test("rejects cyclic and missing partition dependencies", () => {
 
 test("rejects oversized or incohesive child partitions", () => {
   const value = partitioned();
-  value.partitions[0].estimate_minutes.implementation = 76;
-  value.partitions[0].estimate_minutes.total = 121;
+  value.partitions[0].estimate_minutes.implementation = 276;
+  value.partitions[0].estimate_minutes.total = 321;
   expectError("WR_ESTIMATE_OVER_BUDGET", "$.partitions[0].estimate_minutes.total", () => validatePartitionGraph(value));
 });
 
@@ -3578,6 +3579,41 @@ test("real Git rejects missing and ambiguous bases, and the MESSAGE tells them a
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("the budget is one constant, and the schema tracks it", () => {
+  // CHG-035. The ceiling used to be a literal repeated across the check, its
+  // message, two schema maxima, three doc lines and CLAUDE.md. A constant the
+  // schema does not track is still two sources of truth, so this binds them:
+  // the next re-baseline fails loudly if it updates one and not the other.
+  const schema = JSON.parse(readFileSync(new URL("../docs/dev-guide/work-readiness.schema.json", import.meta.url), "utf8"));
+  const maxima = [...JSON.stringify(schema).matchAll(/"maximum":(\d+)/gu)]
+    .map((m) => Number(m[1]))
+    .filter((n) => n >= 60);
+  assert.equal(maxima.length, 2, "expected exactly two budget maxima in the schema");
+  for (const m of maxima) assert.equal(m, MAX_READINESS_MINUTES);
+
+  // And the message quotes the constant rather than a second literal.
+  const source = readFileSync(new URL("../scripts/work-readiness/model.mjs", import.meta.url), "utf8");
+  assert.match(source, /Estimate exceeds \$\{MAX_READINESS_MINUTES\} minutes/u);
+});
+
+test("the budget boundary is inclusive at the ceiling and refuses one over", () => {
+  const at = normal();
+  at.estimate_minutes = { readiness: 10, implementation: MAX_READINESS_MINUTES - 45,
+    focused_verification: 20, review: 10, integration: 5 };
+  at.estimate_minutes.total = MAX_READINESS_MINUTES;
+  refreshDigest(at);
+  assert.equal(validateAssessment(at, { feedbackRecords: [decisionFor(at)] }).decision, "ready",
+    "an estimate landing exactly on the ceiling fits");
+
+  const over = normal();
+  over.estimate_minutes = { readiness: 10, implementation: MAX_READINESS_MINUTES - 44,
+    focused_verification: 20, review: 10, integration: 5 };
+  over.estimate_minutes.total = MAX_READINESS_MINUTES + 1;
+  refreshDigest(over);
+  expectError("WR_ESTIMATE_OVER_BUDGET", "$.estimate_minutes.total",
+    () => validateAssessment(over, { feedbackRecords: [decisionFor(over)] }));
 });
 
 test("every raised code is spelled with the WR_ prefix at its call site", () => {
