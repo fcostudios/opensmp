@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "a17785ecd0849e962dc8e8ae0e2fca685b336f2f2b05e45d04347be1eda890fc",
+  "work_id": "CHG-040",
+  "kind": "CHG",
+  "work_type": "functional",
+  "title": "Restore operational deadline rules to the effectiveness-critical set",
+  "source": "docs/dev-guide/WORK_READINESS.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "testing/critical-paths.md declares twelve effectiveness-critical business rules instead of nine, so the nine stories governed by BR-08, BR-11 and BR-14 owe mutation evidence before they can close.",
+      "demo": "Diff testing/critical-paths.md against its previous state: exactly three rows are added (BR-08, BR-11, BR-14) with the governing stories the graph carries, and nothing else changes.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "planning"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 1,
+    "expected_changed_files": 1,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 10,
+    "implementation": 0,
+    "focused_verification": 15,
+    "review": 10,
+    "integration": 5,
+    "total": 40
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Whether the regenerated file's governing-story lists match the authored 09b prose, which lists fewer stories per rule than the graph carries.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "The generated file reads governed_by EDGES (materialized from the 10b story Meta rows, IMP-308), not the 09b prose or the extract's governed_by array. The graph is authoritative and was verified directly: BR-08 <- US-015/017/032/046, BR-11 <- US-022/052/053, BR-14 <- US-024/042. The prose disagreeing is a separate, unflagged substrate divergence and is not in scope here."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG040-READY",
+    "payload_sha256": "a17785ecd0849e962dc8e8ae0e2fca685b336f2f2b05e45d04347be1eda890fc"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
