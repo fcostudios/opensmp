@@ -13,6 +13,7 @@ const expectedTables = [
   "capacityRecoveryWork",
   "company",
   "companyRoleAssignment",
+  "connectorCallObservation",
   "costRecord",
   "identityProviderOperation",
   "integrationCredential",

@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, test } from "vitest";
+import { readFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import {
   createPostgresFixture,
   type PostgresFixture,
@@ -16,6 +19,7 @@ const expectedTables = [
   "close_run",
   "company",
   "company_role_assignment",
+  "connector_call_observation",
   "cost_record",
   "identity_provider_operation",
   "integration_credential",
@@ -45,6 +49,69 @@ afterEach(async () => {
 });
 
 describe("US-003 physical schema parity", () => {
+  test("US-057 release verification rejects journal catalog and enforcement drift", async () => {
+    const fixture = await createPostgresFixture();
+    fixtures.push(fixture);
+    await fixture.migrate();
+    const owner = await fixture.connectAsOwner();
+    try {
+      const columns = await owner.query(`SELECT column_name, udt_name, is_nullable
+        FROM information_schema.columns WHERE table_name = 'connector_call_observation' ORDER BY ordinal_position`);
+      expect(columns.rows.map(({ column_name, udt_name, is_nullable }) => [column_name, udt_name, is_nullable])).toEqual([
+        ["id", "uuid", "NO"], ["vendor_account_id", "uuid", "NO"], ["provisioning_action_id", "uuid", "YES"],
+        ["correlation_id", "uuid", "NO"], ["operation", "connector_call_operation_enum", "NO"], ["attempt", "int4", "NO"],
+        ["phase", "connector_call_phase_enum", "NO"], ["classification", "text", "YES"], ["summary", "jsonb", "NO"], ["occurred_at", "timestamptz", "NO"],
+      ]);
+      const enums = await owner.query(`SELECT typname, array_agg(enumlabel ORDER BY enumsortorder)::text[] AS values
+        FROM pg_type JOIN pg_enum ON enumtypid = pg_type.oid
+        WHERE typname IN ('connector_call_operation_enum', 'connector_call_phase_enum') GROUP BY typname ORDER BY typname`);
+      expect(enums.rows).toEqual([
+        { typname: "connector_call_operation_enum", values: ["provision", "deprovision", "sync_members", "sync_activity", "sync_cost"] },
+        { typname: "connector_call_phase_enum", values: ["requested", "succeeded", "failed"] },
+      ]);
+      const release = await owner.query(`SELECT filename FROM ledger_schema_migrations WHERE filename LIKE 'V20260804120%' ORDER BY filename`);
+      expect(release.rows.slice(-2)).toEqual([
+        { filename: "V20260804120200__connector_call_observation.sql" },
+        { filename: "V20260804120300__verify_connector_call_observation.sql" },
+      ]);
+      const verifier = await readFile(new URL("./migrations/V20260804120300__verify_connector_call_observation.sql", import.meta.url), "utf8");
+      const mutations = [
+        "DROP TABLE connector_call_observation",
+        "ALTER TABLE connector_call_observation ALTER COLUMN summary DROP NOT NULL",
+        "ALTER TYPE connector_call_phase_enum RENAME VALUE 'failed' TO 'failure'",
+        "ALTER TABLE connector_call_observation DROP CONSTRAINT connector_call_attempt_check",
+        "ALTER TABLE connector_call_observation DROP CONSTRAINT connector_call_observation_vendor_account_id_fkey",
+        "ALTER TABLE connector_call_observation DROP CONSTRAINT uq_connector_call_phase",
+        "DROP INDEX uq_connector_call_terminal",
+        "DROP INDEX idx_connector_call_operation",
+        "ALTER TABLE connector_call_observation DISABLE TRIGGER trg_connector_call_validate",
+        "ALTER TABLE connector_call_observation DISABLE TRIGGER trg_connector_call_append_only",
+        "CREATE OR REPLACE FUNCTION validate_connector_call_observation() RETURNS trigger LANGUAGE plpgsql AS 'BEGIN RETURN NEW; END'",
+        "GRANT UPDATE ON connector_call_observation TO ledger_app",
+        "GRANT SELECT ON connector_call_observation TO PUBLIC",
+        "ALTER FUNCTION validate_connector_call_observation() STABLE",
+        "GRANT EXECUTE ON FUNCTION validate_connector_call_observation() TO PUBLIC",
+      ];
+      for (const mutation of mutations) {
+        await owner.query("BEGIN");
+        try {
+          await owner.query(mutation);
+          await expect(owner.query(verifier)).rejects.toMatchObject({ code: "P0001" });
+        } finally {
+          await owner.query("ROLLBACK");
+        }
+      }
+      const verify = () => promisify(execFile)(process.execPath, ["scripts/verify-schema.mjs"], {
+        env: { ...process.env, DATABASE_ADMIN_URL: fixture.ownerUrl, DATABASE_URL: fixture.appUrl },
+      });
+      expect((await verify()).stdout).toContain("✓");
+      await owner.query("ALTER TABLE connector_call_observation DISABLE TRIGGER trg_connector_call_validate");
+      await expect(verify()).rejects.toMatchObject({ code: 1 });
+    } finally {
+      await owner.end();
+    }
+  }, 150_000);
+
   test("materializes the domain plus durable-notification tables and documented company scope", async () => {
     const fixture = await createPostgresFixture();
     fixtures.push(fixture);

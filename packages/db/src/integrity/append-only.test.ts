@@ -113,6 +113,101 @@ async function seedAppendOnlyRows(client: pg.Client): Promise<void> {
 }
 
 describe("US-003 append-only runtime grants", () => {
+  test("US-057 enforces immutable, sequential, account-bound connector evidence", async () => {
+    const fixture = await createPostgresFixture();
+    fixtures.push(fixture);
+    await fixture.migrate();
+    const owner = await fixture.connectAsOwner();
+    const app = await fixture.connectAsApp();
+    const correlation = "00000000-0000-0000-0000-000000000401";
+    const otherAccount = "00000000-0000-0000-0000-000000000402";
+    const otherCompany = "00000000-0000-0000-0000-000000000403";
+    const otherRequest = "00000000-0000-0000-0000-000000000404";
+    const otherAction = "00000000-0000-0000-0000-000000000405";
+    const insert = (overrides: Record<string, unknown> = {}) => {
+      const row = { vendor_account_id: ids.vendorAccount, provisioning_action_id: ids.provisioning,
+        correlation_id: correlation, operation: "provision", attempt: 1, phase: "requested",
+        classification: null, summary: "{}", occurred_at: "2026-09-06T12:00:00Z", ...overrides };
+      return app.query(`INSERT INTO connector_call_observation (${Object.keys(row).join(",")})
+        VALUES (${Object.keys(row).map((_, i) => `$${i + 1}`).join(",")}) RETURNING phase`, Object.values(row));
+    };
+    try {
+      await seedAppendOnlyRows(owner);
+      await owner.query(`INSERT INTO vendor_account (id, vendor_id, name, mode, low_pool_floor, status, created_at, created_by)
+        VALUES ($1, $2, 'Other account', 'automated', 0, 'active', '2026-09-06', $3)`, [otherAccount, ids.vendor, systemUserId]);
+      // Removing any individual guard permits a specific invalid row in this matrix.
+      for (const invalid of [
+        { attempt: 0 }, { attempt: 2 }, { phase: "succeeded", classification: "success" },
+        { classification: "success" }, { summary: "[]" }, { summary: "null" },
+        { operation: "sync_members" }, { vendor_account_id: otherAccount },
+      ]) await expect(insert(invalid)).rejects.toMatchObject({ code: "23514" });
+      expect((await insert()).rows).toEqual([{ phase: "requested" }]);
+      for (const invalid of [
+        { attempt: 3 }, { attempt: 2, operation: "deprovision" },
+        { attempt: 2, provisioning_action_id: null },
+        { attempt: 2, provisioning_action_id: null, vendor_account_id: otherAccount },
+        { phase: "succeeded", classification: null },
+        { phase: "succeeded", classification: "provider_error" },
+        { phase: "failed", classification: "success" },
+        { phase: "failed", classification: "unknown" },
+      ]) await expect(insert(invalid)).rejects.toMatchObject({ code: "23514" });
+      await expect(insert()).rejects.toMatchObject({ code: "23514" });
+      expect((await insert({ phase: "failed", classification: "rate_limited" })).rows).toEqual([{ phase: "failed" }]);
+      await expect(insert({ phase: "succeeded", classification: "success" })).rejects.toMatchObject({ code: "23514" });
+      expect((await insert({ attempt: 2 })).rowCount).toBe(1);
+      expect((await insert({ attempt: 2, phase: "succeeded", classification: "success" })).rowCount).toBe(1);
+      expect((await insert({ correlation_id: otherAccount, operation: "sync_cost", provisioning_action_id: null })).rowCount).toBe(1);
+      await owner.query(`INSERT INTO company (id, name, code, type, status, created_at, created_by)
+        VALUES ($1, 'Other company', 'COMP-OTHER', 'internal', 'active', '2026-09-06', $2)`, [otherCompany, systemUserId]);
+      await owner.query(`INSERT INTO person (id, email, full_name, company_id, status, created_at, created_by)
+        VALUES ($1, 'other@example.test', 'Other', $1, 'active', '2026-09-06', $2)`, [otherCompany, systemUserId]);
+      await owner.query(`INSERT INTO license_request (id, request_no, person_id, company_id, vendor_account_id,
+        license_type_id, state, justification, created_at, created_by)
+        VALUES ($1, 'REQ-OTHER', $2, $2, $3, $4, 'active', 'fixture', '2026-09-06', $5)`,
+      [otherRequest, otherCompany, otherAccount, ids.licenseType, systemUserId]);
+      await owner.query(`INSERT INTO provisioning_action (id, request_id, vendor_account_id, kind, mode, status, created_at)
+        VALUES ($1, $2, $3, 'invite', 'automated', 'pending', '2026-09-06')`, [otherAction, otherRequest, otherAccount]);
+      await expect(insert({ correlation_id: otherCompany, provisioning_action_id: otherAction })).rejects.toMatchObject({ code: "23514" });
+      expect((await insert({ correlation_id: otherCompany, provisioning_action_id: otherAction, vendor_account_id: otherAccount })).rowCount).toBe(1);
+      const attributed = await app.query(`SELECT DISTINCT o.correlation_id FROM connector_call_observation o
+        JOIN provisioning_action a ON a.id = o.provisioning_action_id
+        JOIN license_request r ON r.id = a.request_id WHERE r.company_id = $1`, [ids.company]);
+      expect(attributed.rows).toEqual([{ correlation_id: correlation }]);
+      expect((await app.query(`SELECT DISTINCT o.correlation_id FROM connector_call_observation o
+        JOIN provisioning_action a ON a.id = o.provisioning_action_id
+        JOIN license_request r ON r.id = a.request_id WHERE r.company_id = $1`, [otherCompany])).rows).toEqual([{ correlation_id: otherCompany }]);
+
+      // A terminal waits for an in-flight requested transaction, then sees its commit.
+      await owner.query("BEGIN");
+      await owner.query(`INSERT INTO connector_call_observation (vendor_account_id, provisioning_action_id,
+        correlation_id, operation, attempt, phase, summary, occurred_at)
+        VALUES ($1, $2, $3, 'provision', 3, 'requested', '{}', '2026-09-06')`, [ids.vendorAccount, ids.provisioning, correlation]);
+      const append = insert({ attempt: 3, phase: "succeeded", classification: "success" });
+      try {
+        const pid = (await owner.query(`SELECT pid FROM pg_stat_activity
+          WHERE datname = current_database() AND usename = 'ledger_app' AND pid <> pg_backend_pid()`)).rows[0]?.pid;
+        expect(pid).toBeTypeOf("number");
+        await expect.poll(async () => (await owner.query(`SELECT count(*)::int AS count FROM pg_locks
+          WHERE pid = $1 AND locktype = 'advisory' AND NOT granted`, [pid])).rows[0]?.count).toBe(1);
+      } finally {
+        await owner.query("COMMIT");
+      }
+      expect((await append).rows).toEqual([{ phase: "succeeded" }]);
+      for (const statement of ["UPDATE connector_call_observation SET summary = '{}'", "DELETE FROM connector_call_observation"]) {
+        await expect(app.query(statement)).rejects.toMatchObject({ code: "42501" });
+        await expect(owner.query(statement)).rejects.toMatchObject({ code: "55000" });
+      }
+      await expect(app.query("TRUNCATE connector_call_observation")).rejects.toMatchObject({ code: "42501" });
+      expect((await app.query(`SELECT attempt, phase FROM connector_call_observation WHERE correlation_id = $1 ORDER BY attempt, phase`, [correlation])).rows).toEqual([
+        { attempt: 1, phase: "requested" }, { attempt: 1, phase: "failed" },
+        { attempt: 2, phase: "requested" }, { attempt: 2, phase: "succeeded" },
+        { attempt: 3, phase: "requested" }, { attempt: 3, phase: "succeeded" },
+      ]);
+    } finally {
+      await Promise.all([app.end(), owner.end()]);
+    }
+  }, 150_000);
+
   test("gives ledger_app only the documented append-only mutations", async () => {
     const fixture = await createPostgresFixture();
     fixtures.push(fixture);

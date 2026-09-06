@@ -2697,8 +2697,8 @@ describe("migration parity", () => {
       databaseAdminUrl: ownerAdminUrl,
       applicationUrl: appAdminUrl,
     });
-    expect(structure.tables).toHaveLength(31);
-    expect(structure.foreignKeys).toHaveLength(82);
+    expect(structure.tables).toHaveLength(32);
+    expect(structure.foreignKeys).toHaveLength(84);
     expect(
       structure.enums.find(
         ({ enum_name }: { enum_name: string }) =>
@@ -3018,7 +3018,7 @@ describe("migration parity", () => {
         }: {
           pushUrl: string;
         }) => {
-          expect(await applicationTableCount(pushUrl)).toBe(31);
+          expect(await applicationTableCount(pushUrl)).toBe(32);
           expect(await applicationTableCount(conflicting.ownerUrl)).toBe(0);
         },
       });

@@ -2,9 +2,44 @@ import { describe, expect, test } from "vitest";
 import { getTableName } from "drizzle-orm";
 import { PgDialect, getTableConfig } from "drizzle-orm/pg-core";
 
-import { capacityRecoveryWork, vendor, vendorAccount } from "./schema.js";
+import { capacityRecoveryWork, connectorCallObservation, vendor, vendorAccount } from "./schema.js";
 
 const dialect = new PgDialect();
+
+test("US-057 exposes the canonical journal persistence contract", () => {
+  const config = getTableConfig(connectorCallObservation);
+  expect(config.columns.map((column) => [column.name, column.getSQLType(), column.notNull, column.hasDefault])).toEqual([
+    ["id", "uuid", true, true], ["vendor_account_id", "uuid", true, false],
+    ["provisioning_action_id", "uuid", false, false], ["correlation_id", "uuid", true, false],
+    ["operation", "connector_call_operation_enum", true, false], ["attempt", "integer", true, false],
+    ["phase", "connector_call_phase_enum", true, false], ["classification", "text", false, false],
+    ["summary", "jsonb", true, false], ["occurred_at", "timestamp with time zone", true, false],
+  ]);
+  expect(config.foreignKeys.map((key) => [key.reference().columns.map(({ name }) => name), getTableName(key.reference().foreignTable)])).toEqual([
+    [["vendor_account_id"], "vendor_account"], [["provisioning_action_id"], "provisioning_action"],
+  ]);
+  expect(config.uniqueConstraints.map(({ columns }) => columns.map(({ name }) => name))).toEqual([["correlation_id", "attempt", "phase"]]);
+  const journalSql = (value: Parameters<typeof renderSql>[0]) => renderSql(value)
+    .replaceAll('"connector_call_observation".', "").replaceAll('"', "").replace(/\s+/g, " ").trim();
+  expect(config.checks.map(({ name, value }) => [name, journalSql(value)])).toEqual([
+    ["connector_call_attempt_check", "attempt >= 1"],
+    ["connector_call_summary_check", "jsonb_typeof(summary) = 'object'"],
+    ["connector_call_classification_check", "(phase = 'requested' AND classification IS NULL) OR (phase = 'succeeded' AND classification IS NOT NULL AND classification = 'success') OR (phase = 'failed' AND classification IS NOT NULL AND classification IN ('rate_limited', 'provider_error', 'client_error'))"],
+    ["connector_call_sync_action_check", "operation IN ('provision', 'deprovision') OR provisioning_action_id IS NULL"],
+  ]);
+  expect(config.indexes.map(({ config: index }) => [index.name,
+    index.columns.map((column) => "name" in column ? column.name : undefined),
+    index.unique, index.where ? journalSql(index.where) : null])).toEqual([
+    ["uq_connector_call_terminal", ["correlation_id", "attempt"], true, "phase IN ('succeeded', 'failed')"],
+    ["idx_connector_call_vendor_account", ["vendor_account_id"], false, null],
+    ["idx_connector_call_action", ["provisioning_action_id"], false, null],
+    ["idx_connector_call_correlation", ["correlation_id"], false, null],
+    ["idx_connector_call_operation", ["operation"], false, null],
+    ["idx_connector_call_occurred_at", ["occurred_at"], false, null],
+  ]);
+  expect(connectorCallObservation.operation.enumValues).toEqual(["provision", "deprovision", "sync_members", "sync_activity", "sync_cost"]);
+  expect(connectorCallObservation.phase.enumValues).toEqual(["requested", "succeeded", "failed"]);
+});
 
 function renderSql(value: Parameters<PgDialect["sqlToQuery"]>[0]): string {
   return dialect.sqlToQuery(value).sql;
