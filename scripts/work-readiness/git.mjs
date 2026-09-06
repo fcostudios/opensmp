@@ -44,7 +44,7 @@ const CHG022_EXECUTABLE_BOUNDARY = "72f5e8545ea5d98795e2a5f19e62f6ba5e7ae7cb";
 // desired text, plus a None-guard so an unresolved CLAUDE.md still surfaces its
 // own diagnostic. No helper, overlay-registration, or runtime path is touched.
 // test-work-readiness.mjs asserts this constant against the file on disk.
-const REVIEWED_RECONCILER_SHA256 = "889a9d0a4f69f8c1491d2221d8072815ae735e7d17488f8165c5ccc2d3356d60";
+const REVIEWED_RECONCILER_SHA256 = "6abe3827ab5867f0a5a1741f8c3f9a299650aa3e6d06a9b7af788e770499aca3";
 
 function isTerminalEvent(event) {
   return event === "done" || event === "verified"

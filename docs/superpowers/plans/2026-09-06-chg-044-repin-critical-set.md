@@ -32,6 +32,7 @@
 - `infra/scripts/overrides/CHG-044/2d93300/testing/critical-paths.md`: stores the exact desired generated artifact.
 - `infra/scripts/reconcile-sprint1-docs.py`: registers CHG-044 as the final layered override.
 - `infra/scripts/tests/test_reconcile_sprint1_docs.py`: makes isolated fixtures resolve and copy the final layer.
+- `scripts/work-readiness/git.mjs`: re-pins overlay ownership to the reviewed CHG-044 reconciler bytes.
 - `testing/critical-paths.md`: contains the exact regenerated twelve-rule live artifact.
 
 ### Task 1: Add the final-layer fixture contract
@@ -160,6 +161,22 @@ rtk pnpm test:mutation:infra
 
 Expected: every reconciler and API-reconciliation mutation campaign passes.
 
+- [ ] **Step 6: Re-pin readiness ownership to the reviewed reconciler**
+
+Set the exact digest in `scripts/work-readiness/git.mjs`:
+
+```javascript
+const REVIEWED_RECONCILER_SHA256 = "6abe3827ab5867f0a5a1741f8c3f9a299650aa3e6d06a9b7af788e770499aca3";
+```
+
+Verify the binding with:
+
+```bash
+rtk pnpm test:work-readiness
+```
+
+Expected: the reviewed reconciler digest assertion passes and overlay ownership remains fail-closed for any other bytes.
+
 ### Task 3: Verify and commit the implementation
 
 **Files:**
@@ -194,10 +211,12 @@ Expected: type-check, lint, readiness enforcement, all tests, and all production
 
 ```bash
 rtk git add docs/changes/CHG-044-repin-critical-set.md \
+  docs/superpowers/plans/2026-09-06-chg-044-repin-critical-set.md \
   infra/scripts/reconcile-sprint1-docs.py \
   infra/scripts/tests/test_reconcile_sprint1_docs.py \
   infra/scripts/overrides/CHG-044/2d93300/manifest.json \
   infra/scripts/overrides/CHG-044/2d93300/testing/critical-paths.md \
+  scripts/work-readiness/git.mjs \
   testing/critical-paths.md
 rtk git commit -m "fix(CHG-044): re-pin widened critical set"
 ```
@@ -206,5 +225,5 @@ rtk git commit -m "fix(CHG-044): re-pin widened critical set"
 
 - Task 1 gives the final override layer the same isolated fixture path used by earlier immutable migrations.
 - Task 2 binds the exact reviewed source and generated desired hashes, registers CHG-044 last, and preserves all historical layers.
-- Task 3 covers readiness, whitespace, immutable-history, cold mutation, complete test, and production-build gates.
+- Task 3 covers readiness, the reviewed reconciler trust pin, whitespace, immutable-history, cold mutation, complete test, and production-build gates.
 - The plan contains no placeholders; every changed implementation path has an explicit responsibility and verification step.
