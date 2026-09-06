@@ -9,7 +9,8 @@
     ".": "./src/index.ts",
     "./connector-call-observation": "./src/connector-call-observation.ts",
     "./contracts": "./src/contracts.ts",
-    "./dispatch": "./src/dispatch.ts"
+    "./dispatch": "./src/dispatch.ts",
+    "./providers/anthropic/observation": "./src/providers/anthropic/observation.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",
