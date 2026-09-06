@@ -184,6 +184,18 @@ function test(name, body) {
   }
 }
 
+test("readiness guide defines the authoritative mutation workflow", () => {
+  assert.match(workReadinessGuide, /pnpm mutation:cache:clear/u);
+  assert.match(workReadinessGuide, /MUTATION_BASE_REF=/u);
+  assert.match(workReadinessGuide, /pnpm test:mutation/u);
+  assert.match(workReadinessGuide, /test:mutation:core/u);
+  assert.match(workReadinessGuide, /mutation_minutes/u);
+  assert.match(workReadinessGuide, /Math\.ceil\(implementation \* 65 \/ 28\)/u);
+  assert.match(workReadinessGuide, /any implementation commit after this task invalidates it/u);
+  assert.match(workReadinessGuide, /`?mutation_minutes`? is not added to phase totals/u);
+  assert.match(workReadinessGuide, /Calibration is optional and resets approval/u);
+});
+
 test("schema structure and runtime preserve bootstrap while requiring normal controller metadata", () => {
   const bootstrapRule = readinessSchema.allOf.find((rule) => rule.if?.properties?.policy_bootstrap?.const === true);
   const kindRule = readinessSchema.allOf.find((rule) => rule.if?.properties?.kind?.const === "US");

@@ -229,6 +229,37 @@ Mutation evidence is unaffected — `cold_mutation_attempts` and
 
 ## Actuals and calibration
 
+### Estimate calibration
+
+Calibration is opt-in: before execution evidence, authors may run:
+
+```bash
+pnpm readiness:calibrate -- WORK-ID
+```
+
+It recalculates review with `Math.ceil(implementation * 65 / 28)`, recomputes
+the phase total, and resets the artifact's digest-bound approval to pending.
+Calibration is optional and resets approval; it requires a new human
+digest-bound decision before execution. Authors may instead manually override
+phase estimates before approval; validation does not require the 65/28 ratio.
+
+### Authoritative cold campaign
+
+An authoritative cold campaign is one cache-cleared, diff-scoped mutation run:
+
+```bash
+pnpm mutation:cache:clear
+MUTATION_BASE_REF=<approved-authority-base> pnpm test:mutation
+```
+
+Run it once after adversarial review and every resulting repair is committed.
+Record only evidence and terminal closure after this task; any implementation commit after this task invalidates it.
+`pnpm test:mutation:core` is authoritative
+only for a CHG that changes the effectiveness-critical set; ordinary stories and
+changes use the diff-scoped runner above.
+
+### Actuals
+
 `actuals` may be `null` while work is in progress. Before the terminal `done`
 event, replace it with the closed actuals object and record:
 
@@ -236,10 +267,17 @@ event, replace it with the closed actuals object and record:
   and integration;
 - `total`, `changed_files`, `commits`, and `review_fix_loops`;
 - `cold_mutation_attempts` and `mutation_invalidations`; and
+- optional `mutation_minutes`; and
 - `estimate_variance_minutes` and a `root_cause`.
 
 Actuals calibrate future estimates; they never retroactively legalize an
 oversized assessment.
+
+When present, `mutation_minutes` is the summed wall-clock time of retained and
+invalidated authoritative cold campaigns. It is optional so historical artifacts
+remain valid without it. `mutation_minutes` is not added to phase totals: the
+campaign time is already accounted for in the phase where it occurred, so adding
+it to `total` would double-count time.
 
 At completion the validator recomputes `total` from the five phase values and
 recomputes variance as `actual total - approved estimate`; declared arithmetic
