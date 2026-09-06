@@ -2319,6 +2319,7 @@ export async function runMutationScope(options = {}) {
       const childEnvironment = controlledChildEnvironment(shardEnvironment, runtimeProfile);
       let result;
       if (shard.kind === EXACT_FRAMEWORK_ADAPTER_KIND) {
+        mkdirSync(dirname(shard.jsonReportPath), { recursive: true });
         writeFileSync(shard.jsonReportPath, `${JSON.stringify({
           config: {
             configFile: shard.configPath,
