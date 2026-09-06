@@ -76,19 +76,18 @@ describe("Anthropic per-account sliding-window rate limiter", () => {
     expect(time.sleeps).toEqual([3_600_000]);
   });
 
-  it("acquires invite budgets atomically at the stricter user-management boundary", async () => {
-    // Mutation killed: recording user-management before invite capacity is available fails the later limit.
+  it("does not record user-management before a blocked invite budget has capacity", async () => {
+    // Mutation killed: recording any requested budget before every budget has capacity exhausts user-management early.
     const time = manualTime();
     const limiter = limiterWithManualTime(time);
 
-    await fill((budgets) => limiter.acquire("account-a", budgets), ["user_management"], 100);
+    await fill((budgets) => limiter.acquire("account-a", budgets), ["invite_create"], 1_200);
+    time.advance(3_599_999);
     await limiter.acquire("account-a", ["user_management", "invite_create"]);
+    expect(time.sleeps).toEqual([1]);
 
-    expect(time.sleeps).toEqual([60_000]);
-
-    await fill((budgets) => limiter.acquire("account-a", budgets), ["invite_create"], 1_199);
-    await limiter.acquire("account-a", ["invite_create"]);
-    expect(time.sleeps).toEqual([60_000, 3_600_000]);
+    await fill((budgets) => limiter.acquire("account-a", budgets), ["user_management"], 99);
+    expect(time.sleeps).toEqual([1]);
   });
 
   it("keeps the window open through oldest plus window minus one millisecond", async () => {
