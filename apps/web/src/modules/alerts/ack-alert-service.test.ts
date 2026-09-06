@@ -151,6 +151,18 @@ describe("ackAlertWithAuthorization", () => {
     ).rejects.toThrow("DATABASE_URL is required");
   });
 
+  it("rejects runtime null authorization at the scored service boundary", async () => {
+    await expect(
+      ackAlertWithAuthorization(
+        { alertEventId: randomUUID() },
+        {
+          authorization: null as never,
+          databaseUrl: fixture.appUrl,
+        },
+      ),
+    ).rejects.toThrow("authorization is required");
+  });
+
   it("uses the current time when no clock override is supplied", async () => {
     const event = await seedAlertEvent();
     const before = Date.now();

@@ -31,6 +31,7 @@ export async function ackAlertWithAuthorization(
   }>,
 ): Promise<AckAlertResult> {
   if (!context.databaseUrl) throw new Error("DATABASE_URL is required");
+  if (!context.authorization) throw new Error("authorization is required");
   const repository = createAlertRepository(context.databaseUrl);
   try {
     return await ackAlertPolicy(
