@@ -41,8 +41,19 @@ const BASE_CONFIG = "stryker.conf.json";
 const GENERATED_SHARD_DIR = join(".tmp", "stryker-shards");
 const GENERATED_MANIFEST = join(GENERATED_SHARD_DIR, "manifest.json");
 const SCHEMA_STATIC_SOURCE = "packages/db/src/schema.ts";
-const VITEST_CONFIG_STATIC_SOURCE = "apps/web/vitest.config.ts";
-const VITEST_CONFIG_STATIC_RANGE = `${VITEST_CONFIG_STATIC_SOURCE}:21-21`;
+const VITEST_CONFIG_STATIC_SPECS = {
+  "apps/web/vitest.config.ts": {
+    range: "apps/web/vitest.config.ts:21-21",
+    testFiles: ["apps/web/next.config.test.ts"],
+    command: "./apps/web/node_modules/.bin/vitest run --root apps/web --config vitest.static-contract.config.mjs next.config.test.ts",
+  },
+  "packages/notifications/vitest.config.ts": {
+    range: "packages/notifications/vitest.config.ts:1-9",
+    testFiles: ["packages/notifications/vitest.config.test.ts"],
+    command: "./apps/web/node_modules/.bin/vitest run --root packages/notifications --config ../../apps/web/vitest.static-contract.config.mjs vitest.config.test.ts",
+  },
+};
+const VITEST_CONFIG_STATIC_SOURCES = new Set(Object.keys(VITEST_CONFIG_STATIC_SPECS));
 const SCORED_STATIC_KINDS = new Set(["schema-static", "vitest-config-static"]);
 const EXACT_FRAMEWORK_ADAPTER_KIND = "exact-framework-adapter";
 const MUTATION_RUNNER_STATIC_INPUTS = [
@@ -945,14 +956,17 @@ const EXACT_FRAMEWORK_ADAPTERS = {
   "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx": {
     sha256: "5394f1abbd72a39d45581fce4f41a4884d12cb1678b20512deddf025c11cfcc9",
   },
+  "apps/web/src/modules/alerts/actions.ts": {
+    sha256: "592b45a5c1407429f7b9a72662732f4f9aaff3450e0e7fbf5efdd74e623b6157",
+  },
 };
 
 const EXACT_FRAMEWORK_ADAPTER_SOURCES = new Set(Object.keys(EXACT_FRAMEWORK_ADAPTERS));
 
 /**
- * Audit the two Next.js composition roots whose remaining code solely invokes
- * framework/application seams. Business decisions live in scored loaders; the
- * detail root may only dispatch the already-scored `not-found` outcome.
+ * Audit exact Next.js composition roots whose remaining code solely binds
+ * framework/application seams. Business decisions live in scored services;
+ * the detail page may only dispatch its already-scored `not-found` outcome.
  */
 export function classifyExactFrameworkAdapter(source, contents, requestedRanges = []) {
   const spec = EXACT_FRAMEWORK_ADAPTERS[source];
@@ -1555,7 +1569,7 @@ export const DIRECT_TEST_ROUTES = {
     "packages/db/src/schema.test.ts",
   ],
   "packages/notifications/vitest.config.ts": [
-    "packages/notifications/src/catalog.test.ts",
+    "packages/notifications/vitest.config.test.ts",
   ],
   "scripts/probes/anthropic/vitest.contract.config.ts": [
     "apps/web/src/modules/identity-access/keycloak-admin.pact.test.ts",
@@ -1833,15 +1847,16 @@ export async function runMutationScope(options = {}) {
   const schemaStaticMutate = allMutate.filter((target) =>
     target.replace(/:\d+-\d+$/, "") === SCHEMA_STATIC_SOURCE);
   const vitestConfigStaticMutate = allMutate.filter((target) =>
-    target.replace(/:\d+-\d+$/, "") === VITEST_CONFIG_STATIC_SOURCE);
-  if (vitestConfigStaticMutate.length > 0 && (
-    vitestConfigStaticMutate.length !== 1 ||
-    vitestConfigStaticMutate[0] !== VITEST_CONFIG_STATIC_RANGE
-  )) {
-    fail(
-      `vitest config static shard must contain exactly ${VITEST_CONFIG_STATIC_RANGE}`,
-      `found: ${vitestConfigStaticMutate.join(", ")}`,
-    );
+    VITEST_CONFIG_STATIC_SOURCES.has(target.replace(/:\d+-\d+$/, "")));
+  for (const [source, spec] of Object.entries(VITEST_CONFIG_STATIC_SPECS)) {
+    const targets = vitestConfigStaticMutate.filter((target) =>
+      target.replace(/:\d+-\d+$/, "") === source);
+    if (targets.length > 0 && (targets.length !== 1 || targets[0] !== spec.range)) {
+      fail(
+        `vitest config static shard must contain exactly ${spec.range}`,
+        `found: ${targets.join(", ")}`,
+      );
+    }
   }
   const staticMutate = new Set([...schemaStaticMutate, ...vitestConfigStaticMutate]);
   const adapterPartition = partitionExactFrameworkAdapterTargets(
@@ -1914,16 +1929,19 @@ export async function runMutationScope(options = {}) {
       testFiles: ["packages/db/src/schema.test.ts"],
     });
   }
-  if (vitestConfigStaticMutate.length > 0) {
+  for (const [source, spec] of Object.entries(VITEST_CONFIG_STATIC_SPECS)) {
+    const targets = vitestConfigStaticMutate.filter((target) =>
+      target.replace(/:\d+-\d+$/, "") === source);
+    if (targets.length === 0) continue;
     requireRoutedTestFiles(
       changed,
-      [VITEST_CONFIG_STATIC_SOURCE],
+      [source],
     );
     shardSpecs.push({
       kind: "vitest-config-static",
-      mutate: vitestConfigStaticMutate,
-      sources: [VITEST_CONFIG_STATIC_SOURCE],
-      testFiles: ["apps/web/next.config.test.ts"],
+      mutate: targets,
+      sources: [source],
+      testFiles: spec.testFiles,
     });
   }
 
@@ -1976,7 +1994,7 @@ export async function runMutationScope(options = {}) {
           commandRunner: {
             command: spec.kind === "schema-static"
               ? "./apps/web/node_modules/.bin/vitest run --root packages/db --config vitest.config.ts src/schema.test.ts"
-              : "./apps/web/node_modules/.bin/vitest run --root apps/web --config vitest.static-contract.config.mjs next.config.test.ts",
+              : VITEST_CONFIG_STATIC_SPECS[spec.sources[0]].command,
           },
         }
       : {
