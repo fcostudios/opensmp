@@ -5,20 +5,13 @@ import {
   type PostgresFixture,
 } from "@smp/db/testing/postgres-container";
 import pg from "pg";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { LedgerAuthorization } from "../identity-access/authorization";
-
-vi.mock("../identity-access/server-authorization", () => ({
-  loadCurrentLedgerAuthorization: vi.fn(),
-}));
-
-import { loadCurrentLedgerAuthorization } from "../identity-access/server-authorization";
-import { ackAlert } from "./actions";
+import { ackAlertWithAuthorization } from "./ack-alert-service";
 
 let fixture: PostgresFixture;
 let readPool: pg.Pool;
-let originalDatabaseUrl: string | undefined;
 
 const ids = {
   actor: "00000000-0000-4000-8000-000000004401",
@@ -58,8 +51,6 @@ async function seedAlertEvent(): Promise<string> {
 beforeAll(async () => {
   fixture = await createPostgresFixture();
   await fixture.migrate();
-  originalDatabaseUrl = process.env.DATABASE_URL;
-  process.env.DATABASE_URL = fixture.appUrl;
 
   const owner = await fixture.connectAsOwner();
   try {
@@ -94,18 +85,20 @@ beforeAll(async () => {
 afterAll(async () => {
   await readPool?.end();
   await fixture?.stop();
-  if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
-  else process.env.DATABASE_URL = originalDatabaseUrl;
 });
 
-describe("ackAlert", () => {
+describe("ackAlertWithAuthorization", () => {
   it("threads a real group_admin authorization into a real repository call and acknowledges the row", async () => {
-    vi.mocked(loadCurrentLedgerAuthorization).mockResolvedValue(
-      authorization([ids.companyA], "group_admin"),
-    );
     const event = await seedAlertEvent();
 
-    const result = await ackAlert({ alertEventId: event });
+    const result = await ackAlertWithAuthorization(
+      { alertEventId: event },
+      {
+        authorization: authorization([ids.companyA], "group_admin"),
+        databaseUrl: fixture.appUrl,
+        now: () => new Date("2026-09-06T18:00:00.000Z"),
+      },
+    );
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("expected ackAlert to succeed");
@@ -124,12 +117,16 @@ describe("ackAlert", () => {
   });
 
   it("returns forbidden for a non-admin authorization and never reaches the repository", async () => {
-    vi.mocked(loadCurrentLedgerAuthorization).mockResolvedValue(
-      authorization([ids.companyA], "central_finance"),
-    );
     const event = await seedAlertEvent();
 
-    const result = await ackAlert({ alertEventId: event });
+    const result = await ackAlertWithAuthorization(
+      { alertEventId: event },
+      {
+        authorization: authorization([ids.companyA], "central_finance"),
+        databaseUrl: fixture.appUrl,
+        now: () => new Date("2026-09-06T18:00:00.000Z"),
+      },
+    );
 
     expect(result).toEqual({ ok: false, error: "forbidden" });
     const row = await readPool.query<{ acknowledged_at: Date | null }>(
@@ -139,15 +136,15 @@ describe("ackAlert", () => {
     expect(row.rows[0]!.acknowledged_at).toBeNull();
   });
 
-  it("throws when DATABASE_URL is not set", async () => {
-    const configured = process.env.DATABASE_URL;
-    delete process.env.DATABASE_URL;
-    try {
-      await expect(ackAlert({ alertEventId: randomUUID() })).rejects.toThrow(
-        "DATABASE_URL is required",
-      );
-    } finally {
-      process.env.DATABASE_URL = configured;
-    }
+  it("rejects an empty database URL before persistence", async () => {
+    await expect(
+      ackAlertWithAuthorization(
+        { alertEventId: randomUUID() },
+        {
+          authorization: authorization([ids.companyA], "group_admin"),
+          databaseUrl: "",
+        },
+      ),
+    ).rejects.toThrow("DATABASE_URL is required");
   });
 });
