@@ -10,6 +10,8 @@ import type {
   ConnectorOperation,
 } from "./contracts.js";
 
+export type { ConnectorCallObservationAppender } from "./contracts.js";
+
 type ConnectorMethod = "GET" | "POST" | "DELETE";
 
 type SummaryInput = Readonly<{
