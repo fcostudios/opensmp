@@ -82,6 +82,7 @@ assert.deepEqual(
 
 const vendorRegistryPageSource = "apps/web/src/app/(authenticated)/organizaciones/page.tsx";
 const vendorDetailPageSource = "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx";
+const alertActionsSource = "apps/web/src/modules/alerts/actions.ts";
 const vendorRegistryPageAudit = classifyExactFrameworkAdapter(
   vendorRegistryPageSource,
   readFileSync(vendorRegistryPageSource, "utf8"),
@@ -92,6 +93,26 @@ const vendorDetailPageAudit = classifyExactFrameworkAdapter(
 );
 assert.equal(vendorRegistryPageAudit.reason, "verification-only:exact-framework-adapter");
 assert.equal(vendorDetailPageAudit.reason, "verification-only:exact-framework-adapter");
+const alertActionsAudit = classifyExactFrameworkAdapter(
+  alertActionsSource,
+  readFileSync(alertActionsSource, "utf8"),
+);
+assert.equal(alertActionsAudit.reason, "verification-only:exact-framework-adapter");
+for (const [before, after] of [
+  ["loadAuthorization: loadCurrentLedgerAuthorization", "loadAuthorization: async () => null"],
+  ["databaseUrl: () => process.env.DATABASE_URL", "databaseUrl: () => undefined"],
+  ["now: () => new Date()", "now: () => new Date(0)"],
+  ["createAckAlertAction({", "createOtherAction({"],
+  ["});\n", "});\nnotifyUnexpectedly();\n"],
+]) {
+  assert.throws(
+    () => classifyExactFrameworkAdapter(
+      alertActionsSource,
+      readFileSync(alertActionsSource, "utf8").replace(before, after),
+    ),
+    /exact framework adapter changed/,
+  );
+}
 assert.throws(
   () => classifyExactFrameworkAdapter(
     vendorDetailPageSource,
@@ -583,6 +604,14 @@ assert.deepEqual(
   ["apps/web/src/modules/request-workflow/approval-repository.integration.test.ts"],
 );
 assert.deepEqual(
+  DIRECT_TEST_ROUTES["apps/web/src/modules/alerts/actions.ts"],
+  ["apps/web/src/modules/alerts/ack-alert-service.test.ts"],
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["packages/notifications/vitest.config.ts"],
+  ["packages/notifications/vitest.config.test.ts"],
+);
+assert.deepEqual(
   DIRECT_TEST_ROUTES["apps/web/src/modules/vendor-catalog/actions/manage-capacity.ts"],
   ["apps/web/src/modules/vendor-catalog/actions/manage-capacity.test.ts"],
 );
@@ -671,6 +700,10 @@ assert.ok(
 assert.ok(
   mutationVitestConfig.test.projects.includes("packages/connectors/vitest.config.ts"),
   "the mutation runner must execute accountable connector tests",
+);
+assert.ok(
+  mutationVitestConfig.test.projects.includes("packages/notifications/vitest.config.ts"),
+  "the mutation runner must execute accountable notifications tests",
 );
 
 const syntheticExists = (path) => new Set([
@@ -1183,6 +1216,7 @@ const writeFixture = (path, contents) => {
 let generated;
 let generatedSchemaStatic;
 let generatedVitestStatic;
+let generatedNotificationsVitestStatic;
 let manifest;
 let manifestText;
 let configs;
@@ -1218,6 +1252,7 @@ try {
   ].join("\n"));
   writeFixture("apps/web/next.config.test.ts", "export {};\n");
   writeFixture("apps/web/vitest.static-contract.config.mjs", "export default {};\n");
+  writeFixture("packages/notifications/vitest.config.test.ts", "export {};\n");
   execFileSync("git", ["add", "."], { cwd: fixtureRoot });
   execFileSync("git", ["commit", "--quiet", "-m", "fixture base"], { cwd: fixtureRoot });
   const base = execFileSync("git", ["rev-parse", "HEAD"], {
@@ -1246,6 +1281,18 @@ try {
     'export const include = ["src/**/*.{test,spec}.{ts,tsx}", "next.config.test.ts"];',
     "",
   ].join("\n"));
+  writeFixture("packages/notifications/vitest.config.ts", [
+    'import { defineConfig } from "vitest/config";',
+    "",
+    "export default defineConfig({",
+    "  test: {",
+    '    environment: "node",',
+    "    passWithNoTests: true,",
+    '    include: ["src/**/*.{test,spec}.ts"],',
+    "  },",
+    "});",
+    "",
+  ].join("\n"));
 
   execFileSync(process.execPath, [
     fileURLToPath(new URL("./mutation-scope.mjs", import.meta.url)),
@@ -1271,7 +1318,9 @@ try {
   generatedSchemaStatic = configs.find(({ commandRunner }) =>
     commandRunner?.command.includes("--root packages/db"));
   generatedVitestStatic = configs.find(({ commandRunner }) =>
-    commandRunner?.command.includes("vitest.static-contract.config.mjs"));
+    commandRunner?.command.includes("--root apps/web"));
+  generatedNotificationsVitestStatic = configs.find(({ commandRunner }) =>
+    commandRunner?.command.includes("--root packages/notifications"));
   execFileSync(process.execPath, [
     fileURLToPath(new URL("./mutation-scope.mjs", import.meta.url)),
   ], {
@@ -1310,7 +1359,7 @@ assert.deepEqual(generated.mutate, [
   `${source}:2-2`,
   `${source}:5-5`,
 ]);
-assert.equal(manifest.shards.length, 4);
+assert.equal(manifest.shards.length, 5);
 assert.equal(manifest.provenance.base, fixtureBase);
 assert.equal(manifest.provenance.baseRef, fixtureBase);
 assert.match(manifest.provenance.head, /^[0-9a-f]{40}$/);
@@ -1353,13 +1402,14 @@ assert.deepEqual(
     `${source}:5-5`,
     `${newSource}:1-2`,
     "apps/web/vitest.config.ts:21-21",
+    "packages/notifications/vitest.config.ts:1-9",
     "packages/db/src/schema.ts:2-2",
   ].sort(),
 );
-assert.equal(new Set(manifest.shards.map(({ configPath }) => configPath)).size, 4);
-assert.equal(new Set(manifest.shards.map(({ tempDirName }) => tempDirName)).size, 4);
-assert.equal(new Set(manifest.shards.map(({ reportPath }) => reportPath)).size, 4);
-assert.equal(new Set(manifest.shards.map(({ jsonReportPath }) => jsonReportPath)).size, 4);
+assert.equal(new Set(manifest.shards.map(({ configPath }) => configPath)).size, 5);
+assert.equal(new Set(manifest.shards.map(({ tempDirName }) => tempDirName)).size, 5);
+assert.equal(new Set(manifest.shards.map(({ reportPath }) => reportPath)).size, 5);
+assert.equal(new Set(manifest.shards.map(({ jsonReportPath }) => jsonReportPath)).size, 5);
 assert.deepEqual(
   manifest.shards.map(({ id }) => id),
   [...manifest.shards.map(({ id }) => id)].sort(),
@@ -1387,6 +1437,15 @@ assert.deepEqual(generatedVitestStatic.mutate, ["apps/web/vitest.config.ts:21-21
 assert.equal(
   generatedVitestStatic.commandRunner.command,
   "./apps/web/node_modules/.bin/vitest run --root apps/web --config vitest.static-contract.config.mjs next.config.test.ts",
+);
+assert.equal(generatedNotificationsVitestStatic.testRunner, "command");
+assert.deepEqual(
+  generatedNotificationsVitestStatic.mutate,
+  ["packages/notifications/vitest.config.ts:1-9"],
+);
+assert.equal(
+  generatedNotificationsVitestStatic.commandRunner.command,
+  "./apps/web/node_modules/.bin/vitest run --root packages/notifications --config ../../apps/web/vitest.static-contract.config.mjs vitest.config.test.ts",
 );
 const vitestStaticShard = manifest.shards.find(({ kind }) => kind === "vitest-config-static");
 assert.deepEqual(vitestStaticShard.sources, ["apps/web/vitest.config.ts"]);
@@ -1622,6 +1681,7 @@ try {
   assert.equal(JSON.stringify(unavailable.result.manifest).includes("databaseUrl"), false);
   assert.equal(JSON.stringify(unavailable.result.manifest).includes("localhost"), false);
   assert.equal((await cacheRun({ env: { MUTATION_CACHE: "off" } })).executions, 1);
+  assert.equal((await cacheRun({ env: { MUTATION_CACHE_DISABLE: "1" } })).executions, 1);
   const withoutNodeOptions = await cacheRun({ env: { MUTATION_CACHE: "off" } });
   const withNodeOptions = await cacheRun({
     env: { MUTATION_CACHE: "off", NODE_OPTIONS: "--require=/tmp/secret-preload.cjs" },
