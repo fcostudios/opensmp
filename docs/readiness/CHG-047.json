@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "9432299cc1bc7beeeb133039cab4b3b06434ce2e2788de7d921b451dbcda7506",
+  "work_id": "CHG-047",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Make one final diff-scoped cold mutation campaign authoritative and calibrate review cost",
+  "source": "docs/dev-guide/WORK_READINESS.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Ledger work closes with one cache-cleared, diff-scoped mutation campaign after adversarial review fixes, records that campaign's wall-clock cost, and starts from review estimates calibrated to measured project history.",
+      "demo": "Initialize and calibrate a disposable readiness artifact, verify review equals ceil(implementation * 65 / 28), validate an existing artifact without mutation_minutes and a new artifact with it, and inspect the implementation plan to confirm the final cold campaign follows all review-fix tasks with no later implementation commit.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling",
+    "planning"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 6,
+    "expected_mutation_shards": 1,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 1,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 20,
+    "implementation": 60,
+    "focused_verification": 35,
+    "review": 140,
+    "integration": 10,
+    "total": 265
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "How the measured 65/28 review-to-implementation ratio can become a mechanical default when readiness:init emits zero placeholders and accepts no estimate inputs.",
+      "status": "resolved",
+      "estimate_impact_minutes": 20,
+      "resolution": "Add an explicit readiness:calibrate command. It reads an existing artifact, replaces review with ceil(implementation * 65 / 28), recomputes total, and writes atomically. Invocation is optional and later manual edits remain valid; the validator adds no ratio rule or new error code. Francisco approved this design choice in the CHG-047 design dialogue."
+    },
+    {
+      "id": "U2",
+      "statement": "Whether adding mutation_minutes can preserve every historical readiness artifact without weakening the closed-object contract.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "Declare mutation_minutes as an optional actuals property in both JSON Schema and model validation. When present it is a non-negative integer; absence remains valid, so historical artifacts require no rewrite and terminal completeness gains no new mandatory field."
+    },
+    {
+      "id": "U3",
+      "statement": "Where the requested implementation-plan ordering belongs when the repository has plan instances under docs/superpowers/plans but no global plan-template file.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "Define the reusable ordering contract in WORK_READINESS.md and make the CHG-047 implementation plan itself conform: adversarial review and fixes first, then cache clear and one diff-scoped cold campaign as the final executable task, followed only by evidence and closure. No new plan parser or rejection path is introduced."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG047-READY",
+    "payload_sha256": "9432299cc1bc7beeeb133039cab4b3b06434ce2e2788de7d921b451dbcda7506"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
