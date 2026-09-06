@@ -90,7 +90,23 @@
     "evidence": "US057-READY-CHG045",
     "payload_sha256": "95dfb105b7ed50299c240d5cc79e17f5df58223b1830a0b73681933d4a33fadd"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 6,
+      "implementation": 74,
+      "focused_verification": 0,
+      "review": 148,
+      "integration": 0
+    },
+    "total": 228,
+    "changed_files": 19,
+    "commits": 10,
+    "review_fix_loops": 4,
+    "cold_mutation_attempts": 4,
+    "mutation_invalidations": 3,
+    "estimate_variance_minutes": 20,
+    "root_cause": "Reconstructed at final implementation cutoff 4301a6113223544b6e00789495a802139f40ac52 (2026-09-06T11:54:15-05:00). The approved design/story base is 7f08279fd1140040ba33d31115bb13272fcca8f1 (2026-09-06T08:05:27-05:00), and the approved plan/branch point is df0fa2de97341de68967aaf2e4c194d55a3e8fd2 (2026-09-06T08:11:52-05:00). Nearest-minute non-overlapping Git intervals are readiness 6 minutes, implementation 74 minutes through initial Task 4 commit 5bc2a0f, and review 148 minutes through 4301a61; focused verification and integration lack independent Git cutoffs and are conservatively absorbed into those intervals. The df0fa2d..4301a61 range contains 19 changed files and 10 commits. Four review-fix loops are evidenced by the Task 1, Task 2, Task 4, and final whole-branch reviews. Four authoritative cache-disabled whole-branch campaigns used MUTATION_BASE=7f08279: three were invalidated by a later layout rewrite, a 2.13 percent schema-static failure that exposed a missing exact oracle, and later review fixes to scored source. The retained final campaign passed schema-static at 31/37 (83.78 percent; six equivalent Drizzle explicit-name survivors), neutral builder at 165/165, bridge at 87/87, and appender at 7/7, with no uncovered, timeout, or error outcomes. The 228-minute actual is 20 minutes above the approved 208-minute estimate because concurrency and persistence-boundary reviews required additional correction and revalidation."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
