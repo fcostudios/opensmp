@@ -420,6 +420,28 @@ for (const [event, extra, code] of [
   });
 }
 
+test("CLI calibration preserves completed evidence even after a later approval", () => {
+  const { root } = makeGitRepo();
+  try {
+    const value = completed();
+    const originalBytes = `${JSON.stringify(value)}\n`;
+    writeRepoFile(root, "docs/readiness/US-123.json", originalBytes);
+    const records = [
+      decisionFor(value, { id: "US123-FIRST" }),
+      { story: value.work_id, event: "done" },
+      decisionFor(value),
+    ];
+    writeRepoFile(root, ".nous-feedback.jsonl", `${records.map(JSON.stringify).join("\n")}\n`);
+    const result = runCli(root, ["calibrate", "US-123", "--json"]);
+    assert.equal(result.status, 1);
+    assert.equal(parseCliJson(result).errors[0].code, "WR_APPROVAL_INACTIVE");
+    assert.equal(readFileSync(join(root, "docs/readiness/US-123.json"), "utf8"), originalBytes);
+    assert.deepEqual(readdirSync(join(root, "docs/readiness")), ["US-123.json"]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("CLI calibration requires exactly one official work ID", () => {
   const { root } = makeGitRepo();
   try {

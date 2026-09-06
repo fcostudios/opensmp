@@ -350,7 +350,7 @@ export function calibrateAssessmentFile({ root, workId, feedbackRecords, fsOps =
   const canonicalRoot = ops.realpathSync(root);
   const value = loadAssessment(canonicalRoot, workId);
   const validated = validateAssessment(value, { feedbackRecords });
-  if (!validated.active) cliError("WR_APPROVAL_INACTIVE", "Only an active approval can be calibrated", "$.approval.evidence");
+  if (validated.complete || !validated.active) cliError("WR_APPROVAL_INACTIVE", "Only an active, uncompleted approval can be calibrated", "$.approval.evidence");
   const approvalIndex = feedbackRecords.findIndex((record) => record.event === "decision" && record.id === value.approval.evidence);
   if (feedbackRecords.some((record, index) => index > approvalIndex && record.story === workId && isExecutionEvidenceEvent(record.event))) {
     cliError("WR_APPROVAL_ORDER", "Calibration is only permitted before execution evidence", "$.approval.evidence");
