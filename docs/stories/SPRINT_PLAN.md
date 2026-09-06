@@ -1,5 +1,5 @@
 <!-- nous-sprint-stamp
-generated_at: 2026-09-06T12:22:34Z
+generated_at: 2026-09-06T13:49:32Z
 current_sprint: sprint-3
 sprints_hash: 2b632220617fe0d4
 -->
@@ -93,13 +93,13 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | 1 | full-stack | **US-011** ✅ | Users, roles and delegation-ready grants | 3SP | `See story file` | CHG-001 | US-005 | — | — | [r1_misc_us_011.md](sprint-3/r1_misc_us_011.md) |
 | 2 | full-stack | **US-023** ✅ | Blocked-no-seat + purchase-or-reclaim flow | 3SP | `See story file` | — | US-022, US-042 | — | — | [r1_misc_us_023.md](sprint-3/r1_misc_us_023.md) |
 | 3 | full-stack | **US-025** ✅ | Vendor accounts + capability descriptor | 3SP | `See story file` | — | US-005 | →3 | — | [r1_misc_us_025.md](sprint-3/r1_misc_us_025.md) |
-| 4 | full-stack | **US-043** 🔨 | Alert log + acknowledgment | 2SP | `See story file` | — | US-042 | — | — | [r1_misc_us_043.md](sprint-3/r1_misc_us_043.md) |
+| 4 | full-stack | **US-043** ✅ | Alert log + acknowledgment | 2SP | `See story file` | — | US-042 | — | — | [r1_misc_us_043.md](sprint-3/r1_misc_us_043.md) |
 | 5 | full-stack | **US-021** ⬜ | Invite hygiene | 2SP | `See story file` | — | US-019, US-042 | — | — | [r1_misc_us_021.md](sprint-3/r1_misc_us_021.md) |
 | 6 | full-stack | **US-024** ⬜ | Offboarding + deprovisioning | 3SP | `See story file` | — | US-019, US-020 | →1 | — | [r1_misc_us_024.md](sprint-3/r1_misc_us_024.md) |
 | 7 | full-stack | **US-027** ⬜ | Inactivity flags + usage surface | 2SP | `See story file` | — | US-026 | →1 | — | [r1_misc_us_027.md](sprint-3/r1_misc_us_027.md) |
 | 8 | frontend | **US-029** ⬜ | Freshness labels + staleness alert | 2SP | `apps/web/src/components/` | — | US-026, US-042 | — | — | [r1_misc_us_029.md](sprint-3/r1_misc_us_029.md) |
-| 9 | full-stack | **US-056** 🔨 | Anthropic transport with separated credentials and bounded retry | 1SP | `See story file` | CHG-045 | US-003, US-025, US-045 | →6 | — | [r1_misc_us_056.md](sprint-3/r1_misc_us_056.md) |
-| 10 | full-stack | **US-057** ⬜ | Append-only sanitized connector-call journal | 2SP | `See story file` | CHG-045 | US-056 | →5 | — | [r1_misc_us_057.md](sprint-3/r1_misc_us_057.md) |
+| 9 | full-stack | **US-056** ✅ | Anthropic transport with separated credentials and bounded retry | 1SP | `See story file` | CHG-045 | US-003, US-025, US-045 | →6 | — | [r1_misc_us_056.md](sprint-3/r1_misc_us_056.md) |
+| 10 | full-stack | **US-057** 🔨 | Append-only sanitized connector-call journal | 2SP | `See story file` | CHG-045 | US-056 | →5 | — | [r1_misc_us_057.md](sprint-3/r1_misc_us_057.md) |
 | 11 | full-stack | **US-028** ⬜ | Reclamation proposals: approve or dismiss | 3SP | `See story file` | — | US-024, US-027 | — | — | [r1_misc_us_028.md](sprint-3/r1_misc_us_028.md) |
 | 12 | full-stack | **US-058** ⬜ | Anthropic connector conformance and Pact contracts | 1SP | `See story file` | CHG-045 | US-056, US-057 | →4 | — | [r1_misc_us_058.md](sprint-3/r1_misc_us_058.md) |
 | 13 | full-stack | **US-055** ⬜ | API-less ingestion: member/usage CSV import + manual register upkeep | 3SP | `See story file` | — | US-003, US-025, US-026, US-030 | — | — | [r1_misc_us_055.md](sprint-3/r1_misc_us_055.md) |

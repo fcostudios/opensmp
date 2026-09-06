@@ -436,8 +436,8 @@ interface. The adapter must keep Admi...
 
 | Story | Name | Sprint | Status | File |
 |-------|------|--------|--------|------|
-| **US-056** | Anthropic transport with separated credentials and bounded retry | Sprint 3 | 🔨 in_development | [r1_misc_us_056.md](sprint-3/r1_misc_us_056.md) |
-| **US-057** | Append-only sanitized connector-call journal | Sprint 3 | ⬜ backlog | [r1_misc_us_057.md](sprint-3/r1_misc_us_057.md) |
+| **US-056** | Anthropic transport with separated credentials and bounded retry | Sprint 3 | ✅ dev_done | [r1_misc_us_056.md](sprint-3/r1_misc_us_056.md) |
+| **US-057** | Append-only sanitized connector-call journal | Sprint 3 | 🔨 in_development | [r1_misc_us_057.md](sprint-3/r1_misc_us_057.md) |
 | **US-058** | Anthropic connector conformance and Pact contracts | Sprint 3 | ⬜ backlog | [r1_misc_us_058.md](sprint-3/r1_misc_us_058.md) |
 
 ### CHG-046: Accept substrate-emitted generated Nous paths by provenance instead of a per-sync overlay-layer registration
