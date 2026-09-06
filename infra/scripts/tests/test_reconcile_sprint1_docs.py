@@ -27,6 +27,7 @@ LATEST_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-004/e4b9a06"
 STORY_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-005/277b64e"
 READINESS_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-022/16f72c9"
 REPINNED_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-042/fd7741f"
+CRITICAL_SET_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-044/2d93300"
 READINESS_GUIDES = (
     "AGENTS.md",
     "CLAUDE.md",
@@ -77,6 +78,9 @@ def desired_guide(relative_path: str) -> bytes:
 
 
 def latest_desired_guide(relative_path: str) -> bytes:
+    critical_set = CRITICAL_SET_OVERRIDE_ROOT / relative_path
+    if critical_set.is_file():
+        return critical_set.read_bytes()
     repinned = REPINNED_OVERRIDE_ROOT / relative_path
     if repinned.is_file():
         return repinned.read_bytes()
@@ -140,6 +144,10 @@ def copy_reconciler_data(root: Path) -> Path:
     shutil.copytree(
         REPINNED_OVERRIDE_ROOT,
         data_root / "overrides/CHG-042/fd7741f",
+    )
+    shutil.copytree(
+        CRITICAL_SET_OVERRIDE_ROOT,
+        data_root / "overrides/CHG-044/2d93300",
     )
     return data_root
 

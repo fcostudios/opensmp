@@ -61,10 +61,16 @@ CHG042_PATHS = {
         "overrides/CHG-004/e4b9a06/testing/critical-paths.md"
     ),
 }
+CHG044_PATHS = {
+    "testing/critical-paths.md": (
+        "overrides/CHG-042/fd7741f/testing/critical-paths.md"
+    ),
+}
 LAYERED_OVERRIDE_SPECS = (
     ("CHG-004/e4b9a06", CHG004_PATHS),
     ("CHG-022/16f72c9", CHG022_PATHS),
     ("CHG-042/fd7741f", CHG042_PATHS),
+    ("CHG-044/2d93300", CHG044_PATHS),
 )
 CHG005_PATHS = {
     "docs/stories/sprint-2/r1_misc_us_014.md",
