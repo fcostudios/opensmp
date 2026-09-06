@@ -22,6 +22,7 @@ story status, add annotations, and register decisions.
 | `revalidated` | Replace a superseded event after a decided change | `story`, `event`, `ref`, `change`, `as_event`, plus the replacement event's evidence fields |
 | `blocked` | Can't proceed | `story`, `event`, `reason`, `needs` |
 | `checkpoint` | Work-readiness 45/90-minute elapsed-time control | `story`, `event`, `elapsed_minutes`, `status`, `implementation_complete`, `evidence` |
+| `mutation_invalidation` | Invalidate one earlier authoritative cold mutation campaign | `story`, `event`, `reason` |
 | `deviation` | Spec divergence | `story`, `event`, `notes` |
 | `decision` | Technical decision made | `story`, `event`, `id`, `text`, `reason` |
 | `feedback` | Visual/UX issue with screenshot evidence | `story`, `event`, `title`, `description`, `images` |
@@ -120,7 +121,7 @@ Canonical event vocabulary (single source: `feedback_schemas`). Unknown event na
 
 - **Lifecycle (flip story status):** `started`, `done`, `verified`
 - **Terminal-with-deferral (→ dev_done + deferral note; prefer plain `done`):** `done_with_deferral`, `done_with_external_deferral`
-- **Annotation (recorded, no status change):** `ac_pass`, `ac_verify`, `blocked`, `blocker`, `checkpoint`, `deviation`, `ac_fail`, `ac_unverifiable`, `test_report`, `feedback`, `nav_gap`, `evidence_superseded`, `revalidated`
+- **Annotation (recorded, no status change):** `ac_pass`, `ac_verify`, `blocked`, `blocker`, `checkpoint`, `mutation_invalidation`, `deviation`, `ac_fail`, `ac_unverifiable`, `test_report`, `feedback`, `nav_gap`, `evidence_superseded`, `revalidated`
 - **Decision (registered):** `decision`
 - **Sprint-level marker (project audit trail, never flips a story):** `closed_with_deferrals`, `adversarial_review`, `deferred_memory_saved`, `closure_hygiene`, `implemented_with_external_verification`
 - **Informational (counted, not persisted):** `build_pass`
