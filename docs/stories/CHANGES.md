@@ -29,12 +29,12 @@
 | **CHG-038** | 📦 delivered | Collapse the fine-grained git-plumbing codes into one message-carrying error | — | — |
 | **CHG-039** | 📦 delivered | Make the WR_* code set countable: one spelling at every call site | — | — |
 | **CHG-040** | 📦 delivered | Restore operational deadline rules to the effectiveness-critical set | — | — |
-| **CHG-041** | 📦 delivered | Allow honest legacy closure actuals for pre-CHG-037 work | — | — |
+| **CHG-041** | 🟢 accepted | Allow honest legacy closure actuals for pre-CHG-037 work | — | — |
 | **CHG-042** | 📦 delivered | Re-pin regenerated guidance and propagate the 320-minute budget | — | — |
-| **CHG-043** | 📦 delivered | Fix the root test runner: two workspaces declare vitest without a config, and the delivered mock lint fails on alerts/actions.test.ts | — | — |
+| **CHG-043** | 🟢 accepted | Fix the root test runner: two workspaces declare vitest without a config, and the delivered mock lint fails on alerts/actions.test.ts | — | — |
 | **CHG-044** | 📦 delivered | Re-pin testing/critical-paths.md after CHG-040 regenerates the critical set | — | — |
 | **CHG-045** | 🔨 dev_in_progress | Add a durable connector call observation ledger for US-018 | US-056, US-057, US-058 | S3 |
-| **CHG-046** | 🟢 accepted | Accept substrate-emitted generated Nous paths by provenance instead of a per-sync overlay-layer registration | — | — |
+| **CHG-046** | 📦 delivered | Accept substrate-emitted generated Nous paths by provenance instead of a per-sync overlay-layer registration | — | — |
 
 ---
 
@@ -367,7 +367,7 @@ _No stories linked to this change yet._
 
 ### CHG-041: Allow honest legacy closure actuals for pre-CHG-037 work
 
-**Status:** 📦 `delivered`
+**Status:** 🟢 `accepted`
 **Source:** developer_feedback
 **Requested by:** Francisco Lomas
 **Notes:** Add a narrow readiness compatibility path for work started before CHG-037: permit terminal actuals to carry reconstructable primary-source counts while phase_minutes is explicitly unreconstructable with a mandatory reason. Scope the exception to legacy items only and keep all modern actuals stric...
@@ -387,7 +387,7 @@ _No stories linked to this change yet._
 
 ### CHG-043: Fix the root test runner: two workspaces declare vitest without a config, and the delivered mock lint fails on alerts/actions.test.ts
 
-**Status:** 📦 `delivered`
+**Status:** 🟢 `accepted`
 **Source:** developer_feedback
 **Requested by:** Francisco
 **Notes:** # CHG-043 — Fix the root test runner: two workspaces declare a vitest `test` script without a config, and the delivered mock lint fails on `alerts/actions.test.ts`
@@ -442,7 +442,7 @@ interface. The adapter must keep Admi...
 
 ### CHG-046: Accept substrate-emitted generated Nous paths by provenance instead of a per-sync overlay-layer registration
 
-**Status:** 🟢 `accepted`
+**Status:** 📦 `delivered`
 **Source:** developer_feedback
 **Requested by:** Francisco
 **Notes:** # CHG-046 — Accept substrate-emitted generated Nous paths by provenance instead of a per-sync overlay-layer registration
