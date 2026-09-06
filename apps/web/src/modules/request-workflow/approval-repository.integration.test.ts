@@ -261,7 +261,8 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await owner.query(
-    `TRUNCATE TABLE lifecycle_notification_delivery, lifecycle_notification,
+    `TRUNCATE TABLE connector_call_observation,
+       lifecycle_notification_delivery, lifecycle_notification,
        audit_log, request_transition, provisioning_action`,
   );
   await owner.query(`DELETE FROM rate_card`);

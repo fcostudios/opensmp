@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { config } from "dotenv";
 import pg from "pg";
@@ -22,6 +23,13 @@ const expectedAppendOnlyTriggers = [
     functionName: "audit_log_append_only",
     functionSource:
       "BEGIN RAISE EXCEPTION 'append_only: % is forbidden on audit_log', TG_OP; END;",
+  },
+  {
+    tableName: "connector_call_observation",
+    triggerName: "trg_connector_call_append_only",
+    functionName: "prevent_connector_call_mutation",
+    functionSource:
+      "BEGIN RAISE EXCEPTION 'connector call observations are append-only' USING ERRCODE = '55000'; END;",
   },
   {
     tableName: "lifecycle_notification",
@@ -56,6 +64,7 @@ const coreTableNames = [
   "capacity_recovery_work",
   "company",
   "company_role_assignment",
+  "connector_call_observation",
   "cost_record",
   "integration_credential",
   "identity_provider_operation",
@@ -1726,6 +1735,17 @@ export async function verifyMigratedSchema({
           membershipPaths.rows.map(({ path }) => path).join(", "),
       );
     }
+    // Reuse the immutable release assertion after rejecting role escalation paths.
+    // Its catalog reads are available to ledger_app; it also checks effective grants.
+    for (const filename of [
+      "V20260804120300__verify_connector_call_observation.sql",
+      "V20260804120400__verify_connector_call_observation_source.sql",
+    ]) {
+      await application.query(await readFile(new URL(
+        `../src/migrations/${filename}`, import.meta.url,
+      ), "utf8"));
+    }
+
     const grants = await application.query(`
       WITH application_tables AS (
         SELECT relation.relname AS table_name
