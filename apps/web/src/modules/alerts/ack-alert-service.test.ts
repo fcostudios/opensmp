@@ -147,4 +147,24 @@ describe("ackAlertWithAuthorization", () => {
       ),
     ).rejects.toThrow("DATABASE_URL is required");
   });
+
+  it("uses the current time when no clock override is supplied", async () => {
+    const event = await seedAlertEvent();
+    const before = Date.now();
+
+    const result = await ackAlertWithAuthorization(
+      { alertEventId: event },
+      {
+        authorization: authorization([ids.companyA], "group_admin"),
+        databaseUrl: fixture.appUrl,
+      },
+    );
+    const after = Date.now();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ackAlert to succeed");
+    const acknowledgedAt = Date.parse(result.acknowledgedAt);
+    expect(acknowledgedAt).toBeGreaterThanOrEqual(before);
+    expect(acknowledgedAt).toBeLessThanOrEqual(after);
+  });
 });
