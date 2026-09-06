@@ -249,7 +249,7 @@ An authoritative cold campaign is one cache-cleared, diff-scoped mutation run:
 
 ```bash
 pnpm mutation:cache:clear
-MUTATION_BASE_REF=<approved-authority-base> pnpm test:mutation
+MUTATION_BASE=<approved-authority-base> pnpm test:mutation
 ```
 
 Run it once after adversarial review and every resulting repair is committed.

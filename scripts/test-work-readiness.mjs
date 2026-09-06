@@ -186,8 +186,8 @@ function test(name, body) {
 
 test("readiness guide defines the authoritative mutation workflow", () => {
   assert.match(workReadinessGuide, /pnpm mutation:cache:clear/u);
-  assert.match(workReadinessGuide, /MUTATION_BASE_REF=/u);
-  assert.match(workReadinessGuide, /pnpm test:mutation/u);
+  assert.match(workReadinessGuide, /^MUTATION_BASE=<approved-authority-base> pnpm test:mutation$/mu);
+  assert.doesNotMatch(workReadinessGuide, /MUTATION_BASE_REF/u);
   assert.match(workReadinessGuide, /test:mutation:core/u);
   assert.match(workReadinessGuide, /mutation_minutes/u);
   assert.match(workReadinessGuide, /Math\.ceil\(implementation \* 65 \/ 28\)/u);
