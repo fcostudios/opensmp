@@ -80,3 +80,59 @@ export function assertJsonValue(
   }
   return result;
 }
+
+export type ConnectorOperation =
+  | "provision" | "deprovision" | "sync_members"
+  | "sync_activity" | "sync_cost";
+export type ConnectorCallPhase = "requested" | "succeeded" | "failed";
+export type ConnectorCallClassification =
+  | "success" | "rate_limited" | "provider_error" | "client_error";
+export type ConnectorEndpointClass =
+  | "organization" | "members" | "invitations"
+  | "activity" | "usage" | "cost";
+export type ConnectorCallSummary = Readonly<{
+  endpoint_class: ConnectorEndpointClass;
+  method: "GET" | "POST" | "DELETE";
+  http_status?: number;
+  status_class?: ConnectorCallClassification;
+}>;
+export type ConnectorCallObservationAppendInput = Readonly<{
+  vendorAccountId: string;
+  provisioningActionId: string | null;
+  correlationId: string;
+  operation: ConnectorOperation;
+  attempt: number;
+  phase: ConnectorCallPhase;
+  classification: ConnectorCallClassification | null;
+  summary: ConnectorCallSummary;
+  occurredAt: Date;
+}>;
+export type ConnectorCallObservationAppender =
+  (input: ConnectorCallObservationAppendInput) => Promise<void>;
+export type ConnectorAttemptReceipt = Readonly<{ attempt: number }>;
+export type ConnectorCallObservationSession = Readonly<{
+  correlationId: string;
+  requested(input: Readonly<{
+    endpointClass: ConnectorEndpointClass;
+    method: "GET" | "POST" | "DELETE";
+  }>): Promise<ConnectorAttemptReceipt>;
+  succeeded(receipt: ConnectorAttemptReceipt, input: Readonly<{
+    endpointClass: ConnectorEndpointClass;
+    method: "GET" | "POST" | "DELETE";
+    httpStatus: number;
+  }>): Promise<void>;
+  failed(receipt: ConnectorAttemptReceipt, input: Readonly<{
+    endpointClass: ConnectorEndpointClass;
+    method: "GET" | "POST" | "DELETE";
+    httpStatus: number;
+    classification: Exclude<ConnectorCallClassification, "success">;
+  }>): Promise<void>;
+}>;
+export declare function createConnectorCallObservationSession(input: Readonly<{
+  vendorAccountId: string;
+  provisioningActionId: string | null;
+  operation: ConnectorOperation;
+  clock: () => Date;
+  randomId: () => string;
+  append: ConnectorCallObservationAppender;
+}>): ConnectorCallObservationSession;
