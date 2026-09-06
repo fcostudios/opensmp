@@ -168,15 +168,14 @@ function parseRfc850(value: string, now: number): number | null {
   const time = dateAndTime[1];
   const twoDigitYear = Number(date.slice(-2));
 
-  const current = new Date(now);
-  let year = Math.floor(current.getUTCFullYear() / 100) * 100 + twoDigitYear;
+  const fiftyYearsFromNow = new Date(now);
+  fiftyYearsFromNow.setUTCFullYear(fiftyYearsFromNow.getUTCFullYear() + 50);
+  let year = Math.floor(fiftyYearsFromNow.getUTCFullYear() / 100) * 100 + twoDigitYear;
   const imfCandidate = (candidateYear: number) => `${weekday}, ${date.slice(0, 2)} ${
     date.slice(3, 6)
   } ${candidateYear} ${time} GMT`;
   let epoch = Date.parse(imfCandidate(year));
 
-  const fiftyYearsFromNow = new Date(now);
-  fiftyYearsFromNow.setUTCFullYear(fiftyYearsFromNow.getUTCFullYear() + 50);
   if (epoch > fiftyYearsFromNow.getTime()) {
     year -= 100;
     epoch = Date.parse(imfCandidate(year));

@@ -482,6 +482,17 @@ describe("Anthropic bounded retry policy", () => {
     expect(run.sleeps).toEqual([target - now]);
   });
 
+  it("resolves an RFC 850 year into the next century across New Year", async () => {
+    // Mutation killed: deriving the candidate from the current century resolves 00 as 1900.
+    const run = await runStatuses([503, 200], {
+      initialNow: Date.UTC(1999, 11, 31, 23, 59, 55),
+      retryAfter: "Saturday, 01-Jan-00 00:00:00 GMT",
+    });
+
+    expect(run.result).toMatchObject({ ok: true, attempts: 2 });
+    expect(run.sleeps).toEqual([5_000]);
+  });
+
   it("pivots an RFC 850 timestamp over 50 years ahead to its most recent past year", async () => {
     // Mutations killed: omitting the RFC 850 century pivot incorrectly sleeps for 50 years plus one second.
     const dateParseSpy = vi.spyOn(Date, "parse");
