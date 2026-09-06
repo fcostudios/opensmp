@@ -571,3 +571,4 @@
 {"story":"US-056","event":"mutation_invalidation","reason":"The first authoritative cache-disabled whole-branch mutation campaign failed the endpoint mutation threshold."}
 {"story":"US-056","event":"mutation_invalidation","reason":"The second authoritative cache-disabled whole-branch mutation campaign passed its thresholds but did not retain durable complete survivor output."}
 {"story":"US-056","event":"done"}
+{"story":"US-043","event":"mutation_invalidation","reason":"The initial implementation-agent cold mutation campaign was superseded when the independent controller reran the campaign from a clean state and retained that reproduced 6/6 result as the authoritative closure evidence."}

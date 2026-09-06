@@ -90,7 +90,23 @@
     "evidence": "US043-READY-3",
     "payload_sha256": "a7257fe435f91f10346762578f658363dd07e85e4d4ddd13c501079489807344"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 16,
+      "implementation": 116,
+      "focused_verification": 0,
+      "review": 129,
+      "integration": 0
+    },
+    "total": 261,
+    "changed_files": 27,
+    "commits": 20,
+    "review_fix_loops": 6,
+    "cold_mutation_attempts": 2,
+    "mutation_invalidations": 1,
+    "estimate_variance_minutes": 161,
+    "root_cause": "Closed actuals reconstructed at source cutoff 3c8483c2d936174e6ca0eadb56074e5858ef0db7 (2026-08-15T23:22:26-05:00), whose US-043 production behavior was merged without conflict at 1effc0a and passed the full Definition of Done on merged main as recorded by c7a2ceea2a8cda73cf925846e6e8a8292939427. The story-owned census is reproducible from the 20 US-043 commits from 7dcbe53 through 3c8483c, excluding unrelated readiness approvals interleaved into the branch: their unique changed-path union contains 27 files. Nearest-minute, non-overlapping Git intervals are readiness 16 minutes from approved assessment d4e8233495bdb9b6ffce6796e3017e9679e37da0 at 2026-08-15T19:01:21-05:00 to plan/start commit 3302f3251c6a22643bd7dfff09214fc305940f9d at 19:17:10, implementation 116 minutes from that plan/start to the final planned feature commit fa2c7f8d5e5e06681ccf70dcc47bc3194618772d at 21:13:06, and review 129 minutes from fa2c7f8 to the source cutoff at 23:22:26. Focused verification was interleaved with implementation and review and is conservatively absorbed into those phases; integration records zero because the later clean merge introduced no conflict-resolution changes and its wait interval is not attributable labor. Six review-fix loops are bound to the corresponding corrective commits: 63bf0c9 corrected the contract export order, eee5f7a centralized the security-critical scope predicate, 695a2c4 fixed cancel/error handling and added the missing policy-repository composition test, ce295d5 added the required story mutation campaign and routing, 2a74866 repaired the feedback checkpoint vocabulary gap exposed by the story, and 3c8483c strengthened the audit company attribution oracle. Two authoritative cold campaigns ran against the final production behavior: the implementation-agent campaign killed 6/6 mutants, then an independent clean-state controller rerun reproduced 6/6 and became the retained closure evidence; the first campaign is therefore superseded by one pre-terminal mutation_invalidation record rather than erased. The 161-minute variance (261-100) came from the mid-story authorization correction and re-approval, final review composition repair, previously omitted mutation work, feedback-vocabulary repair, and the final oracle-strengthening pass, not from integration."
+  },
   "checkpoints": [
     {
       "elapsed_minutes": 45,
