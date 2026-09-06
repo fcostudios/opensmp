@@ -160,6 +160,117 @@ describe("Anthropic connector observation bridge", () => {
     ]);
   });
 
+  it("rejects an overlapping duplicate local attempt before it can misattribute terminal evidence", async () => {
+    const appended: ConnectorCallObservationAppendInput[] = [];
+    let releaseFirstPersistence!: () => void;
+    const firstPersistence = new Promise<void>((resolve) => {
+      releaseFirstPersistence = resolve;
+    });
+    let requestedAppends = 0;
+    const session = createConnectorCallObservationSession({
+      vendorAccountId: VENDOR_ACCOUNT_ID,
+      provisioningActionId: null,
+      operation: "sync_members",
+      clock: () => new Date("2026-09-06T12:00:00.000Z"),
+      randomId: () => CORRELATION_ID,
+      append: async (input) => {
+        if (input.phase === "requested" && requestedAppends++ === 0) {
+          await firstPersistence;
+        }
+        appended.push(input);
+      },
+    });
+    const bridge: AnthropicAttemptObserver =
+      createAnthropicConnectorObservationBridge(session);
+
+    const firstRequest = bridge(observation({ endpoint: "members", method: "GET" }));
+    const conflictingRequest = expect(bridge(observation({
+      endpoint: "cost_report",
+      method: "GET",
+    }))).rejects.toThrowError(
+      "Anthropic requested observation conflicts with an in-flight attempt",
+    );
+    const prematureCompletion = expect(bridge(observation({
+      endpoint: "members",
+      method: "GET",
+      phase: "completed",
+      status: 200,
+      classification: "success",
+    }))).rejects.toThrowError(
+      "Anthropic completed observation has no matching requested attempt",
+    );
+    releaseFirstPersistence();
+
+    await firstRequest;
+    await conflictingRequest;
+    await prematureCompletion;
+    await bridge(observation({
+      endpoint: "members",
+      method: "GET",
+      phase: "completed",
+      status: 200,
+      classification: "success",
+    }));
+
+    expect(appended.map(({ attempt, phase, summary }) => ({
+      attempt,
+      phase,
+      summary,
+    }))).toEqual([
+      {
+        attempt: 1,
+        phase: "requested",
+        summary: { endpoint_class: "members", method: "GET" },
+      },
+      {
+        attempt: 1,
+        phase: "succeeded",
+        summary: {
+          endpoint_class: "members",
+          method: "GET",
+          http_status: 200,
+          status_class: "success",
+        },
+      },
+    ]);
+  });
+
+  it("releases a local-attempt reservation when requested persistence rejects", async () => {
+    const appended: ConnectorCallObservationAppendInput[] = [];
+    let rejectRequestedPersistence = true;
+    const session = createConnectorCallObservationSession({
+      vendorAccountId: VENDOR_ACCOUNT_ID,
+      provisioningActionId: null,
+      operation: "sync_members",
+      clock: () => new Date("2026-09-06T12:00:00.000Z"),
+      randomId: () => CORRELATION_ID,
+      append: async (input) => {
+        if (input.phase === "requested" && rejectRequestedPersistence) {
+          rejectRequestedPersistence = false;
+          throw new Error("requested persistence unavailable");
+        }
+        appended.push(input);
+      },
+    });
+    const bridge: AnthropicAttemptObserver =
+      createAnthropicConnectorObservationBridge(session);
+
+    await expect(bridge(observation({}))).rejects.toThrowError(
+      "requested persistence unavailable",
+    );
+    await bridge(observation({}));
+    await bridge(observation({
+      phase: "completed",
+      status: 200,
+      classification: "success",
+    }));
+
+    expect(appended.map(({ attempt, phase }) => ({ attempt, phase }))).toEqual([
+      { attempt: 2, phase: "requested" },
+      { attempt: 2, phase: "succeeded" },
+    ]);
+  });
+
   it("rejects a completed observation without its matching requested receipt", async () => {
     const { bridge } = createBridgeFixture();
 
@@ -171,6 +282,45 @@ describe("Anthropic connector observation bridge", () => {
       "Anthropic completed observation has no matching requested attempt",
     );
   });
+
+  it.each([
+    ["endpoint", { endpoint: "cost_report" }],
+    ["method", { method: "POST" }],
+  ] as const)(
+    "rejects a completed observation with a mismatched %s without consuming the requested receipt",
+    async (_identityField, mismatch) => {
+      const { appended, bridge } = createBridgeFixture();
+      await bridge(observation({ endpoint: "members", method: "GET" }));
+
+      await expect(bridge(observation({
+        ...mismatch,
+        phase: "completed",
+        status: 200,
+        classification: "success",
+      }))).rejects.toThrowError(
+        "Anthropic completed observation does not match its requested endpoint and method",
+      );
+      expect(appended).toHaveLength(1);
+
+      await bridge(observation({
+        endpoint: "members",
+        method: "GET",
+        phase: "completed",
+        status: 200,
+        classification: "success",
+      }));
+      expect(appended[1]).toMatchObject({
+        attempt: 1,
+        phase: "succeeded",
+        summary: {
+          endpoint_class: "members",
+          method: "GET",
+          http_status: 200,
+          status_class: "success",
+        },
+      });
+    },
+  );
 
   it("constructs a neutral allowlisted summary without retaining provider-only fields", async () => {
     const { appended, bridge } = createBridgeFixture();

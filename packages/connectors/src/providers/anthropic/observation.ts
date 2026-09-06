@@ -54,6 +54,11 @@ type KnownFailureClassification = Exclude<
   AnthropicAttemptClassification,
   "success" | "transport_ambiguous"
 >;
+type RequestedAttempt = {
+  endpoint: AnthropicEndpoint;
+  method: "GET" | "POST" | "DELETE";
+  receipt: ConnectorAttemptReceipt | null;
+};
 
 function isKnownFailureClassification(
   classification: AnthropicAttemptClassification | null,
@@ -66,33 +71,56 @@ function isKnownFailureClassification(
 export function createAnthropicConnectorObservationBridge(
   session: ConnectorCallObservationSession,
 ): AnthropicAttemptObserverContract {
-  const requestedReceipts = new Map<number, ConnectorAttemptReceipt>();
+  const requestedAttempts = new Map<number, RequestedAttempt>();
 
   return async (observation) => {
     const neutralEndpointClass = endpointClass(observation.endpoint);
 
     if (observation.phase === "requested") {
-      const receipt = await session.requested({
-        endpointClass: neutralEndpointClass,
+      if (requestedAttempts.has(observation.attempt)) {
+        throw new Error(
+          "Anthropic requested observation conflicts with an in-flight attempt",
+        );
+      }
+      const requestedAttempt: RequestedAttempt = {
+        endpoint: observation.endpoint,
         method: observation.method,
-      });
-      requestedReceipts.set(observation.attempt, receipt);
+        receipt: null,
+      };
+      requestedAttempts.set(observation.attempt, requestedAttempt);
+      try {
+        requestedAttempt.receipt = await session.requested({
+          endpointClass: neutralEndpointClass,
+          method: observation.method,
+        });
+      } catch (error) {
+        requestedAttempts.delete(observation.attempt);
+        throw error;
+      }
       return;
     }
 
-    const receipt = requestedReceipts.get(observation.attempt);
-    if (receipt === undefined) {
+    const requestedAttempt = requestedAttempts.get(observation.attempt);
+    if (requestedAttempt === undefined || requestedAttempt.receipt === null) {
       throw new Error(
         "Anthropic completed observation has no matching requested attempt",
       );
     }
-    requestedReceipts.delete(observation.attempt);
+    if (
+      requestedAttempt.endpoint !== observation.endpoint
+      || requestedAttempt.method !== observation.method
+    ) {
+      throw new Error(
+        "Anthropic completed observation does not match its requested endpoint and method",
+      );
+    }
 
     if (observation.status === null) {
       throw new Error("Anthropic completed observation requires a known response");
     }
     if (observation.classification === "success") {
-      await session.succeeded(receipt, {
+      requestedAttempts.delete(observation.attempt);
+      await session.succeeded(requestedAttempt.receipt, {
         endpointClass: neutralEndpointClass,
         method: observation.method,
         httpStatus: observation.status,
@@ -102,7 +130,8 @@ export function createAnthropicConnectorObservationBridge(
     if (!isKnownFailureClassification(observation.classification)) {
       throw new Error("Anthropic completed observation requires a known response");
     }
-    await session.failed(receipt, {
+    requestedAttempts.delete(observation.attempt);
+    await session.failed(requestedAttempt.receipt, {
       endpointClass: neutralEndpointClass,
       method: observation.method,
       httpStatus: observation.status,
