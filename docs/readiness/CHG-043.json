@@ -90,7 +90,23 @@
     "evidence": "CHG043-READY",
     "payload_sha256": "169a5d4375f4ef078dd788e1493b7e323575f86ad82b553a21f2f5f0e98ff86a"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 2,
+      "implementation": 54,
+      "focused_verification": 0,
+      "review": 30,
+      "integration": 0
+    },
+    "total": 86,
+    "changed_files": 12,
+    "commits": 11,
+    "review_fix_loops": 3,
+    "cold_mutation_attempts": 3,
+    "mutation_invalidations": 2,
+    "estimate_variance_minutes": -14,
+    "root_cause": "Measured from the digest-bound readiness commit d1a8605 at 2026-09-06T12:44:36-05:00 through the final reviewed implementation commit 694769c at 2026-09-06T14:10:30-05:00. The committed plan boundary 6b2c4ac followed two minutes after approval. The implementation interval is 54 minutes from the plan through the first review-ready whole-change commit 4530061; the 30-minute final-review interval ends at 694769c. Focused verification and integration have no independent Git cutoffs and are conservatively absorbed into those intervals. The 6b2c4ac..694769c range contains 12 changed implementation paths and 11 commits. Three review-fix loops are evidenced by the Task 1 exact-config correction, Task 3 closure-sequencing correction, and final whole-branch fail-closed parser/clock correction. Three cache-disabled whole-change mutation attempts were made: the first failed after exposing uncovered Auth.js adapter and clock behavior, the second passed at 4530061, and the third passed after final-review fixes at 694769c. The first attempt was invalidated by the corrective factory, exact-adapter, and static-config routing changes; the second was invalidated by the later scored-source and exact-adapter changes. The retained campaign freshly executed every shard with zero survivors: alert service/factory 24 killed plus one explicitly disclosed terminal RuntimeError, notifications config 6 of 6 killed, and the exact framework adapter verified by source hash, focused tests, and type-check. The 86-minute actual is 14 minutes below the approved 100-minute estimate because fixture work and reviews ran concurrently while unchanged full-gate tasks reused valid workspace cache entries."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
