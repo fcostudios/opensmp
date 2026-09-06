@@ -33,7 +33,8 @@
 | **CHG-042** | 📦 delivered | Re-pin regenerated guidance and propagate the 320-minute budget | — | — |
 | **CHG-043** | 📦 delivered | Fix the root test runner: two workspaces declare vitest without a config, and the delivered mock lint fails on alerts/actions.test.ts | — | — |
 | **CHG-044** | 📦 delivered | Re-pin testing/critical-paths.md after CHG-040 regenerates the critical set | — | — |
-| **CHG-045** | 📦 delivered | Add a durable connector call observation ledger for US-018 | US-056, US-057, US-058 | S3 |
+| **CHG-045** | 🔨 dev_in_progress | Add a durable connector call observation ledger for US-018 | US-056, US-057, US-058 | S3 |
+| **CHG-046** | 🟢 accepted | Accept substrate-emitted generated Nous paths by provenance instead of a per-sync overlay-layer registration | — | — |
 
 ---
 
@@ -415,7 +416,7 @@ _No stories linked to this change yet._
 
 ### CHG-045: Add a durable connector call observation ledger for US-018
 
-**Status:** 📦 `delivered`
+**Status:** 🔨 `dev_in_progress`
 **Source:** developer_feedback
 **Requested by:** Francisco Lomas
 **Notes:** # US-018 Anthropic Connector Design
@@ -435,7 +436,22 @@ interface. The adapter must keep Admi...
 
 | Story | Name | Sprint | Status | File |
 |-------|------|--------|--------|------|
-| **US-056** | Anthropic transport with separated credentials and bounded retry | Sprint 3 | ⬜ backlog | [r1_misc_us_056.md](sprint-3/r1_misc_us_056.md) |
+| **US-056** | Anthropic transport with separated credentials and bounded retry | Sprint 3 | 🔨 in_development | [r1_misc_us_056.md](sprint-3/r1_misc_us_056.md) |
 | **US-057** | Append-only sanitized connector-call journal | Sprint 3 | ⬜ backlog | [r1_misc_us_057.md](sprint-3/r1_misc_us_057.md) |
 | **US-058** | Anthropic connector conformance and Pact contracts | Sprint 3 | ⬜ backlog | [r1_misc_us_058.md](sprint-3/r1_misc_us_058.md) |
+
+### CHG-046: Accept substrate-emitted generated Nous paths by provenance instead of a per-sync overlay-layer registration
+
+**Status:** 🟢 `accepted`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** # CHG-046 — Accept substrate-emitted generated Nous paths by provenance instead of a per-sync overlay-layer registration
+
+## Status
+
+Filed in `nous.db` as **CHG-046** (`kind: technical`, per IMP-370) against
+`fcostudios__smp` on 2026-09-05. Tenant verification infrastructure only
+(`scripts/work-r...
+
+_No stories linked to this change yet._
 
