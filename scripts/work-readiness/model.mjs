@@ -171,11 +171,14 @@ function validateActualsShape(value, path) {
   object(value, path, [
     "phase_minutes", "total", "changed_files", "commits", "review_fix_loops", "cold_mutation_attempts",
     "mutation_invalidations", "estimate_variance_minutes", "root_cause",
-  ]);
+  ], { optional: ["mutation_minutes"] });
   object(value.phase_minutes, `${path}.phase_minutes`, PHASE_KEYS);
   for (const key of PHASE_KEYS) integer(value.phase_minutes[key], `${path}.phase_minutes.${key}`, { nullable: true });
   for (const key of ["total", "changed_files", "commits", "review_fix_loops", "cold_mutation_attempts", "mutation_invalidations"]) {
     integer(value[key], `${path}.${key}`, { nullable: true });
+  }
+  if (Object.hasOwn(value, "mutation_minutes")) {
+    integer(value.mutation_minutes, `${path}.mutation_minutes`);
   }
   integer(value.estimate_variance_minutes, `${path}.estimate_variance_minutes`, { nullable: true, signed: true });
   string(value.root_cause, `${path}.root_cause`, { nullable: true });

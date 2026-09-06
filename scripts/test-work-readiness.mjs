@@ -186,10 +186,13 @@ function test(name, body) {
 test("schema structure and runtime preserve bootstrap while requiring normal controller metadata", () => {
   const bootstrapRule = readinessSchema.allOf.find((rule) => rule.if?.properties?.policy_bootstrap?.const === true);
   const kindRule = readinessSchema.allOf.find((rule) => rule.if?.properties?.kind?.const === "US");
+  const actuals = readinessSchema.$defs.actuals;
   assert.deepEqual(bootstrapRule.else.required, ["controlling_change"]);
   assert.equal(bootstrapRule.then.required?.includes("controlling_change") ?? false, false);
   assert.equal(kindRule.else.required?.includes("controlling_change") ?? false, false);
   assert.equal(readinessSchema.required.includes("controlling_change"), false);
+  assert.deepEqual(actuals.properties.mutation_minutes, { $ref: "#/$defs/nonnegative_integer" });
+  assert.equal(actuals.required.includes("mutation_minutes"), false);
   assert.equal(validateAssessment(bootstrap, { feedbackRecords: [bootstrapDecision] }).decision, "ready");
   const us = normal();
   const change = normal({ work_id: "CHG-123", kind: "CHG", source: "docs/changes/CHG-123.md" });
@@ -1034,6 +1037,30 @@ test("actuals may be null before done but are required and recomputed at done", 
   const missing = completed();
   missing.actuals.root_cause = null;
   expectError("WR_ACTUALS_INCOMPLETE", "$.actuals.root_cause", () => validateCompletionActuals(missing, [{ story: missing.work_id, event: "done" }]));
+});
+
+test("mutation_minutes is optional and, when present, is a non-negative integer", () => {
+  const historical = completed();
+  assert.equal(Object.hasOwn(historical.actuals, "mutation_minutes"), false);
+  assert.equal(validateAssessment(historical, {
+    feedbackRecords: [decisionFor(historical), { story: historical.work_id, event: "done" }],
+  }).complete, true);
+
+  for (const minutes of [0, 1, 137]) {
+    const measured = completed();
+    measured.actuals.mutation_minutes = minutes;
+    assert.equal(validateAssessment(measured, {
+      feedbackRecords: [decisionFor(measured), { story: measured.work_id, event: "done" }],
+    }).complete, true);
+  }
+
+  for (const invalid of [-1, 1.5, null, "4"]) {
+    const measured = completed();
+    measured.actuals.mutation_minutes = invalid;
+    expectError("WR_INVALID_INTEGER", "$.actuals.mutation_minutes", () => validateAssessment(measured, {
+      feedbackRecords: [decisionFor(measured), { story: measured.work_id, event: "done" }],
+    }));
+  }
 });
 
 
