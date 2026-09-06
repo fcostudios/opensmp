@@ -101,6 +101,7 @@ assert.equal(alertActionsAudit.reason, "verification-only:exact-framework-adapte
 for (const [before, after] of [
   ["loadAuthorization: loadCurrentLedgerAuthorization", "loadAuthorization: async () => null"],
   ["databaseUrl: () => process.env.DATABASE_URL", "databaseUrl: () => undefined"],
+  ["now: () => new Date()", "now: () => new Date(0)"],
   ["createAckAlertAction({", "createOtherAction({"],
   ["});\n", "});\nnotifyUnexpectedly();\n"],
 ]) {

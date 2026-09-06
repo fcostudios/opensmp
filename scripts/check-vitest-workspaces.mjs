@@ -1,5 +1,6 @@
 import {
   existsSync,
+  lstatSync,
   readFileSync,
   readdirSync,
   statSync,
@@ -15,18 +16,27 @@ const VITEST_CONFIG_FILES = [
 ];
 
 function workspacePatterns(workspaceFile) {
+  const invalid = () => {
+    throw new Error("pnpm-workspace.yaml: use a non-empty packages block list with literal directory segments or single-star segments (for example packages/*)");
+  };
   const patterns = [];
   let inPackages = false;
   for (const line of readFileSync(workspaceFile, "utf8").split(/\r?\n/u)) {
+    if (/^packages:/u.test(line) && !/^packages:\s*(?:#.*)?$/u.test(line)) invalid();
     if (/^packages:\s*(?:#.*)?$/u.test(line)) {
       inPackages = true;
       continue;
     }
     if (!inPackages) continue;
     if (/^[^\s#]/u.test(line)) break;
+    if (/^\s*(?:#.*)?$/u.test(line)) continue;
     const match = /^\s+-\s+(["']?)([^"'#]+)\1\s*(?:#.*)?$/u.exec(line);
-    if (match?.[2]) patterns.push(match[2].trim());
+    const pattern = match?.[2]?.trim();
+    if (!pattern || pattern.split("/").some((part) =>
+      part !== "*" && (!/^[\w.-]+$/u.test(part) || part === "." || part === ".."))) invalid();
+    patterns.push(pattern);
   }
+  if (patterns.length === 0) invalid();
   return patterns;
 }
 
@@ -50,9 +60,25 @@ function expandDirectoryPattern(rootDir, pattern) {
 }
 
 function invokesVitest(script) {
-  return script
-    .split(/[\s;&|()]+/u)
-    .some((token) => token === "vitest" || token.endsWith("/vitest"));
+  const tokens = [];
+  let token = "";
+  let quote = null;
+  for (const character of script) {
+    if (quote) {
+      if (character === quote) quote = null;
+      else token += character;
+    } else if (character === '"' || character === "'") {
+      quote = character;
+    } else if (/[\s;&|()]/u.test(character)) {
+      tokens.push(token);
+      token = "";
+    } else {
+      token += character;
+    }
+  }
+  if (quote) throw new Error("Vitest workspace audit: unclosed shell quote in package script");
+  tokens.push(token);
+  return tokens.some((value) => value === "vitest" || value.endsWith("/vitest"));
 }
 
 function packageUsesVitest(manifest) {
@@ -77,7 +103,7 @@ export function findVitestWorkspaceConfigFailures(rootDir) {
     if (!packageUsesVitest(manifest)) continue;
     const configCount = VITEST_CONFIG_FILES.filter((file) => {
       const configPath = resolve(packageDirectory, file);
-      return existsSync(configPath) && statSync(configPath).isFile();
+      return existsSync(configPath) && lstatSync(configPath).isFile();
     }).length;
     if (configCount !== 1) {
       const packagePath = relative(absoluteRoot, packageDirectory)

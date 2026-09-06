@@ -5,7 +5,7 @@ import { createAlertRepository } from "./repository";
 type AckAlertActionDependencies = Readonly<{
   databaseUrl: () => string | undefined;
   loadAuthorization: () => Promise<LedgerAuthorization | null>;
-  now?: () => Date;
+  now: () => Date;
 }>;
 
 export function createAckAlertAction(dependencies: AckAlertActionDependencies) {
@@ -27,7 +27,7 @@ export async function ackAlertWithAuthorization(
   context: Readonly<{
     authorization: LedgerAuthorization;
     databaseUrl: string;
-    now?: () => Date;
+    now: () => Date;
   }>,
 ): Promise<AckAlertResult> {
   if (!context.databaseUrl) throw new Error("DATABASE_URL is required");
@@ -38,7 +38,7 @@ export async function ackAlertWithAuthorization(
       {
         authorization: context.authorization,
         acknowledge: repository.acknowledgeEvent,
-        now: context.now ?? (() => new Date()),
+        now: context.now,
       },
       input,
     );

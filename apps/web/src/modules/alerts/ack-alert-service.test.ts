@@ -5,13 +5,16 @@ import {
   type PostgresFixture,
 } from "@smp/db/testing/postgres-container";
 import pg from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, expectTypeOf, it } from "vitest";
 
 import type { LedgerAuthorization } from "../identity-access/authorization";
 import {
   ackAlertWithAuthorization,
   createAckAlertAction,
 } from "./ack-alert-service";
+
+expectTypeOf<Parameters<typeof ackAlertWithAuthorization>[1]["now"]>().toEqualTypeOf<() => Date>();
+expectTypeOf<Parameters<typeof createAckAlertAction>[0]["now"]>().toEqualTypeOf<() => Date>();
 
 let fixture: PostgresFixture;
 let readPool: pg.Pool;
@@ -106,7 +109,7 @@ describe("ackAlertWithAuthorization", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("expected ackAlert to succeed");
     expect(result.acknowledgedBy).toBe(ids.actor);
-    expect(typeof result.acknowledgedAt).toBe("string");
+    expect(result.acknowledgedAt).toBe("2026-09-06T18:00:00.000Z");
 
     const row = await readPool.query<{
       acknowledged_by: string;
@@ -116,7 +119,7 @@ describe("ackAlertWithAuthorization", () => {
       [event],
     );
     expect(row.rows[0]!.acknowledged_by).toBe(ids.actor);
-    expect(row.rows[0]!.acknowledged_at.toISOString()).toBe(result.acknowledgedAt);
+    expect(row.rows[0]!.acknowledged_at.toISOString()).toBe("2026-09-06T18:00:00.000Z");
   });
 
   it("returns forbidden for a non-admin authorization and never reaches the repository", async () => {
@@ -146,6 +149,7 @@ describe("ackAlertWithAuthorization", () => {
         {
           authorization: authorization([ids.companyA], "group_admin"),
           databaseUrl: "",
+          now: () => new Date("2026-09-06T18:00:00.000Z"),
         },
       ),
     ).rejects.toThrow("DATABASE_URL is required");
@@ -158,30 +162,12 @@ describe("ackAlertWithAuthorization", () => {
         {
           authorization: null as never,
           databaseUrl: fixture.appUrl,
+          now: () => new Date("2026-09-06T18:00:00.000Z"),
         },
       ),
     ).rejects.toThrow("authorization is required");
   });
 
-  it("uses the current time when no clock override is supplied", async () => {
-    const event = await seedAlertEvent();
-    const before = Date.now();
-
-    const result = await ackAlertWithAuthorization(
-      { alertEventId: event },
-      {
-        authorization: authorization([ids.companyA], "group_admin"),
-        databaseUrl: fixture.appUrl,
-      },
-    );
-    const after = Date.now();
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("expected ackAlert to succeed");
-    const acknowledgedAt = Date.parse(result.acknowledgedAt);
-    expect(acknowledgedAt).toBeGreaterThanOrEqual(before);
-    expect(acknowledgedAt).toBeLessThanOrEqual(after);
-  });
 });
 
 describe("createAckAlertAction", () => {
@@ -189,6 +175,7 @@ describe("createAckAlertAction", () => {
     let loaderCalls = 0;
     const action = createAckAlertAction({
       databaseUrl: () => undefined,
+      now: () => new Date("2026-09-06T18:00:00.000Z"),
       loadAuthorization: async () => {
         loaderCalls += 1;
         return authorization([ids.companyA], "group_admin");
@@ -205,6 +192,7 @@ describe("createAckAlertAction", () => {
     const action = createAckAlertAction({
       databaseUrl: () => fixture.appUrl,
       loadAuthorization: async () => null,
+      now: () => new Date("2026-09-06T18:00:00.000Z"),
     });
 
     await expect(action({ alertEventId: randomUUID() })).resolves.toEqual({
@@ -234,6 +222,7 @@ describe("createAckAlertAction", () => {
     const failure = new Error("authorization unavailable");
     const action = createAckAlertAction({
       databaseUrl: () => fixture.appUrl,
+      now: () => new Date("2026-09-06T18:00:00.000Z"),
       loadAuthorization: async () => {
         throw failure;
       },

@@ -12,4 +12,5 @@ import { loadCurrentLedgerAuthorization } from "../identity-access/server-author
 export const ackAlert = createAckAlertAction({
   databaseUrl: () => process.env.DATABASE_URL,
   loadAuthorization: loadCurrentLedgerAuthorization,
+  now: () => new Date(),
 });
