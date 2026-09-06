@@ -64,6 +64,7 @@ describe("Anthropic policy-bound request execution", () => {
     const request = requests[0]!;
     expect(request.url).toBe("https://api.anthropic.com/v1/organizations/users");
     expect(request.method).toBe("GET");
+    expect(request.redirect).toBe("manual");
     expect(Object.fromEntries(request.headers.entries())).toEqual({
       accept: "application/json",
       "anthropic-version": "2023-06-01",
@@ -136,12 +137,13 @@ describe("Anthropic policy-bound request execution", () => {
     ["DELETE", { endpoint: "delete_invite", parameters: { resourceId: "invite/1" }, body: "forbidden" }],
   ] as const)("rejects a caller body for a policy-owned %s before any attempt", async (_method, requestInput) => {
     // Mutation killed: passing a caller body into a GET or DELETE reaches the limiter or network.
-    let acquisitions = 0;
     let transports = 0;
+    const limiter = inertLimiter();
+    const acquireSpy = vi.spyOn(limiter, "acquire");
     const execute = createAnthropicRequestExecutor({
       clock: { now: () => 1_000 },
       sleep: async () => undefined,
-      limiter: { acquire: async () => { acquisitions += 1; } },
+      limiter,
       transport: async () => {
         transports += 1;
         return new Response("{}", { status: 200 });
@@ -153,23 +155,29 @@ describe("Anthropic policy-bound request execution", () => {
       vendorAccountId: "account-a",
       credentials: validCredentials,
     })).rejects.toThrow("body");
-    expect(acquisitions).toBe(0);
+    expect(acquireSpy).not.toHaveBeenCalled();
     expect(transports).toBe(0);
   });
 
-  it("creates every network attempt with a fresh 30 second timeout signal", async () => {
-    // Mutation killed: omitting or changing the timeout means the platform timeout factory sees the wrong value.
+  it("binds a network attempt to its own controllable 30 second timeout signal", async () => {
+    // Mutations killed: omitting, changing, or detaching the timeout leaves the Request signal live after abort.
     const timeoutSignals: number[] = [];
+    const controllers: AbortController[] = [];
     const timeoutSpy = vi.spyOn(AbortSignal, "timeout").mockImplementation((milliseconds) => {
       timeoutSignals.push(milliseconds);
-      return new AbortController().signal;
+      const controller = new AbortController();
+      controllers.push(controller);
+      return controller.signal;
     });
     const execute = createAnthropicRequestExecutor({
       clock: { now: () => 1_000 },
       sleep: async () => undefined,
       limiter: inertLimiter(),
       transport: async (request) => {
-        expect(request.signal).toBeInstanceOf(AbortSignal);
+        expect(request.signal.aborted).toBe(false);
+        controllers[0]!.abort("attempt-1-timeout");
+        expect(request.signal.aborted).toBe(true);
+        expect(request.signal.reason).toBe("attempt-1-timeout");
         return new Response("{}", { status: 200 });
       },
     });
@@ -206,13 +214,14 @@ describe("Anthropic policy-bound request execution", () => {
     ["unsupported kind", [{ ...validCredentials[0], kind: "unsupported" }, validCredentials[1]]],
   ] as const)("fails closed for %s credentials before limiter, observation, or transport", async (_case, credentials) => {
     // Mutation killed: deferring complete credential validation permits an observable attempt side effect.
-    let acquisitions = 0;
     let transports = 0;
     const observations: AnthropicAttemptObservation[] = [];
+    const limiter = inertLimiter();
+    const acquireSpy = vi.spyOn(limiter, "acquire");
     const execute = createAnthropicRequestExecutor({
       clock: { now: () => 1_000 },
       sleep: async () => undefined,
-      limiter: { acquire: async () => { acquisitions += 1; } },
+      limiter,
       transport: async () => {
         transports += 1;
         return new Response("{}", { status: 200 });
@@ -225,14 +234,61 @@ describe("Anthropic policy-bound request execution", () => {
       vendorAccountId: "account-a",
       credentials: credentials as readonly AnthropicCredentialCandidate[],
     })).rejects.toThrow();
-    expect(acquisitions).toBe(0);
+    expect(acquireSpy).not.toHaveBeenCalled();
     expect(observations).toEqual([]);
     expect(transports).toBe(0);
   });
+
+  it.each([
+    ["Admin CR/LF", "admin", "admin-secret\r\nleaked"],
+    ["Analytics CR/LF", "analytics", "analytics-secret\r\nleaked"],
+    ["Admin NUL", "admin", "admin-secret\0leaked"],
+    ["Analytics non-ByteString", "analytics", "analytics-secret-😀"],
+  ] as const)(
+    "rejects header-incompatible %s credentials as a complete pair before any attempt",
+    async (_case, kind, unsafeSecret) => {
+      // Mutations killed: validating only the selected secret or after acquire leaks native errors or consumes budget.
+      const credentials = kind === "admin"
+        ? [{ ...validCredentials[0], secret: unsafeSecret }, validCredentials[1]]
+        : [validCredentials[0], { ...validCredentials[1], secret: unsafeSecret }];
+      const limiter = inertLimiter();
+      const acquireSpy = vi.spyOn(limiter, "acquire");
+      const observations: AnthropicAttemptObservation[] = [];
+      let transports = 0;
+      const execute = createAnthropicRequestExecutor({
+        clock: { now: () => 1_000 },
+        sleep: async () => undefined,
+        limiter,
+        observe: async (observation) => { observations.push(observation); },
+        transport: async () => {
+          transports += 1;
+          return new Response("{}", { status: 200 });
+        },
+      });
+
+      const error = await execute({
+        endpoint: "members",
+        vendorAccountId: "account-a",
+        credentials,
+      }).catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(Error);
+      expect(error).toMatchObject({
+        name: "Error",
+        message: "Anthropic credential cannot be used as a request header.",
+      });
+      expect(Object.hasOwn(error as object, "cause")).toBe(false);
+      expect(String(error)).not.toContain(unsafeSecret);
+      expect(acquireSpy).not.toHaveBeenCalled();
+      expect(observations).toEqual([]);
+      expect(transports).toBe(0);
+    },
+  );
 });
 
 type RetryRun = Readonly<{
   calls: number;
+  redirects: RequestRedirect[];
   result: Awaited<ReturnType<ReturnType<typeof createAnthropicRequestExecutor>>>;
   sleeps: number[];
 }>;
@@ -244,10 +300,12 @@ async function runStatuses(
     parameters?: Readonly<{ resourceId?: string }>;
     retryAfter?: string;
     initialNow?: number;
+    body?: unknown;
   }> = {},
 ): Promise<RetryRun> {
   let now = options.initialNow ?? 10_000;
   let calls = 0;
+  const redirects: RequestRedirect[] = [];
   const sleeps: number[] = [];
   const execute = createAnthropicRequestExecutor({
     clock: { now: () => now },
@@ -259,7 +317,8 @@ async function runStatuses(
       clock: { now: () => now },
       sleep: async (milliseconds) => { now += milliseconds; },
     }),
-    transport: async () => {
+    transport: async (request) => {
+      redirects.push(request.redirect);
       const status = statuses[Math.min(calls, statuses.length - 1)]!;
       calls += 1;
       return new Response(status === 204 ? null : "{}", {
@@ -276,8 +335,9 @@ async function runStatuses(
     vendorAccountId: "account-a",
     credentials: validCredentials,
     parameters: options.parameters,
+    body: options.body,
   });
-  return { calls, result, sleeps };
+  return { calls, redirects, result, sleeps };
 }
 
 describe("Anthropic bounded retry policy", () => {
@@ -318,6 +378,30 @@ describe("Anthropic bounded retry policy", () => {
         attempts: 1,
       });
       expect(run.calls).toBe(1);
+      expect(run.redirects).toEqual(["manual"]);
+      expect(run.sleeps).toEqual([]);
+    },
+  );
+
+  it.each([
+    ["GET", 307, "members", undefined, undefined],
+    ["GET", 308, "members", undefined, undefined],
+    ["POST", 307, "create_invite", undefined, { email: "member@example.com" }],
+    ["POST", 308, "create_invite", undefined, { email: "member@example.com" }],
+  ] as const)(
+    "observes terminal %s redirect status %i without replay",
+    async (_method, status, endpoint, parameters, body) => {
+      // Mutations killed: automatic redirect following or treating 307/308 as retryable replays a request.
+      const run = await runStatuses([status, 200], { endpoint, parameters, body });
+
+      expect(run.result).toEqual({
+        ok: false,
+        classification: "client_error",
+        status,
+        attempts: 1,
+      });
+      expect(run.calls).toBe(1);
+      expect(run.redirects).toEqual(["manual"]);
       expect(run.sleeps).toEqual([]);
     },
   );
@@ -360,20 +444,39 @@ describe("Anthropic bounded retry policy", () => {
   });
 
   it.each([
-    ["past HTTP-date", new Date(Date.UTC(2026, 8, 5, 11, 59, 59)).toUTCString()],
-    ["negative delta", "-1"],
-    ["non-finite delta", "Infinity"],
-    ["malformed value", "eventually"],
-  ] as const)("falls back for a %s Retry-After", async (_case, retryAfter) => {
-    // Mutation killed: accepting invalid or non-future values bypasses the fallback.
-    const run = await runStatuses([503, 200], {
-      initialNow: Date.UTC(2026, 8, 5, 12, 0, 0),
-      retryAfter,
-    });
+    ["past HTTP-date", new Date(Date.UTC(2026, 8, 5, 11, 59, 59)).toUTCString(), 1],
+    ["present HTTP-date", new Date(Date.UTC(2026, 8, 5, 12, 0, 0)).toUTCString(), 1],
+    ["wrong-weekday HTTP-date", "Mon, 01 Jan 2030 00:00:00 GMT", 1],
+    ["negative delta", "-1", 0],
+    ["non-finite delta", "Infinity", 0],
+    ["malformed value", "eventually", 0],
+    ["ISO timestamp", "2030-01-01T00:00:00.000Z", 0],
+    ["date-only timestamp", "2030-01-01", 0],
+    ["locale-style timestamp", "January 1, 2030 00:00:00 GMT", 0],
+    ["overlong HTTP-like timestamp", "Tue, 01 Jan 2030 00:00:00  GMT", 0],
+    ["wrong delimiter HTTP-like timestamp", "Tue; 01 Jan 2030 00:00:00 GMT", 0],
+    ["wrong spacing HTTP-like timestamp", "Tue,,01 Jan 2030 00:00:00 GMT", 0],
+    ["wrong zone HTTP-like timestamp", "Tue, 01 Jan 2030 00:00:00 UTC", 0],
+    ["short HTTP-like timestamp", "bad? 2030 GMT", 0],
+  ] as const)(
+    "falls back for a %s Retry-After",
+    async (_case, retryAfter, expectedDateParses) => {
+      // Mutations killed: accepting invalid/non-future values or parsing non-HTTP syntax bypasses fallback.
+      const dateParseSpy = vi.spyOn(Date, "parse");
+      try {
+        const run = await runStatuses([503, 200], {
+          initialNow: Date.UTC(2026, 8, 5, 12, 0, 0),
+          retryAfter,
+        });
 
-    expect(run.result).toMatchObject({ ok: true, attempts: 2 });
-    expect(run.sleeps).toEqual([1_000]);
-  });
+        expect(run.result).toMatchObject({ ok: true, attempts: 2 });
+        expect(run.sleeps).toEqual([1_000]);
+        expect(dateParseSpy).toHaveBeenCalledTimes(expectedDateParses);
+      } finally {
+        dateParseSpy.mockRestore();
+      }
+    },
+  );
 
   it("honors zero delta-seconds and falls back when Retry-After is missing", async () => {
     // Mutation killed: treating zero as absent or missing as zero swaps these literal delays.
@@ -385,25 +488,26 @@ describe("Anthropic bounded retry policy", () => {
   });
 
   it("sleeps before acquiring capacity for each actual retry attempt", async () => {
-    // Mutations killed: skipped acquisition or acquiring before retry sleep changes the ordered trace.
-    const events: string[] = [];
+    // Mutations killed: skipped acquisition or acquiring before retry sleep changes the call-through order.
+    let now = 10_000;
     let attempts = 0;
+    const limiter = createAnthropicRateLimiter({
+      clock: { now: () => now },
+      sleep: async (milliseconds) => { now += milliseconds; },
+    });
+    const acquireSpy = vi.spyOn(limiter, "acquire");
+    const retrySleep = vi.fn(async (milliseconds: number) => { now += milliseconds; });
+    const observe = vi.fn(async (_observation: AnthropicAttemptObservation) => undefined);
+    const transport = vi.fn(async () => {
+      attempts += 1;
+      return new Response("{}", { status: attempts < 3 ? 503 : 200 });
+    });
     const execute = createAnthropicRequestExecutor({
-      clock: { now: () => 10_000 },
-      sleep: async (milliseconds) => { events.push(`sleep:${milliseconds}`); },
-      limiter: {
-        acquire: async (account, budgets) => {
-          events.push(`acquire:${account}:${budgets.join("+")}`);
-        },
-      },
-      observe: async (observation) => {
-        events.push(`observe:${observation.phase}:${observation.attempt}`);
-      },
-      transport: async () => {
-        attempts += 1;
-        events.push(`transport:${attempts}`);
-        return new Response("{}", { status: attempts < 3 ? 503 : 200 });
-      },
+      clock: { now: () => now },
+      sleep: retrySleep,
+      limiter,
+      observe,
+      transport,
     });
 
     await execute({
@@ -412,22 +516,32 @@ describe("Anthropic bounded retry policy", () => {
       credentials: validCredentials,
     });
 
-    expect(events).toEqual([
-      "acquire:account-a:user_management",
-      "observe:requested:1",
-      "transport:1",
-      "observe:completed:1",
-      "sleep:1000",
-      "acquire:account-a:user_management",
-      "observe:requested:2",
-      "transport:2",
-      "observe:completed:2",
-      "sleep:2000",
-      "acquire:account-a:user_management",
-      "observe:requested:3",
-      "transport:3",
-      "observe:completed:3",
-    ]);
+    expect(acquireSpy).toHaveBeenCalledTimes(3);
+    expect(acquireSpy).toHaveBeenNthCalledWith(1, "account-a", ["user_management"]);
+    expect(acquireSpy).toHaveBeenNthCalledWith(2, "account-a", ["user_management"]);
+    expect(acquireSpy).toHaveBeenNthCalledWith(3, "account-a", ["user_management"]);
+    expect(retrySleep).toHaveBeenNthCalledWith(1, 1_000);
+    expect(retrySleep).toHaveBeenNthCalledWith(2, 2_000);
+    expect(observe).toHaveBeenCalledTimes(6);
+    expect(transport).toHaveBeenCalledTimes(3);
+
+    const callOrder = [
+      acquireSpy.mock.invocationCallOrder[0]!,
+      observe.mock.invocationCallOrder[0]!,
+      transport.mock.invocationCallOrder[0]!,
+      observe.mock.invocationCallOrder[1]!,
+      retrySleep.mock.invocationCallOrder[0]!,
+      acquireSpy.mock.invocationCallOrder[1]!,
+      observe.mock.invocationCallOrder[2]!,
+      transport.mock.invocationCallOrder[1]!,
+      observe.mock.invocationCallOrder[3]!,
+      retrySleep.mock.invocationCallOrder[1]!,
+      acquireSpy.mock.invocationCallOrder[2]!,
+      observe.mock.invocationCallOrder[4]!,
+      transport.mock.invocationCallOrder[2]!,
+      observe.mock.invocationCallOrder[5]!,
+    ];
+    expect(callOrder).toEqual([...callOrder].sort((left, right) => left - right));
   });
 
   it("charges a real user-management budget for a retry", async () => {
@@ -529,19 +643,29 @@ describe("Anthropic bounded retry policy", () => {
     expect(sleeps).toEqual([]);
   });
 
-  it("creates a fresh 30 second timeout signal for every retry", async () => {
-    // Mutation killed: reusing one Request or signal across retries yields fewer timeout factory calls.
+  it("binds every retry Request to its corresponding fresh timeout controller", async () => {
+    // Mutations killed: reusing or detaching a signal stops one-to-one controller propagation.
     const timeouts: number[] = [];
+    const controllers: AbortController[] = [];
+    const requestSignals: AbortSignal[] = [];
     const timeoutSpy = vi.spyOn(AbortSignal, "timeout").mockImplementation((milliseconds) => {
       timeouts.push(milliseconds);
-      return new AbortController().signal;
+      const controller = new AbortController();
+      controllers.push(controller);
+      return controller.signal;
     });
     let attempts = 0;
     const execute = createAnthropicRequestExecutor({
       clock: { now: () => 10_000 },
       sleep: async () => undefined,
       limiter: inertLimiter(),
-      transport: async () => {
+      transport: async (request) => {
+        requestSignals.push(request.signal);
+        const currentAttempt = requestSignals.length;
+        expect(request.signal.aborted).toBe(false);
+        controllers[currentAttempt - 1]!.abort(`attempt-${currentAttempt}-timeout`);
+        expect(request.signal.aborted).toBe(true);
+        expect(request.signal.reason).toBe(`attempt-${currentAttempt}-timeout`);
         attempts += 1;
         return new Response("{}", { status: attempts < 3 ? 503 : 200 });
       },
@@ -558,6 +682,7 @@ describe("Anthropic bounded retry policy", () => {
     }
 
     expect(timeouts).toEqual([30_000, 30_000, 30_000]);
+    expect(new Set(requestSignals)).toHaveProperty("size", 3);
   });
 
   it("observes only exact allowlisted requested and completed metadata", async () => {

@@ -83,8 +83,22 @@ function requestForPolicy(
     method: policy.method,
     headers,
     body,
+    redirect: "manual",
     signal: AbortSignal.timeout(30_000),
   });
+}
+
+function assertCredentialHeaderCompatibility(credentials: Readonly<{
+  admin: Readonly<{ secret: string }>;
+  analytics: Readonly<{ secret: string }>;
+}>): void {
+  try {
+    for (const secret of [credentials.admin.secret, credentials.analytics.secret]) {
+      new Headers({ "x-api-key": secret });
+    }
+  } catch {
+    throw new Error("Anthropic credential cannot be used as a request header.");
+  }
 }
 
 function serializedBody(policy: AnthropicEndpointPolicy, body: unknown): string | undefined {
@@ -95,6 +109,13 @@ function serializedBody(policy: AnthropicEndpointPolicy, body: unknown): string 
     return undefined;
   }
   return JSON.stringify(body);
+}
+
+function hasImfFixdateEnvelope(value: string): boolean {
+  return value.length === 29
+    && value[3] === ","
+    && value[4] === " "
+    && value.endsWith(" GMT");
 }
 
 function retryDelayMilliseconds(
@@ -108,9 +129,13 @@ function retryDelayMilliseconds(
     if (Number.isFinite(milliseconds)) return milliseconds;
   }
 
-  if (value !== undefined) {
+  if (value !== undefined && hasImfFixdateEnvelope(value)) {
     const retryAt = Date.parse(value);
-    if (Number.isFinite(retryAt) && retryAt > now) return retryAt - now;
+    if (
+      Number.isFinite(retryAt)
+      && new Date(retryAt).toUTCString() === value
+      && retryAt > now
+    ) return retryAt - now;
   }
 
   return [1_000, 2_000][completedAttempt - 1]!;
@@ -131,6 +156,7 @@ export function createAnthropicRequestExecutor(dependencies: Readonly<{
   return async (input) => {
     const policy = endpointPolicy(input.endpoint, input.parameters);
     const credentials = resolveAnthropicCredentials(input.credentials, input.vendorAccountId);
+    assertCredentialHeaderCompatibility(credentials);
     const credential = credentialForPolicy(credentials, policy);
     const body = serializedBody(policy, input.body);
 
