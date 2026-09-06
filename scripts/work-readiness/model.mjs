@@ -536,6 +536,10 @@ function isRawTerminalEvent(event) {
   return event === "done" || (typeof event === "string" && /^done_with_[a-z0-9_]+$/u.test(event));
 }
 
+export function isExecutionEvidenceEvent(event) {
+  return event === "checkpoint" || IMPLEMENTATION_EVIDENCE_EVENTS.has(event) || isRawTerminalEvent(event);
+}
+
 function isProjectableEvent(event) {
   return event === "build_pass" || event === "ac_verify" || isRawTerminalEvent(event);
 }
@@ -645,8 +649,8 @@ function buildTerminalProjection(records, workId) {
 }
 
 function isKnownFeedbackEvent(event) {
-  return event === "decision" || event === "checkpoint" || NON_EXECUTION_EVENTS.has(event)
-    || REVOCATION_EVENTS.has(event) || IMPLEMENTATION_EVIDENCE_EVENTS.has(event) || isRawTerminalEvent(event);
+  return event === "decision" || NON_EXECUTION_EVENTS.has(event)
+    || REVOCATION_EVENTS.has(event) || isExecutionEvidenceEvent(event);
 }
 
 function validatePreapprovalHistory(value, feedbackRecords, evidenceIndex, terminalProjection) {

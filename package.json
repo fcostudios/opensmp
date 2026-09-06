@@ -18,6 +18,7 @@
     "mutation:benchmark:summary": "node scripts/mutation-evidence/performance.mjs",
     "test": "pnpm run readiness:check:all && pnpm run readiness:check:range && pnpm run test:work-readiness && pnpm run test:enforcement && pnpm run test:feedback-order && pnpm run test:feedback-order:fixtures && pnpm run test:mutation-scope && pnpm run test:mutation-evidence && pnpm run test:infra && pnpm run test:probe && pnpm --filter @smp/db test && turbo run test --filter='!@smp/db' --concurrency=1",
     "readiness:init": "node scripts/work-readiness.mjs init",
+    "readiness:calibrate": "node scripts/work-readiness.mjs calibrate",
     "readiness:check": "node scripts/work-readiness.mjs check",
     "readiness:check:all": "node scripts/work-readiness.mjs check-all",
     "readiness:check:range": "node scripts/work-readiness.mjs check-range",

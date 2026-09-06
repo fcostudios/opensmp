@@ -2,7 +2,7 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmodSync, constants as fsConstants, existsSync, fsyncSync as nodeFsyncSync, mkdtempSync, mkdirSync, openSync as nodeOpenSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, constants as fsConstants, existsSync, fstatSync, fsyncSync as nodeFsyncSync, mkdtempSync, mkdirSync, openSync as nodeOpenSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync, writeSync as nodeWriteSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -27,7 +27,8 @@ import {
   resolveDefaultBase,
   validateRangeOwnership,
 } from "./work-readiness/git.mjs";
-import { createAssessmentFile, readCanonicalMessageFile } from "./work-readiness.mjs";
+import { calibrateAssessment, createAssessmentFile, readCanonicalMessageFile } from "./work-readiness.mjs";
+import * as readinessCli from "./work-readiness.mjs";
 
 
 const bootstrap = JSON.parse(
@@ -215,6 +216,195 @@ test("canonical payload recursively sorts objects, preserves arrays, and exclude
   b.signals = Object.fromEntries(Object.entries(b.signals).reverse());
   assert.equal(canonicalReadinessPayload(a), canonicalReadinessPayload(b));
   assert.equal(computeReadinessPayloadSha256(a), computeReadinessPayloadSha256(b));
+});
+
+for (const [implementation, review] of [[0, 0], [1, 3], [28, 65], [29, 68], [60, 140]]) {
+  test(`calibration maps ${implementation} implementation minutes to ${review} review minutes`, () => {
+    const value = normal();
+    value.estimate_minutes = {
+      readiness: 7, implementation, focused_verification: 11, review: 999,
+      integration: 5, total: 1022 + implementation,
+    };
+    const before = clone(value);
+    const calibrated = calibrateAssessment(value);
+    assert.deepEqual(calibrated.estimate_minutes, {
+      readiness: 7, implementation, focused_verification: 11, review,
+      integration: 5, total: 23 + implementation + review,
+    });
+    assert.deepEqual(value, before);
+    const digest = computeReadinessPayloadSha256(calibrated);
+    assert.equal(calibrated.readiness_payload_sha256, digest);
+    assert.deepEqual(calibrated.approval, {
+      status: "pending", approved_by: null, evidence: null, payload_sha256: digest,
+    });
+    const { estimate_minutes: _estimate, approval: _approval, readiness_payload_sha256: _digest, ...unrelated } = calibrated;
+    const { estimate_minutes: _oldEstimate, approval: _oldApproval, readiness_payload_sha256: _oldDigest, ...original } = before;
+    assert.deepEqual(unrelated, original);
+  });
+}
+
+for (const phase of ["readiness", "implementation", "focused_verification", "review", "integration"]) {
+  for (const invalid of [-1, 0.5, "1", null, undefined, NaN, Infinity]) {
+    test(`calibration rejects invalid ${phase} minutes ${String(invalid)}`, () => {
+      const value = normal();
+      value.estimate_minutes[phase] = invalid;
+      expectError("WR_INVALID_INTEGER", `$.estimate_minutes.${phase}`, () => calibrateAssessment(value));
+    });
+  }
+}
+
+test("CLI calibrate replaces an unstarted approval with exact pending estimates", () => {
+  const { root } = makeGitRepo();
+  try {
+    const value = normal({ estimate_minutes: {
+      readiness: 10, implementation: 60, focused_verification: 20, review: 10, integration: 5, total: 105,
+    } });
+    writeRepoFile(root, "docs/readiness/US-123.json", `${JSON.stringify(value, null, 2)}\n`);
+    const records = [
+      decisionFor(value),
+      { story: "US-999", event: "started" },
+      { story: "US-123", event: "feedback", notes: "Review estimate before starting" },
+    ];
+    const feedbackBytes = `${records.map(JSON.stringify).join("\n")}\n`;
+    writeRepoFile(root, ".nous-feedback.jsonl", feedbackBytes);
+    const result = runCli(root, ["calibrate", "us-123"]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "Calibrated docs/readiness/US-123.json; review=140, total=235; approval reset to pending\n");
+    const calibrated = JSON.parse(readFileSync(join(root, "docs/readiness/US-123.json"), "utf8"));
+    assert.deepEqual(calibrated.estimate_minutes, {
+      readiness: 10, implementation: 60, focused_verification: 20, review: 140, integration: 5, total: 235,
+    });
+    const digest = computeReadinessPayloadSha256(calibrated);
+    assert.equal(calibrated.readiness_payload_sha256, digest);
+    assert.deepEqual(calibrated.approval, { status: "pending", approved_by: null, evidence: null, payload_sha256: digest });
+    assert.equal(readFileSync(join(root, ".nous-feedback.jsonl"), "utf8"), feedbackBytes);
+    assert.deepEqual(readdirSync(join(root, "docs/readiness")), ["US-123.json"]);
+    const check = runCli(root, ["check", "US-123", "--json"]);
+    assert.equal(check.status, 1);
+    assert.equal(parseCliJson(check).errors[0].code, "WR_APPROVAL_REQUIRED");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+for (const failure of ["short write", "rename", "file sync", "directory sync"]) {
+  test(`calibration preserves original bytes and cleans temporary files after ${failure} failure`, () => {
+    const { root } = makeGitRepo();
+    try {
+      const value = normal();
+      const originalBytes = `${JSON.stringify(value)}\n`;
+      const path = join(root, "docs/readiness/US-123.json");
+      writeRepoFile(root, "docs/readiness/US-123.json", originalBytes);
+      const ioError = () => Object.assign(new Error(`injected ${failure} failure`), { code: "EIO" });
+      const fsOps = failure === "short write" ? {
+        writeSync(descriptor, bytes) { return nodeWriteSync(descriptor, bytes, 0, bytes.length - 1, 0); },
+      } : failure === "rename" ? {
+        renameSync() { throw ioError(); },
+      } : {
+        fsyncSync(descriptor) {
+          if (fstatSync(descriptor).isDirectory() === (failure === "directory sync")) throw ioError();
+          nodeFsyncSync(descriptor);
+        },
+      };
+      expectError("WR_FILE_WRITE_FAILED", "docs/readiness/US-123.json", () => readinessCli.calibrateAssessmentFile({
+        root, workId: "US-123", feedbackRecords: [decisionFor(value)], fsOps,
+      }));
+      assert.equal(readFileSync(path, "utf8"), originalBytes);
+      assert.deepEqual(readdirSync(join(root, "docs/readiness")), ["US-123.json"]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
+
+test("calibration never removes a temporary file it failed to create exclusively", () => {
+  const { root } = makeGitRepo();
+  try {
+    const value = normal();
+    const originalBytes = `${JSON.stringify(value)}\n`;
+    writeRepoFile(root, "docs/readiness/US-123.json", originalBytes);
+    let occupiedPath;
+    expectError("WR_FILE_WRITE_FAILED", "docs/readiness/US-123.json", () => readinessCli.calibrateAssessmentFile({
+      root, workId: "US-123", feedbackRecords: [decisionFor(value)],
+      fsOps: {
+        openSync(path, flags, mode) {
+          occupiedPath = path;
+          writeFileSync(path, "another writer\n", { flag: "wx" });
+          return nodeOpenSync(path, flags, mode);
+        },
+      },
+    }));
+    assert.equal(readFileSync(join(root, "docs/readiness/US-123.json"), "utf8"), originalBytes);
+    assert.equal(readFileSync(occupiedPath, "utf8"), "another writer\n");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+for (const target of ["artifact", "directory"]) {
+  test(`CLI calibration rejects a symlinked ${target} and preserves outside bytes`, () => {
+    const { root } = makeGitRepo();
+    const outside = mkdtempSync(join(tmpdir(), "work-readiness-calibrate-outside-"));
+    try {
+      const value = normal();
+      const originalBytes = `${JSON.stringify(value)}\n`;
+      writeFileSync(join(outside, "US-123.json"), originalBytes);
+      writeRepoFile(root, ".nous-feedback.jsonl", `${JSON.stringify(decisionFor(value))}\n`);
+      mkdirSync(join(root, "docs"));
+      if (target === "directory") symlinkSync(outside, join(root, "docs/readiness"));
+      else {
+        mkdirSync(join(root, "docs/readiness"));
+        symlinkSync(join(outside, "US-123.json"), join(root, "docs/readiness/US-123.json"));
+      }
+      const result = runCli(root, ["calibrate", "US-123", "--json"]);
+      assert.equal(result.status, 2);
+      assert.equal(parseCliJson(result).errors[0].code, target === "directory" ? "WR_PATH_ESCAPE" : "WR_FILE_INVALID");
+      assert.equal(readFileSync(join(outside, "US-123.json"), "utf8"), originalBytes);
+      assert.deepEqual(readdirSync(outside), ["US-123.json"]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+}
+
+for (const [event, extra, code] of [
+  ["done", {}, "WR_APPROVAL_INACTIVE"],
+  ["started", {}, "WR_APPROVAL_ORDER"],
+  ["build_pass", { notes: "Focused checks passed" }, "WR_APPROVAL_ORDER"],
+  ["checkpoint", { status: "on_track" }, "WR_APPROVAL_ORDER"],
+]) {
+  test(`CLI calibration rejects post-approval ${event} without changing the artifact`, () => {
+    const { root } = makeGitRepo();
+    try {
+      const value = event === "done" ? completed() : normal();
+      const originalBytes = `${JSON.stringify(value)}\n`;
+      writeRepoFile(root, "docs/readiness/US-123.json", originalBytes);
+      const records = [decisionFor(value), { story: value.work_id, event, ...extra }];
+      writeRepoFile(root, ".nous-feedback.jsonl", `${records.map(JSON.stringify).join("\n")}\n`);
+      const result = runCli(root, ["calibrate", "US-123", "--json"]);
+      assert.equal(result.status, 1);
+      assert.equal(parseCliJson(result).errors[0].code, code);
+      assert.equal(readFileSync(join(root, "docs/readiness/US-123.json"), "utf8"), originalBytes);
+      assert.deepEqual(readdirSync(join(root, "docs/readiness")), ["US-123.json"]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
+
+test("CLI calibration requires exactly one official work ID", () => {
+  const { root } = makeGitRepo();
+  try {
+    for (const args of [[], ["US-123", "US-456"], ["../US-123"], ["--base", "HEAD", "US-123"]]) {
+      const result = runCli(root, ["calibrate", ...args, "--json"]);
+      assert.equal(result.status, 2);
+      assert.equal(parseCliJson(result).errors[0].code, "WR_INVOCATION_INVALID");
+    }
+    assert.equal(existsSync(join(root, "docs/readiness")), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("accepts an approved ready US", () => {

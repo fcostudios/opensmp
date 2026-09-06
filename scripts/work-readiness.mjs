@@ -14,6 +14,7 @@ import {
   readFileSync,
   readdirSync,
   realpathSync,
+  renameSync,
   unlinkSync,
   writeSync,
 } from "node:fs";
@@ -23,6 +24,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import {
   WorkReadinessError,
   computeReadinessPayloadSha256,
+  isExecutionEvidenceEvent,
   validateAssessment,
 } from "./work-readiness/model.mjs";
 import {
@@ -182,6 +184,27 @@ function validateOne(root, workId, feedbackRecords) {
   return value;
 }
 
+export function calibrateAssessment(value) {
+  const calibrated = structuredClone(value);
+  const phases = ["readiness", "implementation", "focused_verification", "review", "integration"];
+  for (const phase of phases) {
+    const minutes = calibrated.estimate_minutes?.[phase];
+    if (!Number.isInteger(minutes) || minutes < 0) {
+      cliError("WR_INVALID_INTEGER", "Phase estimate must be a non-negative integer", `$.estimate_minutes.${phase}`);
+    }
+  }
+  const implementation = calibrated.estimate_minutes.implementation;
+  calibrated.estimate_minutes.review = Math.ceil(implementation * 65 / 28);
+  calibrated.estimate_minutes.total = phases.reduce((sum, key) => sum + calibrated.estimate_minutes[key], 0);
+  calibrated.approval = {
+    status: "pending", approved_by: null, evidence: null, payload_sha256: "0".repeat(64),
+  };
+  const digest = computeReadinessPayloadSha256(calibrated);
+  calibrated.readiness_payload_sha256 = digest;
+  calibrated.approval.payload_sha256 = digest;
+  return calibrated;
+}
+
 function skeleton(workId) {
   const kind = workId.startsWith("US-") ? "US" : "CHG";
   const value = {
@@ -318,6 +341,85 @@ function initAssessment({ root, positionals }) {
   return { workIds: [workId], summary: `Created ${created.path}` };
 }
 
+export function calibrateAssessmentFile({ root, workId, feedbackRecords, fsOps = {} }) {
+  workId = normalizeWorkId(workId);
+  const ops = {
+    closeSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync,
+    realpathSync, renameSync, unlinkSync, writeSync, ...fsOps,
+  };
+  const canonicalRoot = ops.realpathSync(root);
+  const value = loadAssessment(canonicalRoot, workId);
+  const validated = validateAssessment(value, { feedbackRecords });
+  if (!validated.active) cliError("WR_APPROVAL_INACTIVE", "Only an active approval can be calibrated", "$.approval.evidence");
+  const approvalIndex = feedbackRecords.findIndex((record) => record.event === "decision" && record.id === value.approval.evidence);
+  if (feedbackRecords.some((record, index) => index > approvalIndex && record.story === workId && isExecutionEvidenceEvent(record.event))) {
+    cliError("WR_APPROVAL_ORDER", "Calibration is only permitted before execution evidence", "$.approval.evidence");
+  }
+  const calibrated = calibrateAssessment(value);
+  const finalPath = safeRepoPath(canonicalRoot, assessmentPath(workId));
+  const directory = containedDirectory(canonicalRoot, "docs/readiness", ops);
+  const temporaryPath = join(directory, `.${workId}.json.${randomUUID()}.tmp`);
+  const backupPath = join(directory, `.${workId}.json.${randomUUID()}.bak`);
+  const bytes = Buffer.from(`${JSON.stringify(calibrated, null, 2)}\n`, "utf8");
+  let descriptor;
+  let temporaryCreated = false;
+  let backedUp = false;
+  let replaced = false;
+  try {
+    descriptor = ops.openSync(temporaryPath, "wx", 0o644);
+    temporaryCreated = true;
+    const written = ops.writeSync(descriptor, bytes, 0, bytes.length, 0);
+    if (written !== bytes.length || ops.fstatSync(descriptor).size !== bytes.length) {
+      cliError("WR_FILE_WRITE_FAILED", "Readiness artifact was not written completely", assessmentPath(workId));
+    }
+    ops.fsyncSync(descriptor);
+    ops.closeSync(descriptor);
+    descriptor = undefined;
+    // Retain the original inode until the replacement's directory entry is durable.
+    ops.linkSync(finalPath, backupPath);
+    backedUp = true;
+    ops.renameSync(temporaryPath, finalPath);
+    replaced = true;
+    syncDirectoryIfSupported(directory, ops);
+    ops.unlinkSync(backupPath);
+    backedUp = false;
+    return { path: assessmentPath(workId), value: calibrated };
+  } catch (error) {
+    if (descriptor !== undefined) {
+      try { ops.closeSync(descriptor); } catch { /* cleanup continues */ }
+    }
+    let cleanupError;
+    try {
+      if (replaced && backedUp) {
+        ops.renameSync(backupPath, finalPath);
+        backedUp = false;
+      } else if (backedUp) {
+        removeIfPresent(ops, backupPath);
+        backedUp = false;
+      }
+    } catch (failure) {
+      cleanupError = failure;
+    }
+    try { if (temporaryCreated) removeIfPresent(ops, temporaryPath); } catch (failure) { cleanupError ??= failure; }
+    if (cleanupError) {
+      cliError("WR_FILE_WRITE_FAILED", `Readiness cleanup failed: ${cleanupError.message}; original backup: ${backupPath}`, assessmentPath(workId));
+    }
+    if (error instanceof WorkReadinessError) throw error;
+    cliError("WR_FILE_WRITE_FAILED", `Unable to calibrate readiness artifact: ${error?.message ?? String(error)}`, assessmentPath(workId));
+  }
+}
+
+function calibrateCommand({ root, positionals, feedbackRecords }) {
+  if (positionals.length !== 1) cliError("WR_INVOCATION_INVALID", "Usage: calibrate <WORK-ID>", "$.arguments");
+  const workId = normalizeWorkId(positionals[0]);
+  const calibrated = calibrateAssessmentFile({ root, workId, feedbackRecords });
+  const { review, total } = calibrated.value.estimate_minutes;
+  return {
+    workIds: [workId],
+    summary: `Calibrated ${calibrated.path}; review=${review}, total=${total}; approval reset to pending`,
+  };
+}
+
 function checkAssessment({ root, positionals, feedbackRecords }) {
   if (positionals.length !== 1) cliError("WR_INVOCATION_INVALID", "Usage: check <WORK-ID>", "$.arguments");
   const workId = normalizeWorkId(positionals[0]);
@@ -387,6 +489,7 @@ function checkStaged({ root, positionals, options }) {
 
 const commands = new Map([
   ["init", initAssessment],
+  ["calibrate", calibrateCommand],
   ["check", checkAssessment],
   ["check-all", checkAllAssessments],
   ["check-range", checkRange],
@@ -405,7 +508,7 @@ function parseArguments(argv) {
   if (json) optionArguments.splice(jsonIndex, 1);
   if (optionArguments.includes("--json")) cliError("WR_INVOCATION_INVALID", "--json may be supplied only once", "$.arguments");
   const command = optionArguments.shift();
-  if (!commands.has(command)) cliError("WR_INVOCATION_INVALID", "Command must be one of init, check, check-all, check-range, check-staged", "$.command");
+  if (!commands.has(command)) cliError("WR_INVOCATION_INVALID", "Command must be one of init, calibrate, check, check-all, check-range, check-staged", "$.command");
   const options = {};
   const positionals = [];
   const names = new Map([["--base", "base"], ["--head", "head"], ["--message-file", "messageFile"]]);
