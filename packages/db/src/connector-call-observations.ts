@@ -1,71 +1,49 @@
-import { sql } from "drizzle-orm";
-import {
-  check,
-  index,
-  integer,
-  jsonb,
-  pgEnum,
-  pgTable,
-  text,
-  timestamp,
-  unique,
-  uniqueIndex,
-  uuid,
-} from "drizzle-orm/pg-core";
+import pg from "pg";
 
-import { provisioningAction, vendorAccount } from "./schema";
+import type { ConnectorCallObservationAppender } from "@smp/connectors/connector-call-observation";
 
-export const connector_call_operation_enum = pgEnum(
-  "connector_call_operation_enum",
-  ["provision", "deprovision", "sync_members", "sync_activity", "sync_cost"],
-);
-export const connector_call_phase_enum = pgEnum(
-  "connector_call_phase_enum",
-  ["requested", "succeeded", "failed"],
-);
+export {
+  connector_call_operation_enum,
+  connector_call_phase_enum,
+  connectorCallObservation,
+} from "./schema.js";
 
-export const connectorCallObservation = pgTable("connector_call_observation", {
-  id: uuid("id").primaryKey().defaultRandom().notNull(),
-  vendorAccountId: uuid("vendor_account_id")
-    .references(() => vendorAccount.id)
-    .notNull(),
-  provisioningActionId: uuid("provisioning_action_id")
-    .references(() => provisioningAction.id),
-  correlationId: uuid("correlation_id").notNull(),
-  operation: connector_call_operation_enum("operation").notNull(),
-  attempt: integer("attempt").notNull(),
-  phase: connector_call_phase_enum("phase").notNull(),
-  classification: text("classification"),
-  summary: jsonb("summary").notNull(),
-  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
-}, (table) => ({
-  attemptCheck: check(
-    "connector_call_attempt_check",
-    sql`${table.attempt} >= 1`,
-  ),
-  summaryCheck: check(
-    "connector_call_summary_check",
-    sql`jsonb_typeof(${table.summary}) = 'object'`,
-  ),
-  classificationCheck: check("connector_call_classification_check", sql`
-    (${table.phase} = 'requested' AND ${table.classification} IS NULL)
-    OR (${table.phase} = 'succeeded' AND ${table.classification} IS NOT NULL AND ${table.classification} = 'success')
-    OR (${table.phase} = 'failed' AND ${table.classification} IS NOT NULL AND ${table.classification} IN ('rate_limited', 'provider_error', 'client_error'))`),
-  syncActionCheck: check(
-    "connector_call_sync_action_check",
-    sql`${table.operation} IN ('provision', 'deprovision') OR ${table.provisioningActionId} IS NULL`,
-  ),
-  phaseUnique: unique("uq_connector_call_phase")
-    .on(table.correlationId, table.attempt, table.phase),
-  terminalUnique: uniqueIndex("uq_connector_call_terminal")
-    .on(table.correlationId, table.attempt)
-    .where(sql`${table.phase} IN ('succeeded', 'failed')`),
-  vendorAccountIndex: index("idx_connector_call_vendor_account")
-    .on(table.vendorAccountId),
-  actionIndex: index("idx_connector_call_action")
-    .on(table.provisioningActionId),
-  correlationIndex: index("idx_connector_call_correlation")
-    .on(table.correlationId),
-  operationIndex: index("idx_connector_call_operation").on(table.operation),
-  occurredAtIndex: index("idx_connector_call_occurred_at").on(table.occurredAt),
-}));
+const insertConnectorCallObservation = `
+  INSERT INTO connector_call_observation (
+    vendor_account_id,
+    provisioning_action_id,
+    correlation_id,
+    operation,
+    attempt,
+    phase,
+    classification,
+    summary,
+    occurred_at
+  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
+`;
+
+export function createConnectorCallObservationAppender(connectionString: string): Readonly<{
+  append: ConnectorCallObservationAppender;
+  close(): Promise<void>;
+}> {
+  const pool = new pg.Pool({ connectionString });
+
+  const append: ConnectorCallObservationAppender = async (input) => {
+    await pool.query(insertConnectorCallObservation, [
+      input.vendorAccountId,
+      input.provisioningActionId,
+      input.correlationId,
+      input.operation,
+      input.attempt,
+      input.phase,
+      input.classification,
+      JSON.stringify(input.summary),
+      input.occurredAt,
+    ]);
+  };
+
+  return Object.freeze({
+    append,
+    close: pool.end.bind(pool),
+  });
+}

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { createConnectorCallObservationSession } from "../../connector-call-observation.js";
-import type { ConnectorCallObservationAppendInput } from "../../contracts.js";
+import {
+  createConnectorCallObservationSession,
+  type ConnectorCallObservationAppendInput,
+} from "../../connector-call-observation.js";
 import type {
   AnthropicAttemptClassification,
   AnthropicAttemptObservation,

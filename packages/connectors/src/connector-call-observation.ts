@@ -1,20 +1,79 @@
-import {
-  connectorCallClassifications,
-  connectorCallPhases,
-  connectorEndpointClasses,
-  connectorOperations,
-  type ConnectorAttemptReceipt,
-  type ConnectorCallClassification,
-  type ConnectorCallObservationAppender,
-  type ConnectorCallObservationAppendInput,
-  type ConnectorCallObservationSession,
-  type ConnectorCallPhase,
-  type ConnectorCallSummary,
-  type ConnectorEndpointClass,
-  type ConnectorOperation,
-} from "./contracts.js";
+function freezeVocabulary<const Vocabulary extends readonly string[]>(
+  ...values: Vocabulary
+): Readonly<Vocabulary> {
+  return Object.freeze(values);
+}
 
-export type { ConnectorCallObservationAppender } from "./contracts.js";
+export const connectorOperations = freezeVocabulary(
+  "provision",
+  "deprovision",
+  "sync_members",
+  "sync_activity",
+  "sync_cost",
+);
+export const connectorCallPhases = freezeVocabulary(
+  "requested",
+  "succeeded",
+  "failed",
+);
+export const connectorCallClassifications = freezeVocabulary(
+  "success",
+  "rate_limited",
+  "provider_error",
+  "client_error",
+);
+export const connectorEndpointClasses = freezeVocabulary(
+  "organization",
+  "members",
+  "invitations",
+  "activity",
+  "usage",
+  "cost",
+);
+
+export type ConnectorOperation = (typeof connectorOperations)[number];
+export type ConnectorCallPhase = (typeof connectorCallPhases)[number];
+export type ConnectorCallClassification =
+  (typeof connectorCallClassifications)[number];
+export type ConnectorEndpointClass = (typeof connectorEndpointClasses)[number];
+export type ConnectorCallSummary = Readonly<{
+  endpoint_class: ConnectorEndpointClass;
+  method: "GET" | "POST" | "DELETE";
+  http_status?: number;
+  status_class?: ConnectorCallClassification;
+}>;
+export type ConnectorCallObservationAppendInput = Readonly<{
+  vendorAccountId: string;
+  provisioningActionId: string | null;
+  correlationId: string;
+  operation: ConnectorOperation;
+  attempt: number;
+  phase: ConnectorCallPhase;
+  classification: ConnectorCallClassification | null;
+  summary: ConnectorCallSummary;
+  occurredAt: Date;
+}>;
+export type ConnectorCallObservationAppender =
+  (input: ConnectorCallObservationAppendInput) => Promise<void>;
+export type ConnectorAttemptReceipt = Readonly<{ attempt: number }>;
+export type ConnectorCallObservationSession = Readonly<{
+  correlationId: string;
+  requested(input: Readonly<{
+    endpointClass: ConnectorEndpointClass;
+    method: "GET" | "POST" | "DELETE";
+  }>): Promise<ConnectorAttemptReceipt>;
+  succeeded(receipt: ConnectorAttemptReceipt, input: Readonly<{
+    endpointClass: ConnectorEndpointClass;
+    method: "GET" | "POST" | "DELETE";
+    httpStatus: number;
+  }>): Promise<void>;
+  failed(receipt: ConnectorAttemptReceipt, input: Readonly<{
+    endpointClass: ConnectorEndpointClass;
+    method: "GET" | "POST" | "DELETE";
+    httpStatus: number;
+    classification: Exclude<ConnectorCallClassification, "success">;
+  }>): Promise<void>;
+}>;
 
 type ConnectorMethod = "GET" | "POST" | "DELETE";
 

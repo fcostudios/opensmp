@@ -7,7 +7,7 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./connector-call-observations": "./src/connector-call-observations.integration.ts",
+    "./connector-call-observations": "./src/connector-call-observations.ts",
     "./provisioning-routing": "./src/provisioning-routing.ts",
     "./schema": "./src/schema.ts",
     "./pool-snapshots": "./src/pool-snapshots.ts",

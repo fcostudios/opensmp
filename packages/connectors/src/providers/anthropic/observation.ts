@@ -2,7 +2,7 @@ import type {
   ConnectorAttemptReceipt,
   ConnectorCallObservationSession,
   ConnectorEndpointClass,
-} from "../../contracts.js";
+} from "../../connector-call-observation.js";
 
 type AnthropicEndpoint =
   | "organization"

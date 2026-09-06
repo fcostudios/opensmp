@@ -1,17 +1,48 @@
 import fc from "fast-check";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   buildConnectorCallSummary,
   createConnectorCallObservationSession,
+  type ConnectorCallObservationAppendInput,
 } from "./connector-call-observation.js";
-import type {
-  ConnectorCallObservationAppendInput,
-} from "./contracts.js";
 
 const VENDOR_ACCOUNT_ID = "11111111-1111-4111-8111-111111111111";
 const PROVISIONING_ACTION_ID = "22222222-2222-4222-8222-222222222222";
 const CORRELATION_ID = "33333333-3333-4333-8333-333333333333";
+
+describe("connector call closed vocabularies", () => {
+  it.each([
+    [
+      "operations",
+      "connectorOperations",
+      ["provision", "deprovision", "sync_members", "sync_activity", "sync_cost"],
+    ],
+    [
+      "phases",
+      "connectorCallPhases",
+      ["requested", "succeeded", "failed"],
+    ],
+    [
+      "classifications",
+      "connectorCallClassifications",
+      ["success", "rate_limited", "provider_error", "client_error"],
+    ],
+    [
+      "endpoint classes",
+      "connectorEndpointClasses",
+      ["organization", "members", "invitations", "activity", "usage", "cost"],
+    ],
+  ] as const)("exports exact immutable connector %s", async (_label, exportName, expected) => {
+    vi.resetModules();
+    const actual = (await import("./connector-call-observation.js"))[exportName];
+
+    expect(actual).toEqual(expected);
+    expect(Object.isFrozen(actual)).toBe(true);
+    expect(() => (actual as unknown as string[]).push("unknown")).toThrow(TypeError);
+    expect(actual).toEqual(expected);
+  });
+});
 
 function clockFrom(...values: readonly string[]): () => Date {
   let index = 0;
