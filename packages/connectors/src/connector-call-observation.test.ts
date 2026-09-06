@@ -33,6 +33,11 @@ describe("connector call closed vocabularies", () => {
       "connectorEndpointClasses",
       ["organization", "members", "invitations", "activity", "usage", "cost"],
     ],
+    [
+      "methods",
+      "connectorMethods",
+      ["GET", "POST", "DELETE"],
+    ],
   ] as const)("exports exact immutable connector %s", async (_label, exportName, expected) => {
     vi.resetModules();
     const actual = (await import("./connector-call-observation.js"))[exportName];
@@ -397,6 +402,36 @@ describe("connector call summary allowlist", () => {
       input as never,
     )).toThrowError(message);
   });
+
+  it.each([
+    ["hostile string", "authorization-sentinel"],
+    ["hostile object", { body: "body-sentinel" }],
+  ] as const)("rejects a %s in the allowlisted method field", (_label, method) => {
+    expect(() => buildConnectorCallSummary({
+      phase: "requested",
+      endpointClass: "members",
+      method,
+    } as never)).toThrowError("Invalid connector method");
+  });
+
+  it.each([
+    ["hostile string", "email-sentinel"],
+    ["hostile object", { authorization: "authorization-sentinel" }],
+    ["fractional number", 200.5],
+    ["below-range number", 99],
+    ["above-range number", 600],
+  ] as const)(
+    "rejects a %s in the allowlisted HTTP status field",
+    (_label, httpStatus) => {
+      expect(() => buildConnectorCallSummary({
+        phase: "succeeded",
+        endpointClass: "members",
+        method: "GET",
+        httpStatus,
+        classification: "success",
+      } as never)).toThrowError("Invalid connector HTTP status");
+    },
+  );
 
   it.each([
     [

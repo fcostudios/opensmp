@@ -315,7 +315,15 @@ describe("US-057 PostgreSQL connector-call observation appender", () => {
     const app = await fixture.connectAsApp();
     let journalClosed = false;
     try {
-      await journal.append(requested());
+      await journal.append(requested({
+        summary: {
+          endpoint_class: "organization",
+          method: "POST",
+          authorization: "authorization-sentinel",
+          email: "email-sentinel",
+          body: { secret: "body-sentinel" },
+        },
+      }) as never);
       expect((await owner.query(
         "SELECT count(*)::int AS count FROM connector_call_observation WHERE correlation_id = $1",
         [ids.correlation],
@@ -379,6 +387,7 @@ describe("US-057 PostgreSQL connector-call observation appender", () => {
           occurred_at: occurredAt,
         },
       ]);
+      expect(JSON.stringify(persisted.rows)).not.toContain("sentinel");
 
       await expect(journal.append(requested({
         vendorAccountId: ids.invalidAccount,
@@ -402,11 +411,11 @@ describe("US-057 PostgreSQL connector-call observation appender", () => {
         phase: "failed",
         classification: "provider_error",
         correlationId: "60000000-0000-4000-8000-000000000015",
-      }) as never)).rejects.toMatchObject({ code: "23514" });
+      }) as never)).rejects.toThrowError("Invalid connector classification");
       await expect(journal.append(requested({
         phase: "failed",
         classification: "provider_error",
-      }) as never)).rejects.toMatchObject({ code: "23514" });
+      }) as never)).rejects.toThrowError("Invalid connector classification");
       await expect(app.query("UPDATE connector_call_observation SET summary = '{}'::jsonb")).rejects.toMatchObject({ code: "42501" });
       await expect(app.query("DELETE FROM connector_call_observation")).rejects.toMatchObject({ code: "42501" });
       await journal.close();

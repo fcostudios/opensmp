@@ -1,6 +1,9 @@
 import pg from "pg";
 
-import type { ConnectorCallObservationAppender } from "@smp/connectors/connector-call-observation";
+import {
+  buildConnectorCallSummary,
+  type ConnectorCallObservationAppender,
+} from "@smp/connectors/connector-call-observation";
 
 export {
   connector_call_operation_enum,
@@ -29,6 +32,13 @@ export function createConnectorCallObservationAppender(connectionString: string)
   const pool = new pg.Pool({ connectionString });
 
   const append: ConnectorCallObservationAppender = async (input) => {
+    const summary = buildConnectorCallSummary({
+      phase: input.phase,
+      endpointClass: input.summary.endpoint_class,
+      method: input.summary.method,
+      httpStatus: input.summary.http_status,
+      classification: input.summary.status_class,
+    });
     await pool.query(insertConnectorCallObservation, [
       input.vendorAccountId,
       input.provisioningActionId,
@@ -37,7 +47,7 @@ export function createConnectorCallObservationAppender(connectionString: string)
       input.attempt,
       input.phase,
       input.classification,
-      JSON.stringify(input.summary),
+      JSON.stringify(summary),
       input.occurredAt,
     ]);
   };

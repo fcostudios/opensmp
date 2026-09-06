@@ -30,15 +30,17 @@ export const connectorEndpointClasses = freezeVocabulary(
   "usage",
   "cost",
 );
+export const connectorMethods = freezeVocabulary("GET", "POST", "DELETE");
 
 export type ConnectorOperation = (typeof connectorOperations)[number];
 export type ConnectorCallPhase = (typeof connectorCallPhases)[number];
 export type ConnectorCallClassification =
   (typeof connectorCallClassifications)[number];
 export type ConnectorEndpointClass = (typeof connectorEndpointClasses)[number];
+type ConnectorMethod = (typeof connectorMethods)[number];
 export type ConnectorCallSummary = Readonly<{
   endpoint_class: ConnectorEndpointClass;
-  method: "GET" | "POST" | "DELETE";
+  method: ConnectorMethod;
   http_status?: number;
   status_class?: ConnectorCallClassification;
 }>;
@@ -74,8 +76,6 @@ export type ConnectorCallObservationSession = Readonly<{
     classification: Exclude<ConnectorCallClassification, "success">;
   }>): Promise<void>;
 }>;
-
-type ConnectorMethod = "GET" | "POST" | "DELETE";
 
 type SummaryInput = Readonly<{
   phase: ConnectorCallPhase;
@@ -130,6 +130,12 @@ export function buildConnectorCallSummary(input: SummaryInput): ConnectorCallSum
   }
   if (!connectorEndpointClasses.includes(input.endpointClass)) {
     throw new Error("Invalid connector endpoint class");
+  }
+  if (!connectorMethods.includes(input.method)) {
+    throw new Error("Invalid connector method");
+  }
+  if (input.httpStatus !== undefined) {
+    assertHttpStatus(input.httpStatus);
   }
   if (
     input.phase !== "requested"
