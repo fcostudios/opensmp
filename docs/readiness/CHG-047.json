@@ -89,7 +89,24 @@
     "evidence": "CHG047-READY",
     "payload_sha256": "9432299cc1bc7beeeb133039cab4b3b06434ce2e2788de7d921b451dbcda7506"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 9,
+      "implementation": 32,
+      "focused_verification": 19,
+      "review": 31,
+      "integration": 3
+    },
+    "total": 94,
+    "changed_files": 7,
+    "commits": 9,
+    "review_fix_loops": 2,
+    "cold_mutation_attempts": 2,
+    "mutation_invalidations": 1,
+    "mutation_minutes": 0,
+    "estimate_variance_minutes": -171,
+    "root_cause": "Delivery-source measurement snapshot: source cutoff 1b3c59517f8e5ea4a2c64407211a15ef6a253a59; approved authority base 547aa97dc0ff43a7ca9cf219b2807e3bc5a76ab0; branch point 6b2c4ac4ed551ef2aadc8061ace4222652a84a30. Commands: rtk proxy git diff --name-only 547aa97dc0ff43a7ca9cf219b2807e3bc5a76ab0 1b3c59517f8e5ea4a2c64407211a15ef6a253a59 => 7 paths (six implementation files plus the bound plan); rtk proxy git rev-list --count 6b2c4ac4ed551ef2aadc8061ace4222652a84a30..1b3c59517f8e5ea4a2c64407211a15ef6a253a59 => 9 reachable item commits. Commit and reflog timestamps captured with rtk proxy git log -16 --format='%H %aI %cI %s' and rtk proxy git reflog -24 --date=iso-strict --format='%H %gD %gs'. Non-overlapping observed envelope starts at approval commit 265b8e7ccef9fb8ad7f888b0e7ae69f36243fd79, 2026-09-06T13:46:49-05:00, and ends at retained campaign completion 2026-09-06T20:20:36Z (task-6-report.md). Readiness ends at plan d90abf715f67a13ab74de63bd997a1a6ac5fd191, 2026-09-06T13:56:17-05:00: 568s => 9m. Implementation ends at b8bb8e2d5feaa4635435f9f388bfb0533c236568, 2026-09-06T14:28:13-05:00: 1916s => 32m, including interleaved focused checks. Focused verification ends at task-4-report.md filesystem mtime 2026-09-06T19:46:58.860Z: 1125.860s => 19m, including the transient DB cleanup failure investigation and successful full rerun. Review ends at source cutoff 2026-09-06T15:17:48-05:00: 1849.140s => 31m, including review/fix loops F1 (completed/reapproved calibration) and F2 (unsupported mutation-base variable), the first attempt, and repeated full gates. Integration ends at retained campaign completion: 168s => 3m. Each bucket rounds to nearest whole minute; 568+1916+1125.860+1849.140+168=5627s => 94m and 9+32+19+31+3=94; variance 94-265=-171m. Local report mtime captured using rtk proxy node and fs.statSync; this committed ledger preserves it before local artifacts expire. Unobservable work before the first CHG-047 commit and evidence-only work after the campaign cutoff are excluded, not represented as measured time. Two evidenced review-fix loops, not commit/amend counts. Attempts: 96981ca4254b6d6edd8195270bbe0ba68f0182cc at 2026-09-06T20:07:59Z..20:08:00Z took 0.57s; 1b3c59517f8e5ea4a2c64407211a15ef6a253a59 at 2026-09-06T20:20:35Z..20:20:36Z took 0.47s. mutation_minutes=round((0.57+0.47)/60)=0, already included in review/integration and not added to total. Attempt 1 is invalidated because unsupported MUTATION_BASE_REF caused default-branch fallback to 09d5266cf610585bfc439d4faa1581baa2023912 and unrelated accountable-route preflight failure before any mutants; F2 corrected canonical guidance to MUTATION_BASE. Attempt 2 exited 0 with approved base 547aa97 and zero mutatable files; score/threshold not applicable. Lower observed time reflects bounded tooling work and cached unchanged application gates; the forecasted mutation shard was not selected by the real diff runner. Actuals are provisional until the separate terminal commit and intentionally bound to this named delivery cutoff, not later governance commits."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
