@@ -583,6 +583,14 @@ assert.deepEqual(
   ["apps/web/src/modules/request-workflow/approval-repository.integration.test.ts"],
 );
 assert.deepEqual(
+  DIRECT_TEST_ROUTES["apps/web/src/modules/alerts/actions.ts"],
+  ["apps/web/src/modules/alerts/ack-alert-service.test.ts"],
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["packages/notifications/vitest.config.ts"],
+  ["packages/notifications/src/catalog.test.ts"],
+);
+assert.deepEqual(
   DIRECT_TEST_ROUTES["apps/web/src/modules/vendor-catalog/actions/manage-capacity.ts"],
   ["apps/web/src/modules/vendor-catalog/actions/manage-capacity.test.ts"],
 );

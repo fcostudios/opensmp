@@ -1502,7 +1502,7 @@ export const DIRECT_TEST_ROUTES = {
     "apps/web/src/components/alerts/alert-page-boundaries.test.ts",
   ],
   "apps/web/src/modules/alerts/actions.ts": [
-    "apps/web/src/modules/alerts/actions.test.ts",
+    "apps/web/src/modules/alerts/ack-alert-service.test.ts",
   ],
   "apps/web/src/modules/identity-access/actions/manage-users.ts": [
     "apps/web/src/components/users/users-roles-panel.test.tsx",
@@ -1553,6 +1553,9 @@ export const DIRECT_TEST_ROUTES = {
   ],
   "packages/db/src/schema.ts": [
     "packages/db/src/schema.test.ts",
+  ],
+  "packages/notifications/vitest.config.ts": [
+    "packages/notifications/src/catalog.test.ts",
   ],
   "scripts/probes/anthropic/vitest.contract.config.ts": [
     "apps/web/src/modules/identity-access/keycloak-admin.pact.test.ts",
