@@ -83,7 +83,23 @@
     "evidence": "US056-READY-CHG045",
     "payload_sha256": "89f52545c0a9370745920fdbd882ea43eab938842b9a940d283b4f061d084716"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 4,
+      "implementation": 53,
+      "focused_verification": 0,
+      "review": 98,
+      "integration": 0
+    },
+    "total": 155,
+    "changed_files": 8,
+    "commits": 9,
+    "review_fix_loops": 6,
+    "cold_mutation_attempts": 3,
+    "mutation_invalidations": 2,
+    "estimate_variance_minutes": 51,
+    "root_cause": "Provisional closure reconstruction at source cutoff dd08932b12ce39e2573ed24d61581eccbd937836 (2026-09-05T23:11:37-05:00), whose Anthropic provider tree is byte-unchanged through tested main 035e717e1e473263664f1e07dbbd540803a31a50. Reproduce changed_files with git diff --name-only b8c2e1cad570ee84a9c46bfafe371409e7bedc28..dd08932b12ce39e2573ed24d61581eccbd937836 (8) and commits with git rev-list --count b8c2e1cad570ee84a9c46bfafe371409e7bedc28..dd08932b12ce39e2573ed24d61581eccbd937836 (9). Nearest-minute, non-overlapping Git intervals are readiness 4 minutes from approved design aaf8e167d4b869763eef0512cd2fd3ea3f08a998 at 2026-09-05T20:36:54-05:00 to plan/branch point b8c2e1cad570ee84a9c46bfafe371409e7bedc28 at 20:40:42, implementation 53 minutes from the branch point to the final planned feature commit ccda44773bee1bbdda44f0fee4d6a852990290de at 21:33:47, and review 98 minutes from ccda447 to the source cutoff at 23:11:37. Focused verification was interleaved without an independent Git cutoff and is conservatively absorbed into implementation/review; integration records zero because the later clean merge introduced no conflict-resolution changes and its wait interval is not attributable labor. Six review-fix loops are bound to reviewed-task evidence and the corresponding corrective commits 49d3030, 9e676a1, f56395b, d6c5625, c86c225, and dd08932; commit subjects alone were not used as the oracle. Three authoritative cache-disabled whole-branch mutation campaigns used MUTATION_BASE=b8c2e1c on final dd08932 bytes: the first failed the endpoint threshold, the second passed but lacked durable complete survivor output, and the retained reproduction passed every shard (limiter 80.52%, request 92.86%, credentials 86.43%, endpoints 97.69%). Exact campaign timestamps and output are retained in Codex session rollouts 01a0747a-4a25-77f3-844d-d8cda81b6a26 and 01a074cb-65a8-7100-a278-e2b1a92b5c75. CHG-037 requires two pre-terminal mutation_invalidation records for the invalidated campaigns, but the Nous-owned canonical feedback_schemas vocabulary does not yet define that event; terminal done is withheld until Substrate adds it rather than under-reporting the campaigns or emitting an event Nous will reject. The final reviewer still identified genuine surviving mutation gaps; the user explicitly accepted merge and requested terminal closure with that caveat preserved. The 51-minute variance (155-104) came from four post-feature review-hardening loops around request admission, HTTP-date parsing, century rollover, credential normalization, and response ownership, rather than from readiness or dependency setup. A fresh full pnpm check exited zero on 035e717 before terminal evidence was recorded."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
