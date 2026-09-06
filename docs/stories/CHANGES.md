@@ -35,6 +35,8 @@
 | **CHG-044** | 📦 delivered | Re-pin testing/critical-paths.md after CHG-040 regenerates the critical set | — | — |
 | **CHG-045** | 🔨 dev_in_progress | Add a durable connector call observation ledger for US-018 | US-056, US-057, US-058 | S3 |
 | **CHG-046** | 📦 delivered | Accept substrate-emitted generated Nous paths by provenance instead of a per-sync overlay-layer registration | — | — |
+| **CHG-047** | 🔵 analyzed | Authoritative cold campaign is diff-scoped and runs once, last; actuals record campaign minutes; estimate re-weights review | — | — |
+| **CHG-048** | 🔵 analyzed | Guard readiness calibration output size and audit CHG-047 actuals | — | — |
 
 ---
 
@@ -437,7 +439,7 @@ interface. The adapter must keep Admi...
 | Story | Name | Sprint | Status | File |
 |-------|------|--------|--------|------|
 | **US-056** | Anthropic transport with separated credentials and bounded retry | Sprint 3 | ✅ dev_done | [r1_misc_us_056.md](sprint-3/r1_misc_us_056.md) |
-| **US-057** | Append-only sanitized connector-call journal | Sprint 3 | 🔨 in_development | [r1_misc_us_057.md](sprint-3/r1_misc_us_057.md) |
+| **US-057** | Append-only sanitized connector-call journal | Sprint 3 | ✅ dev_done | [r1_misc_us_057.md](sprint-3/r1_misc_us_057.md) |
 | **US-058** | Anthropic connector conformance and Pact contracts | Sprint 3 | ⬜ backlog | [r1_misc_us_058.md](sprint-3/r1_misc_us_058.md) |
 
 ### CHG-046: Accept substrate-emitted generated Nous paths by provenance instead of a per-sync overlay-layer registration
@@ -452,6 +454,33 @@ interface. The adapter must keep Admi...
 Filed in `nous.db` as **CHG-046** (`kind: technical`, per IMP-370) against
 `fcostudios__smp` on 2026-09-05. Tenant verification infrastructure only
 (`scripts/work-r...
+
+_No stories linked to this change yet._
+
+### CHG-047: Authoritative cold campaign is diff-scoped and runs once, last; actuals record campaign minutes; estimate re-weights review
+
+**Status:** 🔵 `analyzed`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** # CHG-047 — The authoritative cold campaign is diff-scoped and runs once, last; actuals record campaign minutes; the estimate model re-weights review
+
+## Why (measured, 2026-09-06)
+
+US-057 was on budget (208 estimated / 228 actual) but review took 148 of those
+minutes against an estimate of 20, w...
+
+_No stories linked to this change yet._
+
+### CHG-048: Guard readiness calibration output size and audit CHG-047 actuals
+
+**Status:** 🔵 `analyzed`
+**Source:** developer_feedback
+**Requested by:** Francisco Lomas
+**Notes:** # CHG-048 — Guard readiness calibration output size and audit CHG-047 actuals
+
+## Background
+
+CHG-047 introduced opt-in readiness estimate calibration. Its final whole-change review reproduced a boundary defect: an input artifact can be valid at the 4,194,304-byte reader limit, while calibration'...
 
 _No stories linked to this change yet._
 
