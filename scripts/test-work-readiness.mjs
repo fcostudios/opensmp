@@ -196,6 +196,21 @@ test("readiness guide defines the authoritative mutation workflow", () => {
   assert.match(workReadinessGuide, /Calibration is optional and resets approval/u);
 });
 
+test("readiness guide requires the calibration and core-runner relationships", () => {
+  const calibrationCommand = /pnpm readiness:calibrate -- WORK-ID/u;
+  const manualOverride = /Authors may instead manually override\s+phase estimates before approval/u;
+  const coreAuthority = /`pnpm test:mutation:core` is authoritative\s+only for a CHG that changes the effectiveness-critical set/u;
+  const withoutCalibrationCommand = workReadinessGuide.replace("pnpm readiness:calibrate -- WORK-ID", "");
+  const withoutManualOverride = workReadinessGuide.replace(/Authors may instead manually override\s+phase estimates before approval; /u, "");
+  const withoutCoreAuthority = workReadinessGuide.replace(/only for a CHG that changes the effectiveness-critical set/u, "");
+  assert.match(workReadinessGuide, calibrationCommand);
+  assert.match(workReadinessGuide, manualOverride);
+  assert.match(workReadinessGuide, coreAuthority);
+  assert.throws(() => assert.match(withoutCalibrationCommand, calibrationCommand));
+  assert.throws(() => assert.match(withoutManualOverride, manualOverride));
+  assert.throws(() => assert.match(withoutCoreAuthority, coreAuthority));
+});
+
 test("schema structure and runtime preserve bootstrap while requiring normal controller metadata", () => {
   const bootstrapRule = readinessSchema.allOf.find((rule) => rule.if?.properties?.policy_bootstrap?.const === true);
   const kindRule = readinessSchema.allOf.find((rule) => rule.if?.properties?.kind?.const === "US");
