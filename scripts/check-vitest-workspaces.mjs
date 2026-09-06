@@ -74,17 +74,19 @@ export function findVitestWorkspaceConfigFailures(rootDir) {
     const manifestPath = resolve(packageDirectory, "package.json");
     if (!existsSync(manifestPath)) continue;
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    if (
-      packageUsesVitest(manifest) &&
-      !VITEST_CONFIG_FILES.some((file) =>
-        existsSync(resolve(packageDirectory, file)),
-      )
-    ) {
+    if (!packageUsesVitest(manifest)) continue;
+    const configCount = VITEST_CONFIG_FILES.filter((file) => {
+      const configPath = resolve(packageDirectory, file);
+      return existsSync(configPath) && statSync(configPath).isFile();
+    }).length;
+    if (configCount !== 1) {
       const packagePath = relative(absoluteRoot, packageDirectory)
         .split(sep)
         .join("/");
       diagnostics.push(
-        `${packagePath}: test script invokes vitest but no vitest.config.* exists`,
+        configCount === 0
+          ? `${packagePath}: test script invokes vitest but no vitest.config.* exists`
+          : `${packagePath}: test script invokes vitest but ${configCount} vitest.config.* files exist`,
       );
     }
   }
