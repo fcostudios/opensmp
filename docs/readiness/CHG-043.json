@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "169a5d4375f4ef078dd788e1493b7e323575f86ad82b553a21f2f5f0e98ff86a",
+  "work_id": "CHG-043",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Make the root test gate discover every Vitest workspace and reject owned-code mocks",
+  "source": "docs/stories/CHANGES.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The normal repository gate runs every Vitest workspace through an explicit configuration and rejects owned-code mocks while the alert acknowledgement path remains covered against real PostgreSQL.",
+      "demo": "A fixture-backed workspace audit fails for a Vitest package without a config and passes once configured; pnpm lint:tests rejects an owned-module mock; the alert acknowledgement integration tests and pnpm check pass without mocking Ledger-owned authorization code.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling",
+    "server",
+    "tests"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 12,
+    "expected_mutation_shards": 1,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 10,
+    "implementation": 38,
+    "focused_verification": 25,
+    "review": 17,
+    "integration": 10,
+    "total": 100
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Whether CHG-043 still has two Vitest workspaces without explicit configuration, as its accepted title states.",
+      "status": "resolved",
+      "estimate_impact_minutes": 5,
+      "resolution": "A manifest-to-config audit found packages/config already has vitest.config.ts; packages/notifications is the only current Vitest workspace without one. The implementation adds that config and a repository-level discovery guard so the count cannot silently drift again."
+    },
+    {
+      "id": "U2",
+      "statement": "Whether removing the owned authorization mock from the alert action test would weaken coverage of the authorization boundary.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "The server action remains the sole loader of current Ledger authorization and delegates to a non-server service that accepts the loaded authorization. The service test supplies explicit authorization and exercises the real PostgreSQL repository and policy, while the existing server-action enforcement and type/build gates retain boundary wiring coverage."
+    },
+    {
+      "id": "U3",
+      "statement": "Whether extracting alert acknowledgement production logic creates an unmeasured critical-path mutation shard.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "The extracted service receives an adjacent focused test and is routed through the repository mutation-scope mechanism; the scoped mutation command must pass before integration."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG043-READY",
+    "payload_sha256": "169a5d4375f4ef078dd788e1493b7e323575f86ad82b553a21f2f5f0e98ff86a"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
