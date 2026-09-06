@@ -94,10 +94,21 @@ function assertCredentialHeaderCompatibility(credentials: Readonly<{
 }>): void {
   try {
     for (const secret of [credentials.admin.secret, credentials.analytics.secret]) {
-      new Headers({ "x-api-key": secret });
+      const headers = new Headers({ "x-api-key": secret });
+      if (headers.get("x-api-key") !== secret) {
+        throw new Error("normalized credential");
+      }
     }
   } catch {
     throw new Error("Anthropic credential cannot be used as a request header.");
+  }
+}
+
+async function cancelResponseBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Provider-owned cancellation failures must not replace safe executor outcomes.
   }
 }
 
@@ -226,8 +237,6 @@ export function createAnthropicRequestExecutor(dependencies: Readonly<{
     const body = serializedBody(policy, input.body);
 
     for (let attempt = 1; ; attempt += 1) {
-      await dependencies.limiter.acquire(input.vendorAccountId, policy.budgets);
-      const request = requestForPolicy(policy, credential, body);
       await observe(Object.freeze({
         endpoint: input.endpoint,
         method: policy.method,
@@ -237,6 +246,8 @@ export function createAnthropicRequestExecutor(dependencies: Readonly<{
         status: null,
         classification: null,
       }));
+      await dependencies.limiter.acquire(input.vendorAccountId, policy.budgets);
+      const request = requestForPolicy(policy, credential, body);
 
       let response: Response;
       try {
@@ -251,19 +262,25 @@ export function createAnthropicRequestExecutor(dependencies: Readonly<{
       }
 
       const classification = classifyStatus(response.status);
-      await observe(Object.freeze({
-        endpoint: input.endpoint,
-        method: policy.method,
-        attempt,
-        phase: "completed",
-        observedAt: dependencies.clock.now(),
-        status: response.status,
-        classification,
-      }));
+      try {
+        await observe(Object.freeze({
+          endpoint: input.endpoint,
+          method: policy.method,
+          attempt,
+          phase: "completed",
+          observedAt: dependencies.clock.now(),
+          status: response.status,
+          classification,
+        }));
+      } catch (error) {
+        await cancelResponseBody(response);
+        throw error;
+      }
 
       if (classification === "success") {
         return Object.freeze({ ok: true, response, attempts: attempt });
       }
+      await cancelResponseBody(response);
       const retryableResponse = classification === "rate_limited"
         || classification === "provider_error";
       if (policy.retrySafe && retryableResponse && attempt < 3) {

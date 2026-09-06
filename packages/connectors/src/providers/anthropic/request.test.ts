@@ -159,6 +159,37 @@ describe("Anthropic policy-bound request execution", () => {
     expect(transports).toBe(0);
   });
 
+  it.each([".", "..", " . ", "\t..\n"])(
+    "rejects the dot-only delete target %j before any attempt side effect",
+    async (resourceId) => {
+      // Mutations killed: allowing a normalized dot segment reaches admission or a normalized URL.
+      const limiter = inertLimiter();
+      const acquireSpy = vi.spyOn(limiter, "acquire");
+      const observations: AnthropicAttemptObservation[] = [];
+      let transports = 0;
+      const execute = createAnthropicRequestExecutor({
+        clock: { now: () => 1_000 },
+        sleep: async () => undefined,
+        limiter,
+        observe: async (observation) => { observations.push(observation); },
+        transport: async () => {
+          transports += 1;
+          return new Response(null, { status: 204 });
+        },
+      });
+
+      await expect(execute({
+        endpoint: "delete_invite",
+        vendorAccountId: "account-a",
+        credentials: validCredentials,
+        parameters: { resourceId },
+      })).rejects.toThrow("resourceId");
+      expect(acquireSpy).not.toHaveBeenCalled();
+      expect(observations).toEqual([]);
+      expect(transports).toBe(0);
+    },
+  );
+
   it("binds a network attempt to its own controllable 30 second timeout signal", async () => {
     // Mutations killed: omitting, changing, or detaching the timeout leaves the Request signal live after abort.
     const timeoutSignals: number[] = [];
@@ -273,6 +304,60 @@ describe("Anthropic policy-bound request execution", () => {
       }).catch((caught: unknown) => caught);
 
       expect(error).toBeInstanceOf(Error);
+      expect(error).toMatchObject({
+        name: "Error",
+        message: "Anthropic credential cannot be used as a request header.",
+      });
+      expect(Object.hasOwn(error as object, "cause")).toBe(false);
+      expect(String(error)).not.toContain(unsafeSecret);
+      expect(acquireSpy).not.toHaveBeenCalled();
+      expect(observations).toEqual([]);
+      expect(transports).toBe(0);
+    },
+  );
+
+  it.each([
+    [
+      "selected Admin",
+      [
+        { ...validCredentials[0], secret: " shared-secret " },
+        { ...validCredentials[1], secret: "shared-secret" },
+      ],
+      " shared-secret ",
+    ],
+    [
+      "unselected Analytics",
+      [
+        { ...validCredentials[0], secret: "shared-secret" },
+        { ...validCredentials[1], secret: " shared-secret " },
+      ],
+      " shared-secret ",
+    ],
+  ] as const)(
+    "rejects a whitespace-normalized %s credential collision before any attempt",
+    async (_case, credentials, unsafeSecret) => {
+      // Mutations killed: accepting Headers-trimmed values makes raw-distinct credentials identical on wire.
+      const limiter = inertLimiter();
+      const acquireSpy = vi.spyOn(limiter, "acquire");
+      const observations: AnthropicAttemptObservation[] = [];
+      let transports = 0;
+      const execute = createAnthropicRequestExecutor({
+        clock: { now: () => 1_000 },
+        sleep: async () => undefined,
+        limiter,
+        observe: async (observation) => { observations.push(observation); },
+        transport: async () => {
+          transports += 1;
+          return new Response(null, { status: 204 });
+        },
+      });
+
+      const error = await execute({
+        endpoint: "members",
+        vendorAccountId: "account-a",
+        credentials,
+      }).catch((caught: unknown) => caught);
+
       expect(error).toMatchObject({
         name: "Error",
         message: "Anthropic credential cannot be used as a request header.",
@@ -579,8 +664,8 @@ describe("Anthropic bounded retry policy", () => {
     expect(missing.sleeps).toEqual([1_000]);
   });
 
-  it("sleeps before acquiring capacity for each actual retry attempt", async () => {
-    // Mutations killed: skipped acquisition or acquiring before retry sleep changes the call-through order.
+  it("observes before admission and sleeps before the next requested observation", async () => {
+    // Mutations killed: skipped admission or acquire-before-observe changes the call-through order.
     let now = 10_000;
     let attempts = 0;
     const limiter = createAnthropicRateLimiter({
@@ -618,22 +703,206 @@ describe("Anthropic bounded retry policy", () => {
     expect(transport).toHaveBeenCalledTimes(3);
 
     const callOrder = [
-      acquireSpy.mock.invocationCallOrder[0]!,
       observe.mock.invocationCallOrder[0]!,
+      acquireSpy.mock.invocationCallOrder[0]!,
       transport.mock.invocationCallOrder[0]!,
       observe.mock.invocationCallOrder[1]!,
       retrySleep.mock.invocationCallOrder[0]!,
-      acquireSpy.mock.invocationCallOrder[1]!,
       observe.mock.invocationCallOrder[2]!,
+      acquireSpy.mock.invocationCallOrder[1]!,
       transport.mock.invocationCallOrder[1]!,
       observe.mock.invocationCallOrder[3]!,
       retrySleep.mock.invocationCallOrder[1]!,
-      acquireSpy.mock.invocationCallOrder[2]!,
       observe.mock.invocationCallOrder[4]!,
+      acquireSpy.mock.invocationCallOrder[2]!,
       transport.mock.invocationCallOrder[2]!,
       observe.mock.invocationCallOrder[5]!,
     ];
     expect(callOrder).toEqual([...callOrder].sort((left, right) => left - right));
+  });
+
+  it("admits against the actual transport window after requested observations are delayed", async () => {
+    // Mutations killed: admitting before the held observer permits 101 transports in one minute.
+    let now = 0;
+    const limiterSleeps: number[] = [];
+    const transportTimestamps: number[] = [];
+    let releaseHeldObservations!: () => void;
+    const heldObservations = new Promise<void>((resolve) => { releaseHeldObservations = resolve; });
+    let markAllObserved!: () => void;
+    const allObserved = new Promise<void>((resolve) => { markAllObserved = resolve; });
+    let requestedObservations = 0;
+    const limiter = createAnthropicRateLimiter({
+      clock: { now: () => now },
+      sleep: async (milliseconds) => {
+        limiterSleeps.push(milliseconds);
+        now += milliseconds;
+      },
+    });
+    const execute = createAnthropicRequestExecutor({
+      clock: { now: () => now },
+      sleep: async () => undefined,
+      limiter,
+      observe: async (observation) => {
+        if (observation.phase !== "requested") return;
+        requestedObservations += 1;
+        if (requestedObservations === 100) markAllObserved();
+        if (requestedObservations <= 100) await heldObservations;
+      },
+      transport: async () => {
+        transportTimestamps.push(now);
+        return new Response(null, { status: 204 });
+      },
+    });
+
+    const delayed = Array.from({ length: 100 }, () => execute({
+      endpoint: "members",
+      vendorAccountId: "account-a",
+      credentials: validCredentials,
+    }));
+    await allObserved;
+    now = 60_000;
+    releaseHeldObservations();
+    await Promise.all(delayed);
+    await execute({
+      endpoint: "members",
+      vendorAccountId: "account-a",
+      credentials: validCredentials,
+    });
+
+    expect(transportTimestamps.slice(0, 100)).toEqual(Array(100).fill(60_000));
+    expect(transportTimestamps[100]).toBe(120_000);
+    expect(limiterSleeps).toEqual([60_000]);
+  });
+
+  it("cancels a retryable failure body before sleeping and retrying", async () => {
+    // Mutations killed: skipping or deferring cancellation leaves the first provider stream open.
+    const events: string[] = [];
+    let attempts = 0;
+    const execute = createAnthropicRequestExecutor({
+      clock: { now: () => 10_000 },
+      sleep: async () => { events.push("sleep"); },
+      limiter: inertLimiter(),
+      transport: async () => {
+        attempts += 1;
+        events.push(`transport-${attempts}`);
+        if (attempts === 2) return new Response(null, { status: 204 });
+        return new Response(new ReadableStream({
+          cancel() { events.push("cancel"); },
+        }), { status: 503 });
+      },
+    });
+
+    const result = await execute({
+      endpoint: "members",
+      vendorAccountId: "account-a",
+      credentials: validCredentials,
+    });
+
+    expect(result).toMatchObject({ ok: true, attempts: 2 });
+    expect(events).toEqual(["transport-1", "cancel", "sleep", "transport-2"]);
+  });
+
+  it("cancels a terminal failure body before returning normalized metadata", async () => {
+    // Mutations killed: returning before cancellation leaves the provider stream owned by nobody.
+    let cancellations = 0;
+    const execute = createAnthropicRequestExecutor({
+      clock: { now: () => 10_000 },
+      sleep: async () => undefined,
+      limiter: inertLimiter(),
+      transport: async () => new Response(new ReadableStream({
+        cancel() { cancellations += 1; },
+      }), { status: 400 }),
+    });
+
+    const result = await execute({
+      endpoint: "members",
+      vendorAccountId: "account-a",
+      credentials: validCredentials,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      classification: "client_error",
+      status: 400,
+      attempts: 1,
+    });
+    expect(cancellations).toBe(1);
+  });
+
+  it("does not replace normalized failure metadata with a body-cancellation error", async () => {
+    // Mutations killed: leaking cancellation rejection exposes a provider-owned error instead of safe metadata.
+    const providerErrorSecret = "provider cancellation secret";
+    const execute = createAnthropicRequestExecutor({
+      clock: { now: () => 10_000 },
+      sleep: async () => undefined,
+      limiter: inertLimiter(),
+      transport: async () => new Response(new ReadableStream({
+        cancel() { return Promise.reject(new Error(providerErrorSecret)); },
+      }), { status: 400 }),
+    });
+
+    const result = await execute({
+      endpoint: "members",
+      vendorAccountId: "account-a",
+      credentials: validCredentials,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      classification: "client_error",
+      status: 400,
+      attempts: 1,
+    });
+    expect(JSON.stringify(result)).not.toContain(providerErrorSecret);
+  });
+
+  it("cancels a known response body before propagating a completed-observer failure", async () => {
+    // Mutations killed: propagating the observer failure directly abandons the provider stream.
+    const observerFailure = new Error("observer-owned failure");
+    let cancellations = 0;
+    const execute = createAnthropicRequestExecutor({
+      clock: { now: () => 10_000 },
+      sleep: async () => undefined,
+      limiter: inertLimiter(),
+      observe: async (observation) => {
+        if (observation.phase === "completed") throw observerFailure;
+      },
+      transport: async () => new Response(new ReadableStream({
+        cancel() { cancellations += 1; },
+      }), { status: 500 }),
+    });
+
+    await expect(execute({
+      endpoint: "members",
+      vendorAccountId: "account-a",
+      credentials: validCredentials,
+    })).rejects.toBe(observerFailure);
+    expect(cancellations).toBe(1);
+  });
+
+  it("preserves successful response ownership after completed observation succeeds", async () => {
+    // Mutations killed: cancelling every response consumes a successful provider body before its caller owns it.
+    let cancellations = 0;
+    const response = new Response(new ReadableStream({
+      cancel() { cancellations += 1; },
+    }), { status: 200 });
+    const execute = createAnthropicRequestExecutor({
+      clock: { now: () => 10_000 },
+      sleep: async () => undefined,
+      limiter: inertLimiter(),
+      transport: async () => response,
+    });
+
+    const result = await execute({
+      endpoint: "members",
+      vendorAccountId: "account-a",
+      credentials: validCredentials,
+    });
+
+    expect(result).toEqual({ ok: true, response, attempts: 1 });
+    expect(response.bodyUsed).toBe(false);
+    expect(cancellations).toBe(0);
+    await response.body?.cancel();
   });
 
   it("charges a real user-management budget for a retry", async () => {

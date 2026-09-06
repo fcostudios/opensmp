@@ -1,8 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { endpointPolicy, type AnthropicEndpoint } from "./endpoints.js";
+import type { AnthropicEndpoint } from "./endpoints.js";
+
+type EndpointModule = typeof import("./endpoints.js");
+
+let endpointPolicy: EndpointModule["endpointPolicy"];
 
 describe("Anthropic endpoint policy", () => {
+  beforeEach(async () => {
+    // Stryker activates static mutants after collection; reload policy constants under that mutant.
+    vi.resetModules();
+    ({ endpointPolicy } = await import("./endpoints.js"));
+  });
+
   it.each([
     ["organization", "GET", "/v1/organizations/me", "admin_scoped", ["user_management"], true],
     ["members", "GET", "/v1/organizations/users", "admin_scoped", ["user_management"], true],
@@ -35,6 +45,14 @@ describe("Anthropic endpoint policy", () => {
     expect(endpointPolicy("delete_invite", { resourceId: "../invite" }).path)
       .toBe("/v1/organizations/invites/..%2Finvite");
   });
+
+  it.each([".", "..", " . ", "\t..\n"])(
+    "rejects the dot-only delete target %j before URL construction",
+    (resourceId) => {
+      // Mutations killed: accepting either normalized dot segment lets URL erase the target path.
+      expect(() => endpointPolicy("delete_invite", { resourceId })).toThrow("resourceId");
+    },
+  );
 
   it("does not let caller parameters override the policy-owned wire values", () => {
     const policy = endpointPolicy("members", {

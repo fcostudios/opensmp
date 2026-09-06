@@ -138,10 +138,14 @@ export function endpointPolicy(
     if (typeof resourceId !== "string" || resourceId.trim().length === 0) {
       throw new Error("Anthropic delete invite policy requires resourceId.");
     }
+    const normalizedResourceId = resourceId.trim();
+    if (normalizedResourceId === "." || normalizedResourceId === "..") {
+      throw new Error("Anthropic delete invite policy requires resourceId.");
+    }
     return frozenPolicy({
       origin: "https://api.anthropic.com",
       method: "DELETE",
-      path: `/v1/organizations/invites/${encodeURIComponent(resourceId.trim())}`,
+      path: `/v1/organizations/invites/${encodeURIComponent(normalizedResourceId)}`,
       anthropicVersion: "2023-06-01",
       requestMediaType: null,
       responseMediaType: "application/json",
