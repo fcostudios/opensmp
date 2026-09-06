@@ -37,6 +37,10 @@ type TaggedCredential = Readonly<{
   secret: string;
 }>;
 
+type CandidateRecord = Record<string, unknown> & Readonly<{
+  vendorAccountId: string;
+}>;
+
 function fail(code: AnthropicCredentialErrorCode): never {
   throw new AnthropicCredentialError(code);
 }
@@ -49,10 +53,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function validateCandidate(value: unknown): AnthropicCredentialCandidate {
+function candidateRecord(value: unknown): CandidateRecord {
   if (!isRecord(value) || !isNonblankString(value.vendorAccountId)) {
     return fail("invalid_vendor_account");
   }
+  return value as CandidateRecord;
+}
+
+function validateCandidate(value: CandidateRecord): AnthropicCredentialCandidate {
   if (value.kind !== "admin_scoped" && value.kind !== "analytics") {
     return fail("wrong_credential_kind");
   }
@@ -86,8 +94,9 @@ export function resolveAnthropicCredentials(
   let admin: AnthropicCredentialCandidate | undefined;
   let analytics: AnthropicCredentialCandidate | undefined;
   for (const value of candidates) {
-    const candidate = validateCandidate(value);
-    if (candidate.vendorAccountId !== vendorAccountId) continue;
+    const record = candidateRecord(value);
+    if (record.vendorAccountId !== vendorAccountId) continue;
+    const candidate = validateCandidate(record);
 
     if (candidate.kind === "admin_scoped") {
       if (admin) fail("duplicate_credential");

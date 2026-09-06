@@ -40,6 +40,25 @@ describe("Anthropic credential resolution", () => {
     });
   });
 
+  it("ignores malformed and unsupported records for another vendor account", () => {
+    const resolved = resolveAnthropicCredentials([
+      ...valid,
+      {
+        vendorAccountId: "account-b",
+        kind: "unsupported-kind",
+        secret: 42,
+        status: "retired",
+        health: "unverified",
+      },
+    ] as readonly unknown[], "account-a");
+
+    expect(resolved).toEqual({
+      vendorAccountId: "account-a",
+      admin: { kind: "admin_scoped", secret: "admin-secret" },
+      analytics: { kind: "analytics", secret: "analytics-secret" },
+    });
+  });
+
   it.each([
     [
       "missing Admin",
