@@ -1828,7 +1828,7 @@ export async function runMutationScope(options = {}) {
   };
   const environment = options.env ?? process.env;
   if (options.cwd) process.chdir(options.cwd);
-  for (const key of ["MUTATION_BASE", "MUTATION_CACHE", "MUTATION_SCOPE_DRY"]) {
+  for (const key of ["MUTATION_BASE", "MUTATION_CACHE", "MUTATION_CACHE_DISABLE", "MUTATION_SCOPE_DRY"]) {
     previousEnvironment[key] = process.env[key];
     if (environment[key] === undefined) delete process.env[key];
     else process.env[key] = environment[key];
@@ -2057,7 +2057,10 @@ export async function runMutationScope(options = {}) {
     return { manifest: manifestFor(), performance: null };
   }
 
-  const cacheMode = process.env.MUTATION_CACHE === "off" ? "bypass" : "enabled";
+  const cacheMode = process.env.MUTATION_CACHE === "off" ||
+    process.env.MUTATION_CACHE_DISABLE === "1"
+    ? "bypass"
+    : "enabled";
   const performanceRun = createPerformanceRun({
     provenance: {
       campaignKey: sha256(shards.map((shard) => `${shard.id}:${shard.configHash}`).join("\n")),

@@ -1680,6 +1680,7 @@ try {
   assert.equal(JSON.stringify(unavailable.result.manifest).includes("databaseUrl"), false);
   assert.equal(JSON.stringify(unavailable.result.manifest).includes("localhost"), false);
   assert.equal((await cacheRun({ env: { MUTATION_CACHE: "off" } })).executions, 1);
+  assert.equal((await cacheRun({ env: { MUTATION_CACHE_DISABLE: "1" } })).executions, 1);
   const withoutNodeOptions = await cacheRun({ env: { MUTATION_CACHE: "off" } });
   const withNodeOptions = await cacheRun({
     env: { MUTATION_CACHE: "off", NODE_OPTIONS: "--require=/tmp/secret-preload.cjs" },
