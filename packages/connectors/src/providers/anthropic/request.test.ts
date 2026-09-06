@@ -444,6 +444,82 @@ describe("Anthropic bounded retry policy", () => {
   });
 
   it.each([
+    ["IMF-fixdate", "Sun, 06 Nov 1994 08:49:37 GMT"],
+    ["RFC 850", "Sunday, 06-Nov-94 08:49:37 GMT"],
+    ["asctime", "Sun Nov  6 08:49:37 1994"],
+  ] as const)("honors equivalent future %s Retry-After syntax", async (_format, retryAfter) => {
+    // Mutations killed: dropping any required HTTP-date parser changes the common five-second delay.
+    const run = await runStatuses([503, 200], {
+      initialNow: Date.UTC(1994, 10, 6, 8, 49, 32),
+      retryAfter,
+    });
+
+    expect(run.result).toMatchObject({ ok: true, attempts: 2 });
+    expect(run.sleeps).toEqual([5_000]);
+  });
+
+  it("honors a two-digit asctime day without locale interpretation", async () => {
+    // Mutation killed: forcing single-digit padding corrupts the canonical two-digit form.
+    const run = await runStatuses([503, 200], {
+      initialNow: Date.UTC(1994, 10, 16, 8, 49, 32),
+      retryAfter: "Wed Nov 16 08:49:37 1994",
+    });
+
+    expect(run.result).toMatchObject({ ok: true, attempts: 2 });
+    expect(run.sleeps).toEqual([5_000]);
+  });
+
+  it("keeps an RFC 850 timestamp at the exact 50-year future boundary", async () => {
+    // Mutation killed: treating the exact boundary as over 50 years incorrectly pivots to 1976.
+    const now = Date.UTC(2026, 5, 15, 12, 0, 0);
+    const target = Date.UTC(2076, 5, 15, 12, 0, 0);
+    const run = await runStatuses([503, 200], {
+      initialNow: now,
+      retryAfter: "Monday, 15-Jun-76 12:00:00 GMT",
+    });
+
+    expect(run.result).toMatchObject({ ok: true, attempts: 2 });
+    expect(run.sleeps).toEqual([target - now]);
+  });
+
+  it("pivots an RFC 850 timestamp over 50 years ahead to its most recent past year", async () => {
+    // Mutations killed: omitting the RFC 850 century pivot incorrectly sleeps for 50 years plus one second.
+    const dateParseSpy = vi.spyOn(Date, "parse");
+    try {
+      const run = await runStatuses([503, 200], {
+        initialNow: Date.UTC(2026, 5, 15, 12, 0, 0),
+        retryAfter: "Tuesday, 15-Jun-76 12:00:01 GMT",
+      });
+
+      expect(run.result).toMatchObject({ ok: true, attempts: 2 });
+      expect(run.sleeps).toEqual([1_000]);
+      expect(dateParseSpy).toHaveBeenNthCalledWith(1, "Tuesday, 15 Jun 2076 12:00:01 GMT");
+      expect(dateParseSpy).toHaveBeenNthCalledWith(2, "Tuesday, 15 Jun 1976 12:00:01 GMT");
+      expect(dateParseSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      dateParseSpy.mockRestore();
+    }
+  });
+
+  it.each([
+    ["IMF-fixdate wrong weekday", "Mon, 06 Nov 1994 08:49:37 GMT"],
+    ["RFC 850 wrong weekday", "Monday, 06-Nov-94 08:49:37 GMT"],
+    ["asctime wrong weekday", "Mon Nov  6 08:49:37 1994"],
+    ["IMF-fixdate invalid calendar", "Mon, 31 Feb 2030 08:49:37 GMT"],
+    ["RFC 850 invalid calendar", "Monday, 31-Feb-30 08:49:37 GMT"],
+    ["asctime invalid calendar", "Mon Feb 31 08:49:37 2030"],
+  ] as const)("falls back for a %s envelope", async (_case, retryAfter) => {
+    // Mutations killed: accepting the envelope without canonical calendar/weekday validation uses an invalid date.
+    const run = await runStatuses([503, 200], {
+      initialNow: Date.UTC(1994, 10, 6, 8, 49, 32),
+      retryAfter,
+    });
+
+    expect(run.result).toMatchObject({ ok: true, attempts: 2 });
+    expect(run.sleeps).toEqual([1_000]);
+  });
+
+  it.each([
     ["past HTTP-date", new Date(Date.UTC(2026, 8, 5, 11, 59, 59)).toUTCString(), 1],
     ["present HTTP-date", new Date(Date.UTC(2026, 8, 5, 12, 0, 0)).toUTCString(), 1],
     ["wrong-weekday HTTP-date", "Mon, 01 Jan 2030 00:00:00 GMT", 1],
@@ -458,6 +534,11 @@ describe("Anthropic bounded retry policy", () => {
     ["wrong spacing HTTP-like timestamp", "Tue,,01 Jan 2030 00:00:00 GMT", 0],
     ["wrong zone HTTP-like timestamp", "Tue, 01 Jan 2030 00:00:00 UTC", 0],
     ["short HTTP-like timestamp", "bad? 2030 GMT", 0],
+    ["short-weekday RFC 850 timestamp", "Tue, 01-Jan-30 00:00:00 GMT", 0],
+    ["slash-delimited RFC 850 timestamp", "Tuesday, 01/Jan/30 00:00:00 GMT", 0],
+    ["wrong-zone RFC 850 timestamp", "Tuesday, 01-Jan-30 00:00:00 UTC", 0],
+    ["wrong-delimiter asctime timestamp", "Tue-Jan  1 00:00:00 2030", 0],
+    ["overlong asctime timestamp", "Tue Jan  1 00:00:00 02030", 0],
   ] as const)(
     "falls back for a %s Retry-After",
     async (_case, retryAfter, expectedDateParses) => {

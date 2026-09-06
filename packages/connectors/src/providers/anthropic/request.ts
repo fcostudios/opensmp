@@ -111,11 +111,81 @@ function serializedBody(policy: AnthropicEndpointPolicy, body: unknown): string 
   return JSON.stringify(body);
 }
 
-function hasImfFixdateEnvelope(value: string): boolean {
-  return value.length === 29
-    && value[3] === ","
-    && value[4] === " "
-    && value.endsWith(" GMT");
+function parseImfFixdate(value: string): number | null {
+  if (
+    value.length !== 29
+    || value[3] !== ","
+    || value[4] !== " "
+    || !value.endsWith(" GMT")
+  ) return null;
+
+  const epoch = Date.parse(value);
+  return new Date(epoch).toUTCString() === value ? epoch : null;
+}
+
+function asctimeFromEpoch(epoch: number): string {
+  const imfFixdate = new Date(epoch).toUTCString();
+  const paddedDay = String(Number(imfFixdate.slice(5, 7))).padStart(2, " ");
+  return `${imfFixdate.slice(0, 3)} ${imfFixdate.slice(8, 11)} ${paddedDay} ${
+    imfFixdate.slice(17, 25)
+  } ${imfFixdate.slice(12, 16)}`;
+}
+
+function parseAsctime(value: string): number | null {
+  if (value.length !== 24 || value[3] !== " ") return null;
+
+  const day = String(Number(value.slice(8, 10))).padStart(2, "0");
+  const imfCandidate = `${value.slice(0, 3)}, ${day} ${value.slice(4, 7)} ${
+    value.slice(20, 24)
+  } ${value.slice(11, 19)} GMT`;
+  const epoch = Date.parse(imfCandidate);
+  return asctimeFromEpoch(epoch) === value ? epoch : null;
+}
+
+function rfc850FromEpoch(epoch: number): string {
+  const date = new Date(epoch);
+  const imfFixdate = date.toUTCString();
+  const weekday = date.toLocaleDateString("en-US", {
+    timeZone: "UTC",
+    weekday: "long",
+  });
+  return `${weekday}, ${imfFixdate.slice(5, 7)}-${imfFixdate.slice(8, 11)}-${
+    imfFixdate.slice(14, 16)
+  } ${imfFixdate.slice(17, 25)} GMT`;
+}
+
+function parseRfc850(value: string, now: number): number | null {
+  const separator = value.indexOf(", ");
+  if (
+    separator < 6
+    || !value.endsWith(" GMT")
+    || !value.includes("-")
+  ) return null;
+
+  const weekday = value.slice(0, separator);
+  const dateAndTime = value.slice(separator + 2, -4).split(" ");
+  const date = dateAndTime[0]!;
+  const time = dateAndTime[1];
+  const twoDigitYear = Number(date.slice(-2));
+
+  const current = new Date(now);
+  let year = Math.floor(current.getUTCFullYear() / 100) * 100 + twoDigitYear;
+  const imfCandidate = (candidateYear: number) => `${weekday}, ${date.slice(0, 2)} ${
+    date.slice(3, 6)
+  } ${candidateYear} ${time} GMT`;
+  let epoch = Date.parse(imfCandidate(year));
+
+  const fiftyYearsFromNow = new Date(now);
+  fiftyYearsFromNow.setUTCFullYear(fiftyYearsFromNow.getUTCFullYear() + 50);
+  if (epoch > fiftyYearsFromNow.getTime()) {
+    year -= 100;
+    epoch = Date.parse(imfCandidate(year));
+  }
+  return rfc850FromEpoch(epoch) === value ? epoch : null;
+}
+
+function parseHttpDate(value: string, now: number): number | null {
+  return parseImfFixdate(value) ?? parseRfc850(value, now) ?? parseAsctime(value);
 }
 
 function retryDelayMilliseconds(
@@ -129,13 +199,9 @@ function retryDelayMilliseconds(
     if (Number.isFinite(milliseconds)) return milliseconds;
   }
 
-  if (value !== undefined && hasImfFixdateEnvelope(value)) {
-    const retryAt = Date.parse(value);
-    if (
-      Number.isFinite(retryAt)
-      && new Date(retryAt).toUTCString() === value
-      && retryAt > now
-    ) return retryAt - now;
+  if (value !== undefined) {
+    const retryAt = parseHttpDate(value, now);
+    if (retryAt !== null && retryAt > now) return retryAt - now;
   }
 
   return [1_000, 2_000][completedAttempt - 1]!;
