@@ -93,6 +93,35 @@ describe("connector call observation session", () => {
     expect(Object.isFrozen(appended[1]!.summary)).toBe(true);
   });
 
+  it("appends the exact failed lifecycle evidence", async () => {
+    const appended: ConnectorCallObservationAppendInput[] = [];
+    const session = createSession({
+      append: async (input) => {
+        appended.push(input);
+      },
+    });
+
+    const receipt = await session.requested({ endpointClass: "members", method: "GET" });
+    await session.failed(receipt, {
+      endpointClass: "members",
+      method: "GET",
+      httpStatus: 429,
+      classification: "rate_limited",
+    });
+
+    expect(appended[1]).toEqual(expect.objectContaining({
+      attempt: 1,
+      phase: "failed",
+      classification: "rate_limited",
+      summary: {
+        endpoint_class: "members",
+        method: "GET",
+        http_status: 429,
+        status_class: "rate_limited",
+      },
+    }));
+  });
+
   it("allocates increasing attempts while generating one correlation ID", async () => {
     let randomIdCalls = 0;
     const session = createSession({
@@ -189,20 +218,56 @@ describe("connector call observation session", () => {
   });
 
   it.each([
-    ["vendor account", { vendorAccountId: "not-a-uuid" }],
-    ["correlation", { randomId: () => "not-a-uuid" }],
-    ["sync action link", { provisioningActionId: PROVISIONING_ACTION_ID }],
-    ["operation", { operation: "unrecognized" as "sync_members" }],
-  ] as const)("rejects an invalid %s session boundary", (_label, overrides) => {
-    expect(() => createSession(overrides)).toThrowError();
+    ["vendor account", { vendorAccountId: "not-a-uuid" }, "Invalid connector vendor account ID"],
+    [
+      "vendor account prefix",
+      { vendorAccountId: `prefix-${VENDOR_ACCOUNT_ID}` },
+      "Invalid connector vendor account ID",
+    ],
+    [
+      "vendor account suffix",
+      { vendorAccountId: `${VENDOR_ACCOUNT_ID}-suffix` },
+      "Invalid connector vendor account ID",
+    ],
+    ["correlation", { randomId: () => "not-a-uuid" }, "Invalid connector correlation ID"],
+    [
+      "provisioning action",
+      { operation: "provision" as const, provisioningActionId: "not-a-uuid" },
+      "Invalid connector provisioning action ID",
+    ],
+    [
+      "sync action link",
+      { provisioningActionId: PROVISIONING_ACTION_ID },
+      "Sync connector observations cannot link a provisioning action",
+    ],
+    [
+      "operation",
+      { operation: "unrecognized" as "sync_members" },
+      "Invalid connector operation",
+    ],
+  ] as const)("rejects an invalid %s session boundary", (_label, overrides, message) => {
+    expect(() => createSession(overrides)).toThrowError(message);
   });
 
-  it("accepts a provisioning action only for provisioning operations", () => {
+  it.each(["provision", "deprovision"] as const)(
+    "accepts a provisioning action for the %s operation",
+    (operation) => {
     expect(() => createSession({
-      operation: "provision",
+      operation,
       provisioningActionId: PROVISIONING_ACTION_ID,
     })).not.toThrow();
-  });
+    },
+  );
+
+  it.each(["sync_members", "sync_activity", "sync_cost"] as const)(
+    "rejects a provisioning action for the %s operation",
+    (operation) => {
+      expect(() => createSession({
+        operation,
+        provisioningActionId: PROVISIONING_ACTION_ID,
+      })).toThrowError("Sync connector observations cannot link a provisioning action");
+    },
+  );
 
   it.each([99, 600])("rejects an out-of-range terminal HTTP status %i", async (httpStatus) => {
     const session = createSession();
@@ -214,9 +279,94 @@ describe("connector call observation session", () => {
       httpStatus,
     })).rejects.toThrowError("Invalid connector HTTP status");
   });
+
+  it.each([100, 599])("accepts the inclusive terminal HTTP status boundary %i", async (httpStatus) => {
+    const session = createSession();
+    const receipt = await session.requested({ endpointClass: "members", method: "GET" });
+
+    await expect(session.succeeded(receipt, {
+      endpointClass: "members",
+      method: "GET",
+      httpStatus,
+    })).resolves.toBeUndefined();
+  });
+
+  it.each(["success", "unknown"] as const)(
+    "rejects %s as a failed terminal classification",
+    async (classification) => {
+      const session = createSession();
+      const receipt = await session.requested({ endpointClass: "members", method: "GET" });
+
+      await expect(session.failed(receipt, {
+        endpointClass: "members",
+        method: "GET",
+        httpStatus: 500,
+        classification,
+      } as never)).rejects.toThrowError("Invalid connector failure classification");
+    },
+  );
+
+  it("returns a terminal receipt to pending when its append fails", async () => {
+    const terminalPhases: string[] = [];
+    let rejectFirstTerminal = true;
+    const session = createSession({
+      append: async (observation) => {
+        if (observation.phase === "requested") return;
+        terminalPhases.push(observation.phase);
+        if (rejectFirstTerminal) {
+          rejectFirstTerminal = false;
+          throw new Error("journal unavailable");
+        }
+      },
+    });
+    const receipt = await session.requested({ endpointClass: "members", method: "GET" });
+    const response = {
+      endpointClass: "members" as const,
+      method: "GET" as const,
+      httpStatus: 200,
+    };
+
+    await expect(session.succeeded(receipt, response)).rejects.toThrowError("journal unavailable");
+    await expect(session.succeeded(receipt, response)).resolves.toBeUndefined();
+    expect(terminalPhases).toEqual(["succeeded", "succeeded"]);
+  });
 });
 
 describe("connector call summary allowlist", () => {
+  it.each([
+    ["phase", "Invalid connector phase", {
+      phase: "unknown",
+      endpointClass: "members",
+      method: "GET",
+    }],
+    ["endpoint class", "Invalid connector endpoint class", {
+      phase: "requested",
+      endpointClass: "unknown",
+      method: "GET",
+    }],
+    ["classification", "Invalid connector classification", {
+      phase: "failed",
+      endpointClass: "members",
+      method: "GET",
+      httpStatus: 500,
+      classification: "unknown",
+    }],
+    ["missing classification", "Invalid connector classification", {
+      phase: "failed",
+      endpointClass: "members",
+      method: "GET",
+      httpStatus: 500,
+    }],
+  ] as const)("rejects an input outside the closed connector %s vocabulary", (
+    _label,
+    message,
+    input,
+  ) => {
+    expect(() => buildConnectorCallSummary(
+      input as never,
+    )).toThrowError(message);
+  });
+
   it.each([
     [
       {

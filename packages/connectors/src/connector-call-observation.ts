@@ -1,13 +1,17 @@
-import type {
-  ConnectorAttemptReceipt,
-  ConnectorCallClassification,
-  ConnectorCallObservationAppender,
-  ConnectorCallObservationAppendInput,
-  ConnectorCallObservationSession,
-  ConnectorCallPhase,
-  ConnectorCallSummary,
-  ConnectorEndpointClass,
-  ConnectorOperation,
+import {
+  connectorCallClassifications,
+  connectorCallPhases,
+  connectorEndpointClasses,
+  connectorOperations,
+  type ConnectorAttemptReceipt,
+  type ConnectorCallClassification,
+  type ConnectorCallObservationAppender,
+  type ConnectorCallObservationAppendInput,
+  type ConnectorCallObservationSession,
+  type ConnectorCallPhase,
+  type ConnectorCallSummary,
+  type ConnectorEndpointClass,
+  type ConnectorOperation,
 } from "./contracts.js";
 
 export type { ConnectorCallObservationAppender } from "./contracts.js";
@@ -22,22 +26,8 @@ type SummaryInput = Readonly<{
   classification?: ConnectorCallClassification;
 }>;
 
-const uuidShape = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const connectorOperations = new Set<ConnectorOperation>([
-  "provision",
-  "deprovision",
-  "sync_members",
-  "sync_activity",
-  "sync_cost",
-]);
-const syncOperations = new Set<ConnectorOperation>([
-  "sync_members",
-  "sync_activity",
-  "sync_cost",
-]);
-
 function assertUuid(value: string, field: string): void {
-  if (!uuidShape.test(value)) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
     throw new Error(`Invalid connector ${field}`);
   }
 }
@@ -49,13 +39,9 @@ function assertHttpStatus(value: number): void {
 }
 
 function assertFailureClassification(
-  value: Exclude<ConnectorCallClassification, "success">,
+  value: ConnectorCallClassification,
 ): void {
-  if (
-    value !== "rate_limited" &&
-    value !== "provider_error" &&
-    value !== "client_error"
-  ) {
+  if (!connectorCallClassifications.includes(value) || value === "success") {
     throw new Error("Invalid connector failure classification");
   }
 }
@@ -71,15 +57,29 @@ function assertSessionInput(input: Readonly<{
   if (input.provisioningActionId !== null) {
     assertUuid(input.provisioningActionId, "provisioning action ID");
   }
-  if (!connectorOperations.has(input.operation)) {
+  if (!connectorOperations.includes(input.operation)) {
     throw new Error("Invalid connector operation");
   }
-  if (syncOperations.has(input.operation) && input.provisioningActionId !== null) {
+  if (input.operation.startsWith("sync_") && input.provisioningActionId !== null) {
     throw new Error("Sync connector observations cannot link a provisioning action");
   }
 }
 
 export function buildConnectorCallSummary(input: SummaryInput): ConnectorCallSummary {
+  if (!connectorCallPhases.includes(input.phase)) {
+    throw new Error("Invalid connector phase");
+  }
+  if (!connectorEndpointClasses.includes(input.endpointClass)) {
+    throw new Error("Invalid connector endpoint class");
+  }
+  if (
+    input.phase !== "requested"
+    && !connectorCallClassifications.some(
+      (classification) => classification === input.classification,
+    )
+  ) {
+    throw new Error("Invalid connector classification");
+  }
   if (input.phase === "requested") {
     return Object.freeze({
       endpoint_class: input.endpointClass,
@@ -112,10 +112,7 @@ export function createConnectorCallObservationSession(input: Readonly<{
   });
 
   let nextAttempt = 1;
-  const receipts = new Map<
-    ConnectorAttemptReceipt,
-    "pending" | "completing" | "completed"
-  >();
+  const receipts = new Map<ConnectorAttemptReceipt, boolean>();
 
   const append = async (
     attempt: number,
@@ -152,7 +149,7 @@ export function createConnectorCallObservationSession(input: Readonly<{
       }),
     );
     const receipt = Object.freeze({ attempt });
-    receipts.set(receipt, "pending");
+    receipts.set(receipt, false);
     return receipt;
   };
 
@@ -161,10 +158,10 @@ export function createConnectorCallObservationSession(input: Readonly<{
     if (state === undefined) {
       throw new Error("Connector attempt receipt does not belong to this session");
     }
-    if (state !== "pending") {
+    if (state) {
       throw new Error("Connector attempt receipt has already been completed");
     }
-    receipts.set(receipt, "completing");
+    receipts.set(receipt, true);
   };
 
   const appendTerminal = async (
@@ -177,10 +174,9 @@ export function createConnectorCallObservationSession(input: Readonly<{
     try {
       await append(receipt.attempt, phase, classification, summary);
     } catch (error) {
-      receipts.set(receipt, "pending");
+      receipts.set(receipt, false);
       throw error;
     }
-    receipts.set(receipt, "completed");
   };
 
   const succeeded = async (

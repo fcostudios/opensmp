@@ -81,15 +81,44 @@ export function assertJsonValue(
   return result;
 }
 
-export type ConnectorOperation =
-  | "provision" | "deprovision" | "sync_members"
-  | "sync_activity" | "sync_cost";
-export type ConnectorCallPhase = "requested" | "succeeded" | "failed";
+function freezeVocabulary<const Vocabulary extends readonly string[]>(
+  ...values: Vocabulary
+): Readonly<Vocabulary> {
+  return Object.freeze(values);
+}
+
+export const connectorOperations = freezeVocabulary(
+  "provision",
+  "deprovision",
+  "sync_members",
+  "sync_activity",
+  "sync_cost",
+);
+export const connectorCallPhases = freezeVocabulary(
+  "requested",
+  "succeeded",
+  "failed",
+);
+export const connectorCallClassifications = freezeVocabulary(
+  "success",
+  "rate_limited",
+  "provider_error",
+  "client_error",
+);
+export const connectorEndpointClasses = freezeVocabulary(
+  "organization",
+  "members",
+  "invitations",
+  "activity",
+  "usage",
+  "cost",
+);
+
+export type ConnectorOperation = (typeof connectorOperations)[number];
+export type ConnectorCallPhase = (typeof connectorCallPhases)[number];
 export type ConnectorCallClassification =
-  | "success" | "rate_limited" | "provider_error" | "client_error";
-export type ConnectorEndpointClass =
-  | "organization" | "members" | "invitations"
-  | "activity" | "usage" | "cost";
+  (typeof connectorCallClassifications)[number];
+export type ConnectorEndpointClass = (typeof connectorEndpointClasses)[number];
 export type ConnectorCallSummary = Readonly<{
   endpoint_class: ConnectorEndpointClass;
   method: "GET" | "POST" | "DELETE";

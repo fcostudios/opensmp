@@ -1,15 +1,19 @@
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { execFile } from "node:child_process";
+import { readFile, readdir } from "node:fs/promises";
+import { promisify } from "node:util";
 import type { Client } from "pg";
+import { getTableName } from "drizzle-orm";
+import { PgDialect, getTableConfig } from "drizzle-orm/pg-core";
 
 import { createConnectorCallObservationSession } from "@smp/connectors/connector-call-observation";
-import { createConnectorCallObservationAppender } from "@smp/db/connector-call-observations";
-
 import {
   createPostgresFixture,
   type PostgresFixture,
 } from "./testing/postgres-container.js";
 
 const fixtures: PostgresFixture[] = [];
+const dialect = new PgDialect();
 const systemUserId = "00000000-0000-0000-0000-000000000001";
 const ids = {
   company: "60000000-0000-4000-8000-000000000001",
@@ -29,6 +33,13 @@ const ids = {
   ambiguousCorrelation: "60000000-0000-4000-8000-000000000024",
   requestedFailureCorrelation: "60000000-0000-4000-8000-000000000025",
   terminalFailureCorrelation: "60000000-0000-4000-8000-000000000026",
+  otherCompany: "60000000-0000-4000-8000-000000000030",
+  otherPerson: "60000000-0000-4000-8000-000000000031",
+  otherRequest: "60000000-0000-4000-8000-000000000032",
+  otherAction: "60000000-0000-4000-8000-000000000033",
+  integrityCorrelation: "60000000-0000-4000-8000-000000000034",
+  otherCorrelation: "60000000-0000-4000-8000-000000000035",
+  syncCorrelation: "60000000-0000-4000-8000-000000000036",
 } as const;
 
 const occurredAt = new Date("2026-09-06T12:34:56.000Z");
@@ -59,8 +70,31 @@ const anthropicCredentials = [
   },
 ] as const;
 
+type ConnectorCallObservationModule =
+  typeof import("@smp/db/connector-call-observations");
+type JournalAppend = ReturnType<
+  ConnectorCallObservationModule["createConnectorCallObservationAppender"]
+>["append"];
+
+async function loadConnectorCallObservations(): Promise<ConnectorCallObservationModule> {
+  vi.resetModules();
+  return import("@smp/db/connector-call-observations");
+}
+
 afterEach(async () => {
-  await Promise.all(fixtures.splice(0).map((fixture) => fixture.stop()));
+  await Promise.all(fixtures.splice(0).map(async (fixture) => {
+    const owner = await fixture.connectAsOwner();
+    try {
+      await owner.query(
+        `SELECT pg_terminate_backend(pid)
+           FROM pg_stat_activity
+          WHERE datname = current_database() AND pid <> pg_backend_pid()`,
+      );
+    } finally {
+      await owner.end();
+    }
+    await fixture.stop();
+  }));
 });
 
 async function seedObservationContext(fixture: PostgresFixture): Promise<void> {
@@ -126,7 +160,7 @@ function requested(overrides: Record<string, unknown> = {}) {
 }
 
 function createJournaledAnthropicExecutor(input: Readonly<{
-  append: ReturnType<typeof createConnectorCallObservationAppender>["append"];
+  append: JournalAppend;
   correlationId: string;
   createObservationBridge: (
     session: ReturnType<typeof createConnectorCallObservationSession>,
@@ -194,8 +228,197 @@ async function persistedLifecycle(
   )).rows;
 }
 
+function renderJournalSql(value: Parameters<PgDialect["sqlToQuery"]>[0]): string {
+  return dialect.sqlToQuery(value).sql
+    .replaceAll('"connector_call_observation".', "")
+    .replaceAll('"', "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 describe("US-057 PostgreSQL connector-call observation appender", () => {
+  test("exposes the canonical journal Drizzle contract", async () => {
+    const { connectorCallObservation } = await loadConnectorCallObservations();
+    const config = getTableConfig(connectorCallObservation);
+    expect(config.columns.map((column) => [
+      column.name,
+      column.getSQLType(),
+      column.notNull,
+      column.hasDefault,
+    ])).toEqual([
+      ["id", "uuid", true, true],
+      ["vendor_account_id", "uuid", true, false],
+      ["provisioning_action_id", "uuid", false, false],
+      ["correlation_id", "uuid", true, false],
+      ["operation", "connector_call_operation_enum", true, false],
+      ["attempt", "integer", true, false],
+      ["phase", "connector_call_phase_enum", true, false],
+      ["classification", "text", false, false],
+      ["summary", "jsonb", true, false],
+      ["occurred_at", "timestamp with time zone", true, false],
+    ]);
+    expect(config.foreignKeys.map((key) => [
+      key.reference().columns.map(({ name }) => name),
+      getTableName(key.reference().foreignTable),
+    ])).toEqual([
+      [["vendor_account_id"], "vendor_account"],
+      [["provisioning_action_id"], "provisioning_action"],
+    ]);
+    expect(config.uniqueConstraints.map(({ columns, name }) => [
+      name,
+      columns.map((column) => column.name),
+    ])).toEqual([
+      ["uq_connector_call_phase", ["correlation_id", "attempt", "phase"]],
+    ]);
+    expect(config.checks.map(({ name, value }) => [
+      name,
+      renderJournalSql(value),
+    ])).toEqual([
+      ["connector_call_attempt_check", "attempt >= 1"],
+      ["connector_call_summary_check", "jsonb_typeof(summary) = 'object'"],
+      ["connector_call_classification_check", "(phase = 'requested' AND classification IS NULL) OR (phase = 'succeeded' AND classification IS NOT NULL AND classification = 'success') OR (phase = 'failed' AND classification IS NOT NULL AND classification IN ('rate_limited', 'provider_error', 'client_error'))"],
+      ["connector_call_sync_action_check", "operation IN ('provision', 'deprovision') OR provisioning_action_id IS NULL"],
+    ]);
+    expect(config.indexes.map(({ config: index }) => [
+      index.name,
+      index.columns.map((column) => "name" in column ? column.name : undefined),
+      index.unique,
+      index.where ? renderJournalSql(index.where) : null,
+    ])).toEqual([
+      ["uq_connector_call_terminal", ["correlation_id", "attempt"], true, "phase IN ('succeeded', 'failed')"],
+      ["idx_connector_call_vendor_account", ["vendor_account_id"], false, null],
+      ["idx_connector_call_action", ["provisioning_action_id"], false, null],
+      ["idx_connector_call_correlation", ["correlation_id"], false, null],
+      ["idx_connector_call_operation", ["operation"], false, null],
+      ["idx_connector_call_occurred_at", ["occurred_at"], false, null],
+    ]);
+    expect(connectorCallObservation.operation.enumValues).toEqual([
+      "provision",
+      "deprovision",
+      "sync_members",
+      "sync_activity",
+      "sync_cost",
+    ]);
+    expect(connectorCallObservation.phase.enumValues).toEqual([
+      "requested",
+      "succeeded",
+      "failed",
+    ]);
+  });
+
+  test("release and central verification reject newline-commented validation", async () => {
+    const fixture = await createPostgresFixture();
+    fixtures.push(fixture);
+    await fixture.migrate();
+    const owner = await fixture.connectAsOwner();
+    const app = await fixture.connectAsApp();
+    const accountId = "00000000-0000-0000-0000-000000000457";
+    const verify = () => promisify(execFile)(process.execPath, ["scripts/verify-schema.mjs"], {
+      env: { ...process.env, DATABASE_ADMIN_URL: fixture.ownerUrl, DATABASE_URL: fixture.appUrl },
+    });
+    try {
+      expect((await verify()).stdout).toContain("✓ ledger_app has the exact least-privilege runtime grant matrix");
+      await owner.query(`INSERT INTO vendor (id, name, connector_type, provisioning_protocol, can_provision,
+        can_deprovision, has_usage_data, has_cost_data, identity_matching, status, created_at, created_by)
+        VALUES ($1, 'Whitespace fixture', 'api', 'rest', true, true, true, true, 'email', 'active',
+          '2026-09-06', '00000000-0000-0000-0000-000000000001')`, [accountId]);
+      await owner.query(`INSERT INTO vendor_account (id, vendor_id, name, mode, low_pool_floor, status, created_at, created_by)
+        VALUES ($1, $1, 'Whitespace fixture', 'automated', 0, 'active', '2026-09-06',
+          '00000000-0000-0000-0000-000000000001')`, [accountId]);
+      const insertNonsequential = () => app.query(`INSERT INTO connector_call_observation
+        (vendor_account_id, correlation_id, operation, attempt, phase, summary, occurred_at)
+        VALUES ($1, $1, 'sync_members', 2, 'requested', '{}', '2026-09-06') RETURNING attempt`, [accountId]);
+      await expect(insertNonsequential()).rejects.toMatchObject({ code: "23514" });
+      const sourceRows = await owner.query<{ prosrc: string }>(
+        "SELECT prosrc FROM pg_proc WHERE oid = 'public.validate_connector_call_observation()'::regprocedure",
+      );
+      const permissiveSource = sourceRows.rows[0]!.prosrc.replace(/(--[^\n]*\n[\s\S]*?)(?=\n  RETURN NEW;)/,
+        (validation) => validation.replaceAll("\n", " "));
+      await owner.query(`CREATE OR REPLACE FUNCTION public.validate_connector_call_observation()
+        RETURNS trigger LANGUAGE plpgsql AS $tampered$${permissiveSource}$tampered$`);
+      expect((await insertNonsequential()).rows).toEqual([{ attempt: 2 }]);
+      const directory = new URL("./migrations/", import.meta.url);
+      const assertions = await Promise.all((await readdir(directory))
+        .filter((filename) => filename.includes("__verify_connector_call_observation"))
+        .sort().map((filename) => readFile(new URL(filename, directory), "utf8")));
+      await expect.soft(owner.query(assertions.join("\n"))).rejects.toMatchObject({
+        code: "P0001", message: "connector call validator source mismatch",
+      });
+      await expect.soft(verify()).rejects.toMatchObject({
+        code: 1, stderr: expect.stringContaining("connector call validator source mismatch"),
+      });
+    } finally {
+      await Promise.all([owner.end(), app.end()]);
+    }
+  }, 150_000);
+
+  test("release verification rejects journal catalog and enforcement drift", async () => {
+    const fixture = await createPostgresFixture();
+    fixtures.push(fixture);
+    await fixture.migrate();
+    const owner = await fixture.connectAsOwner();
+    try {
+      const columns = await owner.query(`SELECT column_name, udt_name, is_nullable
+        FROM information_schema.columns WHERE table_name = 'connector_call_observation' ORDER BY ordinal_position`);
+      expect(columns.rows.map(({ column_name, udt_name, is_nullable }) => [column_name, udt_name, is_nullable])).toEqual([
+        ["id", "uuid", "NO"], ["vendor_account_id", "uuid", "NO"], ["provisioning_action_id", "uuid", "YES"],
+        ["correlation_id", "uuid", "NO"], ["operation", "connector_call_operation_enum", "NO"], ["attempt", "int4", "NO"],
+        ["phase", "connector_call_phase_enum", "NO"], ["classification", "text", "YES"], ["summary", "jsonb", "NO"], ["occurred_at", "timestamptz", "NO"],
+      ]);
+      const enums = await owner.query(`SELECT typname, array_agg(enumlabel ORDER BY enumsortorder)::text[] AS values
+        FROM pg_type JOIN pg_enum ON enumtypid = pg_type.oid
+        WHERE typname IN ('connector_call_operation_enum', 'connector_call_phase_enum') GROUP BY typname ORDER BY typname`);
+      expect(enums.rows).toEqual([
+        { typname: "connector_call_operation_enum", values: ["provision", "deprovision", "sync_members", "sync_activity", "sync_cost"] },
+        { typname: "connector_call_phase_enum", values: ["requested", "succeeded", "failed"] },
+      ]);
+      const release = await owner.query(`SELECT filename FROM ledger_schema_migrations WHERE filename LIKE 'V20260804120%' ORDER BY filename`);
+      expect(release.rows.slice(-3)).toEqual([
+        { filename: "V20260804120200__connector_call_observation.sql" },
+        { filename: "V20260804120300__verify_connector_call_observation.sql" },
+        { filename: "V20260804120400__verify_connector_call_observation_source.sql" },
+      ]);
+      const verifier = await readFile(new URL("./migrations/V20260804120300__verify_connector_call_observation.sql", import.meta.url), "utf8");
+      const mutations = [
+        "DROP TABLE connector_call_observation",
+        "ALTER TABLE connector_call_observation ALTER COLUMN summary DROP NOT NULL",
+        "ALTER TYPE connector_call_phase_enum RENAME VALUE 'failed' TO 'failure'",
+        "ALTER TABLE connector_call_observation DROP CONSTRAINT connector_call_attempt_check",
+        "ALTER TABLE connector_call_observation DROP CONSTRAINT connector_call_observation_vendor_account_id_fkey",
+        "ALTER TABLE connector_call_observation DROP CONSTRAINT uq_connector_call_phase",
+        "DROP INDEX uq_connector_call_terminal",
+        "DROP INDEX idx_connector_call_operation",
+        "ALTER TABLE connector_call_observation DISABLE TRIGGER trg_connector_call_validate",
+        "ALTER TABLE connector_call_observation DISABLE TRIGGER trg_connector_call_append_only",
+        "CREATE OR REPLACE FUNCTION validate_connector_call_observation() RETURNS trigger LANGUAGE plpgsql AS 'BEGIN RETURN NEW; END'",
+        "GRANT UPDATE ON connector_call_observation TO ledger_app",
+        "GRANT SELECT ON connector_call_observation TO PUBLIC",
+        "ALTER FUNCTION validate_connector_call_observation() STABLE",
+        "GRANT EXECUTE ON FUNCTION validate_connector_call_observation() TO PUBLIC",
+      ];
+      for (const mutation of mutations) {
+        await owner.query("BEGIN");
+        try {
+          await owner.query(mutation);
+          await expect(owner.query(verifier)).rejects.toMatchObject({ code: "P0001" });
+        } finally {
+          await owner.query("ROLLBACK");
+        }
+      }
+      const verify = () => promisify(execFile)(process.execPath, ["scripts/verify-schema.mjs"], {
+        env: { ...process.env, DATABASE_ADMIN_URL: fixture.ownerUrl, DATABASE_URL: fixture.appUrl },
+      });
+      expect((await verify()).stdout).toContain("✓");
+      await owner.query("ALTER TABLE connector_call_observation DISABLE TRIGGER trg_connector_call_validate");
+      await expect(verify()).rejects.toMatchObject({ code: 1 });
+    } finally {
+      await owner.end();
+    }
+  }, 150_000);
+
   test("commits exact requested and succeeded evidence and leaves every invalid journal mutation rejected", async () => {
+    const { createConnectorCallObservationAppender } =
+      await loadConnectorCallObservations();
     const fixture = await createPostgresFixture();
     fixtures.push(fixture);
     await fixture.migrate();
@@ -203,6 +426,7 @@ describe("US-057 PostgreSQL connector-call observation appender", () => {
     const journal = createConnectorCallObservationAppender(fixture.appUrl);
     const owner = await fixture.connectAsOwner();
     const app = await fixture.connectAsApp();
+    let journalClosed = false;
     try {
       await journal.append(requested());
       expect((await owner.query(
@@ -298,12 +522,231 @@ describe("US-057 PostgreSQL connector-call observation appender", () => {
       }) as never)).rejects.toMatchObject({ code: "23514" });
       await expect(app.query("UPDATE connector_call_observation SET summary = '{}'::jsonb")).rejects.toMatchObject({ code: "42501" });
       await expect(app.query("DELETE FROM connector_call_observation")).rejects.toMatchObject({ code: "42501" });
+      await journal.close();
+      journalClosed = true;
+      await expect(journal.append(requested())).rejects.toThrowError(
+        "Cannot use a pool after calling end on the pool",
+      );
     } finally {
-      await Promise.all([journal.close(), owner.end(), app.end()]);
+      await Promise.all([
+        journalClosed || typeof journal?.close !== "function"
+          ? undefined
+          : journal.close(),
+        owner.end(),
+        app.end(),
+      ]);
+    }
+  }, 150_000);
+
+  test("enforces immutable sequential account-bound and tenant-attributable evidence", async () => {
+    const fixture = await createPostgresFixture();
+    fixtures.push(fixture);
+    await fixture.migrate();
+    await seedObservationContext(fixture);
+    const owner = await fixture.connectAsOwner();
+    const app = await fixture.connectAsApp();
+    const insert = (overrides: Record<string, unknown> = {}) => {
+      const row = {
+        vendor_account_id: ids.account,
+        provisioning_action_id: ids.action,
+        correlation_id: ids.integrityCorrelation,
+        operation: "provision",
+        attempt: 1,
+        phase: "requested",
+        classification: null,
+        summary: "{}",
+        occurred_at: occurredAt,
+        ...overrides,
+      };
+      return app.query(
+        `INSERT INTO connector_call_observation (${Object.keys(row).join(",")})
+         VALUES (${Object.keys(row).map((_, index) => `$${index + 1}`).join(",")})
+         RETURNING attempt, phase`,
+        Object.values(row),
+      );
+    };
+
+    try {
+      for (const invalid of [
+        { attempt: 0 },
+        { attempt: 2 },
+        { phase: "succeeded", classification: "success" },
+        { classification: "success" },
+        { summary: "[]" },
+        { summary: "null" },
+        { operation: "sync_members" },
+        { vendor_account_id: ids.otherAccount },
+      ]) {
+        await expect(insert(invalid)).rejects.toMatchObject({ code: "23514" });
+      }
+
+      await expect(insert()).resolves.toMatchObject({
+        rows: [{ attempt: 1, phase: "requested" }],
+      });
+      for (const invalid of [
+        { attempt: 3 },
+        { attempt: 2, operation: "deprovision" },
+        { attempt: 2, provisioning_action_id: null },
+        {
+          attempt: 2,
+          provisioning_action_id: null,
+          vendor_account_id: ids.otherAccount,
+        },
+        { phase: "succeeded", classification: null },
+        { phase: "succeeded", classification: "provider_error" },
+        { phase: "failed", classification: "success" },
+        { phase: "failed", classification: "unknown" },
+      ]) {
+        await expect(insert(invalid)).rejects.toMatchObject({ code: "23514" });
+      }
+      await expect(insert()).rejects.toMatchObject({ code: "23514" });
+      await expect(insert({
+        phase: "failed",
+        classification: "rate_limited",
+      })).resolves.toMatchObject({ rows: [{ attempt: 1, phase: "failed" }] });
+      await expect(insert({
+        phase: "succeeded",
+        classification: "success",
+      })).rejects.toMatchObject({ code: "23514" });
+      await expect(insert({ attempt: 2 })).resolves.toMatchObject({
+        rows: [{ attempt: 2, phase: "requested" }],
+      });
+      await expect(insert({
+        attempt: 2,
+        phase: "succeeded",
+        classification: "success",
+      })).resolves.toMatchObject({
+        rows: [{ attempt: 2, phase: "succeeded" }],
+      });
+      await expect(insert({
+        correlation_id: ids.syncCorrelation,
+        operation: "sync_cost",
+        provisioning_action_id: null,
+      })).resolves.toMatchObject({
+        rows: [{ attempt: 1, phase: "requested" }],
+      });
+
+      await owner.query(
+        `INSERT INTO company (id, name, code, type, status, created_at, created_by)
+         VALUES ($1, 'Other Journal Company', 'JOURNAL-OTHER', 'internal', 'active', now(), $2)`,
+        [ids.otherCompany, systemUserId],
+      );
+      await owner.query(
+        `INSERT INTO person (id, email, full_name, company_id, status, created_at, created_by)
+         VALUES ($1, 'other-journal@example.test', 'Other Journal Person', $2, 'active', now(), $3)`,
+        [ids.otherPerson, ids.otherCompany, systemUserId],
+      );
+      await owner.query(
+        `INSERT INTO license_request (id, request_no, person_id, company_id, vendor_account_id,
+           license_type_id, state, justification, created_at, created_by)
+         VALUES ($1, 'REQ-JOURNAL-OTHER', $2, $3, $4, $5, 'active', 'fixture', now(), $6)`,
+        [
+          ids.otherRequest,
+          ids.otherPerson,
+          ids.otherCompany,
+          ids.otherAccount,
+          ids.licenseType,
+          systemUserId,
+        ],
+      );
+      await owner.query(
+        `INSERT INTO provisioning_action
+           (id, request_id, vendor_account_id, kind, mode, status, created_at)
+         VALUES ($1, $2, $3, 'invite', 'automated', 'pending', now())`,
+        [ids.otherAction, ids.otherRequest, ids.otherAccount],
+      );
+      await expect(insert({
+        correlation_id: ids.otherCorrelation,
+        provisioning_action_id: ids.otherAction,
+      })).rejects.toMatchObject({ code: "23514" });
+      await expect(insert({
+        correlation_id: ids.otherCorrelation,
+        provisioning_action_id: ids.otherAction,
+        vendor_account_id: ids.otherAccount,
+      })).resolves.toMatchObject({
+        rows: [{ attempt: 1, phase: "requested" }],
+      });
+
+      const attributedTo = async (companyId: string) =>
+        (await app.query<{ correlation_id: string }>(
+          `SELECT DISTINCT observation.correlation_id
+             FROM connector_call_observation observation
+             JOIN provisioning_action action
+               ON action.id = observation.provisioning_action_id
+             JOIN license_request request ON request.id = action.request_id
+            WHERE request.company_id = $1
+            ORDER BY observation.correlation_id`,
+          [companyId],
+        )).rows;
+      expect(await attributedTo(ids.company)).toEqual([
+        { correlation_id: ids.integrityCorrelation },
+      ]);
+      expect(await attributedTo(ids.otherCompany)).toEqual([
+        { correlation_id: ids.otherCorrelation },
+      ]);
+
+      const appPid = (await app.query<{ pid: number }>(
+        "SELECT pg_backend_pid() AS pid",
+      )).rows[0]!.pid;
+      await owner.query("BEGIN");
+      await owner.query(
+        `INSERT INTO connector_call_observation
+           (vendor_account_id, provisioning_action_id, correlation_id,
+            operation, attempt, phase, summary, occurred_at)
+         VALUES ($1, $2, $3, 'provision', 3, 'requested', '{}', $4)`,
+        [ids.account, ids.action, ids.integrityCorrelation, occurredAt],
+      );
+      const terminal = insert({
+        attempt: 3,
+        phase: "succeeded",
+        classification: "success",
+      });
+      try {
+        await expect.poll(async () => (await owner.query<{ count: number }>(
+          `SELECT count(*)::int AS count
+             FROM pg_locks
+            WHERE pid = $1 AND locktype = 'advisory' AND NOT granted`,
+          [appPid],
+        )).rows[0]!.count).toBe(1);
+      } finally {
+        await owner.query("COMMIT");
+      }
+      await expect(terminal).resolves.toMatchObject({
+        rows: [{ attempt: 3, phase: "succeeded" }],
+      });
+
+      for (const statement of [
+        "UPDATE connector_call_observation SET summary = '{}'::jsonb",
+        "DELETE FROM connector_call_observation",
+      ]) {
+        await expect(app.query(statement)).rejects.toMatchObject({ code: "42501" });
+        await expect(owner.query(statement)).rejects.toMatchObject({ code: "55000" });
+      }
+      await expect(app.query(
+        "TRUNCATE connector_call_observation",
+      )).rejects.toMatchObject({ code: "42501" });
+      expect((await app.query(
+        `SELECT attempt, phase
+           FROM connector_call_observation
+          WHERE correlation_id = $1
+          ORDER BY attempt, CASE phase WHEN 'requested' THEN 0 ELSE 1 END`,
+        [ids.integrityCorrelation],
+      )).rows).toEqual([
+        { attempt: 1, phase: "requested" },
+        { attempt: 1, phase: "failed" },
+        { attempt: 2, phase: "requested" },
+        { attempt: 2, phase: "succeeded" },
+        { attempt: 3, phase: "requested" },
+        { attempt: 3, phase: "succeeded" },
+      ]);
+    } finally {
+      await Promise.all([owner.end(), app.end()]);
     }
   }, 150_000);
 
   test("binds the real Anthropic transport lifecycle to committed fail-closed journal evidence", async () => {
+    const { createConnectorCallObservationAppender } =
+      await loadConnectorCallObservations();
     const [
       { createAnthropicConnectorObservationBridge },
       { createAnthropicRequestExecutor },
@@ -573,7 +1016,10 @@ describe("US-057 PostgreSQL connector-call observation appender", () => {
           "GRANT INSERT ON connector_call_observation TO ledger_app",
         );
       }
-      await Promise.all([journal.close(), observerConnection.end()]);
+      await Promise.all([
+        typeof journal?.close === "function" ? journal.close() : undefined,
+        observerConnection.end(),
+      ]);
     }
   }, 150_000);
 });
