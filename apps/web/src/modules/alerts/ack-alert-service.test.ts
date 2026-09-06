@@ -8,7 +8,10 @@ import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { LedgerAuthorization } from "../identity-access/authorization";
-import { ackAlertWithAuthorization } from "./ack-alert-service";
+import {
+  ackAlertWithAuthorization,
+  createAckAlertAction,
+} from "./ack-alert-service";
 
 let fixture: PostgresFixture;
 let readPool: pg.Pool;
@@ -166,5 +169,64 @@ describe("ackAlertWithAuthorization", () => {
     const acknowledgedAt = Date.parse(result.acknowledgedAt);
     expect(acknowledgedAt).toBeGreaterThanOrEqual(before);
     expect(acknowledgedAt).toBeLessThanOrEqual(after);
+  });
+});
+
+describe("createAckAlertAction", () => {
+  it("rejects a missing database URL before loading authorization", async () => {
+    let loaderCalls = 0;
+    const action = createAckAlertAction({
+      databaseUrl: () => undefined,
+      loadAuthorization: async () => {
+        loaderCalls += 1;
+        return authorization([ids.companyA], "group_admin");
+      },
+    });
+
+    await expect(action({ alertEventId: randomUUID() })).rejects.toThrow(
+      "DATABASE_URL is required",
+    );
+    expect(loaderCalls).toBe(0);
+  });
+
+  it("returns the exact forbidden result for an unauthenticated caller", async () => {
+    const action = createAckAlertAction({
+      databaseUrl: () => fixture.appUrl,
+      loadAuthorization: async () => null,
+    });
+
+    await expect(action({ alertEventId: randomUUID() })).resolves.toEqual({
+      ok: false,
+      error: "forbidden",
+    });
+  });
+
+  it("forwards authorization, database URL, and the fixed clock to the real service", async () => {
+    const event = await seedAlertEvent();
+    const action = createAckAlertAction({
+      databaseUrl: () => fixture.appUrl,
+      loadAuthorization: async () => authorization([ids.companyA], "group_admin"),
+      now: () => new Date("2026-09-06T19:00:00.000Z"),
+    });
+
+    const result = await action({ alertEventId: event });
+
+    expect(result).toEqual({
+      ok: true,
+      acknowledgedBy: ids.actor,
+      acknowledgedAt: "2026-09-06T19:00:00.000Z",
+    });
+  });
+
+  it("propagates an authorization-loader failure without touching persistence", async () => {
+    const failure = new Error("authorization unavailable");
+    const action = createAckAlertAction({
+      databaseUrl: () => fixture.appUrl,
+      loadAuthorization: async () => {
+        throw failure;
+      },
+    });
+
+    await expect(action({ alertEventId: randomUUID() })).rejects.toBe(failure);
   });
 });

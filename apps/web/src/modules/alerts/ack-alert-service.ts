@@ -2,6 +2,26 @@ import type { LedgerAuthorization } from "../identity-access/authorization";
 import { ackAlertPolicy, type AckAlertResult } from "./ack-alert-policy";
 import { createAlertRepository } from "./repository";
 
+type AckAlertActionDependencies = Readonly<{
+  databaseUrl: () => string | undefined;
+  loadAuthorization: () => Promise<LedgerAuthorization | null>;
+  now?: () => Date;
+}>;
+
+export function createAckAlertAction(dependencies: AckAlertActionDependencies) {
+  return async (input: unknown): Promise<AckAlertResult> => {
+    const databaseUrl = dependencies.databaseUrl();
+    if (!databaseUrl) throw new Error("DATABASE_URL is required");
+    const authorization = await dependencies.loadAuthorization();
+    if (!authorization) return { ok: false, error: "forbidden" };
+    return ackAlertWithAuthorization(input, {
+      authorization,
+      databaseUrl,
+      now: dependencies.now,
+    });
+  };
+}
+
 export async function ackAlertWithAuthorization(
   input: unknown,
   context: Readonly<{
