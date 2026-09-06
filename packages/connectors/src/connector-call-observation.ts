@@ -110,7 +110,10 @@ export function createConnectorCallObservationSession(input: Readonly<{
   });
 
   let nextAttempt = 1;
-  const receipts = new Map<ConnectorAttemptReceipt, boolean>();
+  const receipts = new Map<
+    ConnectorAttemptReceipt,
+    "pending" | "completing" | "completed"
+  >();
 
   const append = async (
     attempt: number,
@@ -147,18 +150,35 @@ export function createConnectorCallObservationSession(input: Readonly<{
       }),
     );
     const receipt = Object.freeze({ attempt });
-    receipts.set(receipt, false);
+    receipts.set(receipt, "pending");
     return receipt;
   };
 
-  const assertPendingReceipt = (receipt: ConnectorAttemptReceipt): void => {
-    const completed = receipts.get(receipt);
-    if (completed === undefined) {
+  const reserveTerminalReceipt = (receipt: ConnectorAttemptReceipt): void => {
+    const state = receipts.get(receipt);
+    if (state === undefined) {
       throw new Error("Connector attempt receipt does not belong to this session");
     }
-    if (completed) {
+    if (state !== "pending") {
       throw new Error("Connector attempt receipt has already been completed");
     }
+    receipts.set(receipt, "completing");
+  };
+
+  const appendTerminal = async (
+    receipt: ConnectorAttemptReceipt,
+    phase: Exclude<ConnectorCallPhase, "requested">,
+    classification: ConnectorCallClassification,
+    summary: ConnectorCallSummary,
+  ): Promise<void> => {
+    reserveTerminalReceipt(receipt);
+    try {
+      await append(receipt.attempt, phase, classification, summary);
+    } catch (error) {
+      receipts.set(receipt, "pending");
+      throw error;
+    }
+    receipts.set(receipt, "completed");
   };
 
   const succeeded = async (
@@ -169,10 +189,9 @@ export function createConnectorCallObservationSession(input: Readonly<{
       httpStatus: number;
     }>,
   ): Promise<void> => {
-    assertPendingReceipt(receipt);
     assertHttpStatus(response.httpStatus);
-    await append(
-      receipt.attempt,
+    await appendTerminal(
+      receipt,
       "succeeded",
       "success",
       buildConnectorCallSummary({
@@ -183,7 +202,6 @@ export function createConnectorCallObservationSession(input: Readonly<{
         classification: "success",
       }),
     );
-    receipts.set(receipt, true);
   };
 
   const failed = async (
@@ -195,11 +213,10 @@ export function createConnectorCallObservationSession(input: Readonly<{
       classification: Exclude<ConnectorCallClassification, "success">;
     }>,
   ): Promise<void> => {
-    assertPendingReceipt(receipt);
     assertHttpStatus(response.httpStatus);
     assertFailureClassification(response.classification);
-    await append(
-      receipt.attempt,
+    await appendTerminal(
+      receipt,
       "failed",
       response.classification,
       buildConnectorCallSummary({
@@ -210,7 +227,6 @@ export function createConnectorCallObservationSession(input: Readonly<{
         classification: response.classification,
       }),
     );
-    receipts.set(receipt, true);
   };
 
   return Object.freeze({ correlationId, requested, succeeded, failed });

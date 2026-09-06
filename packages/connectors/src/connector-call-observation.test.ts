@@ -140,6 +140,54 @@ describe("connector call observation session", () => {
     })).rejects.toThrowError("Connector attempt receipt has already been completed");
   });
 
+  it("allows only one concurrent terminal completion to append", async () => {
+    const terminalAppends: ConnectorCallObservationAppendInput[] = [];
+    let releaseFirstTerminalAppend: (() => void) | undefined;
+    let signalFirstTerminalAppendStarted: () => void = () => undefined;
+    const firstTerminalAppendStarted = new Promise<void>((resolve) => {
+      signalFirstTerminalAppendStarted = resolve;
+    });
+    const session = createSession({
+      append: async (input) => {
+        if (input.phase === "requested") return;
+        terminalAppends.push(input);
+        if (terminalAppends.length === 1) {
+          signalFirstTerminalAppendStarted();
+          await new Promise<void>((release) => {
+            releaseFirstTerminalAppend = release;
+          });
+        }
+      },
+    });
+    const receipt = await session.requested({ endpointClass: "members", method: "GET" });
+    const succeeded = session.succeeded(receipt, {
+      endpointClass: "members",
+      method: "GET",
+      httpStatus: 200,
+    });
+
+    await firstTerminalAppendStarted;
+    const failed = session.failed(receipt, {
+      endpointClass: "members",
+      method: "GET",
+      httpStatus: 503,
+      classification: "provider_error",
+    });
+    const terminalSettlements = Promise.allSettled([succeeded, failed]);
+    releaseFirstTerminalAppend?.();
+
+    await expect(terminalSettlements).resolves.toEqual([
+      { status: "fulfilled", value: undefined },
+      {
+        status: "rejected",
+        reason: new Error("Connector attempt receipt has already been completed"),
+      },
+    ]);
+    expect(terminalAppends).toEqual([
+      expect.objectContaining({ phase: "succeeded", classification: "success" }),
+    ]);
+  });
+
   it.each([
     ["vendor account", { vendorAccountId: "not-a-uuid" }],
     ["correlation", { randomId: () => "not-a-uuid" }],

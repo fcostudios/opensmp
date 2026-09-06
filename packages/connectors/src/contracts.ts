@@ -128,11 +128,3 @@ export type ConnectorCallObservationSession = Readonly<{
     classification: Exclude<ConnectorCallClassification, "success">;
   }>): Promise<void>;
 }>;
-export declare function createConnectorCallObservationSession(input: Readonly<{
-  vendorAccountId: string;
-  provisioningActionId: string | null;
-  operation: ConnectorOperation;
-  clock: () => Date;
-  randomId: () => string;
-  append: ConnectorCallObservationAppender;
-}>): ConnectorCallObservationSession;
