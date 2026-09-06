@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import {
@@ -49,6 +49,54 @@ afterEach(async () => {
 });
 
 describe("US-003 physical schema parity", () => {
+  test("US-057 release and central verification reject newline-commented validation", async () => {
+    const fixture = await createPostgresFixture();
+    fixtures.push(fixture);
+    await fixture.migrate();
+    const owner = await fixture.connectAsOwner();
+    const app = await fixture.connectAsApp();
+    const accountId = "00000000-0000-0000-0000-000000000457";
+    const verify = () => promisify(execFile)(process.execPath, ["scripts/verify-schema.mjs"], {
+      env: { ...process.env, DATABASE_ADMIN_URL: fixture.ownerUrl, DATABASE_URL: fixture.appUrl },
+    });
+    try {
+      expect((await verify()).stdout).toContain("✓ ledger_app has the exact least-privilege runtime grant matrix");
+      await owner.query(`INSERT INTO vendor (id, name, connector_type, provisioning_protocol, can_provision,
+        can_deprovision, has_usage_data, has_cost_data, identity_matching, status, created_at, created_by)
+        VALUES ($1, 'Whitespace fixture', 'api', 'rest', true, true, true, true, 'email', 'active',
+          '2026-09-06', '00000000-0000-0000-0000-000000000001')`, [accountId]);
+      await owner.query(`INSERT INTO vendor_account (id, vendor_id, name, mode, low_pool_floor, status, created_at, created_by)
+        VALUES ($1, $1, 'Whitespace fixture', 'automated', 0, 'active', '2026-09-06',
+          '00000000-0000-0000-0000-000000000001')`, [accountId]);
+      const insertNonsequential = () => app.query(`INSERT INTO connector_call_observation
+        (vendor_account_id, correlation_id, operation, attempt, phase, summary, occurred_at)
+        VALUES ($1, $1, 'sync_members', 2, 'requested', '{}', '2026-09-06') RETURNING attempt`, [accountId]);
+      await expect(insertNonsequential()).rejects.toMatchObject({ code: "23514" });
+      const sourceRows = await owner.query<{ prosrc: string }>(
+        "SELECT prosrc FROM pg_proc WHERE oid = 'public.validate_connector_call_observation()'::regprocedure",
+      );
+      // Preserve RETURN NEW/END on real lines, but let the existing -- comment
+      // swallow the advisory lock and every validation statement before them.
+      const permissiveSource = sourceRows.rows[0]!.prosrc.replace(/(--[^\n]*\n[\s\S]*?)(?=\n  RETURN NEW;)/,
+        (validation) => validation.replaceAll("\n", " "));
+      await owner.query(`CREATE OR REPLACE FUNCTION public.validate_connector_call_observation()
+        RETURNS trigger LANGUAGE plpgsql AS $tampered$${permissiveSource}$tampered$`);
+      expect((await insertNonsequential()).rows).toEqual([{ attempt: 2 }]);
+      const directory = new URL("./migrations/", import.meta.url);
+      const assertions = await Promise.all((await readdir(directory))
+        .filter((filename) => filename.includes("__verify_connector_call_observation"))
+        .sort().map((filename) => readFile(new URL(filename, directory), "utf8")));
+      await expect.soft(owner.query(assertions.join("\n"))).rejects.toMatchObject({
+        code: "P0001", message: "connector call validator source mismatch",
+      });
+      await expect.soft(verify()).rejects.toMatchObject({
+        code: 1, stderr: expect.stringContaining("connector call validator source mismatch"),
+      });
+    } finally {
+      await Promise.all([owner.end(), app.end()]);
+    }
+  }, 150_000);
+
   test("US-057 release verification rejects journal catalog and enforcement drift", async () => {
     const fixture = await createPostgresFixture();
     fixtures.push(fixture);
@@ -70,9 +118,10 @@ describe("US-003 physical schema parity", () => {
         { typname: "connector_call_phase_enum", values: ["requested", "succeeded", "failed"] },
       ]);
       const release = await owner.query(`SELECT filename FROM ledger_schema_migrations WHERE filename LIKE 'V20260804120%' ORDER BY filename`);
-      expect(release.rows.slice(-2)).toEqual([
+      expect(release.rows.slice(-3)).toEqual([
         { filename: "V20260804120200__connector_call_observation.sql" },
         { filename: "V20260804120300__verify_connector_call_observation.sql" },
+        { filename: "V20260804120400__verify_connector_call_observation_source.sql" },
       ]);
       const verifier = await readFile(new URL("./migrations/V20260804120300__verify_connector_call_observation.sql", import.meta.url), "utf8");
       const mutations = [

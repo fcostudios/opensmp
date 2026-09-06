@@ -1737,10 +1737,14 @@ export async function verifyMigratedSchema({
     }
     // Reuse the immutable release assertion after rejecting role escalation paths.
     // Its catalog reads are available to ledger_app; it also checks effective grants.
-    await application.query(await readFile(new URL(
-      "../src/migrations/V20260804120300__verify_connector_call_observation.sql",
-      import.meta.url,
-    ), "utf8"));
+    for (const filename of [
+      "V20260804120300__verify_connector_call_observation.sql",
+      "V20260804120400__verify_connector_call_observation_source.sql",
+    ]) {
+      await application.query(await readFile(new URL(
+        `../src/migrations/${filename}`, import.meta.url,
+      ), "utf8"));
+    }
 
     const grants = await application.query(`
       WITH application_tables AS (
