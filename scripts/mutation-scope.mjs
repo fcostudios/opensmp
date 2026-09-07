@@ -962,6 +962,18 @@ const EXACT_FRAMEWORK_ADAPTERS = {
 };
 
 const EXACT_FRAMEWORK_ADAPTER_SOURCES = new Set(Object.keys(EXACT_FRAMEWORK_ADAPTERS));
+const EXACT_DELEGATION_ADAPTERS = {
+  "apps/web/src/modules/request-workflow/transition-core.ts": {
+    sha256: "aea60b8e4eb6b5c7cfe39aa99d104c6b1bd72318d52c9eb50243857f17c2dcc1",
+  },
+  "apps/web/src/modules/vendor-catalog/credential-crypto.ts": {
+    sha256: "7ba858cb6007c2866d8f1f1156dcdc01f1aec6e2606bd0eaf319512b64aee6bb",
+  },
+  "apps/worker/src/connector-composition.ts": {
+    sha256: "47426fc164c73ac6f6fb5738e19696dd47bdeaf79c6a0efcbb607d54e5f0769b",
+  },
+};
+const EXACT_DELEGATION_ADAPTER_SOURCES = new Set(Object.keys(EXACT_DELEGATION_ADAPTERS));
 
 /**
  * Audit exact Next.js composition roots whose remaining code solely binds
@@ -984,6 +996,28 @@ export function classifyExactFrameworkAdapter(source, contents, requestedRanges 
   return {
     ranges: requestedRanges.map((target) => ({ target, reason: "exact-source-hash" })),
     reason: "verification-only:exact-framework-adapter",
+    source,
+    verifiedMutationRanges: [...requestedRanges],
+  };
+}
+
+/** Audit an extraction-only adapter whose business mutation moved into a
+ * separately scored shared implementation. Its exact source hash prevents a
+ * call, argument, authorization, notification, or control-flow edit from
+ * being mislabeled as verification-only. */
+export function classifyExactDelegationAdapter(source, contents, requestedRanges = []) {
+  const spec = EXACT_DELEGATION_ADAPTERS[source];
+  if (!spec) throw new Error("exact delegation adapter wrong scope");
+  if (sha256(contents) !== spec.sha256) throw new Error("exact delegation adapter changed");
+  for (const target of requestedRanges) {
+    const range = rangeParts(target);
+    if (range.source !== source || range.start < 1 || range.end > lineCount(contents)) {
+      throw new Error("exact delegation adapter range escapes source");
+    }
+  }
+  return {
+    ranges: requestedRanges.map((target) => ({ target, reason: "exact-source-hash" })),
+    reason: "verification-only:exact-delegation-adapter",
     source,
     verifiedMutationRanges: [...requestedRanges],
   };
@@ -1101,6 +1135,19 @@ export function verificationAuditsForReport(
       JSON.stringify([...shard.mutate].sort())
     ) throw new Error("page wiring incomplete or extra mutation range set");
     return [audit];
+  }
+  const delegationSources = shard.sources.filter((source) =>
+    EXACT_DELEGATION_ADAPTER_SOURCES.has(source));
+  if (delegationSources.length > 0) {
+    if (shard.sources.length !== 1 || delegationSources.length !== 1) {
+      throw new Error("exact delegation adapter cannot share a verification-only shard");
+    }
+    const source = delegationSources[0];
+    return [classifyExactDelegationAdapter(
+      source,
+      readFileSync(source, "utf8"),
+      shard.mutate.filter((range) => rangeParts(range).source === source),
+    )];
   }
   return shard.mutate.map((range) => {
     const change = allHunks.find((candidate) =>
@@ -1537,6 +1584,9 @@ export const DIRECT_TEST_ROUTES = {
   ],
   "apps/web/src/modules/request-workflow/transition-core.ts": [
     "apps/web/src/modules/request-workflow/service.integration.test.ts",
+  ],
+  "apps/web/src/modules/vendor-catalog/credential-crypto.ts": [
+    "apps/web/src/modules/vendor-catalog/credential-crypto-adapter.test.ts",
   ],
   "apps/worker/src/connector-composition.ts": [
     "apps/worker/src/connector-composition.test.ts",

@@ -19,6 +19,7 @@ import {
   DIRECT_TEST_ROUTES,
   classifyPageWiringBundle,
   classifyPoolSnapshotProjectionBundle,
+  classifyExactDelegationAdapter,
   classifyExactFrameworkAdapter,
   classifyVerificationOnlyHunk,
   controlledChildEnvironment,
@@ -98,6 +99,85 @@ const alertActionsAudit = classifyExactFrameworkAdapter(
   readFileSync(alertActionsSource, "utf8"),
 );
 assert.equal(alertActionsAudit.reason, "verification-only:exact-framework-adapter");
+const transitionCoreSource = "apps/web/src/modules/request-workflow/transition-core.ts";
+const transitionCoreContents = readFileSync(transitionCoreSource, "utf8");
+const transitionCoreAudit = classifyExactDelegationAdapter(
+  transitionCoreSource,
+  transitionCoreContents,
+  [`${transitionCoreSource}:5-5`, `${transitionCoreSource}:74-76`],
+);
+assert.equal(transitionCoreAudit.reason, "verification-only:exact-delegation-adapter");
+assert.deepEqual(transitionCoreAudit.verifiedMutationRanges, [
+  `${transitionCoreSource}:5-5`,
+  `${transitionCoreSource}:74-76`,
+]);
+for (const changed of [
+  transitionCoreContents.replace(
+    "expectedCompanyId: request.companyId",
+    "expectedCompanyId: command.requestId",
+  ),
+  transitionCoreContents.replace(
+    "await applyRequestTransitionInTransaction(transaction, command, {",
+    "invokeUnscoredBusinessRule();\n  await applyRequestTransitionInTransaction(transaction, command, {",
+  ),
+]) {
+  assert.throws(
+    () => classifyExactDelegationAdapter(transitionCoreSource, changed),
+    /exact delegation adapter changed/,
+  );
+}
+assert.throws(
+  () => classifyExactDelegationAdapter("apps/web/src/other.ts", transitionCoreContents),
+  /exact delegation adapter wrong scope/,
+);
+for (const [source, changedToken] of [
+  [
+    "apps/web/src/modules/vendor-catalog/credential-crypto.ts",
+    ["decryptCredential,", "decryptOtherCredential,"],
+  ],
+  [
+    "apps/worker/src/connector-composition.ts",
+    ["createAnthropicConnector", "createOtherConnector"],
+  ],
+]) {
+  const contents = readFileSync(source, "utf8");
+  assert.equal(
+    classifyExactDelegationAdapter(source, contents).reason,
+    "verification-only:exact-delegation-adapter",
+  );
+  assert.throws(
+    () => classifyExactDelegationAdapter(
+      source,
+      contents.replace(changedToken[0], changedToken[1]),
+    ),
+    /exact delegation adapter changed/,
+  );
+}
+for (const source of [
+  transitionCoreSource,
+  "apps/web/src/modules/vendor-catalog/credential-crypto.ts",
+  "apps/worker/src/connector-composition.ts",
+]) {
+  const audits = verificationAuditsForReport(
+    { files: {} },
+    { id: `zero-${source}`, sources: [source], mutate: [`${source}:1-1`] },
+    [],
+  );
+  assert.equal(audits.length, 1);
+  assert.equal(audits[0].reason, "verification-only:exact-delegation-adapter");
+}
+assert.throws(
+  () => verificationAuditsForReport(
+    { files: {} },
+    {
+      id: "mixed-delegation",
+      sources: [transitionCoreSource, "packages/db/src/request-transition.ts"],
+      mutate: [`${transitionCoreSource}:1-1`],
+    },
+    [],
+  ),
+  /exact delegation adapter cannot share/,
+);
 for (const [before, after] of [
   ["loadAuthorization: loadCurrentLedgerAuthorization", "loadAuthorization: async () => null"],
   ["databaseUrl: () => process.env.DATABASE_URL", "databaseUrl: () => undefined"],
@@ -607,6 +687,11 @@ assert.deepEqual(
   DIRECT_TEST_ROUTES["apps/web/src/modules/request-workflow/transition-core.ts"],
   ["apps/web/src/modules/request-workflow/service.integration.test.ts"],
   "the shared lifecycle transition wrapper must retain its real-PostgreSQL accountability route",
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["apps/web/src/modules/vendor-catalog/credential-crypto.ts"],
+  ["apps/web/src/modules/vendor-catalog/credential-crypto-adapter.test.ts"],
+  "the credential re-export adapter must remain separate from its scored shared implementation",
 );
 assert.deepEqual(
   DIRECT_TEST_ROUTES["apps/worker/src/connector-composition.ts"],
