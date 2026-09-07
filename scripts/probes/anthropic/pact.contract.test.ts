@@ -62,14 +62,22 @@ const credentials: readonly AnthropicCredentialCandidate[] = Object.freeze([
 type KeyKind = "admin" | "analytics";
 
 function contractHeaders(keyKind: KeyKind): TemplateHeaders {
-  const key = `contract-${keyKind}-key`;
   return {
     accept: "application/json",
     "anthropic-version": "2023-06-01",
     "x-api-key": regex(
-      `^${key}$`,
-      key,
+      "^contract-(admin|analytics)-key$",
+      `contract-${keyKind}-key`,
     ),
+  };
+}
+
+function connectorContractHeaders(keyKind: KeyKind): TemplateHeaders {
+  const key = `contract-${keyKind}-key`;
+  return {
+    accept: "application/json",
+    "anthropic-version": "2023-06-01",
+    "x-api-key": regex(`^${key}$`, key),
   };
 }
 
@@ -143,7 +151,7 @@ function connectorInteraction(
     withRequest: {
       ...interaction.request,
       headers: {
-        ...contractHeaders(interaction.keyKind),
+        ...connectorContractHeaders(interaction.keyKind),
         ...interaction.request.headers,
       },
     },
@@ -1076,6 +1084,9 @@ afterAll(() => {
   expect(
     new Set(contract.interactions?.map(({ description }) => description)).size,
   ).toBe(12);
+  expect(JSON.stringify(contract)).toContain(
+    "^contract-(admin|analytics)-key$",
+  );
   const connectorContract = JSON.parse(
     readFileSync(connectorContractPath, "utf8"),
   ) as { interactions?: Array<{ description?: string }> };
@@ -1085,6 +1096,12 @@ afterAll(() => {
       connectorContract.interactions?.map(({ description }) => description),
     ).size,
   ).toBe(22);
+  const connectorContractJson = JSON.stringify(connectorContract);
+  expect(connectorContractJson).toContain("^contract-admin-key$");
+  expect(connectorContractJson).toContain("^contract-analytics-key$");
+  expect(connectorContractJson).not.toContain(
+    "^contract-(admin|analytics)-key$",
+  );
   rmSync(pactDirectory, { recursive: true, force: true });
   rmSync(connectorPactDirectory, { recursive: true, force: true });
 });
