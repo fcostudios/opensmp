@@ -26,6 +26,12 @@ The delivery gives `CLAUDE.md` trailer `775530…` while `CODEX.md`, `.cursorrul
 
 The reconciler's resulting SHA-256 replaces `REVIEWED_RECONCILER_SHA256`; the adjacent comment records both reviewed deltas: one closed eight-path final layer and strict per-file trailer preservation. No other reconciliation behavior changes.
 
+## Commit ownership
+
+The immutable layer is intentionally named for parent CHG-049, while implementation authority belongs to official ready child CHG-051. Current ownership extraction unions work IDs found anywhere in changed paths with IDs from the commit message. That makes the storage path `infra/scripts/overrides/CHG-049/6466f60/…` falsely require executable readiness from the `partition_required` parent and makes a normal child commit impossible.
+
+Overlay-storage identifiers are provenance coordinates, not implementation-owner claims. CHG-051 excludes work IDs found only beneath `infra/scripts/overrides/<CHG>/<layer>/` from the path-derived owner set. The commit message still must provide a ready work ID, ordinary work-ID-bearing paths retain union ownership, and `exactOverlayOwns` remains unchanged for later generated-target transitions. A focused Git fixture proves a CHG-051 message can carry a CHG-049-named overlay and that omitting the ready message owner still fails.
+
 ## Verification and failure handling
 
 The existing check is the first red test: before registration, `pnpm check:generated-guidance` names all eight unknown hashes. A focused mirror fixture with equal bodies and distinct valid trailers is the second red test: the old whole-file mirror rule incorrectly schedules all three mirrors for replacement. After registration and the narrowed invariant, the focused suite and generated-guidance check must pass without changing live files. Manifest integrity is independently checked by recomputing all source and desired hashes. Isolated copies with an unlisted hash or malformed trailer must still fail, proving neither the overlay nor trailer handling becomes a wildcard.
@@ -34,4 +40,4 @@ After adversarial review and every fix, run `pnpm check`, then the one cache-cle
 
 ## Approved scope
 
-The independent pre-implementation review exposed the masked mirror and fixture-loader requirements, so the CHG-051 readiness payload is revised before any implementation. The corrected design is confined to the nine overlay files, the reconciler registration and mirror invariant, the focused reconciler test file, and the reviewed-hash pin: twelve implementation paths total.
+Independent review exposed the masked mirror and fixture-loader requirements before the first implementation pass. The normal commit hook then exposed the parent-path ownership defect before any bypass was used. The final corrected design is confined to the nine overlay files, the reconciler registration and mirror invariant, the focused reconciler test file, the work-readiness ownership regression, and the reviewed-hash pin: thirteen implementation paths total.

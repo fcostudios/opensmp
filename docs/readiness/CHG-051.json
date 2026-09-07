@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "06ca15641018eafd59966321708056ce926b66fa1d157b085834050e908cd47e",
+  "readiness_payload_sha256": "674d376b35b96c2394d6a6e07d2346836f4d54b3c5791b747a7eecbe9f2e411c",
   "work_id": "CHG-051",
   "kind": "CHG",
   "work_type": "technical",
@@ -9,8 +9,8 @@
   "outcomes": [
     {
       "id": "O1",
-      "statement": "The tenant reconciler accepts the exact eight regenerated guidance files through an immutable CHG-049 overlay, preserves each protected mirror's own emitted trailer while synchronizing its guidance body, and continues to fail closed for unknown generated states.",
-      "demo": "Verify the manifest and eight desired copies bind the carried bytes, focused fixtures load the new final layer, the three protected mirrors retain their distinct emitted trailers while matching CLAUDE.md's body, REVIEWED_RECONCILER_SHA256 matches the reviewed script, generated-guidance reconciliation and lint pass, and unknown or malformed generated states remain rejected.",
+      "statement": "The tenant reconciler accepts the exact eight regenerated guidance files through an immutable CHG-049 overlay, preserves each protected mirror's own emitted trailer while synchronizing its guidance body, permits the ready official child to own the parent-named overlay path, and continues to fail closed for unknown generated states.",
+      "demo": "Verify the manifest and eight desired copies bind the carried bytes, focused fixtures load the new final layer, the three protected mirrors retain their distinct emitted trailers while matching CLAUDE.md's body, a CHG-051-only commit containing infra/scripts/overrides/CHG-049 passes ownership while an ownerless commit still fails, REVIEWED_RECONCILER_SHA256 matches the reviewed script, generated-guidance reconciliation and lint pass, and unknown or malformed generated states remain rejected.",
       "primary": true
     }
   ],
@@ -41,7 +41,7 @@
   "signals": {
     "routes_or_screens": 0,
     "acceptance_flows": 3,
-    "expected_changed_files": 12,
+    "expected_changed_files": 13,
     "expected_mutation_shards": 1,
     "lifecycle_or_concurrency_boundaries": 0,
     "external_integrations": 0,
@@ -51,11 +51,11 @@
   },
   "estimate_minutes": {
     "readiness": 10,
-    "implementation": 40,
-    "focused_verification": 30,
-    "review": 20,
+    "implementation": 45,
+    "focused_verification": 35,
+    "review": 25,
     "integration": 5,
-    "total": 105
+    "total": 120
   },
   "uncertainties": [
     {
@@ -85,16 +85,23 @@
       "status": "resolved",
       "estimate_impact_minutes": 20,
       "resolution": "It does not. The current CHG-024 mirror algorithm overwrites each whole mirror with CLAUDE.md and would surface three new diffs after the eight pinned errors clear. Keep the synchronized body contract but preserve and strictly validate each mirror's single terminal nous-emitted trailer. Add red/green focused tests and make the existing fixture loader copy CHG-049, bringing the child to 12 implementation paths while remaining below every hard limit."
+    },
+    {
+      "id": "U5",
+      "statement": "Whether CHG-051 can commit the required overlay under infra/scripts/overrides/CHG-049 when ownership extraction treats every work ID embedded in a changed path as an implementation owner.",
+      "status": "resolved",
+      "estimate_impact_minutes": 15,
+      "resolution": "It cannot under the current path-union rule: both normal commit attempts reject partition-required CHG-049 even when the message names only ready child CHG-051. Add one focused scripts/test-work-readiness.mjs regression, then exclude work IDs occurring only in immutable overlay-storage paths from implementation-owner extraction. The message still must name an approved ready owner, generated-target transitions still require exact registered overlay ownership, and ordinary work-ID-bearing paths keep their existing union behavior. This raises scope to 13 paths without crossing a hard limit."
     }
   ],
   "dependencies": [],
   "decision": "ready",
   "partitions": [],
   "approval": {
-    "status": "approved",
-    "approved_by": "Francisco Lomas",
-    "evidence": "CHG051-READY-MIRRORS",
-    "payload_sha256": "06ca15641018eafd59966321708056ce926b66fa1d157b085834050e908cd47e"
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "674d376b35b96c2394d6a6e07d2346836f4d54b3c5791b747a7eecbe9f2e411c"
   },
   "actuals": null,
   "policy_bootstrap": false,

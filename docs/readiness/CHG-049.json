@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "d74e333512d2b5125d5301ffa094f0a51795440ffaedcc78aa8f489e1d0252b5",
+  "readiness_payload_sha256": "146bb5ddc9db8fe6379cb7c12b2c1b44de18998da40361a6f186841c3017acf9",
   "work_id": "CHG-049",
   "kind": "CHG",
   "work_type": "technical",
@@ -53,7 +53,7 @@
   "signals": {
     "routes_or_screens": 0,
     "acceptance_flows": 5,
-    "expected_changed_files": 29,
+    "expected_changed_files": 30,
     "expected_mutation_shards": 1,
     "lifecycle_or_concurrency_boundaries": 0,
     "external_integrations": 0,
@@ -63,11 +63,11 @@
   },
   "estimate_minutes": {
     "readiness": 15,
-    "implementation": 50,
-    "focused_verification": 40,
-    "review": 30,
+    "implementation": 55,
+    "focused_verification": 45,
+    "review": 35,
     "integration": 10,
-    "total": 145
+    "total": 160
   },
   "uncertainties": [
     {
@@ -75,7 +75,7 @@
       "statement": "Whether CHG-049 fits the repository's hard changed-file and acceptance-flow limits as one executable item.",
       "status": "resolved",
       "estimate_impact_minutes": 10,
-      "resolution": "It does not: the exact scope is 29 paths and five independently testable flows. The work is therefore partition_required into a 17-path delivery-carry child and a 12-path overlay-registration child. The twelfth overlay-child path is the existing focused reconciler test file required to load and verify the new final layer."
+      "resolution": "It does not: the exact scope is 30 paths and five independently testable flows. The work is therefore partition_required into a 17-path delivery-carry child and a 13-path overlay-registration child. The overlay child includes the focused reconciler fixture and the work-readiness ownership regression required because the parent-named overlay directory must not make non-executable CHG-049 an implementation owner."
     },
     {
       "id": "U2",
@@ -90,6 +90,13 @@
       "status": "resolved",
       "estimate_impact_minutes": 5,
       "resolution": "Keep the unpushed commits and clean worktree intact while readiness is decided. After official child IDs and child approvals exist, repair the local commit sequence so the delivery is owned by the technical child, then recreate US-058 from the clean post-CHG-049 base."
+    },
+    {
+      "id": "U4",
+      "statement": "Whether the reviewed overlay can preserve distinct protected-document provenance and be committed by its official child despite the parent ID embedded in its storage path.",
+      "status": "resolved",
+      "estimate_impact_minutes": 35,
+      "resolution": "Preserve and strictly validate one terminal emitted trailer per mirror while synchronizing bodies, load the new layer in focused fixtures, and make immutable overlay-storage IDs ownership-neutral while retaining a mandatory ready message owner and unchanged exact generated-target authorization. Focused red/green tests bring the child to 13 paths."
     }
   ],
   "dependencies": [],
@@ -145,7 +152,7 @@
       "work_id": "CHG-051",
       "title": "Register the eight-file CHG-049 immutable overlay",
       "outcome": "The tenant reconciler recognizes the exact regenerated guidance bytes through a reviewed immutable overlay and continues to fail closed for unknown states.",
-      "demo": "Run generated-guidance reconciliation, lint, and both child readiness checks successfully; verify the CHG-049 manifest binds all eight desired files, each protected mirror retains its own emitted trailer while matching CLAUDE.md's body, the reconciler layer is registered, and REVIEWED_RECONCILER_SHA256 matches the reviewed reconciler bytes.",
+      "demo": "Run generated-guidance reconciliation, lint, commit-ownership fixtures, and both child readiness checks successfully; verify the CHG-049 manifest binds all eight desired files, each protected mirror retains its own emitted trailer while matching CLAUDE.md's body, a ready official child can commit the parent-named overlay without making the partition parent an owner, and REVIEWED_RECONCILER_SHA256 matches the reviewed reconciler bytes.",
       "acceptance_criteria": [
         "AC2",
         "AC3",
@@ -159,7 +166,7 @@
       "signals": {
         "routes_or_screens": 0,
         "acceptance_flows": 3,
-        "expected_changed_files": 12,
+        "expected_changed_files": 13,
         "expected_mutation_shards": 1,
         "lifecycle_or_concurrency_boundaries": 0,
         "external_integrations": 0,
@@ -174,15 +181,29 @@
           "status": "resolved",
           "estimate_impact_minutes": 5,
           "resolution": "Order this child after carry-delivery. Its own demo verifies the manifest, desired copies, reconciler registration, reviewed hash, and fail-closed checks against the already-carried bytes."
+        },
+        {
+          "id": "U4",
+          "statement": "Whether protected mirror files can remain generator-byte-stable when their valid emitted trailers differ from CLAUDE.md's trailer.",
+          "status": "resolved",
+          "estimate_impact_minutes": 20,
+          "resolution": "Synchronize the guidance body and preserve each mirror's own exactly-one valid terminal trailer; focused tests cover byte stability, body repair, and malformed trailer rejection."
+        },
+        {
+          "id": "U5",
+          "statement": "Whether the ready child can commit an immutable overlay whose provenance path contains the partition parent's ID.",
+          "status": "resolved",
+          "estimate_impact_minutes": 15,
+          "resolution": "Exclude IDs occurring only in strict overlay-storage paths from path-derived implementation owners, require a ready message owner, retain ordinary path union semantics, and prove all three boundaries in scripts/test-work-readiness.mjs."
         }
       ],
       "estimate_minutes": {
         "readiness": 10,
-        "implementation": 40,
-        "focused_verification": 30,
-        "review": 20,
+        "implementation": 45,
+        "focused_verification": 35,
+        "review": 25,
         "integration": 5,
-        "total": 105
+        "total": 120
       },
       "depends_on": [
         "carry-delivery"
@@ -191,10 +212,10 @@
     }
   ],
   "approval": {
-    "status": "approved",
-    "approved_by": "Francisco Lomas",
-    "evidence": "CHG049-PARTITION-MIRRORS",
-    "payload_sha256": "d74e333512d2b5125d5301ffa094f0a51795440ffaedcc78aa8f489e1d0252b5"
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "146bb5ddc9db8fe6379cb7c12b2c1b44de18998da40361a6f186841c3017acf9"
   },
   "actuals": null,
   "policy_bootstrap": false,
