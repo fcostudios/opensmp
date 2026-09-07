@@ -90,7 +90,24 @@
     "evidence": "CHG053-READY",
     "payload_sha256": "d8b2a47cf8178854e96129d52b1dd0c58d3b3c33600ee0a3a4061cdebe955a76"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 6,
+      "implementation": 88,
+      "focused_verification": 0,
+      "review": 5,
+      "integration": 0
+    },
+    "total": 99,
+    "changed_files": 13,
+    "commits": 3,
+    "review_fix_loops": 2,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "estimate_variance_minutes": -31,
+    "root_cause": "Measured from lifecycle/base commit c8980e095b61398b23e6d3edb0e0a623ec25d68a at 2026-09-07T10:03:23-05:00 through the reviewed implementation commit 3b59de94974cb7266ac04b3ecaa1d6c7fb942d20 at 2026-09-07T11:42:26-05:00, rounding non-overlapping Git intervals to the nearest minute: readiness 6 minutes through the initial red-contract commit 75b2f6937bc09b74f065758465e0adc7e3b78c45; review 5 minutes through the strengthened-contract fix 95d3d0c454e25bdd311cd6b44bdede4a5bf158ee; and implementation 88 minutes through the combined 13-path delivery/overlay commit, including interleaved focused verification, two independent reviews, the source-state-bound mirror-framing repair, and the final full pnpm check. No independent Git cutoff separates focused verification or integration, so those phases remain zero instead of inventing precision. git diff --name-only authority/chg-053-base..3b59de9 reports exactly 13 implementation paths and git rev-list --count reports three item commits. Two review-fix loops strengthened artifact/frame/guidance oracles and closed the collective-header-removal fallback. The single cache-cleared diff campaign used MUTATION_BASE=authority/chg-053-base, selected zero mutatable files, exited successfully in under one second, and rounds to zero mutation minutes. Variance is 99 - 130 = -31 minutes."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
