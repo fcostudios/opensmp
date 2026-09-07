@@ -104,9 +104,11 @@ describe("Anthropic policy-bound request execution", () => {
     ["members", undefined, "https://api.anthropic.com/v1/organizations/users?limit=1000"],
     ["invites", { continuation: { kind: "after_id", value: "member / one" } }, "https://api.anthropic.com/v1/organizations/invites?limit=1000&after_id=member+%2F+one"],
     ["analytics_users", { observedOn: "2026-09-06", continuation: { kind: "page", value: "opaque / one" } }, "https://api.anthropic.com/v1/organizations/analytics/users?date=2026-09-06&page=opaque+%2F+one"],
+    ["analytics_users", { observedOn: "2026-09-06", continuation: { kind: "page", value: "página-😀" } }, "https://api.anthropic.com/v1/organizations/analytics/users?date=2026-09-06&page=p%C3%A1gina-%F0%9F%98%80"],
     ["analytics_summaries", { observedOn: "2026-09-06" }, "https://api.anthropic.com/v1/organizations/analytics/summaries?date=2026-09-06"],
     ["user_usage_report", { observedOn: "2026-09-06" }, "https://api.anthropic.com/v1/organizations/analytics/user_usage_report?starting_at=2026-09-06T00%3A00%3A00Z&ending_at=2026-09-07T00%3A00%3A00Z&bucket_width=1d&limit=1"],
     ["user_cost_report", { observedOn: "2026-09-06", continuation: { kind: "page", value: "next" } }, "https://api.anthropic.com/v1/organizations/analytics/user_cost_report?starting_at=2026-09-06T00%3A00%3A00Z&ending_at=2026-09-07T00%3A00%3A00Z&bucket_width=1d&limit=1&page=next"],
+    ["user_cost_report", { observedOn: "9999-12-30" }, "https://api.anthropic.com/v1/organizations/analytics/user_cost_report?starting_at=9999-12-30T00%3A00%3A00Z&ending_at=9999-12-31T00%3A00%3A00Z&bucket_width=1d&limit=1"],
   ] as const)("constructs the closed %s query from allowlisted fields", async (endpoint, query, expectedUrl) => {
     // Mutations killed: dropping a fixed key, changing continuation family, or copying raw query fields changes the URL.
     const requests: Request[] = [];
@@ -135,6 +137,9 @@ describe("Anthropic policy-bound request execution", () => {
     ["invalid calendar date", "analytics_users", { observedOn: "2026-02-30" }],
     ["blank cursor", "members", { continuation: { kind: "after_id", value: "   " } }],
     ["control cursor", "members", { continuation: { kind: "after_id", value: "next\npage" } }],
+    ["lone high-surrogate cursor", "analytics_users", { observedOn: "2026-09-06", continuation: { kind: "page", value: "next\uD800" } }],
+    ["lone low-surrogate cursor", "analytics_users", { observedOn: "2026-09-06", continuation: { kind: "page", value: "next\uDC00" } }],
+    ["unrepresentable exclusive next day", "user_cost_report", { observedOn: "9999-12-31" }],
     ["Admin cursor on Analytics", "analytics_users", { observedOn: "2026-09-06", continuation: { kind: "after_id", value: "next" } }],
     ["Analytics cursor on Admin", "members", { continuation: { kind: "page", value: "next" } }],
     ["cursor on non-paginated endpoint", "organization", { continuation: { kind: "page", value: "next" } }],

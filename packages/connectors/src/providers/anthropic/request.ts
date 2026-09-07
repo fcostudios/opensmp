@@ -155,7 +155,26 @@ function observedOn(value: unknown): string {
 function followingDay(value: string): string {
   const date = new Date(`${value}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + 1);
-  return date.toISOString().slice(0, 10);
+  const iso = date.toISOString();
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(iso)) {
+    throw new Error("Invalid Anthropic request query exclusive next day.");
+  }
+  return iso.slice(0, 10);
+}
+
+function isWellFormedUtf16(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const codeUnit = value.charCodeAt(index);
+    if (codeUnit >= 0xD800 && codeUnit <= 0xDBFF) {
+      if (index + 1 >= value.length) return false;
+      const following = value.charCodeAt(index + 1);
+      if (following < 0xDC00 || following > 0xDFFF) return false;
+      index += 1;
+    } else if (codeUnit >= 0xDC00 && codeUnit <= 0xDFFF) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function requestQuery(
@@ -204,6 +223,7 @@ function requestQuery(
       || typeof continuation.value !== "string"
       || continuation.value.trim().length === 0
       || unsafeQueryCharacter.test(continuation.value)
+      || !isWellFormedUtf16(continuation.value)
     ) {
       throw new Error("Invalid Anthropic request query continuation.");
     }
