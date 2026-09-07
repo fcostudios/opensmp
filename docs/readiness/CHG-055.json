@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "5eb8cb30b6c6e855c0c6e1ace70ab31bfd9c0e5b52a051959db3f06939217c8d",
+  "work_id": "CHG-055",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Register the 2026-09-07 PM authorization-guidance refresh and three-file immutable overlay",
+  "source": "Nous change ledger CHG-055",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The exact five-path PM substrate refresh is carried under technical ownership, the three emitted guidance states are admitted through one immutable overlay, and tenant authorization guidance remains sourced only from the matching local extension files.",
+      "demo": "Verify the five delivered paths retain their substrate bytes, a closed CHG-055 manifest binds the exact DEFINITION_OF_DONE.md, SECURITY.md, and STANDARDS.md transitions, the reconciler review hash matches, generated-guidance and lint are green, and AGENTS.md remains untouched.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": ["O1"]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": ["O1"]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": ["O1"]
+    }
+  ],
+  "scopes": ["docs", "infra", "tooling"],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 12,
+    "expected_mutation_shards": 1,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 10,
+    "implementation": 45,
+    "focused_verification": 30,
+    "review": 25,
+    "integration": 10,
+    "total": 120
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Whether all three unknown generated states have one exact predecessor in the current overlay chain.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "All three current repository blobs equal the CHG-049 desired artifacts. Source the new transitions from those immutable files and bind the exact delivered hashes in a final CHG-055 layer."
+    },
+    {
+      "id": "U2",
+      "statement": "Whether the refresh mixes a product authorization implementation with tenant tooling.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "It changes guidance only. No application authorization logic, route, schema, migration, or story is modified; the database-authorization wording is substrate documentation carried by a technical overlay."
+    },
+    {
+      "id": "U3",
+      "statement": "Whether preserving tenant additions requires editing the emitted files after delivery.",
+      "status": "resolved",
+      "estimate_impact_minutes": 5,
+      "resolution": "Preserve the exact delivered local/SECURITY.md and local/STANDARDS.md bytes. Future tenant edits occur only there; emitted SECURITY.md and STANDARDS.md remain immutable generated outputs."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "5eb8cb30b6c6e855c0c6e1ace70ab31bfd9c0e5b52a051959db3f06939217c8d"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
