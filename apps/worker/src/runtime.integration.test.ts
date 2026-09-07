@@ -12,6 +12,7 @@ import type { WorkerRuntime } from "./runtime.js";
 type RuntimeModule = typeof import("./runtime.js");
 
 let createWorkerRuntime: RuntimeModule["createWorkerRuntime"];
+let resolveCredentialKekFile: RuntimeModule["resolveCredentialKekFile"];
 let PG_BOSS_RUNTIME_SECURITY: RuntimeModule["PG_BOSS_RUNTIME_SECURITY"];
 
 let fixture: PostgresFixture;
@@ -21,7 +22,11 @@ beforeEach(async () => {
   // Runtime schedules are initialized at module load, so load them after
   // Stryker activates the current static mutant.
   vi.resetModules();
-  ({ createWorkerRuntime, PG_BOSS_RUNTIME_SECURITY } = await import("./runtime.js"));
+  ({
+    createWorkerRuntime,
+    resolveCredentialKekFile,
+    PG_BOSS_RUNTIME_SECURITY,
+  } = await import("./runtime.js"));
 });
 
 async function queryAsOwner<T extends pg.QueryResultRow>(text: string, values?: unknown[]): Promise<pg.QueryResult<T>> {
@@ -136,6 +141,16 @@ afterAll(async () => {
 });
 
 describe("US-046 worker runtime with real PostgreSQL", () => {
+  it("resolves the injected or environmental KEK path and rejects blank configuration", () => {
+    expect(resolveCredentialKekFile(undefined, {})).toBeUndefined();
+    expect(resolveCredentialKekFile("/run/ledger-secrets/credential-kek", {}))
+      .toBe("/run/ledger-secrets/credential-kek");
+    expect(resolveCredentialKekFile(undefined, {
+      LEDGER_CREDENTIAL_KEK_FILE: "  /run/ledger-secrets/from-env  ",
+    })).toBe("/run/ledger-secrets/from-env");
+    expect(() => resolveCredentialKekFile("   ", {})).toThrow("must not be blank");
+  });
+
   it("starts migration-disabled under ledger_app, reconciles every queue and schedule, and cannot create schema objects", async () => {
     expect(PG_BOSS_RUNTIME_SECURITY).toEqual({
       createSchema: false,

@@ -114,6 +114,19 @@ export type WorkerRuntimeOptions = {
   smtpUrl?: string;
 };
 
+export function resolveCredentialKekFile(
+  value: string | undefined,
+  environment: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  const configured = value ?? environment.LEDGER_CREDENTIAL_KEK_FILE;
+  if (configured === undefined) return undefined;
+  const normalized = configured.trim();
+  if (normalized.length === 0) {
+    throw new TypeError("LEDGER_CREDENTIAL_KEK_FILE must not be blank");
+  }
+  return normalized;
+}
+
 export function createWorkerRuntime(options: WorkerRuntimeOptions): WorkerRuntime {
   const logger = options.logger ?? createJobLogger();
   const now = options.now ?? (() => new Date());
@@ -152,7 +165,7 @@ export function createWorkerRuntime(options: WorkerRuntimeOptions): WorkerRuntim
   const handlers = {
     ...createDeferredJobHandlers(options.calendar, {
       connectionString: options.connectionString,
-      credentialKekFile: options.credentialKekFile,
+      credentialKekFile: resolveCredentialKekFile(options.credentialKekFile),
       mailer: options.notificationMailer,
       workerId: instanceId,
     }),

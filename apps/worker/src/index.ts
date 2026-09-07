@@ -37,7 +37,6 @@ async function main(): Promise<void> {
   runtime = createWorkerRuntime({
     calendar: createEcuadorBusinessCalendar(),
     connectionString: createWorkerConnectionString(),
-    credentialKekFile: process.env.LEDGER_CREDENTIAL_KEK_FILE,
     publicOrigin: process.env.LEDGER_PUBLIC_URL ?? process.env.PUBLIC_ORIGIN,
     smtpUrl: process.env.SMTP_URL,
     onFatalError: async () => {

@@ -52,7 +52,7 @@ that production credential decryption and lifecycle persistence are currently
 web-local; the first PostgreSQL RED test then proved that the least-privilege
 runtime lacked the required `vendor_ref` grant, and runtime inspection proved
 cron payloads are coordinator-shaped. The cohesive implementation may
-therefore touch these thirty-one paths without changing a table shape. The
+therefore touch these thirty paths without changing a table shape. The
 first cold campaign then stopped before mutant creation because five shared or
 composition-root sources lacked explicit accountability routes; its minimal
 repair adds only the mutation router and its contract test:
@@ -75,19 +75,18 @@ repair adds only the mutation router and its contract test:
 16. `packages/db/src/migrations/V20260907210200__automated_invite_vendor_reference_grant.sql`
 17. `packages/db/src/migrations/V20260907210300__verify_automated_invite_vendor_reference_grant.sql`
 18. `apps/worker/src/runtime.ts`
-19. `apps/worker/src/index.ts`
-20. `apps/web/src/modules/vendor-catalog/credential-crypto.test.ts`
-21. `apps/worker/src/runtime.integration.test.ts`
-22. `packages/connectors/src/providers/anthropic/connector.ts`
-23. `packages/connectors/src/providers/anthropic/connector.test.ts`
-24. `docs/superpowers/specs/2026-09-07-us-063-automated-invite-delivery-design.md`
-25. `docs/superpowers/plans/2026-09-07-us-063-automated-invite-delivery.md`
-26. `apps/worker/src/connector-composition.ts`
-27. `eslint.provider-boundary.config.mjs`
-28. `packages/connectors/src/source-boundary.ts`
-29. `packages/connectors/src/dispatch.test.ts`
-30. `scripts/mutation-scope.mjs`
-31. `scripts/test-mutation-scope.mjs`
+19. `apps/web/src/modules/vendor-catalog/credential-crypto.test.ts`
+20. `apps/worker/src/runtime.integration.test.ts`
+21. `packages/connectors/src/providers/anthropic/connector.ts`
+22. `packages/connectors/src/providers/anthropic/connector.test.ts`
+23. `docs/superpowers/specs/2026-09-07-us-063-automated-invite-delivery-design.md`
+24. `docs/superpowers/plans/2026-09-07-us-063-automated-invite-delivery.md`
+25. `apps/worker/src/connector-composition.ts`
+26. `eslint.provider-boundary.config.mjs`
+27. `packages/connectors/src/source-boundary.ts`
+28. `packages/connectors/src/dispatch.test.ts`
+29. `scripts/mutation-scope.mjs`
+30. `scripts/test-mutation-scope.mjs`
 
 Package exports stay explicit. The append-only permission migration is recorded
 by the timestamped deviation event; it grants only `vendor_ref` and its verifier
