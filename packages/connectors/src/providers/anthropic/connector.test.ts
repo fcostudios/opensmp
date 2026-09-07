@@ -287,6 +287,30 @@ describe("Anthropic neutral connector", () => {
     expect(cancellations).toBe(1);
   });
 
+  it("deprovisions exactly one matching invitation through the invite endpoint", async () => {
+    // Mutations killed: selecting the member branch or dropping the invitation match targets the wrong resource.
+    const seen: string[] = [];
+    const { connector } = fixture(async (request) => {
+      const path = new URL(request.url).pathname;
+      seen.push(`${request.method} ${path}`);
+      if (path.endsWith("/users")) return json(idPage([]));
+      if (path.endsWith("/invites")) return json(idPage([invite("invite-1", "target@example.test")]));
+      return new Response(null, { status: 204 });
+    });
+
+    expect(await successValue(connector.deprovision({
+      requestId: REQUEST,
+      vendorAccountId: ACCOUNT,
+      personEmail: "target@example.test",
+      licenseTypeName: "Claude",
+    }))).toEqual({ vendorRef: "invite-1" });
+    expect(seen).toEqual([
+      "GET /v1/organizations/users",
+      "GET /v1/organizations/invites",
+      "DELETE /v1/organizations/invites/invite-1",
+    ]);
+  });
+
   it("rejects a provider ID collision before destructive or sync consumption through dispatch", async () => {
     // Mutations killed: checking only email uniqueness lets one provider identity map to conflicting actors or DELETE.
     const methods: string[] = [];
@@ -403,6 +427,39 @@ describe("Anthropic neutral connector", () => {
     expect({ memberCalls, inviteCalls }).toEqual({ memberCalls: 100, inviteCalls: 1 });
   });
 
+  it("uses each provider ID cursor and combines only terminal member pages", async () => {
+    // Mutations killed: dropping either cursor or page data loses provider members without surfacing a failure.
+    const seen: string[] = [];
+    const { connector } = fixture(async (request) => {
+      const url = new URL(request.url);
+      seen.push(`${url.pathname}?${url.searchParams.toString()}`);
+      const afterId = url.searchParams.get("after_id");
+      if (url.pathname.endsWith("/users")) {
+        return afterId === null
+          ? json(idPage([member("u1", "a@example.test")], true, "member-next"))
+          : json(idPage([member("u2", "b@example.test")]));
+      }
+      return afterId === null
+        ? json(idPage([invite("i1", "c@example.test")], true, "invite-next"))
+        : json(idPage([invite("i2", "d@example.test")]));
+    });
+
+    expect(await successValue(connector.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW }))).toEqual({
+      members: [
+        { email: "a@example.test", active: true },
+        { email: "b@example.test", active: true },
+        { email: "c@example.test", active: false },
+        { email: "d@example.test", active: false },
+      ],
+    });
+    expect(seen).toEqual([
+      "/v1/organizations/users?limit=1000",
+      "/v1/organizations/users?limit=1000&after_id=member-next",
+      "/v1/organizations/invites?limit=1000",
+      "/v1/organizations/invites?limit=1000&after_id=invite-next",
+    ]);
+  });
+
   it.each([
     ["repeated", "same", 2],
     ["missing", "", 1],
@@ -475,6 +532,164 @@ describe("Anthropic neutral connector", () => {
       .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
   });
 
+  it("excludes non-pending invitations from the neutral member snapshot", async () => {
+    // Mutations killed: weakening the pending-state conjunction registers accepted or expired invitations as members.
+    const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/users")
+      ? json(idPage([]))
+      : json(idPage([
+        invite("pending", "pending@example.test"),
+        { ...invite("accepted", "accepted@example.test"), status: "accepted" },
+      ])));
+    expect(await successValue(connector.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW }))).toEqual({
+      members: [{ email: "pending@example.test", active: false }],
+    });
+  });
+
+  it("rejects a normalized email shared by a member and invitation", async () => {
+    // Mutations killed: omitting normalized-email uniqueness duplicates one person across provider collections.
+    const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/users")
+      ? json(idPage([member("u", "Person@Example.test")]))
+      : json(idPage([invite("i", "person@example.test")])));
+    expect(await connector.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW }))
+      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+  });
+
+  it.each([
+    {
+      name: "null ID-page envelope",
+      operation: "members",
+      stage: "members",
+      body: null,
+      expectedPaths: ["/v1/organizations/users"],
+    },
+    {
+      name: "null cost result",
+      operation: "cost",
+      stage: "cost",
+      body: opaquePage([{ ...cost("u", null), results: [null] }]),
+      expectedPaths: ["/v1/organizations/analytics/user_usage_report", "/v1/organizations/analytics/user_cost_report"],
+    },
+    {
+      name: "numeric cost amount",
+      operation: "cost",
+      stage: "cost",
+      body: opaquePage([{ ...cost("u", null), results: [{ amount: 100, list_amount: "100", currency: "USD" }] }]),
+      expectedPaths: ["/v1/organizations/analytics/user_usage_report", "/v1/organizations/analytics/user_cost_report"],
+    },
+    {
+      name: "whitespace-only member name",
+      operation: "members",
+      stage: "members",
+      body: idPage([{ ...member("u", "a@example.test"), name: "  " }]),
+      expectedPaths: ["/v1/organizations/users"],
+    },
+    {
+      name: "invalid second cost result for a null-email actor",
+      operation: "cost",
+      stage: "cost",
+      usageBody: opaquePage([usage("u", null)]),
+      body: opaquePage([{
+        ...cost("u", null),
+        results: [
+          { amount: "100", list_amount: "100", currency: "USD" },
+          { amount: "100", list_amount: "100", currency: "EUR" },
+        ],
+      }]),
+      expectedPaths: ["/v1/organizations/analytics/user_usage_report", "/v1/organizations/analytics/user_cost_report"],
+    },
+    {
+      name: "malformed usage ID",
+      operation: "cost",
+      stage: "usage",
+      body: opaquePage([usage("", "a@example.test")]),
+      expectedPaths: ["/v1/organizations/analytics/user_usage_report"],
+    },
+    {
+      name: "null summaries envelope",
+      operation: "activity",
+      stage: "summaries",
+      body: null,
+      expectedPaths: ["/v1/organizations/analytics/users", "/v1/organizations/analytics/summaries"],
+    },
+    {
+      name: "null opaque-page envelope",
+      operation: "activity",
+      stage: "analytics",
+      body: null,
+      expectedPaths: ["/v1/organizations/analytics/users"],
+    },
+    {
+      name: "malformed member email",
+      operation: "members",
+      stage: "members",
+      body: idPage([member("u", "not-an-email")]),
+      expectedPaths: ["/v1/organizations/users"],
+    },
+    {
+      name: "numeric usage input tokens",
+      operation: "cost",
+      stage: "usage",
+      body: opaquePage([{ ...usage("u", "a@example.test"), input_tokens: 10 }]),
+      expectedPaths: ["/v1/organizations/analytics/user_usage_report"],
+    },
+    {
+      name: "numeric usage output tokens",
+      operation: "cost",
+      stage: "usage",
+      body: opaquePage([{ ...usage("u", "a@example.test"), output_tokens: 2 }]),
+      expectedPaths: ["/v1/organizations/analytics/user_usage_report"],
+    },
+    {
+      name: "numeric cost list amount",
+      operation: "cost",
+      stage: "cost",
+      body: opaquePage([{ ...cost("u", null), results: [{ amount: "100", list_amount: 100, currency: "USD" }] }]),
+      expectedPaths: ["/v1/organizations/analytics/user_usage_report", "/v1/organizations/analytics/user_cost_report"],
+    },
+    {
+      name: "numeric member name",
+      operation: "members",
+      stage: "members",
+      body: idPage([{ ...member("u", "a@example.test"), name: 7 }]),
+      expectedPaths: ["/v1/organizations/users"],
+    },
+    {
+      name: "empty cost results for a null-email actor",
+      operation: "cost",
+      stage: "cost",
+      usageBody: opaquePage([usage("u", null)]),
+      body: opaquePage([{ ...cost("u", null), results: [] }]),
+      expectedPaths: ["/v1/organizations/analytics/user_usage_report", "/v1/organizations/analytics/user_cost_report"],
+    },
+  ] as const)("contains malformed provider success: $name", async ({ operation, stage, body, expectedPaths, ...row }) => {
+    // Mutations killed: weakening closed-shape/type guards exposes partial provider data or reaches a later endpoint.
+    const seen: string[] = [];
+    const usageBody = "usageBody" in row ? row.usageBody : opaquePage([usage("u", "a@example.test")]);
+    const { connector } = fixture(async (request) => {
+      const path = new URL(request.url).pathname;
+      seen.push(path);
+      if (path.endsWith("/users") && !path.includes("analytics")) {
+        return json(stage === "members" ? body : idPage([]));
+      }
+      if (path.endsWith("/invites")) return json(idPage([]));
+      if (path.endsWith("/analytics/users")) {
+        return json(stage === "analytics" ? body : opaquePage([analyticsUser("u", "a@example.test")]));
+      }
+      if (path.endsWith("/summaries")) return json(stage === "summaries" ? body : { summaries: [summary()] });
+      if (path.endsWith("/user_usage_report")) return json(stage === "usage" ? body : usageBody);
+      if (path.endsWith("/user_cost_report")) return json(stage === "cost" ? body : opaquePage([cost("u", null)]));
+      throw new Error(`unexpected transport request ${request.method} ${path}`);
+    });
+    const result = operation === "members"
+      ? connector.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW })
+      : operation === "activity"
+        ? connector.syncActivity({ vendorAccountId: ACCOUNT, observedAt: NOW })
+        : connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW });
+
+    await expect(result).resolves.toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+    expect(seen).toEqual(expectedPaths);
+  });
+
   it.each([
     ["invalid date", summary("2026-02-30")],
     ["negative counter", summary("2026-09-06", -1)],
@@ -530,6 +745,25 @@ describe("Anthropic neutral connector", () => {
       .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
   });
 
+  it("rejects a duplicate analytics ID before requesting a summary", async () => {
+    // Mutations killed: allowing a duplicate provider actor reaches summary retrieval with an ambiguous identity map.
+    let summaryCalls = 0;
+    const { connector } = fixture(async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path.endsWith("/analytics/users")) {
+        return json(opaquePage([
+          analyticsUser("duplicate", "a@example.test"),
+          analyticsUser("duplicate", "b@example.test"),
+        ]));
+      }
+      summaryCalls += 1;
+      return json({ summaries: [summary()] });
+    });
+    expect(await connector.syncActivity({ vendorAccountId: ACCOUNT, observedAt: NOW }))
+      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+    expect(summaryCalls).toBe(0);
+  });
+
   it("rejects a malformed analytics user ID", async () => {
     // Mutations killed: accepting lossy opaque IDs lets ambiguous provider identities enter joins.
     const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/analytics/users")
@@ -568,6 +802,24 @@ describe("Anthropic neutral connector", () => {
       .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
   });
 
+  it("rejects a duplicate usage ID with conflicting emails before requesting cost", async () => {
+    // Mutations killed: overwriting a duplicate usage ID silently selects one of two financial identities.
+    let costCalls = 0;
+    const { connector } = fixture(async (request) => {
+      if (new URL(request.url).pathname.endsWith("/user_usage_report")) {
+        return json(opaquePage([
+          usage("duplicate", "a@example.test"),
+          usage("duplicate", "b@example.test"),
+        ]));
+      }
+      costCalls += 1;
+      return json(opaquePage([cost("duplicate", null)]));
+    });
+    expect(await connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW }))
+      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+    expect(costCalls).toBe(0);
+  });
+
   it("resolves a nullable cost email only from the matching usage actor", async () => {
     // Mutations killed: dropping the ID join loses a valid nullable-email cost actor.
     const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/user_usage_report")
@@ -581,11 +833,18 @@ describe("Anthropic neutral connector", () => {
   it("rejects malformed matching IDs across usage and cost", async () => {
     // Mutations killed: treating opaque IDs as merely nonblank allows control-bearing actors to join.
     const malformed = "user\u0000id";
-    const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/user_usage_report")
-      ? json(opaquePage([usage(malformed, "a@example.test")]))
-      : json(opaquePage([cost(malformed, null)])));
+    let costCalls = 0;
+    const { connector } = fixture(async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path.endsWith("/user_usage_report")) {
+        return json(opaquePage([usage(malformed, "a@example.test")]));
+      }
+      costCalls += 1;
+      return json(opaquePage([cost(malformed, null)]));
+    });
     expect(await connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW }))
       .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+    expect(costCalls).toBe(0);
   });
 
   it("maps aggregate money overflow to a private non-retryable failure", async () => {
