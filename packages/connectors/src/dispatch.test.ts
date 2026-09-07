@@ -383,6 +383,68 @@ describe("ConnectorDispatcher", () => {
     });
   });
 
+  it("preserves an exact frozen Anthropic provider failure through rest dispatch", async () => {
+    // Mutation caught: negating/dropping retryability or replacing raw:null in the
+    // dispatch validation wrapper changes the exact neutral failure contract.
+    const providerModule = ["./providers", "anthropic", "connector.js"].join("/");
+    const { createAnthropicConnector } = await import(providerModule);
+    const vendorAccountId = "11111111-1111-4111-8111-111111111111";
+    const observedAt = new Date("2026-09-06T12:00:00.000Z");
+    const rest = createAnthropicConnector({
+      credentialsFor: async () => [
+        {
+          vendorAccountId,
+          kind: "admin_scoped",
+          secret: "admin-secret",
+          status: "active",
+          health: "ok",
+        },
+        {
+          vendorAccountId,
+          kind: "analytics",
+          secret: "analytics-secret",
+          status: "active",
+          health: "ok",
+        },
+      ],
+      observationSessionFor: async ({ operation }: {
+        operation: "provision" | "deprovision" | "sync_members" | "sync_activity" | "sync_cost";
+      }) => createConnectorCallObservationSession({
+        vendorAccountId,
+        provisioningActionId: "33333333-3333-4333-8333-333333333333",
+        operation,
+        clock: () => observedAt,
+        randomId: () => "44444444-4444-4444-8444-444444444444",
+        append: async () => undefined,
+      }),
+      requestDependencies: {
+        clock: { now: () => observedAt.getTime() },
+        sleep: async () => undefined,
+        limiter: { acquire: async () => undefined },
+        transport: async () => new Response(
+          JSON.stringify({ type: "error", error: { type: "authentication_error" } }),
+          { status: 401, headers: { "content-type": "application/json" } },
+        ),
+      },
+    });
+    const result = await createConnectorDispatcher({ rest })
+      .forProtocol("rest")
+      .provision({
+        requestId: "22222222-2222-4222-8222-222222222222",
+        vendorAccountId,
+        personEmail: "member@example.test",
+        licenseTypeName: "Claude",
+      });
+
+    expect(result).toEqual({
+      ok: false,
+      code: "provider_error",
+      retryable: false,
+      raw: null,
+    });
+    expect(Object.isFrozen(result)).toBe(true);
+  });
+
   it.each(["rest", "scim"] as const)(
     "registers and resolves a future %s connector",
     (protocol) => {
