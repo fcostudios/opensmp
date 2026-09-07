@@ -103,7 +103,24 @@
     "evidence": "CHG051-READY-OWNERSHIP",
     "payload_sha256": "674d376b35b96c2394d6a6e07d2346836f4d54b3c5791b747a7eecbe9f2e411c"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 31,
+      "implementation": 49,
+      "focused_verification": 0,
+      "review": 8,
+      "integration": 11
+    },
+    "total": 99,
+    "changed_files": 18,
+    "commits": 5,
+    "review_fix_loops": 1,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "estimate_variance_minutes": -21,
+    "root_cause": "Measured from child-plan commit 2bb19098d91a1415c48427b2966492bce623b03d at 2026-09-06T20:59:06-05:00 through pre-campaign evidence commit 0f9cb5b0eea52e1de2c15d9c072280c4aff2a109 at 2026-09-06T22:37:37-05:00, rounding each non-overlapping Git interval to the nearest minute: readiness 31 minutes to authority/chg-051-base 26655faab3246d301c0a81cdb4747be5bd7be17b, implementation 49 minutes to initial implementation commit 59562a1c5023872534e7032decb760f65e652fae, review 8 minutes to regression repair 52931df6dffdd2518d88eb35ea38809429e236c1, and integration 11 minutes through both re-review approvals, whole-range approval, and the full green gate. Focused verification was interleaved and remains zero. git diff --name-only authority/chg-051-base..52931df reports 18 unique paths including the required readiness/design/plan revisions and 13 implementation paths; git rev-list --count authority/chg-051-base..52931df reports five reachable item commits. One review-to-fix loop added the exact ownerless-overlay regression. The single cache-cleared diff campaign ran from authority/chg-051-base at 2026-09-07T03:38:15Z in 1.2 seconds, selected zero mutatable files, and rounds to zero mutation minutes. Variance is 99 - 120 = -21 minutes."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,

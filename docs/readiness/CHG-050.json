@@ -75,7 +75,24 @@
     "evidence": "CHG050-READY",
     "payload_sha256": "26b83dda487af62fb49258cac05a9fe2b6a896408d387475ded3d69126a06f6c"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 14,
+      "implementation": 3,
+      "focused_verification": 0,
+      "review": 14,
+      "integration": 68
+    },
+    "total": 99,
+    "changed_files": 17,
+    "commits": 1,
+    "review_fix_loops": 1,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "estimate_variance_minutes": 59,
+    "root_cause": "Measured from child-plan commit 2bb19098d91a1415c48427b2966492bce623b03d at 2026-09-06T20:59:06-05:00 through pre-campaign evidence commit 0f9cb5b0eea52e1de2c15d9c072280c4aff2a109 at 2026-09-06T22:37:37-05:00, rounding each non-overlapping Git interval to the nearest minute: readiness 14 minutes to authority/chg-050-base 0d023c57794bd879e663f6c52df3c3a9e32a88e1, implementation 3 minutes to carry commit 4cb242dddfb3b54b6018c5c4f889782759610bc7, review 14 minutes to CHG-051 start 26655faab3246d301c0a81cdb4747be5bd7be17b, and integration 68 minutes through dependent overlay completion, whole-range approval, and the full green gate. Focused verification was interleaved and remains zero. git diff-tree --no-commit-id --name-only -r 4cb242d reports the exact 17 implementation paths and git rev-list --count authority/chg-050-base..4cb242d reports one item implementation commit. One review-to-fix loop adjusted only WORK_READINESS ordering before approval. The single cache-cleared diff campaign ran from authority/chg-050-base at 2026-09-07T03:37:50Z in 1.2 seconds, selected zero mutatable files, and rounds to zero mutation minutes. Variance is 99 - 40 = +59 minutes, driven by the dependent CHG-051 integration and combined full repository verification."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
