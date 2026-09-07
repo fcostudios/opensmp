@@ -50,6 +50,8 @@
 | **CHG-050** | 📦 delivered | Carry the exact 2026-09-06 Nous delivery as technical provenance | — | — |
 | **CHG-051** | 📦 delivered | Register the eight-file CHG-049 immutable overlay | — | — |
 | **CHG-052** | 📦 delivered | Reconcile the US-018 partition: retire tenant-local US-059..062 as superseded; close US-018 by parent-level verification | — | — |
+| **CHG-053** | 📦 delivered | Register the 2026-09-07 IMP-393/398 guidance refresh and two-file immutable overlay | — | — |
+| **CHG-054** | 📦 delivered | Partition US-019 (520 min > 320) into four canonical children US-063..066; parent closes by verification | US-063, US-064, US-065, US-066 | S3 |
 
 ---
 
@@ -654,4 +656,37 @@ US-018 (Anthropic connector client, 4 SP) was split on 2026-08-15 into seven
 tenant-local children US-056..062 (readi...
 
 _No stories linked to this change yet._
+
+### CHG-053: Register the 2026-09-07 IMP-393/398 guidance refresh and two-file immutable overlay
+
+**Status:** 📦 `delivered`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** # CHG-053 — Register the 2026-09-07 IMP-393/398 guidance refresh
+
+## Context
+
+The substrate refresh after IMP-393 and IMP-398 delivers seven tenant paths: `CLAUDE.md`, `CODEX.md`, `.cursorrules`, `.github/copilot-instructions.md`, `docs/dev-guide/FRONTEND.md`, `docs/dev-guide/CONTRIBUTING-GUIDANC...
+
+_No stories linked to this change yet._
+
+### CHG-054: Partition US-019 (520 min > 320) into four canonical children US-063..066; parent closes by verification
+
+**Status:** 📦 `delivered`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** # CHG-054 — Partition US-019 (520 min > 320 budget) into four canonical children US-063..066; parent closes by verification
+
+## Why
+US-019 "Automated provisioning: invite ≤ 15 min → Active" is 5 SP = 520 min at the calibrated
+104 min/SP against the 320-minute execution budget (IMP-374, ready-chec...
+
+**Stories created by this change:**
+
+| Story | Name | Sprint | Status | File |
+|-------|------|--------|--------|------|
+| **US-063** | Deliver approved requests as vendor invitations within 15 minutes | Sprint 3 | ⬜ backlog | [r1_misc_us_063.md](sprint-3/r1_misc_us_063.md) |
+| **US-064** | Route provider no-seat responses to the capacity workflow | Sprint 3 | ⬜ backlog | [r1_misc_us_064.md](sprint-3/r1_misc_us_064.md) |
+| **US-065** | Recover failed automated provisioning with an operator retry | Sprint 3 | ⬜ backlog | [r1_misc_us_065.md](sprint-3/r1_misc_us_065.md) |
+| **US-066** | Activate accepted invitations from the 15-minute membership poll | Sprint 3 | ⬜ backlog | [r1_misc_us_066.md](sprint-3/r1_misc_us_066.md) |
 

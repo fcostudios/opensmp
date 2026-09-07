@@ -22,7 +22,7 @@ As a End User (persona_05), I want to get my seat without human touch so that
 | Server Actions | retryProvisioning |
 | Entities | ProvisioningAction (CU), LicenseAssignment (C), LicenseRequest (U) |
 | Business Rules | BR-09 |
-| Blocked By | US-056, US-057, US-058, US-014, US-046, US-042 |
+| Blocked By | US-056, US-057, US-058, US-014, US-046, US-042, US-063, US-064, US-065, US-066 |
 
 ## Acceptance Criteria
 
@@ -32,5 +32,6 @@ As a End User (persona_05), I want to get my seat without human touch so that
 
 ## Notes
 
+- **CHG-054 (2026-09-07) — partitioned.** At 5 SP × 104 min/SP = 520 min this parent exceeds the 320-minute execution budget (IMP-374). Partitioned into four canonical 1-SP children from the tenant's `partition_required` assessment: US-063 (AC1 — invitation ≤ 15 min), US-064 (AC3 — no-seat routing), US-065 (AC1 — failure + `retryProvisioning`), US-066 (AC2 — acceptance poll → active + LicenseAssignment). The parent closes by parent-level verification once the children are dev_done (the US-018 / CHG-052 shape). US-059..062 are retired tombstones; the child range starts at US-063. Decision DEC-SMP-021.
 - ACs are copied verbatim from `08_scope.md` (generated 10b pass, 2026-07-22) — the scope is the single source; edit there and regenerate.
 - Sprint 3 milestone: Automation + monitoring: connector live (interface from Sprint 2, capability semantics via US-025), invite≤15min, hygiene, reclamation, drift. Beta-API risk retired here (surprise-detection already pulled to the Sprint-1 probe). Connector jobs run on Compose-secret keys (ADR-13) until US-031 lands the managed credential store in Sprint 4.
