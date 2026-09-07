@@ -766,9 +766,22 @@ describe("hardened provider boundary scanner", () => {
         composition,
         'export { factory } from "@smp/connectors/providers/anthropic/connector";',
       );
+      const probe = resolve(
+        fixtureRoot,
+        "scripts/probes/anthropic/fixture.js",
+      );
+      await mkdir(resolve(probe, ".."), { recursive: true });
+      await writeFile(probe, 'import client from "@vendor/anthropicClient";');
+      const probeNearPath = resolve(
+        fixtureRoot,
+        "scripts/probes-copy/anthropic/fixture.js",
+      );
+      await mkdir(resolve(probeNearPath, ".."), { recursive: true });
+      await writeFile(probeNearPath, 'import client from "@vendor/anthropicClient";');
 
       const violations = await scanRepositoryBoundary(fixtureRoot);
       expect(violations.map(({ reason }) => reason).sort()).toEqual([
+        "provider_token",
         "provider_token",
         "provider_token",
         "provider_token",

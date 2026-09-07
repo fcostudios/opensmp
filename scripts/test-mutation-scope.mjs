@@ -610,7 +610,7 @@ assert.deepEqual(
 );
 assert.deepEqual(
   DIRECT_TEST_ROUTES["apps/worker/src/connector-composition.ts"],
-  ["packages/connectors/src/dispatch.test.ts"],
+  ["apps/worker/src/connector-composition.test.ts"],
   "the provider composition seam must retain its exact source-boundary route",
 );
 assert.deepEqual(
