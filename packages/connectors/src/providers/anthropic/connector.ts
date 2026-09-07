@@ -158,6 +158,8 @@ function wellFormedUtf16(value: string): boolean {
 function opaqueToken(value: unknown): value is string {
   return typeof value === "string"
     && value.length > 0
+    && value !== "."
+    && value !== ".."
     && value === value.trim()
     && !/[\u0000-\u001f\u007f-\u009f]/u.test(value)
     && wellFormedUtf16(value);

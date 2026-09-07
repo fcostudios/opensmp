@@ -201,6 +201,8 @@ describe("Anthropic neutral connector", () => {
     ["member control", "member", "usr\n1"],
     ["member lone high surrogate", "member", "usr\uD800"],
     ["invite lone low surrogate", "invite", "inv\uDC00"],
+    ["member dot segment", "member", "."],
+    ["invite parent-dot segment", "invite", ".."],
   ] as const)("rejects %s before any deprovision DELETE", async (_case, kind, providerId) => {
     // Mutations killed: trimming or lossy URL encoding turns a malformed provider ID into a destructive target.
     const methods: string[] = [];
