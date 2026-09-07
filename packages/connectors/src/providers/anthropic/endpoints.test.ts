@@ -5,13 +5,27 @@ import type { AnthropicEndpoint } from "./endpoints.js";
 type EndpointModule = typeof import("./endpoints.js");
 
 let endpointPolicy: EndpointModule["endpointPolicy"];
+let anthropicFailureRetryable: EndpointModule["anthropicFailureRetryable"];
 
 describe("Anthropic endpoint policy", () => {
   beforeEach(async () => {
     // Stryker activates static mutants after collection; reload policy constants under that mutant.
     vi.resetModules();
-    ({ endpointPolicy } = await import("./endpoints.js"));
+    ({ endpointPolicy, anthropicFailureRetryable } = await import("./endpoints.js"));
   });
+
+  it.each([
+    [false, "rate_limited", false],
+    [true, "rate_limited", true],
+    [true, "provider_error", true],
+    [true, "transport_ambiguous", true],
+    [true, "client_error", false],
+  ] as const)(
+    "classifies retry safety=%s and failure=%s as retryable=%s",
+    (retrySafe, classification, expected) => {
+      expect(anthropicFailureRetryable({ retrySafe }, classification)).toBe(expected);
+    },
+  );
 
   it.each([
     ["organization", "GET", "/v1/organizations/me", "admin_scoped", ["user_management"], true],
