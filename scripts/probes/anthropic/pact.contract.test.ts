@@ -320,6 +320,7 @@ describe("Anthropic connector consumer contract", () => {
           value: { vendorRef: "invite/contract" },
           raw: null,
         });
+        if (!result.ok) throw new Error("expected connector success");
         expect(Object.isFrozen(result.value)).toBe(true);
         expectJournal(observations, ["success"]);
       },
