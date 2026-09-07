@@ -191,9 +191,9 @@
     }
   ],
   "approval": {
-    "status": "pending",
-    "approved_by": null,
-    "evidence": null,
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG049-PARTITION-MIRRORS",
     "payload_sha256": "d74e333512d2b5125d5301ffa094f0a51795440ffaedcc78aa8f489e1d0252b5"
   },
   "actuals": null,

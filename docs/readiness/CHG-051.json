@@ -91,9 +91,9 @@
   "decision": "ready",
   "partitions": [],
   "approval": {
-    "status": "pending",
-    "approved_by": null,
-    "evidence": null,
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG051-READY-MIRRORS",
     "payload_sha256": "06ca15641018eafd59966321708056ce926b66fa1d157b085834050e908cd47e"
   },
   "actuals": null,
