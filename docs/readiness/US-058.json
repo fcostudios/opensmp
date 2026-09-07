@@ -100,7 +100,24 @@
     "evidence": "US058-READY-CHG045",
     "payload_sha256": "9cba0e6945d62bcbc6a08f3cb35fdc6adcf385d5d41522773230f701a8c985df"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 4,
+      "implementation": 65,
+      "focused_verification": 34,
+      "review": 100,
+      "integration": 17
+    },
+    "total": 220,
+    "changed_files": 12,
+    "commits": 30,
+    "review_fix_loops": 11,
+    "cold_mutation_attempts": 4,
+    "mutation_invalidations": 3,
+    "mutation_minutes": 34,
+    "estimate_variance_minutes": 116,
+    "root_cause": "Measured at final pre-closure source cutoff 3df8bbc1 after the 2026-09-07T07:26:35Z authoritative campaign. Readiness used the design-to-approved-plan interval; implementation ran from the started event through the first complete feature commit; integration covered the full pre-campaign gate and disposable-database proof; focused verification contains the four non-overlapping cold campaign wall clocks (403 + 545 + 549 + 566 seconds, rounded once to 34 minutes); review contains adversarial review and each review-to-repair-to-revalidation interval. The 116-minute variance came primarily from three honest mutation invalidations: mutation-invisible module initialization in connector/request policy and an endpoint retry classifier omitted from its responsible shard. The repairs added behavioral oracles rather than lowering thresholds."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
