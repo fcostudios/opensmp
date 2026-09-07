@@ -66,7 +66,7 @@ Every TOON section has a `dataSource` (`url` + `method`). When implementing a sc
 
 - `hasMinRole(roles, minRole)` from `@/lib/auth/roles`; hierarchy is `ROLE_HIERARCHY` (generated from the nav-map RBAC).
 - The highest role sees all menu items.
-- User display name from the keycloak session — never display a raw id as identity.
+- User display name from the Auth.js with Keycloak session — never display a raw id as identity.
 - Log out via `logout()` from `@/lib/auth/logout`.
 
 ## API Client & Error Handling
@@ -82,4 +82,4 @@ Every TOON section has a `dataSource` (`url` + `method`). When implementing a sc
 - **Hardcoded redirect strings** — use route constants from `@/lib/routes`.
 - **Embedded fixture data** — fetch from the API and show an empty state if unavailable.
 - **Copied mock HTML in app code** — mocks are visual references only.
-<!-- nous-emitted: sha256=b0d90d5d3e7bed24 -->
+<!-- nous-emitted: sha256=d90c848ff0dd1283 -->

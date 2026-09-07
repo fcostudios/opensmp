@@ -115,15 +115,14 @@ def create_project(root: Path) -> None:
         path = root / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(latest_desired_guide(relative_path))
-    claude = desired_guide("CLAUDE.md").decode()
-    _, trailer = split_terminal_emitted_trailer(
+    claude_body, trailer = split_terminal_emitted_trailer(
         latest_desired_guide("CLAUDE.md")
     )
-    stale_mirror = ("<!-- stale generated mirror -->\n" + claude).encode() + trailer
+    synced_mirror = CHG053_MIRROR_HEADER + claude_body + trailer
     for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
         path = root / mirror
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(stale_mirror)
+        path.write_bytes(synced_mirror)
     write(
         root,
         "docs/dev-guide/PACKAGE_MAP.md",
@@ -196,6 +195,11 @@ def create_chg053_project(root: Path) -> None:
 
     for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
         (root / mirror).write_bytes(chg053_delivered_guide(mirror))
+    write(
+        root,
+        "docs/dev-guide/PACKAGE_MAP.md",
+        f"{EXPECTED_PACKAGE_ENTITY}\n{EXPECTED_PACKAGE_SCOPE}\n",
+    )
 
 
 TERMINAL_EMITTED_TRAILER = re.compile(
@@ -254,7 +258,7 @@ def create_chg022_drift(root: Path) -> None:
         latest_desired_guide("CLAUDE.md")
     )
     for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
-        (root / mirror).write_bytes(claude + trailer)
+        (root / mirror).write_bytes(CHG053_MIRROR_HEADER + claude + trailer)
     write(
         root,
         "docs/dev-guide/PACKAGE_MAP.md",
@@ -973,6 +977,30 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 self.assertIn("CODEX.md", result.stderr)
                 self.assertEqual(snapshot(root), before)
 
+    def test_chg053_collective_header_removal_fails_closed_without_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_chg053_project(root)
+            for relative_path in (
+                "CODEX.md",
+                ".cursorrules",
+                ".github/copilot-instructions.md",
+            ):
+                body_and_header, trailer = split_terminal_emitted_trailer(
+                    (root / relative_path).read_bytes()
+                )
+                self.assertTrue(body_and_header.startswith(CHG053_MIRROR_HEADER))
+                (root / relative_path).write_bytes(
+                    body_and_header[len(CHG053_MIRROR_HEADER) :] + trailer
+                )
+            before = snapshot(root)
+
+            result = run_reconciler(root, "--check")
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("CODEX.md", result.stderr)
+            self.assertEqual(snapshot(root), before)
+
     def test_chg053_allows_the_two_delivered_negative_tenant_id_phrases(self) -> None:
         delivered = chg053_delivered_guide("CLAUDE.md")
         self.assertIn(b"there is no `tenant_id`", delivered)
@@ -1034,7 +1062,9 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 ),
             }
             for relative_path, trailer in trailers.items():
-                (root / relative_path).write_bytes(claude_body + trailer)
+                (root / relative_path).write_bytes(
+                    CHG053_MIRROR_HEADER + claude_body + trailer
+                )
             write(
                 root,
                 "docs/dev-guide/PACKAGE_MAP.md",
@@ -1054,12 +1084,16 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             claude_body = latest_claude_body()
             mirror = root / "CODEX.md"
             trailer = b"<!-- nous-emitted: sha256=abcdef0123456789 -->\n"
-            mirror.write_bytes(b"drifted mirror body\n" + trailer)
+            mirror.write_bytes(
+                CHG053_MIRROR_HEADER + b"drifted mirror body\n" + trailer
+            )
 
             result = run_reconciler(root)
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(mirror.read_bytes(), claude_body + trailer)
+            self.assertEqual(
+                mirror.read_bytes(), CHG053_MIRROR_HEADER + claude_body + trailer
+            )
 
     def test_invalid_mirror_trailers_fail_closed_without_writes(self) -> None:
         claude_body = latest_claude_body()
@@ -1097,7 +1131,9 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 latest_desired_guide("CLAUDE.md")
             )
             for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
-                (root / mirror).write_bytes(desired_guide("CLAUDE.md") + trailer)
+                (root / mirror).write_bytes(
+                    CHG053_MIRROR_HEADER + desired_guide("CLAUDE.md") + trailer
+                )
 
             result = run_reconciler(root)
 
@@ -1107,7 +1143,9 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             )
             for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
                 self.assertEqual(
-                    (root / mirror).read_bytes(), claude_body + trailer, mirror
+                    (root / mirror).read_bytes(),
+                    CHG053_MIRROR_HEADER + claude_body + trailer,
+                    mirror,
                 )
 
     def test_mirrors_equal_the_layered_claude_guidance(self) -> None:
@@ -1125,7 +1163,11 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 ".cursorrules",
                 ".github/copilot-instructions.md",
             ):
-                self.assertEqual((root / mirror).read_bytes(), claude, mirror)
+                self.assertEqual(
+                    (root / mirror).read_bytes(),
+                    CHG053_MIRROR_HEADER + claude,
+                    mirror,
+                )
 
     def test_check_reports_a_mirror_that_drifts_from_layered_claude(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1264,7 +1306,9 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 ".cursorrules",
                 ".github/copilot-instructions.md",
             ):
-                self.assertEqual((root / mirror).read_bytes(), claude)
+                self.assertEqual(
+                    (root / mirror).read_bytes(), CHG053_MIRROR_HEADER + claude
+                )
 
     def test_desired_hash_is_noop_and_claude_drives_mirrors(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1286,7 +1330,9 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 ".cursorrules",
                 ".github/copilot-instructions.md",
             ):
-                self.assertEqual((root / mirror).read_bytes(), claude)
+                self.assertEqual(
+                    (root / mirror).read_bytes(), CHG053_MIRROR_HEADER + claude
+                )
             package_map = (root / "docs/dev-guide/PACKAGE_MAP.md").read_text(
                 encoding="utf-8"
             )
@@ -1623,6 +1669,16 @@ class ReconciliationBehaviorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             create_project(root)
+            write(
+                root,
+                "docs/dev-guide/PACKAGE_MAP.md",
+                f"{EXPECTED_PACKAGE_ENTITY}\n{EXPECTED_PACKAGE_SCOPE}\n",
+            )
+            mirror = root / "CODEX.md"
+            _, trailer = split_terminal_emitted_trailer(mirror.read_bytes())
+            mirror.write_bytes(
+                CHG053_MIRROR_HEADER + b"drifted mirror body\n" + trailer
+            )
             before = snapshot(root)
 
             result = run_reconciler(root, "--check")
@@ -1711,7 +1767,9 @@ class SyncIntegrationTests(unittest.TestCase):
                 ".cursorrules",
                 ".github/copilot-instructions.md",
             ):
-                self.assertEqual((root / mirror).read_bytes(), claude)
+                self.assertEqual(
+                    (root / mirror).read_bytes(), CHG053_MIRROR_HEADER + claude
+                )
 
 
 if __name__ == "__main__":

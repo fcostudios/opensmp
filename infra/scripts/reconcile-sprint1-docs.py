@@ -88,12 +88,19 @@ CHG049_PATHS = {
         "overrides/CHG-044/2d93300/testing/critical-paths.md"
     ),
 }
+CHG053_PATHS = {
+    "CLAUDE.md": "overrides/CHG-049/6466f60/CLAUDE.md",
+    "docs/dev-guide/FRONTEND.md": (
+        "overrides/CHG-049/6466f60/docs/dev-guide/FRONTEND.md"
+    ),
+}
 LAYERED_OVERRIDE_SPECS = (
     ("CHG-004/e4b9a06", CHG004_PATHS),
     ("CHG-022/16f72c9", CHG022_PATHS),
     ("CHG-042/fd7741f", CHG042_PATHS),
     ("CHG-044/2d93300", CHG044_PATHS),
     ("CHG-049/6466f60", CHG049_PATHS),
+    ("CHG-053/2dee869", CHG053_PATHS),
 )
 CHG005_PATHS = {
     "docs/stories/sprint-2/r1_misc_us_014.md",
@@ -133,8 +140,17 @@ FORBIDDEN_GUIDANCE = (
     re.compile(r"\bAuth0\b", re.IGNORECASE),
     re.compile(r"\bVercel\b", re.IGNORECASE),
 )
+APPROVED_NEGATIVE_TENANT_ID_PHRASES = (
+    "there is no `tenant_id`",
+    "do NOT invent `tenant_id`",
+)
 TERMINAL_EMITTED_TRAILER = re.compile(
-    r"<!-- nous-emitted: sha256=[0-9a-f]{16} -->\n?\Z"
+    r"<!-- nous-emitted: sha256=([0-9a-f]{16}) -->\n?\Z"
+)
+AGENT_SYNC_HEADER_TEMPLATE = (
+    "<!-- agent-sync: {stamp} | source: CLAUDE.md | DO NOT EDIT "
+    "— this file is auto-generated from CLAUDE.md. Edit CLAUDE.md then "
+    "run: python3 nous_agent_sync.py -->\n"
 )
 FILESYSTEM_RETRY_ATTEMPTS = 3
 TRANSACTION_DIR = ".reconcile-sprint1-transactions"
@@ -204,6 +220,29 @@ def split_terminal_emitted_trailer(
             f"{relative_path}: expected exactly one valid terminal nous-emitted trailer"
         )
     return text[: match.start()], match.group(0)
+
+
+def expected_agent_sync_header(claude_text: str) -> str:
+    _, trailer = split_terminal_emitted_trailer(claude_text, "CLAUDE.md")
+    stamp = TERMINAL_EMITTED_TRAILER.search(trailer)
+    if stamp is None:
+        raise ReconciliationError(
+            "CLAUDE.md: expected exactly one valid terminal nous-emitted trailer"
+        )
+    return AGENT_SYNC_HEADER_TEMPLATE.format(stamp=stamp.group(1)[:12])
+
+
+def split_imp393_mirror_frames(
+    text: str,
+    relative_path: str,
+    expected_header: str,
+) -> tuple[str, str]:
+    if text.count("<!-- agent-sync:") != 1 or not text.startswith(expected_header):
+        raise ReconciliationError(
+            f"{relative_path}: expected exactly one valid initial agent-sync header"
+        )
+    body_and_header, trailer = split_terminal_emitted_trailer(text, relative_path)
+    return body_and_header[len(expected_header) :], trailer
 
 
 def validate_sha256(value: object, description: str) -> str:
@@ -718,29 +757,67 @@ def build_plan(root: Path) -> dict[Path, PlanEntry]:
                 )
         desired[path] = updated
 
-    # CHG-024/CHG-051: mirror bodies track the fully layered CLAUDE.md computed
-    # above while each generated mirror retains its own provenance trailer.
-    # When CLAUDE.md is in an unknown state the loop above records an error and
-    # skips it, leaving no desired text. Mirroring is skipped too so that the
-    # recorded CLAUDE.md diagnostic is what surfaces, not a KeyError.
+    # CHG-053: mirror bodies track the fully layered CLAUDE.md computed above,
+    # between their independently validated IMP-393 agent-sync header and
+    # terminal emitted trailer. When CLAUDE.md is in an unknown state the loop
+    # above records an error and skips it, leaving no desired text. Mirroring is
+    # skipped too so that the recorded CLAUDE.md diagnostic is what surfaces,
+    # not a KeyError.
     mirrored_claude = desired.get(project_output_path(root, "CLAUDE.md"))
     mirrored_body = (
         split_terminal_emitted_trailer(mirrored_claude, "CLAUDE.md")[0]
         if mirrored_claude is not None
         else None
     )
-    for relative_path in MIRRORS if mirrored_body is not None else ():
+    expected_header = (
+        expected_agent_sync_header(mirrored_claude)
+        if mirrored_claude is not None
+        else None
+    )
+    chg053_claude_source_hash = next(
+        (
+            overrides["CLAUDE.md"][0]
+            for change_id, overrides in layers
+            if change_id == "CHG-053" and "CLAUDE.md" in overrides
+        ),
+        None,
+    )
+    mirror_texts = {
+        relative_path: original.setdefault(
+            project_output_path(root, relative_path),
+            read_text(project_output_path(root, relative_path)),
+        )
+        for relative_path in MIRRORS
+    } if expected_header is not None else {}
+    legacy_mirror_set = (
+        chg053_claude_source_hash is not None
+        and original.get(project_output_path(root, "CLAUDE.md")) is not None
+        and sha256(
+            original[project_output_path(root, "CLAUDE.md")].encode("utf-8")
+        )
+        == chg053_claude_source_hash
+        and bool(mirror_texts)
+        and all("<!-- agent-sync:" not in text for text in mirror_texts.values())
+    )
+    for relative_path in MIRRORS if expected_header is not None else ():
         path = project_output_path(root, relative_path)
-        mirror_text = original.setdefault(path, read_text(path))
+        mirror_text = mirror_texts[relative_path]
         try:
-            _, mirror_trailer = split_terminal_emitted_trailer(
-                mirror_text,
-                relative_path,
-            )
+            if legacy_mirror_set:
+                _, mirror_trailer = split_terminal_emitted_trailer(
+                    mirror_text,
+                    relative_path,
+                )
+            else:
+                _, mirror_trailer = split_imp393_mirror_frames(
+                    mirror_text,
+                    relative_path,
+                    expected_header,
+                )
         except ReconciliationError as error:
             errors.append(str(error))
             continue
-        desired[path] = mirrored_body + mirror_trailer
+        desired[path] = expected_header + mirrored_body + mirror_trailer
 
     for path in governed_guidance_paths(root):
         if not path.resolve().is_relative_to(root.resolve()):
@@ -751,8 +828,11 @@ def build_plan(root: Path) -> dict[Path, PlanEntry]:
         if text is None:
             text = original.setdefault(path, read_text(path))
             desired[path] = text
+        validation_text = text
+        for phrase in APPROVED_NEGATIVE_TENANT_ID_PHRASES:
+            validation_text = validation_text.replace(phrase, "")
         for pattern in FORBIDDEN_GUIDANCE:
-            match = pattern.search(text)
+            match = pattern.search(validation_text)
             if match:
                 errors.append(
                     f"{path.relative_to(root)}: forbidden active guidance "

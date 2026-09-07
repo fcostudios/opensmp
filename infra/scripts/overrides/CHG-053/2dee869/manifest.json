@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "paths": {
+    "CLAUDE.md": {
+      "source_path": "overrides/CHG-049/6466f60/CLAUDE.md",
+      "source_sha256": "3f0905a05225b595636b0369b297c88176f764377da8543ed428df47d6f164d3",
+      "desired_sha256": "32f30b52af12a1591e0ec0507ab7f332b5d092a45b25fb0acdba08e6b6aed94f"
+    },
+    "docs/dev-guide/FRONTEND.md": {
+      "source_path": "overrides/CHG-049/6466f60/docs/dev-guide/FRONTEND.md",
+      "source_sha256": "30cd67e73fe3593e1f1d0aba4088ebc63ecd0fd69a86db262e8f860e02e8ca4c",
+      "desired_sha256": "b40ca6d396e3063a05bdfe638dc9c02cba515d410cd2d19a248433a16aa532dc"
+    }
+  }
+}
