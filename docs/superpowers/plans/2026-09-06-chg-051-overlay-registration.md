@@ -1,14 +1,14 @@
 **Work item:** CHG-051
 **Readiness assessment:** docs/readiness/CHG-051.json
-**Approved estimate:** 70 minutes
+**Approved estimate:** 105 minutes
 
 # CHG-051 Overlay Registration Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Register the exact eight CHG-050 guidance blobs as an immutable final overlay, re-pin the reviewed reconciler, and restore the full green gate without weakening unknown-state rejection.
+**Goal:** Register the exact eight CHG-050 guidance blobs as an immutable final overlay, preserve protected per-file provenance trailers while synchronizing mirror bodies, re-pin the reviewed reconciler, and restore the full green gate without weakening unknown-state rejection.
 
-**Architecture:** Add `CHG-049/6466f60` after CHG-044 in the append-only overlay chain. The manifest binds each latest reviewed source to an exact desired copy; readiness trusts the edited reconciler only after its SHA-256 is reviewed and updated.
+**Architecture:** Add `CHG-049/6466f60` after CHG-044 in the append-only overlay chain and teach the focused fixtures to resolve it. The manifest binds each latest reviewed source to an exact desired copy; mirror bodies follow layered CLAUDE.md while each file's single valid terminal emitted trailer remains its own; readiness trusts the edited reconciler only after its SHA-256 is reviewed and updated.
 
 **Tech Stack:** Python 3 standard library, SHA-256, Node.js readiness enforcement, pnpm lint/test/build and diff-scoped mutation runner.
 
@@ -21,6 +21,7 @@
 - `infra/scripts/overrides/CHG-049/6466f60/manifest.json`: exact source-to-desired bindings for eight paths.
 - Eight desired files beneath `infra/scripts/overrides/CHG-049/6466f60/`: byte-for-byte CHG-050 carried guidance.
 - `infra/scripts/reconcile-sprint1-docs.py`: registers `CHG049_PATHS` and appends the layer.
+- `infra/scripts/tests/test_reconcile_sprint1_docs.py`: loads the final layer and proves body synchronization, per-file trailer preservation, and malformed-trailer rejection.
 - `scripts/work-readiness/git.mjs`: pins the reviewed reconciler SHA-256 and explains the reviewed CHG-051 delta.
 
 ### Task 1: Prove the red state and compute the manifest inputs
@@ -47,7 +48,7 @@ Expected: both readiness checks are valid.
 rtk pnpm check:generated-guidance
 ```
 
-Expected RED: exit nonzero naming exactly the eight carried paths as unknown generated guidance states.
+Expected RED: exit nonzero naming exactly the eight carried paths as unknown generated guidance states. Record that clearing these errors alone would still schedule the three mirrors because their valid trailers intentionally differ.
 
 - [ ] **Step 3: Compute independent source and desired hashes**
 
@@ -66,7 +67,43 @@ testing/critical-paths.md                             804fc2d39679e9b37c03a5ed1a
 
 If any desired value differs, stop: the carried delivery changed and the approved manifest inputs are stale.
 
-### Task 2: Add the immutable layer and register it
+### Task 2: Add failing final-layer and protected-trailer contracts
+
+**Files:**
+
+- Modify: `infra/scripts/tests/test_reconcile_sprint1_docs.py`
+
+- [ ] **Step 1: Make isolated fixtures load the new final layer**
+
+Add `CHG049_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-049/6466f60"`, consult it first in `latest_desired_guide`, and copy it after CHG-044 inside `copy_reconciler_data`.
+
+- [ ] **Step 2: Add a body/trailer test helper**
+
+Define a test-only helper that requires exactly one terminal line matching:
+
+```python
+r"<!-- nous-emitted: sha256=[0-9a-f]{16} -->\n?\Z"
+```
+
+It returns the bytes before that match and the matched trailer bytes.
+
+- [ ] **Step 3: Write the failing distinct-trailer contract**
+
+Create a project whose CLAUDE and three mirror bodies are identical but whose mirror trailers are valid and distinct. Run check mode and assert success plus byte-for-byte stability. Also change the body of one mirror while retaining its trailer, run reconciliation, and assert only the body converges while that trailer remains exact.
+
+- [ ] **Step 4: Write failing malformed-trailer cases**
+
+For missing, duplicate, non-terminal, and non-hex mirror trailers, assert reconciliation exits nonzero, names the mirror, and writes nothing.
+
+- [ ] **Step 5: Run the focused suite and verify RED**
+
+```bash
+rtk python3 -B -m unittest infra.scripts.tests.test_reconcile_sprint1_docs -v
+```
+
+Expected: the new protected-trailer tests fail because current CHG-024 logic replaces whole mirror files or accepts malformed trailer state.
+
+### Task 3: Add the immutable layer and implement the narrowed mirror invariant
 
 **Files:**
 
@@ -142,7 +179,11 @@ Add `CHG049_PATHS` with the same eight source paths as the manifest, then append
 
 after the CHG-044 tuple in `LAYERED_OVERRIDE_SPECS`.
 
-- [ ] **Step 4: Verify GREEN and byte stability**
+- [ ] **Step 4: Preserve one strict terminal trailer per protected mirror**
+
+Add one compiled pattern for a terminal emitted trailer. Split layered CLAUDE.md into body and trailer; for each mirror, require exactly one well-formed terminal trailer in its current text, then set desired content to the layered CLAUDE body plus that exact mirror trailer. A missing, duplicate, misplaced, or malformed marker appends a path-specific reconciliation error and schedules no write.
+
+- [ ] **Step 5: Verify GREEN and byte stability**
 
 ```bash
 rtk python3 -B -m unittest infra.scripts.tests.test_reconcile_sprint1_docs -v
@@ -152,12 +193,12 @@ rtk git diff --exit-code -- AGENTS.md CLAUDE.md docs/dev-guide/DEFINITION_OF_DON
 
 Expected: the focused suite and check pass; no live target changes.
 
-### Task 3: Re-pin the reviewed reconciler and adversarially review
+### Task 4: Re-pin the reviewed reconciler and adversarially review
 
 **Files:**
 
 - Modify: `scripts/work-readiness/git.mjs`
-- Review: all eleven CHG-051 implementation paths
+- Review: all twelve CHG-051 implementation paths
 
 - [ ] **Step 1: Compute and install the reviewed reconciler hash**
 
@@ -165,7 +206,7 @@ Expected: the focused suite and check pass; no live target changes.
 rtk shasum -a 256 infra/scripts/reconcile-sprint1-docs.py
 ```
 
-Set `REVIEWED_RECONCILER_SHA256` to that exact digest. Replace the adjacent stale delta description with a CHG-051 comment stating that the reviewed change adds one closed eight-path layer after CHG-044 and changes no reconciliation algorithm.
+Set `REVIEWED_RECONCILER_SHA256` to that exact digest. Replace the adjacent stale delta description with a CHG-051 comment stating that the reviewed change adds one closed eight-path layer after CHG-044 and preserves one strict terminal emitted trailer per mirror while synchronizing bodies.
 
 - [ ] **Step 2: Run focused readiness and reconciliation tests**
 
@@ -184,22 +225,24 @@ Verify independently that:
 1. manifest keys equal the eight approved paths;
 2. every source/desired digest recomputes exactly;
 3. CHG-049 is last in the layer sequence;
-4. removing one manifest entry or substituting an unknown live hash in an isolated fixture fails closed;
-5. live target bytes are unchanged by check mode;
-6. no historical overlay file changed.
+4. mirror bodies equal CLAUDE.md's body and their original valid trailers remain byte-exact;
+5. missing, duplicate, misplaced, and malformed trailers fail without writing;
+6. removing one manifest entry or substituting an unknown live hash in an isolated fixture fails closed;
+7. live target bytes are unchanged by check mode;
+8. no historical overlay file changed.
 
 Repair every finding before proceeding.
 
 - [ ] **Step 4: Commit the implementation after review fixes**
 
 ```bash
-rtk git add infra/scripts/overrides/CHG-049/6466f60 infra/scripts/reconcile-sprint1-docs.py scripts/work-readiness/git.mjs
+rtk git add infra/scripts/overrides/CHG-049/6466f60 infra/scripts/reconcile-sprint1-docs.py infra/scripts/tests/test_reconcile_sprint1_docs.py scripts/work-readiness/git.mjs
 rtk git commit -m "fix(CHG-051): register the CHG-049 guidance overlay"
 ```
 
-Expected: exactly eleven implementation paths are committed.
+Expected: exactly twelve implementation paths are committed.
 
-### Task 4: Run final gates and the authoritative campaigns
+### Task 5: Run final gates and the authoritative campaigns
 
 **Files:**
 
@@ -238,5 +281,5 @@ Append timestamped `ac_verify`, `build_pass`, and `test_report` events for each 
 
 - The layer is append-only, closed to exactly eight paths, and sources only immutable predecessor artifacts.
 - Existing tests provide a real RED before the data/registration change and GREEN afterward; no redundant test is added.
-- The reviewed reconciler pin changes only after the exact registration delta is known.
+- The reviewed reconciler pin changes only after the exact registration and strict-trailer deltas are known.
 - Adversarial verification and every fix precede the one final cache-cleared diff-scoped campaign; no whole-set campaign is scheduled.
