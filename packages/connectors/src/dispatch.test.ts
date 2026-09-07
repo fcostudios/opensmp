@@ -21,6 +21,7 @@ import type {
   VendorConnector,
 } from "./contracts.js";
 import { assertJsonValue } from "./contracts.js";
+import { createConnectorCallObservationSession } from "./connector-call-observation.js";
 import {
   buildManualChecklistActions,
   ConnectorDispatcher,
@@ -222,6 +223,166 @@ describe("none connector", () => {
 });
 
 describe("ConnectorDispatcher", () => {
+  it("leaves rest unregistered when construction input is omitted", () => {
+    // Mutation caught: default-registering rest would activate a network connector for existing callers.
+    expect(() => createConnectorDispatcher().forProtocol("rest")).toThrowError(
+      "Connector protocol not registered: rest",
+    );
+  });
+
+  it("registers a real Anthropic connector as the validated rest implementation", async () => {
+    // Mutations caught: ignoring the injected rest connector or bypassing the validation wrapper
+    // changes the exact capability snapshot, result freezing, or raw-null containment below.
+    const providerModule = ["./providers", "anthropic", "connector.js"].join("/");
+    const { createAnthropicConnector } = await import(providerModule);
+    const vendorAccountId = "11111111-1111-4111-8111-111111111111";
+    const requestId = "22222222-2222-4222-8222-222222222222";
+    const observedAt = new Date("2026-09-06T12:00:00.000Z");
+    const credentials = [
+      {
+        vendorAccountId,
+        kind: "admin_scoped",
+        secret: "admin-secret",
+        status: "active",
+        health: "ok",
+      },
+      {
+        vendorAccountId,
+        kind: "analytics",
+        secret: "analytics-secret",
+        status: "active",
+        health: "ok",
+      },
+    ] as const;
+    const json = (body: unknown, status = 200) => new Response(
+      JSON.stringify(body),
+      { status, headers: { "content-type": "application/json" } },
+    );
+    const idPage = (data: readonly unknown[]) => ({
+      data,
+      has_more: false,
+      first_id: data.length === 0 ? null : "first",
+      last_id: null,
+    });
+    const opaquePage = (data: readonly unknown[]) => ({ data, next_page: null });
+    const rest = createAnthropicConnector({
+      credentialsFor: async () => credentials,
+      observationSessionFor: async ({ vendorAccountId: accountId, requestId: operationRequestId, operation }: {
+        vendorAccountId: string;
+        requestId: string | null;
+        operation: "provision" | "deprovision" | "sync_members" | "sync_activity" | "sync_cost";
+      }) => createConnectorCallObservationSession({
+        vendorAccountId: accountId,
+        provisioningActionId: operationRequestId === null
+          ? null
+          : "33333333-3333-4333-8333-333333333333",
+        operation,
+        clock: () => observedAt,
+        randomId: () => "44444444-4444-4444-8444-444444444444",
+        append: async () => undefined,
+      }),
+      requestDependencies: {
+        clock: { now: () => observedAt.getTime() },
+        sleep: async () => undefined,
+        limiter: { acquire: async () => undefined },
+        transport: async (request: Request) => {
+          const url = new URL(request.url);
+          if (request.method === "POST") {
+            return json({
+              type: "invite",
+              id: "invite-created",
+              email: "new@example.test",
+              status: "pending",
+            }, 201);
+          }
+          if (request.method === "DELETE") return new Response(null, { status: 204 });
+          if (url.pathname.endsWith("/organizations/users")) {
+            return json(idPage([{
+              type: "user",
+              id: "member-1",
+              name: "Member",
+              email: "member@example.test",
+            }]));
+          }
+          if (url.pathname.endsWith("/organizations/invites")) return json(idPage([]));
+          if (url.pathname.endsWith("/analytics/users")) {
+            return json(opaquePage([{ user_id: "member-1", email: "member@example.test" }]));
+          }
+          if (url.pathname.endsWith("/analytics/summaries")) {
+            return json({ summaries: [{ date: "2026-09-06", active_users: 1, conversations: 2 }] });
+          }
+          if (url.pathname.endsWith("/analytics/user_usage_report")) {
+            return json(opaquePage([{
+              user_id: "member-1",
+              email: "member@example.test",
+              input_tokens: "10",
+              output_tokens: "2",
+            }]));
+          }
+          if (url.pathname.endsWith("/analytics/user_cost_report")) {
+            return json(opaquePage([{
+              user_id: "member-1",
+              email: null,
+              results: [{ amount: "123", list_amount: "123", currency: "USD" }],
+            }]));
+          }
+          throw new Error(`Unexpected Anthropic fixture request: ${request.method} ${url.pathname}`);
+        },
+      },
+    });
+
+    const connector = createConnectorDispatcher({ rest }).forProtocol("rest");
+    expect([...connector.capabilities()]).toEqual([
+      "provision",
+      "deprovision",
+      "syncMembers",
+      "syncActivity",
+      "syncCost",
+    ]);
+
+    const instruction = {
+      requestId,
+      vendorAccountId,
+      personEmail: "member@example.test",
+      licenseTypeName: "Claude",
+    };
+    const results = await Promise.all([
+      connector.provision({ ...instruction, personEmail: "new@example.test" }),
+      connector.deprovision(instruction),
+      connector.syncMembers({ vendorAccountId, observedAt }),
+      connector.syncActivity({ vendorAccountId, observedAt }),
+      connector.syncCost({ vendorAccountId, observedAt }),
+    ]);
+
+    expect(results.every((result) => result.ok && result.raw === null)).toBe(true);
+    expect(results.every(Object.isFrozen)).toBe(true);
+    expect(results[0]).toEqual({ ok: true, value: { vendorRef: "invite-created" }, raw: null });
+    expect(results[1]).toEqual({ ok: true, value: { vendorRef: "member-1" }, raw: null });
+    expect(results[2]).toEqual({
+      ok: true,
+      value: { members: [{ email: "member@example.test", active: true }] },
+      raw: null,
+    });
+    expect(results[3]).toEqual({
+      ok: true,
+      value: {
+        records: [{
+          email: "member@example.test",
+          activityDate: "2026-09-06",
+          counters: { activeUsers: 1, conversations: 2 },
+        }],
+      },
+      raw: null,
+    });
+    expect(results[4]).toEqual({
+      ok: true,
+      value: {
+        records: [{ email: "member@example.test", costDate: "2026-09-06", amountUsd: "1.23" }],
+      },
+      raw: null,
+    });
+  });
+
   it.each(["rest", "scim"] as const)(
     "registers and resolves a future %s connector",
     (protocol) => {

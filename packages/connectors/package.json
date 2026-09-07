@@ -10,6 +10,7 @@
     "./connector-call-observation": "./src/connector-call-observation.ts",
     "./contracts": "./src/contracts.ts",
     "./dispatch": "./src/dispatch.ts",
+    "./providers/anthropic/connector": "./src/providers/anthropic/connector.ts",
     "./providers/anthropic/observation": "./src/providers/anthropic/observation.ts"
   },
   "scripts": {

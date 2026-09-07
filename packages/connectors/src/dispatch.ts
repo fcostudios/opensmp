@@ -281,6 +281,10 @@ export class ConnectorDispatcher {
   }
 }
 
-export function createConnectorDispatcher(): ConnectorDispatcher {
-  return new ConnectorDispatcher();
+export function createConnectorDispatcher(
+  input: Readonly<{ rest?: VendorConnector }> = {},
+): ConnectorDispatcher {
+  const dispatcher = new ConnectorDispatcher();
+  if (input.rest) dispatcher.register("rest", input.rest);
+  return dispatcher;
 }
