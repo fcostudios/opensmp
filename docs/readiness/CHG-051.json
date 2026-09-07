@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "dbcd2487f43b00a6bb3571d7a1ffecf9818b779088605b8a01bb3e15a51f5f98",
+  "readiness_payload_sha256": "06ca15641018eafd59966321708056ce926b66fa1d157b085834050e908cd47e",
   "work_id": "CHG-051",
   "kind": "CHG",
   "work_type": "technical",
@@ -9,8 +9,8 @@
   "outcomes": [
     {
       "id": "O1",
-      "statement": "The tenant reconciler accepts the exact eight regenerated guidance files through an immutable CHG-049 overlay and continues to fail closed for unknown generated states.",
-      "demo": "Verify the manifest and eight desired copies bind the carried bytes, the reconciler registers the layer, REVIEWED_RECONCILER_SHA256 matches the reviewed script, generated-guidance reconciliation and lint pass, and an unknown generated hash remains rejected.",
+      "statement": "The tenant reconciler accepts the exact eight regenerated guidance files through an immutable CHG-049 overlay, preserves each protected mirror's own emitted trailer while synchronizing its guidance body, and continues to fail closed for unknown generated states.",
+      "demo": "Verify the manifest and eight desired copies bind the carried bytes, focused fixtures load the new final layer, the three protected mirrors retain their distinct emitted trailers while matching CLAUDE.md's body, REVIEWED_RECONCILER_SHA256 matches the reviewed script, generated-guidance reconciliation and lint pass, and unknown or malformed generated states remain rejected.",
       "primary": true
     }
   ],
@@ -41,7 +41,7 @@
   "signals": {
     "routes_or_screens": 0,
     "acceptance_flows": 3,
-    "expected_changed_files": 11,
+    "expected_changed_files": 12,
     "expected_mutation_shards": 1,
     "lifecycle_or_concurrency_boundaries": 0,
     "external_integrations": 0,
@@ -51,11 +51,11 @@
   },
   "estimate_minutes": {
     "readiness": 10,
-    "implementation": 25,
-    "focused_verification": 20,
-    "review": 10,
+    "implementation": 40,
+    "focused_verification": 30,
+    "review": 20,
     "integration": 5,
-    "total": 70
+    "total": 105
   },
   "uncertainties": [
     {
@@ -78,16 +78,23 @@
       "status": "resolved",
       "estimate_impact_minutes": 5,
       "resolution": "It cannot. Execute CHG-050 first as required by the approved CHG-049 partition graph, then run CHG-051 against that clean carried baseline."
+    },
+    {
+      "id": "U4",
+      "statement": "Whether an eight-path overlay alone makes check mode green when the three protected mirrors intentionally carry emitted trailers distinct from CLAUDE.md.",
+      "status": "resolved",
+      "estimate_impact_minutes": 20,
+      "resolution": "It does not. The current CHG-024 mirror algorithm overwrites each whole mirror with CLAUDE.md and would surface three new diffs after the eight pinned errors clear. Keep the synchronized body contract but preserve and strictly validate each mirror's single terminal nous-emitted trailer. Add red/green focused tests and make the existing fixture loader copy CHG-049, bringing the child to 12 implementation paths while remaining below every hard limit."
     }
   ],
   "dependencies": [],
   "decision": "ready",
   "partitions": [],
   "approval": {
-    "status": "approved",
-    "approved_by": "Francisco Lomas",
-    "evidence": "CHG051-READY",
-    "payload_sha256": "dbcd2487f43b00a6bb3571d7a1ffecf9818b779088605b8a01bb3e15a51f5f98"
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "06ca15641018eafd59966321708056ce926b66fa1d157b085834050e908cd47e"
   },
   "actuals": null,
   "policy_bootstrap": false,

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "6095640ee4fe3184f5b9fc38e011db225a4441106bb796dbbd3f1455af9f2317",
+  "readiness_payload_sha256": "d74e333512d2b5125d5301ffa094f0a51795440ffaedcc78aa8f489e1d0252b5",
   "work_id": "CHG-049",
   "kind": "CHG",
   "work_type": "technical",
@@ -53,7 +53,7 @@
   "signals": {
     "routes_or_screens": 0,
     "acceptance_flows": 5,
-    "expected_changed_files": 28,
+    "expected_changed_files": 29,
     "expected_mutation_shards": 1,
     "lifecycle_or_concurrency_boundaries": 0,
     "external_integrations": 0,
@@ -63,11 +63,11 @@
   },
   "estimate_minutes": {
     "readiness": 15,
-    "implementation": 35,
-    "focused_verification": 30,
-    "review": 20,
+    "implementation": 50,
+    "focused_verification": 40,
+    "review": 30,
     "integration": 10,
-    "total": 110
+    "total": 145
   },
   "uncertainties": [
     {
@@ -75,7 +75,7 @@
       "statement": "Whether CHG-049 fits the repository's hard changed-file and acceptance-flow limits as one executable item.",
       "status": "resolved",
       "estimate_impact_minutes": 10,
-      "resolution": "It does not: the exact scope is 28 paths and five independently testable flows. The work is therefore partition_required into a 17-path delivery-carry child and an 11-path overlay-registration child."
+      "resolution": "It does not: the exact scope is 29 paths and five independently testable flows. The work is therefore partition_required into a 17-path delivery-carry child and a 12-path overlay-registration child. The twelfth overlay-child path is the existing focused reconciler test file required to load and verify the new final layer."
     },
     {
       "id": "U2",
@@ -145,7 +145,7 @@
       "work_id": "CHG-051",
       "title": "Register the eight-file CHG-049 immutable overlay",
       "outcome": "The tenant reconciler recognizes the exact regenerated guidance bytes through a reviewed immutable overlay and continues to fail closed for unknown states.",
-      "demo": "Run generated-guidance reconciliation, lint, and both child readiness checks successfully; verify the CHG-049 manifest binds all eight desired files, the reconciler layer is registered, and REVIEWED_RECONCILER_SHA256 matches the reviewed reconciler bytes.",
+      "demo": "Run generated-guidance reconciliation, lint, and both child readiness checks successfully; verify the CHG-049 manifest binds all eight desired files, each protected mirror retains its own emitted trailer while matching CLAUDE.md's body, the reconciler layer is registered, and REVIEWED_RECONCILER_SHA256 matches the reviewed reconciler bytes.",
       "acceptance_criteria": [
         "AC2",
         "AC3",
@@ -159,7 +159,7 @@
       "signals": {
         "routes_or_screens": 0,
         "acceptance_flows": 3,
-        "expected_changed_files": 11,
+        "expected_changed_files": 12,
         "expected_mutation_shards": 1,
         "lifecycle_or_concurrency_boundaries": 0,
         "external_integrations": 0,
@@ -178,11 +178,11 @@
       ],
       "estimate_minutes": {
         "readiness": 10,
-        "implementation": 25,
-        "focused_verification": 20,
-        "review": 10,
+        "implementation": 40,
+        "focused_verification": 30,
+        "review": 20,
         "integration": 5,
-        "total": 70
+        "total": 105
       },
       "depends_on": [
         "carry-delivery"
@@ -191,10 +191,10 @@
     }
   ],
   "approval": {
-    "status": "approved",
-    "approved_by": "Francisco Lomas",
-    "evidence": "CHG049-PARTITION-CHILDREN",
-    "payload_sha256": "6095640ee4fe3184f5b9fc38e011db225a4441106bb796dbbd3f1455af9f2317"
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "d74e333512d2b5125d5301ffa094f0a51795440ffaedcc78aa8f489e1d0252b5"
   },
   "actuals": null,
   "policy_bootstrap": false,

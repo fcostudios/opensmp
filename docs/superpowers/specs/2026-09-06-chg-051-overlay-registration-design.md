@@ -20,14 +20,18 @@ The new manifest has version 1 and exactly eight entries. Each entry names the l
 
 Each `source_sha256` is computed from that named immutable source. Each `desired_sha256` is computed from the post-CHG-050 live blob. The eight desired files stored beside the manifest are byte-for-byte copies of those live blobs. No live generated file is edited in CHG-051.
 
-`CHG049_PATHS` mirrors the manifest's source paths, and `("CHG-049/6466f60", CHG049_PATHS)` is appended after CHG-044 in `LAYERED_OVERRIDE_SPECS`. The reconciler's resulting SHA-256 replaces `REVIEWED_RECONCILER_SHA256`; the adjacent comment records that CHG-051 reviewed only the final eight-path registration delta.
+`CHG049_PATHS` mirrors the manifest's source paths, and `("CHG-049/6466f60", CHG049_PATHS)` is appended after CHG-044 in `LAYERED_OVERRIDE_SPECS`. The focused fixture loader copies and resolves that new final layer.
+
+The delivery gives `CLAUDE.md` trailer `775530…` while `CODEX.md`, `.cursorrules`, and Copilot guidance each retain trailer `d39549…`. Their bodies are equal. CHG-024 currently replaces each whole mirror with the complete CLAUDE.md bytes, so clearing the eight pinned errors would create three protected mirror diffs. CHG-051 therefore narrows the mirror invariant to the intended semantic contract: the body before the single terminal `nous-emitted` trailer must match layered CLAUDE.md, while each mirror's own well-formed trailer is preserved exactly. Missing, duplicate, non-terminal, or malformed trailers fail closed. Focused tests first reproduce the three false diffs, then prove body convergence, trailer preservation, and malformed-trailer rejection.
+
+The reconciler's resulting SHA-256 replaces `REVIEWED_RECONCILER_SHA256`; the adjacent comment records both reviewed deltas: one closed eight-path final layer and strict per-file trailer preservation. No other reconciliation behavior changes.
 
 ## Verification and failure handling
 
-The existing check is the red test: before registration, `pnpm check:generated-guidance` names all eight unknown hashes. After registration, the focused reconciler suite and generated-guidance check must pass without changing live files. Manifest integrity is independently checked by recomputing all source and desired hashes. An isolated copy with an unlisted hash must still fail, proving the overlay does not become a wildcard.
+The existing check is the first red test: before registration, `pnpm check:generated-guidance` names all eight unknown hashes. A focused mirror fixture with equal bodies and distinct valid trailers is the second red test: the old whole-file mirror rule incorrectly schedules all three mirrors for replacement. After registration and the narrowed invariant, the focused suite and generated-guidance check must pass without changing live files. Manifest integrity is independently checked by recomputing all source and desired hashes. Isolated copies with an unlisted hash or malformed trailer must still fail, proving neither the overlay nor trailer handling becomes a wildcard.
 
 After adversarial review and every fix, run `pnpm check`, then the one cache-cleared diff-scoped mutation campaign as the last executable verification. Since CHG-051 does not alter the critical set, the whole-set campaign is forbidden. Evidence and terminal commits may follow; implementation commits may not.
 
 ## Approved scope
 
-Francisco Lomas approved the CHG-051 readiness payload and ordered CHG-050 before CHG-051. This design is confined to the nine overlay files, the reconciler registration, and the reviewed-hash pin.
+The independent pre-implementation review exposed the masked mirror and fixture-loader requirements, so the CHG-051 readiness payload is revised before any implementation. The corrected design is confined to the nine overlay files, the reconciler registration and mirror invariant, the focused reconciler test file, and the reviewed-hash pin: twelve implementation paths total.
