@@ -80,7 +80,24 @@
     "evidence": "CHG055-READY",
     "payload_sha256": "5eb8cb30b6c6e855c0c6e1ace70ab31bfd9c0e5b52a051959db3f06939217c8d"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 14,
+      "implementation": 9,
+      "focused_verification": 0,
+      "review": 0,
+      "integration": 0
+    },
+    "total": 23,
+    "changed_files": 12,
+    "commits": 2,
+    "review_fix_loops": 0,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "estimate_variance_minutes": -97,
+    "root_cause": "Measured from the readiness assessment commit fdb1ccd4715e3954c2a03945fef112bada87bb2d at 2026-09-07T15:12:56-05:00 through lifecycle/base commit 008751e8bffe542287543838441c3ded645a1021 at 2026-09-07T15:26:32-05:00, rounded to 14 readiness minutes, then through reviewed implementation commit 5591876a1822b5443761351c73b904ddd2672477 at 2026-09-07T15:35:51-05:00, rounded to 9 implementation minutes. Focused verification, adversarial checks, and integration were interleaved before the carry commit and lack independent Git cutoffs, so they remain zero rather than inventing precision. git diff --name-only authority/chg-055-base..5591876 reports exactly 12 implementation paths and git rev-list --count reports two CHG-055 implementation commits. No independent review produced a fix loop. The sole cache-cleared diff campaign used MUTATION_BASE=authority/chg-055-base, selected zero mutatable files, exited successfully in under one second, and rounds to zero mutation minutes. Variance is 23 - 120 = -97 minutes."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
