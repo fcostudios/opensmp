@@ -9,6 +9,7 @@ import type {
 } from "../../contracts.js";
 import { validateProvisionInstruction } from "../../dispatch.js";
 import type { AnthropicCredentialCandidate } from "./credentials.js";
+import { anthropicFailureRetryable, endpointPolicy } from "./endpoints.js";
 import { createAnthropicConnectorObservationBridge } from "./observation.js";
 import {
   type AnthropicClock,
@@ -354,7 +355,12 @@ export function createAnthropicConnector(dependencies: AnthropicConnectorDepende
     input: Parameters<OperationContext["execute"]>[0],
   ): Promise<{ ok: true; body: unknown } | ProviderFailure> {
     const result = await operation.execute(input);
-    if (!result.ok) return providerFailure(result.retryable);
+    if (!result.ok) {
+      return providerFailure(anthropicFailureRetryable(
+        endpointPolicy(input.endpoint, input.parameters),
+        result.classification,
+      ));
+    }
     try {
       return { ok: true, body: await responseBody(result.response) };
     } catch {
@@ -457,7 +463,12 @@ export function createAnthropicConnector(dependencies: AnthropicConnectorDepende
         endpoint: match.endpoint, parameters: { resourceId: match.id },
         vendorAccountId: input.vendorAccountId, credentials: operation.credentials,
       });
-      if (!deleted.ok) return providerFailure(deleted.retryable);
+      if (!deleted.ok) {
+        return providerFailure(anthropicFailureRetryable(
+          endpointPolicy(match.endpoint, { resourceId: match.id }),
+          deleted.classification,
+        ));
+      }
       try {
         await deleted.response.body?.cancel();
       } catch {

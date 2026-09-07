@@ -4,9 +4,11 @@ import {
   type AnthropicCredentialCandidate,
 } from "./credentials.js";
 import {
+  anthropicFailureRetryable,
   endpointPolicy,
   type AnthropicEndpoint,
   type AnthropicEndpointPolicy,
+  type AnthropicFailureClassification,
 } from "./endpoints.js";
 import type {
   AnthropicClock,
@@ -15,8 +17,7 @@ import type {
 } from "./rate-limiter.js";
 
 export type AnthropicAttemptClassification =
-  | "success" | "rate_limited" | "provider_error" | "client_error"
-  | "transport_ambiguous";
+  | "success" | AnthropicFailureClassification;
 
 type AnthropicObservedEndpoint = Exclude<
   AnthropicEndpoint,
@@ -46,7 +47,6 @@ export type AnthropicRequestResult =
     classification: Exclude<AnthropicAttemptClassification, "success">;
     status: number | null;
     attempts: number;
-    retryable: boolean;
   }>;
 
 export type AnthropicRequestQuery = Readonly<{
@@ -411,7 +411,6 @@ export function createAnthropicRequestExecutor(dependencies: Readonly<{
           classification: "transport_ambiguous",
           status: null,
           attempts: attempt,
-          retryable: policy.retrySafe,
         });
       }
 
@@ -435,9 +434,7 @@ export function createAnthropicRequestExecutor(dependencies: Readonly<{
         return Object.freeze({ ok: true, response, attempts: attempt });
       }
       await cancelResponseBody(response);
-      const retryableResponse = classification === "rate_limited"
-        || classification === "provider_error";
-      if (policy.retrySafe && retryableResponse && attempt < 3) {
+      if (anthropicFailureRetryable(policy, classification) && attempt < 3) {
         await dependencies.sleep(retryDelayMilliseconds(
           response,
           dependencies.clock.now(),
@@ -450,9 +447,6 @@ export function createAnthropicRequestExecutor(dependencies: Readonly<{
         classification,
         status: response.status,
         attempts: attempt,
-        retryable: policy.retrySafe && (
-          classification === "rate_limited" || classification === "provider_error"
-        ),
       });
     }
   };

@@ -576,7 +576,6 @@ describe("Anthropic bounded retry policy", () => {
         classification,
         status,
         attempts: 3,
-        retryable: true,
       });
       expect(run.calls).toBe(3);
       expect(run.sleeps).toEqual([1_000, 2_000]);
@@ -594,7 +593,6 @@ describe("Anthropic bounded retry policy", () => {
         classification: "client_error",
         status,
         attempts: 1,
-        retryable: false,
       });
       expect(run.calls).toBe(1);
       expect(run.redirects).toEqual(["manual"]);
@@ -618,7 +616,6 @@ describe("Anthropic bounded retry policy", () => {
         classification: "client_error",
         status,
         attempts: 1,
-        retryable: false,
       });
       expect(run.calls).toBe(1);
       expect(run.redirects).toEqual(["manual"]);
@@ -960,7 +957,6 @@ describe("Anthropic bounded retry policy", () => {
       classification: "client_error",
       status: 400,
       attempts: 1,
-      retryable: false,
     });
     expect(cancellations).toBe(1);
   });
@@ -988,7 +984,6 @@ describe("Anthropic bounded retry policy", () => {
       classification: "client_error",
       status: 400,
       attempts: 1,
-      retryable: false,
     });
     expect(JSON.stringify(result)).not.toContain(providerErrorSecret);
   });
@@ -1102,17 +1097,16 @@ describe("Anthropic bounded retry policy", () => {
       classification: status === 429 ? "rate_limited" : "provider_error",
       status,
       attempts: 1,
-      retryable: false,
     });
     expect(calls).toBe(1);
     expect(sleeps).toEqual([]);
   });
 
   it.each([
-    ["create_invite", { body: { email: "member@example.com" } }, false],
-    ["members", {}, true],
-    ["delete_member", { parameters: { resourceId: "member/1" } }, true],
-  ] as const)("does not replay an ambiguous %s call but reports whether a later call is safe", async (endpoint, extra, retryable) => {
+    ["create_invite", { body: { email: "member@example.com" } }],
+    ["members", {}],
+    ["delete_member", { parameters: { resourceId: "member/1" } }],
+  ] as const)("does not replay an ambiguous %s call", async (endpoint, extra) => {
     // Mutation killed: retrying an ambiguous exception adds calls or a retry delay.
     let calls = 0;
     const sleeps: number[] = [];
@@ -1138,7 +1132,6 @@ describe("Anthropic bounded retry policy", () => {
       classification: "transport_ambiguous",
       status: null,
       attempts: 1,
-      retryable,
     });
     expect(calls).toBe(1);
     expect(sleeps).toEqual([]);

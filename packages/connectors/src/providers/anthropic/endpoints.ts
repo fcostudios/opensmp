@@ -7,6 +7,9 @@ export type AnthropicCredentialKind = "admin_scoped" | "analytics";
 
 export type AnthropicBudgetKind = "user_management" | "analytics" | "invite_create";
 
+export type AnthropicFailureClassification =
+  | "rate_limited" | "provider_error" | "client_error" | "transport_ambiguous";
+
 export type AnthropicEndpointPolicy = Readonly<{
   origin: "https://api.anthropic.com";
   method: "GET" | "POST" | "DELETE";
@@ -19,6 +22,17 @@ export type AnthropicEndpointPolicy = Readonly<{
   budgets: readonly AnthropicBudgetKind[];
   retrySafe: boolean;
 }>;
+
+export function anthropicFailureRetryable(
+  policy: Pick<AnthropicEndpointPolicy, "retrySafe">,
+  classification: AnthropicFailureClassification,
+): boolean {
+  return policy.retrySafe && (
+    classification === "rate_limited"
+    || classification === "provider_error"
+    || classification === "transport_ambiguous"
+  );
+}
 
 type ResourceAnthropicEndpoint = "delete_invite" | "delete_member";
 type FixedAnthropicEndpoint = Exclude<AnthropicEndpoint, ResourceAnthropicEndpoint>;
