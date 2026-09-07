@@ -95,7 +95,24 @@
     "evidence": "CHG052-US018-VERIFY",
     "payload_sha256": "d801745339ee9e184c4af2c3ba122f4b8933fcda5ea21cd505cc610f2a52e529"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 2,
+      "implementation": 0,
+      "focused_verification": 7,
+      "review": 1,
+      "integration": 5
+    },
+    "total": 15,
+    "changed_files": 2,
+    "commits": 5,
+    "review_fix_loops": 0,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "estimate_variance_minutes": -45,
+    "root_cause": "Verification-only actuals measured from the CHG-052 tombstone commit 7a2fe9a0d4bc52a46e50729334d64003a0a6031e at 2026-09-07T08:48:43-05:00 through the verified build commit 569427d869867ea5fb412a43279e88140cf4a56b at 2026-09-07T09:04:51-05:00, rounding each non-overlapping Git interval to the nearest minute: readiness 2 minutes through reassessment af9e2767d51b3827d411ebcfda17e56e43702610; implementation 0 minutes through lifecycle start df9b0a21753455efb0b4b36442b4de6470977c88 because no product implementation occurred; focused verification 7 minutes through four reviewed AC events d1889455e52e7ac9c2718cb028e7e123c6b1db30; review 1 minute through the CHG-052 controller-order correction 70962a1f5876645cf6faa197a5a692a95165f13a; and integration 5 minutes through the green pnpm check and build evidence 569427d869867ea5fb412a43279e88140cf4a56b. The approved US-018 path census is reproducible with git diff --name-only 7a2fe9a^..569427d -- .nous-feedback.jsonl docs/readiness/US-018.json and contains exactly two paths. Five US-018-owned commits include reassessment, start, AC verification, build evidence, and terminal closure; the separate CHG-052 controller-order commit is not counted as a story commit. Both independent evidence reviews reported zero fix loops. The zero-shard assessment changed no mutatable source, so no cold campaign ran. Variance is 15 - 60 = -45 minutes."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
