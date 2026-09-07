@@ -62,12 +62,13 @@ const credentials: readonly AnthropicCredentialCandidate[] = Object.freeze([
 type KeyKind = "admin" | "analytics";
 
 function contractHeaders(keyKind: KeyKind): TemplateHeaders {
+  const key = `contract-${keyKind}-key`;
   return {
     accept: "application/json",
     "anthropic-version": "2023-06-01",
     "x-api-key": regex(
-      "^contract-(admin|analytics)-key$",
-      `contract-${keyKind}-key`,
+      `^${key}$`,
+      key,
     ),
   };
 }
@@ -223,6 +224,35 @@ async function executeConnectorContract<T>(input: Readonly<{
   });
 }
 
+function expectJournal(
+  observations: readonly ConnectorCallObservationAppendInput[],
+  terminalClassifications: readonly (
+    | "success"
+    | "rate_limited"
+    | "provider_error"
+    | "client_error"
+  )[],
+): void {
+  expect(observations).toHaveLength(terminalClassifications.length * 2);
+  expect(observations.map(({ attempt, phase, classification }) => ({
+    attempt,
+    phase,
+    classification,
+  }))).toEqual(terminalClassifications.flatMap((classification, index) => [
+    {
+      attempt: index + 1,
+      phase: "requested",
+      classification: null,
+    },
+    {
+      attempt: index + 1,
+      phase: classification === "success" ? "succeeded" : "failed",
+      classification,
+    },
+  ]));
+  expect(new Set(observations.map(({ correlationId }) => correlationId)).size).toBe(1);
+}
+
 describe("Anthropic connector consumer contract", () => {
   test("provisions through the dispatcher without leaking provider data", async () => {
     await executeConnectorContract({
@@ -252,13 +282,14 @@ describe("Anthropic connector consumer contract", () => {
         personEmail: "member@example.invalid",
         licenseTypeName: "Enterprise",
       }),
-      verify: (result) => {
+      verify: (result, observations) => {
         expect(result).toEqual({
           ok: true,
           value: { vendorRef: "invite/contract" },
           raw: null,
         });
         expect(Object.isFrozen(result.value)).toBe(true);
+        expectJournal(observations, ["success"]);
       },
     });
   });
@@ -337,7 +368,7 @@ describe("Anthropic connector consumer contract", () => {
           value: { vendorRef: "member/contract" },
           raw: null,
         });
-        expect(observations.filter(({ phase }) => phase === "succeeded")).toHaveLength(4);
+        expectJournal(observations, ["success", "success", "success", "success"]);
       },
     });
   });
@@ -410,12 +441,13 @@ describe("Anthropic connector consumer contract", () => {
         personEmail: "member@example.invalid",
         licenseTypeName: "Enterprise",
       }),
-      verify: (result) => {
+      verify: (result, observations) => {
         expect(result).toEqual({
           ok: true,
           value: { vendorRef: "invite/contract" },
           raw: null,
         });
+        expectJournal(observations, ["success", "success", "success", "success"]);
       },
     });
   });
@@ -485,7 +517,7 @@ describe("Anthropic connector consumer contract", () => {
         },
       ],
       invoke: (connector) => connector.syncMembers({ vendorAccountId, observedAt }),
-      verify: (result) => {
+      verify: (result, observations) => {
         expect(result).toEqual({
           ok: true,
           value: {
@@ -496,6 +528,7 @@ describe("Anthropic connector consumer contract", () => {
           },
           raw: null,
         });
+        expectJournal(observations, ["success", "success", "success"]);
       },
     });
   });
@@ -555,7 +588,7 @@ describe("Anthropic connector consumer contract", () => {
         },
       ],
       invoke: (connector) => connector.syncActivity({ vendorAccountId, observedAt }),
-      verify: (result) => {
+      verify: (result, observations) => {
         expect(result).toEqual({
           ok: true,
           value: {
@@ -567,6 +600,7 @@ describe("Anthropic connector consumer contract", () => {
           },
           raw: null,
         });
+        expectJournal(observations, ["success", "success", "success"]);
       },
     });
   });
@@ -661,7 +695,7 @@ describe("Anthropic connector consumer contract", () => {
         },
       ],
       invoke: (connector) => connector.syncCost({ vendorAccountId, observedAt }),
-      verify: (result) => {
+      verify: (result, observations) => {
         expect(result).toEqual({
           ok: true,
           value: {
@@ -673,6 +707,7 @@ describe("Anthropic connector consumer contract", () => {
           },
           raw: null,
         });
+        expectJournal(observations, ["success", "success", "success", "success"]);
       },
     });
   });
@@ -721,6 +756,7 @@ describe("Anthropic connector consumer contract", () => {
             classification,
             summary: { http_status: status, status_class: classification },
           });
+          expectJournal(observations, [classification]);
         },
       });
     },
