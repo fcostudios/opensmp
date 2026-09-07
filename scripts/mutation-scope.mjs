@@ -1535,6 +1535,15 @@ export const DIRECT_TEST_ROUTES = {
   "apps/web/src/modules/request-workflow/approval/repository.ts": [
     "apps/web/src/modules/request-workflow/approval-repository.integration.test.ts",
   ],
+  "apps/web/src/modules/request-workflow/transition-core.ts": [
+    "apps/web/src/modules/request-workflow/service.integration.test.ts",
+  ],
+  "apps/worker/src/connector-composition.ts": [
+    "apps/worker/src/jobs/automated-invite-delivery.integration.test.ts",
+  ],
+  "apps/worker/src/index.ts": [
+    "apps/worker/src/runtime.integration.test.ts",
+  ],
   "apps/web/src/modules/vendor-catalog/capacity-recovery-outbox.ts": [
     "apps/web/src/modules/vendor-catalog/capacity-service.integration.test.ts",
   ],
@@ -1561,6 +1570,16 @@ export const DIRECT_TEST_ROUTES = {
   "packages/connectors/src/index.ts": [
     "packages/connectors/src/action-planner.test.ts",
     "packages/connectors/src/dispatch.test.ts",
+  ],
+  "packages/connectors/src/source-boundary.ts": [
+    "packages/connectors/src/dispatch.test.ts",
+  ],
+  "packages/db/src/request-transition.ts": [
+    "apps/web/src/modules/request-workflow/service.integration.test.ts",
+    "apps/worker/src/jobs/automated-invite-delivery.integration.test.ts",
+  ],
+  "packages/db/src/credential-crypto.ts": [
+    "apps/web/src/modules/vendor-catalog/credential-crypto.test.ts",
   ],
   "packages/db/src/provisioning-routing.ts": [
     "packages/db/src/provisioning-routing.test.ts",

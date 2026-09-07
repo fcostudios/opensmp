@@ -604,6 +604,39 @@ assert.deepEqual(
   ["apps/web/src/modules/request-workflow/approval-repository.integration.test.ts"],
 );
 assert.deepEqual(
+  DIRECT_TEST_ROUTES["apps/web/src/modules/request-workflow/transition-core.ts"],
+  ["apps/web/src/modules/request-workflow/service.integration.test.ts"],
+  "the shared lifecycle transition wrapper must retain its real-PostgreSQL accountability route",
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["apps/worker/src/connector-composition.ts"],
+  ["apps/worker/src/jobs/automated-invite-delivery.integration.test.ts"],
+  "the provider composition seam must retain its invitation integration route",
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["apps/worker/src/index.ts"],
+  ["apps/worker/src/runtime.integration.test.ts"],
+  "the worker composition root must retain its runtime integration route",
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["packages/connectors/src/source-boundary.ts"],
+  ["packages/connectors/src/dispatch.test.ts"],
+  "the connector source-boundary scanner must retain its enforcement route",
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["packages/db/src/request-transition.ts"],
+  [
+    "apps/web/src/modules/request-workflow/service.integration.test.ts",
+    "apps/worker/src/jobs/automated-invite-delivery.integration.test.ts",
+  ],
+  "shared lifecycle persistence must retain both caller integration routes",
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["packages/db/src/credential-crypto.ts"],
+  ["apps/web/src/modules/vendor-catalog/credential-crypto.test.ts"],
+  "shared credential cryptography must retain its adversarial contract route",
+);
+assert.deepEqual(
   DIRECT_TEST_ROUTES["apps/web/src/modules/alerts/actions.ts"],
   ["apps/web/src/modules/alerts/ack-alert-service.test.ts"],
 );
