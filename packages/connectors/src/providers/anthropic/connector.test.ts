@@ -260,6 +260,37 @@ describe("Anthropic neutral connector", () => {
     expect(methods).not.toContain("DELETE");
   });
 
+  it("rejects a provider ID collision before destructive or sync consumption through dispatch", async () => {
+    // Mutations killed: checking only email uniqueness lets one provider identity map to conflicting actors or DELETE.
+    const methods: string[] = [];
+    const { connector: implementation } = fixture(async (request) => {
+      methods.push(request.method);
+      const path = new URL(request.url).pathname;
+      if (path.endsWith("/users")) {
+        return json(idPage([member("shared-id", "target@example.test")]));
+      }
+      if (path.endsWith("/invites")) {
+        return json(idPage([invite("shared-id", "different@example.test")]));
+      }
+      return new Response(null, { status: 204 });
+    });
+    const connector = createConnectorDispatcher({ rest: implementation }).forProtocol("rest");
+    const expected = { ok: false, code: "provider_error", retryable: false, raw: null } as const;
+
+    expect(await connector.deprovision({
+      requestId: REQUEST,
+      vendorAccountId: ACCOUNT,
+      personEmail: "target@example.test",
+      licenseTypeName: "Claude",
+    })).toEqual(expected);
+    expect(methods).toEqual(["GET", "GET"]);
+    expect(methods).not.toContain("DELETE");
+
+    expect(await connector.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW })).toEqual(expected);
+    expect(methods).toEqual(["GET", "GET", "GET", "GET"]);
+    expect(methods).not.toContain("DELETE");
+  });
+
   it("paginates both cursor families and preserves durable attempt numbering across pages", async () => {
     // Mutations killed: wrong continuation or recreated session repeats the durable attempt number.
     const seen: string[] = [];
@@ -282,6 +313,33 @@ describe("Anthropic neutral connector", () => {
       "/v1/organizations/analytics/summaries?date=2026-09-06",
     ]);
     expect(journal.filter(({ phase }) => phase === "requested").map(({ attempt }) => attempt)).toEqual([1, 2, 3]);
+  });
+
+  it.each([
+    ["ID", idPage([], true, "next\npage"), "members"],
+    ["opaque", opaquePage([], "next\u0000page"), "activity"],
+  ] as const)("maps a malformed nonblank %s provider cursor after one successful attempt", async (_case, body, operation) => {
+    // Mutations killed: deferring provider-cursor validation to request construction rejects the public promise.
+    let transports = 0;
+    const { connector, journal } = fixture(async () => {
+      transports += 1;
+      return json(body);
+    });
+    const result = operation === "members"
+      ? connector.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW })
+      : connector.syncActivity({ vendorAccountId: ACCOUNT, observedAt: NOW });
+
+    await expect(result).resolves.toEqual({
+      ok: false,
+      code: "provider_error",
+      retryable: false,
+      raw: null,
+    });
+    expect(transports).toBe(1);
+    expect(journal.map(({ phase, attempt, classification }) => ({ phase, attempt, classification }))).toEqual([
+      { phase: "requested", attempt: 1, classification: null },
+      { phase: "succeeded", attempt: 1, classification: "success" },
+    ]);
   });
 
   it("permits terminal ID page 100 but refuses request 101", async () => {

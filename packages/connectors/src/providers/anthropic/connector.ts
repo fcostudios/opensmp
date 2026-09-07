@@ -155,14 +155,16 @@ function wellFormedUtf16(value: string): boolean {
   return true;
 }
 
-function opaqueToken(value: unknown): value is string {
+function providerToken(value: unknown): value is string {
   return typeof value === "string"
     && value.length > 0
-    && value !== "."
-    && value !== ".."
     && value === value.trim()
-    && !/[\u0000-\u001f\u007f-\u009f]/u.test(value)
+    && !/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(value)
     && wellFormedUtf16(value);
+}
+
+function opaqueToken(value: unknown): value is string {
+  return providerToken(value) && value !== "." && value !== "..";
 }
 
 function usableEmail(value: unknown): string | null | undefined {
@@ -252,8 +254,8 @@ function parseIdPage<T>(value: unknown, parser: (item: unknown) => T | null): Id
   const page = exact(value, ["data", "has_more", "first_id", "last_id"]);
   if (
     !page || !Array.isArray(page.data) || typeof page.has_more !== "boolean"
-    || !(page.first_id === null || nonblank(page.first_id))
-    || !(page.last_id === null || nonblank(page.last_id))
+    || !(page.first_id === null || providerToken(page.first_id))
+    || !(page.last_id === null || providerToken(page.last_id))
   ) return null;
   const data = page.data.map(parser);
   return data.some((item) => item === null) ? null : {
@@ -263,7 +265,7 @@ function parseIdPage<T>(value: unknown, parser: (item: unknown) => T | null): Id
 
 function parseOpaquePage<T>(value: unknown, parser: (item: unknown) => T | null): OpaquePage<T> | null {
   const page = exact(value, ["data", "next_page"]);
-  if (!page || !Array.isArray(page.data) || !(page.next_page === null || nonblank(page.next_page))) return null;
+  if (!page || !Array.isArray(page.data) || !(page.next_page === null || providerToken(page.next_page))) return null;
   const data = page.data.map(parser);
   return data.some((item) => item === null) ? null : { data: data as T[], next_page: page.next_page };
 }
@@ -305,6 +307,14 @@ function addDecimals(values: readonly string[]): string {
     ? `${negative ? "-" : ""}${digits}`
     : `${negative ? "-" : ""}${digits.slice(0, -scale)}.${digits.slice(-scale)}`;
   return centsToUsd(cents);
+}
+
+function hasUniqueProviderIds(
+  members: readonly Member[],
+  invitations: readonly Invitation[],
+): boolean {
+  const ids = [...members.map(({ id }) => id), ...invitations.map(({ id }) => id)];
+  return new Set(ids).size === ids.length;
 }
 
 async function responseBody(response: Response): Promise<unknown> {
@@ -435,6 +445,7 @@ export function createAnthropicConnector(dependencies: AnthropicConnectorDepende
       if (!members.ok) return members;
       const invites = await idPages(operation, "invites", input.vendorAccountId, parseInvitation);
       if (!invites.ok) return invites;
+      if (!hasUniqueProviderIds(members.data, invites.data)) return providerFailure();
       const target = input.personEmail.toLowerCase();
       const matches = [
         ...members.data.filter(({ email }) => email === target).map((item) => ({ endpoint: "delete_member" as const, id: item.id })),
@@ -455,6 +466,7 @@ export function createAnthropicConnector(dependencies: AnthropicConnectorDepende
       if (!members.ok) return members;
       const invites = await idPages(operation, "invites", input.vendorAccountId, parseInvitation);
       if (!invites.ok) return invites;
+      if (!hasUniqueProviderIds(members.data, invites.data)) return providerFailure();
       const normalized = [
         ...members.data.filter((item): item is Member & { email: string } => item.email !== null)
           .map(({ email }) => ({ email, active: true })),
