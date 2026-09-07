@@ -46,6 +46,25 @@ async function credentialEnvelope(secret: string): Promise<string> {
   );
 }
 
+function payload(requestId: string, accountId: string, email: string) {
+  return {
+    checklistSteps: [],
+    context: {
+      companyId: requestId === ids.requestA ? ids.companyA : ids.companyB,
+      requestId,
+    },
+    instruction: {
+      licenseTypeName: "Claude seat",
+      personEmail: email,
+      requestId,
+      vendorAccountId: accountId,
+    },
+    operation: "provision",
+    protocol: "rest",
+    version: 1,
+  };
+}
+
 async function seed(): Promise<void> {
   await owner.query(
     `TRUNCATE TABLE audit_log, connector_call_observation, request_transition,
@@ -105,19 +124,6 @@ async function seed(): Promise<void> {
       ids.license, at, ids.admin,
     ],
   );
-  const payload = (requestId: string, accountId: string, email: string) => JSON.stringify({
-    checklistSteps: [],
-    context: { companyId: requestId === ids.requestA ? ids.companyA : ids.companyB, requestId },
-    instruction: {
-      licenseTypeName: "Claude seat",
-      personEmail: email,
-      requestId,
-      vendorAccountId: accountId,
-    },
-    operation: "provision",
-    protocol: "rest",
-    version: 1,
-  });
   await owner.query(
     `INSERT INTO provisioning_action
        (id,request_id,vendor_account_id,kind,mode,status,raw_request,created_at)
@@ -126,8 +132,8 @@ async function seed(): Promise<void> {
     [
       ids.actionA, ids.actionB, ids.requestA, ids.requestB,
       ids.accountA, ids.accountB,
-      payload(ids.requestA, ids.accountA, "a@invite.test"),
-      payload(ids.requestB, ids.accountB, "b@invite.test"),
+      JSON.stringify(payload(ids.requestA, ids.accountA, "a@invite.test")),
+      JSON.stringify(payload(ids.requestB, ids.accountB, "b@invite.test")),
       at,
     ],
   );
@@ -151,6 +157,16 @@ function jobFor(transport: (request: Request) => Promise<Response>) {
     sleep: async () => undefined,
     transport,
   });
+}
+
+async function expectNoAppConnections(): Promise<void> {
+  const connections = await owner.query<{ count: number }>(
+    `SELECT count(*)::int AS count
+     FROM pg_stat_activity
+     WHERE datname=$1 AND usename='ledger_app'`,
+    [fixture.databaseName],
+  );
+  expect(connections.rows).toEqual([{ count: 0 }]);
 }
 
 beforeAll(async () => {
@@ -182,9 +198,18 @@ describe("US-063 automated invite delivery", () => {
           status: "pending",
         }), { status: 200, headers: { "content-type": "application/json" } });
     });
+    let locksWhileOpen: readonly { count: number }[] = [];
     try {
       await expect(job.drain({ at, vendorAccountId: ids.accountA })).resolves.toEqual({ processed: 1 });
       await expect(job.drain({ at, vendorAccountId: ids.accountA })).resolves.toEqual({ processed: 0 });
+      const locks = await owner.query<{ count: number }>(
+        `SELECT count(*)::int AS count
+         FROM pg_locks lock
+         JOIN pg_database database ON database.oid=lock.database
+         WHERE lock.locktype='advisory' AND lock.granted AND database.datname=$1`,
+        [fixture.databaseName],
+      );
+      locksWhileOpen = locks.rows;
     } finally {
       await job.close();
     }
@@ -247,6 +272,146 @@ describe("US-063 automated invite delivery", () => {
       [ids.actionB],
     );
     expect(foreign.rows).toEqual([{ status: "pending", vendor_ref: null }]);
+    expect(locksWhileOpen).toEqual([{ count: 0 }]);
+    await expectNoAppConnections();
+  });
+
+  it("rejects every payload-to-row identity mismatch before observation or transport", async () => {
+    const canonical = payload(ids.requestA, ids.accountA, "a@invite.test");
+    const mismatches = [
+      { ...canonical, context: { ...canonical.context, companyId: ids.companyB } },
+      { ...canonical, context: { ...canonical.context, requestId: ids.requestB } },
+      { ...canonical, instruction: { ...canonical.instruction, requestId: ids.requestB } },
+      { ...canonical, instruction: { ...canonical.instruction, vendorAccountId: ids.accountB } },
+    ];
+    for (const mismatch of mismatches) {
+      await seed();
+      await owner.query(
+        "UPDATE provisioning_action SET raw_request=$2::jsonb WHERE id=$1",
+        [ids.actionA, JSON.stringify(mismatch)],
+      );
+      let calls = 0;
+      const job = jobFor(async () => {
+        calls += 1;
+        throw new Error("transport must not run");
+      });
+      try {
+        await expect(job.drain({ at, vendorAccountId: ids.accountA }))
+          .rejects.toThrow("AUTOMATED_INVITE_PAYLOAD_INVALID");
+      } finally {
+        await job.close();
+      }
+      expect(calls).toBe(0);
+    }
+  });
+
+  it("rejects invalid drain inputs and a missing KEK path before transport", async () => {
+    await seed();
+    const configured = jobFor(async () => {
+      throw new Error("transport must not run");
+    });
+    try {
+      await expect(configured.drain({ at, vendorAccountId: "invalid" }))
+        .rejects.toThrow("AUTOMATED_INVITE_VENDOR_INVALID");
+      await expect(configured.drain({ at: new Date(Number.NaN), vendorAccountId: ids.accountA }))
+        .rejects.toThrow("AUTOMATED_INVITE_TIME_INVALID");
+    } finally {
+      await configured.close();
+    }
+
+    const missingKek = createAutomatedInviteDeliveryJob({
+      connectionString: fixture.appUrl,
+      now: () => at,
+      sleep: async () => undefined,
+      transport: async () => {
+        throw new Error("transport must not run");
+      },
+    });
+    try {
+      await expect(missingKek.drain({ at, vendorAccountId: ids.accountA }))
+        .rejects.toThrow("LEDGER_CREDENTIAL_KEK_FILE is required");
+    } finally {
+      await missingKek.close();
+    }
+
+    const blankKek = createAutomatedInviteDeliveryJob({
+      connectionString: fixture.appUrl,
+      kekFile: "   ",
+      now: () => at,
+      sleep: async () => undefined,
+      transport: async () => {
+        throw new Error("transport must not run");
+      },
+    });
+    try {
+      await expect(blankKek.drain({ at, vendorAccountId: ids.accountA }))
+        .rejects.toThrow("LEDGER_CREDENTIAL_KEK_FILE is required");
+    } finally {
+      await blankKek.close();
+    }
+  });
+
+  it("rolls back a failed atomic finalization while retaining connector evidence", async () => {
+    await seed();
+    await owner.query(`
+      CREATE OR REPLACE FUNCTION reject_invite_finalization() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'forced finalization failure'; END $$;
+      CREATE TRIGGER reject_invite_finalization
+      BEFORE INSERT ON audit_log
+      FOR EACH ROW EXECUTE FUNCTION reject_invite_finalization()`);
+    const job = jobFor(async () => new Response(JSON.stringify({
+      type: "invite",
+      id: "invite-rollback-a",
+      email: "a@invite.test",
+      status: "pending",
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    try {
+      await expect(job.drain({ at, vendorAccountId: ids.accountA }))
+        .rejects.toThrow("forced finalization failure");
+    } finally {
+      await job.close();
+      await owner.query(`
+        DROP TRIGGER IF EXISTS reject_invite_finalization ON audit_log;
+        DROP FUNCTION IF EXISTS reject_invite_finalization()`);
+    }
+    const state = await owner.query(
+      `SELECT request.state,action.status,action.vendor_ref,
+              (SELECT count(*)::int FROM connector_call_observation observation
+               WHERE observation.provisioning_action_id=action.id) AS observations
+       FROM license_request request JOIN provisioning_action action ON action.request_id=request.id
+       WHERE action.id=$1`,
+      [ids.actionA],
+    );
+    expect(state.rows).toEqual([{
+      state: "provisioning",
+      status: "pending",
+      vendor_ref: null,
+      observations: 2,
+    }]);
+  });
+
+  it("refuses finalization when state changes after provider evidence", async () => {
+    await seed();
+    const job = jobFor(async () => {
+      await owner.query("UPDATE license_request SET state='invited' WHERE id=$1", [ids.requestA]);
+      return new Response(JSON.stringify({
+        type: "invite",
+        id: "invite-raced-a",
+        email: "a@invite.test",
+        status: "pending",
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    });
+    try {
+      await expect(job.drain({ at, vendorAccountId: ids.accountA }))
+        .resolves.toEqual({ processed: 0 });
+    } finally {
+      await job.close();
+    }
+    const state = await owner.query(
+      "SELECT status,vendor_ref FROM provisioning_action WHERE id=$1",
+      [ids.actionA],
+    );
+    expect(state.rows).toEqual([{ status: "pending", vendor_ref: null }]);
   });
 
   it("kills a scheduled coordinator that fails to discover eligible vendor accounts", async () => {
@@ -268,6 +433,56 @@ describe("US-063 automated invite delivery", () => {
       await job.close();
     }
     expect(calls).toBe(1);
+  });
+
+  it("uses the platform clock when no deterministic observation clock is supplied", async () => {
+    await seed();
+    await owner.query(
+      "UPDATE license_request SET vendor_account_id=$2 WHERE id=$1",
+      [ids.requestB, ids.accountA],
+    );
+    await owner.query(
+      `UPDATE provisioning_action
+       SET vendor_account_id=$2,raw_request=$3::jsonb
+       WHERE id=$1`,
+      [
+        ids.actionB,
+        ids.accountA,
+        JSON.stringify(payload(ids.requestB, ids.accountA, "b@invite.test")),
+      ],
+    );
+    let calls = 0;
+    const job = createAutomatedInviteDeliveryJob({
+      allowedKekRoot: privateRoot,
+      connectionString: fixture.appUrl,
+      kekFile,
+      transport: async (request) => {
+        calls += 1;
+        const body = await request.json() as { email: string };
+        return new Response(JSON.stringify({
+          type: "invite",
+          id: `invite-platform-clock-${calls}`,
+          email: body.email,
+          status: "pending",
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      },
+    });
+    try {
+      await expect(job.drain({ at, vendorAccountId: ids.accountA }))
+        .resolves.toEqual({ processed: 2 });
+    } finally {
+      await job.close();
+    }
+    expect(calls).toBe(2);
+    const evidence = await owner.query<{ occurredAt: Date }>(
+      `SELECT occurred_at AS "occurredAt" FROM connector_call_observation
+       ORDER BY provisioning_action_id,attempt,phase`,
+    );
+    expect(evidence.rows).toHaveLength(4);
+    for (const row of evidence.rows) {
+      expect(row.occurredAt).toBeInstanceOf(Date);
+      expect(Number.isFinite(row.occurredAt.getTime())).toBe(true);
+    }
   });
 
   it("kills replay after an ambiguous transport crash", async () => {

@@ -610,8 +610,8 @@ assert.deepEqual(
 );
 assert.deepEqual(
   DIRECT_TEST_ROUTES["apps/worker/src/connector-composition.ts"],
-  ["apps/worker/src/jobs/automated-invite-delivery.integration.test.ts"],
-  "the provider composition seam must retain its invitation integration route",
+  ["packages/connectors/src/dispatch.test.ts"],
+  "the provider composition seam must retain its exact source-boundary route",
 );
 assert.deepEqual(
   DIRECT_TEST_ROUTES["apps/worker/src/index.ts"],

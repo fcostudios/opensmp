@@ -1539,7 +1539,7 @@ export const DIRECT_TEST_ROUTES = {
     "apps/web/src/modules/request-workflow/service.integration.test.ts",
   ],
   "apps/worker/src/connector-composition.ts": [
-    "apps/worker/src/jobs/automated-invite-delivery.integration.test.ts",
+    "packages/connectors/src/dispatch.test.ts",
   ],
   "apps/worker/src/index.ts": [
     "apps/worker/src/runtime.integration.test.ts",

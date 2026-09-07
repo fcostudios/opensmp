@@ -52,7 +52,7 @@ that production credential decryption and lifecycle persistence are currently
 web-local; the first PostgreSQL RED test then proved that the least-privilege
 runtime lacked the required `vendor_ref` grant, and runtime inspection proved
 cron payloads are coordinator-shaped. The cohesive implementation may
-therefore touch these thirty paths without changing a table shape. The
+therefore touch these thirty-three paths without changing a table shape. The
 first cold campaign then stopped before mutant creation because five shared or
 composition-root sources lacked explicit accountability routes; its minimal
 repair adds only the mutation router and its contract test:
@@ -87,6 +87,9 @@ repair adds only the mutation router and its contract test:
 28. `packages/connectors/src/dispatch.test.ts`
 29. `scripts/mutation-scope.mjs`
 30. `scripts/test-mutation-scope.mjs`
+31. `packages/contracts/package.json`
+32. `packages/contracts/src/automated-provisioning.ts`
+33. `packages/contracts/src/automated-provisioning.test.ts`
 
 Package exports stay explicit. The append-only permission migration is recorded
 by the timestamped deviation event; it grants only `vendor_ref` and its verifier
