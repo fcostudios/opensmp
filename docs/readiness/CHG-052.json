@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "b377b8452df63aff227758cbde2f0e671ff3e186356075c7b174b82d166d2196",
+  "work_id": "CHG-052",
+  "kind": "CHG",
+  "work_type": "functional",
+  "title": "Reconcile the retired US-018 split and close the parent by verification",
+  "source": "Nous change ledger CHG-052",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "Sprint planning exposes one canonical Anthropic connector outcome: the obsolete US-059 through US-062 readiness offers are retired, and US-018 closes from traceable verification of the already-delivered US-056, US-057, and US-058 evidence without reimplementing their behavior.",
+      "demo": "The four obsolete readiness artifacts fail closed with an explicit CHG-052 supersession reason; US-018 records four timestamped AC verifications mapped to US-056, US-057, and US-058, followed by one build pass and one done event; its rendered timeline has no implementation events and US-019 becomes unblocked."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "contracts",
+    "docs"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 9,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 15,
+    "implementation": 35,
+    "focused_verification": 25,
+    "review": 20,
+    "integration": 15,
+    "total": 110
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "status": "resolved",
+      "statement": "The readiness schema has no superseded decision even though the four obsolete IDs must stop being offered for execution.",
+      "estimate_impact_minutes": 5,
+      "resolution": "Represent each retired ID with the schema's fail-closed blocked decision and an unresolved condition that names CHG-052, the delivered replacement stories, and the permanent no-remint rule. This preserves the historical ID while making it non-executable."
+    },
+    {
+      "id": "U2",
+      "status": "resolved",
+      "statement": "US-018 currently describes a 310-minute implementation and would duplicate delivered connector behavior if executed literally.",
+      "estimate_impact_minutes": 5,
+      "resolution": "Replace its assessment with verification-only work: AC1 cites US-056, AC2 cites US-057, and AC3 plus AC4 cite US-058. No production, test, migration, runtime, or executable-tooling changes are allowed."
+    },
+    {
+      "id": "U3",
+      "status": "resolved",
+      "statement": "A parent closure could overclaim evidence or accidentally run redundant mutation work.",
+      "estimate_impact_minutes": 5,
+      "resolution": "Verify the child evidence and current build directly, emit exactly four ac_verify events, one build_pass, and one done event with ISO-8601 UTC timestamps, and run no cold campaign unless verification identifies a genuine need; the approved assessment declares zero mutation shards."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "b377b8452df63aff227758cbde2f0e671ff3e186356075c7b174b82d166d2196"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
