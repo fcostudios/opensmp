@@ -322,3 +322,4 @@ Every rule above traces to §2, which traces to §14.
 17. Molinelli, D., Di Grazia, L., Martin-Lopez, A., Ernst, M. D., & Pezzè, M. (2025). *Do LLMs Generate Useful Test Oracles? An Empirical Study with an Unbiased Dataset.* ASE 2025. — Oracle quality of LLM-generated tests.
 18. Alshahwan, N., et al. (2024). *Automated Unit Test Improvement using Large Language Models at Meta (TestGen-LLM).* — LLM test generation gated by measurable improvement, not volume.
 19. Mündler, N., et al. (2024). *SWT-Bench: Testing and Validating Real-World Bug-Fixes with Code Agents.* — Benchmark for agent-generated tests.
+<!-- nous-emitted: sha256=fa4d8c6f7aea37de -->

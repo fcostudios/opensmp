@@ -167,3 +167,4 @@ expected behavior. Do not spray shallow or heavily-mocked tests to inflate volum
 is not a goal and is measured as a cost, not a quality.
 
 When you change logic in a `docs/dev-guide/TESTING.md` §3 critical path, update its §3 in the same PR.
+<!-- nous-emitted: sha256=d39549ad3aec2340 -->

@@ -38,20 +38,23 @@ The **aggregate + projection layers should be the widest part of the suite**, no
 
 ## 3. Effectiveness-critical paths (the gated set)
 
-> The few areas where a silent fault is materially costly. Mutation testing runs on the diff
-> intersected with this set. Adding logic here without updating this file is a review smell.
+> The few areas where a silent fault is materially costly. Mutation testing runs on **the diff**;
+> this set decides which **stories owe mutation evidence** before they can close — two separate
+> mechanisms. Adding logic here without updating this file is a review smell.
 > *(Authoritative machine-derived set: [`testing/critical-paths.md`](../../testing/critical-paths.md),
 > generated from this project's business rules + graph. Keep current.)*
 
 - **Tenant isolation** — every path that touches tenant-scoped data (filtered by `company_id`). → explicit isolation assertions (a query for tenant A must never return tenant B's rows).
 - **Authorization** — role/permission gates on commands/mutations. → integration tests for allowed vs forbidden (expect 403).
-- **Restore maintenance authority** — the temporary restore-admin TTL, credential inode, mounted encrypted stage, and convergence/finalization locks. → real PostgreSQL and packaged-image race tests must prove authority is closed before verification and after every success/failure path.
 - **Money / tax / financial math** (if present) — amounts, rounding, and idempotency of charge/ledger events. → property-based + a provider contract test.
-- **BR-01 — Register no-overlap (one seat, one holder, one period)** — critical business rule; oracle: `exact`. (stories: US-003)
-- **BR-02 — Every assigned seat-day belongs to exactly one company** — critical business rule; oracle: `exact`. (stories: US-003, US-034, US-047)
-- **BR-03 — Audit log is append-only at the database level** — critical business rule; oracle: `exact`. (stories: US-003, US-008)
-- **BR-04 — Only legal state-machine transitions execute** — critical business rule; oracle: `exact`. (stories: US-014)
+- **BR-01 — Register no-overlap (one seat, one holder, one period)** — critical business rule; oracle: `exact`. (stories: US-003, US-033, US-036, US-037)
+- **BR-02 — Every assigned seat-day belongs to exactly one company** — critical business rule; oracle: `exact`. (stories: US-003, US-028, US-033, US-034, US-047)
+- **BR-03 — Audit log is append-only at the database level** — critical business rule; oracle: `exact`. (stories: US-003, US-008, US-036, US-037)
+- **BR-04 — Only legal state-machine transitions execute** — critical business rule; oracle: `exact`. (stories: US-014, US-033, US-034)
+- **BR-08 — Approval aging: reminder at 24 h, escalation at 48 h; decision target 2 business days** — critical business rule; oracle: `exact`. (stories: US-015, US-017, US-032, US-046)
+- **BR-11 — Low-pool alert below the per-org floor** — critical business rule; oracle: `exact`. (stories: US-022, US-052, US-053)
 - **BR-12 — Blocked requests are never dropped; review within 1 business day** — critical business rule; oracle: `exact`. (stories: US-023)
+- **BR-14 — Departure deprovisioning completes same business day** — critical business rule; oracle: `property`. (stories: US-024, US-042)
 - **BR-17 — Proration is daily actual/actual with exact mid-month boundaries** — critical business rule; oracle: `exact`. (stories: US-034)
 - **BR-18 — Close is deterministic and idempotent; finals are immutable** — critical business rule; oracle: `exact`. (stories: US-034, US-035, US-047, US-050)
 - **BR-20 — Reconciliation flips to reconciled ONLY within 0.5%** — critical business rule; oracle: `exact`. (stories: US-038)
@@ -65,7 +68,7 @@ The **aggregate + projection layers should be the widest part of the suite**, no
 
 ## 4. CI gates
 
-- **Effectiveness gate:** diff-scoped **mutation score ≥ 80%** on changed code within §3. Surviving mutants must be killed or annotated `@equivalent: <reason>` with reviewer sign-off. *(Threshold provisional — recalibrate after the first month of real diffs.)*
+- **Effectiveness gate:** **mutation score ≥ 80%** on the changed code a run mutates (`pnpm test:mutation` scopes to the diff automatically). A story touching §3 cannot close without this evidence; surviving mutants must be killed or annotated `@equivalent: <reason>` with reviewer sign-off. *(Threshold provisional — recalibrate after the first month of real diffs.)*
 - **Coverage:** reported as a *diagnostic only*; it never gates. A PR cannot pass on coverage alone.
 - **Contract:** external-API contract verification must pass; a broken provider contract fails the build even if mocked unit tests pass.
 - **Flake:** any test failing intermittently on unchanged code is quarantined within 1 working day (tagged `@quarantine`, ticketed) and excluded from the gate until fixed or deleted.
@@ -75,7 +78,7 @@ Pipeline order (fail-fast): lint/type → domain+property → aggregate+projecti
 ## 5. Agent test-generation loop
 
 1. Generate tests for changed code in §3.
-2. CI runs diff-scoped mutation.
+2. Run `pnpm test:mutation` — it scopes to this branch's diff and runs ONE campaign (a diff with nothing mutatable exits immediately). Do not hand-write per-story mutation configs.
 3. **Keep only tests that kill previously-surviving mutants;** drop coverage-only redundant tests.
 4. Report surviving mutants as an "assurance gap" for the author to close.
 5. CI reports **mock-to-test ratio** and **assertion-to-print ratio**; large deviation from the repo baseline is flagged.
@@ -95,13 +98,15 @@ Encourage agent test-writing for **small, well-specified correctness bugs with c
 | Coverage (diagnostic) | c8 / istanbul |
 
 ```bash
-# NOTE: these task names are wired by the test harness (TE-2); until then the
-# package ships no test runner — do not assume `test`/`test:mutation` run yet.
-<test>             # unit + aggregate + projection (fast)
-<test:integration> # Testcontainers
-<test:contract>    # contract verification
-<test:mutation>    # mutation on critical-path diff  ← the gate
-<test:e2e>         # critical journeys
+pnpm test           # unit + aggregate + projection (fast) — Vitest, wired (TE-2)
+pnpm test:mutation  # ONE diff-scoped mutation campaign  ← the gate
+                    #   scopes to <merge-base>..HEAD, filtered to mutatable
+                    #   sources; exits 0 immediately when the diff has none.
+                    #   MUTATION_BASE=<ref> overrides the compared branch.
+# Not yet wired by the generator — add them as the project needs them:
+<test:integration>  # Testcontainers
+<test:contract>     # contract verification
+<test:e2e>          # critical journeys
 ```
 
 ## 7. PR checklist (copy into the PR description)
@@ -120,3 +125,4 @@ Encourage agent test-writing for **small, well-specified correctness bugs with c
 ## 8. Reference
 
 Full rationale + evidence base: `docs/TEST_EFFECTIVENESS_STANDARD.md`.
+<!-- nous-emitted: sha256=762e4971622fbce1 -->

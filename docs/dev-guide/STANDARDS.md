@@ -95,3 +95,4 @@ TOON `dataSource` registry. Match each handler path exactly to the TOON `dataSou
 // Email — type="email", not text+regex
 <input type="email" name="email" />
 ```
+<!-- nous-emitted: sha256=55080635fbe43be5 -->

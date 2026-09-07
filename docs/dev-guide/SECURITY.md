@@ -88,3 +88,4 @@ export async function GET() {
 - US-004 establishes and tests the Keycloak admin-service seam used to
   synchronize `platform-admin` membership. Complete account administration,
   reset-2FA workflows, and the user-management UI remain US-011.
+<!-- nous-emitted: sha256=5846d7450d1093cd -->

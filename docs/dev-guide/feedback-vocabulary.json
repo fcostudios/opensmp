@@ -1,0 +1,35 @@
+{
+  "_nous_emitted": "e79a26ae055bcf9f",
+  "canonical": {
+    "ac_fail": "annotation",
+    "ac_pass": "annotation",
+    "ac_unverifiable": "annotation",
+    "ac_verify": "annotation",
+    "adversarial_review": "sprint_marker",
+    "blocked": "annotation",
+    "blocker": "annotation",
+    "build_pass": "informational",
+    "closed_with_deferrals": "sprint_marker",
+    "closure_hygiene": "sprint_marker",
+    "decision": "decision",
+    "deferred_memory_saved": "sprint_marker",
+    "deviation": "annotation",
+    "done": "lifecycle",
+    "done_with_deferral": "terminal_alias",
+    "done_with_external_deferral": "terminal_alias",
+    "evidence_superseded": "annotation",
+    "feedback": "annotation",
+    "implemented_with_external_verification": "sprint_marker",
+    "mutation_invalidation": "annotation",
+    "nav_gap": "annotation",
+    "revalidated": "annotation",
+    "started": "lifecycle",
+    "test_report": "annotation",
+    "verified": "lifecycle"
+  },
+  "deprecated": [
+    "checkpoint"
+  ],
+  "local": [],
+  "terminal_alias_prefix": "done_with_"
+}

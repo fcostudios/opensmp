@@ -412,3 +412,83 @@ approved again. Separately, a `partition_required` parent may keep proposed
 children with local keys and null official IDs; the parent remains
 `partition_required`, while each such child stays non-executable until Nous
 issues its official ID and its separate readiness artifact is approved.
+
+## Tenant additions carried from emitted docs (2026-09-06)
+
+These sections were authored by the smp team inside substrate-emitted files
+(`DEFINITION_OF_DONE.md`, `FEEDBACK.md`). Those files were refreshed to the
+current substrate emission on 2026-09-06 (IMP-386 `adopt --refresh`) so the
+corrected Definition of Done (IMP-369/387) and the feedback contract (IMP-375/385/387)
+reach this package. The tenant content lives here, in a tenant-owned file, until
+IMP-393 gives emitted docs a `docs/dev-guide/local/` extension seam. Source:
+`git show 20ba335:docs/dev-guide/DEFINITION_OF_DONE.md` and `…/FEEDBACK.md`.
+
+The seven trailer-bearing agent documents (`.cursorrules`,
+`.github/copilot-instructions.md`, `AGENTS.md`, `CLAUDE.md`, `CODEX.md`,
+`docs/dev-guide/SECURITY.md`, and `docs/dev-guide/STANDARDS.md`) remain
+diverged-protected until IMP-393 lands; interim tenant guidance belongs in
+tenant-owned files such as this one.
+
+### Additional tenant Definition-of-Done gates (after emitted step 7, before emitted step 8)
+
+Run these tenant gates after emitted step 7's adversarial verification and every
+resulting fix, but before emitted step 8's final mutation campaign; emitted step
+9 remains the terminal lifecycle `done` event. Emitted step 5's
+`drizzle-kit push` is the bootstrap/schema-setup check; tenant gate T1's
+committed-migration apply, verification, and parity checks are the release/runtime
+acceptance gate.
+
+**T1 — Committed migrations apply on a fresh database (and parity is verified):**
+   - **Prerequisite:** `DATABASE_ADMIN_URL` connects as `ledger_owner` and has
+     permission to create the two disposable parity databases. `DATABASE_URL`
+     connects as the lower-privilege `ledger_app` for runtime grant checks.
+   ```bash
+   pnpm --filter @smp/db db:migrate
+   pnpm --filter @smp/db db:verify
+   pnpm --filter @smp/db db:parity
+   ```
+   - `db:migrate` applies only sorted, committed `V<timestamp>__<slug>.sql` files,
+     under the migration advisory lock, and rejects changed checksums.
+   - `db:verify` verifies the migration ledger and the committed integrity objects.
+   - `db:parity` compares committed migrations with a fresh `drizzle-kit push`
+     across tables, columns, normalized types, nullability, and foreign keys.
+   - Once applied, a migration file is immutable — add a new one; never edit it.
+   - The release path applies committed migrations using the `ledger_owner`
+     connection. It then starts the application using the lower-privilege
+     `ledger_app` connection; application runtime must not use the owner role.
+
+**T2 — Authentication evidence passes for US-004:**
+   - Auth.js redirects OIDC to Keycloak; Ledger renders no password or TOTP
+     fields.
+   - Keycloak realm event retention is configured, and an integration or
+     operational verification proves an authorized operator can query retained
+     password/TOTP failure events.
+   - Ledger `AuditLog` contains only the OIDC/session linking, callback, and
+     authorization outcomes Ledger observes; no Keycloak-event ingestion
+     adapter is required in Sprint 1.
+   - The Keycloak admin-service seam is tested for `platform-admin`
+     synchronization; the complete user-management UI remains US-011.
+
+**T3 — R1 deployment target is verified for release/infrastructure stories:**
+   Docker Compose on a VPS (or an equivalent CI Compose environment) starts
+   the Next.js app and declared infrastructure services with health checks
+   passing.
+
+### Append-only evidence correction
+
+Never edit an earlier evidence record to make its chronology look newer. Append
+`evidence_superseded` with a unique `ref` and a `target` containing `story`,
+`event`, and `ac` when the target is an AC. The target must identify exactly one
+earlier event. Then append exactly one `revalidated` record using that `ref`
+after both the supersession and a `decision` on the named `change`.
+
+To supersede evidence that was itself projected by an earlier revalidation,
+use `target: {"ref":"THE-EARLIER-REVALIDATION-REF"}`. The referenced
+revalidation must exist uniquely, precede the new supersession, and not already
+be superseded.
+
+The validator projects the revalidation as `as_event`; the superseded raw
+record remains audit history but is excluded from the canonical lifecycle.
+Superseded build and terminal evidence must therefore be revalidated in order:
+replacement `build_pass`, then replacement terminal event. Missing, duplicate,
+ambiguous, out-of-order, or event-kind-mismatched references fail closed.

@@ -18,11 +18,7 @@ story status, add annotations, and register decisions.
 | `ac_verify` | Adversarial verification of one AC | `story`, `event`, `ac`, `method`, `pass`, `notes` |
 | `build_pass` | type-check + lint + build pass | `story`, `event`, `notes` |
 | `done` | Story complete, all AC + build passing | `story`, `event` |
-| `evidence_superseded` | Retire one unique earlier AC/build/terminal event without rewriting history | `story`, `event`, `ref`, `target`, `reason` |
-| `revalidated` | Replace a superseded event after a decided change | `story`, `event`, `ref`, `change`, `as_event`, plus the replacement event's evidence fields |
 | `blocked` | Can't proceed | `story`, `event`, `reason`, `needs` |
-| `checkpoint` | Work-readiness 45/90-minute elapsed-time control | `story`, `event`, `elapsed_minutes`, `status`, `implementation_complete`, `evidence` |
-| `mutation_invalidation` | Invalidate one earlier authoritative cold mutation campaign | `story`, `event`, `reason` |
 | `deviation` | Spec divergence | `story`, `event`, `notes` |
 | `decision` | Technical decision made | `story`, `event`, `id`, `text`, `reason` |
 | `feedback` | Visual/UX issue with screenshot evidence | `story`, `event`, `title`, `description`, `images` |
@@ -30,35 +26,16 @@ story status, add annotations, and register decisions.
 ## Example Stream
 
 ```jsonl
-{"story":"US-064","event":"started","agent":"claude-code"}
+{"story":"US-064","event":"started","agent":"claude-code","ts":"2026-04-02T18:00:00Z"}
 {"story":"US-064","event":"ac_pass","ac":1,"notes":"socias list renders"}
 {"story":"US-064","event":"ac_verify","ac":1,"method":"route check","pass":true,"notes":"empty state renders"}
 {"story":"US-064","event":"build_pass","notes":"pnpm type-check && pnpm lint && pnpm build all green"}
-{"story":"US-064","event":"done"}
+{"story":"US-064","event":"done","ts":"2026-04-02T21:30:00Z"}
 {"story":"US-064","event":"feedback","title":"Button label wrong","description":"Save says Submit","images":["screenshots/us064-submit-btn.png"]}
 ```
 
 For `feedback` events, save images under a `screenshots/` folder at the repo root
 and list their repo-relative paths in `images`.
-
-### Append-only evidence correction
-
-Never edit an earlier evidence record to make its chronology look newer. Append
-`evidence_superseded` with a unique `ref` and a `target` containing `story`,
-`event`, and `ac` when the target is an AC. The target must identify exactly one
-earlier event. Then append exactly one `revalidated` record using that `ref`
-after both the supersession and a `decision` on the named `change`.
-
-To supersede evidence that was itself projected by an earlier revalidation,
-use `target: {"ref":"THE-EARLIER-REVALIDATION-REF"}`. The referenced
-revalidation must exist uniquely, precede the new supersession, and not already
-be superseded.
-
-The validator projects the revalidation as `as_event`; the superseded raw
-record remains audit history but is excluded from the canonical lifecycle.
-Superseded build and terminal evidence must therefore be revalidated in order:
-replacement `build_pass`, then replacement terminal event. Missing, duplicate,
-ambiguous, out-of-order, or event-kind-mismatched references fail closed.
 
 ## AC Verification Protocol (MANDATORY before `done`)
 
@@ -115,15 +92,54 @@ ONE cause; parallel causes get parallel events. Bundled causes cannot be
 split-routed to their repairs — a single record mixing a nav gap with a schema
 or toolchain gap can be linked to only one of them.
 
+## `test_report` — mutation-evidence report (the effectiveness gate)
+
+Emitted ONCE per story, at the campaign step of
+[`DEFINITION_OF_DONE.md`](DEFINITION_OF_DONE.md) — **after** adversarial AC
+verification and every fix it produced. Any commit after the campaign invalidates
+it, so a report emitted before review is superseded and has to be run again.
+
+A report missing a required field is **rejected at pull and persists nothing** —
+a scoreless report is what made this gate un-gateable. Report the real numbers.
+
+| Field | Required | Meaning |
+|-------|----------|---------|
+| `event` | **yes** | always `"test_report"` |
+| `ts` | no | ISO-8601 timestamp |
+| `project_id` | no | usually omitted — the pull knows the project |
+| `story` | **yes** | the story whose diff the campaign scored |
+| `agent` | no | your agent id |
+| `mutation_score` | **yes** | percent of mutants killed on the scored code (0–100) |
+| `scope` | **yes** | `diff` for the authoritative diff-scoped campaign; `critical-set` only when the critical set itself changed |
+| `killed` | **yes** | mutants killed |
+| `survived` | **yes** | mutants that survived |
+| `surviving_annotated` | no | `@equivalent: <reason>` for each survivor you are keeping — an unannotated survivor is an assurance gap, not a pass |
+| `suite_wallclock_s` | no | seconds the TEST SUITE took |
+| `mutation_wallclock_s` | no | seconds the CAMPAIGN took — optional, no gate reads it; it is how we find out whether running the campaign after review actually pays |
+| `quarantined` | no | tests quarantined as flaky and excluded from the gate |
+
+```jsonl
+{"story":"US-XXX","event":"test_report","mutation_score":84.2,"scope":"diff","killed":32,"survived":6,"surviving_annotated":[],"mutation_wallclock_s":720}
+```
+
+If a later commit invalidates a campaign you already reported, emit a
+`mutation_invalidation` naming the reason rather than deleting the report.
+
 ## Canonical Event Vocabulary (authoritative)
 
 Canonical event vocabulary (single source: `feedback_schemas`). Unknown event names are surfaced by `pull`/`drift`, never silently dropped:
 
 - **Lifecycle (flip story status):** `started`, `done`, `verified`
 - **Terminal-with-deferral (→ dev_done + deferral note; prefer plain `done`):** `done_with_deferral`, `done_with_external_deferral`
-- **Annotation (recorded, no status change):** `ac_pass`, `ac_verify`, `blocked`, `blocker`, `checkpoint`, `mutation_invalidation`, `deviation`, `ac_fail`, `ac_unverifiable`, `test_report`, `feedback`, `nav_gap`, `evidence_superseded`, `revalidated`
+- **Annotation (recorded, no status change):** `ac_pass`, `ac_verify`, `blocked`, `blocker`, `deviation`, `ac_fail`, `ac_unverifiable`, `test_report`, `feedback`, `evidence_superseded`, `revalidated`, `mutation_invalidation`, `nav_gap`
 - **Decision (registered):** `decision`
 - **Sprint-level marker (project audit trail, never flips a story):** `closed_with_deferrals`, `adversarial_review`, `deferred_memory_saved`, `closure_hygiene`, `implemented_with_external_verification`
 - **Informational (counted, not persisted):** `build_pass`
+- **Retired (accepted for history, never emit):** `checkpoint`
 
 Any `done_with_<qualifier>` event is recognized as terminal (recorded as a deferral); prefer plain `done` when there is no caveat.
+
+Retired names stay valid so previously written history keeps validating; do not emit them in new work.
+
+**Stamp every event with `ts`** — an ISO-8601 UTC timestamp of when the event happened, e.g. `date -u +%FT%TZ` → `"ts": "2026-09-06T14:30:00Z"`. It is optional on every event and absence is always legal, so a forgotten stamp never fails a sync — but `started` and `done` without it mean nobody can say how long the story took (`nous_trace.py story elapsed` reports it as "lacking an endpoint", never as zero). A malformed stamp is excluded and named rather than guessed at.
+<!-- nous-emitted: sha256=1dea349f48ee849d -->

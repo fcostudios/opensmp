@@ -37,3 +37,4 @@
 | UserAccount | auth-sensitive entity (name heuristic) | heuristic |
 | VendorAccount | auth-sensitive entity (name heuristic) | heuristic |
 | VendorAccountCapacity | auth-sensitive entity (name heuristic) | heuristic |
+<!-- nous-emitted: sha256=b8c488853d71d0d5 -->

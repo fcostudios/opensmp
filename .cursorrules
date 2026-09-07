@@ -318,3 +318,4 @@ Build gate + rejection criteria: [`docs/dev-guide/DEFINITION_OF_DONE.md`](docs/d
 - **Auth:** Auth.js + Keycloak (OIDC / sessions)
 - **Tooling:** pnpm, drizzle-kit, Docker Compose
 - **i18n:** locale-aware UI (default `en-US`)
+<!-- nous-emitted: sha256=d39549ad3aec2340 -->
