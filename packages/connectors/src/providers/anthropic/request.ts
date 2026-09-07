@@ -113,29 +113,34 @@ function requestForPolicy(
   });
 }
 
-const unsafeQueryCharacter = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u;
-const adminPageEndpoints = new Set<AnthropicEndpoint>(["members", "invites"]);
-const datedEndpoints = new Set<AnthropicEndpoint>([
-  "analytics_users",
-  "analytics_summaries",
-  "usage_report",
-  "user_usage_report",
-  "cost_report",
-  "user_cost_report",
-]);
-const reportEndpoints = new Set<AnthropicEndpoint>([
-  "usage_report",
-  "user_usage_report",
-  "cost_report",
-  "user_cost_report",
-]);
-const analyticsPageEndpoints = new Set<AnthropicEndpoint>([
-  "analytics_users",
-  "usage_report",
-  "user_usage_report",
-  "cost_report",
-  "user_cost_report",
-]);
+type AnthropicQueryKind =
+  | "none"
+  | "admin_page"
+  | "dated"
+  | "dated_page"
+  | "report_page";
+
+function queryKind(endpoint: AnthropicEndpoint): AnthropicQueryKind {
+  switch (endpoint) {
+    case "members":
+    case "invites":
+      return "admin_page";
+    case "analytics_summaries":
+      return "dated";
+    case "analytics_users":
+      return "dated_page";
+    case "usage_report":
+    case "user_usage_report":
+    case "cost_report":
+    case "user_cost_report":
+      return "report_page";
+    case "organization":
+    case "create_invite":
+    case "delete_invite":
+    case "delete_member":
+      return "none";
+  }
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -181,31 +186,32 @@ function requestQuery(
   endpoint: AnthropicEndpoint,
   candidate: AnthropicRequestQuery | undefined,
 ): URLSearchParams {
+  const kind = queryKind(endpoint);
   if (candidate === undefined) {
-    if (datedEndpoints.has(endpoint)) {
+    if (kind === "dated" || kind === "dated_page" || kind === "report_page") {
       throw new Error("Invalid Anthropic request query for dated endpoint.");
     }
     const query = new URLSearchParams();
-    if (adminPageEndpoints.has(endpoint)) query.set("limit", "1000");
+    if (kind === "admin_page") query.set("limit", "1000");
     return query;
   }
   if (!isRecord(candidate) || Object.keys(candidate).some((key) =>
     key !== "observedOn" && key !== "continuation")) {
     throw new Error("Invalid Anthropic request query.");
   }
-  if (!adminPageEndpoints.has(endpoint) && !datedEndpoints.has(endpoint)) {
+  if (kind === "none") {
     throw new Error("Invalid Anthropic request query for endpoint.");
   }
 
   const query = new URLSearchParams();
-  if (adminPageEndpoints.has(endpoint)) {
+  if (kind === "admin_page") {
     if (candidate.observedOn !== undefined) {
       throw new Error("Invalid Anthropic request query for endpoint.");
     }
     query.set("limit", "1000");
   } else {
     const date = observedOn(candidate.observedOn);
-    if (reportEndpoints.has(endpoint)) {
+    if (kind === "report_page") {
       query.set("starting_at", `${date}T00:00:00Z`);
       query.set("ending_at", `${followingDay(date)}T00:00:00Z`);
       query.set("bucket_width", "1d");
@@ -222,15 +228,15 @@ function requestQuery(
       || Object.keys(continuation).some((key) => key !== "kind" && key !== "value")
       || typeof continuation.value !== "string"
       || continuation.value.trim().length === 0
-      || unsafeQueryCharacter.test(continuation.value)
+      || /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(continuation.value)
       || !isWellFormedUtf16(continuation.value)
     ) {
       throw new Error("Invalid Anthropic request query continuation.");
     }
-    const expectedKind = adminPageEndpoints.has(endpoint) ? "after_id" : "page";
+    const expectedKind = kind === "admin_page" ? "after_id" : "page";
     if (
       continuation.kind !== expectedKind
-      || (expectedKind === "page" && !analyticsPageEndpoints.has(endpoint))
+      || kind === "dated"
     ) {
       throw new Error("Invalid Anthropic request query continuation for endpoint.");
     }
