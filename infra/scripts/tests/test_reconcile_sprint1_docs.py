@@ -30,6 +30,17 @@ READINESS_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-022/16f72c9"
 REPINNED_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-042/fd7741f"
 CRITICAL_SET_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-044/2d93300"
 CHG049_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-049/6466f60"
+CHG053_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-053/2dee869"
+CHG053_DELIVERED_ROOT = Path(__file__).parents[3]
+CHG053_GUIDES = (
+    "CLAUDE.md",
+    "docs/dev-guide/FRONTEND.md",
+)
+CHG053_MIRROR_HEADER = (
+    b"<!-- agent-sync: 93caf0fd67a9 | source: CLAUDE.md | DO NOT EDIT "
+    b"\xe2\x80\x94 this file is auto-generated from CLAUDE.md. Edit CLAUDE.md then "
+    b"run: python3 nous_agent_sync.py -->\n"
+)
 READINESS_GUIDES = (
     "AGENTS.md",
     "CLAUDE.md",
@@ -80,6 +91,9 @@ def desired_guide(relative_path: str) -> bytes:
 
 
 def latest_desired_guide(relative_path: str) -> bytes:
+    chg053 = CHG053_OVERRIDE_ROOT / relative_path
+    if chg053.is_file():
+        return chg053.read_bytes()
     chg049 = CHG049_OVERRIDE_ROOT / relative_path
     if chg049.is_file():
         return chg049.read_bytes()
@@ -163,7 +177,29 @@ def copy_reconciler_data(root: Path) -> Path:
             CHG049_OVERRIDE_ROOT,
             data_root / "overrides/CHG-049/6466f60",
         )
+    if CHG053_OVERRIDE_ROOT.is_dir():
+        shutil.copytree(
+            CHG053_OVERRIDE_ROOT,
+            data_root / "overrides/CHG-053/2dee869",
+        )
     return data_root
+
+
+def chg053_delivered_guide(relative_path: str) -> bytes:
+    return (CHG053_DELIVERED_ROOT / relative_path).read_bytes()
+
+
+def create_chg053_project(root: Path) -> None:
+    create_project(root)
+    for relative_path in CHG053_GUIDES:
+        (root / relative_path).write_bytes(chg053_delivered_guide(relative_path))
+
+    claude_body, _ = split_terminal_emitted_trailer(
+        chg053_delivered_guide("CLAUDE.md")
+    )
+    for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
+        _, trailer = split_terminal_emitted_trailer(chg053_delivered_guide(mirror))
+        (root / mirror).write_bytes(CHG053_MIRROR_HEADER + claude_body + trailer)
 
 
 TERMINAL_EMITTED_TRAILER = re.compile(
@@ -728,6 +764,177 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(snapshot(root), before)
             self.assertIn("AGENTS.md: unknown generated guidance state", result.stderr)
+
+    def test_chg053_manifest_binds_the_two_approved_transitions(self) -> None:
+        manifest_path = CHG053_OVERRIDE_ROOT / "manifest.json"
+        self.assertTrue(manifest_path.is_file(), "CHG-053 override manifest is missing")
+
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            manifest,
+            {
+                "version": 1,
+                "paths": {
+                    "CLAUDE.md": {
+                        "source_path": "overrides/CHG-049/6466f60/CLAUDE.md",
+                        "source_sha256": (
+                            "3f0905a05225b595636b0369b297c88176f764377da8543ed428df47d6f164d3"
+                        ),
+                        "desired_sha256": (
+                            "32f30b52af12a1591e0ec0507ab7f332b5d092a45b25fb0acdba08e6b6aed94f"
+                        ),
+                    },
+                    "docs/dev-guide/FRONTEND.md": {
+                        "source_path": (
+                            "overrides/CHG-049/6466f60/docs/dev-guide/FRONTEND.md"
+                        ),
+                        "source_sha256": (
+                            "30cd67e73fe3593e1f1d0aba4088ebc63ecd0fd69a86db262e8f860e02e8ca4c"
+                        ),
+                        "desired_sha256": (
+                            "b40ca6d396e3063a05bdfe638dc9c02cba515d410cd2d19a248433a16aa532dc"
+                        ),
+                    },
+                },
+            },
+        )
+
+    def test_chg053_current_imp393_mirrors_are_byte_stable_in_check_mode(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_chg053_project(root)
+            claude_body, claude_trailer = split_terminal_emitted_trailer(
+                chg053_delivered_guide("CLAUDE.md")
+            )
+            trailers = {
+                "CODEX.md": b"<!-- nous-emitted: sha256=1111111111111111 -->\n",
+                ".cursorrules": b"<!-- nous-emitted: sha256=2222222222222222 -->\n",
+                ".github/copilot-instructions.md": (
+                    b"<!-- nous-emitted: sha256=3333333333333333 -->\n"
+                ),
+            }
+            for relative_path, trailer in trailers.items():
+                (root / relative_path).write_bytes(
+                    CHG053_MIRROR_HEADER + claude_body + trailer
+                )
+
+            self.assertEqual(len(set(trailers.values())), len(trailers))
+            for trailer in trailers.values():
+                self.assertNotEqual(trailer, claude_trailer)
+            before = snapshot(root)
+            result = run_reconciler(root, "--check")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(snapshot(root), before)
+
+    def test_chg053_repairs_a_mirror_body_without_changing_its_frames(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_chg053_project(root)
+            claude_body, _ = split_terminal_emitted_trailer(
+                chg053_delivered_guide("CLAUDE.md")
+            )
+            mirror = root / "CODEX.md"
+            trailer = b"<!-- nous-emitted: sha256=abcdef0123456789 -->\n"
+            mirror.write_bytes(CHG053_MIRROR_HEADER + b"drifted mirror body\n" + trailer)
+
+            result = run_reconciler(root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                mirror.read_bytes(),
+                CHG053_MIRROR_HEADER + claude_body + trailer,
+            )
+
+    def test_chg053_invalid_mirror_frames_fail_closed_without_writes(self) -> None:
+        claude_body, _ = split_terminal_emitted_trailer(
+            chg053_delivered_guide("CLAUDE.md")
+        )
+        valid_trailer = b"<!-- nous-emitted: sha256=abcdef0123456789 -->\n"
+        stale_header = CHG053_MIRROR_HEADER.replace(b"93caf0fd67a9", b"000000000000")
+        malformed_header = b"<!-- agent-sync: malformed -->\n"
+        cases = {
+            "missing header": claude_body + valid_trailer,
+            "duplicate header": (
+                CHG053_MIRROR_HEADER + CHG053_MIRROR_HEADER + claude_body + valid_trailer
+            ),
+            "stale header": stale_header + claude_body + valid_trailer,
+            "misplaced header": claude_body + CHG053_MIRROR_HEADER + valid_trailer,
+            "malformed header": malformed_header + claude_body + valid_trailer,
+            "missing trailer": CHG053_MIRROR_HEADER + claude_body,
+            "duplicate trailer": (
+                CHG053_MIRROR_HEADER + claude_body + valid_trailer + valid_trailer
+            ),
+            "misplaced trailer": (
+                CHG053_MIRROR_HEADER + valid_trailer + claude_body
+            ),
+            "malformed trailer": (
+                CHG053_MIRROR_HEADER
+                + claude_body
+                + b"<!-- nous-emitted: sha256=not-hexadecimal -->\n"
+            ),
+        }
+        for variant, content in cases.items():
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                create_chg053_project(root)
+                (root / "CODEX.md").write_bytes(content)
+                before = snapshot(root)
+
+                result = run_reconciler(root)
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("CODEX.md", result.stderr)
+                self.assertEqual(snapshot(root), before)
+
+    def test_chg053_allows_the_two_delivered_negative_tenant_id_phrases(self) -> None:
+        delivered = chg053_delivered_guide("CLAUDE.md")
+        self.assertIn(b"there is no `tenant_id`", delivered)
+        self.assertIn(b"do NOT invent `tenant_id`", delivered)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_chg053_project(root)
+
+            result = run_reconciler(root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_chg053_rejects_active_and_mixed_tenant_id_guidance(self) -> None:
+        cases = {
+            "active": "Use tenant_id for every multi-tenant query.\n",
+            "mixed": (
+                "there is no `tenant_id`; use tenant_id for every multi-tenant query.\n"
+            ),
+        }
+        for variant, guidance in cases.items():
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                create_chg053_project(root)
+                write(root, "docs/dev-guide/EXTRA.md", guidance)
+                before = snapshot(root)
+
+                result = run_reconciler(root)
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("tenant_id", result.stderr)
+                self.assertEqual(snapshot(root), before)
+
+    def test_chg053_unknown_post_layer_hash_fails_closed_without_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_chg053_project(root)
+            claude = root / "CLAUDE.md"
+            claude.write_bytes(claude.read_bytes() + b"unreviewed post-CHG-053 state\n")
+            before = snapshot(root)
+
+            result = run_reconciler(root)
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(snapshot(root), before)
+            self.assertIn("CLAUDE.md: unknown generated guidance state", result.stderr)
 
     def test_distinct_valid_mirror_trailers_are_byte_stable_in_check_mode(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
