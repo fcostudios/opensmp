@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "0392cd6d43f071c9e246062551cb7e9cd6a46ddefeb444e55900250735739ddf",
+  "readiness_payload_sha256": "d801745339ee9e184c4af2c3ba122f4b8933fcda5ea21cd505cc610f2a52e529",
   "work_id": "US-018",
   "kind": "US",
   "work_type": "functional",
-  "title": "Anthropic connector client",
+  "title": "Verify the delivered Anthropic connector aggregate",
   "source": "docs/stories/sprint-3/r1_misc_us_018.md",
   "outcomes": [
     {
       "id": "O1",
       "primary": true,
-      "statement": "Ledger can talk to the vendor API through the vendor-neutral connector interface with separated credentials, bounded retry and a sanitized audit trail, so provisioning and sync work can be built on it without leaking secrets or vendor specifics.",
-      "demo": "Dispatch a provision through the registered rest connector against Pact-backed deterministic fixtures: the Admin credential is used, an Analytics-routed call fails closed, and the persisted ProvisioningAction summary contains no credential, header or raw body."
+      "statement": "The Anthropic connector aggregate is closed from traceable verification of the canonical US-056, US-057, and US-058 deliveries, without duplicating their implementation.",
+      "demo": "Four timestamped AC verifications cite the official child evidence, the current repository build passes once, no application or package code changes, and the terminal US-018 event unblocks US-019."
     }
   ],
   "acceptance_criteria": [
@@ -42,56 +42,48 @@
   ],
   "scopes": [
     "contracts",
-    "server",
-    "db"
+    "docs"
   ],
   "signals": {
     "routes_or_screens": 0,
     "acceptance_flows": 3,
-    "expected_changed_files": 18,
-    "expected_mutation_shards": 1,
-    "lifecycle_or_concurrency_boundaries": 1,
-    "external_integrations": 1,
+    "expected_changed_files": 2,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
     "schema_or_migration_changes": 0,
-    "authorization_or_audit_boundaries": 1,
+    "authorization_or_audit_boundaries": 0,
     "tooling_change": false
   },
   "estimate_minutes": {
-    "readiness": 20,
-    "implementation": 120,
-    "focused_verification": 105,
-    "review": 35,
-    "integration": 30,
-    "total": 310
+    "readiness": 10,
+    "implementation": 5,
+    "focused_verification": 20,
+    "review": 10,
+    "integration": 15,
+    "total": 60
   },
   "uncertainties": [
     {
       "id": "U1",
       "status": "resolved",
-      "statement": "No live Anthropic credentials exist: US-054 is blocked on per-org Admin/Analytics keys and invite-canary authorization.",
+      "statement": "Whether closing the aggregate requires any new connector implementation.",
       "estimate_impact_minutes": 0,
-      "resolution": "AC4 scopes this story to deterministic fixtures backed by passing Pact consumer contracts and explicitly leaves live credential-scope, organization-binding, pagination, rate-limit and invite acceptance gated behind the authorized US-054 provider run. No live call is in scope."
+      "resolution": "CHG-052 establishes verification-only closure. US-056 delivers AC1, US-057 delivers AC2, and US-058 delivers AC3 and AC4. No application, package, migration, runtime, test, or executable-tooling change is allowed."
     },
     {
       "id": "U2",
       "status": "resolved",
-      "statement": "Whether the documented rate limits can be treated as verified.",
+      "statement": "Whether parent verification requires another authoritative mutation campaign.",
       "estimate_impact_minutes": 0,
-      "resolution": "They are encoded as declared configuration (100/min user management, 60/min analytics, 1200 invites/hour) and asserted against fixtures. Confirming real provider behavior is US-054 work and must not be claimed here."
+      "resolution": "The canonical children retain their own mutation evidence, this assessment changes no mutatable source and declares zero mutation shards. Run no cold campaign unless evidence inspection identifies a genuine new need, and never more than one."
     },
     {
       "id": "U3",
       "status": "resolved",
-      "statement": "How much probe code can be reused, given it lives under scripts/probes/** which the provider-boundary lint excludes.",
-      "estimate_impact_minutes": 20,
-      "resolution": "Semantics are ported, not imported. The connector lives in packages/connectors/src/providers/anthropic/, the only other path the boundary lint exempts. createSanitizedObservation and the pagination/HTTP classification helpers are re-implemented there against the connector's own contracts so core code keeps importing only the neutral interface."
-    },
-    {
-      "id": "U4",
-      "status": "resolved",
-      "statement": "Whether the capability descriptor semantics are settled enough to implement against.",
-      "estimate_impact_minutes": 0,
-      "resolution": "US-025 is done and defines vendor capability flags and account mode; the neutral VendorConnector interface and dispatcher from US-045 are in packages/connectors and already consumed by planProvisioningAction."
+      "statement": "How to preserve provenance when older US-056 and US-057 lifecycle evidence predates the timestamp contract.",
+      "estimate_impact_minutes": 5,
+      "resolution": "Do not rewrite or pretend timestamps for historical child events. Cite their immutable source commits and committed feedback lines, while every newly emitted US-018 lifecycle and verification event carries an ISO-8601 UTC timestamp."
     }
   ],
   "dependencies": [],
@@ -100,13 +92,16 @@
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "US018-READY-320",
-    "payload_sha256": "0392cd6d43f071c9e246062551cb7e9cd6a46ddefeb444e55900250735739ddf"
+    "evidence": "CHG052-US018-VERIFY",
+    "payload_sha256": "d801745339ee9e184c4af2c3ba122f4b8933fcda5ea21cd505cc610f2a52e529"
   },
   "actuals": null,
-  "checkpoints": [],
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
-  "controlling_change": null
+  "controlling_change": {
+    "work_id": "CHG-052",
+    "relationship": "readiness_governance",
+    "reason": "CHG-052 converts the aggregate from duplicate implementation into evidence-only closure over the delivered canonical children."
+  }
 }
