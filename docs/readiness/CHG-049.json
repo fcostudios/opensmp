@@ -1,0 +1,204 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "6095640ee4fe3184f5b9fc38e011db225a4441106bb796dbbd3f1455af9f2317",
+  "work_id": "CHG-049",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Register the 2026-09-06 substrate delivery without mixing it into US-058",
+  "source": "Nous change ledger CHG-049",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The exact 2026-09-06 Nous delivery is carried as technical provenance and its eight regenerated guidance files are accepted through a fail-closed immutable tenant overlay, leaving US-058 a clean functional change.",
+      "demo": "From the resulting clean main tree, verify the 17 delivered paths retain the operator-delivered bytes, the CHG-049 overlay binds the eight regenerated guidance files, and both generated-guidance reconciliation and lint pass while an unknown generated hash still fails closed.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC5",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "infra",
+    "tooling"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 5,
+    "expected_changed_files": 28,
+    "expected_mutation_shards": 1,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 15,
+    "implementation": 35,
+    "focused_verification": 30,
+    "review": 20,
+    "integration": 10,
+    "total": 110
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Whether CHG-049 fits the repository's hard changed-file and acceptance-flow limits as one executable item.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "It does not: the exact scope is 28 paths and five independently testable flows. The work is therefore partition_required into a 17-path delivery-carry child and an 11-path overlay-registration child."
+    },
+    {
+      "id": "U2",
+      "statement": "Whether the desired bytes and overlay mechanism are reconstructable without re-running Nous adopt or sync.",
+      "status": "resolved",
+      "estimate_impact_minutes": 5,
+      "resolution": "The operator-delivered bytes are preserved in commit 1d52117, their eight exact SHA-256 values are reproducible from Git, and CHG-042/CHG-044 establish the immutable manifest-plus-desired-files mechanism. No substrate rerun is needed."
+    },
+    {
+      "id": "U3",
+      "statement": "How to correct the local US-058 attribution without losing the delivered bytes or beginning implementation before authorization.",
+      "status": "resolved",
+      "estimate_impact_minutes": 5,
+      "resolution": "Keep the unpushed commits and clean worktree intact while readiness is decided. After official child IDs and child approvals exist, repair the local commit sequence so the delivery is owned by the technical child, then recreate US-058 from the clean post-CHG-049 base."
+    }
+  ],
+  "dependencies": [],
+  "decision": "partition_required",
+  "partitions": [
+    {
+      "proposal_key": "carry-delivery",
+      "work_id": "CHG-050",
+      "title": "Carry the exact 2026-09-06 Nous delivery as technical provenance",
+      "outcome": "The 17 operator-delivered paths land together under a technical change, with tenant guidance re-homed and the protected agent-document status recorded.",
+      "demo": "Compare the child commit with the delivered tree: exactly the 17 named paths carry the delivered bytes, the seven agent documents differ only by their provenance trailers where specified, and WORK_READINESS.md records that those protected documents remain diverged-protected until IMP-393.",
+      "acceptance_criteria": [
+        "AC1",
+        "AC5"
+      ],
+      "work_type": "technical",
+      "scopes": [
+        "tooling"
+      ],
+      "signals": {
+        "routes_or_screens": 0,
+        "acceptance_flows": 2,
+        "expected_changed_files": 17,
+        "expected_mutation_shards": 0,
+        "lifecycle_or_concurrency_boundaries": 0,
+        "external_integrations": 0,
+        "schema_or_migration_changes": 0,
+        "authorization_or_audit_boundaries": 0,
+        "tooling_change": true
+      },
+      "uncertainties": [
+        {
+          "id": "U2",
+          "statement": "Whether the exact delivery can be preserved after its local commit was attributed to US-058.",
+          "status": "resolved",
+          "estimate_impact_minutes": 5,
+          "resolution": "Commit 1d52117 preserves the exact bytes and is still local; the authorized child can take ownership through a controlled local history repair without re-running or modifying the delivery."
+        }
+      ],
+      "estimate_minutes": {
+        "readiness": 5,
+        "implementation": 10,
+        "focused_verification": 10,
+        "review": 10,
+        "integration": 5,
+        "total": 40
+      },
+      "depends_on": [],
+      "cross_cutting_rationale": null
+    },
+    {
+      "proposal_key": "register-overlay",
+      "work_id": "CHG-051",
+      "title": "Register the eight-file CHG-049 immutable overlay",
+      "outcome": "The tenant reconciler recognizes the exact regenerated guidance bytes through a reviewed immutable overlay and continues to fail closed for unknown states.",
+      "demo": "Run generated-guidance reconciliation, lint, and both child readiness checks successfully; verify the CHG-049 manifest binds all eight desired files, the reconciler layer is registered, and REVIEWED_RECONCILER_SHA256 matches the reviewed reconciler bytes.",
+      "acceptance_criteria": [
+        "AC2",
+        "AC3",
+        "AC4"
+      ],
+      "work_type": "technical",
+      "scopes": [
+        "infra",
+        "tooling"
+      ],
+      "signals": {
+        "routes_or_screens": 0,
+        "acceptance_flows": 3,
+        "expected_changed_files": 11,
+        "expected_mutation_shards": 1,
+        "lifecycle_or_concurrency_boundaries": 0,
+        "external_integrations": 0,
+        "schema_or_migration_changes": 0,
+        "authorization_or_audit_boundaries": 1,
+        "tooling_change": true
+      },
+      "uncertainties": [
+        {
+          "id": "U3",
+          "statement": "Whether registering the layer can remain independently verifiable while depending on the delivery bytes it pins.",
+          "status": "resolved",
+          "estimate_impact_minutes": 5,
+          "resolution": "Order this child after carry-delivery. Its own demo verifies the manifest, desired copies, reconciler registration, reviewed hash, and fail-closed checks against the already-carried bytes."
+        }
+      ],
+      "estimate_minutes": {
+        "readiness": 10,
+        "implementation": 25,
+        "focused_verification": 20,
+        "review": 10,
+        "integration": 5,
+        "total": 70
+      },
+      "depends_on": [
+        "carry-delivery"
+      ],
+      "cross_cutting_rationale": null
+    }
+  ],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG049-PARTITION-CHILDREN",
+    "payload_sha256": "6095640ee4fe3184f5b9fc38e011db225a4441106bb796dbbd3f1455af9f2317"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}

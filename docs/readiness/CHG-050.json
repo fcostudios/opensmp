@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "26b83dda487af62fb49258cac05a9fe2b6a896408d387475ded3d69126a06f6c",
+  "work_id": "CHG-050",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Carry the exact 2026-09-06 Nous delivery as technical provenance",
+  "source": "Nous change ledger CHG-050",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The exact 17-path operator delivery lands under technical ownership with tenant guidance re-homed and protected agent-document divergence recorded, without being attributed to US-058.",
+      "demo": "Compare the resulting commit with preserved commit 1d52117: exactly the 17 delivered paths retain their bytes, intended provenance-only agent-document deltas remain provenance-only, and WORK_READINESS.md records the IMP-393 protection boundary and tenant-owned guidance location.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 2,
+    "expected_changed_files": 17,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 5,
+    "implementation": 10,
+    "focused_verification": 10,
+    "review": 10,
+    "integration": 5,
+    "total": 40
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Whether the delivery bytes can be preserved after their local commit was initially attributed to US-058.",
+      "status": "resolved",
+      "estimate_impact_minutes": 5,
+      "resolution": "The unpushed commit 1d52117 preserves the exact delivery in Git. A controlled local history repair can reattribute that unchanged tree to CHG-050 without rerunning adopt/sync or modifying any delivered byte."
+    },
+    {
+      "id": "U2",
+      "statement": "Whether the required diverged-protection note is already present in the delivered WORK_READINESS.md bytes.",
+      "status": "resolved",
+      "estimate_impact_minutes": 5,
+      "resolution": "The carried file contains the re-homed tenant guidance, but the explicit IMP-393 diverged-protection statement must be verified and, if absent, added within this child while keeping the total at 17 paths because WORK_READINESS.md is already in scope."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG050-READY",
+    "payload_sha256": "26b83dda487af62fb49258cac05a9fe2b6a896408d387475ded3d69126a06f6c"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}

@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "dbcd2487f43b00a6bb3571d7a1ffecf9818b779088605b8a01bb3e15a51f5f98",
+  "work_id": "CHG-051",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Register the eight-file CHG-049 immutable overlay",
+  "source": "Nous change ledger CHG-051",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The tenant reconciler accepts the exact eight regenerated guidance files through an immutable CHG-049 overlay and continues to fail closed for unknown generated states.",
+      "demo": "Verify the manifest and eight desired copies bind the carried bytes, the reconciler registers the layer, REVIEWED_RECONCILER_SHA256 matches the reviewed script, generated-guidance reconciliation and lint pass, and an unknown generated hash remains rejected.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "infra",
+    "tooling"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 11,
+    "expected_mutation_shards": 1,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 10,
+    "implementation": 25,
+    "focused_verification": 20,
+    "review": 10,
+    "integration": 5,
+    "total": 70
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Whether the overlay can be constructed without editing the eight generated targets or consulting a new substrate delivery.",
+      "status": "resolved",
+      "estimate_impact_minutes": 5,
+      "resolution": "Use the exact CHG-050 carried blobs as desired bytes and hashes. CHG-042/CHG-044 establish the immutable manifest-plus-desired-files pattern; the target files themselves remain untouched."
+    },
+    {
+      "id": "U2",
+      "statement": "Whether the reconciler edit can preserve its reviewed-code trust boundary.",
+      "status": "resolved",
+      "estimate_impact_minutes": 5,
+      "resolution": "Register only the new immutable layer, review that delta, compute the resulting reconciler SHA-256, and update REVIEWED_RECONCILER_SHA256 with a CHG-051 comment describing the reviewed change."
+    },
+    {
+      "id": "U3",
+      "statement": "Whether CHG-051 can execute before the bytes it pins are technically owned by CHG-050.",
+      "status": "resolved",
+      "estimate_impact_minutes": 5,
+      "resolution": "It cannot. Execute CHG-050 first as required by the approved CHG-049 partition graph, then run CHG-051 against that clean carried baseline."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG051-READY",
+    "payload_sha256": "dbcd2487f43b00a6bb3571d7a1ffecf9818b779088605b8a01bb3e15a51f5f98"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
