@@ -56,16 +56,14 @@ function analyticsUser(id: string, email: string | null) {
   return { user_id: id, email };
 }
 
-function summary(id: string, date = "2026-09-06", activeUsers = 1, conversations = 2) {
-  return { user_id: id, date, active_users: activeUsers, conversations };
+function summary(date = "2026-09-06", activeUsers = 1, conversations = 2) {
+  return { date, active_users: activeUsers, conversations };
 }
 
 function usage(id: string, email: string | null) {
   return {
     user_id: id,
     email,
-    starting_at: "2026-09-06T00:00:00Z",
-    ending_at: "2026-09-07T00:00:00Z",
     input_tokens: "10",
     output_tokens: "2",
   };
@@ -75,8 +73,6 @@ function cost(id: string, email: string | null, amount = "123.4567", currency = 
   return {
     user_id: id,
     email,
-    starting_at: "2026-09-06T00:00:00Z",
-    ending_at: "2026-09-07T00:00:00Z",
     results: [{ amount, list_amount: amount, currency }],
   };
 }
@@ -157,7 +153,7 @@ describe("Anthropic neutral connector", () => {
       }
       if (url.pathname.endsWith("/invites")) return json(idPage([invite("inv-1", "pending@example.test")]));
       if (url.pathname.endsWith("/analytics/users")) return json(opaquePage([analyticsUser("usr-1", "member@example.test")]));
-      if (url.pathname.endsWith("/summaries")) return json({ summaries: [summary("usr-1")] });
+      if (url.pathname.endsWith("/summaries")) return json({ summaries: [summary()] });
       if (url.pathname.endsWith("/user_usage_report")) return json(opaquePage([usage("usr-1", "member@example.test")]));
       if (url.pathname.endsWith("/user_cost_report")) return json(opaquePage([cost("usr-1", null)]));
       throw new Error(`unexpected transport request ${request.method} ${url.pathname}`);
@@ -205,7 +201,7 @@ describe("Anthropic neutral connector", () => {
           url.searchParams.has("page") ? null : "opaque-2",
         ));
       }
-      return json({ summaries: [summary("u1"), summary("u2")] });
+      return json({ summaries: [summary()] });
     });
 
     await successValue(connector.syncActivity({ vendorAccountId: ACCOUNT, observedAt: NOW }));
@@ -324,14 +320,56 @@ describe("Anthropic neutral connector", () => {
   });
 
   it.each([
-    ["invalid date", summary("u", "2026-02-30")],
-    ["negative counter", summary("u", "2026-09-06", -1)],
-    ["extra field", { ...summary("u"), provider_total: 3 }],
+    ["invalid date", summary("2026-02-30")],
+    ["negative counter", summary("2026-09-06", -1)],
+    ["extra field", { ...summary(), provider_total: 3 }],
   ] as const)("rejects an activity summary with %s", async (_case, invalidSummary) => {
     // Mutations killed: weakening the closed date/counter/field checks exposes malformed analytics.
     const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/analytics/users")
       ? json(opaquePage([analyticsUser("u", "a@example.test")]))
       : json({ summaries: [invalidSummary] }));
+    expect(await connector.syncActivity({ vendorAccountId: ACCOUNT, observedAt: NOW }))
+      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+  });
+
+  it("applies one organization summary to every uniquely identified analytics user", async () => {
+    // Mutations killed: treating the organization summary as user-shaped drops or misattributes activity.
+    const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/analytics/users")
+      ? json(opaquePage([
+        analyticsUser("u1", "a@example.test"),
+        analyticsUser("u2", "b@example.test"),
+        analyticsUser("deleted", null),
+      ]))
+      : json({ summaries: [summary("2026-09-06", 7, 11)] }));
+    expect(await successValue(connector.syncActivity({ vendorAccountId: ACCOUNT, observedAt: NOW }))).toEqual({
+      records: [
+        { email: "a@example.test", activityDate: "2026-09-06", counters: { activeUsers: 7, conversations: 11 } },
+        { email: "b@example.test", activityDate: "2026-09-06", counters: { activeUsers: 7, conversations: 11 } },
+      ],
+    });
+  });
+
+  it.each([
+    ["wrong date", [summary("2026-09-05")]],
+    ["duplicate requested date", [summary(), summary()]],
+    ["missing requested date", []],
+  ] as const)("rejects an activity envelope with %s", async (_case, summaries) => {
+    // Mutations killed: selecting by order or accepting no exact-date summary makes activity ambiguous.
+    const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/analytics/users")
+      ? json(opaquePage([analyticsUser("u", "a@example.test")]))
+      : json({ summaries }));
+    expect(await connector.syncActivity({ vendorAccountId: ACCOUNT, observedAt: NOW }))
+      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+  });
+
+  it("rejects duplicate normalized analytics emails across distinct provider IDs", async () => {
+    // Mutations killed: checking only provider IDs silently duplicates one person's activity.
+    const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/analytics/users")
+      ? json(opaquePage([
+        analyticsUser("u1", "Person@Example.test"),
+        analyticsUser("u2", "person@example.test"),
+      ]))
+      : json({ summaries: [summary()] }));
     expect(await connector.syncActivity({ vendorAccountId: ACCOUNT, observedAt: NOW }))
       .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
   });
@@ -346,6 +384,48 @@ describe("Anthropic neutral connector", () => {
     expect(await connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW }))
       .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
     expect(costCalls).toBe(0);
+  });
+
+  it.each([
+    ["duplicate usage IDs", [usage("u", "a@example.test"), usage("u", "a@example.test")], [cost("u", null)]],
+    ["duplicate usage emails", [usage("u1", "Same@Example.test"), usage("u2", "same@example.test")], [cost("u1", null)]],
+    ["duplicate cost IDs", [usage("u", "a@example.test")], [cost("u", null), cost("u", null)]],
+    ["duplicate cost emails", [usage("u1", "a@example.test"), usage("u2", "b@example.test")], [cost("u1", "same@example.test"), cost("u2", "same@example.test")]],
+    ["cost actor absent from usage", [usage("u1", "a@example.test")], [cost("u2", "b@example.test")]],
+    ["non-null email disagreement", [usage("u", "a@example.test")], [cost("u", "b@example.test")]],
+    ["standalone cost email", [usage("u", null)], [cost("u", "a@example.test")]],
+  ] as const)("rejects %s in the strict usage/cost identity join", async (_case, usages, costs) => {
+    // Mutations killed: order-based or preferential email joins misattribute financial records.
+    const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/user_usage_report")
+      ? json(opaquePage(usages))
+      : json(opaquePage(costs)));
+    expect(await connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW }))
+      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+  });
+
+  it("resolves a nullable cost email only from the matching usage actor", async () => {
+    // Mutations killed: dropping the ID join loses a valid nullable-email cost actor.
+    const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/user_usage_report")
+      ? json(opaquePage([usage("u", "a@example.test")]))
+      : json(opaquePage([cost("u", null, "100")])));
+    expect(await successValue(connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW }))).toEqual({
+      records: [{ email: "a@example.test", costDate: "2026-09-06", amountUsd: "1.00" }],
+    });
+  });
+
+  it("maps aggregate money overflow to a private non-retryable failure", async () => {
+    // Mutations killed: allowing BigInt aggregation to throw escapes the stable connector failure contract.
+    const amount = "9".repeat(80);
+    const aggregated = { ...cost("u", null, amount), results: [
+      { amount, list_amount: amount, currency: "USD" },
+      { amount, list_amount: amount, currency: "USD" },
+    ] };
+    const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/user_usage_report")
+      ? json(opaquePage([usage("u", "a@example.test")]))
+      : json(opaquePage([aggregated])));
+    await expect(connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW })).resolves.toEqual({
+      ok: false, code: "provider_error", retryable: false, raw: null,
+    });
   });
 
   it.each([

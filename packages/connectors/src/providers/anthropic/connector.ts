@@ -56,7 +56,6 @@ type Member = Readonly<{ type: "user"; id: string; name: string; email: string |
 type Invitation = Readonly<{ type: "invite"; id: string; email: string | null; status: string }>;
 type AnalyticsUser = Readonly<{ user_id: string; email: string | null }>;
 type ActivitySummary = Readonly<{
-  user_id: string;
   date: string;
   active_users: number;
   conversations: number;
@@ -64,8 +63,6 @@ type ActivitySummary = Readonly<{
 type UserUsage = Readonly<{
   user_id: string;
   email: string | null;
-  starting_at: string;
-  ending_at: string;
   input_tokens: string;
   output_tokens: string;
 }>;
@@ -73,8 +70,6 @@ type CostResult = Readonly<{ amount: string; list_amount: string; currency: "USD
 type UserCost = Readonly<{
   user_id: string;
   email: string | null;
-  starting_at: string;
-  ending_at: string;
   results: readonly CostResult[];
 }>;
 
@@ -85,7 +80,6 @@ const plainDecimal = /^(?:0|[1-9]\d*)(?:\.\d+)?$|^-(?:(?:[1-9]\d*)(?:\.\d+)?|0\.
 const plainUnsignedDecimal = /^(?:0|[1-9]\d*)(?:\.\d+)?$/;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
-const instantPattern = /^\d{4}-\d{2}-\d{2}T00:00:00Z$/;
 
 function providerFailure(retryable = false): ProviderFailure {
   return Object.freeze({ ok: false, code: "provider_error", retryable, raw: null });
@@ -167,14 +161,13 @@ function parseAnalyticsUser(value: unknown): AnalyticsUser | null {
 }
 
 function parseSummary(value: unknown): ActivitySummary | null {
-  const item = exact(value, ["user_id", "date", "active_users", "conversations"]);
+  const item = exact(value, ["date", "active_users", "conversations"]);
   if (
-    !item || !nonblank(item.user_id) || !validDate(item.date)
+    !item || !validDate(item.date)
     || !Number.isSafeInteger(item.active_users) || (item.active_users as number) < 0
     || !Number.isSafeInteger(item.conversations) || (item.conversations as number) < 0
   ) return null;
   return {
-    user_id: item.user_id,
     date: item.date,
     active_users: item.active_users as number,
     conversations: item.conversations as number,
@@ -182,18 +175,15 @@ function parseSummary(value: unknown): ActivitySummary | null {
 }
 
 function parseUsage(value: unknown): UserUsage | null {
-  const item = exact(value, ["user_id", "email", "starting_at", "ending_at", "input_tokens", "output_tokens"]);
+  const item = exact(value, ["user_id", "email", "input_tokens", "output_tokens"]);
   if (
-    !item || !nonblank(item.user_id) || typeof item.starting_at !== "string"
-    || typeof item.ending_at !== "string" || !instantPattern.test(item.starting_at)
-    || !instantPattern.test(item.ending_at) || typeof item.input_tokens !== "string"
+    !item || !nonblank(item.user_id) || typeof item.input_tokens !== "string"
     || !plainUnsignedDecimal.test(item.input_tokens) || typeof item.output_tokens !== "string"
     || !plainUnsignedDecimal.test(item.output_tokens)
   ) return null;
   const email = usableEmail(item.email);
   return email === undefined ? null : {
-    user_id: item.user_id, email, starting_at: item.starting_at, ending_at: item.ending_at,
-    input_tokens: item.input_tokens, output_tokens: item.output_tokens,
+    user_id: item.user_id, email, input_tokens: item.input_tokens, output_tokens: item.output_tokens,
   };
 }
 
@@ -207,19 +197,15 @@ function parseCostResult(value: unknown): CostResult | null {
 }
 
 function parseCost(value: unknown): UserCost | null {
-  const item = exact(value, ["user_id", "email", "starting_at", "ending_at", "results"]);
+  const item = exact(value, ["user_id", "email", "results"]);
   if (
-    !item || !nonblank(item.user_id) || typeof item.starting_at !== "string"
-    || typeof item.ending_at !== "string" || !instantPattern.test(item.starting_at)
-    || !instantPattern.test(item.ending_at) || !Array.isArray(item.results) || item.results.length === 0
+    !item || !nonblank(item.user_id) || !Array.isArray(item.results) || item.results.length === 0
   ) return null;
   const email = usableEmail(item.email);
   const results = item.results.map(parseCostResult);
   return email === undefined || results.some((result) => result === null) ? null : {
     user_id: item.user_id,
     email,
-    starting_at: item.starting_at,
-    ending_at: item.ending_at,
     results: results as CostResult[],
   };
 }
@@ -444,9 +430,12 @@ export function createAnthropicConnector(dependencies: AnthropicConnectorDepende
       const users = await opaquePages(operation, "analytics_users", input.vendorAccountId, observedOn, parseAnalyticsUser);
       if (!users.ok) return users;
       const byId = new Map<string, string | null>();
+      const userEmails = new Set<string>();
       for (const user of users.data) {
         if (byId.has(user.user_id)) return providerFailure();
+        if (user.email !== null && userEmails.has(user.email)) return providerFailure();
         byId.set(user.user_id, user.email);
+        if (user.email !== null) userEmails.add(user.email);
       }
       const summariesResult = await request(operation, {
         endpoint: "analytics_summaries", vendorAccountId: input.vendorAccountId,
@@ -457,17 +446,14 @@ export function createAnthropicConnector(dependencies: AnthropicConnectorDepende
       if (!envelope || !Array.isArray(envelope.summaries)) return providerFailure();
       const summaries = envelope.summaries.map(parseSummary);
       if (summaries.some((item) => item === null)) return providerFailure();
-      const seen = new Set<string>();
-      const records = [];
-      for (const item of summaries as ActivitySummary[]) {
-        if (seen.has(item.user_id) || item.date !== observedOn) return providerFailure();
-        seen.add(item.user_id);
-        const email = byId.get(item.user_id);
-        if (email) records.push({
-          email, activityDate: item.date,
-          counters: { activeUsers: item.active_users, conversations: item.conversations },
-        });
-      }
+      if (summaries.length !== 1 || summaries[0]!.date !== observedOn) return providerFailure();
+      const summary = summaries[0]!;
+      const records = [...byId.values()].filter((email): email is string => email !== null)
+        .map((email) => ({
+          email,
+          activityDate: observedOn,
+          counters: { activeUsers: summary.active_users, conversations: summary.conversations },
+        }));
       return success({ records });
     },
     async syncCost(input) {
@@ -476,22 +462,37 @@ export function createAnthropicConnector(dependencies: AnthropicConnectorDepende
       const usages = await opaquePages(operation, "user_usage_report", input.vendorAccountId, observedOn, parseUsage);
       if (!usages.ok) return usages;
       const byId = new Map<string, string | null>();
+      const usageEmails = new Set<string>();
       for (const usageItem of usages.data) {
         if (byId.has(usageItem.user_id)) return providerFailure();
+        if (usageItem.email !== null && usageEmails.has(usageItem.email)) return providerFailure();
         byId.set(usageItem.user_id, usageItem.email);
+        if (usageItem.email !== null) usageEmails.add(usageItem.email);
       }
       const costs = await opaquePages(operation, "user_cost_report", input.vendorAccountId, observedOn, parseCost);
       if (!costs.ok) return costs;
-      const seen = new Set<string>();
+      const costIds = new Set<string>();
+      const costEmails = new Set<string>();
       const records = [];
       for (const costItem of costs.data) {
-        if (seen.has(costItem.user_id) || costItem.starting_at.slice(0, 10) !== observedOn) return providerFailure();
-        seen.add(costItem.user_id);
-        const email = costItem.email ?? byId.get(costItem.user_id);
-        if (email) records.push({
-          email, costDate: observedOn,
-          amountUsd: addDecimals(costItem.results.map(({ amount }) => amount)),
-        });
+        if (costIds.has(costItem.user_id) || !byId.has(costItem.user_id)) return providerFailure();
+        costIds.add(costItem.user_id);
+        if (costItem.email !== null && costEmails.has(costItem.email)) return providerFailure();
+        if (costItem.email !== null) costEmails.add(costItem.email);
+        const usageEmail = byId.get(costItem.user_id)!;
+        if (costItem.email !== null && (usageEmail === null || costItem.email !== usageEmail)) {
+          return providerFailure();
+        }
+        const email = usageEmail;
+        if (email) {
+          let amountUsd: string;
+          try {
+            amountUsd = addDecimals(costItem.results.map(({ amount }) => amount));
+          } catch {
+            return providerFailure();
+          }
+          records.push({ email, costDate: observedOn, amountUsd });
+        }
       }
       return success({ records });
     },
