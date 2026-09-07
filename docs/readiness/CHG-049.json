@@ -212,9 +212,9 @@
     }
   ],
   "approval": {
-    "status": "pending",
-    "approved_by": null,
-    "evidence": null,
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG049-PARTITION-OWNERSHIP",
     "payload_sha256": "146bb5ddc9db8fe6379cb7c12b2c1b44de18998da40361a6f186841c3017acf9"
   },
   "actuals": null,
