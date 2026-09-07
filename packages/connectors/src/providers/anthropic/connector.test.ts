@@ -153,7 +153,7 @@ describe("Anthropic neutral connector", () => {
     const { connector: implementation, sessions, credentialLookups } = fixture(async (request) => {
       requests.push(request);
       const url = new URL(request.url);
-      if (request.method === "POST") return json(invite("inv-1", "member@example.test"), 201);
+      if (request.method === "POST") return json(invite("inv-1", "new@example.test"), 201);
       if (request.method === "DELETE") return new Response(null, { status: 204 });
       if (url.pathname.endsWith("/users") && !url.pathname.includes("analytics")) {
         return json(idPage([member("usr-1", "member@example.test"), member("usr-null", null)]));
@@ -227,6 +227,26 @@ describe("Anthropic neutral connector", () => {
     });
     expect(Object.isFrozen(result)).toBe(true);
   });
+
+  it.each(["other@example.test", null])(
+    "rejects a provision response whose recipient is %s",
+    async (email) => {
+      // Mutations killed: accepting an unrelated/null response recipient binds
+      // a provider reference to the wrong provisioning action.
+      const { connector } = fixture(async () => json(invite("inv-wrong", email), 201));
+      await expect(connector.provision({
+        requestId: REQUEST,
+        vendorAccountId: ACCOUNT,
+        personEmail: "member@example.test",
+        licenseTypeName: "Claude",
+      })).resolves.toEqual({
+        ok: false,
+        code: "provider_error",
+        retryable: false,
+        raw: null,
+      });
+    },
+  );
 
   it.each([
     ["member leading whitespace", "member", " usr-1"],

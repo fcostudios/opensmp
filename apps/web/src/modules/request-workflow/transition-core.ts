@@ -8,6 +8,7 @@ import * as schema from "@smp/db/schema";
 import { permittedCompanyIds } from "@smp/domain/identity-access";
 import {
   REQUEST_TRANSITIONS,
+  assertLegalTransition,
   type RequestState,
   type TransitionCommand,
 } from "@smp/domain/request-workflow";
@@ -69,6 +70,7 @@ export async function applyLockedRequestTransition(
       `REQUEST_STATE_CONFLICT:${command.requestId}:${command.from}:${request.state}`,
     );
   }
+  assertLegalTransition(command.from, command.to);
   await applyRequestTransitionInTransaction(transaction, command, {
     expectedCompanyId: request.companyId,
   });

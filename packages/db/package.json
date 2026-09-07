@@ -30,7 +30,6 @@
   },
   "dependencies": {
     "@smp/connectors": "workspace:*",
-    "@smp/domain": "workspace:*",
     "drizzle-orm": "^0.38.3",
     "@neondatabase/serverless": "^0.10.4",
     "pg": "^8.13.1",

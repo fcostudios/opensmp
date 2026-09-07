@@ -1,8 +1,6 @@
 import { randomUUID } from "node:crypto";
 
 import { createConnectorCallObservationSession } from "@smp/connectors/connector-call-observation";
-import { createAnthropicConnector } from "@smp/connectors/providers/anthropic/connector";
-import { createAnthropicRateLimiter } from "@smp/connectors/providers/anthropic/rate-limiter";
 import {
   decryptCredential,
   readKekFile,
@@ -11,8 +9,14 @@ import { createConnectorCallObservationAppender } from "@smp/db/connector-call-o
 import { applyRequestTransitionInTransaction } from "@smp/db/request-transition";
 import * as schema from "@smp/db/schema";
 import { parseCredentialEnvelope } from "@smp/domain";
+import { assertLegalTransition } from "@smp/domain/request-workflow";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
+
+import {
+  createProvisioningConnector,
+  createProvisioningRateLimiter,
+} from "../connector-composition.js";
 
 type Candidate = Readonly<{
   actionId: string;
@@ -98,7 +102,7 @@ export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliver
   const clock = { now: () => now().getTime() };
   const sleep = options.sleep
     ?? ((milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
-  const limiter = createAnthropicRateLimiter({
+  const limiter = createProvisioningRateLimiter({
     clock,
     sleep,
   });
@@ -118,6 +122,16 @@ export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliver
        JOIN license_request request
          ON request.id=action.request_id
         AND request.vendor_account_id=action.vendor_account_id
+       JOIN vendor_account account
+         ON account.id=action.vendor_account_id
+        AND account.mode='automated'
+        AND account.status='active'
+       JOIN vendor
+         ON vendor.id=account.vendor_id
+        AND vendor.connector_type='api'
+        AND vendor.provisioning_protocol='rest'
+        AND vendor.can_provision
+        AND vendor.status='active'
        WHERE ($1::uuid IS NULL OR action.vendor_account_id=$1)
          AND action.kind='invite'
          AND action.mode='automated'
@@ -127,8 +141,7 @@ export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliver
            SELECT 1 FROM connector_call_observation observation
            WHERE observation.provisioning_action_id=action.id
          )
-       ORDER BY action.created_at,action.id
-       LIMIT 10`,
+       ORDER BY action.created_at,action.id`,
       [vendorAccountId],
     );
     return result.rows;
@@ -142,6 +155,16 @@ export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliver
          ON request.id=action.request_id
         AND request.vendor_account_id=action.vendor_account_id
         AND request.company_id=$3
+       JOIN vendor_account account
+         ON account.id=action.vendor_account_id
+        AND account.mode='automated'
+        AND account.status='active'
+       JOIN vendor
+         ON vendor.id=account.vendor_id
+        AND vendor.connector_type='api'
+        AND vendor.provisioning_protocol='rest'
+        AND vendor.can_provision
+        AND vendor.status='active'
        WHERE action.id=$1
          AND action.vendor_account_id=$2
          AND action.kind='invite'
@@ -157,10 +180,7 @@ export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliver
     return result.rowCount === 1;
   }
 
-  async function credentialsFor(vendorAccountId: string) {
-    const path = options.kekFile?.trim();
-    if (!path) throw new Error("LEDGER_CREDENTIAL_KEK_FILE is required");
-    const kek = await readKekFile(path, { allowedRoot: options.allowedKekRoot });
+  async function loadCredentials(vendorAccountId: string, kek: Uint8Array) {
     const result = await pool.query<{
       encryptedSecret: string;
       health: "ok" | "auth_failed" | "unverified";
@@ -227,6 +247,7 @@ export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliver
       );
       if (updated.rowCount !== 1) throw new Error("AUTOMATED_INVITE_ACTION_CONFLICT");
       const database = drizzle(client, { schema });
+      assertLegalTransition("provisioning", "invited");
       await applyRequestTransitionInTransaction(database, {
         requestId: candidate.requestId,
         from: "provisioning",
@@ -243,7 +264,11 @@ export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliver
     }
   }
 
-  async function deliver(candidate: Candidate, occurredAt: Date): Promise<boolean> {
+  async function deliver(
+    candidate: Candidate,
+    occurredAt: Date,
+    credentialsForDrain: ReturnType<typeof credentialResolver>,
+  ): Promise<boolean> {
     const client = await pool.connect();
     let locked = false;
     try {
@@ -254,8 +279,8 @@ export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliver
       locked = acquired.rows[0]?.locked === true;
       if (!locked || !(await currentCandidate(client, candidate))) return false;
       const instruction = provisionInstruction(candidate);
-      const credentials = await credentialsFor(candidate.vendorAccountId);
-      const connector = createAnthropicConnector({
+      const credentials = await credentialsForDrain(candidate.vendorAccountId);
+      const connector = createProvisioningConnector({
         credentialsFor: async (vendorAccountId) => {
           if (vendorAccountId !== candidate.vendorAccountId) {
             throw new Error("AUTOMATED_INVITE_VENDOR_CONFLICT");
@@ -298,6 +323,22 @@ export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliver
     }
   }
 
+  function credentialResolver() {
+    let kek: Promise<Uint8Array> | undefined;
+    const byAccount = new Map<string, Promise<Awaited<ReturnType<typeof loadCredentials>>>>();
+    return (vendorAccountId: string) => {
+      let credentials = byAccount.get(vendorAccountId);
+      if (!credentials) {
+        const path = options.kekFile?.trim();
+        if (!path) return Promise.reject(new Error("LEDGER_CREDENTIAL_KEK_FILE is required"));
+        kek ??= readKekFile(path, { allowedRoot: options.allowedKekRoot });
+        credentials = kek.then((value) => loadCredentials(vendorAccountId, value));
+        byAccount.set(vendorAccountId, credentials);
+      }
+      return credentials;
+    };
+  }
+
   return Object.freeze({
     async close(): Promise<void> {
       await Promise.all([pool.end(), observations.close()]);
@@ -306,9 +347,11 @@ export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliver
       if (!(input.at instanceof Date) || !Number.isFinite(input.at.getTime())) {
         throw new Error("AUTOMATED_INVITE_TIME_INVALID");
       }
+      const selected = await candidates(input.vendorAccountId);
+      const credentialsForDrain = credentialResolver();
       let processed = 0;
-      for (const candidate of await candidates(input.vendorAccountId)) {
-        if (await deliver(candidate, input.at)) processed += 1;
+      for (const candidate of selected) {
+        if (await deliver(candidate, input.at, credentialsForDrain)) processed += 1;
       }
       return { processed };
     },

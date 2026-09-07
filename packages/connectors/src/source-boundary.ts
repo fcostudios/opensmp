@@ -9,6 +9,9 @@ const sourceExtensions = new Set([
 const testFilePattern = /\.(?:test|spec)\.[cm]?[jt]sx?$/i;
 const providerToken =
   /anthropic|claude|providers?[\\/]+(?:anthropic|claude)/i;
+const providerCompositionFiles = new Set([
+  "apps/worker/src/connector-composition.ts",
+]);
 
 export type BoundaryTarget = {
   readonly label: string;
@@ -224,7 +227,8 @@ export async function scanRepositoryBoundary(
         relativeFile.includes("/node_modules/") ||
         relativeFile.includes("/dist/") ||
         relativeFile.startsWith("packages/connectors/src/providers/") ||
-        relativeFile.startsWith("scripts/probes/")
+        relativeFile.startsWith("scripts/probes/") ||
+        providerCompositionFiles.has(relativeFile)
       ) continue;
       if (moduleReferences(file, await readFile(file, "utf8")).length === 0) {
         continue;

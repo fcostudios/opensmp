@@ -1,17 +1,19 @@
 import { sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-import {
-  assertLegalTransition,
-  isApprovalDecisionTransition,
-  type RequestState,
-  type TransitionCommand,
-} from "@smp/domain/request-workflow";
-
 import type * as schema from "./schema.js";
 
 type Database = NodePgDatabase<typeof schema>;
 export type RequestTransitionTransaction = Pick<Database, "execute">;
+type RequestState = (typeof schema.license_request_state_enum.enumValues)[number];
+type TransitionCommand = Readonly<{
+  requestId: string;
+  from: RequestState;
+  to: RequestState;
+  actorUserId: string | null;
+  note: string | null;
+  occurredAt: Date;
+}>;
 
 type LockedRequest = Readonly<{
   companyId: string;
@@ -37,9 +39,8 @@ export async function applyRequestTransitionInTransaction(
       `REQUEST_STATE_CONFLICT:${command.requestId}:${command.from}:${request.state}`,
     );
   }
-  assertLegalTransition(command.from, command.to);
-
-  const decision = isApprovalDecisionTransition(command.from, command.to);
+  const decision = command.from === "pending_approval"
+    && (command.to === "approved" || command.to === "rejected");
   const updated = await transaction.execute<{ readonly id: string }>(
     decision
       ? sql`UPDATE license_request

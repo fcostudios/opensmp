@@ -442,7 +442,9 @@ export function createAnthropicConnector(dependencies: AnthropicConnectorDepende
       });
       if (!result.ok) return result;
       const invitation = parseInvitation(result.body);
-      return invitation ? success({ vendorRef: invitation.id }) : providerFailure();
+      return invitation?.email === input.personEmail.toLowerCase()
+        ? success({ vendorRef: invitation.id })
+        : providerFailure();
     },
     async deprovision(input) {
       validateProvisionInstruction(input);

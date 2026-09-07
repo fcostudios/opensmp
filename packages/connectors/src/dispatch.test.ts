@@ -757,6 +757,15 @@ describe("hardened provider boundary scanner", () => {
       );
       await mkdir(resolve(adapter, ".."), { recursive: true });
       await writeFile(adapter, 'require("@vendor/anthropicClient");');
+      const composition = resolve(
+        fixtureRoot,
+        "apps/worker/src/connector-composition.ts",
+      );
+      await mkdir(resolve(composition, ".."), { recursive: true });
+      await writeFile(
+        composition,
+        'export { factory } from "@smp/connectors/providers/anthropic/connector";',
+      );
 
       const violations = await scanRepositoryBoundary(fixtureRoot);
       expect(violations.map(({ reason }) => reason).sort()).toEqual([
@@ -812,6 +821,21 @@ describe("provider boundary ESLint enforcement", () => {
     );
 
     expect(result.status).toBe(0);
+  });
+
+  it("allows only the explicit worker connector composition seam", () => {
+    const result = lintFixture(
+      "apps/worker/src/connector-composition.ts",
+      'export { factory } from "@smp/connectors/providers/anthropic/connector";',
+    );
+
+    expect(result.status).toBe(0);
+    const nearPath = lintFixture(
+      "apps/worker/src/connector-composition-copy.ts",
+      'export { factory } from "@smp/connectors/providers/anthropic/connector";',
+    );
+    expect(nearPath.status).toBe(1);
+    expect(nearPath.stdout).toContain("no-restricted-imports");
   });
 });
 

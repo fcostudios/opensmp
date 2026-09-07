@@ -52,7 +52,7 @@ that production credential decryption and lifecycle persistence are currently
 web-local; the first PostgreSQL RED test then proved that the least-privilege
 runtime lacked the required `vendor_ref` grant, and runtime inspection proved
 cron payloads are coordinator-shaped. The cohesive implementation may
-therefore touch these twenty-one paths without changing a table shape:
+therefore touch these twenty-nine paths without changing a table shape:
 
 1. `.nous-feedback.jsonl`
 2. `docs/readiness/US-063.json`
@@ -75,6 +75,14 @@ therefore touch these twenty-one paths without changing a table shape:
 19. `apps/worker/src/index.ts`
 20. `apps/web/src/modules/vendor-catalog/credential-crypto.test.ts`
 21. `apps/worker/src/runtime.integration.test.ts`
+22. `packages/connectors/src/providers/anthropic/connector.ts`
+23. `packages/connectors/src/providers/anthropic/connector.test.ts`
+24. `docs/superpowers/specs/2026-09-07-us-063-automated-invite-delivery-design.md`
+25. `docs/superpowers/plans/2026-09-07-us-063-automated-invite-delivery.md`
+26. `apps/worker/src/connector-composition.ts`
+27. `eslint.provider-boundary.config.mjs`
+28. `packages/connectors/src/source-boundary.ts`
+29. `packages/connectors/src/dispatch.test.ts`
 
 Package exports stay explicit. The append-only permission migration is recorded
 by the timestamped deviation event; it grants only `vendor_ref` and its verifier

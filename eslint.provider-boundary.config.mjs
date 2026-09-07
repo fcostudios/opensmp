@@ -19,4 +19,11 @@ export default [
     },
   },
   ...sharedPreset,
+  {
+    files: ["apps/worker/src/connector-composition.ts"],
+    rules: {
+      "no-restricted-imports": "off",
+      "no-restricted-modules": "off",
+    },
+  },
 ];

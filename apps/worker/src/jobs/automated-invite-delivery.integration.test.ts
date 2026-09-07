@@ -377,6 +377,48 @@ describe("US-063 automated invite delivery", () => {
     ]);
   });
 
+  it("kills finalization when the provider response names another recipient", async () => {
+    await seed();
+    const job = jobFor(async () => new Response(JSON.stringify({
+      type: "invite",
+      id: "invite-wrong-recipient",
+      email: "other@invite.test",
+      status: "pending",
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    try {
+      await expect(job.drain({ at, vendorAccountId: ids.accountA })).resolves.toEqual({ processed: 0 });
+    } finally {
+      await job.close();
+    }
+    const state = await owner.query(
+      `SELECT request.state,action.status,action.vendor_ref
+       FROM license_request request JOIN provisioning_action action ON action.request_id=request.id
+       WHERE action.id=$1`,
+      [ids.actionA],
+    );
+    expect(state.rows).toEqual([{
+      state: "provisioning",
+      status: "pending",
+      vendor_ref: null,
+    }]);
+  });
+
+  it("kills dispatch through an inactive automated account", async () => {
+    await seed();
+    await owner.query(`UPDATE vendor_account SET status='inactive' WHERE id=$1`, [ids.accountA]);
+    let calls = 0;
+    const job = jobFor(async () => {
+      calls += 1;
+      throw new Error("transport must not run");
+    });
+    try {
+      await expect(job.drain({ at, vendorAccountId: ids.accountA })).resolves.toEqual({ processed: 0 });
+    } finally {
+      await job.close();
+    }
+    expect(calls).toBe(0);
+  });
+
   it("kills malformed payload and stale-state dispatch before transport", async () => {
     await seed();
     await owner.query(

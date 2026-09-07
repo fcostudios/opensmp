@@ -40,7 +40,16 @@ handler constructs it from the worker connection string. A cron-shaped
 coordinator payload discovers all eligible accounts, while a payload with a
 trusted vendor account ID adds that exact scope filter.
 
-The job selects a small ordered batch of actions that are:
+The repository provider boundary permits provider imports only in provider
+modules, probes, and one exact worker composition seam. That seam exposes
+neutral `createProvisioningConnector` and `createProvisioningRateLimiter`
+aliases; the job itself contains no provider-path import. ESLint and the AST
+repository scanner both reject provider imports from every near-path or other
+worker module.
+
+The job selects the ordered snapshot of currently eligible actions so one
+15-minute coordinator run does not strand a later batch beyond the SLA. Actions
+must be:
 
 - `kind = 'invite'`, `mode = 'automated'`, and `status = 'pending'`;
 - linked to the optional `vendor_account_id` supplied by a manual child run;
@@ -65,10 +74,11 @@ known provider response.
 After a successful connector result, the worker opens one database transaction,
 locks the action and request, proves the matching terminal success observation
 already exists, writes `vendor_ref`, marks the action `sent`, and applies the
-legal `provisioning -> invited` lifecycle persistence. The shared transition
-helper validates `REQUEST_TRANSITIONS`, writes `request_transition`, updates the
-request, and appends the audit event without requiring a human authorization
-object. A conditional update makes repeated finalization a no-op.
+legal `provisioning -> invited` lifecycle persistence. The caller validates the
+one domain `REQUEST_TRANSITIONS` engine; the shared transition helper writes
+`request_transition`, updates the request, and appends the audit event without
+requiring a human authorization object. A conditional update makes repeated
+finalization a no-op.
 
 ## Crash and Concurrency Contract
 
@@ -95,12 +105,12 @@ row locks or an open transaction across the network call.
 
 The current lifecycle implementation mixes authorization checks with the core
 state/audit persistence. Extract a database-owned system transition helper that
-accepts a caller-owned transaction, validates the expected state and legal
-transition, performs the conditional update, records `request_transition`, and
-writes the audit event with a nullable system actor. The web helper retains its
-existing company authorization checks and delegates only after those checks
-pass. The invite worker delegates with the system actor and the already locked,
-vendor-scoped request.
+accepts a caller-owned transaction, validates the expected state, performs the
+conditional update, records `request_transition`, and writes the audit event
+with a nullable system actor. The web helper retains its existing company
+authorization checks. Both callers invoke the one domain legal-transition
+validator before delegating; the invite worker uses the system actor and the
+already locked, vendor-scoped request.
 
 This keeps one lifecycle engine for user and worker transitions while avoiding
 an import from the Next.js app into the worker package.
