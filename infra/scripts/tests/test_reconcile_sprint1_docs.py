@@ -31,10 +31,16 @@ REPINNED_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-042/fd7741f"
 CRITICAL_SET_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-044/2d93300"
 CHG049_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-049/6466f60"
 CHG053_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-053/2dee869"
+CHG055_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-055/e240d85"
 CHG053_DELIVERED_ROOT = Path(__file__).parents[3]
 CHG053_GUIDES = (
     "CLAUDE.md",
     "docs/dev-guide/FRONTEND.md",
+)
+CHG055_GUIDES = (
+    "docs/dev-guide/DEFINITION_OF_DONE.md",
+    "docs/dev-guide/SECURITY.md",
+    "docs/dev-guide/STANDARDS.md",
 )
 CHG053_MIRROR_HEADER = (
     b"<!-- agent-sync: 93caf0fd67a9 | source: CLAUDE.md | DO NOT EDIT "
@@ -200,6 +206,14 @@ def create_chg053_project(root: Path) -> None:
         "docs/dev-guide/PACKAGE_MAP.md",
         f"{EXPECTED_PACKAGE_ENTITY}\n{EXPECTED_PACKAGE_SCOPE}\n",
     )
+
+
+def create_chg055_project(root: Path) -> None:
+    create_project(root)
+    for relative_path in CHG055_GUIDES:
+        (root / relative_path).write_bytes(
+            (CHG053_DELIVERED_ROOT / relative_path).read_bytes()
+        )
 
 
 TERMINAL_EMITTED_TRAILER = re.compile(
@@ -812,6 +826,62 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 metadata["desired_sha256"],
                 relative_path,
             )
+
+    def test_chg055_manifest_binds_the_three_approved_transitions(self) -> None:
+        manifest_path = CHG055_OVERRIDE_ROOT / "manifest.json"
+        self.assertTrue(manifest_path.is_file(), "CHG-055 override manifest is missing")
+
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+        expected = {
+            "docs/dev-guide/DEFINITION_OF_DONE.md": (
+                "ae0060ef2adfe269aec8bda3e14f79b4f14db0243a99b39ab91ed5bf161f4560",
+                "b12b953006b2c2fe0d7bad74fed0dca8451024e6c66060b1828cae195ade041e",
+            ),
+            "docs/dev-guide/SECURITY.md": (
+                "022d772834a4b78de32e5eb2baee1701878bd84d18c85564703505c0c7e3e694",
+                "0806022c650afcea0329c2b0380c60d12048fd35dbcb19a04df096b568999b37",
+            ),
+            "docs/dev-guide/STANDARDS.md": (
+                "3347158c79e0032db6a878b9ef92a4ba6d26d783e64f2fe463e486869a066a22",
+                "93460713aad5ccb32cc3fe1981d017165d7e1ff7caef90659bf4a79d3810f7ca",
+            ),
+        }
+        self.assertEqual(manifest["version"], 1)
+        self.assertEqual(set(manifest["paths"]), set(expected))
+        for relative_path, (source_hash, desired_hash) in expected.items():
+            metadata = manifest["paths"][relative_path]
+            self.assertEqual(
+                metadata,
+                {
+                    "source_path": f"overrides/CHG-049/6466f60/{relative_path}",
+                    "source_sha256": source_hash,
+                    "desired_sha256": desired_hash,
+                },
+            )
+            self.assertEqual(
+                hashlib.sha256(
+                    (SCRIPT_DATA_ROOT / metadata["source_path"]).read_bytes()
+                ).hexdigest(),
+                source_hash,
+            )
+            self.assertEqual(
+                hashlib.sha256(
+                    (CHG055_OVERRIDE_ROOT / relative_path).read_bytes()
+                ).hexdigest(),
+                desired_hash,
+            )
+
+    def test_chg055_delivered_guides_are_byte_stable_in_check_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_chg055_project(root)
+            before = snapshot(root)
+
+            result = run_reconciler(root, "--check")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(snapshot(root), before)
 
     def test_chg053_source_and_desired_tamper_fail_before_writes(self) -> None:
         for artifact_kind, relative_path in (
