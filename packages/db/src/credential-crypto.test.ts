@@ -18,7 +18,7 @@ import {
   decryptCredential,
   encryptCredential,
   readKekFile,
-} from "@smp/db/credential-crypto";
+} from "./credential-crypto";
 import type { CredentialEnvelopeV1 } from "@smp/domain";
 
 const kek = Uint8Array.from({ length: 32 }, (_, index) => index);

@@ -718,7 +718,7 @@ assert.deepEqual(
 );
 assert.deepEqual(
   DIRECT_TEST_ROUTES["packages/db/src/credential-crypto.ts"],
-  ["apps/web/src/modules/vendor-catalog/credential-crypto.test.ts"],
+  ["packages/db/src/credential-crypto.test.ts"],
   "shared credential cryptography must retain its adversarial contract route",
 );
 assert.deepEqual(

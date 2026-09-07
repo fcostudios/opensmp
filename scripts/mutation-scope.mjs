@@ -1629,7 +1629,7 @@ export const DIRECT_TEST_ROUTES = {
     "apps/worker/src/jobs/automated-invite-delivery.integration.test.ts",
   ],
   "packages/db/src/credential-crypto.ts": [
-    "apps/web/src/modules/vendor-catalog/credential-crypto.test.ts",
+    "packages/db/src/credential-crypto.test.ts",
   ],
   "packages/db/src/provisioning-routing.ts": [
     "packages/db/src/provisioning-routing.test.ts",

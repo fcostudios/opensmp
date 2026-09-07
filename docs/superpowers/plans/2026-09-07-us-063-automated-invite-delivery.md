@@ -75,7 +75,7 @@ repair adds only the mutation router and its contract test:
 16. `packages/db/src/migrations/V20260907210200__automated_invite_vendor_reference_grant.sql`
 17. `packages/db/src/migrations/V20260907210300__verify_automated_invite_vendor_reference_grant.sql`
 18. `apps/worker/src/runtime.ts`
-19. `apps/web/src/modules/vendor-catalog/credential-crypto.test.ts`
+19. `packages/db/src/credential-crypto.test.ts`
 20. `apps/worker/src/runtime.integration.test.ts`
 21. `packages/connectors/src/providers/anthropic/connector.ts`
 22. `packages/connectors/src/providers/anthropic/connector.test.ts`
