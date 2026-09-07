@@ -1,4 +1,5 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -15,8 +16,9 @@ import {
   type ConnectorCallObservationAppendInput,
 } from "../../../packages/connectors/src/connector-call-observation.ts";
 import { createConnectorDispatcher } from "../../../packages/connectors/src/dispatch.ts";
-import { createAnthropicConnector } from "../../../packages/connectors/src/providers/anthropic/connector.ts";
-import type { AnthropicCredentialCandidate } from "../../../packages/connectors/src/providers/anthropic/credentials.ts";
+// eslint-disable-next-line no-restricted-imports -- Type-only provider contract wiring; runtime resolves the shipped package subpath below.
+import type { createAnthropicConnector as createAnthropicConnectorType } from "../../../packages/connectors/src/providers/anthropic/connector.ts";
+// eslint-disable-next-line no-restricted-imports -- Provider-only Pact wiring composes the real shipped limiter.
 import { createAnthropicRateLimiter } from "../../../packages/connectors/src/providers/anthropic/rate-limiter.ts";
 import { request } from "./probe.ts";
 import {
@@ -27,6 +29,15 @@ import {
 } from "./schemas.ts";
 
 const { eachLike, like, regex } = MatchersV3;
+const appRequire = createRequire(
+  new URL("../../../apps/web/package.json", import.meta.url),
+);
+const connectorModule = await import(appRequire.resolve(
+  "@smp/connectors/providers/anthropic/connector",
+)) as Readonly<{
+  createAnthropicConnector: typeof createAnthropicConnectorType;
+}>;
+const { createAnthropicConnector } = connectorModule;
 const pactDirectory = mkdtempSync(join(tmpdir(), "ledger-anthropic-pacts-"));
 const contractPath = join(
   pactDirectory,
@@ -42,7 +53,7 @@ const connectorContractPath = join(
 const vendorAccountId = "11111111-1111-4111-8111-111111111111";
 const requestId = "22222222-2222-4222-8222-222222222222";
 const observedAt = new Date("2026-09-06T12:00:00.000Z");
-const credentials: readonly AnthropicCredentialCandidate[] = Object.freeze([
+const credentials = Object.freeze([
   Object.freeze({
     vendorAccountId,
     kind: "admin_scoped" as const,
