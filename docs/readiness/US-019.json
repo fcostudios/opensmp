@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "b24a9600e1204650f4ff24fe62e30b8332c00daf21ae896bec551b60a2195296",
+  "readiness_payload_sha256": "f5ff91c3b8a9890ca06263e5c4eb80919f5b429be16e27c728dc0f8aae68a7f2",
   "work_id": "US-019",
   "kind": "US",
   "work_type": "functional",
@@ -78,7 +78,7 @@
       "statement": "Whether canonical child identifiers can be assigned locally to begin work immediately.",
       "status": "resolved",
       "estimate_impact_minutes": 10,
-      "resolution": "They cannot. Nous must accept a functional CHG, create the canonical stories with change gen-stories, hydrate, and sync them. Until then every partition work_id remains null and no child is executable."
+      "resolution": "Nous accepted CHG-054, created canonical US-063 through US-066, and delivered their story specifications with DEC-SMP-021. The official IDs are now bound to the matching proposals; execution still requires each child's own approved readiness artifact."
     },
     {
       "id": "U4",
@@ -93,7 +93,7 @@
   "partitions": [
     {
       "proposal_key": "automated-invite-delivery",
-      "work_id": null,
+      "work_id": "US-063",
       "title": "Deliver approved requests as vendor invitations within 15 minutes",
       "outcome": "A free-pool approved request executes the real connector invitation and durably reaches invited within the SLA, with provider reference and observation evidence bound to its ProvisioningAction.",
       "demo": "Approve a free-pool request, run the provisioning worker, and verify provisioning then invited within 15 minutes with one provider invitation and durable attempt evidence.",
@@ -131,7 +131,7 @@
     },
     {
       "proposal_key": "provider-no-seat-routing",
-      "work_id": null,
+      "work_id": "US-064",
       "title": "Route provider no-seat responses to the capacity workflow",
       "outcome": "A classified provider 400/no-seat result atomically moves the request to blocked_no_seat through the lifecycle engine and exposes the existing US-023 purchase or reclaim path instead of generic failure.",
       "demo": "Return a provider no-seat response and verify one legal blocked_no_seat transition, no failed transition, and visibility to the existing capacity-recovery workflow.",
@@ -171,7 +171,7 @@
     },
     {
       "proposal_key": "provisioning-failure-retry",
-      "work_id": null,
+      "work_id": "US-065",
       "title": "Recover failed automated provisioning with an operator retry",
       "outcome": "Non-no-seat invitation failures persist a safe failure_reason, raise provisioning_failure, and retryProvisioning returns the same tenant-scoped request to provisioning without duplicate live actions.",
       "demo": "Force a non-no-seat provider failure, verify failed state, sanitized reason, and one alert, then retry and verify one legal return to provisioning without duplicate provider execution.",
@@ -212,7 +212,7 @@
     },
     {
       "proposal_key": "accepted-invite-activation",
-      "work_id": null,
+      "work_id": "US-066",
       "title": "Activate accepted invitations from the 15-minute membership poll",
       "outcome": "Scheduled tenant-scoped polling detects invitation acceptance and atomically moves invited to active while opening exactly one LicenseAssignment with started_on and source_request_id.",
       "demo": "Run the membership poll before and after provider acceptance; verify the second run creates exactly one assignment and one invited-to-active transition, and replay creates neither again.",
@@ -255,7 +255,7 @@
     "status": "pending",
     "approved_by": null,
     "evidence": null,
-    "payload_sha256": "b24a9600e1204650f4ff24fe62e30b8332c00daf21ae896bec551b60a2195296"
+    "payload_sha256": "f5ff91c3b8a9890ca06263e5c4eb80919f5b429be16e27c728dc0f8aae68a7f2"
   },
   "actuals": null,
   "policy_bootstrap": false,

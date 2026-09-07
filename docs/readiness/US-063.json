@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "39a6836447432adf172ea42a2f3a370aeb0231c3b568ee25dacc0db1391def3b",
+  "work_id": "US-063",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Deliver approved requests as vendor invitations within 15 minutes",
+  "source": "docs/stories/sprint-3/r1_misc_us_063.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "A free-pool approved request executes exactly one Anthropic invitation and durably reaches invited within 15 minutes with its provider reference and connector-call observation bound to the ProvisioningAction.",
+      "demo": "Approve a free-pool request, run the provisioning worker, and observe provisioning then invited within 15 minutes with one provider invitation and durable attempt evidence.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {"id": "AC1", "outcome_ids": ["O1"]},
+    {"id": "AC2", "outcome_ids": ["O1"]},
+    {"id": "AC3", "outcome_ids": ["O1"]}
+  ],
+  "scopes": ["server", "db", "infra"],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 1,
+    "expected_changed_files": 8,
+    "expected_mutation_shards": 1,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 1,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 8,
+    "implementation": 56,
+    "focused_verification": 16,
+    "review": 16,
+    "integration": 8,
+    "total": 104
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Whether the connector result and journal observation can be made durable with the invited transition without pretending the remote API participates in the database transaction.",
+      "status": "resolved",
+      "estimate_impact_minutes": 12,
+      "resolution": "Use the existing requested/known-success/known-failure observation lifecycle as the durable recovery boundary: persist the requested action before dispatch, bind the known provider result and observation to that action, then perform the legal invited transition idempotently. An unresolved remote outcome is never replayed as a new invitation."
+    },
+    {
+      "id": "U2",
+      "statement": "Whether US-063 needs a new scheduler or connector abstraction.",
+      "status": "resolved",
+      "estimate_impact_minutes": 8,
+      "resolution": "US-046 already supplies the job runner and US-056/058 supply the Anthropic connector and conformance seam. This child adds only the provisioning worker orchestration that consumes those existing boundaries."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "39a6836447432adf172ea42a2f3a370aeb0231c3b568ee25dacc0db1391def3b"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
