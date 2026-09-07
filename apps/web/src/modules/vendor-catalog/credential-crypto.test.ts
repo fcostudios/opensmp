@@ -14,13 +14,12 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { describe, expect, it } from "vitest";
-import type { CredentialEnvelopeV1 } from "@smp/domain";
-
 import {
   decryptCredential,
   encryptCredential,
   readKekFile,
-} from "./credential-crypto";
+} from "@smp/db/credential-crypto";
+import type { CredentialEnvelopeV1 } from "@smp/domain";
 
 const kek = Uint8Array.from({ length: 32 }, (_, index) => index);
 const deterministicBytes = (length: number) =>
