@@ -89,6 +89,7 @@ describe("Anthropic policy-bound request execution", () => {
       endpoint: "cost_report",
       vendorAccountId: "account-a",
       credentials: validCredentials,
+      query: { observedOn: "2026-09-06" },
     });
 
     expect(requests).toHaveLength(1);
@@ -161,6 +162,40 @@ describe("Anthropic policy-bound request execution", () => {
       credentials: validCredentials,
       query,
     } as never)).rejects.toThrow("query");
+    expect(acquireSpy).not.toHaveBeenCalled();
+    expect(observations).toEqual([]);
+    expect(transports).toBe(0);
+  });
+
+  it.each([
+    "analytics_users",
+    "analytics_summaries",
+    "usage_report",
+    "user_usage_report",
+    "cost_report",
+    "user_cost_report",
+  ] as const)("rejects an omitted query for dated endpoint %s before any attempt side effect", async (endpoint) => {
+    // Mutations killed: treating an absent query as empty lets a dated request escape its one-day boundary.
+    const limiter = inertLimiter();
+    const acquireSpy = vi.spyOn(limiter, "acquire");
+    const observations: AnthropicAttemptObservation[] = [];
+    let transports = 0;
+    const execute = createAnthropicRequestExecutor({
+      clock: { now: () => 1_000 },
+      sleep: async () => undefined,
+      limiter,
+      observe: async (observation) => { observations.push(observation); },
+      transport: async () => {
+        transports += 1;
+        return new Response("{}", { status: 200 });
+      },
+    });
+
+    await expect(execute({
+      endpoint,
+      vendorAccountId: "account-a",
+      credentials: validCredentials,
+    })).rejects.toThrow("query");
     expect(acquireSpy).not.toHaveBeenCalled();
     expect(observations).toEqual([]);
     expect(transports).toBe(0);

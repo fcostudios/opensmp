@@ -163,6 +163,9 @@ function requestQuery(
   candidate: AnthropicRequestQuery | undefined,
 ): URLSearchParams {
   if (candidate === undefined) {
+    if (datedEndpoints.has(endpoint)) {
+      throw new Error("Invalid Anthropic request query for dated endpoint.");
+    }
     const query = new URLSearchParams();
     if (adminPageEndpoints.has(endpoint)) query.set("limit", "1000");
     return query;
