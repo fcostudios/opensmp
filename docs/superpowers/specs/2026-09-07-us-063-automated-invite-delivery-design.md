@@ -17,9 +17,10 @@ activation belong to US-064, US-065, and US-066 respectively.
 
 ## Outcome
 
-The existing 15-minute `invitePoll` job drains pending automated invite actions
-for its scheduled vendor account. Each eligible action invokes the real
-Anthropic connector exactly once. A known success durably binds the provider
+The existing 15-minute `invitePoll` coordinator drains pending automated invite
+actions across eligible vendor accounts; manually enqueued child executions
+remain restricted to their supplied vendor account. Each eligible action
+invokes the real Anthropic connector exactly once. A known success durably binds the provider
 reference and terminal connector observation to the action before the request
 is advanced through the legal `provisioning -> invited` transition.
 
@@ -35,13 +36,14 @@ creation, so automatic replay could create a duplicate invitation.
 Add a worker-local `createAutomatedInviteDeliveryJob` composition service. It
 receives explicit ports for the completed Anthropic connector dependencies and
 owns the PostgreSQL claim/finalization boundary. The default `invitePoll`
-handler constructs it from the worker connection string and runs it only when
-the scheduled job context contains a vendor account ID.
+handler constructs it from the worker connection string. A cron-shaped
+coordinator payload discovers all eligible accounts, while a payload with a
+trusted vendor account ID adds that exact scope filter.
 
 The job selects a small ordered batch of actions that are:
 
 - `kind = 'invite'`, `mode = 'automated'`, and `status = 'pending'`;
-- linked to the same `vendor_account_id` supplied by the trusted scheduler;
+- linked to the optional `vendor_account_id` supplied by a manual child run;
 - linked to a request in `provisioning` under the same vendor account;
 - validated against the closed version-1 provision payload; and
 - free of every existing `ConnectorCallObservation`.

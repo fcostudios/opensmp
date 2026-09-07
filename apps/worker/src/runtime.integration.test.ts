@@ -454,10 +454,15 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
           processed: 0,
           status: "succeeded",
         }));
+        expect(logs).toContainEqual(expect.objectContaining({
+          jobId: jobIds[2],
+          processed: 0,
+          status: "succeeded",
+        }));
         expect(
           logs.filter(({ jobId, status }) =>
-            ![jobIds[3], jobIds[5]].includes(jobId) && status === "skipped"),
-        ).toHaveLength(4);
+            ![jobIds[2], jobIds[3], jobIds[5]].includes(jobId) && status === "skipped"),
+        ).toHaveLength(3);
       });
     } finally {
       await runtime.stop();

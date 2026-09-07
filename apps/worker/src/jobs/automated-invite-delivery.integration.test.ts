@@ -249,6 +249,27 @@ describe("US-063 automated invite delivery", () => {
     expect(foreign.rows).toEqual([{ status: "pending", vendor_ref: null }]);
   });
 
+  it("kills a scheduled coordinator that fails to discover eligible vendor accounts", async () => {
+    await seed();
+    await owner.query(`UPDATE license_request SET state='invited' WHERE id=$1`, [ids.requestB]);
+    let calls = 0;
+    const job = jobFor(async () => {
+      calls += 1;
+      return new Response(JSON.stringify({
+        type: "invite",
+        id: "invite-scheduled-a",
+        email: "a@invite.test",
+        status: "pending",
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    });
+    try {
+      await expect(job.drain({ at })).resolves.toEqual({ processed: 1 });
+    } finally {
+      await job.close();
+    }
+    expect(calls).toBe(1);
+  });
+
   it("kills replay after an ambiguous transport crash", async () => {
     await seed();
     let calls = 0;

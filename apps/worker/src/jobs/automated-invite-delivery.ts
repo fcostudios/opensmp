@@ -27,7 +27,7 @@ type ProvisionInstruction = Readonly<{
   personEmail: string;
 }>;
 
-type DeliveryJobOptions = Readonly<{
+export type AutomatedInviteDeliveryJobOptions = Readonly<{
   allowedKekRoot?: string;
   connectionString: string;
   kekFile?: string;
@@ -91,7 +91,7 @@ function provisionInstruction(candidate: Candidate): ProvisionInstruction {
   };
 }
 
-export function createAutomatedInviteDeliveryJob(options: DeliveryJobOptions) {
+export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliveryJobOptions) {
   const pool = new pg.Pool({ connectionString: options.connectionString });
   const observations = createConnectorCallObservationAppender(options.connectionString);
   const now = options.now ?? (() => new Date());
@@ -104,8 +104,10 @@ export function createAutomatedInviteDeliveryJob(options: DeliveryJobOptions) {
   });
   const transport = options.transport ?? fetch;
 
-  async function candidates(vendorAccountId: string): Promise<readonly Candidate[]> {
-    if (!uuidPattern.test(vendorAccountId)) throw new Error("AUTOMATED_INVITE_VENDOR_INVALID");
+  async function candidates(vendorAccountId?: string): Promise<readonly Candidate[]> {
+    if (vendorAccountId !== undefined && !uuidPattern.test(vendorAccountId)) {
+      throw new Error("AUTOMATED_INVITE_VENDOR_INVALID");
+    }
     const result = await pool.query<Candidate>(
       `SELECT action.id::text AS "actionId",
               request.company_id::text AS "companyId",
@@ -116,7 +118,7 @@ export function createAutomatedInviteDeliveryJob(options: DeliveryJobOptions) {
        JOIN license_request request
          ON request.id=action.request_id
         AND request.vendor_account_id=action.vendor_account_id
-       WHERE action.vendor_account_id=$1
+       WHERE ($1::uuid IS NULL OR action.vendor_account_id=$1)
          AND action.kind='invite'
          AND action.mode='automated'
          AND action.status='pending'
@@ -300,7 +302,7 @@ export function createAutomatedInviteDeliveryJob(options: DeliveryJobOptions) {
     async close(): Promise<void> {
       await Promise.all([pool.end(), observations.close()]);
     },
-    async drain(input: Readonly<{ at: Date; vendorAccountId: string }>): Promise<{ processed: number }> {
+    async drain(input: Readonly<{ at: Date; vendorAccountId?: string }>): Promise<{ processed: number }> {
       if (!(input.at instanceof Date) || !Number.isFinite(input.at.getTime())) {
         throw new Error("AUTOMATED_INVITE_TIME_INVALID");
       }

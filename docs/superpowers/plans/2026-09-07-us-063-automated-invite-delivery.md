@@ -49,8 +49,10 @@ Testcontainers, Anthropic connector, Stryker.
 
 The readiness estimate anticipated eight files. Repository discovery showed
 that production credential decryption and lifecycle persistence are currently
-web-local, so the cohesive implementation may touch up to these thirteen paths
-without adding a schema or migration:
+web-local; the first PostgreSQL RED test then proved that the least-privilege
+runtime lacked the required `vendor_ref` grant, and runtime inspection proved
+cron payloads are coordinator-shaped. The cohesive implementation may
+therefore touch these twenty-one paths without changing a table shape:
 
 1. `.nous-feedback.jsonl`
 2. `docs/readiness/US-063.json`
@@ -65,11 +67,20 @@ without adding a schema or migration:
 11. `apps/worker/src/jobs/automated-invite-delivery.integration.test.ts`
 12. `apps/worker/src/jobs/deferred.ts`
 13. `apps/worker/src/jobs/deferred.test.ts`
+14. `packages/connectors/package.json`
+15. `packages/db/scripts/verify-schema.mjs`
+16. `packages/db/src/migrations/V20260907210200__automated_invite_vendor_reference_grant.sql`
+17. `packages/db/src/migrations/V20260907210300__verify_automated_invite_vendor_reference_grant.sql`
+18. `apps/worker/src/runtime.ts`
+19. `apps/worker/src/index.ts`
+20. `apps/web/src/modules/vendor-catalog/credential-crypto.test.ts`
+21. `apps/worker/src/runtime.integration.test.ts`
 
-Package exports may be added to the existing `packages/db/package.json`; no
-barrel file or migration is expected. Stop and emit a timestamped deviation if
-the behavior requires a schema change, another production subsystem, or more
-than the approved 104-minute total.
+Package exports stay explicit. The append-only permission migration is recorded
+by the timestamped deviation event; it grants only `vendor_ref` and its verifier
+rejects broad table or raw-payload mutation. Stop and emit another deviation if
+the behavior requires a table-shape change, another production subsystem, or
+more than the approved 104-minute total.
 
 ---
 
@@ -171,10 +182,11 @@ git commit -m "feat(US-063): deliver automated Anthropic invitations"
 - Modify: `apps/worker/src/jobs/deferred.ts`
 - Modify: `apps/worker/src/jobs/deferred.test.ts`
 
-- [ ] Write failing handler tests proving `invitePoll` requires a vendor account,
-  constructs the delivery job with the worker connection string, forwards the
-  scheduled timestamp, closes resources on success/failure, and reports the
-  finalized count through `successfulJob`.
+- [ ] Write failing handler tests proving `invitePoll` supports a coordinator
+  payload without a vendor account, preserves manual vendor scoping, constructs
+  the delivery job with the worker connection string and KEK path, forwards the
+  scheduled timestamp, closes resources, and reports the finalized count
+  through `successfulJob`.
 - [ ] Replace only the `invitePoll` US-018 placeholder. Preserve every other
   deferred handler and the existing `JOB_SCHEDULES.invitePoll` 15-minute cron.
 - [ ] Run the worker unit and integration suites GREEN and commit:

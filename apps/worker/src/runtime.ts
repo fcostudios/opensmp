@@ -94,6 +94,7 @@ export type WorkerRuntimeOptions = {
   };
   calendar?: EcuadorBusinessCalendar;
   connectionString: string;
+  credentialKekFile?: string;
   failureReporter?: JobFailureAlertReporter;
   handlers?: Partial<Record<JobName, WorkerJobHandler>>;
   fatalHealthWriteTimeoutMs?: number;
@@ -151,6 +152,7 @@ export function createWorkerRuntime(options: WorkerRuntimeOptions): WorkerRuntim
   const handlers = {
     ...createDeferredJobHandlers(options.calendar, {
       connectionString: options.connectionString,
+      credentialKekFile: options.credentialKekFile,
       mailer: options.notificationMailer,
       workerId: instanceId,
     }),

@@ -28,7 +28,7 @@ describe("US-046 deferred job handlers", () => {
     await expect(handlers.invitePoll({ ...context, jobName: "invitePoll" })).resolves.toMatchObject({
       reason: "dependency_not_delivered",
       status: "skipped",
-      story: "US-018",
+      story: "US-063",
     });
     await expect(handlers.alertEvaluation({ ...context, jobName: "alertEvaluation" })).resolves.toMatchObject({
       reason: "dependency_not_delivered",
@@ -87,6 +87,12 @@ describe("US-046 deferred job handlers", () => {
         idempotencyKey: "capacity-recovery:2026-08-05T10:30",
         jobId: "capacity-recovery-test-job",
         jobName: "capacityRecovery",
+      })).resolves.toEqual({ processed: 0, status: "succeeded" });
+      await expect(handlers.invitePoll({
+        at: new Date("2026-08-05T10:30:00.000Z"),
+        idempotencyKey: "invite-poll:scheduled:2026-08-05T10:30",
+        jobId: "invite-poll-test-job",
+        jobName: "invitePoll",
       })).resolves.toEqual({ processed: 0, status: "succeeded" });
 
       const owner = await fixture.connectAsOwner();
