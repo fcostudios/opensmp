@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "d8b2a47cf8178854e96129d52b1dd0c58d3b3c33600ee0a3a4061cdebe955a76",
+  "work_id": "CHG-053",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Register the 2026-09-07 IMP-393/398 guidance refresh and two-file immutable overlay",
+  "source": "Nous change ledger CHG-053",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The exact seven-path substrate guidance refresh is carried under technical ownership, CLAUDE.md and FRONTEND.md are admitted through an immutable two-file overlay, generated mirrors retain their provenance trailers, and the guidance checker rejects active tenant_id instructions without rejecting explicit statements that tenant_id must not be used.",
+      "demo": "Verify the seven delivered paths retain their substrate bytes, the CHG-053 manifest and desired copies bind the exact CLAUDE.md and FRONTEND.md states, focused reconciliation fixtures accept the delivered negative tenant_id guidance while rejecting an active tenant_id instruction and unknown hashes, REVIEWED_RECONCILER_SHA256 matches the reviewed reconciler, and generated-guidance plus lint are green without editing AGENTS.md, SECURITY.md, or STANDARDS.md.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "docs",
+    "infra",
+    "tooling"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 13,
+    "expected_mutation_shards": 1,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 10,
+    "implementation": 50,
+    "focused_verification": 35,
+    "review": 25,
+    "integration": 10,
+    "total": 130
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Whether the two unknown generated states can be accepted without editing the substrate-emitted targets.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "Use the exact delivered CLAUDE.md and FRONTEND.md bytes as immutable desired copies under CHG-053, source them from the final CHG-049 layer, and register only that closed transition in the reconciler."
+    },
+    {
+      "id": "U2",
+      "statement": "Whether the delivered negative references to tenant_id are active forbidden guidance.",
+      "status": "resolved",
+      "estimate_impact_minutes": 15,
+      "resolution": "They explicitly prohibit tenant_id rather than instruct its use. Narrow the checker with focused red/green fixtures so active tenant_id guidance remains rejected while the exact negative forms emitted by Nous are accepted."
+    },
+    {
+      "id": "U3",
+      "statement": "Whether the reconciler trust pin and protected mirror behavior remain closed after registering the layer.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "Review the minimal reconciler delta, update its focused tests, compute and re-pin REVIEWED_RECONCILER_SHA256, and verify mirror bodies preserve their individual terminal provenance trailers."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG053-READY",
+    "payload_sha256": "d8b2a47cf8178854e96129d52b1dd0c58d3b3c33600ee0a3a4061cdebe955a76"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
