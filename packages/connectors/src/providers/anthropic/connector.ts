@@ -73,9 +73,9 @@ type UserCost = Readonly<{
   results: readonly CostResult[];
 }>;
 
-const capabilities = [
+const capabilities = Object.freeze([
   "provision", "deprovision", "syncMembers", "syncActivity", "syncCost",
-] as const satisfies readonly ConnectorCapability[];
+] as const) satisfies readonly ConnectorCapability[];
 const plainDecimal = /^(?:0|[1-9]\d*)(?:\.\d+)?$|^-(?:(?:[1-9]\d*)(?:\.\d+)?|0\.\d*[1-9]\d*)$/;
 const plainUnsignedDecimal = /^(?:0|[1-9]\d*)(?:\.\d+)?$/;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
@@ -98,12 +98,26 @@ function success<T>(value: T): Readonly<{ ok: true; value: T; raw: null }> {
 }
 
 function immutableCapabilities(): ReadonlySet<ConnectorCapability> {
-  const set = new Set<ConnectorCapability>(capabilities);
-  const immutable = () => { throw new TypeError("Anthropic capabilities are immutable"); };
-  Object.defineProperties(set, {
-    add: { value: immutable }, delete: { value: immutable }, clear: { value: immutable },
+  let view: ReadonlySet<ConnectorCapability>;
+  view = Object.freeze({
+    get size() { return capabilities.length; },
+    has(value: ConnectorCapability) { return capabilities.includes(value); },
+    entries() {
+      return capabilities.map(
+        (value): [ConnectorCapability, ConnectorCapability] => [value, value],
+      ).values();
+    },
+    keys() { return capabilities.values(); },
+    values() { return capabilities.values(); },
+    forEach(
+      callback: (value: ConnectorCapability, key: ConnectorCapability, set: ReadonlySet<ConnectorCapability>) => void,
+      thisArg?: unknown,
+    ) {
+      for (const value of capabilities) callback.call(thisArg, value, value, view);
+    },
+    [Symbol.iterator]() { return capabilities.values(); },
   });
-  return Object.freeze(set);
+  return view;
 }
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -127,6 +141,28 @@ function nonblank(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function wellFormedUtf16(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const low = value.charCodeAt(index + 1);
+      if (!(low >= 0xdc00 && low <= 0xdfff)) return false;
+      index += 1;
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function opaqueToken(value: unknown): value is string {
+  return typeof value === "string"
+    && value.length > 0
+    && value === value.trim()
+    && !/[\u0000-\u001f\u007f-\u009f]/u.test(value)
+    && wellFormedUtf16(value);
+}
+
 function usableEmail(value: unknown): string | null | undefined {
   if (value === null) return null;
   if (typeof value !== "string" || !emailPattern.test(value) || value !== value.trim()) return undefined;
@@ -141,21 +177,21 @@ function validDate(value: unknown): value is string {
 
 function parseMember(value: unknown): Member | null {
   const item = exact(value, ["type", "id", "name", "email"]);
-  if (!item || item.type !== "user" || !nonblank(item.id) || !nonblank(item.name)) return null;
+  if (!item || item.type !== "user" || !opaqueToken(item.id) || !nonblank(item.name)) return null;
   const email = usableEmail(item.email);
   return email === undefined ? null : { type: "user", id: item.id, name: item.name, email };
 }
 
 function parseInvitation(value: unknown): Invitation | null {
   const item = exact(value, ["type", "id", "email", "status"]);
-  if (!item || item.type !== "invite" || !nonblank(item.id) || !nonblank(item.status)) return null;
+  if (!item || item.type !== "invite" || !opaqueToken(item.id) || !nonblank(item.status)) return null;
   const email = usableEmail(item.email);
   return email === undefined ? null : { type: "invite", id: item.id, email, status: item.status };
 }
 
 function parseAnalyticsUser(value: unknown): AnalyticsUser | null {
   const item = exact(value, ["user_id", "email"]);
-  if (!item || !nonblank(item.user_id)) return null;
+  if (!item || !opaqueToken(item.user_id)) return null;
   const email = usableEmail(item.email);
   return email === undefined ? null : { user_id: item.user_id, email };
 }
@@ -177,7 +213,7 @@ function parseSummary(value: unknown): ActivitySummary | null {
 function parseUsage(value: unknown): UserUsage | null {
   const item = exact(value, ["user_id", "email", "input_tokens", "output_tokens"]);
   if (
-    !item || !nonblank(item.user_id) || typeof item.input_tokens !== "string"
+    !item || !opaqueToken(item.user_id) || typeof item.input_tokens !== "string"
     || !plainUnsignedDecimal.test(item.input_tokens) || typeof item.output_tokens !== "string"
     || !plainUnsignedDecimal.test(item.output_tokens)
   ) return null;
@@ -199,7 +235,7 @@ function parseCostResult(value: unknown): CostResult | null {
 function parseCost(value: unknown): UserCost | null {
   const item = exact(value, ["user_id", "email", "results"]);
   if (
-    !item || !nonblank(item.user_id) || !Array.isArray(item.results) || item.results.length === 0
+    !item || !opaqueToken(item.user_id) || !Array.isArray(item.results) || item.results.length === 0
   ) return null;
   const email = usableEmail(item.email);
   const results = item.results.map(parseCostResult);
@@ -270,7 +306,9 @@ function addDecimals(values: readonly string[]): string {
 }
 
 async function responseBody(response: Response): Promise<unknown> {
-  if (!response.headers.get("content-type")?.toLowerCase().includes("application/json")) {
+  const contentType = response.headers.get("content-type");
+  const essence = contentType?.split(";", 1)[0]?.trim().toLowerCase();
+  if (essence !== "application/json") {
     await response.body?.cancel().catch(() => undefined);
     throw new Error("Invalid Anthropic response media type");
   }

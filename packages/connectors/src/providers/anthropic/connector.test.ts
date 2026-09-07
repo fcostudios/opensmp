@@ -135,7 +135,13 @@ describe("Anthropic neutral connector", () => {
     expect([...capabilities]).toEqual(["provision", "deprovision", "syncMembers", "syncActivity", "syncCost"]);
     expect(Object.isFrozen(connector)).toBe(true);
     expect(Object.isFrozen(capabilities)).toBe(true);
-    expect(() => (capabilities as Set<string>).delete("provision")).toThrow(TypeError);
+    expect(capabilities.size).toBe(5);
+    expect(capabilities.has("syncCost")).toBe(true);
+    expect([...capabilities.keys()]).toEqual([...capabilities.values()]);
+    expect([...capabilities.entries()][0]).toEqual(["provision", "provision"]);
+    expect(() => Set.prototype.add.call(capabilities, "forged")).toThrow(TypeError);
+    expect(() => Set.prototype.clear.call(capabilities)).toThrow(TypeError);
+    expect([...capabilities]).toEqual(["provision", "deprovision", "syncMembers", "syncActivity", "syncCost"]);
     expect(credentialLookups).toEqual([]);
     expect(sessions).toEqual([]);
   });
@@ -187,6 +193,36 @@ describe("Anthropic neutral connector", () => {
     expect(requests.find(({ method }) => method === "POST") && await requests.find(({ method }) => method === "POST")!.clone().json())
       .toEqual({ email: "new@example.test", role: "user" });
     expect(requests.some(({ method, url }) => method === "DELETE" && url.endsWith("/users/usr-1"))).toBe(true);
+  });
+
+  it.each([
+    ["member leading whitespace", "member", " usr-1"],
+    ["member trailing whitespace", "member", "usr-1 "],
+    ["member control", "member", "usr\n1"],
+    ["member lone high surrogate", "member", "usr\uD800"],
+    ["invite lone low surrogate", "invite", "inv\uDC00"],
+  ] as const)("rejects %s before any deprovision DELETE", async (_case, kind, providerId) => {
+    // Mutations killed: trimming or lossy URL encoding turns a malformed provider ID into a destructive target.
+    const methods: string[] = [];
+    const { connector } = fixture(async (request) => {
+      methods.push(request.method);
+      const path = new URL(request.url).pathname;
+      if (path.endsWith("/users")) {
+        return json(idPage(kind === "member" ? [member(providerId, "target@example.test")] : []));
+      }
+      if (path.endsWith("/invites")) {
+        return json(idPage(kind === "invite" ? [invite(providerId, "target@example.test")] : []));
+      }
+      return new Response(null, { status: 204 });
+    });
+    expect(await connector.deprovision({
+      requestId: REQUEST,
+      vendorAccountId: ACCOUNT,
+      personEmail: "target@example.test",
+      licenseTypeName: "Claude",
+    })).toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+    expect(methods).toEqual(kind === "member" ? ["GET"] : ["GET", "GET"]);
+    expect(methods).not.toContain("DELETE");
   });
 
   it("paginates both cursor families and preserves durable attempt numbering across pages", async () => {
@@ -374,6 +410,15 @@ describe("Anthropic neutral connector", () => {
       .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
   });
 
+  it("rejects a malformed analytics user ID", async () => {
+    // Mutations killed: accepting lossy opaque IDs lets ambiguous provider identities enter joins.
+    const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/analytics/users")
+      ? json(opaquePage([analyticsUser("user\uD800", "a@example.test")]))
+      : json({ summaries: [summary()] }));
+    expect(await connector.syncActivity({ vendorAccountId: ACCOUNT, observedAt: NOW }))
+      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+  });
+
   it("rejects a malformed usage identity before requesting cost", async () => {
     // Mutations killed: skipping the usage parser allows an ungrounded cost identity to pass.
     let costCalls = 0;
@@ -413,6 +458,16 @@ describe("Anthropic neutral connector", () => {
     });
   });
 
+  it("rejects malformed matching IDs across usage and cost", async () => {
+    // Mutations killed: treating opaque IDs as merely nonblank allows control-bearing actors to join.
+    const malformed = "user\u0000id";
+    const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/user_usage_report")
+      ? json(opaquePage([usage(malformed, "a@example.test")]))
+      : json(opaquePage([cost(malformed, null)])));
+    expect(await connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW }))
+      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+  });
+
   it("maps aggregate money overflow to a private non-retryable failure", async () => {
     // Mutations killed: allowing BigInt aggregation to throw escapes the stable connector failure contract.
     const amount = "9".repeat(80);
@@ -425,6 +480,26 @@ describe("Anthropic neutral connector", () => {
       : json(opaquePage([aggregated])));
     await expect(connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW })).resolves.toEqual({
       ok: false, code: "provider_error", retryable: false, raw: null,
+    });
+  });
+
+  it.each([
+    [["1.2", "3.45"], "0.0465"],
+    [["99.9", "0.1"], "1.000"],
+    [["10.25", "-0.25"], "0.1000"],
+    [["1.00", "-1.00"], "0.0000"],
+    [["999.99", "0.01", "-500.00"], "5.0000"],
+  ] as const)("aggregates differing-scale signed fractional cents %j exactly", async (amounts, amountUsd) => {
+    // Mutations killed: first/last-only, wrong scale, missing carry, or lost sign changes the literal total.
+    const row = {
+      ...cost("u", null, amounts[0]),
+      results: amounts.map((amount) => ({ amount, list_amount: amount, currency: "USD" })),
+    };
+    const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/user_usage_report")
+      ? json(opaquePage([usage("u", "a@example.test")]))
+      : json(opaquePage([row])));
+    expect(await successValue(connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW }))).toEqual({
+      records: [{ email: "a@example.test", costDate: "2026-09-06", amountUsd }],
     });
   });
 
@@ -537,6 +612,36 @@ describe("Anthropic neutral connector", () => {
     await expect(connector.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW })).rejects.toBe(sessionFailure);
     expect(transports).toBe(0);
   });
+
+  it("accepts case-insensitive JSON media essence with parameters", async () => {
+    // Mutations killed: comparing the whole header instead of its normalized essence rejects valid provider JSON.
+    const { connector } = fixture(async () => new Response(JSON.stringify(invite("i", "a@example.test")), {
+      status: 201,
+      headers: { "content-type": "Application/JSON; Charset=UTF-8" },
+    }));
+    expect(await successValue(connector.provision({
+      requestId: REQUEST, vendorAccountId: ACCOUNT, personEmail: "a@example.test", licenseTypeName: "Claude",
+    }))).toEqual({ vendorRef: "i" });
+  });
+
+  it.each(["application/jsonp", "text/plain;note=application/json"])(
+    "rejects non-JSON media type %s and cancels its unread body",
+    async (contentType) => {
+      // Mutations killed: substring matching accepts JSON-like tokens outside the media-type essence.
+      let cancellations = 0;
+      const { connector } = fixture(async () => new Response(new ReadableStream({
+        pull(controller) {
+          controller.enqueue(new TextEncoder().encode(JSON.stringify(invite("i", "a@example.test"))));
+          controller.close();
+        },
+        cancel() { cancellations += 1; },
+      }), { status: 200, headers: { "content-type": contentType } }));
+      expect(await connector.provision({
+        requestId: REQUEST, vendorAccountId: ACCOUNT, personEmail: "a@example.test", licenseTypeName: "Claude",
+      })).toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+      expect(cancellations).toBe(1);
+    },
+  );
 
   it("prevents transport when requested evidence fails and propagates terminal evidence failure", async () => {
     // Mutations killed: transport-before-request or swallowing terminal persistence errors violates the durable boundary.
