@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -137,6 +137,19 @@ type ConnectorInteraction = Readonly<{
   response: V3Response;
 }>;
 
+function inspectThenCleanup(
+  directories: readonly string[],
+  inspect: () => void,
+): void {
+  try {
+    inspect();
+  } finally {
+    for (const directory of directories) {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }
+}
+
 function connectorInteraction(
   provider: PactV3,
   interaction: ConnectorInteraction,
@@ -262,6 +275,17 @@ function expectJournal(
 }
 
 describe("Anthropic connector consumer contract", () => {
+  test("removes every Pact directory when artifact inspection fails", () => {
+    const first = mkdtempSync(join(tmpdir(), "ledger-pact-cleanup-first-"));
+    const second = mkdtempSync(join(tmpdir(), "ledger-pact-cleanup-second-"));
+
+    expect(() => inspectThenCleanup([first, second], () => {
+      throw new Error("invalid Pact artifact");
+    })).toThrowError("invalid Pact artifact");
+    expect(existsSync(first)).toBe(false);
+    expect(existsSync(second)).toBe(false);
+  });
+
   test("provisions through the dispatcher without leaking provider data", async () => {
     await executeConnectorContract({
       interactions: [{
@@ -1076,32 +1100,33 @@ describe("Anthropic enterprise API consumer contract", () => {
   });
 });
 
-afterAll(() => {
-  const contract = JSON.parse(readFileSync(contractPath, "utf8")) as {
-    interactions?: Array<{ description?: string }>;
-  };
-  expect(contract.interactions).toHaveLength(12);
-  expect(
-    new Set(contract.interactions?.map(({ description }) => description)).size,
-  ).toBe(12);
-  expect(JSON.stringify(contract)).toContain(
-    "^contract-(admin|analytics)-key$",
-  );
-  const connectorContract = JSON.parse(
-    readFileSync(connectorContractPath, "utf8"),
-  ) as { interactions?: Array<{ description?: string }> };
-  expect(connectorContract.interactions).toHaveLength(22);
-  expect(
-    new Set(
-      connectorContract.interactions?.map(({ description }) => description),
-    ).size,
-  ).toBe(22);
-  const connectorContractJson = JSON.stringify(connectorContract);
-  expect(connectorContractJson).toContain("^contract-admin-key$");
-  expect(connectorContractJson).toContain("^contract-analytics-key$");
-  expect(connectorContractJson).not.toContain(
-    "^contract-(admin|analytics)-key$",
-  );
-  rmSync(pactDirectory, { recursive: true, force: true });
-  rmSync(connectorPactDirectory, { recursive: true, force: true });
-});
+afterAll(() => inspectThenCleanup(
+  [pactDirectory, connectorPactDirectory],
+  () => {
+    const contract = JSON.parse(readFileSync(contractPath, "utf8")) as {
+      interactions?: Array<{ description?: string }>;
+    };
+    expect(contract.interactions).toHaveLength(12);
+    expect(
+      new Set(contract.interactions?.map(({ description }) => description)).size,
+    ).toBe(12);
+    expect(JSON.stringify(contract)).toContain(
+      "^contract-(admin|analytics)-key$",
+    );
+    const connectorContract = JSON.parse(
+      readFileSync(connectorContractPath, "utf8"),
+    ) as { interactions?: Array<{ description?: string }> };
+    expect(connectorContract.interactions).toHaveLength(22);
+    expect(
+      new Set(
+        connectorContract.interactions?.map(({ description }) => description),
+      ).size,
+    ).toBe(22);
+    const connectorContractJson = JSON.stringify(connectorContract);
+    expect(connectorContractJson).toContain("^contract-admin-key$");
+    expect(connectorContractJson).toContain("^contract-analytics-key$");
+    expect(connectorContractJson).not.toContain(
+      "^contract-(admin|analytics)-key$",
+    );
+  },
+));
