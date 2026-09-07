@@ -1,6 +1,6 @@
 **Work item:** CHG-051
 **Readiness assessment:** docs/readiness/CHG-051.json
-**Approved estimate:** 105 minutes
+**Approved estimate:** 120 minutes
 
 # CHG-051 Overlay Registration Implementation Plan
 
@@ -22,6 +22,7 @@
 - Eight desired files beneath `infra/scripts/overrides/CHG-049/6466f60/`: byte-for-byte CHG-050 carried guidance.
 - `infra/scripts/reconcile-sprint1-docs.py`: registers `CHG049_PATHS` and appends the layer.
 - `infra/scripts/tests/test_reconcile_sprint1_docs.py`: loads the final layer and proves body synchronization, per-file trailer preservation, and malformed-trailer rejection.
+- `scripts/test-work-readiness.mjs`: proves a ready child owns a parent-named immutable overlay path without authorizing ownerless implementation.
 - `scripts/work-readiness/git.mjs`: pins the reviewed reconciler SHA-256 and explains the reviewed CHG-051 delta.
 
 ### Task 1: Prove the red state and compute the manifest inputs
@@ -193,12 +194,44 @@ rtk git diff --exit-code -- AGENTS.md CLAUDE.md docs/dev-guide/DEFINITION_OF_DON
 
 Expected: the focused suite and check pass; no live target changes.
 
-### Task 4: Re-pin the reviewed reconciler and adversarially review
+### Task 4: Make parent-named overlay storage ownership-neutral
+
+**Files:**
+
+- Modify: `scripts/test-work-readiness.mjs`
+- Modify: `scripts/work-readiness/git.mjs`
+
+- [ ] **Step 1: Write the failing ownership regression**
+
+Create approved fixtures for partition-required parent CHG-049 with official child CHG-051 and ready CHG-051. Commit an implementation file plus `infra/scripts/overrides/CHG-049/6466f60/manifest.json` with a `fix(CHG-051)` message. Assert the range's work IDs are exactly `["CHG-051"]`. In the same fixture, prove a commit with no message work ID still raises `WR_WORK_ID_MISSING`; keep the existing ordinary path/message union test unchanged.
+
+- [ ] **Step 2: Run the focused test and verify RED**
+
+```bash
+rtk node --test --test-name-pattern="parent-named overlay storage" scripts/test-work-readiness.mjs
+```
+
+Expected: the CHG-051 commit fails with `WR_WORK_NOT_READY` for CHG-049 before the fix.
+
+- [ ] **Step 3: Implement the smallest ownership correction**
+
+When deriving `pathWorkIds` inside `validateCommitOwnership`, exclude paths matching the strict immutable storage prefix `infra/scripts/overrides/CHG-[0-9]{3,}/[a-z0-9]{7,64}/`. Do not change `extractWorkIds`, ordinary path ownership, `exactOverlayOwns`, or generated-target authorization.
+
+- [ ] **Step 4: Verify GREEN and regression boundaries**
+
+```bash
+rtk node --test --test-name-pattern="parent-named overlay storage|ownership is the union" scripts/test-work-readiness.mjs
+rtk pnpm test:work-readiness
+```
+
+Expected: the new ready-child and ownerless cases pass, the ordinary union case passes, and the full readiness suite is green.
+
+### Task 5: Re-pin the reviewed reconciler and adversarially review
 
 **Files:**
 
 - Modify: `scripts/work-readiness/git.mjs`
-- Review: all twelve CHG-051 implementation paths
+- Review: all thirteen CHG-051 implementation paths
 
 - [ ] **Step 1: Compute and install the reviewed reconciler hash**
 
@@ -240,9 +273,9 @@ rtk git add infra/scripts/overrides/CHG-049/6466f60 infra/scripts/reconcile-spri
 rtk git commit -m "fix(CHG-051): register the CHG-049 guidance overlay"
 ```
 
-Expected: exactly twelve implementation paths are committed.
+Expected: exactly thirteen implementation paths are committed normally; the commit message names CHG-051 only and uses no hook bypass.
 
-### Task 5: Run final gates and the authoritative campaigns
+### Task 6: Run final gates and the authoritative campaigns
 
 **Files:**
 
