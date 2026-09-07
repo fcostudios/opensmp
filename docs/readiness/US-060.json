@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "1888f2fed02403b5c9b0656c2968fb8c60b729f19910741b8539f16c86b16e90",
+  "readiness_payload_sha256": "7b93f55f44e1e4a60019a9ef829e754a2ffc5249b5dfebbebf5fe1a09fcdef88",
   "work_id": "US-060",
   "kind": "US",
   "work_type": "functional",
-  "title": "Declared rate-limit budgets and bounded retry sharing the limiter",
+  "title": "Superseded tenant split: declared rate-limit budgets and bounded retry",
   "source": "docs/stories/sprint-3/r1_misc_us_018.md",
   "outcomes": [
     {
@@ -79,21 +79,32 @@
       "statement": "The declared limits are documented values, not measured.",
       "estimate_impact_minutes": 0,
       "resolution": "Encoded as configuration (100/min user management, 60/min analytics, 1200 invites/hour) and asserted against fixtures. Confirming real provider behavior belongs to the gated live run."
+    },
+    {
+      "id": "U6",
+      "status": "unresolved",
+      "statement": "CHG-052 permanently superseded this tenant-only, never-minted split ID; its intended outcome was delivered canonically by US-056, and IMP-378 forbids re-minting this ID with new content.",
+      "estimate_impact_minutes": 0,
+      "resolution": null
     }
   ],
   "dependencies": [],
-  "decision": "ready",
+  "decision": "blocked",
   "partitions": [],
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "US060-READY",
-    "payload_sha256": "1888f2fed02403b5c9b0656c2968fb8c60b729f19910741b8539f16c86b16e90"
+    "evidence": "CHG052-US060-SUPERSEDED",
+    "payload_sha256": "7b93f55f44e1e4a60019a9ef829e754a2ffc5249b5dfebbebf5fe1a09fcdef88"
   },
   "actuals": null,
   "checkpoints": [],
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
-  "controlling_change": null
+  "controlling_change": {
+    "work_id": "CHG-052",
+    "relationship": "readiness_governance",
+    "reason": "CHG-052 permanently retires the noncanonical 2026-08-15 split IDs after their outcomes were delivered by official children."
+  }
 }

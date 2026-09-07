@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "12209cc99d0c3bd7cc859030e52c4549a07ec7be89b60049151040e9d92dc3d6",
+  "readiness_payload_sha256": "2752919060c2a0a4b51bb66d348fc80dbeb9cc5fd90ddae422a84faba6ab9a8f",
   "work_id": "US-059",
   "kind": "US",
   "work_type": "functional",
-  "title": "Endpoint-specific header policy with fail-closed credential routing",
+  "title": "Superseded tenant split: endpoint-specific header policy with fail-closed credential routing",
   "source": "docs/stories/sprint-3/r1_misc_us_018.md",
   "outcomes": [
     {
@@ -66,27 +66,32 @@
       "statement": "Probe code under scripts/probes/** cannot be imported: that path is exempted from the provider-boundary lint for the probe only.",
       "estimate_impact_minutes": 10,
       "resolution": "Header-policy semantics are ported into packages/connectors/src/providers/anthropic/, the other exempt path, and re-implemented against the connector's own contracts."
-    }
-  ],
-  "dependencies": [
+    },
     {
-      "work_id": "US-060",
-      "type": "blocks",
-      "reason": "The limiter and bounded retry are written against this transport seam, so it must exist first."
+      "id": "U4",
+      "status": "unresolved",
+      "statement": "CHG-052 permanently superseded this tenant-only, never-minted split ID; its intended outcome was delivered canonically by US-056 and US-058, and IMP-378 forbids re-minting this ID with new content.",
+      "estimate_impact_minutes": 0,
+      "resolution": null
     }
   ],
-  "decision": "ready",
+  "dependencies": [],
+  "decision": "blocked",
   "partitions": [],
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "US059-READY",
-    "payload_sha256": "12209cc99d0c3bd7cc859030e52c4549a07ec7be89b60049151040e9d92dc3d6"
+    "evidence": "CHG052-US059-SUPERSEDED",
+    "payload_sha256": "2752919060c2a0a4b51bb66d348fc80dbeb9cc5fd90ddae422a84faba6ab9a8f"
   },
   "actuals": null,
   "checkpoints": [],
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
-  "controlling_change": null
+  "controlling_change": {
+    "work_id": "CHG-052",
+    "relationship": "readiness_governance",
+    "reason": "CHG-052 permanently retires the noncanonical 2026-08-15 split IDs after their outcomes were delivered by official children."
+  }
 }
