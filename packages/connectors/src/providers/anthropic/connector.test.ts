@@ -260,6 +260,33 @@ describe("Anthropic neutral connector", () => {
     expect(methods).not.toContain("DELETE");
   });
 
+  it.each([
+    [200, false],
+    [202, true],
+  ] as const)("releases an unused successful DELETE %i body when cancellation rejects=%s", async (status, rejects) => {
+    // Mutations killed: discarding the executor response leaks a provider stream; propagating cancel failure loses success.
+    let cancellations = 0;
+    const { connector } = fixture(async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path.endsWith("/users")) return json(idPage([member("member-1", "target@example.test")]));
+      if (path.endsWith("/invites")) return json(idPage([]));
+      return new Response(new ReadableStream({
+        cancel() {
+          cancellations += 1;
+          if (rejects) throw new Error("provider body cancellation failed");
+        },
+      }), { status });
+    });
+
+    expect(await connector.deprovision({
+      requestId: REQUEST,
+      vendorAccountId: ACCOUNT,
+      personEmail: "target@example.test",
+      licenseTypeName: "Claude",
+    })).toEqual({ ok: true, value: { vendorRef: "member-1" }, raw: null });
+    expect(cancellations).toBe(1);
+  });
+
   it("rejects a provider ID collision before destructive or sync consumption through dispatch", async () => {
     // Mutations killed: checking only email uniqueness lets one provider identity map to conflicting actors or DELETE.
     const methods: string[] = [];
@@ -611,31 +638,54 @@ describe("Anthropic neutral connector", () => {
       .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
   });
 
-  it("preserves exact fractional cents with a fixed-seed money property", async () => {
-    // Mutations killed: changing sign, scale, decimal position, or using binary floating point breaks the invariant.
+  it("aggregates bounded mixed-scale signed arrays with a fixed-seed money property", async () => {
+    // Mutations killed: changing sign/scale, skipping a result, or using binary floating point breaks the exact sum.
     await fc.assert(fc.asyncProperty(
-      fc.bigInt({ min: -999_999_999_999_999n, max: 999_999_999_999_999n }),
+      fc.bigInt({ min: 1n, max: 999_999_999_999n }),
       fc.integer({ min: 0, max: 8 }),
-      async (unscaled, scale) => {
-        const negative = unscaled < 0n;
-        const digits = (negative ? -unscaled : unscaled).toString().padStart(scale + 1, "0");
-        const cents = scale === 0
-          ? `${negative ? "-" : ""}${digits}`
-          : `${negative ? "-" : ""}${digits.slice(0, -scale)}.${digits.slice(-scale)}`;
+      fc.integer({ min: 1, max: 8 }),
+      fc.array(fc.tuple(
+        fc.bigInt({ min: -999_999_999_999n, max: 999_999_999_999n }),
+        fc.integer({ min: 0, max: 8 }),
+      ), { maxLength: 4 }),
+      async (cancelMagnitude, cancelScale, scaleOffset, extras) => {
+        const differentScale = (cancelScale + scaleOffset) % 9;
+        const terms = [
+          [cancelMagnitude, cancelScale],
+          [-cancelMagnitude, cancelScale],
+          [7n, differentScale],
+          ...extras,
+        ] as readonly (readonly [bigint, number])[];
+        const decimal = (unscaled: bigint, scale: number): string => {
+          const negative = unscaled < 0n;
+          const digits = (negative ? -unscaled : unscaled).toString().padStart(scale + 1, "0");
+          return scale === 0
+            ? `${negative ? "-" : ""}${digits}`
+            : `${negative ? "-" : ""}${digits.slice(0, -scale)}.${digits.slice(-scale)}`;
+        };
+        const commonScale = Math.max(...terms.map(([, scale]) => scale));
+        const expectedUnscaled = terms.reduce(
+          (sum, [unscaled, scale]) => sum + unscaled * 10n ** BigInt(commonScale - scale),
+          0n,
+        );
+        const expectedUsd = decimal(expectedUnscaled, commonScale + 2);
+        const amounts = terms.map(([unscaled, scale]) => decimal(unscaled, scale));
+        const row = {
+          ...cost("u", null, amounts[0]),
+          results: amounts.map((amount) => ({ amount, list_amount: amount, currency: "USD" })),
+        };
         const { connector } = fixture(async (request) => {
           const path = new URL(request.url).pathname;
           return path.endsWith("/user_usage_report")
             ? json(opaquePage([usage("u", "a@example.test")]))
-            : json(opaquePage([cost("u", null, cents)]));
+            : json(opaquePage([row]));
         });
         const result = await connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW });
         expect(result.ok).toBe(true);
         if (!result.ok) return;
-        const usd = result.value.records[0]!.amountUsd;
-        const normalized = usd.replace(".", "");
-        expect(BigInt(normalized)).toBe(unscaled);
-        expect(usd.split(".")[1]).toHaveLength(scale + 2);
-        expect(usd.startsWith("-")).toBe(unscaled < 0n);
+        expect(result.value.records).toEqual([
+          { email: "a@example.test", costDate: "2026-09-06", amountUsd: expectedUsd },
+        ]);
       },
     ), { seed: 58_058, numRuns: 40 });
   });

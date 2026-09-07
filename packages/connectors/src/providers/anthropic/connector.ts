@@ -457,7 +457,13 @@ export function createAnthropicConnector(dependencies: AnthropicConnectorDepende
         endpoint: match.endpoint, parameters: { resourceId: match.id },
         vendorAccountId: input.vendorAccountId, credentials: operation.credentials,
       });
-      return deleted.ok ? success({ vendorRef: match.id }) : providerFailure(deleted.retryable);
+      if (!deleted.ok) return providerFailure(deleted.retryable);
+      try {
+        await deleted.response.body?.cancel();
+      } catch {
+        // The provider operation succeeded; a failed best-effort body release cannot reverse it.
+      }
+      return success({ vendorRef: match.id });
     },
     async syncMembers(input) {
       syncDate(input);
