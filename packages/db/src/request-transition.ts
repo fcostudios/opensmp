@@ -11,9 +11,7 @@ import {
 import type * as schema from "./schema.js";
 
 type Database = NodePgDatabase<typeof schema>;
-export type RequestTransitionTransaction = Parameters<
-  Parameters<Database["transaction"]>[0]
->[0];
+export type RequestTransitionTransaction = Pick<Database, "execute">;
 
 type LockedRequest = Readonly<{
   companyId: string;

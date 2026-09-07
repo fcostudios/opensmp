@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@smp/connectors": "workspace:*",
     "@smp/domain": "workspace:^",
     "@smp/contracts": "workspace:*",
     "@smp/db": "workspace:*",

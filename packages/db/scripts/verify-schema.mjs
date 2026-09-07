@@ -134,6 +134,7 @@ const expectedAppendOnlyColumnUpdates = [
   { tableName: "provisioning_action", columnName: "resolved_at" },
   { tableName: "provisioning_action", columnName: "sent_at" },
   { tableName: "provisioning_action", columnName: "status" },
+  { tableName: "provisioning_action", columnName: "vendor_ref" },
 ];
 
 const systemUserId = "00000000-0000-0000-0000-000000000001";
