@@ -15,7 +15,7 @@
   "dependencies": [{"work_id": "US-063", "type": "blocked_by", "reason": "US-063 establishes the action identity and unresolved-outcome boundary consumed by retry."}],
   "decision": "blocked",
   "partitions": [],
-  "approval": {"status": "pending", "approved_by": null, "evidence": null, "payload_sha256": "f4b689041c89b096658081040422e842a7a479a3601d4fc09a0732b2fd50a368"},
+  "approval": {"status": "approved", "approved_by": "Francisco Lomas", "evidence": "US065-BLOCKED", "payload_sha256": "f4b689041c89b096658081040422e842a7a479a3601d4fc09a0732b2fd50a368"},
   "actuals": null,
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,

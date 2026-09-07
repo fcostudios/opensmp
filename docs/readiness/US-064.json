@@ -15,7 +15,7 @@
   "dependencies": [{"work_id": "US-063", "type": "blocked_by", "reason": "US-063 establishes the invitation execution and evidence seam this no-seat classification extends."}],
   "decision": "blocked",
   "partitions": [],
-  "approval": {"status": "pending", "approved_by": null, "evidence": null, "payload_sha256": "54fc7d24fa7714d5d405f9b3d24a97e322546e83ade04533e14150c05cd0a9b0"},
+  "approval": {"status": "approved", "approved_by": "Francisco Lomas", "evidence": "US064-BLOCKED", "payload_sha256": "54fc7d24fa7714d5d405f9b3d24a97e322546e83ade04533e14150c05cd0a9b0"},
   "actuals": null,
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,

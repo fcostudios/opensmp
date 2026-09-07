@@ -15,7 +15,7 @@
   "dependencies": [{"work_id": "US-063", "type": "blocked_by", "reason": "US-063 establishes the invited action and evidence link consumed by acceptance polling."}],
   "decision": "blocked",
   "partitions": [],
-  "approval": {"status": "pending", "approved_by": null, "evidence": null, "payload_sha256": "7ed4e4f49e124d0828defccb9dcb4181ab166df1d5246901e8036d3ce5355d19"},
+  "approval": {"status": "approved", "approved_by": "Francisco Lomas", "evidence": "US066-BLOCKED", "payload_sha256": "7ed4e4f49e124d0828defccb9dcb4181ab166df1d5246901e8036d3ce5355d19"},
   "actuals": null,
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
