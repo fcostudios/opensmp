@@ -1,20 +1,18 @@
 # Security Reference Guide
 
-Authentication, authorization, and company scoping for the self-hosted Next.js
-app. See `CLAUDE.md` for the condensed rules; this file is the authoritative
-reference.
+Authentication, authorization, and tenant scoping for this self-hosted Next.js app.
+See `CLAUDE.md` for the condensed rules; this file is the authoritative reference.
 
 ## Identity and Authorization Boundary
 
-- Auth.js performs OIDC authorization-code redirects against the self-hosted
-  Keycloak realm `corporativo`.
-- Keycloak is the identity provider. It renders and verifies passwords and TOTP;
-  Ledger must never render, collect, proxy, or persist those credentials.
-- Ledger is the authorization source of truth. After verifying the session,
-  resolve the matching `UserAccount` and its `CompanyRoleAssignment` rows.
-  Keycloak carries no Ledger business roles.
-- `Company` is the application-tenant boundary. `VendorAccount` is a vendor
-  organization/account inside Ledger, not an application tenant.
+- Auth.js with Keycloak performs OIDC authorization-code redirects against the Keycloak realm `corporativo`.
+- Keycloak is the identity provider. It renders and verifies credentials; this
+  application must never render, collect, proxy, or persist them.
+- **This application's own database is the authorization source of truth.** After
+  verifying the session, resolve the subject's grants from `UserAccount` and `CompanyRoleAssignment` —
+  Keycloak carries no application roles.
+- Every read and write is scoped to the tenant set that resolution returns, never
+  to a value that arrived in a token.
 
 ## Protecting a Route Handler
 
@@ -23,7 +21,7 @@ reference.
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/auth-config";
 import { db } from "@smp/db";
-import { statement } from "@smp/db/schema";
+import { alertRule } from "@smp/db/schema";
 import { inArray } from "drizzle-orm";
 import { loadLedgerAuthorization } from "@/lib/auth/authorization";
 
@@ -32,47 +30,36 @@ export async function GET() {
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  const authorization = await loadLedgerAuthorization(session.user.idpSubject);
+  const authorization = await loadLedgerAuthorization(session.user.id);   // grants from this app's own tables
   const rows = await db
     .select()
-    .from(statement)
-    .where(inArray(statement.companyId, authorization.companyIds));
-
+    .from(alertRule)
+    .where(inArray(alertRule.companyId, authorization.companyIds));          // the AUTHORIZED tenant set
   return NextResponse.json(rows);
 }
 ```
 
 **Key patterns:**
-
 - Every protected handler calls `auth()` first — no session → `401`.
-- Roles and authorized company IDs come from Ledger DB, never from the request
-  body/query and never from a client-supplied claim.
-- Every company-scoped Drizzle query filters the real `company_id` column
-  declared by its table. Add a soft-delete filter (`deleted_at`) only on a
-  table that declares one.
-- Role-gate mutations with the Ledger authorization result:
-
+- Tenant scope and roles come from `UserAccount` and `CompanyRoleAssignment` via `loadLedgerAuthorization(...)` — NEVER from the request body/query, and NEVER from a client-supplied claim.
+- Every Drizzle query on a multi-tenant table filters `company_id` against the authorized set (`authorization.companyIds`) — confirm the column in `schema.ts`; there is no `tenant_id`. Add a soft-delete filter (`deleted_at`) ONLY on a table that declares one — most tables hard-delete and have no `is_deleted` column.
+- Role-gate a mutation with the RESOLVED authorization, not a claim:
   ```ts
-  if (!authorization.roles.includes("group_admin")) {
+  if (!authorization.roles.includes("GROUP_ADMIN")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   ```
-
-- A vendor-account filter can narrow business data, but it never replaces the
-  company authorization predicate.
+- NEVER trust a role or tenant supplied by the client — **including one that arrives in a token claim**; only the grants this application resolved.
 
 ## Client-Side Auth
 
-- The app is wrapped in `AuthSessionProvider`
-  (`@/lib/auth/session-provider`), already mounted in the root layout.
-- Read the Auth.js session with `useSession()` from `next-auth/react`.
-- Gate UI with `hasMinRole(roles, minRole)` from `@/lib/auth/roles`; the server
-  must independently enforce the same Ledger DB authorization.
-- Log out via `logout()` from `@/lib/auth/logout` (ends the Auth.js session and
-  the Keycloak SSO session).
-- Never render a raw user id as identity; use the display name from the
-  verified session.
+- The app is wrapped in `AuthSessionProvider` (`@/lib/auth/session-provider`), already mounted in the root layout.
+- Read the user with `useSession()` from `next-auth/react`.
+- Gate UI with `hasMinRole(roles, minRole)` from `@/lib/auth/roles` — hierarchy is `ROLE_HIERARCHY`, generated from the nav-map RBAC. The server MUST independently re-resolve and enforce the same grants.
+- Log out via `logout()` from `@/lib/auth/logout` (ends the NextAuth session AND the keycloak SSO session).
+- Never render a raw user id as identity — use the display name from the session.
+
+## Project additions
 
 ## Authentication-Failure Evidence (US-004)
 
@@ -88,4 +75,8 @@ export async function GET() {
 - US-004 establishes and tests the Keycloak admin-service seam used to
   synchronize `platform-admin` membership. Complete account administration,
   reset-2FA workflows, and the user-management UI remain US-011.
-<!-- nous-emitted: sha256=5846d7450d1093cd -->
+
+## Tenant boundary note (tenant-authored)
+
+- `Company` is the application-tenant boundary. `VendorAccount` is a vendor
+<!-- nous-emitted: sha256=4851bab272c5da23 -->

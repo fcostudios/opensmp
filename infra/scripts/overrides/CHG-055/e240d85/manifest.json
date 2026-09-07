@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "paths": {
+    "docs/dev-guide/DEFINITION_OF_DONE.md": {
+      "source_path": "overrides/CHG-049/6466f60/docs/dev-guide/DEFINITION_OF_DONE.md",
+      "source_sha256": "ae0060ef2adfe269aec8bda3e14f79b4f14db0243a99b39ab91ed5bf161f4560",
+      "desired_sha256": "b12b953006b2c2fe0d7bad74fed0dca8451024e6c66060b1828cae195ade041e"
+    },
+    "docs/dev-guide/SECURITY.md": {
+      "source_path": "overrides/CHG-049/6466f60/docs/dev-guide/SECURITY.md",
+      "source_sha256": "022d772834a4b78de32e5eb2baee1701878bd84d18c85564703505c0c7e3e694",
+      "desired_sha256": "0806022c650afcea0329c2b0380c60d12048fd35dbcb19a04df096b568999b37"
+    },
+    "docs/dev-guide/STANDARDS.md": {
+      "source_path": "overrides/CHG-049/6466f60/docs/dev-guide/STANDARDS.md",
+      "source_sha256": "3347158c79e0032db6a878b9ef92a4ba6d26d783e64f2fe463e486869a066a22",
+      "desired_sha256": "93460713aad5ccb32cc3fe1981d017165d7e1ff7caef90659bf4a79d3810f7ca"
+    }
+  }
+}

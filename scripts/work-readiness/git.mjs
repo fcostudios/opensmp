@@ -39,11 +39,11 @@ const CHG022_EXECUTABLE_BOUNDARY = "72f5e8545ea5d98795e2a5f19e62f6ba5e7ae7cb";
 // Reviewed fail-closed raw-byte binding for the complete reconciler. Any
 // whitespace, definition rebinding, helper, build-plan, or runtime edit
 // requires an explicit review and a new digest before ownership is accepted.
-// Re-pinned by CHG-053. Reviewed deltas add the closed two-path CHG-053/2dee869
-// layer, validate IMP-393's agent-sync header plus terminal emitted trailer for
-// framed mirrors, and allow only the two reviewed negative tenant_id references.
+// Re-pinned by CHG-055. In addition to the reviewed CHG-053 framing and
+// tenant_id rules, the delta appends the closed three-path CHG-055/e240d85
+// transition for the PM authorization-guidance delivery.
 // test-work-readiness.mjs asserts this constant against the file on disk.
-const REVIEWED_RECONCILER_SHA256 = "114d0baedaac4dd15d7eb74d2657280ffe2e2a19dcc7ff659e1033716e4ef59c";
+const REVIEWED_RECONCILER_SHA256 = "bc451827b1d86202679f640c93e0de2b46aeab5003a9a1d40eb4cf7a0a24bac9";
 
 function isTerminalEvent(event) {
   return event === "done" || event === "verified"

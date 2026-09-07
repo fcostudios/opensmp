@@ -69,6 +69,10 @@ sufficient. See `CLAUDE.md` for the summary; this is the authoritative gate.
    campaign run before review has to be run again. Run a whole-critical-set campaign
    only if the critical set in [`TESTING.md`](TESTING.md) §3 itself changed, and only
    if this package defines one — the diff-scoped run is the gate.
+   **Running the campaign early as a PREVIEW is allowed**, and is how weak oracles
+   get found before hours of work depend on them — but a preview is not the gate,
+   and **you must NOT report a `test_report` for one**. Only the last campaign, with
+   no commits after it, counts.
    Report the result (payload contract in [`FEEDBACK.md`](FEEDBACK.md)):
    ```jsonl
    {"story":"US-XXX","event":"test_report","mutation_score":84.2,"scope":"diff","killed":32,"survived":6,"surviving_annotated":[],"mutation_wallclock_s":720}
@@ -88,4 +92,4 @@ A story is REJECTED during sprint acceptance if any of these hold:
 - No `build_pass` event in `.nous-feedback.jsonl`.
 - An AC was marked pass with no `ac_verify` adversarial check logged.
 - Commit lacks a `US-NNN` / `CHG-NNN` reference (enforced by `.githooks/commit-msg`).
-<!-- nous-emitted: sha256=ace678a0de5927bc -->
+<!-- nous-emitted: sha256=ececa1fa95a661f7 -->

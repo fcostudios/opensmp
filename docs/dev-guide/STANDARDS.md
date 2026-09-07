@@ -1,7 +1,6 @@
 # Coding Standards Reference
 
-Entity conventions, error handling, and field standards for the self-hosted
-Next.js stack.
+Entity conventions, error handling, and field standards for the self-hosted stack.
 See `CLAUDE.md` for the condensed rules and tables.
 
 ## Drizzle Entity Convention
@@ -10,9 +9,9 @@ See `CLAUDE.md` for the condensed rules and tables.
 // packages/db/src/schema.ts
 import { pgTable, uuid, timestamp } from "drizzle-orm/pg-core";
 
-export const statement = pgTable("statement", {
+export const alertRule = pgTable("alert_rule", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),
-  companyId: uuid("company_id").notNull(),        // company scope (camelCase key, snake_case SQL)
+  companyId: uuid("company_id").notNull(),               // tenant column (generated on every table)
   // ... domain columns ...                          (camelCase JS keys, snake_case SQL names)
   createdAt: timestamp("created_at").notNull(),   // set in app code (no .defaultNow())
   updatedAt: timestamp("updated_at"),             // nullable until first update
@@ -21,15 +20,13 @@ export const statement = pgTable("statement", {
   // `is_deleted`/`deleted_at` column exists; check schema.ts for the real table.
 });
 
-export type Statement = typeof statement.$inferSelect;
-export type NewStatement = typeof statement.$inferInsert;
+export type AlertRule = typeof alertRule.$inferSelect;
+export type NewAlertRule = typeof alertRule.$inferInsert;
 ```
 
 - Derive row types from the schema (`$inferSelect` / `$inferInsert`) — never hand-write a divergent interface.
 - Reuse the exported table; do NOT redeclare its columns in a second module.
-- Company-owned records use `companyId: uuid("company_id")`. Confirm the
-  actual column on the table; `VendorAccount` is vendor-organization data and
-  does not define Ledger tenant scope.
+- Tenant-owned rows carry `company_id`; scope every query to the authorized set, not to a single id. `UserAccount` and `CompanyRoleAssignment` define that set — confirm the column on the table in `schema.ts`.
 
 ## Enums
 
@@ -43,26 +40,13 @@ string value — an unknown member fails the DB enum check at insert/update time
 ```ts
 const session = await auth();
 if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-const authorization = await loadLedgerAuthorization(session.user.idpSubject);
-const companyIds = authorization.companyIds;      // from Ledger DB grants
-const actorSub = session.user.idpSubject;          // stable Keycloak subject
+const authorization = await loadLedgerAuthorization(session.user.id);
+const companyIds = authorization.companyIds;      // authorized tenants, from this app's own grants
+const actorSub = session.user.id;                 // the verified IdP subject
 ```
 
-- **Never** read company scope or roles from the request body/query. Authenticate
-  with the verified Keycloak OIDC session, then load authorization from
-  Ledger's `UserAccount` and `CompanyRoleAssignment` records.
-- Every company-scoped query filters the table's `company_id` column against
-  the authorized company set. Apply a soft-delete filter (`deleted_at`) ONLY
-  on a table that declares one in `schema.ts` — do not assume `is_deleted`
-  exists.
-
-## Database Roles and Migration Execution
-
-- Committed release migrations run as `ledger_owner`, which owns schema changes
-  and grants.
-- The deployed Next.js application connects as `ledger_app`, which has only the
-  runtime privileges established by migrations.
-- Do not run schema mutation or migration tooling with the application role.
+- **Never** read tenant scope or roles from the request body/query, and never from a client-supplied claim. Authenticate with the verified session, then resolve authorization from `UserAccount` and `CompanyRoleAssignment`.
+- Every multi-tenant query filters `company_id` against `authorization.companyIds`. Apply a soft-delete filter (`deleted_at`) ONLY on a table that declares one in `schema.ts` — do not assume `is_deleted` exists.
 
 ## Error Handling Standard
 
@@ -95,4 +79,18 @@ TOON `dataSource` registry. Match each handler path exactly to the TOON `dataSou
 // Email — type="email", not text+regex
 <input type="email" name="email" />
 ```
-<!-- nous-emitted: sha256=55080635fbe43be5 -->
+
+## Project additions
+
+## Database Roles and Migration Execution
+
+- Committed release migrations run as `ledger_owner`, which owns schema changes
+  and grants.
+- The deployed Next.js application connects as `ledger_app`, which has only the
+  runtime privileges established by migrations.
+- Do not run schema mutation or migration tooling with the application role.
+
+## Tenant boundary note (tenant-authored)
+
+- `Company` is the application-tenant boundary. `VendorAccount` is a vendor
+<!-- nous-emitted: sha256=7598b15e9211601b -->

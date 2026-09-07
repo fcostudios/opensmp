@@ -1,0 +1,96 @@
+# Coding Standards Reference
+
+Entity conventions, error handling, and field standards for the self-hosted stack.
+See `CLAUDE.md` for the condensed rules and tables.
+
+## Drizzle Entity Convention
+
+```ts
+// packages/db/src/schema.ts
+import { pgTable, uuid, timestamp } from "drizzle-orm/pg-core";
+
+export const alertRule = pgTable("alert_rule", {
+  id: uuid("id").primaryKey().defaultRandom().notNull(),
+  companyId: uuid("company_id").notNull(),               // tenant column (generated on every table)
+  // ... domain columns ...                          (camelCase JS keys, snake_case SQL names)
+  createdAt: timestamp("created_at").notNull(),   // set in app code (no .defaultNow())
+  updatedAt: timestamp("updated_at"),             // nullable until first update
+  // NOTE: no universal soft-delete column. A table only has `deleted_at`
+  // when its entity declares one — most tables hard-delete. Never assume an
+  // `is_deleted`/`deleted_at` column exists; check schema.ts for the real table.
+});
+
+export type AlertRule = typeof alertRule.$inferSelect;
+export type NewAlertRule = typeof alertRule.$inferInsert;
+```
+
+- Derive row types from the schema (`$inferSelect` / `$inferInsert`) — never hand-write a divergent interface.
+- Reuse the exported table; do NOT redeclare its columns in a second module.
+- Tenant-owned rows carry `company_id`; scope every query to the authorized set, not to a single id. `UserAccount` and `CompanyRoleAssignment` define that set — confirm the column on the table in `schema.ts`.
+
+## Enums
+
+Column enums are `pgEnum` values **defined in the schema** (`schema.ts`) and exported
+alongside the tables. Use the exact members declared there (reference the generated
+`pgEnum(...)` literal — e.g. via the column's inferred union type); never invent a
+string value — an unknown member fails the DB enum check at insert/update time.
+
+## Tenant & Actor Extraction
+
+```ts
+const session = await auth();
+if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+const authorization = await loadLedgerAuthorization(session.user.id);
+const companyIds = authorization.companyIds;      // authorized tenants, from this app's own grants
+const actorSub = session.user.id;                 // the verified IdP subject
+```
+
+- **Never** read tenant scope or roles from the request body/query, and never from a client-supplied claim. Authenticate with the verified session, then resolve authorization from `UserAccount` and `CompanyRoleAssignment`.
+- Every multi-tenant query filters `company_id` against `authorization.companyIds`. Apply a soft-delete filter (`deleted_at`) ONLY on a table that declares one in `schema.ts` — do not assume `is_deleted` exists.
+
+## Error Handling Standard
+
+| Situation | Response |
+|-----------|----------|
+| Unauthenticated | `NextResponse.json({ error }, { status: 401 })` |
+| Wrong role / forbidden | `{ status: 403 }` |
+| Validation failure (Zod) | `{ status: 400 }` with the issues |
+| Duplicate / constraint | `{ status: 409 }` |
+| Business rule violated | `{ status: 422 }` |
+
+Validate input with a shared Zod schema before touching the database; return the
+parsed value, never the raw request.
+
+## API Contract Reconciliation
+
+`docs/scripts/nous_api_reconcile.py` reconciles the route handlers against the
+TOON `dataSource` registry. Match each handler path exactly to the TOON `dataSource.url`.
+
+## Field Standards
+
+```tsx
+// Phone — always type="tel"
+<input type="tel" name="phone" placeholder="+593 99 999 9999" />
+
+// Money — display via the shared formatter; inputs type="number" step="0.01"
+<span>{format(account.amount)}</span>
+<input type="number" step="0.01" name="amount" />
+
+// Email — type="email", not text+regex
+<input type="email" name="email" />
+```
+
+## Project additions
+
+## Database Roles and Migration Execution
+
+- Committed release migrations run as `ledger_owner`, which owns schema changes
+  and grants.
+- The deployed Next.js application connects as `ledger_app`, which has only the
+  runtime privileges established by migrations.
+- Do not run schema mutation or migration tooling with the application role.
+
+## Tenant boundary note (tenant-authored)
+
+- `Company` is the application-tenant boundary. `VendorAccount` is a vendor
+<!-- nous-emitted: sha256=7598b15e9211601b -->

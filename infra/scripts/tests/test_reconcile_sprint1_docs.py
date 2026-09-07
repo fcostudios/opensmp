@@ -97,6 +97,9 @@ def desired_guide(relative_path: str) -> bytes:
 
 
 def latest_desired_guide(relative_path: str) -> bytes:
+    chg055 = CHG055_OVERRIDE_ROOT / relative_path
+    if chg055.is_file():
+        return chg055.read_bytes()
     chg053 = CHG053_OVERRIDE_ROOT / relative_path
     if chg053.is_file():
         return chg053.read_bytes()
@@ -187,6 +190,11 @@ def copy_reconciler_data(root: Path) -> Path:
             CHG053_OVERRIDE_ROOT,
             data_root / "overrides/CHG-053/2dee869",
         )
+    if CHG055_OVERRIDE_ROOT.is_dir():
+        shutil.copytree(
+            CHG055_OVERRIDE_ROOT,
+            data_root / "overrides/CHG-055/e240d85",
+        )
     return data_root
 
 
@@ -214,6 +222,11 @@ def create_chg055_project(root: Path) -> None:
         (root / relative_path).write_bytes(
             (CHG053_DELIVERED_ROOT / relative_path).read_bytes()
         )
+    write(
+        root,
+        "docs/dev-guide/PACKAGE_MAP.md",
+        f"{EXPECTED_PACKAGE_ENTITY}\n{EXPECTED_PACKAGE_SCOPE}\n",
+    )
 
 
 TERMINAL_EMITTED_TRAILER = re.compile(
