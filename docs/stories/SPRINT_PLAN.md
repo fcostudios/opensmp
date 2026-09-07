@@ -1,5 +1,5 @@
 <!-- nous-sprint-stamp
-generated_at: 2026-09-06T20:57:14Z
+generated_at: 2026-09-07T14:37:18Z
 current_sprint: sprint-3
 sprints_hash: 2b632220617fe0d4
 -->
@@ -101,9 +101,9 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | 9 | full-stack | **US-056** ✅ | Anthropic transport with separated credentials and bounded retry | 1SP | `See story file` | CHG-045 | US-003, US-025, US-045 | →6 | — | [r1_misc_us_056.md](sprint-3/r1_misc_us_056.md) |
 | 10 | full-stack | **US-057** ✅ | Append-only sanitized connector-call journal | 2SP | `See story file` | CHG-045 | US-056 | →5 | — | [r1_misc_us_057.md](sprint-3/r1_misc_us_057.md) |
 | 11 | full-stack | **US-028** ⬜ | Reclamation proposals: approve or dismiss | 3SP | `See story file` | — | US-024, US-027 | — | — | [r1_misc_us_028.md](sprint-3/r1_misc_us_028.md) |
-| 12 | full-stack | **US-058** ⬜ | Anthropic connector conformance and Pact contracts | 1SP | `See story file` | CHG-045 | US-056, US-057 | →4 | — | [r1_misc_us_058.md](sprint-3/r1_misc_us_058.md) |
+| 12 | full-stack | **US-058** ✅ | Anthropic connector conformance and Pact contracts | 1SP | `See story file` | CHG-045 | US-056, US-057 | →4 | — | [r1_misc_us_058.md](sprint-3/r1_misc_us_058.md) |
 | 13 | full-stack | **US-055** ⬜ | API-less ingestion: member/usage CSV import + manual register upkeep | 3SP | `See story file` | — | US-003, US-025, US-026, US-030 | — | — | [r1_misc_us_055.md](sprint-3/r1_misc_us_055.md) |
-| 14 | full-stack | **US-018** ⬜ | Anthropic connector client | 4SP | `See story file` | — | US-003, US-025, US-045, US-056, US-057, US-058 | →3 | — | [r1_misc_us_018.md](sprint-3/r1_misc_us_018.md) |
+| 14 | full-stack | **US-018** ✅ | Anthropic connector client | 4SP | `See story file` | — | US-003, US-025, US-045, US-056, US-057, US-058 | →3 | — | [r1_misc_us_018.md](sprint-3/r1_misc_us_018.md) |
 | 15 | full-stack | **US-019** ⬜ | Automated provisioning: invite ≤ 15 min → Active | 5SP | `See story file` | — | US-014, US-018, US-042, US-046, US-056, US-057, US-058 | →2 | — | [r1_misc_us_019.md](sprint-3/r1_misc_us_019.md) |
 | 16 | full-stack | **US-026** ⬜ | Analytics sync: activity + cost | 3SP | `See story file` | — | US-018, US-046, US-056, US-057, US-058 | →4 | — | [r1_misc_us_026.md](sprint-3/r1_misc_us_026.md) |
 | 17 | full-stack | **US-030** ⬜ | Drift detection + retroactive claim | 3SP | `See story file` | — | US-018, US-042, US-046, US-056, US-057, US-058 | →1 | — | [r1_misc_us_030.md](sprint-3/r1_misc_us_030.md) |

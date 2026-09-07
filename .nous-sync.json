@@ -1,13 +1,13 @@
 {
-  "synced_at": "2026-09-06T22:47:33.103752+00:00",
+  "synced_at": "2026-09-07T14:37:18.000000+00:00",
   "project_id": "fcostudios__smp",
   "files": {
     "docs/stories/SPRINT_PLAN.md": {
-      "hash": "03cabca65faeb6f7",
+      "hash": "951bc98f872e322f",
       "source": "generated"
     },
     "docs/stories/CHANGES.md": {
-      "hash": "8970100d26da6250",
+      "hash": "57f95b71e78bd0ad",
       "source": "generated"
     },
     "docs/stories/ASSIGNMENTS.md": {
@@ -15,11 +15,11 @@
       "source": "generated"
     },
     "testing/critical-paths.md": {
-      "hash": "2a3c897772877acd",
+      "hash": "804fc2d39679e9b3",
       "source": "generated"
     },
     ".nous-project.json": {
-      "hash": "8a3cadcf214e384d",
+      "hash": "53e1fb9b04425376",
       "source": "generated"
     },
     "docs/stories/INDEX.md": {
@@ -95,7 +95,7 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_017.md"
     },
     "docs/stories/sprint-3/r1_misc_us_018.md": {
-      "hash": "a0a4538a59077f75",
+      "hash": "56c3e3f13c31ce84",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_018.md"
     },
     "docs/stories/sprint-3/r1_misc_us_019.md": {

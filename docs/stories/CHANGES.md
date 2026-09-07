@@ -7,6 +7,15 @@
 |-----|--------|-------|---------|---------|
 | **CHG-001** | 🟡 proposed | Reconcile Sprint 1 execution contract | US-001, US-003, US-004, US-005, US-007, US-011, US-054 | S1, S3 |
 | **CHG-002** | 🟡 proposed | Reconcile Sprint 2 planning sources | — | — |
+| **CHG-003** | 🟡 proposed | A Central Finance register row exposes its request approval source trace in the authorized register drilldown without requiring a role-forbidden request-detail link; statement links remain independent | — | — |
+| **CHG-004** | 🟡 proposed | Reconcile reviewed generated guidance markers within the pinned CHG-001 section so later generated CHG entries cannot invalidate unchanged reviewed guidance; add regression coverage for multiple chang | — | — |
+| **CHG-005** | 🟡 proposed | Pin regenerated US-014 lifecycle guidance to the canonical plan graph, including blocked_no_seat to rejected and offboarding to failed, and pin US-045 acceptance wording to the Sprint 2 none-connector | — | — |
+| **CHG-006** | 🟡 proposed | Make the generated API reconciler's no-argument invocation target the repository root, discover method-exported Next.js App Router route handlers, compare method plus normalized path against a non-sca | — | — |
+| **CHG-007** | 🟡 proposed | Harden API reconciliation against lexical spoofing and evasive TypeScript call syntax, constrain CHG-004/005 manifests to canonical reviewed paths and SHA-256 values before artifact access, and add ap | — | — |
+| **CHG-008** | 🟡 proposed | Replace the hand-written TypeScript lexer in API reconciliation with an installed TypeScript compiler-API helper that parses route exports and frontend boundary calls with lexical scope and conservati | — | — |
+| **CHG-009** | 🟡 proposed | Extend compiler-AST API reconciliation to resolve native fetch through destructuring aliases, bind aliases, and call/apply wrappers while proving global object identity through TypeScript symbols and  | — | — |
+| **CHG-010** | 🟡 proposed | Revalidate only the Task 17-affected evidence for US-012 AC4, US-015 AC1, US-020 AC2, and the build/done projections for US-012, US-015, US-020, and US-022 against source commit 8594311e2d4c38b5d8d7d7 | — | — |
+| **CHG-011** | 🟡 proposed | Sprint 2 remains terminally closed_with_deferrals and Sprint 3 may start after CI, contract, dependency, and projection gates pass. US-054 remains externally blocked and is a live-provider terminal/go | — | — |
 | **CHG-012** | 🟡 proposed | Migrate nav map sidebar.sections to the canonical object form (id + label_en + label_es) | — | — |
 | **CHG-013** | 🟡 proposed | Carry the dev team's Sprint 2 spec refinements back into Nous (10 alert types, dedupe_key, US-014 transition table, US-017 SMTP semantics, US-045 connector scope) | — | — |
 | **CHG-014** | 📦 delivered | Cache local mutation evidence safely | — | — |
@@ -31,12 +40,16 @@
 | **CHG-040** | 📦 delivered | Restore operational deadline rules to the effectiveness-critical set | — | — |
 | **CHG-041** | 🟢 accepted | Allow honest legacy closure actuals for pre-CHG-037 work | — | — |
 | **CHG-042** | 📦 delivered | Re-pin regenerated guidance and propagate the 320-minute budget | — | — |
-| **CHG-043** | 🟢 accepted | Fix the root test runner: two workspaces declare vitest without a config, and the delivered mock lint fails on alerts/actions.test.ts | — | — |
+| **CHG-043** | 📦 delivered | Fix the root test runner: two workspaces declare vitest without a config, and the delivered mock lint fails on alerts/actions.test.ts | — | — |
 | **CHG-044** | 📦 delivered | Re-pin testing/critical-paths.md after CHG-040 regenerates the critical set | — | — |
-| **CHG-045** | 🔨 dev_in_progress | Add a durable connector call observation ledger for US-018 | US-056, US-057, US-058 | S3 |
+| **CHG-045** | ✅ dev_done | Add a durable connector call observation ledger for US-018 | US-056, US-057, US-058 | S3 |
 | **CHG-046** | 📦 delivered | Accept substrate-emitted generated Nous paths by provenance instead of a per-sync overlay-layer registration | — | — |
-| **CHG-047** | 🔵 analyzed | Authoritative cold campaign is diff-scoped and runs once, last; actuals record campaign minutes; estimate re-weights review | — | — |
-| **CHG-048** | 🔵 analyzed | Guard readiness calibration output size and audit CHG-047 actuals | — | — |
+| **CHG-047** | 📦 delivered | Authoritative cold campaign is diff-scoped and runs once, last; actuals record campaign minutes; estimate re-weights review | — | — |
+| **CHG-048** | 🟢 accepted | Guard readiness calibration output size and audit CHG-047 actuals | — | — |
+| **CHG-049** | 📦 delivered | Register the 2026-09-06 substrate delivery as an overlay layer and carry the 17 synced paths | — | — |
+| **CHG-050** | 📦 delivered | Carry the exact 2026-09-06 Nous delivery as technical provenance | — | — |
+| **CHG-051** | 📦 delivered | Register the eight-file CHG-049 immutable overlay | — | — |
+| **CHG-052** | 📦 delivered | Reconcile the US-018 partition: retire tenant-local US-059..062 as superseded; close US-018 by parent-level verification | — | — |
 
 ---
 
@@ -78,6 +91,105 @@ authoritative ER model and architecture.
 **Source:** internal
 **Requested by:** Francisco
 **Notes:** Reconcile Ledger Sprint 2 planning outputs: hydrate 34 story points and canonical blocked_by edges from Step 10/story artifacts; set current_sprint to the first non-closed sprint after honoring sprint-level deferrals; canonicalize US-042 to 10 alert types; publish the US-014 lifecycle transition ...
+
+_No stories linked to this change yet._
+
+### CHG-003: A Central Finance register row exposes its request approval source trace in the authorized register drilldown without requiring a role-forbidden request-detail link; statement links remain independent
+
+**Status:** 🟡 `proposed`
+**Source:** tenant_minted
+**Requested by:** register-tenant
+**Notes:** # CHG-003 — tenant-minted, backfilled by IMP-378
+
+This row is **ledger truth, not a design document**. The id was minted inside the dev package at `/Users/fcolomas/Projects/smp` and used there before it was ever registered in `nous.db`; `change register-tenant` created this row so the substrate c...
+
+_No stories linked to this change yet._
+
+### CHG-004: Reconcile reviewed generated guidance markers within the pinned CHG-001 section so later generated CHG entries cannot invalidate unchanged reviewed guidance; add regression coverage for multiple chang
+
+**Status:** 🟡 `proposed`
+**Source:** tenant_minted
+**Requested by:** register-tenant
+**Notes:** # CHG-004 — tenant-minted, backfilled by IMP-378
+
+This row is **ledger truth, not a design document**. The id was minted inside the dev package at `/Users/fcolomas/Projects/smp` and used there before it was ever registered in `nous.db`; `change register-tenant` created this row so the substrate c...
+
+_No stories linked to this change yet._
+
+### CHG-005: Pin regenerated US-014 lifecycle guidance to the canonical plan graph, including blocked_no_seat to rejected and offboarding to failed, and pin US-045 acceptance wording to the Sprint 2 none-connector
+
+**Status:** 🟡 `proposed`
+**Source:** tenant_minted
+**Requested by:** register-tenant
+**Notes:** # CHG-005 — tenant-minted, backfilled by IMP-378
+
+This row is **ledger truth, not a design document**. The id was minted inside the dev package at `/Users/fcolomas/Projects/smp` and used there before it was ever registered in `nous.db`; `change register-tenant` created this row so the substrate c...
+
+_No stories linked to this change yet._
+
+### CHG-006: Make the generated API reconciler's no-argument invocation target the repository root, discover method-exported Next.js App Router route handlers, compare method plus normalized path against a non-sca
+
+**Status:** 🟡 `proposed`
+**Source:** tenant_minted
+**Requested by:** register-tenant
+**Notes:** # CHG-006 — tenant-minted, backfilled by IMP-378
+
+This row is **ledger truth, not a design document**. The id was minted inside the dev package at `/Users/fcolomas/Projects/smp` and used there before it was ever registered in `nous.db`; `change register-tenant` created this row so the substrate c...
+
+_No stories linked to this change yet._
+
+### CHG-007: Harden API reconciliation against lexical spoofing and evasive TypeScript call syntax, constrain CHG-004/005 manifests to canonical reviewed paths and SHA-256 values before artifact access, and add ap
+
+**Status:** 🟡 `proposed`
+**Source:** tenant_minted
+**Requested by:** register-tenant
+**Notes:** # CHG-007 — tenant-minted, backfilled by IMP-378
+
+This row is **ledger truth, not a design document**. The id was minted inside the dev package at `/Users/fcolomas/Projects/smp` and used there before it was ever registered in `nous.db`; `change register-tenant` created this row so the substrate c...
+
+_No stories linked to this change yet._
+
+### CHG-008: Replace the hand-written TypeScript lexer in API reconciliation with an installed TypeScript compiler-API helper that parses route exports and frontend boundary calls with lexical scope and conservati
+
+**Status:** 🟡 `proposed`
+**Source:** tenant_minted
+**Requested by:** register-tenant
+**Notes:** # CHG-008 — tenant-minted, backfilled by IMP-378
+
+This row is **ledger truth, not a design document**. The id was minted inside the dev package at `/Users/fcolomas/Projects/smp` and used there before it was ever registered in `nous.db`; `change register-tenant` created this row so the substrate c...
+
+_No stories linked to this change yet._
+
+### CHG-009: Extend compiler-AST API reconciliation to resolve native fetch through destructuring aliases, bind aliases, and call/apply wrappers while proving global object identity through TypeScript symbols and 
+
+**Status:** 🟡 `proposed`
+**Source:** tenant_minted
+**Requested by:** register-tenant
+**Notes:** # CHG-009 — tenant-minted, backfilled by IMP-378
+
+This row is **ledger truth, not a design document**. The id was minted inside the dev package at `/Users/fcolomas/Projects/smp` and used there before it was ever registered in `nous.db`; `change register-tenant` created this row so the substrate c...
+
+_No stories linked to this change yet._
+
+### CHG-010: Revalidate only the Task 17-affected evidence for US-012 AC4, US-015 AC1, US-020 AC2, and the build/done projections for US-012, US-015, US-020, and US-022 against source commit 8594311e2d4c38b5d8d7d7
+
+**Status:** 🟡 `proposed`
+**Source:** tenant_minted
+**Requested by:** register-tenant
+**Notes:** # CHG-010 — tenant-minted, backfilled by IMP-378
+
+This row is **ledger truth, not a design document**. The id was minted inside the dev package at `/Users/fcolomas/Projects/smp` and used there before it was ever registered in `nous.db`; `change register-tenant` created this row so the substrate c...
+
+_No stories linked to this change yet._
+
+### CHG-011: Sprint 2 remains terminally closed_with_deferrals and Sprint 3 may start after CI, contract, dependency, and projection gates pass. US-054 remains externally blocked and is a live-provider terminal/go
+
+**Status:** 🟡 `proposed`
+**Source:** tenant_minted
+**Requested by:** register-tenant
+**Notes:** # CHG-011 — tenant-minted, backfilled by IMP-378
+
+This row is **ledger truth, not a design document**. The id was minted inside the dev package at `/Users/fcolomas/Projects/smp` and used there before it was ever registered in `nous.db`; `change register-tenant` created this row so the substrate c...
 
 _No stories linked to this change yet._
 
@@ -389,7 +501,7 @@ _No stories linked to this change yet._
 
 ### CHG-043: Fix the root test runner: two workspaces declare vitest without a config, and the delivered mock lint fails on alerts/actions.test.ts
 
-**Status:** 🟢 `accepted`
+**Status:** 📦 `delivered`
 **Source:** developer_feedback
 **Requested by:** Francisco
 **Notes:** # CHG-043 — Fix the root test runner: two workspaces declare a vitest `test` script without a config, and the delivered mock lint fails on `alerts/actions.test.ts`
@@ -418,7 +530,7 @@ _No stories linked to this change yet._
 
 ### CHG-045: Add a durable connector call observation ledger for US-018
 
-**Status:** 🔨 `dev_in_progress`
+**Status:** ✅ `dev_done`
 **Source:** developer_feedback
 **Requested by:** Francisco Lomas
 **Notes:** # US-018 Anthropic Connector Design
@@ -440,7 +552,7 @@ interface. The adapter must keep Admi...
 |-------|------|--------|--------|------|
 | **US-056** | Anthropic transport with separated credentials and bounded retry | Sprint 3 | ✅ dev_done | [r1_misc_us_056.md](sprint-3/r1_misc_us_056.md) |
 | **US-057** | Append-only sanitized connector-call journal | Sprint 3 | ✅ dev_done | [r1_misc_us_057.md](sprint-3/r1_misc_us_057.md) |
-| **US-058** | Anthropic connector conformance and Pact contracts | Sprint 3 | ⬜ backlog | [r1_misc_us_058.md](sprint-3/r1_misc_us_058.md) |
+| **US-058** | Anthropic connector conformance and Pact contracts | Sprint 3 | ✅ dev_done | [r1_misc_us_058.md](sprint-3/r1_misc_us_058.md) |
 
 ### CHG-046: Accept substrate-emitted generated Nous paths by provenance instead of a per-sync overlay-layer registration
 
@@ -459,7 +571,7 @@ _No stories linked to this change yet._
 
 ### CHG-047: Authoritative cold campaign is diff-scoped and runs once, last; actuals record campaign minutes; estimate re-weights review
 
-**Status:** 🔵 `analyzed`
+**Status:** 📦 `delivered`
 **Source:** developer_feedback
 **Requested by:** Francisco
 **Notes:** # CHG-047 — The authoritative cold campaign is diff-scoped and runs once, last; actuals record campaign minutes; the estimate model re-weights review
@@ -473,7 +585,7 @@ _No stories linked to this change yet._
 
 ### CHG-048: Guard readiness calibration output size and audit CHG-047 actuals
 
-**Status:** 🔵 `analyzed`
+**Status:** 🟢 `accepted`
 **Source:** developer_feedback
 **Requested by:** Francisco Lomas
 **Notes:** # CHG-048 — Guard readiness calibration output size and audit CHG-047 actuals
@@ -481,6 +593,65 @@ _No stories linked to this change yet._
 ## Background
 
 CHG-047 introduced opt-in readiness estimate calibration. Its final whole-change review reproduced a boundary defect: an input artifact can be valid at the 4,194,304-byte reader limit, while calibration'...
+
+_No stories linked to this change yet._
+
+### CHG-049: Register the 2026-09-06 substrate delivery as an overlay layer and carry the 17 synced paths
+
+**Status:** 📦 `delivered`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** # CHG-049 — Register the 2026-09-06 substrate delivery in the overlay layers and carry the 17 synced paths
+
+## Why
+
+On 2026-09-06 the operator ran the substrate's IMP-386 `adopt` + `agent_files`
+sync against this package (nous `6466f60d`): refreshed
+`docs/dev-guide/DEFINITION_OF_DONE.md` (one col...
+
+_No stories linked to this change yet._
+
+### CHG-050: Carry the exact 2026-09-06 Nous delivery as technical provenance
+
+**Status:** 📦 `delivered`
+**Source:** CHG-049 readiness partition carry-delivery
+**Requested by:** Francisco Lomas
+**Notes:** # CHG-050 — Carry the exact 2026-09-06 Nous delivery as technical provenance
+
+## Parent
+
+Partition child `carry-delivery` of CHG-049.
+
+## Outcome
+
+Carry the exact 17 operator-delivered paths under technical ownership, without attributing generator and guidance maintenance to functional story US-0...
+
+_No stories linked to this change yet._
+
+### CHG-051: Register the eight-file CHG-049 immutable overlay
+
+**Status:** 📦 `delivered`
+**Source:** CHG-049 readiness partition register-overlay
+**Requested by:** Francisco Lomas
+**Notes:** # CHG-051 Overlay Registration Design
+
+## Context and outcome
+
+CHG-050 carries eight generated guidance files whose current SHA-256 values are unknown to `reconcile-sprint1-docs.py`. Because the reconciler runs inside lint, the red state blocks every subsequent story. CHG-051 registers those exac...
+
+_No stories linked to this change yet._
+
+### CHG-052: Reconcile the US-018 partition: retire tenant-local US-059..062 as superseded; close US-018 by parent-level verification
+
+**Status:** 📦 `delivered`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** # CHG-052 — Reconcile the US-018 partition: retire tenant-local US-059..062 as superseded, close US-018 as satisfied by its three canonical children
+
+## Why (measured 2026-09-07)
+
+US-018 (Anthropic connector client, 4 SP) was split on 2026-08-15 into seven
+tenant-local children US-056..062 (readi...
 
 _No stories linked to this change yet._
 
