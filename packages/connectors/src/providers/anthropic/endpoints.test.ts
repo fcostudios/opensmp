@@ -19,12 +19,17 @@ describe("Anthropic endpoint policy", () => {
     ["invites", "GET", "/v1/organizations/invites", "admin_scoped", ["user_management"], true],
     ["create_invite", "POST", "/v1/organizations/invites", "admin_scoped", ["user_management", "invite_create"], false],
     ["delete_invite", "DELETE", "/v1/organizations/invites/invite%2F1", "admin_scoped", ["user_management"], true],
+    ["delete_member", "DELETE", "/v1/organizations/users/invite%2F1", "admin_scoped", ["user_management"], true],
     ["analytics_users", "GET", "/v1/organizations/analytics/users", "analytics", ["analytics"], true],
     ["analytics_summaries", "GET", "/v1/organizations/analytics/summaries", "analytics", ["analytics"], true],
     ["usage_report", "GET", "/v1/organizations/analytics/usage_report", "analytics", ["analytics"], true],
+    ["user_usage_report", "GET", "/v1/organizations/analytics/user_usage_report", "analytics", ["analytics"], true],
     ["cost_report", "GET", "/v1/organizations/analytics/cost_report", "analytics", ["analytics"], true],
+    ["user_cost_report", "GET", "/v1/organizations/analytics/user_cost_report", "analytics", ["analytics"], true],
   ] as const)("binds %s to its complete wire policy", (endpoint, method, path, credentialKind, budgets, retrySafe) => {
-    const parameters = endpoint === "delete_invite" ? { resourceId: "invite/1" } : undefined;
+    const parameters = endpoint === "delete_invite" || endpoint === "delete_member"
+      ? { resourceId: "invite/1" }
+      : undefined;
     expect(endpointPolicy(endpoint as AnthropicEndpoint, parameters)).toEqual({
       origin: "https://api.anthropic.com",
       method,
@@ -39,18 +44,23 @@ describe("Anthropic endpoint policy", () => {
     });
   });
 
-  it("requires a nonblank delete target and encodes it as one path segment", () => {
-    expect(() => endpointPolicy("delete_invite")).toThrow("resourceId");
-    expect(() => endpointPolicy("delete_invite", { resourceId: "   " })).toThrow("resourceId");
-    expect(endpointPolicy("delete_invite", { resourceId: "../invite" }).path)
-      .toBe("/v1/organizations/invites/..%2Finvite");
+  it.each([
+    ["delete_invite", "/v1/organizations/invites/..%2Finvite"],
+    ["delete_member", "/v1/organizations/users/..%2Finvite"],
+  ] as const)("requires and encodes the %s target as one path segment", (endpoint, path) => {
+    // Mutations killed: accepting blank IDs or omitting encoding changes the request target.
+    expect(() => endpointPolicy(endpoint)).toThrow("resourceId");
+    expect(() => endpointPolicy(endpoint, { resourceId: "   " })).toThrow("resourceId");
+    expect(endpointPolicy(endpoint, { resourceId: "../invite" }).path).toBe(path);
   });
 
-  it.each([".", "..", " . ", "\t..\n"])(
-    "rejects the dot-only delete target %j before URL construction",
-    (resourceId) => {
+  it.each(["delete_invite", "delete_member"] as const)(
+    "rejects dot-only %s targets before URL construction",
+    (endpoint) => {
       // Mutations killed: accepting either normalized dot segment lets URL erase the target path.
-      expect(() => endpointPolicy("delete_invite", { resourceId })).toThrow("resourceId");
+      for (const resourceId of [".", "..", " . ", "\t..\n"]) {
+        expect(() => endpointPolicy(endpoint, { resourceId })).toThrow("resourceId");
+      }
     },
   );
 

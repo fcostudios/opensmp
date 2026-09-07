@@ -62,7 +62,7 @@ describe("Anthropic policy-bound request execution", () => {
     expect(result).toMatchObject({ ok: true, attempts: 1 });
     expect(requests).toHaveLength(1);
     const request = requests[0]!;
-    expect(request.url).toBe("https://api.anthropic.com/v1/organizations/users");
+    expect(request.url).toBe("https://api.anthropic.com/v1/organizations/users?limit=1000");
     expect(request.method).toBe("GET");
     expect(request.redirect).toBe("manual");
     expect(Object.fromEntries(request.headers.entries())).toEqual({
@@ -97,6 +97,98 @@ describe("Anthropic policy-bound request execution", () => {
       "anthropic-version": "2023-06-01",
       "x-api-key": "analytics-secret",
     });
+  });
+
+  it.each([
+    ["members", undefined, "https://api.anthropic.com/v1/organizations/users?limit=1000"],
+    ["invites", { continuation: { kind: "after_id", value: "member / one" } }, "https://api.anthropic.com/v1/organizations/invites?limit=1000&after_id=member+%2F+one"],
+    ["analytics_users", { observedOn: "2026-09-06", continuation: { kind: "page", value: "opaque / one" } }, "https://api.anthropic.com/v1/organizations/analytics/users?date=2026-09-06&page=opaque+%2F+one"],
+    ["analytics_summaries", { observedOn: "2026-09-06" }, "https://api.anthropic.com/v1/organizations/analytics/summaries?date=2026-09-06"],
+    ["user_usage_report", { observedOn: "2026-09-06" }, "https://api.anthropic.com/v1/organizations/analytics/user_usage_report?starting_at=2026-09-06T00%3A00%3A00Z&ending_at=2026-09-07T00%3A00%3A00Z&bucket_width=1d&limit=1"],
+    ["user_cost_report", { observedOn: "2026-09-06", continuation: { kind: "page", value: "next" } }, "https://api.anthropic.com/v1/organizations/analytics/user_cost_report?starting_at=2026-09-06T00%3A00%3A00Z&ending_at=2026-09-07T00%3A00%3A00Z&bucket_width=1d&limit=1&page=next"],
+  ] as const)("constructs the closed %s query from allowlisted fields", async (endpoint, query, expectedUrl) => {
+    // Mutations killed: dropping a fixed key, changing continuation family, or copying raw query fields changes the URL.
+    const requests: Request[] = [];
+    const execute = createAnthropicRequestExecutor({
+      clock: { now: () => 1_000 },
+      sleep: async () => undefined,
+      limiter: inertLimiter(),
+      transport: async (request) => {
+        requests.push(request);
+        return new Response("{}", { status: 200 });
+      },
+    });
+
+    await execute({
+      endpoint,
+      vendorAccountId: "account-a",
+      credentials: validCredentials,
+      query,
+    });
+
+    expect(requests.map(({ url }) => url)).toEqual([expectedUrl]);
+  });
+
+  it.each([
+    ["date-time", "analytics_users", { observedOn: "2026-09-06T00:00:00Z" }],
+    ["invalid calendar date", "analytics_users", { observedOn: "2026-02-30" }],
+    ["blank cursor", "members", { continuation: { kind: "after_id", value: "   " } }],
+    ["control cursor", "members", { continuation: { kind: "after_id", value: "next\npage" } }],
+    ["Admin cursor on Analytics", "analytics_users", { observedOn: "2026-09-06", continuation: { kind: "after_id", value: "next" } }],
+    ["Analytics cursor on Admin", "members", { continuation: { kind: "page", value: "next" } }],
+    ["cursor on non-paginated endpoint", "organization", { continuation: { kind: "page", value: "next" } }],
+    ["unknown query field", "members", { arbitrary: "copied" }],
+  ] as const)("rejects %s before any attempt side effect", async (_case, endpoint, query) => {
+    // Mutations killed: permissive validation allows admission, journaling, or transport.
+    const limiter = inertLimiter();
+    const acquireSpy = vi.spyOn(limiter, "acquire");
+    const observations: AnthropicAttemptObservation[] = [];
+    let transports = 0;
+    const execute = createAnthropicRequestExecutor({
+      clock: { now: () => 1_000 },
+      sleep: async () => undefined,
+      limiter,
+      observe: async (observation) => { observations.push(observation); },
+      transport: async () => {
+        transports += 1;
+        return new Response("{}", { status: 200 });
+      },
+    });
+
+    await expect(execute({
+      endpoint,
+      vendorAccountId: "account-a",
+      credentials: validCredentials,
+      query,
+    } as never)).rejects.toThrow("query");
+    expect(acquireSpy).not.toHaveBeenCalled();
+    expect(observations).toEqual([]);
+    expect(transports).toBe(0);
+  });
+
+  it.each([
+    ["delete_member", { parameters: { resourceId: "member/1" } }, "members"],
+    ["user_usage_report", { query: { observedOn: "2026-09-06" } }, "usage_report"],
+    ["user_cost_report", { query: { observedOn: "2026-09-06" } }, "cost_report"],
+  ] as const)("sanitizes the detailed %s endpoint to its journal endpoint class", async (endpoint, extra, observedEndpoint) => {
+    // Mutations killed: leaking a detailed route or mapping it to the wrong journal class changes requested evidence.
+    const observations: AnthropicAttemptObservation[] = [];
+    const execute = createAnthropicRequestExecutor({
+      clock: { now: () => 1_000 },
+      sleep: async () => undefined,
+      limiter: inertLimiter(),
+      observe: async (observation) => { observations.push(observation); },
+      transport: async () => new Response(null, { status: 204 }),
+    });
+
+    await execute({
+      endpoint,
+      vendorAccountId: "account-a",
+      credentials: validCredentials,
+      ...extra,
+    });
+
+    expect(observations[0]?.endpoint).toBe(observedEndpoint);
   });
 
   it("serializes an invite body and applies its exact media policy", async () => {
@@ -444,6 +536,7 @@ describe("Anthropic bounded retry policy", () => {
         classification,
         status,
         attempts: 3,
+        retryable: true,
       });
       expect(run.calls).toBe(3);
       expect(run.sleeps).toEqual([1_000, 2_000]);
@@ -461,6 +554,7 @@ describe("Anthropic bounded retry policy", () => {
         classification: "client_error",
         status,
         attempts: 1,
+        retryable: false,
       });
       expect(run.calls).toBe(1);
       expect(run.redirects).toEqual(["manual"]);
@@ -484,6 +578,7 @@ describe("Anthropic bounded retry policy", () => {
         classification: "client_error",
         status,
         attempts: 1,
+        retryable: false,
       });
       expect(run.calls).toBe(1);
       expect(run.redirects).toEqual(["manual"]);
@@ -825,6 +920,7 @@ describe("Anthropic bounded retry policy", () => {
       classification: "client_error",
       status: 400,
       attempts: 1,
+      retryable: false,
     });
     expect(cancellations).toBe(1);
   });
@@ -852,6 +948,7 @@ describe("Anthropic bounded retry policy", () => {
       classification: "client_error",
       status: 400,
       attempts: 1,
+      retryable: false,
     });
     expect(JSON.stringify(result)).not.toContain(providerErrorSecret);
   });
@@ -965,15 +1062,17 @@ describe("Anthropic bounded retry policy", () => {
       classification: status === 429 ? "rate_limited" : "provider_error",
       status,
       attempts: 1,
+      retryable: false,
     });
     expect(calls).toBe(1);
     expect(sleeps).toEqual([]);
   });
 
   it.each([
-    ["create_invite", { body: { email: "member@example.com" } }],
-    ["members", {}],
-  ] as const)("never retries a transport exception for %s", async (endpoint, extra) => {
+    ["create_invite", { body: { email: "member@example.com" } }, false],
+    ["members", {}, true],
+    ["delete_member", { parameters: { resourceId: "member/1" } }, true],
+  ] as const)("does not replay an ambiguous %s call but reports whether a later call is safe", async (endpoint, extra, retryable) => {
     // Mutation killed: retrying an ambiguous exception adds calls or a retry delay.
     let calls = 0;
     const sleeps: number[] = [];
@@ -999,6 +1098,7 @@ describe("Anthropic bounded retry policy", () => {
       classification: "transport_ambiguous",
       status: null,
       attempts: 1,
+      retryable,
     });
     expect(calls).toBe(1);
     expect(sleeps).toEqual([]);

@@ -18,8 +18,13 @@ export type AnthropicAttemptClassification =
   | "success" | "rate_limited" | "provider_error" | "client_error"
   | "transport_ambiguous";
 
+type AnthropicObservedEndpoint = Exclude<
+  AnthropicEndpoint,
+  "delete_member" | "user_usage_report" | "user_cost_report"
+>;
+
 export type AnthropicAttemptObservation = Readonly<{
-  endpoint: AnthropicEndpoint;
+  endpoint: AnthropicObservedEndpoint;
   method: "GET" | "POST" | "DELETE";
   attempt: number;
   phase: "requested" | "completed";
@@ -41,13 +46,23 @@ export type AnthropicRequestResult =
     classification: Exclude<AnthropicAttemptClassification, "success">;
     status: number | null;
     attempts: number;
+    retryable: boolean;
   }>;
+
+export type AnthropicRequestQuery = Readonly<{
+  observedOn?: string;
+  continuation?: Readonly<{
+    kind: "after_id" | "page";
+    value: string;
+  }>;
+}>;
 
 export type ExecuteAnthropicRequestInput = Readonly<{
   endpoint: AnthropicEndpoint;
   vendorAccountId: string;
   credentials: readonly AnthropicCredentialCandidate[];
   parameters?: Readonly<{ resourceId?: string }>;
+  query?: AnthropicRequestQuery;
   body?: unknown;
 }>;
 
@@ -62,10 +77,18 @@ function classifyStatus(status: number): AnthropicAttemptClassification {
   return "client_error";
 }
 
+function observedEndpoint(endpoint: AnthropicEndpoint): AnthropicObservedEndpoint {
+  if (endpoint === "delete_member") return "members";
+  if (endpoint === "user_usage_report") return "usage_report";
+  if (endpoint === "user_cost_report") return "cost_report";
+  return endpoint;
+}
+
 function requestForPolicy(
   policy: AnthropicEndpointPolicy,
   credential: Readonly<{ secret: string }>,
   body: string | undefined,
+  query: URLSearchParams,
 ): Request {
   const headers = new Headers({
     accept: policy.responseMediaType,
@@ -79,13 +102,118 @@ function requestForPolicy(
     headers.set("anthropic-beta", policy.betaHeader);
   }
 
-  return new Request(`${policy.origin}${policy.path}`, {
+  const url = new URL(policy.path, policy.origin);
+  url.search = query.toString();
+  return new Request(url, {
     method: policy.method,
     headers,
     body,
     redirect: "manual",
     signal: AbortSignal.timeout(30_000),
   });
+}
+
+const unsafeQueryCharacter = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u;
+const adminPageEndpoints = new Set<AnthropicEndpoint>(["members", "invites"]);
+const datedEndpoints = new Set<AnthropicEndpoint>([
+  "analytics_users",
+  "analytics_summaries",
+  "usage_report",
+  "user_usage_report",
+  "cost_report",
+  "user_cost_report",
+]);
+const reportEndpoints = new Set<AnthropicEndpoint>([
+  "usage_report",
+  "user_usage_report",
+  "cost_report",
+  "user_cost_report",
+]);
+const analyticsPageEndpoints = new Set<AnthropicEndpoint>([
+  "analytics_users",
+  "usage_report",
+  "user_usage_report",
+  "cost_report",
+  "user_cost_report",
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function observedOn(value: unknown): string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new Error("Invalid Anthropic request query observedOn.");
+  }
+  const date = new Date(`${value}T00:00:00Z`);
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    throw new Error("Invalid Anthropic request query observedOn.");
+  }
+  return value;
+}
+
+function followingDay(value: string): string {
+  const date = new Date(`${value}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function requestQuery(
+  endpoint: AnthropicEndpoint,
+  candidate: AnthropicRequestQuery | undefined,
+): URLSearchParams {
+  if (candidate === undefined) {
+    const query = new URLSearchParams();
+    if (adminPageEndpoints.has(endpoint)) query.set("limit", "1000");
+    return query;
+  }
+  if (!isRecord(candidate) || Object.keys(candidate).some((key) =>
+    key !== "observedOn" && key !== "continuation")) {
+    throw new Error("Invalid Anthropic request query.");
+  }
+  if (!adminPageEndpoints.has(endpoint) && !datedEndpoints.has(endpoint)) {
+    throw new Error("Invalid Anthropic request query for endpoint.");
+  }
+
+  const query = new URLSearchParams();
+  if (adminPageEndpoints.has(endpoint)) {
+    if (candidate.observedOn !== undefined) {
+      throw new Error("Invalid Anthropic request query for endpoint.");
+    }
+    query.set("limit", "1000");
+  } else {
+    const date = observedOn(candidate.observedOn);
+    if (reportEndpoints.has(endpoint)) {
+      query.set("starting_at", `${date}T00:00:00Z`);
+      query.set("ending_at", `${followingDay(date)}T00:00:00Z`);
+      query.set("bucket_width", "1d");
+      query.set("limit", "1");
+    } else {
+      query.set("date", date);
+    }
+  }
+
+  if (candidate.continuation !== undefined) {
+    const continuation = candidate.continuation;
+    if (
+      !isRecord(continuation)
+      || Object.keys(continuation).some((key) => key !== "kind" && key !== "value")
+      || typeof continuation.value !== "string"
+      || continuation.value.trim().length === 0
+      || unsafeQueryCharacter.test(continuation.value)
+    ) {
+      throw new Error("Invalid Anthropic request query continuation.");
+    }
+    const expectedKind = adminPageEndpoints.has(endpoint) ? "after_id" : "page";
+    if (
+      continuation.kind !== expectedKind
+      || (expectedKind === "page" && !analyticsPageEndpoints.has(endpoint))
+    ) {
+      throw new Error("Invalid Anthropic request query continuation for endpoint.");
+    }
+    query.set(expectedKind, continuation.value);
+  }
+  return query;
 }
 
 function assertCredentialHeaderCompatibility(credentials: Readonly<{
@@ -231,6 +359,8 @@ export function createAnthropicRequestExecutor(dependencies: Readonly<{
 
   return async (input) => {
     const policy = endpointPolicy(input.endpoint, input.parameters);
+    const query = requestQuery(input.endpoint, input.query);
+    const observationEndpoint = observedEndpoint(input.endpoint);
     const credentials = resolveAnthropicCredentials(input.credentials, input.vendorAccountId);
     assertCredentialHeaderCompatibility(credentials);
     const credential = credentialForPolicy(credentials, policy);
@@ -238,7 +368,7 @@ export function createAnthropicRequestExecutor(dependencies: Readonly<{
 
     for (let attempt = 1; ; attempt += 1) {
       await observe(Object.freeze({
-        endpoint: input.endpoint,
+        endpoint: observationEndpoint,
         method: policy.method,
         attempt,
         phase: "requested",
@@ -247,7 +377,7 @@ export function createAnthropicRequestExecutor(dependencies: Readonly<{
         classification: null,
       }));
       await dependencies.limiter.acquire(input.vendorAccountId, policy.budgets);
-      const request = requestForPolicy(policy, credential, body);
+      const request = requestForPolicy(policy, credential, body, query);
 
       let response: Response;
       try {
@@ -258,13 +388,14 @@ export function createAnthropicRequestExecutor(dependencies: Readonly<{
           classification: "transport_ambiguous",
           status: null,
           attempts: attempt,
+          retryable: policy.retrySafe,
         });
       }
 
       const classification = classifyStatus(response.status);
       try {
         await observe(Object.freeze({
-          endpoint: input.endpoint,
+          endpoint: observationEndpoint,
           method: policy.method,
           attempt,
           phase: "completed",
@@ -296,6 +427,9 @@ export function createAnthropicRequestExecutor(dependencies: Readonly<{
         classification,
         status: response.status,
         attempts: attempt,
+        retryable: policy.retrySafe && (
+          classification === "rate_limited" || classification === "provider_error"
+        ),
       });
     }
   };
