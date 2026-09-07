@@ -194,12 +194,8 @@ def create_chg053_project(root: Path) -> None:
     for relative_path in CHG053_GUIDES:
         (root / relative_path).write_bytes(chg053_delivered_guide(relative_path))
 
-    claude_body, _ = split_terminal_emitted_trailer(
-        chg053_delivered_guide("CLAUDE.md")
-    )
     for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
-        _, trailer = split_terminal_emitted_trailer(chg053_delivered_guide(mirror))
-        (root / mirror).write_bytes(CHG053_MIRROR_HEADER + claude_body + trailer)
+        (root / mirror).write_bytes(chg053_delivered_guide(mirror))
 
 
 TERMINAL_EMITTED_TRAILER = re.compile(
@@ -799,8 +795,95 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 },
             },
         )
+        for relative_path, metadata in manifest["paths"].items():
+            source = SCRIPT_DATA_ROOT / metadata["source_path"]
+            desired = CHG053_OVERRIDE_ROOT / relative_path
+            self.assertEqual(
+                hashlib.sha256(source.read_bytes()).hexdigest(),
+                metadata["source_sha256"],
+                relative_path,
+            )
+            self.assertEqual(
+                hashlib.sha256(desired.read_bytes()).hexdigest(),
+                metadata["desired_sha256"],
+                relative_path,
+            )
+
+    def test_chg053_source_and_desired_tamper_fail_before_writes(self) -> None:
+        for artifact_kind, relative_path in (
+            ("source", "CLAUDE.md"),
+            ("desired", "docs/dev-guide/FRONTEND.md"),
+        ):
+            with self.subTest(artifact_kind=artifact_kind), tempfile.TemporaryDirectory() as directory:
+                base = Path(directory)
+                root = base / "project"
+                create_chg053_project(root)
+                data_root = copy_reconciler_data(base)
+                artifact = (
+                    data_root / "overrides/CHG-049/6466f60" / relative_path
+                    if artifact_kind == "source"
+                    else data_root / "overrides/CHG-053/2dee869" / relative_path
+                )
+                self.assertTrue(
+                    artifact.is_file(),
+                    f"CHG-053 {artifact_kind} artifact is missing: {artifact}",
+                )
+                artifact.write_bytes(artifact.read_bytes() + b"tampered\n")
+                if artifact_kind == "source":
+                    prior_manifest_path = (
+                        data_root / "overrides/CHG-049/6466f60/manifest.json"
+                    )
+                    prior_manifest = json.loads(
+                        prior_manifest_path.read_text(encoding="utf-8")
+                    )
+                    prior_manifest["paths"][relative_path]["desired_sha256"] = (
+                        hashlib.sha256(artifact.read_bytes()).hexdigest()
+                    )
+                    prior_manifest_path.write_text(
+                        json.dumps(prior_manifest, indent=2) + "\n",
+                        encoding="utf-8",
+                    )
+                before = snapshot(root)
+
+                result = run_reconciler(root, data_root=data_root)
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(snapshot(root), before)
+                self.assertIn("CHG-053", result.stderr)
+                self.assertIn("hash mismatch", result.stderr)
 
     def test_chg053_current_imp393_mirrors_are_byte_stable_in_check_mode(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_chg053_project(root)
+            claude_body, claude_trailer = split_terminal_emitted_trailer(
+                chg053_delivered_guide("CLAUDE.md")
+            )
+            source_stamp = TERMINAL_EMITTED_TRAILER.search(claude_trailer)
+            self.assertIsNotNone(source_stamp)
+            expected_header = (
+                b"<!-- agent-sync: "
+                + source_stamp.group(0).split(b"sha256=")[1][:12]
+                + b" | source: CLAUDE.md | DO NOT EDIT \xe2\x80\x94 this file is auto-generated "
+                + b"from CLAUDE.md. Edit CLAUDE.md then run: python3 nous_agent_sync.py -->\n"
+            )
+            self.assertEqual(expected_header, CHG053_MIRROR_HEADER)
+            for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
+                delivered = chg053_delivered_guide(mirror)
+                mirror_body, mirror_trailer = split_terminal_emitted_trailer(delivered)
+                self.assertEqual((root / mirror).read_bytes(), delivered, mirror)
+                self.assertEqual(mirror_body, expected_header + claude_body, mirror)
+                self.assertNotEqual(mirror_trailer, claude_trailer, mirror)
+
+            before = snapshot(root)
+            result = run_reconciler(root, "--check")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(snapshot(root), before)
+
+    def test_chg053_preserves_distinct_valid_mirror_trailers_in_check_mode(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -902,9 +985,11 @@ class ReconciliationBehaviorTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_chg053_rejects_active_and_mixed_tenant_id_guidance(self) -> None:
+    def test_chg053_rejects_active_and_unrecognized_tenant_id_guidance(self) -> None:
         cases = {
             "active": "Use tenant_id for every multi-tenant query.\n",
+            "backticked active": "Use `tenant_id` for every multi-tenant query.\n",
+            "unrecognized negation": "Never use `tenant_id` for tenant scope.\n",
             "mixed": (
                 "there is no `tenant_id`; use tenant_id for every multi-tenant query.\n"
             ),
