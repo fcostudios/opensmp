@@ -66,11 +66,34 @@ CHG044_PATHS = {
         "overrides/CHG-042/fd7741f/testing/critical-paths.md"
     ),
 }
+CHG049_PATHS = {
+    "AGENTS.md": "overrides/CHG-042/fd7741f/AGENTS.md",
+    "CLAUDE.md": "overrides/CHG-042/fd7741f/CLAUDE.md",
+    "docs/dev-guide/DEFINITION_OF_DONE.md": (
+        "overrides/CHG-042/fd7741f/docs/dev-guide/DEFINITION_OF_DONE.md"
+    ),
+    "docs/dev-guide/FRONTEND.md": (
+        "overrides/CHG-001/825e882/docs/dev-guide/FRONTEND.md"
+    ),
+    "docs/dev-guide/SECURITY.md": (
+        "overrides/CHG-001/825e882/docs/dev-guide/SECURITY.md"
+    ),
+    "docs/dev-guide/STANDARDS.md": (
+        "overrides/CHG-001/825e882/docs/dev-guide/STANDARDS.md"
+    ),
+    "docs/dev-guide/TESTING.md": (
+        "overrides/CHG-001/825e882/docs/dev-guide/TESTING.md"
+    ),
+    "testing/critical-paths.md": (
+        "overrides/CHG-044/2d93300/testing/critical-paths.md"
+    ),
+}
 LAYERED_OVERRIDE_SPECS = (
     ("CHG-004/e4b9a06", CHG004_PATHS),
     ("CHG-022/16f72c9", CHG022_PATHS),
     ("CHG-042/fd7741f", CHG042_PATHS),
     ("CHG-044/2d93300", CHG044_PATHS),
+    ("CHG-049/6466f60", CHG049_PATHS),
 )
 CHG005_PATHS = {
     "docs/stories/sprint-2/r1_misc_us_014.md",
@@ -109,6 +132,9 @@ FORBIDDEN_GUIDANCE = (
     re.compile(r"\btenant_id\b", re.IGNORECASE),
     re.compile(r"\bAuth0\b", re.IGNORECASE),
     re.compile(r"\bVercel\b", re.IGNORECASE),
+)
+TERMINAL_EMITTED_TRAILER = re.compile(
+    r"<!-- nous-emitted: sha256=[0-9a-f]{16} -->\n?\Z"
 )
 FILESYSTEM_RETRY_ATTEMPTS = 3
 TRANSACTION_DIR = ".reconcile-sprint1-transactions"
@@ -166,6 +192,18 @@ def read_text(path: Path) -> str:
 
 def sha256(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
+
+
+def split_terminal_emitted_trailer(
+    text: str,
+    relative_path: str,
+) -> tuple[str, str]:
+    match = TERMINAL_EMITTED_TRAILER.search(text)
+    if text.count("<!-- nous-emitted:") != 1 or match is None:
+        raise ReconciliationError(
+            f"{relative_path}: expected exactly one valid terminal nous-emitted trailer"
+        )
+    return text[: match.start()], match.group(0)
 
 
 def validate_sha256(value: object, description: str) -> str:
@@ -680,19 +718,29 @@ def build_plan(root: Path) -> dict[Path, PlanEntry]:
                 )
         desired[path] = updated
 
-    # CHG-024: the mirrors track the fully layered CLAUDE.md computed above, so
-    # every assistant reads the same governing guidance. Sourcing them from the
-    # CHG-001 baseline left Codex, Cursor and Copilot without CHG-022's Work
-    # Readiness Gate. Reading desired[] keeps every future layer propagating
-    # here with no further change.
+    # CHG-024/CHG-051: mirror bodies track the fully layered CLAUDE.md computed
+    # above while each generated mirror retains its own provenance trailer.
     # When CLAUDE.md is in an unknown state the loop above records an error and
     # skips it, leaving no desired text. Mirroring is skipped too so that the
     # recorded CLAUDE.md diagnostic is what surfaces, not a KeyError.
     mirrored_claude = desired.get(project_output_path(root, "CLAUDE.md"))
-    for relative_path in MIRRORS if mirrored_claude is not None else ():
+    mirrored_body = (
+        split_terminal_emitted_trailer(mirrored_claude, "CLAUDE.md")[0]
+        if mirrored_claude is not None
+        else None
+    )
+    for relative_path in MIRRORS if mirrored_body is not None else ():
         path = project_output_path(root, relative_path)
-        original[path] = read_text(path)
-        desired[path] = mirrored_claude
+        mirror_text = original.setdefault(path, read_text(path))
+        try:
+            _, mirror_trailer = split_terminal_emitted_trailer(
+                mirror_text,
+                relative_path,
+            )
+        except ReconciliationError as error:
+            errors.append(str(error))
+            continue
+        desired[path] = mirrored_body + mirror_trailer
 
     for path in governed_guidance_paths(root):
         if not path.resolve().is_relative_to(root.resolve()):

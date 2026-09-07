@@ -3568,6 +3568,51 @@ test("an exact Nous sync envelope requires equal UTC-second timestamps", () => {
   }
 });
 
+test("parent-named overlay storage belongs to the executable child owner", () => {
+  const { root } = makeGitRepo();
+  try {
+    const parent = partitioned();
+    parent.work_id = "CHG-049";
+    parent.source = "docs/changes/CHG-049.md";
+    parent.approval.evidence = "CHG049-PARTITION";
+    parent.partitions[0].work_id = "CHG-051";
+    refreshDigest(parent);
+    const parentDecision = decisionFor(parent, {
+      text: `${decisionFor(parent).text} Approved official child: CHG-051.`,
+    });
+    const child = approvedArtifact("CHG-051");
+    writeRepoFile(root, "docs/readiness/CHG-049.json", `${JSON.stringify(parent, null, 2)}\n`);
+    writeRepoFile(root, "docs/readiness/CHG-051.json", `${JSON.stringify(child, null, 2)}\n`);
+    writeRepoFile(
+      root,
+      ".nous-feedback.jsonl",
+      `${JSON.stringify(parentDecision)}\n${JSON.stringify(decisionFor(child))}\n`,
+    );
+    const base = commitRepo(root, "docs(CHG-049 CHG-051): approve overlay child", [
+      "docs/readiness/CHG-049.json",
+      "docs/readiness/CHG-051.json",
+      ".nous-feedback.jsonl",
+    ]);
+    writeRepoFile(root, "src/implementation.ts", "export const implemented = true;\n");
+    writeRepoFile(
+      root,
+      "infra/scripts/overrides/CHG-049/6466f60/manifest.json",
+      "{}\n",
+    );
+    const head = commitRepo(root, "fix(CHG-051): register the guidance overlay", [
+      "src/implementation.ts",
+      "infra/scripts/overrides/CHG-049/6466f60/manifest.json",
+    ]);
+
+    assert.deepEqual(
+      validateRangeOwnership({ root, base, head }).workIds,
+      ["CHG-051"],
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("ownership is the union of commit-message and changed-path work IDs", () => {
   for (const pathWorkReady of [false, true]) {
     const { root } = makeGitRepo();

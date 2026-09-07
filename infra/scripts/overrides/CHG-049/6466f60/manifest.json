@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "paths": {
+    "AGENTS.md": {
+      "source_path": "overrides/CHG-042/fd7741f/AGENTS.md",
+      "source_sha256": "9c5ddc0ab43724ea40f15b63444ccc16f3064af52c3155cef3efc31a9ad3f075",
+      "desired_sha256": "7aea15dc3a0144d7dd28c141d0d6112b96bdd49722de921fe3b358f96d15f899"
+    },
+    "CLAUDE.md": {
+      "source_path": "overrides/CHG-042/fd7741f/CLAUDE.md",
+      "source_sha256": "9cba977d283301e1b925035b9c62ee5b64ee860fb8b049adc3b075f1f3a09283",
+      "desired_sha256": "3f0905a05225b595636b0369b297c88176f764377da8543ed428df47d6f164d3"
+    },
+    "docs/dev-guide/DEFINITION_OF_DONE.md": {
+      "source_path": "overrides/CHG-042/fd7741f/docs/dev-guide/DEFINITION_OF_DONE.md",
+      "source_sha256": "bb19763d0e8ca8640635d0c8c4c11f16fa9938ed92984269f5d81826cfa92ce4",
+      "desired_sha256": "ae0060ef2adfe269aec8bda3e14f79b4f14db0243a99b39ab91ed5bf161f4560"
+    },
+    "docs/dev-guide/FRONTEND.md": {
+      "source_path": "overrides/CHG-001/825e882/docs/dev-guide/FRONTEND.md",
+      "source_sha256": "56f88f133a16818fdfb04657ecaa95067c87f07257c4506f78bc1852143afc9f",
+      "desired_sha256": "30cd67e73fe3593e1f1d0aba4088ebc63ecd0fd69a86db262e8f860e02e8ca4c"
+    },
+    "docs/dev-guide/SECURITY.md": {
+      "source_path": "overrides/CHG-001/825e882/docs/dev-guide/SECURITY.md",
+      "source_sha256": "1763ca67252b66a65e2dfce6b6e88664b2fe5e8f6dbd89d6802de1500ad4b967",
+      "desired_sha256": "022d772834a4b78de32e5eb2baee1701878bd84d18c85564703505c0c7e3e694"
+    },
+    "docs/dev-guide/STANDARDS.md": {
+      "source_path": "overrides/CHG-001/825e882/docs/dev-guide/STANDARDS.md",
+      "source_sha256": "a9ca2719450f411227839d79b14a680c7462e2c67e40211b1707ee2ef5d7fa61",
+      "desired_sha256": "3347158c79e0032db6a878b9ef92a4ba6d26d783e64f2fe463e486869a066a22"
+    },
+    "docs/dev-guide/TESTING.md": {
+      "source_path": "overrides/CHG-001/825e882/docs/dev-guide/TESTING.md",
+      "source_sha256": "e5c00acf265c253f4c43d34bb4ce6d151102ee2e18a2bfe9ee702d5f4829c50a",
+      "desired_sha256": "4c201f4ea67e3edc817e8edf1ff05b5d3a9ea4edff6bfb199b0120c57b902732"
+    },
+    "testing/critical-paths.md": {
+      "source_path": "overrides/CHG-044/2d93300/testing/critical-paths.md",
+      "source_sha256": "2a3c897772877acdd9f0f97d521e692beb8b77f9c4e756dbbe93d81feb7f4f67",
+      "desired_sha256": "804fc2d39679e9b37c03a5ed1a4fa23dc21d3dd75d55688d70369c05ced155da"
+    }
+  }
+}

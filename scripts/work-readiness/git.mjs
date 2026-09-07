@@ -39,12 +39,11 @@ const CHG022_EXECUTABLE_BOUNDARY = "72f5e8545ea5d98795e2a5f19e62f6ba5e7ae7cb";
 // Reviewed fail-closed raw-byte binding for the complete reconciler. Any
 // whitespace, definition rebinding, helper, build-plan, or runtime edit
 // requires an explicit review and a new digest before ownership is accepted.
-// Re-pinned by CHG-024. Reviewed delta against 9ab3409f…d3d8: build_plan's
-// mirror source changes from the CHG-001 pinned CLAUDE.md to the layered
-// desired text, plus a None-guard so an unresolved CLAUDE.md still surfaces its
-// own diagnostic. No helper, overlay-registration, or runtime path is touched.
+// Re-pinned by CHG-051. Reviewed deltas add one closed eight-path CHG-049 layer
+// after CHG-044 and preserve one strict terminal emitted trailer per mirror
+// while synchronizing each mirror body from the layered CLAUDE.md body.
 // test-work-readiness.mjs asserts this constant against the file on disk.
-const REVIEWED_RECONCILER_SHA256 = "6abe3827ab5867f0a5a1741f8c3f9a299650aa3e6d06a9b7af788e770499aca3";
+const REVIEWED_RECONCILER_SHA256 = "082361bc1ec064206d2f6c6b55ed417d3a2b1677336d51dc46b4511b3e851121";
 
 function isTerminalEvent(event) {
   return event === "done" || event === "verified"
@@ -1103,7 +1102,9 @@ function validateCommitOwnership({
 }) {
   const changedPaths = listChangedPaths({ root, base: parent, head: commit });
   const messageWorkIds = extractWorkIds(message);
-  const pathWorkIds = extractWorkIds(changedPaths.join("\n"));
+  const pathWorkIds = extractWorkIds(changedPaths
+    .filter((path) => !/^infra\/scripts\/overrides\/CHG-[0-9]{3,}\/[a-z0-9]{7,64}\//u.test(path))
+    .join("\n"));
   const workIds = [...new Set([...messageWorkIds, ...pathWorkIds])];
   const candidateFeedback = validateFeedbackHistoryTransition(root, parent, commit);
   const authorizationFeedback = parseFeedback(readRevisionFile(root, parent, ".nous-feedback.jsonl", { required: false }));

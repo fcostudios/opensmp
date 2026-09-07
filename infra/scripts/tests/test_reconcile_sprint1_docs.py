@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -28,6 +29,7 @@ STORY_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-005/277b64e"
 READINESS_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-022/16f72c9"
 REPINNED_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-042/fd7741f"
 CRITICAL_SET_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-044/2d93300"
+CHG049_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-049/6466f60"
 READINESS_GUIDES = (
     "AGENTS.md",
     "CLAUDE.md",
@@ -78,6 +80,9 @@ def desired_guide(relative_path: str) -> bytes:
 
 
 def latest_desired_guide(relative_path: str) -> bytes:
+    chg049 = CHG049_OVERRIDE_ROOT / relative_path
+    if chg049.is_file():
+        return chg049.read_bytes()
     critical_set = CRITICAL_SET_OVERRIDE_ROOT / relative_path
     if critical_set.is_file():
         return critical_set.read_bytes()
@@ -97,10 +102,14 @@ def create_project(root: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(latest_desired_guide(relative_path))
     claude = desired_guide("CLAUDE.md").decode()
-    stale_mirror = "<!-- stale generated mirror -->\n" + claude
-    write(root, "CODEX.md", stale_mirror)
-    write(root, ".cursorrules", stale_mirror)
-    write(root, ".github/copilot-instructions.md", stale_mirror)
+    _, trailer = split_terminal_emitted_trailer(
+        latest_desired_guide("CLAUDE.md")
+    )
+    stale_mirror = ("<!-- stale generated mirror -->\n" + claude).encode() + trailer
+    for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
+        path = root / mirror
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(stale_mirror)
     write(
         root,
         "docs/dev-guide/PACKAGE_MAP.md",
@@ -149,7 +158,30 @@ def copy_reconciler_data(root: Path) -> Path:
         CRITICAL_SET_OVERRIDE_ROOT,
         data_root / "overrides/CHG-044/2d93300",
     )
+    if CHG049_OVERRIDE_ROOT.is_dir():
+        shutil.copytree(
+            CHG049_OVERRIDE_ROOT,
+            data_root / "overrides/CHG-049/6466f60",
+        )
     return data_root
+
+
+TERMINAL_EMITTED_TRAILER = re.compile(
+    rb"<!-- nous-emitted: sha256=[0-9a-f]{16} -->\n?\Z"
+)
+
+
+def split_terminal_emitted_trailer(content: bytes) -> tuple[bytes, bytes]:
+    matches = list(TERMINAL_EMITTED_TRAILER.finditer(content))
+    if len(matches) != 1:
+        raise AssertionError("expected exactly one valid terminal emitted trailer")
+    match = matches[0]
+    return content[: match.start()], match.group(0)
+
+
+def latest_claude_body() -> bytes:
+    body, _ = split_terminal_emitted_trailer(latest_desired_guide("CLAUDE.md"))
+    return body
 
 
 def run_reconciler(
@@ -186,8 +218,11 @@ def create_chg022_drift(root: Path) -> None:
     for relative_path in READINESS_GUIDES:
         (root / relative_path).write_bytes(desired_guide(relative_path))
     claude = desired_guide("CLAUDE.md")
+    _, trailer = split_terminal_emitted_trailer(
+        latest_desired_guide("CLAUDE.md")
+    )
     for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
-        (root / mirror).write_bytes(claude)
+        (root / mirror).write_bytes(claude + trailer)
     write(
         root,
         "docs/dev-guide/PACKAGE_MAP.md",
@@ -694,22 +729,94 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             self.assertEqual(snapshot(root), before)
             self.assertIn("AGENTS.md: unknown generated guidance state", result.stderr)
 
+    def test_distinct_valid_mirror_trailers_are_byte_stable_in_check_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_project(root)
+            claude_body = latest_claude_body()
+            trailers = {
+                "CODEX.md": b"<!-- nous-emitted: sha256=1111111111111111 -->\n",
+                ".cursorrules": b"<!-- nous-emitted: sha256=2222222222222222 -->\n",
+                ".github/copilot-instructions.md": (
+                    b"<!-- nous-emitted: sha256=3333333333333333 -->\n"
+                ),
+            }
+            for relative_path, trailer in trailers.items():
+                (root / relative_path).write_bytes(claude_body + trailer)
+            write(
+                root,
+                "docs/dev-guide/PACKAGE_MAP.md",
+                f"{EXPECTED_PACKAGE_ENTITY}\n{EXPECTED_PACKAGE_SCOPE}\n",
+            )
+            before = snapshot(root)
+
+            result = run_reconciler(root, "--check")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(snapshot(root), before)
+
+    def test_mirror_body_is_repaired_while_its_trailer_remains_byte_exact(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_project(root)
+            claude_body = latest_claude_body()
+            mirror = root / "CODEX.md"
+            trailer = b"<!-- nous-emitted: sha256=abcdef0123456789 -->\n"
+            mirror.write_bytes(b"drifted mirror body\n" + trailer)
+
+            result = run_reconciler(root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(mirror.read_bytes(), claude_body + trailer)
+
+    def test_invalid_mirror_trailers_fail_closed_without_writes(self) -> None:
+        claude_body = latest_claude_body()
+        valid = b"<!-- nous-emitted: sha256=abcdef0123456789 -->\n"
+        cases = {
+            "missing": claude_body,
+            "duplicate": claude_body + valid + valid,
+            "non-terminal": valid + claude_body,
+            "malformed": (
+                claude_body + b"<!-- nous-emitted: sha256=not-hexadecimal -->\n"
+            ),
+        }
+        for variant, content in cases.items():
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                create_project(root)
+                mirror = root / "CODEX.md"
+                mirror.write_bytes(content)
+                before = snapshot(root)
+
+                result = run_reconciler(root)
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("CODEX.md", result.stderr)
+                self.assertEqual(snapshot(root), before)
+
     def test_stale_chg001_mirrors_are_relayered_onto_claude(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             create_project(root)
             # CHG-024 governs these mirrors, which CHG-022's closed allowed_paths
             # could not touch. A mirror left on the CHG-001 baseline is drift and
-            # must be relayered onto the current CLAUDE.md rather than preserved.
+            # must have its body relayered while retaining valid provenance.
+            _, trailer = split_terminal_emitted_trailer(
+                latest_desired_guide("CLAUDE.md")
+            )
             for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
-                (root / mirror).write_bytes(desired_guide("CLAUDE.md"))
+                (root / mirror).write_bytes(desired_guide("CLAUDE.md") + trailer)
 
             result = run_reconciler(root)
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            claude = (root / "CLAUDE.md").read_bytes()
+            claude_body, _ = split_terminal_emitted_trailer(
+                (root / "CLAUDE.md").read_bytes()
+            )
             for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
-                self.assertEqual((root / mirror).read_bytes(), claude, mirror)
+                self.assertEqual(
+                    (root / mirror).read_bytes(), claude_body + trailer, mirror
+                )
 
     def test_mirrors_equal_the_layered_claude_guidance(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1029,7 +1136,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             data_root = copy_reconciler_data(Path(directory))
             desired = (
                 data_root
-                / "overrides/CHG-001/825e882/docs/dev-guide/SECURITY.md"
+                / "overrides/CHG-049/6466f60/docs/dev-guide/SECURITY.md"
             )
             desired.write_bytes(desired.read_bytes() + b"tampered\n")
             before = snapshot(root)
@@ -1039,7 +1146,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(snapshot(root), before)
             self.assertIn("docs/dev-guide/SECURITY.md", result.stderr)
-            self.assertIn("desired override artifact hash mismatch", result.stderr)
+            self.assertIn("desired artifact hash mismatch", result.stderr)
 
     def test_source_artifact_hash_mismatch_fails_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
