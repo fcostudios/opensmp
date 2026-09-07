@@ -7,11 +7,12 @@ import {
   type ConnectorOperation,
 } from "../../connector-call-observation.js";
 import type { ConnectorResult, VendorConnector } from "../../contracts.js";
+import { createConnectorDispatcher } from "../../dispatch.js";
 import type { AnthropicCredentialCandidate } from "./credentials.js";
 import { createAnthropicConnectorObservationBridge } from "./observation.js";
 import { createAnthropicRateLimiter } from "./rate-limiter.js";
 import type { AnthropicTransport } from "./request.js";
-import { createAnthropicConnector } from "./connector.js";
+import { createAnthropicConnector } from "@smp/connectors/providers/anthropic/connector";
 
 const ACCOUNT = "11111111-1111-4111-8111-111111111111";
 const REQUEST = "22222222-2222-4222-8222-222222222222";
@@ -149,7 +150,7 @@ describe("Anthropic neutral connector", () => {
   it("implements all five operations through neutral frozen results and one account/session lookup", async () => {
     // Mutations killed: wrong route/body/join/state/request link/raw value changes literal outputs or captured requests.
     const requests: Request[] = [];
-    const { connector, sessions, credentialLookups } = fixture(async (request) => {
+    const { connector: implementation, sessions, credentialLookups } = fixture(async (request) => {
       requests.push(request);
       const url = new URL(request.url);
       if (request.method === "POST") return json(invite("inv-1", "member@example.test"), 201);
@@ -164,6 +165,13 @@ describe("Anthropic neutral connector", () => {
       if (url.pathname.endsWith("/user_cost_report")) return json(opaquePage([cost("usr-1", null)]));
       throw new Error(`unexpected transport request ${request.method} ${url.pathname}`);
     });
+    const connector = createConnectorDispatcher({ rest: implementation }).forProtocol("rest");
+    const dispatchedCapabilities = connector.capabilities();
+    expect([...dispatchedCapabilities]).toEqual([
+      "provision", "deprovision", "syncMembers", "syncActivity", "syncCost",
+    ]);
+    expect(Object.isFrozen(dispatchedCapabilities)).toBe(true);
+    expect(() => (dispatchedCapabilities as Set<string>).add("forged")).toThrow(TypeError);
 
     expect(await successValue(connector.provision({ requestId: REQUEST, vendorAccountId: ACCOUNT, personEmail: "new@example.test", licenseTypeName: "Claude" })))
       .toEqual({ vendorRef: "inv-1" });
@@ -193,6 +201,31 @@ describe("Anthropic neutral connector", () => {
     expect(requests.find(({ method }) => method === "POST") && await requests.find(({ method }) => method === "POST")!.clone().json())
       .toEqual({ email: "new@example.test", role: "user" });
     expect(requests.some(({ method, url }) => method === "DELETE" && url.endsWith("/users/usr-1"))).toBe(true);
+  });
+
+  it("preserves an exact frozen provider failure through rest dispatch", async () => {
+    // Mutations killed: bypassing dispatch validation or changing provider failure
+    // retryability/raw containment changes the exact result.
+    const { connector: implementation } = fixture(async () => json({
+      type: "error",
+      error: { type: "authentication_error" },
+    }, 401));
+    const connector = createConnectorDispatcher({ rest: implementation }).forProtocol("rest");
+
+    const result = await connector.provision({
+      requestId: REQUEST,
+      vendorAccountId: ACCOUNT,
+      personEmail: "member@example.test",
+      licenseTypeName: "Claude",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      code: "provider_error",
+      retryable: false,
+      raw: null,
+    });
+    expect(Object.isFrozen(result)).toBe(true);
   });
 
   it.each([
