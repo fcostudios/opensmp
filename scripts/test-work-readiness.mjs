@@ -221,6 +221,8 @@ test("schema structure and runtime preserve bootstrap while requiring normal con
   assert.equal(readinessSchema.required.includes("controlling_change"), false);
   assert.deepEqual(actuals.properties.mutation_minutes, { $ref: "#/$defs/nonnegative_integer" });
   assert.equal(actuals.required.includes("mutation_minutes"), false);
+  assert.deepEqual(actuals.properties.mutation_shards_actual, { $ref: "#/$defs/nonnegative_integer" });
+  assert.equal(actuals.required.includes("mutation_shards_actual"), false);
   assert.equal(validateAssessment(bootstrap, { feedbackRecords: [bootstrapDecision] }).decision, "ready");
   const us = normal();
   const change = normal({ work_id: "CHG-123", kind: "CHG", source: "docs/changes/CHG-123.md" });
@@ -1297,6 +1299,42 @@ test("mutation_minutes is optional and, when present, is a non-negative integer"
     const measured = completed();
     measured.actuals.mutation_minutes = invalid;
     expectError("WR_INVALID_INTEGER", "$.actuals.mutation_minutes", () => validateAssessment(measured, {
+      feedbackRecords: [decisionFor(measured), { story: measured.work_id, event: "done" }],
+    }));
+  }
+});
+
+test("mutation_shards_actual reports an optional observed count without rejecting readiness", () => {
+  const historical = completed();
+  assert.equal(Object.hasOwn(historical.actuals, "mutation_shards_actual"), false);
+  assert.equal(validateAssessment(historical, {
+    feedbackRecords: [decisionFor(historical), { story: historical.work_id, event: "done" }],
+  }).complete, true);
+
+  for (const count of [0, 1, 11]) {
+    const measured = completed();
+    measured.actuals.mutation_shards_actual = count;
+    assert.equal(validateAssessment(measured, {
+      feedbackRecords: [decisionFor(measured), { story: measured.work_id, event: "done" }],
+    }).complete, true);
+  }
+
+  const mismatch = completed();
+  mismatch.signals.expected_mutation_shards = 1;
+  mismatch.actuals.mutation_shards_actual = 11;
+  refreshDigest(mismatch);
+  assert.equal(validateAssessment(mismatch, {
+    feedbackRecords: [decisionFor(mismatch), {
+      story: mismatch.work_id,
+      event: "deviation",
+      notes: "Preflight calculated eleven shards after approval.",
+    }, { story: mismatch.work_id, event: "done" }],
+  }).complete, true, "an observed shard mismatch is evidence, never a readiness rejection");
+
+  for (const invalid of [-1, 1.5, null, "4"]) {
+    const measured = completed();
+    measured.actuals.mutation_shards_actual = invalid;
+    expectError("WR_INVALID_INTEGER", "$.actuals.mutation_shards_actual", () => validateAssessment(measured, {
       feedbackRecords: [decisionFor(measured), { story: measured.work_id, event: "done" }],
     }));
   }

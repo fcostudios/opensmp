@@ -245,6 +245,20 @@ phase estimates before approval; validation does not require the 65/28 ratio.
 
 ### Authoritative cold campaign
 
+Run `pnpm mutation:preflight` as part of `pnpm check` before the authoritative
+campaign. The preflight performs diff routing and validates accountable tests,
+database runtime profiles/templates, exact zero-mutant seams, adapter/config
+inputs, and the calculated shard count without starting Stryker or writing
+authoritative mutation-performance evidence. Set `MUTATION_WORK_ID=US-NNN` (or
+`CHG-NNN`) when comparing that count with an approved artifact. A mismatch is
+reported, never rejected: append a timestamped `deviation` event and record the
+observed count as `actuals.mutation_shards_actual`; do not edit the approved
+readiness payload.
+
+For a non-authoritative implementation preview, set `MUTATION_SHARD` to one
+exact shard id printed by preflight. A preview never emits `test_report` and
+never substitutes for the complete campaign.
+
 An authoritative cold campaign is one cache-cleared, diff-scoped mutation run:
 
 ```bash
@@ -268,10 +282,16 @@ event, replace it with the closed actuals object and record:
 - `total`, `changed_files`, `commits`, and `review_fix_loops`;
 - `cold_mutation_attempts` and `mutation_invalidations`; and
 - optional `mutation_minutes`; and
+- optional `mutation_shards_actual`, the non-negative count calculated by the
+  final preflight/campaign; and
 - `estimate_variance_minutes` and a `root_cause`.
 
 Actuals calibrate future estimates; they never retroactively legalize an
 oversized assessment.
+
+After the final campaign, commit readiness actuals and all append-only feedback
+events together as one evidence commit. Those events are the detailed record;
+do not create one documentation commit per event.
 
 When present, `mutation_minutes` is the summed wall-clock time of retained and
 invalidated authoritative cold campaigns. It is optional so historical artifacts

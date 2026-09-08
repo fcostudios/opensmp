@@ -882,6 +882,9 @@
         "mutation_minutes": {
           "$ref": "#/$defs/nonnegative_integer"
         },
+        "mutation_shards_actual": {
+          "$ref": "#/$defs/nonnegative_integer"
+        },
         "estimate_variance_minutes": {
           "$ref": "#/$defs/nullable_integer"
         },

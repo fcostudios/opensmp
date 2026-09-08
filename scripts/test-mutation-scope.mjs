@@ -1859,7 +1859,23 @@ const pageWrite = (path, contents) => {
 };
 let pageBase;
 let pageExecutions = 0;
-const runPageFixture = () => runMutationScope({
+const pageExecutor = ({ shard }, status = 0) => {
+  pageExecutions += 1;
+  const line = Number(/:(\d+)-/.exec(shard.mutate[0])?.[1]);
+  pageWrite(shard.jsonReportPath, `${JSON.stringify({
+    config: {
+      configFile: shard.configPath,
+      jsonReporter: { fileName: shard.jsonReportPath },
+      mutate: shard.mutate,
+    },
+    files: Object.fromEntries(shard.sources.map((sourcePath) => [sourcePath, {
+        source: readFileSync(join(pageFixtureRoot, sourcePath), "utf8"),
+        mutants: [{ id: "0", location: { start: { line }, end: { line } }, status: "Killed" }],
+      }])),
+  })}\n`);
+  return { status };
+};
+const runPageFixture = (overrides = {}) => runMutationScope({
   cwd: pageFixtureRoot,
   env: { MUTATION_BASE: pageBase },
   installSignalHandlers: false,
@@ -1869,22 +1885,8 @@ const runPageFixture = () => runMutationScope({
   runtimeProfileProvider: () => ({
     arch: "x64", locale: "en-US", platform: "linux", timezone: "UTC",
   }),
-  executeShard: ({ shard }) => {
-    pageExecutions += 1;
-    const line = Number(/:(\d+)-/.exec(shard.mutate[0])?.[1]);
-    pageWrite(shard.jsonReportPath, `${JSON.stringify({
-      config: {
-        configFile: shard.configPath,
-        jsonReporter: { fileName: shard.jsonReportPath },
-        mutate: shard.mutate,
-      },
-      files: Object.fromEntries(shard.sources.map((sourcePath) => [sourcePath, {
-          source: readFileSync(join(pageFixtureRoot, sourcePath), "utf8"),
-          mutants: [{ id: "0", location: { start: { line }, end: { line } }, status: "Killed" }],
-        }])),
-    })}\n`);
-    return { status: 0 };
-  },
+  executeShard: (input) => pageExecutor(input),
+  ...overrides,
 });
 try {
   execFileSync("git", ["init", "--quiet"], { cwd: pageFixtureRoot });
@@ -1936,6 +1938,61 @@ try {
     pageCold.manifest.shards[0].evidenceKey,
   );
   assert.equal(readFileSync(join(pageFixtureRoot, poolsPageSource), "utf8"), pageSourceBeforeConfigChange);
+
+  const failuresStartedAt = pageExecutions;
+  let aggregateFailure;
+  try {
+    await runPageFixture({
+      env: { MUTATION_BASE: pageBase, MUTATION_CACHE: "off" },
+      executeShard: (input) => pageExecutor(input, 7),
+    });
+  } catch (error) {
+    aggregateFailure = error;
+  }
+  assert.equal(pageExecutions - failuresStartedAt, 3,
+    "one failed shard must not prevent the remaining selected shards from executing");
+  assert.deepEqual(
+    aggregateFailure?.failures?.map(({ shardId, stage, status }) => ({ shardId, stage, status })),
+    aggregateFailure?.failures?.map(({ shardId }) => ({ shardId, stage: "execute", status: 7 })),
+    "the terminal error must report every failed shard at its execution stage",
+  );
+
+  const performanceRoot = join(pageFixtureRoot, "reports/mutation-performance");
+  const performanceBeforePreflight = existsSync(performanceRoot)
+    ? readdirSync(performanceRoot).sort() : [];
+  const preflightExecutions = pageExecutions;
+  const preflight = await runPageFixture({ mode: "preflight", expectedMutationShards: 1 });
+  assert.equal(pageExecutions, preflightExecutions,
+    "preflight must not invoke a mutation shard executor");
+  assert.equal(preflight.performance, null,
+    "preflight must not create authoritative campaign evidence");
+  assert.deepEqual(preflight.preflight, {
+    expected_mutation_shards: 1,
+    mismatch: true,
+    mutation_shards_actual: 3,
+    shards: preflight.manifest.shards.map(({ id }) => id),
+  });
+  assert.deepEqual(
+    existsSync(performanceRoot) ? readdirSync(performanceRoot).sort() : [],
+    performanceBeforePreflight,
+    "preflight must not write a mutation performance record",
+  );
+
+  const previewStartedAt = pageExecutions;
+  const preview = await runPageFixture({
+    env: { MUTATION_BASE: pageBase, MUTATION_CACHE: "off" },
+    shardSelector: preflight.preflight.shards[1],
+  });
+  assert.equal(pageExecutions - previewStartedAt, 1,
+    "an exact preview selector must run only its selected shard");
+  assert.equal(preview.authoritative, false,
+    "a selected preview must never claim authoritative campaign status");
+  assert.deepEqual(preview.manifest.shards.map(({ id }) => id), [preflight.preflight.shards[1]]);
+  assert.deepEqual(
+    existsSync(performanceRoot) ? readdirSync(performanceRoot).sort() : [],
+    performanceBeforePreflight,
+    "preview must not write authoritative mutation performance evidence",
+  );
 } finally {
   rmSync(pageFixtureRoot, { force: true, recursive: true });
 }

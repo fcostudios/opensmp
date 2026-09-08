@@ -109,6 +109,32 @@ function fail(message, hint) {
   process.exit(2);
 }
 
+function expectedMutationShards(environment, explicit) {
+  if (explicit !== undefined) {
+    if (!Number.isInteger(explicit) || explicit < 0) {
+      throw new Error("expected mutation shard count must be a non-negative integer");
+    }
+    return explicit;
+  }
+  const workId = environment.MUTATION_WORK_ID;
+  if (!workId) return null;
+  if (!/^(?:US|CHG)-\d{3,}$/.test(workId)) {
+    throw new Error("MUTATION_WORK_ID must be an official US-* or CHG-* identifier");
+  }
+  const readinessPath = join("docs", "readiness", `${workId}.json`);
+  let artifact;
+  try {
+    artifact = JSON.parse(readFileSync(readinessPath, "utf8"));
+  } catch {
+    throw new Error(`cannot read approved readiness artifact ${readinessPath}`);
+  }
+  const expected = artifact?.signals?.expected_mutation_shards;
+  if (!Number.isInteger(expected) || expected < 0) {
+    throw new Error(`invalid expected_mutation_shards in ${readinessPath}`);
+  }
+  return expected;
+}
+
 /** The ref to diff against. Resolved, never hardcoded to `main`: a repo whose
  *  trunk is `master`, or a CI checkout with a different default, must not
  *  silently produce an empty diff. */
@@ -1895,14 +1921,27 @@ export async function runMutationScope(options = {}) {
     }
   };
   const environment = options.env ?? process.env;
+  const mode = options.mode ?? "campaign";
+  if (!new Set(["campaign", "preflight"]).has(mode)) {
+    throw new Error(`unknown mutation-scope mode: ${mode}`);
+  }
   if (options.cwd) process.chdir(options.cwd);
-  for (const key of ["MUTATION_BASE", "MUTATION_CACHE", "MUTATION_CACHE_DISABLE", "MUTATION_SCOPE_DRY"]) {
+  for (const key of [
+    "MUTATION_BASE", "MUTATION_CACHE", "MUTATION_CACHE_DISABLE", "MUTATION_SCOPE_DRY",
+    "MUTATION_SHARD", "MUTATION_WORK_ID",
+  ]) {
     previousEnvironment[key] = process.env[key];
     if (environment[key] === undefined) delete process.env[key];
     else process.env[key] = environment[key];
   }
   try {
-  const baseRef = resolveBase();
+  // `pnpm check` validates the current candidate working tree. A remote default
+  // branch may lag by many stories and would turn this cheap prerequisite pass
+  // into a historical campaign, so preflight defaults to the current HEAD.
+  // Authoritative campaigns still require their explicit authority base.
+  const baseRef = mode === "preflight" && !environment.MUTATION_BASE
+    ? "HEAD"
+    : resolveBase();
   const resolvedBase = mergeBaseFor(baseRef);
   const head = git(["rev-parse", "HEAD"]);
   const changed = changedFiles(baseRef);
@@ -1943,7 +1982,15 @@ export async function runMutationScope(options = {}) {
 
   if (allMutate.length === 0) {
     console.log("mutation-scope: no mutatable files in diff — nothing to mutate");
-    return { manifest: null, performance: null };
+    const expected = expectedMutationShards(environment, options.expectedMutationShards);
+    const preflight = mode === "preflight" ? {
+      expected_mutation_shards: expected,
+      mismatch: expected !== null && expected !== 0,
+      mutation_shards_actual: 0,
+      shards: [],
+    } : null;
+    if (preflight) console.log(JSON.stringify(preflight));
+    return { authoritative: mode === "campaign", manifest: null, performance: null, preflight };
   }
 
   // IMP-360 / L3 — absent and unreadable are different problems with different
@@ -2025,7 +2072,7 @@ export async function runMutationScope(options = {}) {
   const runSuffix = process.env.MUTATION_SCOPE_DRY === "1"
     ? "dry"
     : (options.runId ?? `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`);
-  const shards = shardSpecs.map((spec) => {
+  let shards = shardSpecs.map((spec) => {
     const digest = createHash("sha256")
       .update([spec.kind, ...spec.sources, ...spec.testFiles, ...spec.mutate].join("\n"))
       .digest("hex")
@@ -2104,6 +2151,20 @@ export async function runMutationScope(options = {}) {
     };
   }).sort((left, right) => left.id.localeCompare(right.id));
 
+  const mutationShardsActual = shards.length;
+  const shardSelector = options.shardSelector ?? environment.MUTATION_SHARD;
+  if (mode === "preflight" && shardSelector) {
+    throw new Error("MUTATION_SHARD cannot select a preview during preflight");
+  }
+  if (shardSelector) {
+    const selected = shards.filter((shard) => shard.id === shardSelector);
+    if (selected.length !== 1) {
+      throw new Error(`MUTATION_SHARD=${shardSelector} does not name exactly one generated shard`);
+    }
+    shards = selected;
+  }
+  const authoritative = mode === "campaign" && !shardSelector;
+
   mkdirSync(GENERATED_SHARD_DIR, { recursive: true });
   for (const shard of shards) {
     writeFileSync(shard.configPath, shard.configText, "utf8");
@@ -2122,7 +2183,24 @@ export async function runMutationScope(options = {}) {
 
   if (process.env.MUTATION_SCOPE_DRY === "1") {
     console.log("mutation-scope: MUTATION_SCOPE_DRY=1 — not running Stryker");
-    return { manifest: manifestFor(), performance: null };
+    return { authoritative: false, manifest: manifestFor(), performance: null, preflight: null };
+  }
+
+  if (mode === "preflight") {
+    const runtimeProfileProvider = options.runtimeProfileProvider ?? defaultRuntimeProfile;
+    const resolveRuntimeProfile = createCampaignRuntimeProfileResolver(runtimeProfileProvider, environment);
+    for (const shard of shards) {
+      sanitizedRuntimeProfile(await resolveRuntimeProfile(shard), isDatabaseBacked(shard));
+    }
+    const expected = expectedMutationShards(environment, options.expectedMutationShards);
+    const preflight = {
+      expected_mutation_shards: expected,
+      mismatch: expected !== null && expected !== mutationShardsActual,
+      mutation_shards_actual: mutationShardsActual,
+      shards: shards.map(({ id }) => id),
+    };
+    console.log(JSON.stringify(preflight));
+    return { authoritative: false, manifest: manifestFor(), performance: null, preflight };
   }
 
   const cacheMode = process.env.MUTATION_CACHE === "off" ||
@@ -2145,7 +2223,7 @@ export async function runMutationScope(options = {}) {
   });
   const persist = () => {
     writeFileSync(GENERATED_MANIFEST, `${JSON.stringify(manifestFor(), null, 2)}\n`, "utf8");
-    writePerformanceRecord(process.cwd(), performanceRun);
+    if (authoritative) writePerformanceRecord(process.cwd(), performanceRun);
   };
   if (options.installSignalHandlers !== false) {
     for (const signal of ["SIGINT", "SIGTERM"]) {
@@ -2178,7 +2256,7 @@ export async function runMutationScope(options = {}) {
   options.beforeEvidence?.();
   if (signalShutdownPromise) {
     await signalShutdownPromise;
-    return { manifest: manifestFor(), performance: performanceRun };
+    return { authoritative, manifest: manifestFor(), performance: performanceRun, preflight: null };
   }
   const gitAtRoot = (args, execOptions = {}) => execFileSync("git", args, {
     ...execOptions, encoding: "utf8",
@@ -2272,7 +2350,11 @@ export async function runMutationScope(options = {}) {
         resolveExecution({ status: status ?? signalStatus });
       });
     }));
+    const shardFailures = [];
     for (const shard of shards) {
+      let failureStage = "cache";
+      let databaseSandboxRecord = null;
+      try {
       const { commandList, executionInputs, runtimeProfile } = executionContexts.get(shard.id);
       console.log(`mutation-scope: running ${shard.id} (${shard.mutate.length} ranges)`);
       const performanceToken = startShard(performanceRun, {
@@ -2367,7 +2449,7 @@ export async function runMutationScope(options = {}) {
       rmSync(shard.reportPath, { force: true });
       let shardEnvironment = environment;
       let databaseSandbox = null;
-      let databaseSandboxRecord = null;
+      failureStage = "database-sandbox";
       if (isDatabaseBacked(shard) && (!options.executeShard || options.databaseSandboxFactory)) {
         const factory = options.databaseSandboxFactory ?? (async (env, id) =>
           createDatabaseShardSandbox(env, id, await import("../packages/db/node_modules/pg/esm/index.mjs")));
@@ -2385,10 +2467,11 @@ export async function runMutationScope(options = {}) {
       }
       if (signalShutdownPromise) {
         await signalShutdownPromise;
-        return { manifest: manifestFor(), performance: performanceRun };
+        return { authoritative, manifest: manifestFor(), performance: performanceRun, preflight: null };
       }
       const childEnvironment = controlledChildEnvironment(shardEnvironment, runtimeProfile);
       let result;
+      failureStage = "execute";
       if (shard.kind === EXACT_FRAMEWORK_ADAPTER_KIND) {
         mkdirSync(dirname(shard.jsonReportPath), { recursive: true });
         writeFileSync(shard.jsonReportPath, `${JSON.stringify({
@@ -2405,9 +2488,11 @@ export async function runMutationScope(options = {}) {
       }
       if (signalShutdownPromise) {
         await signalShutdownPromise;
-        return { manifest: manifestFor(), performance: performanceRun };
+        return { authoritative, manifest: manifestFor(), performance: performanceRun, preflight: null };
       }
+      failureStage = "report";
       const report = readFreshMutationReport(shard.jsonReportPath, startedAt);
+      failureStage = "identity";
       validateMutationReportIdentity(
         report,
         shard,
@@ -2421,6 +2506,7 @@ export async function runMutationScope(options = {}) {
         if (result.status !== 0) {
           throw new Error(`zero-mutant shard ${shard.id} exited ${result.status}`);
         }
+        failureStage = "verification";
         requireNonzeroStaticShard(shard.kind, mutants.length, shard.id);
         const audits = verificationAuditsForReport(report, shard, allHunks);
         const projectionEvidencePath = projectionEvidencePathForShard(shard);
@@ -2450,11 +2536,15 @@ export async function runMutationScope(options = {}) {
         };
         console.log(`mutation-scope: verified non-mutatable source bundle ${shard.id}`);
       } else {
+        failureStage = "threshold";
         validateScoredMutationReport(report, shard.config.thresholds.break, shard.id);
         shard.classification = "scored";
         shard.result = result.status === 0 ? "passed" : "failed";
       }
-      if (result.status !== 0) throw Object.assign(new Error(`mutation shard ${shard.id} failed`), { status: result.status ?? 1 });
+      if (result.status !== 0) {
+        failureStage = "execute";
+        throw Object.assign(new Error(`mutation shard ${shard.id} failed`), { status: result.status ?? 1 });
+      }
       const timingDecision = shard.cacheDecision === "rejected" ? "rejected" : "executed";
       const timing = finishShard(performanceRun, performanceToken, timingDecision, {
         classification: shard.classification,
@@ -2492,13 +2582,51 @@ export async function runMutationScope(options = {}) {
         });
       }
       persist();
-      if (databaseSandboxRecord) {
-        await cleanupDatabaseSandbox(databaseSandboxRecord);
+      } catch (error) {
+        const failure = {
+          shardId: shard.id,
+          stage: failureStage,
+          message: error?.message ?? String(error),
+          status: Number.isInteger(error?.status) && error.status > 0 ? error.status : 1,
+        };
+        shard.result = "failed";
+        shard.failure = failure;
+        shardFailures.push(failure);
+        persist();
+      } finally {
+        if (databaseSandboxRecord) {
+          try {
+            await cleanupDatabaseSandbox(databaseSandboxRecord);
+          } catch (error) {
+            activeDatabaseSandboxes.delete(databaseSandboxRecord);
+            const failure = {
+              shardId: shard.id,
+              stage: "cleanup",
+              message: error?.message ?? String(error),
+              status: 1,
+            };
+            shard.result = "failed";
+            shard.failure = failure;
+            shardFailures.push(failure);
+            persist();
+          }
+        }
       }
+    }
+    if (shardFailures.length > 0) {
+      const failures = shardFailures.sort((left, right) =>
+        left.shardId.localeCompare(right.shardId) || left.stage.localeCompare(right.stage));
+      const summary = failures
+        .map((failure) => `${failure.shardId} [${failure.stage}]: ${failure.message}`)
+        .join("\n");
+      throw Object.assign(
+        new Error(`mutation campaign failed in ${failures.length} shard stage(s):\n${summary}`),
+        { failures, status: failures.find((failure) => failure.status !== 1)?.status ?? 1 },
+      );
     }
     finishPerformanceRun(performanceRun, "passed");
     persist();
-    return { manifest: manifestFor(), performance: performanceRun };
+    return { authoritative, manifest: manifestFor(), performance: performanceRun, preflight: null };
   } catch (err) {
     // A non-zero Stryker exit IS the gate failing — propagate the code, but not
     // execFileSync's exception: an uncaught throw prints a JS stack trace after
@@ -2524,7 +2652,11 @@ export async function runMutationScope(options = {}) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    await runMutationScope();
+    const args = process.argv.slice(2);
+    if (args.some((arg) => arg !== "--preflight") || args.filter((arg) => arg === "--preflight").length > 1) {
+      throw new Error("usage: mutation-scope [--preflight]");
+    }
+    await runMutationScope({ mode: args[0] === "--preflight" ? "preflight" : "campaign" });
   } catch (error) {
     if (error?.message) console.error(`mutation-scope: ${error.message}`);
     process.exit(typeof error?.status === "number" ? error.status : 1);
