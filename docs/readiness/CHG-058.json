@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "c446969cc1676b5bb473c004e5d90cc18c98009b891a4ad62a3b185bad5bb269",
+  "work_id": "CHG-058",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Make the next partition child mutation-ready before its final campaign",
+  "source": "Nous change ledger CHG-058",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Every implementation-plan task ends with a non-authoritative preview of each mutation shard it touched, and survivors are repaired before the next task while the single cold campaign remains last.",
+      "demo": "Execute a fixture plan task through its selected preview shards, verify all touched shards are exercised and survivors block task completion, and verify no preview emits test_report or authoritative performance evidence.",
+      "primary": true
+    },
+    {
+      "id": "O2",
+      "statement": "US-065 and US-066 carry ready assessments whose file and shard expectations come from the mutation preflight calculation over their explicit planned scopes at the calibrated 224-minute story-point rate.",
+      "demo": "Run planned-scope preflight for each story, compare the returned files and shards with its readiness signals, and validate both approved-candidate artifacts within the 320-minute cap.",
+      "primary": false
+    },
+    {
+      "id": "O3",
+      "statement": "A canonical partition child with an approved parent design proceeds from readiness directly to its implementation plan without duplicating a child design document.",
+      "demo": "Validate a child workflow whose parent design is approved and whose first child artifact is its readiness-bound plan, while a standalone item still requires the normal design step.",
+      "primary": false
+    },
+    {
+      "id": "O4",
+      "statement": "The shared PostgreSQL mutation fixture selects any one complete story-scoped owner/app URL pair instead of depending on US-017 variable names and fails closed on incomplete or ambiguous pairs.",
+      "demo": "Create isolated fixtures with US-065 and US-066 URL pairs, verify independent database names and cleanup, and reject incomplete or ambiguous story-scoped environments.",
+      "primary": false
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": ["O1", "O3"]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": ["O2"]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": ["O4"]
+    }
+  ],
+  "scopes": [
+    "planning",
+    "tooling",
+    "db"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 7,
+    "expected_mutation_shards": 1,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 20,
+    "implementation": 120,
+    "focused_verification": 55,
+    "review": 75,
+    "integration": 30,
+    "total": 300
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Whether the existing diff-only preflight can calculate honest readiness signals before the planned story files have changed.",
+      "status": "resolved",
+      "estimate_impact_minutes": 25,
+      "resolution": "Expose one deterministic planned-scope calculation path through the existing mutation router. It accepts explicit repository paths, performs no Stryker execution or authoritative evidence write, and uses the same routing and shard grouping as normal preflight."
+    },
+    {
+      "id": "U2",
+      "statement": "Whether US-064 already removed every US-017-specific database sandbox dependency.",
+      "status": "resolved",
+      "estimate_impact_minutes": 15,
+      "resolution": "US-064 generalized the outer mutation shard sandbox, but packages/db/src/testing/postgres-container.ts still reads only US017_MUTATION_DATABASE_URL and US017_MUTATION_DATABASE_ADMIN_URL. CHG-058 closes that remaining shared-fixture dependency with exact complete-pair selection and fail-closed ambiguity."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG058-READY",
+    "payload_sha256": "c446969cc1676b5bb473c004e5d90cc18c98009b891a4ad62a3b185bad5bb269"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
