@@ -95,7 +95,25 @@
     "evidence": "CHG058-READY",
     "payload_sha256": "c446969cc1676b5bb473c004e5d90cc18c98009b891a4ad62a3b185bad5bb269"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 15,
+      "implementation": 58,
+      "focused_verification": 0,
+      "review": 38,
+      "integration": 14
+    },
+    "total": 125,
+    "changed_files": 11,
+    "commits": 10,
+    "review_fix_loops": 4,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "estimate_variance_minutes": -175,
+    "root_cause": "Closed measurement cutoff is the retained cold campaign ending 2026-09-08T14:54:22Z (2026-09-08T09:54:22-05:00), on immutable source 720139931458b1cf5a59df781bd02ce03586a3fe. Reflog boundaries are branch creation at 077d2fe51fe0cefbcb2bc295612f4158f6af894e, 2026-09-08T07:49:20-05:00; first implementation commit 2a343b22d216c6abefc06c7ea63bc8c327a301b7, 2026-09-08T08:04:18-05:00; reviewed pre-repair candidate 64314d436d4dc77d626559ca5eb5ea4e08fcc44f, 2026-09-08T09:02:26-05:00; and approved cutoff 720139931458b1cf5a59df781bd02ce03586a3fe, 2026-09-08T09:40:00-05:00. Nearest-whole-minute, non-overlapping intervals are readiness round(898s/60)=15; implementation round(3488s/60)=58; review round(2254s/60)=38; integration round(862s/60)=14; focused verification is zero because it was interleaved with implementation/review and lacks an independent cutoff. Total is 15+58+0+38+14=125, and variance is 125-300=-175. Reproduce changed_files with git diff --name-only authority/chg-058-base..720139931458b1cf5a59df781bd02ce03586a3fe | wc -l (11) and commits with git rev-list --count authority/chg-058-base..720139931458b1cf5a59df781bd02ce03586a3fe (10). Four reviewed-task evidence cycles produced repairs: Task 1 physical scope, Task 2 shared cleanup, Task 1/Task 4 adapter integration, and the final whole-branch review. The one cache-cleared campaign ran MUTATION_WORK_ID=CHG-058 MUTATION_BASE=authority/chg-058-base rtk pnpm test:mutation from 2026-09-08T14:54:13Z through 2026-09-08T14:54:22Z, exited 0 after reporting changed=8, mutatable=0, ranges=0, schemaStaticRanges=0 and no mutatable files; 9 seconds rounds to zero mutation minutes. The approved expected-one/actual-zero shard mismatch is retained as a report-not-reject deviation; no source or test repair was needed."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
