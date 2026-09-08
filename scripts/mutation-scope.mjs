@@ -1870,11 +1870,28 @@ function canonicalPlannedPaths(paths, fileExists, readFile, stat, realpath, repo
     if (pathEscapesRepository(repositoryRoot, candidate)) {
       throw new Error(`planned scope path escapes the real repository root: ${path}`);
     }
+    // Closed policy: no file or parent-directory symlink aliases, even inside
+    // the repository. Routing, extensions and generated exclusions see one name.
+    if (relative(repositoryRoot, candidate).split(sep).join("/") !== path) {
+      throw new Error(`planned scope path is not its physical canonical path: ${path}`);
+    }
+    let metadata;
     try {
-      if (!stat(path).isFile()) throw new Error("not a file");
+      metadata = stat(path);
+      if (!metadata.isFile()) throw new Error("not a file");
     } catch {
       throw new Error(`planned scope path is not a readable regular file: ${path}`);
     }
+    // A multiply linked inode has no single canonical name; it could also
+    // alias a generated target not present in the requested set.
+    if (metadata.nlink !== 1) {
+      throw new Error(`planned scope path is not a unique physical canonical path: ${path}`);
+    }
+    seen.add(path);
+  }
+  // Validate every path before reading any content, including an earlier valid
+  // path followed by a duplicate or an alias to a generated artifact.
+  for (const path of seen) {
     let source;
     try {
       source = readFile(path);
@@ -1882,7 +1899,6 @@ function canonicalPlannedPaths(paths, fileExists, readFile, stat, realpath, repo
       throw new Error(`planned scope path is not a readable regular file: ${path}`);
     }
     if (typeof source !== "string") throw new Error(`planned scope path is not a readable regular file: ${path}`);
-    seen.add(path);
     contents.set(path, source);
   }
   return { contents, files: [...seen].sort() };

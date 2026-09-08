@@ -6,6 +6,7 @@ import {
   mkdirSync,
   mkdtempSync,
   existsSync,
+  linkSync,
   readFileSync,
   readdirSync,
   realpathSync,
@@ -117,6 +118,61 @@ try {
       mutate: ["src/beta.ts:1-1"],
     },
   ]);
+  // Break caught: selecting two task shards in separate invocations either
+  // runs the wrong membership or accidentally publishes campaign evidence.
+  for (const [path, contents] of [
+    ["package.json", JSON.stringify({ name: "preview-fixture", private: true })],
+    ["pnpm-lock.yaml", "lockfileVersion: '9.0'\n"],
+    ["stryker.conf.json", JSON.stringify({ testFiles: [] })],
+    ["vitest.mutation.config.mjs", "export default {};\n"],
+    ["scripts/mutation-scope.mjs", "export {};\n"],
+    ["scripts/mutation-evidence/fingerprint.mjs", "export {};\n"],
+    ["scripts/mutation-evidence/cache.mjs", "export {};\n"],
+    ["scripts/mutation-evidence/performance.mjs", "export {};\n"],
+    [".nous-feedback.jsonl", ""],
+  ]) writePlannedScopeFixture(path, contents);
+  execFileSync("git", ["add", "."], { cwd: plannedScopeFixtureRoot });
+  execFileSync("git", ["commit", "--quiet", "-m", "preview baseline"], { cwd: plannedScopeFixtureRoot });
+  const previewBase = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: plannedScopeFixtureRoot, encoding: "utf8",
+  }).trim();
+  writePlannedScopeFixture("src/alpha.ts", "export const alpha = 4;\nexport const beta = 5;\n");
+  writePlannedScopeFixture("src/beta.ts", "export const gamma = 6;\n");
+  const executions = [];
+  const runPlannedPreview = (overrides = {}) => runMutationScope({
+    cwd: plannedScopeFixtureRoot,
+    env: { MUTATION_BASE: previewBase },
+    installSignalHandlers: false,
+    toolVersions: { node: "22.0.0", pnpm: "10.0.0", stryker: "9.0.0", typescript: "5.0.0", vitest: "3.0.0" },
+    runtimeProfileProvider: () => ({ arch: "x64", locale: "en-US", platform: "linux", timezone: "UTC" }),
+    executeShard: ({ shard }) => {
+      executions.push({ id: shard.id, sources: shard.sources, testFiles: shard.testFiles });
+      writePlannedScopeFixture(shard.jsonReportPath, JSON.stringify({
+        config: { configFile: shard.configPath, jsonReporter: { fileName: shard.jsonReportPath }, mutate: shard.mutate },
+        files: Object.fromEntries(shard.sources.map((source) => [source, {
+          source: readFileSync(join(plannedScopeFixtureRoot, source), "utf8"),
+          mutants: [{ id: "0", location: { start: { line: 1 }, end: { line: 1 } }, status: "Killed" }],
+        }])),
+      }));
+      return { status: 0 };
+    },
+    ...overrides,
+  });
+  const discoveredPreviews = await runPlannedPreview({ mode: "preflight" });
+  assert.equal(discoveredPreviews.preflight.mutation_shards_actual, 2);
+  assert.deepEqual(executions, []);
+  for (const source of ["alpha", "beta"]) {
+    const id = discoveredPreviews.manifest.shards.find((shard) => shard.sources.includes(`src/${source}.ts`)).id;
+    assert.ok(discoveredPreviews.preflight.shards.includes(id));
+    const expectedMembership = { id, sources: [`src/${source}.ts`], testFiles: [`src/${source}.test.ts`] };
+    const before = executions.length;
+    const preview = await runPlannedPreview({ shardSelector: id });
+    assert.deepEqual(executions.slice(before), [expectedMembership]);
+    assert.deepEqual(preview.manifest.shards.map(({ id, sources, testFiles }) => ({ id, sources, testFiles })), [expectedMembership]);
+    assert.equal(preview.authoritative, false);
+    assert.equal(existsSync(join(plannedScopeFixtureRoot, "reports/mutation-performance")), false);
+    assert.equal(readFileSync(join(plannedScopeFixtureRoot, ".nous-feedback.jsonl"), "utf8"), "");
+  }
   writeFileSync(join(plannedScopeOutsideRoot, "external.ts"), "export const external = true;\n", "utf8");
   writeFileSync(join(plannedScopeOutsideRoot, "external.test.ts"), "export {};\n", "utf8");
   symlinkSync(plannedScopeOutsideRoot, join(plannedScopeFixtureRoot, "src", "escaped"), "dir");
@@ -139,6 +195,35 @@ try {
     "a canonical-looking path through a symlinked parent cannot leave the repository",
   );
   assert.equal(readEscapedPath, false, "planned scope rejects an escaped path before reading it");
+  // Break caught: physical aliases hide generated targets or count one file twice.
+  writePlannedScopeFixture(".tmp/generated.md", "generated content\n");
+  symlinkSync("plan.md", join(plannedScopeFixtureRoot, "docs/file-alias.md"));
+  symlinkSync("docs", join(plannedScopeFixtureRoot, "docs-alias"), "dir");
+  symlinkSync("../.tmp/generated.md", join(plannedScopeFixtureRoot, "docs/generated-alias.md"));
+  linkSync(join(plannedScopeFixtureRoot, "docs/plan.md"), join(plannedScopeFixtureRoot, "docs/hard-link.md"));
+  linkSync(join(plannedScopeFixtureRoot, ".tmp/generated.md"), join(plannedScopeFixtureRoot, "docs/generated-hard-link.md"));
+  for (const paths of [
+    ["docs/file-alias.md"],
+    ["docs-alias/plan.md"],
+    ["docs/plan.md", "docs/file-alias.md"],
+    ["docs/plan.md", "docs/hard-link.md"],
+    ["src/alpha.ts", "docs/generated-alias.md"],
+    ["docs/hard-link.md"],
+    ["docs/generated-hard-link.md"],
+  ]) {
+    const reads = [];
+    assert.throws(() => calculatePlannedMutationScope(paths, {
+      fileExists: (path) => existsSync(join(plannedScopeFixtureRoot, path)),
+      readFile: (path) => {
+        reads.push(path);
+        return readFileSync(join(plannedScopeFixtureRoot, path), "utf8");
+      },
+      stat: (path) => statSync(join(plannedScopeFixtureRoot, path)),
+      realpath: (path) => realpathIn(plannedScopeFixtureRoot, path),
+      repositoryRoot: realpathSync(plannedScopeFixtureRoot),
+    }), /physical canonical path|duplicated physical file/, JSON.stringify(paths));
+    assert.deepEqual(reads, [], "validate the entire physical path set before any content read");
+  }
 } finally {
   rmSync(plannedScopeFixtureRoot, { force: true, recursive: true });
   rmSync(plannedScopeOutsideRoot, { force: true, recursive: true });

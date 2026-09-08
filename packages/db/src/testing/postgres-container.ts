@@ -86,6 +86,24 @@ function databaseUrl(baseUrl: string, username: string, password: string, databa
   return url.toString();
 }
 
+function parseMutationDatabaseUrl(value: string, prefix: string): URL {
+  try {
+    const url = new URL(value);
+    if (!["postgres:", "postgresql:"].includes(url.protocol) || !url.hostname) {
+      throw new Error("invalid PostgreSQL URL");
+    }
+    // pg decodes credentials when constructing its client. Validate that step
+    // here too, before either URL can cause a connection or clone allocation.
+    decodeURIComponent(url.username);
+    decodeURIComponent(url.password);
+    return url;
+  } catch {
+    // Node's URL error retains the supplied secret in `input`. Never retain it
+    // as a cause, enumerable field, or nested error on this public diagnostic.
+    throw new Error(`${prefix} mutation database URL is invalid`);
+  }
+}
+
 /** A fresh PostgreSQL 16 cluster with the real owner/app role separation. */
 export async function createPostgresFixture(
   {
@@ -97,32 +115,64 @@ export async function createPostgresFixture(
   const mutationPair = selectMutationDatabasePair(process.env);
   if (mutationPair) {
     const { appUrl: mutationAppUrl, ownerUrl: mutationOwnerUrl, prefix } = mutationPair;
-    const templateDatabase = new URL(mutationOwnerUrl).pathname.slice(1);
+    const ownerUrlValue = parseMutationDatabaseUrl(mutationOwnerUrl, prefix);
+    const appUrlValue = parseMutationDatabaseUrl(mutationAppUrl, prefix);
+    const templateDatabase = ownerUrlValue.pathname.slice(1);
     if (!/^[a-z0-9_]+$/.test(templateDatabase)) {
       throw new Error(`${prefix} mutation template database name is invalid`);
     }
     const databaseName =
       `ledger_mutation_${randomUUID().replaceAll("-", "")}`;
-    const maintenanceUrl = new URL(mutationOwnerUrl);
+    const maintenanceUrl = new URL(ownerUrlValue);
     maintenanceUrl.pathname = "/postgres";
+    appUrlValue.pathname = `/${databaseName}`;
+    const appUrl = appUrlValue.toString();
+    ownerUrlValue.pathname = `/${databaseName}`;
+    const ownerUrl = ownerUrlValue.toString();
+    const cleanupClone = async (faultSql?: string): Promise<void> => {
+      const client = new pg.Client({ connectionString: maintenanceUrl.toString() });
+      try {
+        await client.connect();
+        try {
+          if (faultSql) await client.query(faultSql);
+        } finally {
+          // Even the deterministic cleanup fault must not skip the real drop.
+          await client.query(
+            `SELECT pg_terminate_backend(pid)
+             FROM pg_stat_activity
+             WHERE datname = $1 AND pid <> pg_backend_pid()`,
+            [databaseName],
+          );
+          await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
+        }
+      } finally {
+        await client.end();
+      }
+    };
     const maintenance = new pg.Client({
       connectionString: maintenanceUrl.toString(),
     });
-    await maintenance.connect();
+    let allocated = false;
     try {
+      await maintenance.connect();
       await maintenance.query(
         `CREATE DATABASE "${databaseName}"
          WITH TEMPLATE "${templateDatabase}" OWNER ledger_owner`,
       );
-    } finally {
+      allocated = true;
+      if (afterBootstrapSql) await maintenance.query(afterBootstrapSql);
       await maintenance.end();
+    } catch (error) {
+      await maintenance.end().catch(() => undefined);
+      if (allocated) {
+        try {
+          await cleanupClone();
+        } catch (cleanupError) {
+          throw new AggregateError([error, cleanupError], `${prefix} mutation clone bootstrap cleanup failed`);
+        }
+      }
+      throw error;
     }
-    const appUrlValue = new URL(mutationAppUrl);
-    appUrlValue.pathname = `/${databaseName}`;
-    const appUrl = appUrlValue.toString();
-    const ownerUrlValue = new URL(mutationOwnerUrl);
-    ownerUrlValue.pathname = `/${databaseName}`;
-    const ownerUrl = ownerUrlValue.toString();
     let stopPromise: Promise<void> | undefined;
     return {
       appUrl,
@@ -140,24 +190,7 @@ export async function createPostgresFixture(
       },
       async migrate() {},
       stop() {
-        stopPromise ??= (async () => {
-          const client = new pg.Client({
-            connectionString: maintenanceUrl.toString(),
-          });
-          await client.connect();
-          try {
-            if (beforeCleanupSql) await client.query(beforeCleanupSql);
-            await client.query(
-              `SELECT pg_terminate_backend(pid)
-               FROM pg_stat_activity
-               WHERE datname = $1 AND pid <> pg_backend_pid()`,
-              [databaseName],
-            );
-            await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
-          } finally {
-            await client.end();
-          }
-        })();
+        stopPromise ??= cleanupClone(beforeCleanupSql);
         return stopPromise;
       },
     };

@@ -1,4 +1,5 @@
 import pg from "pg";
+import { inspect } from "node:util";
 import { expect, test } from "vitest";
 import {
   createPostgresFixture,
@@ -32,19 +33,107 @@ test("returns null when no story-scoped mutation URLs exist", () => {
   ).toBeNull();
 });
 
-test("selects the complete US-065 mutation database pair", () => {
+test.each(["US017", "US065"])("selects the complete %s mutation database pair", (prefix) => {
   expect(
     selectMutationDatabasePair({
-      US065_MUTATION_DATABASE_URL: "postgres://app:secret@database.internal/ledger",
-      US065_MUTATION_DATABASE_ADMIN_URL:
+      [`${prefix}_MUTATION_DATABASE_URL`]: "postgres://app:secret@database.internal/ledger",
+      [`${prefix}_MUTATION_DATABASE_ADMIN_URL`]:
         "postgres://owner:secret@database.internal/ledger",
     }),
   ).toEqual({
-    prefix: "US065",
+    prefix,
     appUrl: "postgres://app:secret@database.internal/ledger",
     ownerUrl: "postgres://owner:secret@database.internal/ledger",
   });
 });
+
+// Break caught: URL parse/driver errors retain credential-bearing input or a
+// bad app URL reaches a network connection before the complete pair is valid.
+test.each([
+  ["owner", "postgres://owner:credential-marker@[invalid/ledger"],
+  ["app", "postgres://app:credential-marker@[invalid/ledger"],
+  ["owner", "https://owner:credential-marker@127.0.0.1:1/ledger"],
+  ["app", "postgres://app:credential-marker%ZZ@127.0.0.1/ledger"],
+  ["owner", "postgres://owner:credential-marker@127.0.0.1/invalid-name"],
+])("rejects invalid %s URL before connecting with a secret-free error (%s)", async (kind, invalidUrl) => {
+  const restoreEnvironment = isolateMutationDatabaseEnvironment();
+  try {
+    process.env.US065_MUTATION_DATABASE_URL = "postgres://app:secret@127.0.0.1:1/ledger";
+    process.env.US065_MUTATION_DATABASE_ADMIN_URL = "postgres://owner:secret@127.0.0.1:1/ledger";
+    process.env[`US065_MUTATION_DATABASE_${kind === "owner" ? "ADMIN_" : ""}URL`] = invalidUrl;
+    const error = await createPostgresFixture().catch((failure: unknown) => failure);
+    expect(error).toBeInstanceOf(Error);
+    expect(inspect(error, { showHidden: true, depth: null })).not.toContain("credential-marker");
+    expect(JSON.stringify(error)).not.toContain("credential-marker");
+    expect(error).toMatchObject({ message: expect.stringMatching(/^US065 mutation .*invalid/) });
+    expect(Reflect.ownKeys(error as Error).sort()).toEqual(["message", "stack"]);
+  } finally {
+    restoreEnvironment();
+  }
+});
+
+// Break caught: malformed app input allocates an orphan, or a failure after
+// allocation returns no handle without compensating the real CREATE DATABASE.
+test.each(["malformed app", "post-allocation failure"])(
+  "leaves no clone after %s on a real PostgreSQL template",
+  async (failureMode) => {
+    const restoreEnvironment = isolateMutationDatabaseEnvironment();
+    let template: Awaited<ReturnType<typeof createPostgresFixture>> | undefined;
+    let unexpectedFixture: Awaited<ReturnType<typeof createPostgresFixture>> | undefined;
+    let maintenance: pg.Client | undefined;
+    try {
+      template = await createPostgresFixture();
+      const maintenanceUrl = new URL(template.ownerUrl);
+      maintenanceUrl.pathname = "/postgres";
+      maintenance = new pg.Client({ connectionString: maintenanceUrl.toString() });
+      await maintenance.connect();
+      const clones = () => maintenance!.query(
+        "SELECT datname FROM pg_database WHERE datname LIKE 'ledger_mutation_%' ORDER BY datname",
+      );
+      expect((await clones()).rows).toEqual([]);
+      process.env.US065_MUTATION_DATABASE_URL = failureMode === "malformed app"
+        ? "postgres://app:credential-marker@[invalid/ledger"
+        : template.appUrl;
+      process.env.US065_MUTATION_DATABASE_ADMIN_URL = template.ownerUrl;
+      let error: unknown;
+      try {
+        unexpectedFixture = await createPostgresFixture(failureMode === "post-allocation failure"
+          ? { afterBootstrapSql: `DO $$ BEGIN
+              IF EXISTS (SELECT 1 FROM pg_database WHERE datname LIKE 'ledger_mutation_%') THEN
+                RAISE EXCEPTION 'clone allocated' USING ERRCODE = 'P0065';
+              END IF;
+            END $$` }
+          : {});
+      } catch (failure) {
+        error = failure;
+      }
+      // Assert before error shape so RED directly identifies an orphaned clone.
+      expect((await clones()).rows).toEqual([]);
+      if (failureMode === "malformed app") {
+        expect(error).toMatchObject({ message: expect.stringMatching(/^US065 mutation .*invalid/) });
+        expect(inspect(error, { showHidden: true, depth: null })).not.toContain("credential-marker");
+        expect(JSON.stringify(error)).not.toContain("credential-marker");
+      } else {
+        expect(error).toMatchObject({ code: "P0065" });
+      }
+    } finally {
+      await unexpectedFixture?.stop();
+      if (maintenance) {
+        const remaining = await maintenance.query<{ datname: string }>(
+          "SELECT datname FROM pg_database WHERE datname LIKE 'ledger_mutation_%'",
+        );
+        for (const { datname } of remaining.rows) {
+          await maintenance.query(`DROP DATABASE "${datname.replaceAll('"', '""')}" WITH (FORCE)`);
+        }
+      }
+      await maintenance?.end();
+      restoreEnvironment();
+      // The disposable cluster owns even an orphan created by the RED version.
+      await template?.stop();
+    }
+  },
+  150_000,
+);
 
 test("selects the complete US-066 mutation database pair", () => {
   expect(
@@ -153,6 +242,14 @@ test("shares a real mutation-template cleanup failure with concurrent callers", 
     expect(secondStop).toBe(firstStop);
     await expect(firstStop).rejects.toMatchObject({ code: "42883" });
     await expect(secondStop).rejects.toMatchObject({ code: "42883" });
+    const templateOwner = await template.connectAsOwner();
+    try {
+      expect((await templateOwner.query(
+        "SELECT datname FROM pg_database WHERE datname = $1", [sandbox.databaseName],
+      )).rows).toEqual([]);
+    } finally {
+      await templateOwner.end();
+    }
   } finally {
     await Promise.allSettled(cleanupCalls);
     if (sandbox && template) {
