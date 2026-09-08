@@ -33,6 +33,51 @@ export interface PostgresFixtureOptions {
   onContainerStarted?: (container: StartedPostgreSqlContainer) => void;
 }
 
+export interface MutationDatabasePair {
+  readonly prefix: string;
+  readonly appUrl: string;
+  readonly ownerUrl: string;
+}
+
+const mutationDatabaseUrlKey = /^(US\d+)_MUTATION_DATABASE_(ADMIN_)?URL$/;
+
+export function selectMutationDatabasePair(
+  environment: Record<string, string | undefined>,
+): MutationDatabasePair | null {
+  const pairs = new Map<string, { appUrl?: string; ownerUrl?: string }>();
+
+  for (const [key, value] of Object.entries(environment)) {
+    const match = mutationDatabaseUrlKey.exec(key);
+    if (!match) continue;
+
+    const pair = pairs.get(match[1]) ?? {};
+    if (match[2]) {
+      pair.ownerUrl = value;
+    } else {
+      pair.appUrl = value;
+    }
+    pairs.set(match[1], pair);
+  }
+
+  if (pairs.size === 0) return null;
+
+  const sortedPairs = [...pairs.entries()].sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  for (const [prefix, pair] of sortedPairs) {
+    if (!pair.appUrl || !pair.ownerUrl) {
+      throw new Error(`${prefix} mutation harness requires both database URLs`);
+    }
+  }
+
+  if (sortedPairs.length > 1) {
+    throw new Error("mutation harness database pairs are ambiguous");
+  }
+
+  const [prefix, pair] = sortedPairs[0];
+  return { prefix, appUrl: pair.appUrl!, ownerUrl: pair.ownerUrl! };
+}
+
 function databaseUrl(baseUrl: string, username: string, password: string, databaseName: string): string {
   const url = new URL(baseUrl);
   url.username = username;
@@ -49,18 +94,15 @@ export async function createPostgresFixture(
     onContainerStarted,
   }: PostgresFixtureOptions = {},
 ): Promise<PostgresFixture> {
-  const mutationAppUrl = process.env.US017_MUTATION_DATABASE_URL;
-  const mutationOwnerUrl = process.env.US017_MUTATION_DATABASE_ADMIN_URL;
-  if (mutationAppUrl || mutationOwnerUrl) {
-    if (!mutationAppUrl || !mutationOwnerUrl) {
-      throw new Error("US-017 mutation harness requires both database URLs");
-    }
+  const mutationPair = selectMutationDatabasePair(process.env);
+  if (mutationPair) {
+    const { appUrl: mutationAppUrl, ownerUrl: mutationOwnerUrl, prefix } = mutationPair;
     const templateDatabase = new URL(mutationOwnerUrl).pathname.slice(1);
     if (!/^[a-z0-9_]+$/.test(templateDatabase)) {
-      throw new Error("US-017 mutation template database name is invalid");
+      throw new Error(`${prefix} mutation template database name is invalid`);
     }
     const databaseName =
-      `ledger_us017_${randomUUID().replaceAll("-", "")}`;
+      `ledger_mutation_${randomUUID().replaceAll("-", "")}`;
     const maintenanceUrl = new URL(mutationOwnerUrl);
     maintenanceUrl.pathname = "/postgres";
     const maintenance = new pg.Client({
