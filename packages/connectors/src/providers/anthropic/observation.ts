@@ -3,6 +3,7 @@ import type {
   ConnectorCallObservationSession,
   ConnectorEndpointClass,
 } from "../../connector-call-observation.js";
+import type { AnthropicCapacityFailureCode } from "./capacity-failure.js";
 
 type AnthropicEndpoint =
   | "organization"
@@ -28,6 +29,7 @@ type AnthropicAttemptObserverContract = (observation: Readonly<{
   observedAt: number;
   status: number | null;
   classification: AnthropicAttemptClassification | null;
+  failureCode?: AnthropicCapacityFailureCode;
 }>) => Promise<void>;
 
 function endpointClass(endpoint: AnthropicEndpoint): ConnectorEndpointClass {
@@ -74,6 +76,19 @@ export function createAnthropicConnectorObservationBridge(
   const requestedAttempts = new Map<number, RequestedAttempt>();
 
   return async (observation) => {
+    if (
+      observation.failureCode !== undefined
+      && (
+        observation.failureCode !== "capacity_unavailable"
+        || observation.endpoint !== "create_invite"
+        || observation.method !== "POST"
+        || observation.phase !== "completed"
+        || observation.status !== 400
+        || observation.classification !== "client_error"
+      )
+    ) {
+      throw new Error("Anthropic capacity failure code requires the exact invite response");
+    }
     const neutralEndpointClass = endpointClass(observation.endpoint);
 
     if (observation.phase === "requested") {
@@ -136,6 +151,7 @@ export function createAnthropicConnectorObservationBridge(
       method: observation.method,
       httpStatus: observation.status,
       classification: observation.classification,
+      failureCode: observation.failureCode,
     });
   };
 }

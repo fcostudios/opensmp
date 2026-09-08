@@ -38,6 +38,7 @@ export function createConnectorCallObservationAppender(connectionString: string)
       method: input.summary.method,
       httpStatus: input.summary.http_status,
       classification: input.summary.status_class,
+      failureCode: input.summary.failure_code,
     });
     await pool.query(insertConnectorCallObservation, [
       input.vendorAccountId,

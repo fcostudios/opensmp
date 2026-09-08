@@ -228,6 +228,47 @@ describe("Anthropic neutral connector", () => {
     expect(Object.isFrozen(result)).toBe(true);
   });
 
+  it("maps the exact invite seat-limit response to frozen sanitized recovery evidence", async () => {
+    // Mutations killed: losing exact no-seat classification or leaking provider fields routes capacity exhaustion as a generic failure.
+    const providerMessage = "Your organization has reached its seat limit.";
+    const { connector: implementation, journal } = fixture(async () => json({
+      type: "error",
+      error: { type: "invalid_request_error", message: providerMessage },
+    }, 400));
+    const connector = createConnectorDispatcher({ rest: implementation }).forProtocol("rest");
+
+    const result = await connector.provision({
+      requestId: REQUEST,
+      vendorAccountId: ACCOUNT,
+      personEmail: "member@example.test",
+      licenseTypeName: "Claude",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      code: "capacity_unavailable",
+      retryable: false,
+      raw: { failure_code: "capacity_unavailable" },
+    });
+    if (result.ok || result.code !== "capacity_unavailable") {
+      throw new Error("expected capacity-unavailable result");
+    }
+    expect(Object.isFrozen(result)).toBe(true);
+    expect(Object.isFrozen(result.raw)).toBe(true);
+    expect(JSON.stringify(result)).not.toContain(providerMessage);
+    expect(journal.at(-1)).toMatchObject({
+      phase: "failed",
+      classification: "client_error",
+      summary: {
+        endpoint_class: "invitations",
+        method: "POST",
+        http_status: 400,
+        status_class: "client_error",
+        failure_code: "capacity_unavailable",
+      },
+    });
+  });
+
   it.each(["other@example.test", null])(
     "rejects a provision response whose recipient is %s",
     async (email) => {

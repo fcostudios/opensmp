@@ -8,7 +8,13 @@ export type ConnectorCapability =
 export type ConnectorResult<T> =
   | { ok: true; value: T; raw: unknown }
   | { ok: false; code: "unsupported"; checklistSteps: readonly string[] }
-  | { ok: false; code: "provider_error"; retryable: boolean; raw: unknown };
+  | { ok: false; code: "provider_error"; retryable: boolean; raw: unknown }
+  | {
+    ok: false;
+    code: "capacity_unavailable";
+    retryable: false;
+    raw: { readonly failure_code: "capacity_unavailable" };
+  };
 
 export type ProvisionInput = {
   requestId: string;

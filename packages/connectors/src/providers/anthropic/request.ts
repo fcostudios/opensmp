@@ -15,6 +15,10 @@ import type {
   AnthropicRateLimiter,
   AnthropicSleep,
 } from "./rate-limiter.js";
+import {
+  readAnthropicCapacityFailure,
+  type AnthropicCapacityFailureCode,
+} from "./capacity-failure.js";
 
 export type AnthropicAttemptClassification =
   | "success" | AnthropicFailureClassification;
@@ -32,6 +36,7 @@ export type AnthropicAttemptObservation = Readonly<{
   observedAt: number;
   status: number | null;
   classification: AnthropicAttemptClassification | null;
+  failureCode?: AnthropicCapacityFailureCode;
 }>;
 
 export type AnthropicAttemptObserver = (
@@ -47,6 +52,7 @@ export type AnthropicRequestResult =
     classification: Exclude<AnthropicAttemptClassification, "success">;
     status: number | null;
     attempts: number;
+    failureCode?: AnthropicCapacityFailureCode;
   }>;
 
 export type AnthropicRequestQuery = Readonly<{
@@ -421,6 +427,9 @@ export function createAnthropicRequestExecutor(dependencies: Readonly<{
       }
 
       const classification = classifyStatus(response.status);
+      const failureCode = input.endpoint === "create_invite" && response.status === 400
+        ? await readAnthropicCapacityFailure(response, input.endpoint)
+        : null;
       try {
         await observe(Object.freeze({
           endpoint: observationEndpoint,
@@ -430,6 +439,7 @@ export function createAnthropicRequestExecutor(dependencies: Readonly<{
           observedAt: dependencies.clock.now(),
           status: response.status,
           classification,
+          ...(failureCode === null ? {} : { failureCode }),
         }));
       } catch (error) {
         await cancelResponseBody(response);
@@ -453,6 +463,7 @@ export function createAnthropicRequestExecutor(dependencies: Readonly<{
         classification,
         status: response.status,
         attempts: attempt,
+        ...(failureCode === null ? {} : { failureCode }),
       });
     }
   };

@@ -43,6 +43,7 @@ export type ConnectorCallSummary = Readonly<{
   method: ConnectorMethod;
   http_status?: number;
   status_class?: ConnectorCallClassification;
+  failure_code?: "capacity_unavailable";
 }>;
 export type ConnectorCallObservationAppendInput = Readonly<{
   vendorAccountId: string;
@@ -74,6 +75,7 @@ export type ConnectorCallObservationSession = Readonly<{
     method: "GET" | "POST" | "DELETE";
     httpStatus: number;
     classification: Exclude<ConnectorCallClassification, "success">;
+    failureCode?: "capacity_unavailable";
   }>): Promise<void>;
 }>;
 
@@ -83,6 +85,7 @@ type SummaryInput = Readonly<{
   method: ConnectorMethod;
   httpStatus?: number;
   classification?: ConnectorCallClassification;
+  failureCode?: "capacity_unavailable";
 }>;
 
 function assertUuid(value: string, field: string): void {
@@ -152,11 +155,19 @@ export function buildConnectorCallSummary(input: SummaryInput): ConnectorCallSum
     });
   }
 
+  if (
+    input.failureCode !== undefined
+    && (input.phase !== "failed" || input.failureCode !== "capacity_unavailable")
+  ) {
+    throw new Error("Invalid connector failure code");
+  }
+
   return Object.freeze({
     endpoint_class: input.endpointClass,
     method: input.method,
     http_status: input.httpStatus,
     status_class: input.classification,
+    ...(input.failureCode === undefined ? {} : { failure_code: input.failureCode }),
   });
 }
 
@@ -274,6 +285,7 @@ export function createConnectorCallObservationSession(input: Readonly<{
       method: ConnectorMethod;
       httpStatus: number;
       classification: Exclude<ConnectorCallClassification, "success">;
+      failureCode?: "capacity_unavailable";
     }>,
   ): Promise<void> => {
     assertHttpStatus(response.httpStatus);
@@ -288,6 +300,7 @@ export function createConnectorCallObservationSession(input: Readonly<{
         method: response.method,
         httpStatus: response.httpStatus,
         classification: response.classification,
+        failureCode: response.failureCode,
       }),
     );
   };

@@ -174,12 +174,30 @@ function validateResult<T>(
   result: ConnectorResult<T>,
   operation: "instruction" | "sync",
 ): ConnectorResult<T> {
-  if (result.ok || result.code === "provider_error") {
+  if (
+    result.ok
+    || result.code === "provider_error"
+    || result.code === "capacity_unavailable"
+  ) {
     const raw = deepFreeze(assertJsonValue(result.raw, "raw"));
     if (result.ok) {
       return Object.freeze({
         ok: true,
         value: cloneAndFreeze(result.value),
+        raw,
+      });
+    }
+    if (result.code === "capacity_unavailable") {
+      if (
+        !isCapacityUnavailableRaw(raw)
+        || result.retryable !== false
+      ) {
+        throw new Error("Invalid connector capacity unavailable result");
+      }
+      return Object.freeze({
+        ok: false,
+        code: "capacity_unavailable",
+        retryable: false,
         raw,
       });
     }
@@ -200,6 +218,17 @@ function validateResult<T>(
     code: "unsupported",
     checklistSteps: Object.freeze([...result.checklistSteps]),
   });
+}
+
+function isCapacityUnavailableRaw(
+  raw: unknown,
+): raw is Readonly<{ failure_code: "capacity_unavailable" }> {
+  return typeof raw === "object"
+    && raw !== null
+    && !Array.isArray(raw)
+    && Object.keys(raw).length === 1
+    && Object.hasOwn(raw, "failure_code")
+    && (raw as { failure_code?: unknown }).failure_code === "capacity_unavailable";
 }
 
 function deepFreeze<T>(value: T): T {

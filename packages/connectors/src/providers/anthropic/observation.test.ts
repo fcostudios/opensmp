@@ -104,6 +104,58 @@ describe("Anthropic connector observation bridge", () => {
     },
   );
 
+  it("preserves the recognized capacity failure only on its client-error terminal summary", async () => {
+    // Mutations killed: changing the durable classification or dropping the allowlisted recovery fact misroutes no-seat work.
+    const { appended, bridge } = createBridgeFixture();
+    await bridge(observation({ endpoint: "create_invite", method: "POST" }));
+    await bridge(observation({
+      endpoint: "create_invite",
+      method: "POST",
+      phase: "completed",
+      status: 400,
+      classification: "client_error",
+      failureCode: "capacity_unavailable",
+    } as never));
+
+    expect(appended[1]).toMatchObject({
+      phase: "failed",
+      classification: "client_error",
+      summary: {
+        endpoint_class: "invitations",
+        method: "POST",
+        http_status: 400,
+        status_class: "client_error",
+        failure_code: "capacity_unavailable",
+      },
+    });
+  });
+
+  it.each([
+    ["wrong endpoint", "members", "GET", 400, "client_error"],
+    ["wrong method", "create_invite", "GET", 400, "client_error"],
+    ["wrong status", "create_invite", "POST", 401, "client_error"],
+    ["wrong classification", "create_invite", "POST", 400, "provider_error"],
+  ] as const)("rejects a capacity failure code with %s", async (
+    _case,
+    endpoint,
+    method,
+    status,
+    classification,
+  ) => {
+    // Mutations killed: forwarding the recovery code outside its exact provider fact fabricates durable capacity evidence.
+    const { appended, bridge } = createBridgeFixture();
+
+    await expect(bridge(observation({
+      endpoint,
+      method,
+      phase: "completed",
+      status,
+      classification,
+      failureCode: "capacity_unavailable",
+    } as never))).rejects.toThrowError("Anthropic capacity failure code requires the exact invite response");
+    expect(appended).toEqual([]);
+  });
+
   it.each([
     [429, "rate_limited"],
     [503, "provider_error"],

@@ -249,7 +249,13 @@ async function executeConnectorContract<T>(input: Readonly<{
       expect(Object.keys(observation.summary).sort()).toEqual(
         observation.phase === "requested"
           ? ["endpoint_class", "method"]
-          : ["endpoint_class", "http_status", "method", "status_class"],
+          : [
+            "endpoint_class",
+            ...(observation.summary.failure_code === undefined ? [] : ["failure_code"]),
+            "http_status",
+            "method",
+            "status_class",
+          ],
       );
     }
     input.verify(result, observations);
@@ -334,6 +340,108 @@ describe("Anthropic connector consumer contract", () => {
         if (!result.ok) throw new Error("expected connector success");
         expect(Object.isFrozen(result.value)).toBe(true);
         expectJournal(observations, ["success"]);
+      },
+    });
+  });
+
+  test("maps the exact invite seat-limit contract response to sanitized capacity evidence", async () => {
+    const providerMessage = "Your organization has reached its seat limit.";
+    const providerRequestId = "provider-request-sentinel";
+    await executeConnectorContract({
+      interactions: [{
+        description: "connector receives the exact organization seat limit",
+        keyKind: "admin",
+        request: {
+          method: "POST",
+          path: "/v1/organizations/invites",
+          headers: { "content-type": "application/json" },
+          body: { email: "member@example.invalid", role: "user" },
+        },
+        response: {
+          status: 400,
+          headers: {
+            "content-type": "application/json",
+            "request-id": providerRequestId,
+          },
+          body: {
+            type: "error",
+            error: {
+              type: "invalid_request_error",
+              message: providerMessage,
+            },
+          },
+        },
+      }],
+      invoke: (connector) => connector.provision({
+        requestId,
+        vendorAccountId,
+        personEmail: "member@example.invalid",
+        licenseTypeName: "Enterprise",
+      }),
+      verify: (result, observations) => {
+        expect(result).toEqual({
+          ok: false,
+          code: "capacity_unavailable",
+          retryable: false,
+          raw: { failure_code: "capacity_unavailable" },
+        });
+        const serialized = JSON.stringify({ result, observations });
+        expect(serialized).not.toContain(providerMessage);
+        expect(serialized).not.toContain(providerRequestId);
+        expect(observations.at(-1)).toMatchObject({
+          phase: "failed",
+          classification: "client_error",
+          summary: {
+            endpoint_class: "invitations",
+            method: "POST",
+            http_status: 400,
+            status_class: "client_error",
+            failure_code: "capacity_unavailable",
+          },
+        });
+        expectJournal(observations, ["client_error"]);
+      },
+    });
+  });
+
+  test("keeps a near-match invite capacity response on the generic failure path", async () => {
+    await executeConnectorContract({
+      interactions: [{
+        description: "connector receives a near-match organization seat limit",
+        keyKind: "admin",
+        request: {
+          method: "POST",
+          path: "/v1/organizations/invites",
+          headers: { "content-type": "application/json" },
+          body: { email: "member@example.invalid", role: "user" },
+        },
+        response: {
+          status: 400,
+          headers: { "content-type": "application/json" },
+          body: {
+            type: "error",
+            error: {
+              type: "invalid_request_error",
+              message: "Your organization has reached its seat limit. Please contact support.",
+            },
+          },
+        },
+      }],
+      invoke: (connector) => connector.provision({
+        requestId,
+        vendorAccountId,
+        personEmail: "member@example.invalid",
+        licenseTypeName: "Enterprise",
+      }),
+      verify: (result, observations) => {
+        expect(result).toEqual({
+          ok: false,
+          code: "provider_error",
+          retryable: false,
+          raw: null,
+        });
+        expect(observations.at(-1)?.summary).not.toHaveProperty("failure_code");
+        expectJournal(observations, ["client_error"]);
       },
     });
   });
@@ -1128,12 +1236,12 @@ afterAll(() => inspectThenCleanup(
     const connectorContract = JSON.parse(
       readFileSync(connectorContractPath, "utf8"),
     ) as { interactions?: Array<{ description?: string }> };
-    expect(connectorContract.interactions).toHaveLength(22);
+    expect(connectorContract.interactions).toHaveLength(24);
     expect(
       new Set(
         connectorContract.interactions?.map(({ description }) => description),
       ).size,
-    ).toBe(22);
+    ).toBe(24);
     const connectorContractJson = JSON.stringify(connectorContract);
     expect(connectorContractJson).toContain("^contract-admin-key$");
     expect(connectorContractJson).toContain("^contract-analytics-key$");

@@ -26,6 +26,7 @@ const ids = {
   visibleCorrelation: "60000000-0000-4000-8000-000000000020",
   clientFailureCorrelation: "60000000-0000-4000-8000-000000000021",
   providerFailureCorrelation: "60000000-0000-4000-8000-000000000022",
+  capacityFailureCorrelation: "60000000-0000-4000-8000-000000000027",
   retryCorrelation: "60000000-0000-4000-8000-000000000023",
   ambiguousCorrelation: "60000000-0000-4000-8000-000000000024",
   requestedFailureCorrelation: "60000000-0000-4000-8000-000000000025",
@@ -752,6 +753,62 @@ describe("US-057 PostgreSQL connector-call observation appender", () => {
           },
         ]);
       }
+
+      const capacityFailure = createJournaledAnthropicExecutor({
+        append: journal.append,
+        correlationId: ids.capacityFailureCorrelation,
+        createObservationBridge: createAnthropicConnectorObservationBridge,
+        createRateLimiter: createAnthropicRateLimiter,
+        createRequestExecutor: createAnthropicRequestExecutor,
+        operation: "provision",
+        provisioningActionId: ids.action,
+        transport: async () => new Response(JSON.stringify({
+          type: "error",
+          error: {
+            type: "invalid_request_error",
+            message: "Your organization has reached its seat limit.",
+          },
+        }), {
+          status: 400,
+          headers: { "content-type": "application/json" },
+        }),
+      });
+
+      await expect(capacityFailure({
+        endpoint: "create_invite",
+        vendorAccountId: ids.account,
+        credentials: anthropicCredentials,
+        body: { email: "provider-boundary@example.test" },
+      })).resolves.toEqual({
+        ok: false,
+        classification: "client_error",
+        status: 400,
+        attempts: 1,
+        failureCode: "capacity_unavailable",
+      });
+      expect(await persistedLifecycle(
+        observerConnection,
+        ids.capacityFailureCorrelation,
+      )).toEqual([
+        {
+          attempt: 1,
+          phase: "requested",
+          classification: null,
+          summary: { endpoint_class: "invitations", method: "POST" },
+        },
+        {
+          attempt: 1,
+          phase: "failed",
+          classification: "client_error",
+          summary: {
+            endpoint_class: "invitations",
+            method: "POST",
+            http_status: 400,
+            status_class: "client_error",
+            failure_code: "capacity_unavailable",
+          },
+        },
+      ]);
 
       const retryStatuses = [503, 200];
       const retry = createJournaledAnthropicExecutor({

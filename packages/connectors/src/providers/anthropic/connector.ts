@@ -40,6 +40,12 @@ type ProviderFailure = Readonly<{
   retryable: boolean;
   raw: null;
 }>;
+type CapacityFailure = Readonly<{
+  ok: false;
+  code: "capacity_unavailable";
+  retryable: false;
+  raw: Readonly<{ failure_code: "capacity_unavailable" }>;
+}>;
 
 type IdPage<T> = Readonly<{
   data: readonly T[];
@@ -84,6 +90,15 @@ const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 function providerFailure(retryable = false): ProviderFailure {
   return Object.freeze({ ok: false, code: "provider_error", retryable, raw: null });
+}
+
+function capacityFailure(): CapacityFailure {
+  return Object.freeze({
+    ok: false,
+    code: "capacity_unavailable",
+    retryable: false,
+    raw: Object.freeze({ failure_code: "capacity_unavailable" }),
+  });
 }
 
 function deepFreeze<T>(value: T): T {
@@ -353,9 +368,10 @@ export function createAnthropicConnector(dependencies: AnthropicConnectorDepende
   async function request(
     operation: OperationContext,
     input: Parameters<OperationContext["execute"]>[0],
-  ): Promise<{ ok: true; body: unknown } | ProviderFailure> {
+  ): Promise<{ ok: true; body: unknown } | ProviderFailure | CapacityFailure> {
     const result = await operation.execute(input);
     if (!result.ok) {
+      if (result.failureCode === "capacity_unavailable") return capacityFailure();
       return providerFailure(anthropicFailureRetryable(
         endpointPolicy(input.endpoint, input.parameters),
         result.classification,
@@ -373,7 +389,7 @@ export function createAnthropicConnector(dependencies: AnthropicConnectorDepende
     endpoint: "members" | "invites",
     vendorAccountId: string,
     parser: (item: unknown) => T | null,
-  ): Promise<{ ok: true; data: T[] } | ProviderFailure> {
+  ): Promise<{ ok: true; data: T[] } | ProviderFailure | CapacityFailure> {
     const data: T[] = [];
     const seen = new Set<string>();
     let continuation: string | undefined;
@@ -400,7 +416,7 @@ export function createAnthropicConnector(dependencies: AnthropicConnectorDepende
     vendorAccountId: string,
     observedOn: string,
     parser: (item: unknown) => T | null,
-  ): Promise<{ ok: true; data: T[] } | ProviderFailure> {
+  ): Promise<{ ok: true; data: T[] } | ProviderFailure | CapacityFailure> {
     const data: T[] = [];
     const seen = new Set<string>();
     let continuation: string | undefined;
