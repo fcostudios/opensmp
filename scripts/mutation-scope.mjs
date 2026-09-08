@@ -1818,7 +1818,24 @@ function discoverMutationShardSpecs(changed, targetProvider, dependencies = {}) 
   };
 }
 
-function canonicalPlannedPaths(paths, fileExists, readFile, stat) {
+/** The smallest reusable observation of discovery: closed shard membership,
+ * without campaign identities or configuration. */
+export function discoverMutationShardSummaries(changed, targetProvider, dependencies = {}) {
+  return Object.freeze(discoverMutationShardSpecs(changed, targetProvider, dependencies)
+    .shardSpecs.map((spec) => Object.freeze({
+      kind: spec.kind,
+      mutate: Object.freeze([...spec.mutate]),
+      sources: Object.freeze([...spec.sources]),
+      testFiles: Object.freeze([...spec.testFiles]),
+    })));
+}
+
+function pathEscapesRepository(repositoryRoot, candidate) {
+  const fromRoot = relative(repositoryRoot, candidate);
+  return fromRoot === ".." || fromRoot.startsWith(`..${sep}`);
+}
+
+function canonicalPlannedPaths(paths, fileExists, readFile, stat, realpath, repositoryRoot) {
   if (!Array.isArray(paths) || paths.length === 0) {
     throw new Error("planned scope requires at least one repository-relative path");
   }
@@ -1835,6 +1852,15 @@ function canonicalPlannedPaths(paths, fileExists, readFile, stat) {
       throw new Error(`planned scope path is a generated artifact: ${path}`);
     }
     if (!fileExists(path)) throw new Error(`planned scope path does not exist: ${path}`);
+    let candidate;
+    try {
+      candidate = realpath(path);
+    } catch {
+      throw new Error(`planned scope path is not a readable regular file: ${path}`);
+    }
+    if (pathEscapesRepository(repositoryRoot, candidate)) {
+      throw new Error(`planned scope path escapes the real repository root: ${path}`);
+    }
     try {
       if (!stat(path).isFile()) throw new Error("not a file");
     } catch {
@@ -1858,7 +1884,11 @@ export function calculatePlannedMutationScope(paths, dependencies = {}) {
   const fileExists = dependencies.fileExists ?? existsSync;
   const readFile = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
   const stat = dependencies.stat ?? statSync;
-  const { contents, files } = canonicalPlannedPaths(paths, fileExists, readFile, stat);
+  const realpath = dependencies.realpath ?? realpathSync;
+  const repositoryRoot = realpath(dependencies.repositoryRoot ?? resolve("."));
+  const { contents, files } = canonicalPlannedPaths(
+    paths, fileExists, readFile, stat, realpath, repositoryRoot,
+  );
   const targetProvider = (sources) => sources.flatMap((source) => {
     const staticSpec = VITEST_CONFIG_STATIC_SPECS[source];
     if (staticSpec) return [staticSpec.range];

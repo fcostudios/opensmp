@@ -8,6 +8,7 @@ import {
   existsSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -28,6 +29,7 @@ import {
   createCampaignRuntimeProfileResolver,
   createDatabaseShardSandbox,
   databaseHarnessIdentity,
+  discoverMutationShardSummaries,
   exitAfterDatabaseCleanup,
   groupRoutedMutationTargets,
   isDatabaseBacked,
@@ -51,9 +53,12 @@ import {
 } from "./mutation-scope.mjs";
 import mutationVitestConfig from "../vitest.mutation.config.mjs";
 
+const realpathIn = (root, path) => realpathSync(path.startsWith("/") ? path : join(root, path));
+
 // Break caught: a readiness estimate silently omits or merges a planned
 // mutation boundary instead of preserving every routed source as its own shard.
 const plannedScopeFixtureRoot = mkdtempSync(join(tmpdir(), "smp-planned-mutation-scope-"));
+const plannedScopeOutsideRoot = mkdtempSync(join(tmpdir(), "smp-planned-mutation-scope-outside-"));
 const writePlannedScopeFixture = (path, contents) => {
   const destination = join(plannedScopeFixtureRoot, path);
   mkdirSync(dirname(destination), { recursive: true });
@@ -83,6 +88,8 @@ try {
     fileExists: (path) => existsSync(join(plannedScopeFixtureRoot, path)),
     readFile: (path) => readFileSync(join(plannedScopeFixtureRoot, path), "utf8"),
     stat: (path) => statSync(join(plannedScopeFixtureRoot, path)),
+    realpath: (path) => realpathIn(plannedScopeFixtureRoot, path),
+    repositoryRoot: realpathSync(plannedScopeFixtureRoot),
   });
 
   assert.deepEqual(plannedScope.files, [
@@ -110,8 +117,31 @@ try {
       mutate: ["src/beta.ts:1-1"],
     },
   ]);
+  writeFileSync(join(plannedScopeOutsideRoot, "external.ts"), "export const external = true;\n", "utf8");
+  writeFileSync(join(plannedScopeOutsideRoot, "external.test.ts"), "export {};\n", "utf8");
+  symlinkSync(plannedScopeOutsideRoot, join(plannedScopeFixtureRoot, "src", "escaped"), "dir");
+  let readEscapedPath = false;
+  assert.throws(
+    () => calculatePlannedMutationScope([
+      "src/escaped/external.ts",
+      "src/escaped/external.test.ts",
+    ], {
+      fileExists: (path) => existsSync(join(plannedScopeFixtureRoot, path)),
+      readFile: (path) => {
+        if (path.startsWith("src/escaped/")) readEscapedPath = true;
+        return readFileSync(join(plannedScopeFixtureRoot, path), "utf8");
+      },
+      stat: (path) => statSync(join(plannedScopeFixtureRoot, path)),
+      realpath: (path) => realpathIn(plannedScopeFixtureRoot, path),
+      repositoryRoot: realpathSync(plannedScopeFixtureRoot),
+    }),
+    /escapes the real repository root/i,
+    "a canonical-looking path through a symlinked parent cannot leave the repository",
+  );
+  assert.equal(readEscapedPath, false, "planned scope rejects an escaped path before reading it");
 } finally {
   rmSync(plannedScopeFixtureRoot, { force: true, recursive: true });
+  rmSync(plannedScopeOutsideRoot, { force: true, recursive: true });
 }
 
 // Break caught: an invalid planned boundary starts a mutation campaign, writes
@@ -138,6 +168,13 @@ try {
     "",
   ].join("\n"));
   writePlannedCliFixture("apps/web/next.config.test.ts", "export {};\n");
+  writePlannedCliFixture(
+    "apps/web/src/modules/alerts/actions.ts",
+    readFileSync("apps/web/src/modules/alerts/actions.ts", "utf8"),
+  );
+  writePlannedCliFixture("apps/web/src/modules/alerts/ack-alert-service.test.ts", "export {};\n");
+  writePlannedCliFixture("packages/db/src/schema.ts", "export const schema = true;\n");
+  writePlannedCliFixture("packages/db/src/schema.test.ts", "export {};\n");
   execFileSync("git", ["add", "."], { cwd: plannedCliFixtureRoot });
   execFileSync("git", ["commit", "--quiet", "-m", "planned CLI fixture"], {
     cwd: plannedCliFixtureRoot,
@@ -189,6 +226,8 @@ try {
     fileExists: (path) => existsSync(join(plannedCliFixtureRoot, path)),
     readFile: (path) => readFileSync(join(plannedCliFixtureRoot, path), "utf8"),
     stat: (path) => statSync(join(plannedCliFixtureRoot, path)),
+    realpath: (path) => realpathIn(plannedCliFixtureRoot, path),
+    repositoryRoot: realpathSync(plannedCliFixtureRoot),
   });
   assert.deepEqual(staticScope.shards.map(({ kind, sources, testFiles, mutate }) => ({
     kind, sources, testFiles, mutate,
@@ -221,18 +260,44 @@ try {
     ".git/ledger-mutation-cache",
   ]) assert.equal(existsSync(join(plannedCliFixtureRoot, path)), false, `planned scope must not write ${path}`);
 
-  const planned = calculatePlannedMutationScope(["src/cli.ts", "src/cli.test.ts"], {
+  const equivalencePaths = [
+    "apps/web/next.config.test.ts",
+    "apps/web/src/modules/alerts/ack-alert-service.test.ts",
+    "apps/web/src/modules/alerts/actions.ts",
+    "apps/web/vitest.config.ts",
+    "packages/db/src/schema.test.ts",
+    "packages/db/src/schema.ts",
+    "src/cli.test.ts",
+    "src/cli.ts",
+  ];
+  const equivalenceDependencies = {
+    directRoutes: {
+      "apps/web/src/modules/alerts/actions.ts": [
+        "apps/web/src/modules/alerts/ack-alert-service.test.ts",
+      ],
+      "apps/web/vitest.config.ts": ["apps/web/next.config.test.ts"],
+      "packages/db/src/schema.ts": ["packages/db/src/schema.test.ts"],
+    },
     fileExists: (path) => existsSync(join(plannedCliFixtureRoot, path)),
     readFile: (path) => readFileSync(join(plannedCliFixtureRoot, path), "utf8"),
     stat: (path) => statSync(join(plannedCliFixtureRoot, path)),
-  });
+    realpath: (path) => realpathIn(plannedCliFixtureRoot, path),
+    repositoryRoot: realpathSync(plannedCliFixtureRoot),
+  };
+  const planned = calculatePlannedMutationScope(equivalencePaths, equivalenceDependencies);
   assert.deepEqual(
     planned.shards.map(({ kind, sources, testFiles, mutate }) => ({ kind, sources, testFiles, mutate })),
-    groupRoutedMutationTargets(
-      ["src/cli.ts:1-2"],
-      (source) => source === "src/cli.ts" ? ["src/cli.test.ts"] : [],
-    ).map((group) => ({ kind: "vitest", ...group })),
-    "full-file planned discovery must use the ordinary routing and grouping boundary",
+    discoverMutationShardSummaries(
+      equivalencePaths,
+      (sources) => sources.flatMap((source) => {
+        if (source === "apps/web/vitest.config.ts") return ["apps/web/vitest.config.ts:21-21"];
+        const contents = readFileSync(join(plannedCliFixtureRoot, source), "utf8");
+        const count = contents.split(/\r?\n/).length - (contents.endsWith("\n") ? 1 : 0);
+        return count > 0 ? [`${source}:1-${count}`] : [];
+      }),
+      equivalenceDependencies,
+    ),
+    "full-file planned and ordinary discovery must share classification, routing, static, and ordering behavior",
   );
 } finally {
   rmSync(plannedCliFixtureRoot, { force: true, recursive: true });
