@@ -1624,6 +1624,12 @@ export const DIRECT_TEST_ROUTES = {
   "apps/web/src/modules/request-workflow/transition-core.ts": [
     "apps/web/src/modules/request-workflow/service.integration.test.ts",
   ],
+  "apps/web/src/modules/request-workflow/actions/checklist-action-production-dependencies.ts": [
+    "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+  ],
+  "apps/web/src/modules/request-workflow/actions/checklist.ts": [
+    "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+  ],
   "apps/web/src/modules/vendor-catalog/credential-crypto.ts": [
     "apps/web/src/modules/vendor-catalog/credential-crypto-adapter.test.ts",
   ],

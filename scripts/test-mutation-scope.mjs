@@ -1153,6 +1153,38 @@ assert.throws(
   () => requireRoutedTestFiles(["src/account.ts"], ["src/account.ts"], () => false),
   /mutatable source has no responsible Vitest test route: src\/account\.ts/,
 );
+const checklistProductionDependencies =
+  "apps/web/src/modules/request-workflow/actions/checklist-action-production-dependencies.ts";
+const checklistProductionIntegration =
+  "apps/web/src/modules/request-workflow/orchestration.integration.test.ts";
+const checklistServerAction =
+  "apps/web/src/modules/request-workflow/actions/checklist.ts";
+assert.deepEqual(
+  routedTestFiles(
+    [checklistProductionDependencies, checklistProductionIntegration],
+    [checklistProductionDependencies],
+  ),
+  [checklistProductionIntegration],
+  "the checklist production dependency is accountable to the integration that invokes its production action factory",
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES[checklistServerAction],
+  [checklistProductionIntegration],
+  "the checklist server action is accountable to the integration that exercises its mutation flow",
+);
+assert.deepEqual(
+  calculatePlannedMutationScope([
+    checklistProductionIntegration,
+    checklistProductionDependencies,
+  ]).shards.map(({ kind, sources, testFiles, mutate }) => ({ kind, sources, testFiles, mutate })),
+  [{
+    kind: "vitest",
+    sources: [checklistProductionDependencies],
+    testFiles: [checklistProductionIntegration],
+    mutate: [`${checklistProductionDependencies}:1-14`],
+  }],
+  "planned scope keeps the checklist production dependency inside an accountable mutation shard",
+);
 assert.deepEqual(
   groupRoutedMutationTargets(
     ["src/a.ts:1-2", "src/a.ts:5-5", "src/b.ts:3-3", "src/c.ts:4-4"],
