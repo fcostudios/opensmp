@@ -141,7 +141,7 @@ beforeAll(async () => {
   await owner.query(
     `INSERT INTO vendor_account
        (id,vendor_id,name,mode,low_pool_floor,status,created_at,created_by)
-     VALUES ($1,$2,'Account','automated',1,'active',$3,$4)`,
+     VALUES ($1,$2,'Account','orchestration',1,'active',$3,$4)`,
     [ids.account, ids.vendor, at, ids.admin],
   );
   await owner.query(
@@ -217,6 +217,10 @@ describe("US-023 capacity recovery with real PostgreSQL", () => {
       ],
     );
 
+    const failedBefore = await owner.query(
+      `SELECT to_jsonb(action) AS snapshot FROM provisioning_action action WHERE id=$1`,
+      [ids.actionNoSeat],
+    );
     const job = createCapacityRecoveryJob({ connectionString: fixture.appUrl, now: () => at });
     try {
       await expect(job.drain()).resolves.toEqual({ processed: 1 });
@@ -239,13 +243,14 @@ describe("US-023 capacity recovery with real PostgreSQL", () => {
       }]);
       const replacements = await owner.query<{
         id: string;
+        kind: string;
         mode: string;
         operation: string;
         request_id: string;
         status: string;
         vendor_account_id: string;
       }>(
-        `SELECT id::text,request_id::text,vendor_account_id::text,status::text,mode::text,
+        `SELECT id::text,request_id::text,vendor_account_id::text,status::text,kind::text,mode::text,
                 raw_request->>'operation' AS operation
          FROM provisioning_action WHERE request_id=$1 AND id <> $2 ORDER BY created_at,id`,
         [ids.requestNoSeat, ids.actionNoSeat],
@@ -253,7 +258,8 @@ describe("US-023 capacity recovery with real PostgreSQL", () => {
       expect(replacements.rows).toHaveLength(1);
       expect(replacements.rows[0]).toEqual({
         id: expect.not.stringMatching(new RegExp(`^${ids.actionNoSeat}$`)),
-        mode: "orchestration",
+        kind: "invite",
+        mode: "automated",
         operation: "provision",
         request_id: ids.requestNoSeat,
         status: "pending",
@@ -291,11 +297,11 @@ describe("US-023 capacity recovery with real PostgreSQL", () => {
           occurred_at: at,
         },
         {
-          action: "orchestration.checklist_issued",
+          action: "orchestration.automated_action_issued",
           actor_user_id: null,
           after: {
-            kind: "checklist",
-            mode: "orchestration",
+            kind: "invite",
+            mode: "automated",
             requestId: ids.requestNoSeat,
             status: "pending",
           },
@@ -315,6 +321,14 @@ describe("US-023 capacity recovery with real PostgreSQL", () => {
         [ids.requestNoSeat],
       );
       expect(replay.rows).toEqual([{ actions: 2, transitions: 1 }]);
+      await expect(owner.query(
+        `SELECT to_jsonb(action) AS snapshot FROM provisioning_action action WHERE id=$1`,
+        [ids.actionNoSeat],
+      )).resolves.toMatchObject({ rows: failedBefore.rows });
+      await expect(owner.query(
+        `SELECT state FROM license_request WHERE id=$1 AND company_id=$2`,
+        [ids.requestB, ids.companyB],
+      )).resolves.toMatchObject({ rows: [{ state: "blocked_no_seat" }] });
     } finally {
       await job.close();
     }

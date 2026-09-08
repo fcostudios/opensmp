@@ -348,12 +348,15 @@ type OperationContext = Readonly<{
   execute: ReturnType<typeof createRequestExecutor>;
 }>;
 
-export function createAnthropicConnector(dependencies: AnthropicConnectorDependencies): VendorConnector {
+// Capability inspection does not need credentials, observations, or transport.
+// Execution always requires the complete runtime dependencies.
+export function createAnthropicConnector(dependencies?: AnthropicConnectorDependencies): VendorConnector {
   async function context(
     vendorAccountId: string,
     requestId: string | null,
     operation: ConnectorOperation,
   ): Promise<OperationContext> {
+    if (!dependencies) throw new Error("ANTHROPIC_EXECUTION_NOT_CONFIGURED");
     const credentials = await dependencies.credentialsFor(vendorAccountId);
     const session = await dependencies.observationSessionFor({ vendorAccountId, requestId, operation });
     return {

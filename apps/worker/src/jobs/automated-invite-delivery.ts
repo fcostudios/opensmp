@@ -369,8 +369,6 @@ export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliver
         personEmail: instruction.personEmail,
         licenseTypeName: instruction.licenseTypeName,
       });
-      // Stryker disable next-line ConditionalExpression: @equivalent Anthropic provision success
-      // is constructed only after parsing a non-null invitation id; ok plus null is unrepresentable.
       if (!result.ok) {
         return result.code === "capacity_unavailable"
           ? await finalizeNoSeat(client, candidate, occurredAt)

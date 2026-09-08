@@ -1,3 +1,4 @@
+import type { ConnectorDispatcher } from "@smp/connectors";
 import {
   ecuadorOperatingDate,
   lockCapacityPool,
@@ -7,6 +8,8 @@ import * as schema from "@smp/db/schema";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 
+import { createProvisioningPlanningDispatcher } from "../connector-composition.js";
+
 export function createCapacityRecoveryJob({
   connectionString,
   now = () => new Date(),
@@ -15,6 +18,7 @@ export function createCapacityRecoveryJob({
   readonly now?: () => Date;
 }) {
   const pool = new pg.Pool({ connectionString });
+  const dispatcher = createProvisioningPlanningDispatcher();
   return {
     async close(): Promise<void> {
       await pool.end();
@@ -53,7 +57,7 @@ export function createCapacityRecoveryJob({
             await recover(pool, {
               licenseTypeId: work.license_type_id,
               vendorAccountId: work.vendor_account_id,
-            }, at);
+            }, at, dispatcher);
             const completed = await pool.query(
               `UPDATE capacity_recovery_work SET status='completed',completed_at=$3,
                  lease_token=NULL,lease_expires_at=NULL
@@ -89,6 +93,7 @@ async function recover(
     readonly vendorAccountId: string;
   },
   occurredAt: Date,
+  dispatcher: ConnectorDispatcher,
 ): Promise<{ readonly resumedRequestIds: string[] }> {
   const client = await pool.connect();
   try {
@@ -140,7 +145,7 @@ async function recover(
         note: "Capacity became available",
         occurredAt,
         requestId: candidate.request_id,
-      });
+      }, dispatcher);
     }
     await client.query("COMMIT");
     return { resumedRequestIds: candidates.rows.map((row) => row.request_id) };

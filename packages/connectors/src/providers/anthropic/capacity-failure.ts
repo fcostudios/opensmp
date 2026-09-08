@@ -8,6 +8,65 @@ export const anthropicCapacityFailureMessages = Object.freeze([
 
 const maximumBodyBytes = 8 * 1024;
 
+/** Parse only the object/string grammar used by the closed two-level error envelope.
+ * The caller bounds input to 8 KiB; depth is bounded independently. Decode string
+ * tokens with the native JSON parser, but never let it erase duplicate object
+ * members. Decoded-key comparison also rejects Unicode-escaped duplicates.
+ */
+function parseUniqueEnvelope(text: string): unknown {
+  let offset = 0;
+  function invalid(): never {
+    throw new Error("INVALID_CAPACITY_ENVELOPE");
+  }
+  function whitespace(): void {
+    while (" \t\r\n".includes(text[offset] ?? "\0")) offset += 1;
+  }
+  function consume(token: string): void {
+    whitespace();
+    if (text[offset] !== token) invalid();
+    offset += 1;
+  }
+  function string(): string {
+    whitespace();
+    const start = offset;
+    consume('"');
+    while (offset < text.length) {
+      const token = text[offset];
+      offset += 1;
+      if (token === '"') return JSON.parse(text.slice(start, offset)) as string;
+      // Skip exactly one escaped character; JSON.parse validates escape syntax,
+      // Unicode digits, control characters, and string termination.
+      if (token === "\\") offset += 1;
+    }
+    return invalid();
+  }
+  function value(depth: number): unknown {
+    whitespace();
+    if (text[offset] === '"') return string();
+    if (depth >= 2) invalid();
+    consume("{");
+    const object: Record<string, unknown> = Object.create(null);
+    whitespace();
+    if (text[offset] !== "}") {
+      for (;;) {
+        const key = string();
+        if (Object.hasOwn(object, key)) invalid();
+        consume(":");
+        object[key] = value(depth + 1);
+        whitespace();
+        if (text[offset] === "}") break;
+        consume(",");
+      }
+    }
+    consume("}");
+    return object;
+  }
+  const result = value(0);
+  whitespace();
+  if (offset !== text.length) invalid();
+  return result;
+}
+
 function exactRecord(
   value: unknown,
   keys: readonly string[],
@@ -86,7 +145,7 @@ export async function readAnthropicCapacityFailure(
   const text = await readBoundedUtf8(response.body);
   if (text === null) return null;
   try {
-    const envelope = exactRecord(JSON.parse(text), ["type", "error"]);
+    const envelope = exactRecord(parseUniqueEnvelope(text), ["type", "error"]);
     const error = envelope === null ? null : exactRecord(envelope.error, ["type", "message"]);
     if (
       envelope?.type === "error"
