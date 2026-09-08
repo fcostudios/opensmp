@@ -16,7 +16,25 @@
   "decision": "ready",
   "partitions": [],
   "approval": {"status": "approved", "approved_by": "Francisco Lomas", "evidence": "US064-READY", "payload_sha256": "e1a1d0ac1db253740fe51ecf6073bce4209617ba8f446c8e2305be6e9a80518e"},
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 22,
+      "implementation": 83,
+      "focused_verification": 15,
+      "review": 54,
+      "integration": 15
+    },
+    "total": 189,
+    "changed_files": 33,
+    "commits": 9,
+    "review_fix_loops": 9,
+    "cold_mutation_attempts": 2,
+    "mutation_invalidations": 1,
+    "mutation_minutes": 9,
+    "mutation_shards_actual": 12,
+    "estimate_variance_minutes": 85,
+    "root_cause": "Measured from the approved readiness commit 83462bd at 2026-09-08T02:46:04Z through the terminal evidence at 2026-09-08T06:00:07Z. Readiness is the 22-minute approval-to-plan interval ending at a528da7; the remaining 167 minutes are allocated by durable cutoffs: started-to-initial reviewed source 03ab54d (83 implementation), source-to-adversarial evidence (15 focused verification), first evidence through the cohesive post-campaign repair d8a8019 (54 review), and final immutable-source check plus campaign (15 integration). Reproduce changed_files with git diff --name-only authority/us-064-base..d8a80197a97691d5c2c57f76f1ffc2f7b3725900 (33) and commits with git rev-list --count authority/us-064-base..d8a80197a97691d5c2c57f76f1ffc2f7b3725900 (9). Nine review/fix loops covered exact classification, atomic routing, recovery evidence, adversarial failure handling, database baseline typing, mutation accountability, dispatcher planning, append-only grant evidence, and the aggregate-campaign repair plus re-review. Two cache-cleared authoritative campaigns consumed 569 seconds, rounded to 9 minutes: the first was invalidated after 166 seconds with every shard failure aggregated, while the final 403-second run passed all 12 measured shards. The 85-minute variance over the 104-minute estimate came from the real cross-package route spanning 33 files rather than the expected 6, and 12 mutation shards rather than 1; CHG-057 nevertheless reduced the campaign from US-063's nine stop-at-first attempts to two complete attempts, meeting its US-064 acceptance target."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
