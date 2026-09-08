@@ -111,6 +111,7 @@ export async function routeProvisioningActionInTransaction(
   }>(sql`SELECT id::text,kind::text,mode::text,status::text,raw_request AS "rawRequest"
           FROM provisioning_action WHERE request_id=${input.requestId}::uuid
             AND raw_request->>'operation'='provision'
+            AND status='pending'
             AND ((kind='checklist' AND mode='orchestration') OR
                  (kind='invite' AND mode='automated'))
           ORDER BY created_at,id FOR UPDATE`);

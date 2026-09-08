@@ -42,6 +42,11 @@ const ids = {
   licenseLease: id("28"),
   capacityLease: id("29"),
   requestLease: id("30"),
+  accountNoSeat: id("31"),
+  licenseNoSeat: id("32"),
+  capacityNoSeat: id("33"),
+  requestNoSeat: id("34"),
+  actionNoSeat: id("35"),
 };
 const at = new Date("2026-08-04T15:00:00.000Z");
 let fixture: PostgresFixture;
@@ -52,14 +57,15 @@ async function seedBlockedCapacityPool(input: {
   capacityId: string;
   licenseId: string;
   name: string;
+  mode?: "automated" | "orchestration";
   requestId: string;
   requestNo: string;
 }): Promise<void> {
   await owner.query(
     `INSERT INTO vendor_account
        (id,vendor_id,name,mode,low_pool_floor,status,created_at,created_by)
-     VALUES ($1,$2,$3,'orchestration',1,'active',$4,$5)`,
-    [input.accountId, ids.vendor, input.name, at, ids.admin],
+     VALUES ($1,$2,$3,$4,1,'active',$5,$6)`,
+    [input.accountId, ids.vendor, input.name, input.mode ?? "orchestration", at, ids.admin],
   );
   await owner.query(
     `INSERT INTO license_type
@@ -185,6 +191,135 @@ afterAll(async () => {
 });
 
 describe("US-023 capacity recovery with real PostgreSQL", () => {
+  it("retains failed no-seat evidence and creates one distinct pending recovery action", async () => {
+    await seedBlockedCapacityPool({
+      accountId: ids.accountNoSeat,
+      capacityId: ids.capacityNoSeat,
+      licenseId: ids.licenseNoSeat,
+      mode: "automated",
+      name: "No-seat recovery account",
+      requestId: ids.requestNoSeat,
+      requestNo: "REC-NO-SEAT",
+    });
+    const failedAt = new Date("2026-08-04T14:30:00.000Z");
+    await owner.query(
+      `INSERT INTO provisioning_action
+         (id,request_id,vendor_account_id,kind,mode,status,raw_request,raw_response,resolved_at,created_at)
+       VALUES ($1,$2,$3,'invite','automated','failed',$4::jsonb,$5::jsonb,$6,$7)`,
+      [
+        ids.actionNoSeat,
+        ids.requestNoSeat,
+        ids.accountNoSeat,
+        JSON.stringify({ operation: "provision" }),
+        JSON.stringify({ failure_code: "capacity_unavailable" }),
+        failedAt,
+        at,
+      ],
+    );
+
+    const job = createCapacityRecoveryJob({ connectionString: fixture.appUrl, now: () => at });
+    try {
+      await expect(job.drain()).resolves.toEqual({ processed: 1 });
+
+      const request = await owner.query(
+        `SELECT state FROM license_request WHERE id=$1`,
+        [ids.requestNoSeat],
+      );
+      expect(request.rows).toEqual([{ state: "provisioning" }]);
+      const historical = await owner.query(
+        `SELECT id::text,status,raw_response,resolved_at
+         FROM provisioning_action WHERE id=$1`,
+        [ids.actionNoSeat],
+      );
+      expect(historical.rows).toEqual([{
+        id: ids.actionNoSeat,
+        raw_response: { failure_code: "capacity_unavailable" },
+        resolved_at: failedAt,
+        status: "failed",
+      }]);
+      const replacements = await owner.query<{
+        id: string;
+        mode: string;
+        operation: string;
+        request_id: string;
+        status: string;
+        vendor_account_id: string;
+      }>(
+        `SELECT id::text,request_id::text,vendor_account_id::text,status::text,mode::text,
+                raw_request->>'operation' AS operation
+         FROM provisioning_action WHERE request_id=$1 AND id <> $2 ORDER BY created_at,id`,
+        [ids.requestNoSeat, ids.actionNoSeat],
+      );
+      expect(replacements.rows).toHaveLength(1);
+      expect(replacements.rows[0]).toEqual({
+        id: expect.not.stringMatching(new RegExp(`^${ids.actionNoSeat}$`)),
+        mode: "orchestration",
+        operation: "provision",
+        request_id: ids.requestNoSeat,
+        status: "pending",
+        vendor_account_id: ids.accountNoSeat,
+      });
+      const [replacement] = replacements.rows;
+      if (!replacement) throw new Error("missing recovery replacement action");
+      const transitions = await owner.query(
+        `SELECT from_state,to_state,occurred_at FROM request_transition
+         WHERE request_id=$1 AND to_state='provisioning'`,
+        [ids.requestNoSeat],
+      );
+      expect(transitions.rows).toEqual([{
+        from_state: "blocked_no_seat",
+        occurred_at: at,
+        to_state: "provisioning",
+      }]);
+      const audit = await owner.query(
+        `SELECT actor_user_id::text,action,entity_type,entity_id::text,company_id::text,note,before,after,occurred_at
+         FROM audit_log WHERE (entity_type='LicenseRequest' AND entity_id=$1::uuid)
+            OR (entity_type='ProvisioningAction' AND entity_id=$2::uuid)
+         ORDER BY entity_type`,
+        [ids.requestNoSeat, replacement.id],
+      );
+      expect(audit.rows).toEqual([
+        {
+          action: "request.provisioning",
+          actor_user_id: null,
+          after: { state: "provisioning" },
+          before: { state: "blocked_no_seat" },
+          company_id: ids.companyA,
+          entity_id: ids.requestNoSeat,
+          entity_type: "LicenseRequest",
+          note: "Capacity became available",
+          occurred_at: at,
+        },
+        {
+          action: "orchestration.checklist_issued",
+          actor_user_id: null,
+          after: {
+            kind: "checklist",
+            mode: "orchestration",
+            requestId: ids.requestNoSeat,
+            status: "pending",
+          },
+          before: null,
+          company_id: ids.companyA,
+          entity_id: replacement.id,
+          entity_type: "ProvisioningAction",
+          note: null,
+          occurred_at: at,
+        },
+      ]);
+      await expect(job.drain()).resolves.toEqual({ processed: 0 });
+      const replay = await owner.query(
+        `SELECT (SELECT count(*)::int FROM provisioning_action WHERE request_id=$1) AS actions,
+                (SELECT count(*)::int FROM request_transition
+                 WHERE request_id=$1 AND to_state='provisioning') AS transitions`,
+        [ids.requestNoSeat],
+      );
+      expect(replay.rows).toEqual([{ actions: 2, transitions: 1 }]);
+    } finally {
+      await job.close();
+    }
+  });
+
   it("kills cross-tenant recovery and duplicate resume transitions", async () => {
     await owner.query(
       `SELECT enqueue_capacity_recovery($1,$2,$3,'2026-08-04','capacity_change',$4)`,
@@ -199,7 +334,8 @@ describe("US-023 capacity recovery with real PostgreSQL", () => {
     }
 
     const state = await owner.query(
-      `SELECT id,state FROM license_request ORDER BY id`,
+      `SELECT id,state FROM license_request WHERE id IN ($1,$2) ORDER BY id`,
+      [ids.requestA, ids.requestB],
     );
     expect(state.rows).toEqual([
       { id: ids.requestA, state: "provisioning" },
@@ -207,8 +343,9 @@ describe("US-023 capacity recovery with real PostgreSQL", () => {
     ]);
     const transitions = await owner.query(
       `SELECT request_id,to_state,count(*)::int AS count
-       FROM request_transition WHERE to_state = 'provisioning'
+       FROM request_transition WHERE to_state = 'provisioning' AND request_id IN ($1,$2)
        GROUP BY request_id,to_state`,
+      [ids.requestA, ids.requestB],
     );
     expect(transitions.rows).toEqual([
       { count: 1, request_id: ids.requestA, to_state: "provisioning" },
