@@ -1739,6 +1739,158 @@ export function requireRoutedTestFiles(changed, mutate, fileExists = existsSync,
   return routedTestFiles(changed, mutate, fileExists, directRoutes);
 }
 
+/** Discover the scored units for a canonical changed-path set. The target
+ * provider is deliberately the only difference between diff preflight (Git
+ * hunks) and planned scope (complete current files). */
+function discoverMutationShardSpecs(changed, targetProvider, dependencies = {}) {
+  const fileExists = dependencies.fileExists ?? existsSync;
+  const readFile = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
+  const directRoutes = dependencies.directRoutes ?? DIRECT_TEST_ROUTES;
+  const compatibleTestFiles = dependencies.mutationCompatibleTestFiles ?? mutationCompatibleTestFiles;
+  const changedSources = mutatable(changed);
+  const allMutate = [...new Set(targetProvider(changedSources))].sort();
+  const schemaStaticMutate = allMutate.filter((target) =>
+    target.replace(/:\d+-\d+$/, "") === SCHEMA_STATIC_SOURCE);
+  const vitestConfigStaticMutate = allMutate.filter((target) =>
+    VITEST_CONFIG_STATIC_SOURCES.has(target.replace(/:\d+-\d+$/, "")));
+  for (const [source, spec] of Object.entries(VITEST_CONFIG_STATIC_SPECS)) {
+    const targets = vitestConfigStaticMutate.filter((target) =>
+      target.replace(/:\d+-\d+$/, "") === source);
+    if (targets.length > 0 && (targets.length !== 1 || targets[0] !== spec.range)) {
+      throw new Error(
+        `vitest config static shard must contain exactly ${spec.range}; found: ${targets.join(", ")}`,
+      );
+    }
+  }
+  const staticMutate = new Set([...schemaStaticMutate, ...vitestConfigStaticMutate]);
+  const adapterPartition = partitionExactFrameworkAdapterTargets(allMutate, readFile);
+  const adapterMutate = adapterPartition.adapter;
+  const adapterSources = mutationSourceFiles(adapterMutate);
+  const routedMutate = adapterPartition.routed.filter((target) => !staticMutate.has(target));
+  const routeTests = (source) => compatibleTestFiles(testsForSource(source, fileExists, directRoutes));
+  if (dependencies.requireCompleteRoutes) {
+    for (const source of changedSources) {
+      if (routeTests(source).length === 0) {
+        throw new Error(`mutatable source has no responsible Vitest test route: ${source}`);
+      }
+    }
+  }
+  const routedGroups = groupRoutedMutationTargets(routedMutate, routeTests);
+  const shardSpecs = routedGroups.map((group) => ({ kind: "vitest", ...group }));
+
+  if (adapterMutate.length > 0) {
+    const testFiles = [...new Set(adapterSources.flatMap(routeTests))].sort();
+    if (testFiles.length === 0) throw new Error("exact framework adapter has no accountable focused tests");
+    shardSpecs.push({
+      kind: EXACT_FRAMEWORK_ADAPTER_KIND,
+      mutate: adapterMutate,
+      sources: adapterSources,
+      testFiles,
+    });
+  }
+  if (schemaStaticMutate.length > 0) {
+    requireRoutedTestFiles(changed, mutationSourceFiles(schemaStaticMutate), fileExists, directRoutes);
+    shardSpecs.push({
+      kind: "schema-static",
+      mutate: schemaStaticMutate,
+      sources: [SCHEMA_STATIC_SOURCE],
+      testFiles: ["packages/db/src/schema.test.ts"],
+    });
+  }
+  for (const [source, spec] of Object.entries(VITEST_CONFIG_STATIC_SPECS)) {
+    const targets = vitestConfigStaticMutate.filter((target) =>
+      target.replace(/:\d+-\d+$/, "") === source);
+    if (targets.length === 0) continue;
+    requireRoutedTestFiles(changed, [source], fileExists, directRoutes);
+    shardSpecs.push({
+      kind: "vitest-config-static",
+      mutate: targets,
+      sources: [source],
+      testFiles: spec.testFiles,
+    });
+  }
+  return {
+    allMutate,
+    schemaStaticMutate,
+    shardSpecs: shardSpecs.sort((left, right) =>
+      JSON.stringify(left.sources).localeCompare(JSON.stringify(right.sources)) ||
+      JSON.stringify(left.testFiles).localeCompare(JSON.stringify(right.testFiles))),
+  };
+}
+
+function canonicalPlannedPaths(paths, fileExists, readFile, stat) {
+  if (!Array.isArray(paths) || paths.length === 0) {
+    throw new Error("planned scope requires at least one repository-relative path");
+  }
+  const seen = new Set();
+  const contents = new Map();
+  for (const path of paths) {
+    if (typeof path !== "string" || path.length === 0 || path.includes("\0") ||
+        path.startsWith("/") || path.startsWith("-") || path.includes("\\") ||
+        path.split("/").some((segment) => segment.length === 0 || segment === "." || segment === "..")) {
+      throw new Error(`planned scope path is not a canonical repository-relative POSIX path: ${String(path)}`);
+    }
+    if (seen.has(path)) throw new Error(`planned scope path is duplicated: ${path}`);
+    if (GENERATED_ARTIFACT.some((pattern) => pattern.test(path))) {
+      throw new Error(`planned scope path is a generated artifact: ${path}`);
+    }
+    if (!fileExists(path)) throw new Error(`planned scope path does not exist: ${path}`);
+    try {
+      if (!stat(path).isFile()) throw new Error("not a file");
+    } catch {
+      throw new Error(`planned scope path is not a readable regular file: ${path}`);
+    }
+    let source;
+    try {
+      source = readFile(path);
+    } catch {
+      throw new Error(`planned scope path is not a readable regular file: ${path}`);
+    }
+    if (typeof source !== "string") throw new Error(`planned scope path is not a readable regular file: ${path}`);
+    seen.add(path);
+    contents.set(path, source);
+  }
+  return { contents, files: [...seen].sort() };
+}
+
+/** Calculate a side-effect-free, canonical readiness scope from current files. */
+export function calculatePlannedMutationScope(paths, dependencies = {}) {
+  const fileExists = dependencies.fileExists ?? existsSync;
+  const readFile = dependencies.readFile ?? ((path) => readFileSync(path, "utf8"));
+  const stat = dependencies.stat ?? statSync;
+  const { contents, files } = canonicalPlannedPaths(paths, fileExists, readFile, stat);
+  const targetProvider = (sources) => sources.flatMap((source) => {
+    const staticSpec = VITEST_CONFIG_STATIC_SPECS[source];
+    if (staticSpec) return [staticSpec.range];
+    const count = lineCount(contents.get(source));
+    return count > 0 ? [`${source}:1-${count}`] : [];
+  });
+  const discovered = discoverMutationShardSpecs(files, targetProvider, {
+    ...dependencies,
+    fileExists,
+    readFile: (path) => contents.get(path) ?? readFile(path),
+    requireCompleteRoutes: true,
+  });
+  const shards = discovered.shardSpecs.map((spec) => {
+    const id = `${spec.kind}-${createHash("sha256")
+      .update([spec.kind, ...spec.sources, ...spec.testFiles, ...spec.mutate].join("\n"))
+      .digest("hex").slice(0, 12)}`;
+    return Object.freeze({
+      id,
+      kind: spec.kind,
+      mutate: Object.freeze([...spec.mutate]),
+      sources: Object.freeze([...spec.sources]),
+      testFiles: Object.freeze([...spec.testFiles]),
+    });
+  });
+  return Object.freeze({
+    expected_changed_files: files.length,
+    expected_mutation_shards: shards.length,
+    files: Object.freeze(files),
+    shards: Object.freeze(shards),
+  });
+}
+
 function defaultToolVersions() {
   const packageVersion = (url) => JSON.parse(readFileSync(url, "utf8")).version;
   const rootPackage = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
@@ -1971,34 +2123,20 @@ export async function runMutationScope(options = {}) {
   const head = git(["rev-parse", "HEAD"]);
   const changed = changedFiles(baseRef);
   const changedSources = mutatable(changed);
-  const allMutate = mutationTargets(baseRef, changedSources);
   const allHunks = mutationHunks(baseRef, changedSources);
+  let discovered;
+  try {
+    discovered = discoverMutationShardSpecs(
+      changed,
+      (sources) => mutationTargets(baseRef, sources),
+    );
+  } catch (error) {
+    fail(error.message, "add a conventional adjacent test or an explicit accountable route");
+  }
+  const { allMutate, schemaStaticMutate, shardSpecs } = discovered;
   const worktreeHash = contentHash(changed.map((path) =>
     `${path}\0${existsSync(path) ? readFileSync(path, "utf8") : "<deleted>"}`).join("\0"));
   const toolVersions = options.toolVersions ?? defaultToolVersions();
-  const schemaStaticMutate = allMutate.filter((target) =>
-    target.replace(/:\d+-\d+$/, "") === SCHEMA_STATIC_SOURCE);
-  const vitestConfigStaticMutate = allMutate.filter((target) =>
-    VITEST_CONFIG_STATIC_SOURCES.has(target.replace(/:\d+-\d+$/, "")));
-  for (const [source, spec] of Object.entries(VITEST_CONFIG_STATIC_SPECS)) {
-    const targets = vitestConfigStaticMutate.filter((target) =>
-      target.replace(/:\d+-\d+$/, "") === source);
-    if (targets.length > 0 && (targets.length !== 1 || targets[0] !== spec.range)) {
-      fail(
-        `vitest config static shard must contain exactly ${spec.range}`,
-        `found: ${targets.join(", ")}`,
-      );
-    }
-  }
-  const staticMutate = new Set([...schemaStaticMutate, ...vitestConfigStaticMutate]);
-  const adapterPartition = partitionExactFrameworkAdapterTargets(
-    allMutate,
-    (source) => readFileSync(source, "utf8"),
-  );
-  const vendorAccountPageAdapterMutate = adapterPartition.adapter;
-  const vendorAccountPageAdapterSources = mutationSourceFiles(vendorAccountPageAdapterMutate);
-  const routedMutate = adapterPartition.routed.filter((target) => !staticMutate.has(target));
-
   console.log(
     `mutation-scope: base=${resolvedBase} changed=${changed.length} ` +
       `mutatable=${mutationSourceFiles(allMutate).length} ranges=${allMutate.length} ` +
@@ -2033,56 +2171,6 @@ export async function runMutationScope(options = {}) {
     baseConf = JSON.parse(readFileSync(BASE_CONFIG, "utf8"));
   } catch {
     fail(`cannot read ${BASE_CONFIG}`, "run from the repository root");
-  }
-
-  let routedGroups;
-  try {
-    routedGroups = groupRoutedMutationTargets(routedMutate, (source) =>
-      mutationCompatibleTestFiles(testsForSource(source, existsSync, DIRECT_TEST_ROUTES)));
-  } catch (error) {
-    fail(error.message, "add a conventional adjacent test or an explicit accountable route");
-  }
-
-  const shardSpecs = routedGroups.map((group) => ({ kind: "vitest", ...group }));
-  if (vendorAccountPageAdapterMutate.length > 0) {
-    const testFiles = [...new Set(vendorAccountPageAdapterSources.flatMap((source) =>
-      mutationCompatibleTestFiles(testsForSource(source, existsSync, DIRECT_TEST_ROUTES))))].sort();
-    if (testFiles.length === 0) {
-      fail("exact framework adapter has no accountable focused tests");
-    }
-    shardSpecs.push({
-      kind: EXACT_FRAMEWORK_ADAPTER_KIND,
-      mutate: vendorAccountPageAdapterMutate,
-      sources: vendorAccountPageAdapterSources,
-      testFiles,
-    });
-  }
-  if (schemaStaticMutate.length > 0) {
-    requireRoutedTestFiles(
-      changed,
-      mutationSourceFiles(schemaStaticMutate),
-    );
-    shardSpecs.push({
-      kind: "schema-static",
-      mutate: schemaStaticMutate,
-      sources: [SCHEMA_STATIC_SOURCE],
-      testFiles: ["packages/db/src/schema.test.ts"],
-    });
-  }
-  for (const [source, spec] of Object.entries(VITEST_CONFIG_STATIC_SPECS)) {
-    const targets = vitestConfigStaticMutate.filter((target) =>
-      target.replace(/:\d+-\d+$/, "") === source);
-    if (targets.length === 0) continue;
-    requireRoutedTestFiles(
-      changed,
-      [source],
-    );
-    shardSpecs.push({
-      kind: "vitest-config-static",
-      mutate: targets,
-      sources: [source],
-      testFiles: spec.testFiles,
-    });
   }
 
   const {
@@ -2679,6 +2767,19 @@ export async function runMutationScope(options = {}) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const args = process.argv.slice(2);
+    if (args[0] === "--planned-scope") {
+      const paths = args.slice(1);
+      if (paths.length === 0) {
+        throw new Error("planned scope requires at least one repository-relative path");
+      }
+      const flag = paths.find((path) => path.startsWith("-"));
+      if (flag) throw new Error(`planned scope does not allow flags after paths: ${flag}`);
+      for (const key of ["MUTATION_SHARD", "MUTATION_SCOPE_DRY"]) {
+        if (process.env[key]) throw new Error(`${key} conflicts with --planned-scope`);
+      }
+      console.log(JSON.stringify(calculatePlannedMutationScope(paths)));
+      process.exit(0);
+    }
     if (args.some((arg) => arg !== "--preflight") || args.filter((arg) => arg === "--preflight").length > 1) {
       throw new Error("usage: mutation-scope [--preflight]");
     }

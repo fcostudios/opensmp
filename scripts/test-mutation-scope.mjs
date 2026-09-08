@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   mkdirSync,
@@ -9,6 +9,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -22,6 +23,7 @@ import {
   classifyExactDelegationAdapter,
   classifyExactFrameworkAdapter,
   classifyVerificationOnlyHunk,
+  calculatePlannedMutationScope,
   controlledChildEnvironment,
   createCampaignRuntimeProfileResolver,
   createDatabaseShardSandbox,
@@ -48,6 +50,193 @@ import {
   strykerMutationTarget,
 } from "./mutation-scope.mjs";
 import mutationVitestConfig from "../vitest.mutation.config.mjs";
+
+// Break caught: a readiness estimate silently omits or merges a planned
+// mutation boundary instead of preserving every routed source as its own shard.
+const plannedScopeFixtureRoot = mkdtempSync(join(tmpdir(), "smp-planned-mutation-scope-"));
+const writePlannedScopeFixture = (path, contents) => {
+  const destination = join(plannedScopeFixtureRoot, path);
+  mkdirSync(dirname(destination), { recursive: true });
+  writeFileSync(destination, contents, "utf8");
+};
+try {
+  execFileSync("git", ["init", "--quiet"], { cwd: plannedScopeFixtureRoot });
+  execFileSync("git", ["config", "user.email", "mutation-scope@example.invalid"], { cwd: plannedScopeFixtureRoot });
+  execFileSync("git", ["config", "user.name", "Mutation Scope Test"], { cwd: plannedScopeFixtureRoot });
+  writePlannedScopeFixture("src/alpha.ts", "export const alpha = 1;\nexport const beta = 2;\n");
+  writePlannedScopeFixture("src/alpha.test.ts", "import { alpha } from './alpha';\nvoid alpha;\n");
+  writePlannedScopeFixture("src/beta.ts", "export const gamma = 3;\n");
+  writePlannedScopeFixture("src/beta.test.ts", "import { gamma } from './beta';\nvoid gamma;\n");
+  writePlannedScopeFixture("docs/plan.md", "# Planned mutation scope\n");
+  execFileSync("git", ["add", "."], { cwd: plannedScopeFixtureRoot });
+  execFileSync("git", ["commit", "--quiet", "-m", "planned scope fixture"], {
+    cwd: plannedScopeFixtureRoot,
+  });
+
+  const plannedScope = calculatePlannedMutationScope([
+    "src/beta.test.ts",
+    "docs/plan.md",
+    "src/alpha.ts",
+    "src/beta.ts",
+    "src/alpha.test.ts",
+  ], {
+    fileExists: (path) => existsSync(join(plannedScopeFixtureRoot, path)),
+    readFile: (path) => readFileSync(join(plannedScopeFixtureRoot, path), "utf8"),
+    stat: (path) => statSync(join(plannedScopeFixtureRoot, path)),
+  });
+
+  assert.deepEqual(plannedScope.files, [
+    "docs/plan.md",
+    "src/alpha.test.ts",
+    "src/alpha.ts",
+    "src/beta.test.ts",
+    "src/beta.ts",
+  ]);
+  assert.equal(plannedScope.expected_changed_files, 5);
+  assert.equal(plannedScope.expected_mutation_shards, 2);
+  assert.deepEqual(plannedScope.shards.map(({ kind, sources, testFiles, mutate }) => ({
+    kind, sources, testFiles, mutate,
+  })), [
+    {
+      kind: "vitest",
+      sources: ["src/alpha.ts"],
+      testFiles: ["src/alpha.test.ts"],
+      mutate: ["src/alpha.ts:1-2"],
+    },
+    {
+      kind: "vitest",
+      sources: ["src/beta.ts"],
+      testFiles: ["src/beta.test.ts"],
+      mutate: ["src/beta.ts:1-1"],
+    },
+  ]);
+} finally {
+  rmSync(plannedScopeFixtureRoot, { force: true, recursive: true });
+}
+
+// Break caught: an invalid planned boundary starts a mutation campaign, writes
+// artifacts, or treats an unrouted production source as zero shards.
+const plannedCliFixtureRoot = mkdtempSync(join(tmpdir(), "smp-planned-mutation-cli-"));
+const writePlannedCliFixture = (path, contents) => {
+  const destination = join(plannedCliFixtureRoot, path);
+  mkdirSync(dirname(destination), { recursive: true });
+  writeFileSync(destination, contents, "utf8");
+};
+try {
+  execFileSync("git", ["init", "--quiet"], { cwd: plannedCliFixtureRoot });
+  execFileSync("git", ["config", "user.email", "mutation-scope@example.invalid"], { cwd: plannedCliFixtureRoot });
+  execFileSync("git", ["config", "user.name", "Mutation Scope Test"], { cwd: plannedCliFixtureRoot });
+  writePlannedCliFixture("src/cli.ts", "export const first = 1;\nexport const second = 2;\n");
+  writePlannedCliFixture("src/cli.test.ts", "import { first } from './cli';\nvoid first;\n");
+  writePlannedCliFixture("src/orphan.ts", "export const orphan = true;\n");
+  writePlannedCliFixture("docs/plan.md", "# Plan\n");
+  mkdirSync(join(plannedCliFixtureRoot, "directory"));
+  writePlannedCliFixture(".tmp/generated.ts", "export const generated = true;\n");
+  writePlannedCliFixture("apps/web/vitest.config.ts", [
+    ...Array.from({ length: 20 }, (_, index) => `// config line ${index + 1}`),
+    "export default {};",
+    "",
+  ].join("\n"));
+  writePlannedCliFixture("apps/web/next.config.test.ts", "export {};\n");
+  execFileSync("git", ["add", "."], { cwd: plannedCliFixtureRoot });
+  execFileSync("git", ["commit", "--quiet", "-m", "planned CLI fixture"], {
+    cwd: plannedCliFixtureRoot,
+  });
+
+  const mutationScopeScript = fileURLToPath(new URL("./mutation-scope.mjs", import.meta.url));
+  const runPlannedScope = (args, env = {}) => spawnSync(process.execPath, [mutationScopeScript, ...args], {
+    cwd: plannedCliFixtureRoot,
+    encoding: "utf8",
+    env: { ...process.env, ...env },
+  });
+  for (const { args, expected } of [
+    { args: ["--planned-scope"], expected: /requires at least one/i },
+    { args: ["--planned-scope", "/tmp/not-repository-relative.ts"], expected: /repository-relative/i },
+    { args: ["--planned-scope", "../outside.ts"], expected: /repository-relative/i },
+    { args: ["--planned-scope", "src/cli.ts", "src/cli.ts"], expected: /duplicated/i },
+    { args: ["--planned-scope", "directory"], expected: /readable regular file/i },
+    { args: ["--planned-scope", "src/missing.ts"], expected: /does not exist/i },
+    { args: ["--planned-scope", ".tmp/generated.ts"], expected: /generated artifact/i },
+    { args: ["--unknown"], expected: /usage/i },
+    { args: ["--planned-scope", "src/cli.ts", "--unknown"], expected: /flag/i },
+    { args: ["--planned-scope", "src/cli.ts", "--preflight"], expected: /flag/i },
+    { args: ["--planned-scope", "src/orphan.ts"], expected: /responsible Vitest test route/i },
+  ]) {
+    const result = runPlannedScope(args);
+    assert.notEqual(result.status, 0, `planned CLI must reject ${JSON.stringify(args)}`);
+    assert.match(result.stderr, expected, `planned CLI rejection for ${JSON.stringify(args)}`);
+  }
+  const shardConflict = runPlannedScope(["--planned-scope", "src/cli.ts"], {
+    MUTATION_SHARD: "vitest-unrelated",
+  });
+  assert.notEqual(shardConflict.status, 0);
+  assert.match(shardConflict.stderr, /MUTATION_SHARD/i);
+  assert.throws(
+    () => calculatePlannedMutationScope(["src/\0bad.ts"], {
+      fileExists: () => true,
+      readFile: () => "export const ignored = true;\n",
+    }),
+    /canonical repository-relative POSIX path/i,
+  );
+
+  const staticScope = calculatePlannedMutationScope([
+    "apps/web/next.config.test.ts",
+    "apps/web/vitest.config.ts",
+  ], {
+    directRoutes: {
+      "apps/web/vitest.config.ts": ["apps/web/next.config.test.ts"],
+    },
+    fileExists: (path) => existsSync(join(plannedCliFixtureRoot, path)),
+    readFile: (path) => readFileSync(join(plannedCliFixtureRoot, path), "utf8"),
+    stat: (path) => statSync(join(plannedCliFixtureRoot, path)),
+  });
+  assert.deepEqual(staticScope.shards.map(({ kind, sources, testFiles, mutate }) => ({
+    kind, sources, testFiles, mutate,
+  })), [{
+    kind: "vitest-config-static",
+    sources: ["apps/web/vitest.config.ts"],
+    testFiles: ["apps/web/next.config.test.ts"],
+    mutate: ["apps/web/vitest.config.ts:21-21"],
+  }], "planned scope preserves reviewed static mutation targets");
+
+  const success = runPlannedScope(["--planned-scope", "src/cli.test.ts", "docs/plan.md", "src/cli.ts"]);
+  assert.equal(success.status, 0, success.stderr);
+  assert.equal(success.stderr, "");
+  assert.deepEqual(JSON.parse(success.stdout), {
+    expected_changed_files: 3,
+    expected_mutation_shards: 1,
+    files: ["docs/plan.md", "src/cli.test.ts", "src/cli.ts"],
+    shards: [{
+      id: "vitest-1126201ee681",
+      kind: "vitest",
+      sources: ["src/cli.ts"],
+      testFiles: ["src/cli.test.ts"],
+      mutate: ["src/cli.ts:1-2"],
+    }],
+  });
+  for (const path of [
+    ".tmp/stryker-shards",
+    "reports/mutation",
+    "reports/mutation-performance",
+    ".git/ledger-mutation-cache",
+  ]) assert.equal(existsSync(join(plannedCliFixtureRoot, path)), false, `planned scope must not write ${path}`);
+
+  const planned = calculatePlannedMutationScope(["src/cli.ts", "src/cli.test.ts"], {
+    fileExists: (path) => existsSync(join(plannedCliFixtureRoot, path)),
+    readFile: (path) => readFileSync(join(plannedCliFixtureRoot, path), "utf8"),
+    stat: (path) => statSync(join(plannedCliFixtureRoot, path)),
+  });
+  assert.deepEqual(
+    planned.shards.map(({ kind, sources, testFiles, mutate }) => ({ kind, sources, testFiles, mutate })),
+    groupRoutedMutationTargets(
+      ["src/cli.ts:1-2"],
+      (source) => source === "src/cli.ts" ? ["src/cli.test.ts"] : [],
+    ).map((group) => ({ kind: "vitest", ...group })),
+    "full-file planned discovery must use the ordinary routing and grouping boundary",
+  );
+} finally {
+  rmSync(plannedCliFixtureRoot, { force: true, recursive: true });
+}
 
 assert.equal(
   strykerMutationTarget(
