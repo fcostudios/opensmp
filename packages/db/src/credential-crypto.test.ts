@@ -19,7 +19,8 @@ import {
   encryptCredential,
   readKekFile,
 } from "./credential-crypto";
-import type { CredentialEnvelopeV1 } from "@smp/domain";
+
+type CredentialEnvelopeV1 = Awaited<ReturnType<typeof encryptCredential>>;
 
 const kek = Uint8Array.from({ length: 32 }, (_, index) => index);
 const deterministicBytes = (length: number) =>
