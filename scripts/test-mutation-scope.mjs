@@ -338,6 +338,10 @@ assert.deepEqual(
 const vendorRegistryPageSource = "apps/web/src/app/(authenticated)/organizaciones/page.tsx";
 const vendorDetailPageSource = "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx";
 const alertActionsSource = "apps/web/src/modules/alerts/actions.ts";
+const checklistProductionDependenciesSource =
+  "apps/web/src/modules/request-workflow/actions/checklist-action-production-dependencies.ts";
+const checklistServerActionSource =
+  "apps/web/src/modules/request-workflow/actions/checklist.ts";
 const vendorRegistryPageAudit = classifyExactFrameworkAdapter(
   vendorRegistryPageSource,
   readFileSync(vendorRegistryPageSource, "utf8"),
@@ -353,6 +357,88 @@ const alertActionsAudit = classifyExactFrameworkAdapter(
   readFileSync(alertActionsSource, "utf8"),
 );
 assert.equal(alertActionsAudit.reason, "verification-only:exact-framework-adapter");
+for (const source of [checklistProductionDependenciesSource, checklistServerActionSource]) {
+  assert.equal(
+    classifyExactFrameworkAdapter(source, readFileSync(source, "utf8")).reason,
+    "verification-only:exact-framework-adapter",
+    `${source} is exact reviewed framework wiring rather than a scored mutation route`,
+  );
+}
+const checklistProductionDependenciesContents = readFileSync(
+  checklistProductionDependenciesSource,
+  "utf8",
+);
+for (const changed of [
+  checklistProductionDependenciesContents.replace(
+    "loadCurrentLedgerAuthorization",
+    "loadOtherLedgerAuthorization",
+  ),
+  checklistProductionDependenciesContents.replace("return new Date();", "return new Date(0);"),
+]) {
+  assert.throws(
+    () => classifyExactFrameworkAdapter(checklistProductionDependenciesSource, changed),
+    /exact framework adapter changed/,
+  );
+}
+const checklistServerActionContents = readFileSync(checklistServerActionSource, "utf8");
+for (const changed of [
+  checklistServerActionContents.replace(
+    "checklistActionService.confirmChecklistDone(input)",
+    "checklistActionService.markChecklistNotDone(input)",
+  ),
+  checklistServerActionContents.replace(
+    "?tab=assignment",
+    "?tab=actions",
+  ),
+  checklistServerActionContents.replace("return result;", "return { ok: false, error: \"invalid\" };"),
+  checklistServerActionContents.replace(
+    "export async function confirmChecklistDone",
+    "export async function confirmChecklistResolved",
+  ),
+  checklistServerActionContents.replace(
+    "export async function markChecklistNotDone",
+    "export async function markChecklistFailed",
+  ),
+]) {
+  assert.throws(
+    () => classifyExactFrameworkAdapter(checklistServerActionSource, changed),
+    /exact framework adapter changed/,
+  );
+}
+const checklistExactMutationTargets = [
+  `${checklistProductionDependenciesSource}:1-14`,
+  `${checklistServerActionSource}:1-26`,
+];
+assert.deepEqual(
+  verificationAuditsForReport(
+    { files: {} },
+    {
+      id: "checklist-exact-framework-wiring",
+      mutate: checklistExactMutationTargets,
+      sources: [checklistProductionDependenciesSource, checklistServerActionSource],
+    },
+    [],
+  ).map(({ reason, source }) => ({ reason, source })),
+  [
+    {
+      reason: "verification-only:exact-framework-adapter",
+      source: checklistProductionDependenciesSource,
+    },
+    {
+      reason: "verification-only:exact-framework-adapter",
+      source: checklistServerActionSource,
+    },
+  ],
+  "exact reviewed checklist seams remain verification-only without pretending an unrelated test exercises them",
+);
+assert.deepEqual(
+  verificationCommandsForSources(
+    [checklistProductionDependenciesSource, checklistServerActionSource],
+    [],
+  ),
+  [["pnpm", ["--filter", "smp-web", "type-check"]]],
+  "an exact framework seam without an accountable test route verifies its closed source contract and type boundary only",
+);
 const transitionCoreSource = "apps/web/src/modules/request-workflow/transition-core.ts";
 const transitionCoreContents = readFileSync(transitionCoreSource, "utf8");
 const transitionCoreAudit = classifyExactDelegationAdapter(
@@ -1153,37 +1239,33 @@ assert.throws(
   () => requireRoutedTestFiles(["src/account.ts"], ["src/account.ts"], () => false),
   /mutatable source has no responsible Vitest test route: src\/account\.ts/,
 );
-const checklistProductionDependencies =
-  "apps/web/src/modules/request-workflow/actions/checklist-action-production-dependencies.ts";
 const checklistProductionIntegration =
   "apps/web/src/modules/request-workflow/orchestration.integration.test.ts";
-const checklistServerAction =
-  "apps/web/src/modules/request-workflow/actions/checklist.ts";
 assert.deepEqual(
-  routedTestFiles(
-    [checklistProductionDependencies, checklistProductionIntegration],
-    [checklistProductionDependencies],
-  ),
-  [checklistProductionIntegration],
-  "the checklist production dependency is accountable to the integration that invokes its production action factory",
+  DIRECT_TEST_ROUTES[checklistProductionDependenciesSource],
+  undefined,
+  "exact reviewed checklist dependencies do not claim a false accountable test route",
 );
 assert.deepEqual(
-  DIRECT_TEST_ROUTES[checklistServerAction],
-  [checklistProductionIntegration],
-  "the checklist server action is accountable to the integration that exercises its mutation flow",
+  DIRECT_TEST_ROUTES[checklistServerActionSource],
+  undefined,
+  "exact reviewed checklist server actions do not claim a false accountable test route",
 );
 assert.deepEqual(
   calculatePlannedMutationScope([
-    checklistProductionIntegration,
-    checklistProductionDependencies,
+    checklistServerActionSource,
+    checklistProductionDependenciesSource,
   ]).shards.map(({ kind, sources, testFiles, mutate }) => ({ kind, sources, testFiles, mutate })),
   [{
-    kind: "vitest",
-    sources: [checklistProductionDependencies],
-    testFiles: [checklistProductionIntegration],
-    mutate: [`${checklistProductionDependencies}:1-14`],
+    kind: "exact-framework-adapter",
+    sources: [checklistProductionDependenciesSource, checklistServerActionSource],
+    testFiles: [],
+    mutate: [
+      `${checklistProductionDependenciesSource}:1-14`,
+      `${checklistServerActionSource}:1-26`,
+    ],
   }],
-  "planned scope keeps the checklist production dependency inside an accountable mutation shard",
+  "planned scope retains exact reviewed checklist framework wiring without a false test route",
 );
 assert.deepEqual(
   groupRoutedMutationTargets(

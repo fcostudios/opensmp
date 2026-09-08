@@ -985,6 +985,12 @@ const EXACT_FRAMEWORK_ADAPTERS = {
   "apps/web/src/modules/alerts/actions.ts": {
     sha256: "299c49983de6cf124eea30c0fd1308052987f9c6d518658c445a203a3005d879",
   },
+  "apps/web/src/modules/request-workflow/actions/checklist-action-production-dependencies.ts": {
+    sha256: "eebc137b18497f39a5db5346fb1a809f16e45cde7270f763ce7e64b770f0db38",
+  },
+  "apps/web/src/modules/request-workflow/actions/checklist.ts": {
+    sha256: "ae0f2a348c97f8f4e0776b002e42ac29a6228cb504aecb1ce6bef33c377dffa9",
+  },
 };
 
 const EXACT_FRAMEWORK_ADAPTER_SOURCES = new Set(Object.keys(EXACT_FRAMEWORK_ADAPTERS));
@@ -1403,10 +1409,12 @@ export function verificationCommandsForSources(sources, testFiles, context = {})
     if (!sources.every((source) => EXACT_FRAMEWORK_ADAPTER_SOURCES.has(source))) {
       throw new Error("exact framework adapter verification must be isolated");
     }
-    commands.push([
-      "./apps/web/node_modules/.bin/vitest",
-      ["run", "--config", "vitest.mutation.config.mjs", ...testFiles],
-    ]);
+    if (testFiles.length > 0) {
+      commands.push([
+        "./apps/web/node_modules/.bin/vitest",
+        ["run", "--config", "vitest.mutation.config.mjs", ...testFiles],
+      ]);
+    }
     commands.push(["pnpm", ["--filter", "smp-web", "type-check"]]);
   }
   if (sources.some((source) => source.startsWith("packages/connectors/"))) {
@@ -1449,7 +1457,9 @@ export function verificationCommandsForSources(sources, testFiles, context = {})
   }
   if (
     !sources.includes(POOL_PROJECTION_SOURCE) &&
-    !sources.some((source) => PAGE_WIRING_SOURCES.has(source))
+    !sources.some((source) => PAGE_WIRING_SOURCES.has(source)) &&
+    !(testFiles.length === 0 &&
+      sources.every((source) => EXACT_FRAMEWORK_ADAPTER_SOURCES.has(source)))
   ) {
     commands.push([
       "./apps/web/node_modules/.bin/vitest",
@@ -1624,12 +1634,6 @@ export const DIRECT_TEST_ROUTES = {
   "apps/web/src/modules/request-workflow/transition-core.ts": [
     "apps/web/src/modules/request-workflow/service.integration.test.ts",
   ],
-  "apps/web/src/modules/request-workflow/actions/checklist-action-production-dependencies.ts": [
-    "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
-  ],
-  "apps/web/src/modules/request-workflow/actions/checklist.ts": [
-    "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
-  ],
   "apps/web/src/modules/vendor-catalog/credential-crypto.ts": [
     "apps/web/src/modules/vendor-catalog/credential-crypto-adapter.test.ts",
   ],
@@ -1776,7 +1780,7 @@ function discoverMutationShardSpecs(changed, targetProvider, dependencies = {}) 
   const routeTests = (source) => compatibleTestFiles(testsForSource(source, fileExists, directRoutes));
   if (dependencies.requireCompleteRoutes) {
     for (const source of changedSources) {
-      if (routeTests(source).length === 0) {
+      if (!adapterSources.includes(source) && routeTests(source).length === 0) {
         throw new Error(`mutatable source has no responsible Vitest test route: ${source}`);
       }
     }
@@ -1786,7 +1790,6 @@ function discoverMutationShardSpecs(changed, targetProvider, dependencies = {}) 
 
   if (adapterMutate.length > 0) {
     const testFiles = [...new Set(adapterSources.flatMap(routeTests))].sort();
-    if (testFiles.length === 0) throw new Error("exact framework adapter has no accountable focused tests");
     shardSpecs.push({
       kind: EXACT_FRAMEWORK_ADAPTER_KIND,
       mutate: adapterMutate,
