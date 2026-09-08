@@ -227,6 +227,52 @@ carries two real checkpoint events and stays valid as written.
 Mutation evidence is unaffected — `cold_mutation_attempts` and
 `mutation_invalidations` remain part of `actuals` below.
 
+### Per-task mutation previews
+
+Every implementation task in a new plan must name the production sources it
+touches. After that task's focused tests are green, run ordinary mutation
+preflight against its committed candidate, intersect the returned shards'
+`sources` with the named production sources, and preview every intersecting
+shard once with its exact post-task ID:
+
+```bash
+MUTATION_SHARD=<post-task-shard-id> pnpm test:mutation
+```
+
+Shard IDs are discovered after the task and are never hardcoded in the plan.
+Repair every genuine survivor and rerun its affected preview before task review.
+When no shard intersects, record zero previews for the task and proceed.
+
+These previews are non-authoritative: they do not clear the authoritative
+cache, emit no `test_report` or mutation-performance evidence, and never
+replace adversarial verification, `pnpm check`, or the one final cache-cleared,
+diff-scoped cold campaign described below.
+
+### Partition-child design inheritance
+
+A canonical partition child may omit its own design document only when all four
+conditions hold:
+
+1. The parent partition and the official child ID are approved.
+2. An approved parent design, or an approved delivery-plan design section,
+   explicitly covers the child's allocated acceptance criteria, outcome, stable
+   interfaces, tenant and authorization boundary, lifecycle or concurrency
+   boundary, non-goals, and verification strategy.
+3. The child readiness assessment cites those parent artifacts and introduces
+   no unresolved material uncertainty or scope outside them.
+4. The child implementation plan cites the exact parent artifact path and
+   section as its `Spec` authority.
+
+Otherwise, the child follows the normal readiness → design → plan sequence.
+Inheritance is not a waiver: the child plan still contains complete executable
+detail.
+
+For US-065 and US-066, the inherited parent-design authority is the approved
+US-019 partition in `docs/readiness/US-019.json`, the canonical child allocation
+in DEC-SMP-021/CHG-054, their generated stories, and the US-019 section of
+`docs/superpowers/plans/2026-08-02-sprint-3-delivery.md`. Each child plan's
+`Spec` field must cite that authority; otherwise it requires a child design.
+
 ## Actuals and calibration
 
 ### Estimate calibration
