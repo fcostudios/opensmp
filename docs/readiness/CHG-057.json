@@ -98,7 +98,25 @@
     "evidence": "CHG057-READY",
     "payload_sha256": "6ba6abcb458604bd09a7fe30bf53652b141b8dd140b95f3a94854ed3b2e3ab24"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 5,
+      "implementation": 24,
+      "focused_verification": 0,
+      "review": 0,
+      "integration": 1
+    },
+    "total": 30,
+    "changed_files": 7,
+    "commits": 1,
+    "review_fix_loops": 0,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "estimate_variance_minutes": -230,
+    "root_cause": "Measured from approval commit f53fcc39018a177139701d958cce29e82eddf57e at 2026-09-07T20:40:49-05:00 through design/plan authority base 7cac8fec8bfdd86d27b583160578ee31d53c3bd4 at 2026-09-07T20:44:52-05:00, rounded to 5 readiness minutes, then through reviewed implementation commit 5c38958b121643c2defb89313fdeed7a6133bdd4 at 2026-09-07T21:08:19-05:00, rounded to 24 implementation minutes. Focused verification and review were interleaved before that commit and lack independent Git cutoffs, so they remain zero rather than inventing precision. Integration records the final cold campaign and evidence close as one minute. git diff --name-only authority/chg-057-base..5c38958 reports seven implementation paths and git rev-list --count reports one implementation commit. The sole cache-cleared campaign used MUTATION_BASE=authority/chg-057-base, calculated zero mutatable TypeScript shards across the JavaScript/JSON/Markdown tooling diff, exited successfully in under one minute, and rounds to zero mutation minutes. The expected-one versus actual-zero mismatch is preserved as deviation evidence. Variance is 30 - 260 = -230 minutes."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
