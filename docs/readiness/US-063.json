@@ -64,7 +64,24 @@
     "evidence": "US063-READY",
     "payload_sha256": "39a6836447432adf172ea42a2f3a370aeb0231c3b568ee25dacc0db1391def3b"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 4,
+      "implementation": 43,
+      "focused_verification": 10,
+      "review": 159,
+      "integration": 11
+    },
+    "total": 227,
+    "changed_files": 36,
+    "commits": 24,
+    "review_fix_loops": 9,
+    "cold_mutation_attempts": 9,
+    "mutation_invalidations": 8,
+    "mutation_minutes": 44,
+    "estimate_variance_minutes": 123,
+    "root_cause": "The 104-minute estimate assumed an eight-file orchestration seam and one mutation shard. Repository discovery expanded the cohesive outcome to shared credential and lifecycle ownership, a least-privilege vendor_ref grant, advisory-lock crash recovery, scheduler composition, and fail-closed mutation accountability. Eight cold campaigns correctly exposed missing routes, database-fixture ownership, insufficient adversarial evidence, exact-delegation classification, and two package-export/module-identity gaps before the ninth campaign passed all eleven isolated shards."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
