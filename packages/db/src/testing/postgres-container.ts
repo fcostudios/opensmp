@@ -123,7 +123,7 @@ export async function createPostgresFixture(
     const ownerUrlValue = new URL(mutationOwnerUrl);
     ownerUrlValue.pathname = `/${databaseName}`;
     const ownerUrl = ownerUrlValue.toString();
-    let stopped = false;
+    let stopPromise: Promise<void> | undefined;
     return {
       appUrl,
       databaseName,
@@ -139,24 +139,26 @@ export async function createPostgresFixture(
         return client;
       },
       async migrate() {},
-      async stop() {
-        if (stopped) return;
-        stopped = true;
-        const client = new pg.Client({
-          connectionString: maintenanceUrl.toString(),
-        });
-        await client.connect();
-        try {
-          await client.query(
-            `SELECT pg_terminate_backend(pid)
-             FROM pg_stat_activity
-             WHERE datname = $1 AND pid <> pg_backend_pid()`,
-            [databaseName],
-          );
-          await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
-        } finally {
-          await client.end();
-        }
+      stop() {
+        stopPromise ??= (async () => {
+          const client = new pg.Client({
+            connectionString: maintenanceUrl.toString(),
+          });
+          await client.connect();
+          try {
+            if (beforeCleanupSql) await client.query(beforeCleanupSql);
+            await client.query(
+              `SELECT pg_terminate_backend(pid)
+               FROM pg_stat_activity
+               WHERE datname = $1 AND pid <> pg_backend_pid()`,
+              [databaseName],
+            );
+            await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
+          } finally {
+            await client.end();
+          }
+        })();
+        return stopPromise;
       },
     };
   }

@@ -132,6 +132,48 @@ test.each(["US065", "US066"]) (
   150_000,
 );
 
+test("shares a real mutation-template cleanup failure with concurrent callers", async () => {
+  const restoreEnvironment = isolateMutationDatabaseEnvironment();
+  let template: Awaited<ReturnType<typeof createPostgresFixture>> | undefined;
+  let sandbox: Awaited<ReturnType<typeof createPostgresFixture>> | undefined;
+  let cleanupCalls: Promise<void>[] = [];
+
+  try {
+    template = await createPostgresFixture();
+    process.env.US065_MUTATION_DATABASE_URL = template.appUrl;
+    process.env.US065_MUTATION_DATABASE_ADMIN_URL = template.ownerUrl;
+    sandbox = await createPostgresFixture({
+      beforeCleanupSql: "SELECT missing_mutation_fixture_cleanup_function()",
+    });
+
+    const firstStop = sandbox.stop();
+    const secondStop = sandbox.stop();
+    cleanupCalls = [firstStop, secondStop];
+
+    expect(secondStop).toBe(firstStop);
+    await expect(firstStop).rejects.toMatchObject({ code: "42883" });
+    await expect(secondStop).rejects.toMatchObject({ code: "42883" });
+  } finally {
+    await Promise.allSettled(cleanupCalls);
+    if (sandbox && template) {
+      const templateOwner = await template.connectAsOwner();
+      try {
+        await templateOwner.query(
+          `SELECT pg_terminate_backend(pid)
+           FROM pg_stat_activity
+           WHERE datname = $1 AND pid <> pg_backend_pid()`,
+          [sandbox.databaseName],
+        );
+        await templateOwner.query(`DROP DATABASE IF EXISTS "${sandbox.databaseName}"`);
+      } finally {
+        await templateOwner.end();
+      }
+    }
+    restoreEnvironment();
+    await template?.stop();
+  }
+}, 150_000);
+
 test("stops a real pinned PostgreSQL container after bootstrap failure", async () => {
   let startedContainerUrl: string | undefined;
 
