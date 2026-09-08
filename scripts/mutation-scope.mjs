@@ -1625,8 +1625,7 @@ export const DIRECT_TEST_ROUTES = {
     "packages/connectors/src/dispatch.test.ts",
   ],
   "packages/db/src/request-transition.ts": [
-    "apps/web/src/modules/request-workflow/service.integration.test.ts",
-    "apps/worker/src/jobs/automated-invite-delivery.integration.test.ts",
+    "packages/db/src/request-transition.test.ts",
   ],
   "packages/db/src/credential-crypto.ts": [
     "packages/db/src/credential-crypto.test.ts",

@@ -710,11 +710,8 @@ assert.deepEqual(
 );
 assert.deepEqual(
   DIRECT_TEST_ROUTES["packages/db/src/request-transition.ts"],
-  [
-    "apps/web/src/modules/request-workflow/service.integration.test.ts",
-    "apps/worker/src/jobs/automated-invite-delivery.integration.test.ts",
-  ],
-  "shared lifecycle persistence must retain both caller integration routes",
+  ["packages/db/src/request-transition.test.ts"],
+  "shared lifecycle persistence must use a source-owned mutation route while caller integrations remain in the full suite",
 );
 assert.deepEqual(
   DIRECT_TEST_ROUTES["packages/db/src/credential-crypto.ts"],
