@@ -60,7 +60,7 @@ The event is an annotation with this closed shape:
   "event": "actuals_corrected",
   "ref": "CHG058-ACTUALS-1",
   "change": "CHG-059",
-  "target_actuals_sha256": "<64 lowercase hex>",
+  "target_actuals_sha256": "dd232b1b4d60216c6ae8b4bb54ab9997b84db9868183ccd28839ba1faefce6d7",
   "replacement_actuals": {
     "phase_minutes": {
       "readiness": 15,
@@ -78,14 +78,14 @@ The event is an annotation with this closed shape:
     "mutation_minutes": 0,
     "mutation_shards_actual": 0,
     "estimate_variance_minutes": -175,
-    "root_cause": "<corrected reproducible measurement narrative>"
+    "root_cause": "Corrected measurement: raw NUL-delimited Git reports eight unique paths; the feature-branch reflog records creation at 2026-09-08T07:49:43-05:00, so readiness is round(875s/60)=15. All other measured boundaries and values are retained from the original completion actuals."
   },
   "reason": "The prior count included RTK display lines; raw NUL-delimited Git reports eight unique paths.",
   "evidence": [
     "rtk proxy git diff --name-only -z authority/chg-058-base..720139931458b1cf5a59df781bd02ce03586a3fe",
     "rtk proxy git reflog show --date=iso-strict feature/tooling/chg-058-faster-child-mutation"
   ],
-  "ts": "<ISO-8601 UTC>"
+  "ts": "2026-09-08T15:30:00Z"
 }
 ```
 
