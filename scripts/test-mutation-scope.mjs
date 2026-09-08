@@ -709,6 +709,14 @@ assert.deepEqual(
   "the connector source-boundary scanner must retain its enforcement route",
 );
 assert.deepEqual(
+  DIRECT_TEST_ROUTES["packages/connectors/src/contracts.ts"],
+  [
+    "packages/connectors/src/dispatch.test.ts",
+    "packages/connectors/src/providers/anthropic/connector.test.ts",
+  ],
+  "the connector contract must retain JSON-safety and provider-result accountability routes",
+);
+assert.deepEqual(
   DIRECT_TEST_ROUTES["packages/db/src/request-transition.ts"],
   ["packages/db/src/request-transition.test.ts"],
   "shared lifecycle persistence must use a source-owned mutation route while caller integrations remain in the full suite",

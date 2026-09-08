@@ -996,7 +996,7 @@ const EXACT_DELEGATION_ADAPTERS = {
     sha256: "7ba858cb6007c2866d8f1f1156dcdc01f1aec6e2606bd0eaf319512b64aee6bb",
   },
   "apps/worker/src/connector-composition.ts": {
-    sha256: "47426fc164c73ac6f6fb5738e19696dd47bdeaf79c6a0efcbb607d54e5f0769b",
+    sha256: "77851634f5d18fc7a2b52255a34389aa38f27926dd10991285ffff10976aa6b6",
   },
 };
 const EXACT_DELEGATION_ADAPTER_SOURCES = new Set(Object.keys(EXACT_DELEGATION_ADAPTERS));
@@ -1646,6 +1646,10 @@ export const DIRECT_TEST_ROUTES = {
   "packages/connectors/src/index.ts": [
     "packages/connectors/src/action-planner.test.ts",
     "packages/connectors/src/dispatch.test.ts",
+  ],
+  "packages/connectors/src/contracts.ts": [
+    "packages/connectors/src/dispatch.test.ts",
+    "packages/connectors/src/providers/anthropic/connector.test.ts",
   ],
   "packages/connectors/src/source-boundary.ts": [
     "packages/connectors/src/dispatch.test.ts",
