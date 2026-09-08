@@ -12,7 +12,7 @@ const EXPECTED_TRANSITIONS = {
   pending_approval: ["approved", "rejected"],
   approved: ["provisioning", "blocked_no_seat"],
   blocked_no_seat: ["provisioning", "rejected"],
-  provisioning: ["invited", "active", "failed"],
+  provisioning: ["invited", "active", "failed", "blocked_no_seat"],
   failed: ["provisioning"],
   invited: ["active", "deprovisioned"],
   active: ["flagged_inactive", "offboarding"],
@@ -42,7 +42,7 @@ describe("US-014 request lifecycle", () => {
   it("pins all 12 states and every legal edge to the canonical graph", () => {
     expect(REQUEST_TRANSITIONS).toEqual(EXPECTED_TRANSITIONS);
     expect(REQUEST_STATES).toHaveLength(12);
-    expect(ALLOWED_EDGES).toHaveLength(19);
+    expect(ALLOWED_EDGES).toHaveLength(20);
   });
 
   it.each(ALLOWED_EDGES)(
@@ -61,6 +61,17 @@ describe("US-014 request lifecycle", () => {
       );
     },
   );
+
+  it("allows only provisioning -> blocked_no_seat and keeps the reverse edge explicit", () => {
+    expect(() => assertLegalTransition("provisioning", "blocked_no_seat")).not.toThrow();
+    expect(() => assertLegalTransition("blocked_no_seat", "provisioning")).not.toThrow();
+    expect(() => assertLegalTransition("blocked_no_seat", "invited")).toThrow(
+      new Error("ILLEGAL_REQUEST_TRANSITION:blocked_no_seat:invited"),
+    );
+    expect(() => assertLegalTransition("failed", "blocked_no_seat")).toThrow(
+      new Error("ILLEGAL_REQUEST_TRANSITION:failed:blocked_no_seat"),
+    );
+  });
 
   it.each(ALLOWED_EDGES)(
     "classifies decision-field persistence for %s -> %s",

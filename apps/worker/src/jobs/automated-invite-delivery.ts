@@ -237,6 +237,82 @@ export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliver
     }
   }
 
+  async function finalizeNoSeat(
+    client: pg.PoolClient,
+    candidate: Candidate,
+    occurredAt: Date,
+  ): Promise<boolean> {
+    await client.query("BEGIN");
+    try {
+      const locked = await client.query(
+        `SELECT 1
+         FROM provisioning_action action
+         JOIN license_request request
+           ON request.id=action.request_id
+          AND request.vendor_account_id=action.vendor_account_id
+          AND request.company_id=$3
+         WHERE action.id=$1
+           AND action.vendor_account_id=$2
+           AND action.request_id=$4
+           AND action.kind='invite'
+           AND action.mode='automated'
+           AND action.status='pending'
+           AND request.state='provisioning'
+           AND EXISTS (
+             SELECT 1 FROM connector_call_observation observation
+             WHERE observation.provisioning_action_id=action.id
+               AND observation.vendor_account_id=action.vendor_account_id
+               AND observation.phase='failed'
+               AND observation.classification='client_error'
+               AND observation.summary->>'failure_code'='capacity_unavailable'
+           )
+         FOR UPDATE OF action,request`,
+        [
+          candidate.actionId,
+          candidate.vendorAccountId,
+          candidate.companyId,
+          candidate.requestId,
+        ],
+      );
+      if (locked.rowCount !== 1) {
+        await client.query("ROLLBACK");
+        return false;
+      }
+      const updated = await client.query(
+        `UPDATE provisioning_action
+         SET status='failed',raw_response=$2::jsonb,resolved_at=$3
+         WHERE id=$1
+           AND request_id=$4
+           AND vendor_account_id=$5
+           AND status='pending'
+         RETURNING id`,
+        [
+          candidate.actionId,
+          JSON.stringify({ failure_code: "capacity_unavailable" }),
+          occurredAt,
+          candidate.requestId,
+          candidate.vendorAccountId,
+        ],
+      );
+      if (updated.rowCount !== 1) throw new Error("AUTOMATED_INVITE_ACTION_CONFLICT");
+      const database = drizzle(client, { schema });
+      assertLegalTransition("provisioning", "blocked_no_seat");
+      await applyRequestTransitionInTransaction(database, {
+        requestId: candidate.requestId,
+        from: "provisioning",
+        to: "blocked_no_seat",
+        actorUserId: null,
+        note: "Anthropic invitation capacity unavailable",
+        occurredAt,
+      }, { expectedCompanyId: candidate.companyId });
+      await client.query("COMMIT");
+      return true;
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    }
+  }
+
   async function deliver(
     candidate: Candidate,
     occurredAt: Date,
@@ -295,7 +371,12 @@ export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliver
       });
       // Stryker disable next-line ConditionalExpression: @equivalent Anthropic provision success
       // is constructed only after parsing a non-null invitation id; ok plus null is unrepresentable.
-      if (!result.ok || result.value.vendorRef === null) return false;
+      if (!result.ok) {
+        return result.code === "capacity_unavailable"
+          ? await finalizeNoSeat(client, candidate, occurredAt)
+          : false;
+      }
+      if (result.value.vendorRef === null) return false;
       return finalize(client, candidate, result.value.vendorRef, occurredAt);
     } finally {
       if (locked) {

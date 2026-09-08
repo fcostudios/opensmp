@@ -131,6 +131,7 @@ const expectedAppendOnlyColumnUpdates = [
   { tableName: "license_assignment", columnName: "end_reason" },
   { tableName: "license_assignment", columnName: "ended_on" },
   { tableName: "provisioning_action", columnName: "failure_reason" },
+  { tableName: "provisioning_action", columnName: "raw_response" },
   { tableName: "provisioning_action", columnName: "resolved_at" },
   { tableName: "provisioning_action", columnName: "sent_at" },
   { tableName: "provisioning_action", columnName: "status" },

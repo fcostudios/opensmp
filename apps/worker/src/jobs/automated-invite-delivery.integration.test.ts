@@ -65,6 +65,18 @@ function payload(requestId: string, accountId: string, email: string) {
   };
 }
 
+const providerSeatLimitMessage = "Your organization has reached its seat limit.";
+
+function exactNoSeatResponse(): Response {
+  return new Response(JSON.stringify({
+    type: "error",
+    error: {
+      type: "invalid_request_error",
+      message: providerSeatLimitMessage,
+    },
+  }), { status: 400, headers: { "content-type": "application/json" } });
+}
+
 async function seed(): Promise<void> {
   await owner.query(
     `TRUNCATE TABLE audit_log, connector_call_observation, request_transition,
@@ -590,6 +602,244 @@ describe("US-063 automated invite delivery", () => {
         },
       },
     ]);
+  });
+
+  it("atomically routes one exact durable no-seat failure and rejects concurrent or stale replays", async () => {
+    // Mutations killed: accepting an unclassified provider failure, failing to bind the finalization
+    // to this action/company, omitting any local state write, or allowing a duplicate transition.
+    await seed();
+    let calls = 0;
+    let entered!: () => void;
+    let release!: () => void;
+    const transportEntered = new Promise<void>((resolve) => { entered = resolve; });
+    const transportReleased = new Promise<void>((resolve) => { release = resolve; });
+    const transport = async () => {
+      calls += 1;
+      entered();
+      await transportReleased;
+      return exactNoSeatResponse();
+    };
+    const first = jobFor(transport);
+    const second = jobFor(transport);
+    try {
+      const firstDrain = first.drain({ at, vendorAccountId: ids.accountA });
+      await transportEntered;
+      await expect(second.drain({ at, vendorAccountId: ids.accountA }))
+        .resolves.toEqual({ processed: 0 });
+      release();
+      await expect(firstDrain).resolves.toEqual({ processed: 1 });
+      await expect(first.drain({ at, vendorAccountId: ids.accountA }))
+        .resolves.toEqual({ processed: 0 });
+    } finally {
+      release();
+      await Promise.all([first.close(), second.close()]);
+    }
+
+    expect(calls).toBe(1);
+    const action = await owner.query(
+      `SELECT status,vendor_ref,raw_response,sent_at,resolved_at
+       FROM provisioning_action WHERE id=$1`,
+      [ids.actionA],
+    );
+    expect(action.rows).toEqual([{
+      status: "failed",
+      vendor_ref: null,
+      raw_response: { failure_code: "capacity_unavailable" },
+      sent_at: null,
+      resolved_at: at,
+    }]);
+    const request = await owner.query(
+      `SELECT state FROM license_request WHERE id=$1`,
+      [ids.requestA],
+    );
+    expect(request.rows).toEqual([{ state: "blocked_no_seat" }]);
+    const observations = await owner.query(
+      `SELECT phase,classification,summary
+       FROM connector_call_observation
+       WHERE provisioning_action_id=$1 ORDER BY phase`,
+      [ids.actionA],
+    );
+    expect(observations.rows).toEqual([
+      {
+        phase: "requested",
+        classification: null,
+        summary: { endpoint_class: "invitations", method: "POST" },
+      },
+      {
+        phase: "failed",
+        classification: "client_error",
+        summary: {
+          endpoint_class: "invitations",
+          method: "POST",
+          http_status: 400,
+          status_class: "client_error",
+          failure_code: "capacity_unavailable",
+        },
+      },
+    ]);
+    const transitions = await owner.query(
+      `SELECT from_state,to_state,actor_user_id,note
+       FROM request_transition WHERE request_id=$1`,
+      [ids.requestA],
+    );
+    expect(transitions.rows).toEqual([{
+      from_state: "provisioning",
+      to_state: "blocked_no_seat",
+      actor_user_id: null,
+      note: "Anthropic invitation capacity unavailable",
+    }]);
+    const audits = await owner.query(
+      `SELECT action,entity_type,entity_id,company_id,note,before,after
+       FROM audit_log WHERE entity_id=$1 ORDER BY occurred_at,id`,
+      [ids.requestA],
+    );
+    expect(audits.rows).toEqual([{
+      action: "request.blocked_no_seat",
+      entity_type: "LicenseRequest",
+      entity_id: ids.requestA,
+      company_id: ids.companyA,
+      note: "Anthropic invitation capacity unavailable",
+      before: { state: "provisioning" },
+      after: { state: "blocked_no_seat" },
+    }]);
+    const foreign = await owner.query(
+      `SELECT request.state,action.status,action.raw_response
+       FROM license_request request
+       JOIN provisioning_action action ON action.request_id=request.id
+       WHERE action.id=$1`,
+      [ids.actionB],
+    );
+    expect(foreign.rows).toEqual([{
+      state: "provisioning",
+      status: "pending",
+      raw_response: null,
+    }]);
+    expect(JSON.stringify({ action: action.rows, audits: audits.rows })).not.toContain(
+      providerSeatLimitMessage,
+    );
+  });
+
+  it.each([
+    [400, "Your organization has reached its seat limit. "],
+    [401, providerSeatLimitMessage],
+    [403, providerSeatLimitMessage],
+    [409, providerSeatLimitMessage],
+    [422, providerSeatLimitMessage],
+    [429, providerSeatLimitMessage],
+    [503, providerSeatLimitMessage],
+  ])("keeps generic provider status %i out of blocked_no_seat", async (status, message) => {
+    // Mutations killed: widening no-seat routing beyond the exact contract-recognized response.
+    await seed();
+    const job = jobFor(async () => new Response(JSON.stringify({
+      type: "error",
+      error: { type: "invalid_request_error", message },
+    }), { status, headers: { "content-type": "application/json" } }));
+    try {
+      await expect(job.drain({ at, vendorAccountId: ids.accountA }))
+        .resolves.toEqual({ processed: 0 });
+    } finally {
+      await job.close();
+    }
+    const state = await owner.query(
+      `SELECT request.state,action.status,action.raw_response,action.resolved_at
+       FROM license_request request
+       JOIN provisioning_action action ON action.request_id=request.id
+       WHERE action.id=$1`,
+      [ids.actionA],
+    );
+    expect(state.rows).toEqual([{
+      state: "provisioning",
+      status: "pending",
+      raw_response: null,
+      resolved_at: null,
+    }]);
+    const transitions = await owner.query(
+      `SELECT count(*)::int AS count FROM request_transition WHERE request_id=$1`,
+      [ids.requestA],
+    );
+    expect(transitions.rows).toEqual([{ count: 0 }]);
+    const foreign = await owner.query(
+      `SELECT request.state,action.status,action.raw_response,action.resolved_at
+       FROM license_request request
+       JOIN provisioning_action action ON action.request_id=request.id
+       WHERE action.id=$1`,
+      [ids.actionB],
+    );
+    expect(foreign.rows).toEqual([{
+      state: "provisioning",
+      status: "pending",
+      raw_response: null,
+      resolved_at: null,
+    }]);
+  });
+
+  it("rolls back no-seat finalization without deleting its durable sanitized observation", async () => {
+    // Mutations killed: committing a partial local finalization after audit failure.
+    await seed();
+    await owner.query(`
+      CREATE OR REPLACE FUNCTION reject_no_seat_finalization() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'forced no-seat finalization failure'; END $$;
+      CREATE TRIGGER reject_no_seat_finalization
+      BEFORE INSERT ON audit_log
+      FOR EACH ROW EXECUTE FUNCTION reject_no_seat_finalization()`);
+    const job = jobFor(async () => exactNoSeatResponse());
+    try {
+      await expect(job.drain({ at, vendorAccountId: ids.accountA }))
+        .rejects.toThrow("forced no-seat finalization failure");
+    } finally {
+      await job.close();
+      await owner.query(`
+        DROP TRIGGER IF EXISTS reject_no_seat_finalization ON audit_log;
+        DROP FUNCTION IF EXISTS reject_no_seat_finalization()`);
+    }
+    const state = await owner.query(
+      `SELECT request.state,action.status,action.raw_response,action.resolved_at
+       FROM license_request request
+       JOIN provisioning_action action ON action.request_id=request.id
+       WHERE action.id=$1`,
+      [ids.actionA],
+    );
+    expect(state.rows).toEqual([{
+      state: "provisioning",
+      status: "pending",
+      raw_response: null,
+      resolved_at: null,
+    }]);
+    const transitions = await owner.query(
+      `SELECT count(*)::int AS count FROM request_transition WHERE request_id=$1`,
+      [ids.requestA],
+    );
+    expect(transitions.rows).toEqual([{ count: 0 }]);
+    const foreign = await owner.query(
+      `SELECT request.state,action.status,action.raw_response,action.resolved_at
+       FROM license_request request
+       JOIN provisioning_action action ON action.request_id=request.id
+       WHERE action.id=$1`,
+      [ids.actionB],
+    );
+    expect(foreign.rows).toEqual([{
+      state: "provisioning",
+      status: "pending",
+      raw_response: null,
+      resolved_at: null,
+    }]);
+    const failedObservations = await owner.query(
+      `SELECT phase,classification,summary
+       FROM connector_call_observation
+       WHERE provisioning_action_id=$1 AND phase='failed'`,
+      [ids.actionA],
+    );
+    expect(failedObservations.rows).toEqual([{
+      phase: "failed",
+      classification: "client_error",
+      summary: {
+        endpoint_class: "invitations",
+        method: "POST",
+        http_status: 400,
+        status_class: "client_error",
+        failure_code: "capacity_unavailable",
+      },
+    }]);
   });
 
   it("kills finalization when the provider response names another recipient", async () => {

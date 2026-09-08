@@ -3,7 +3,7 @@ export const REQUEST_TRANSITIONS = {
   pending_approval: ["approved", "rejected"],
   approved: ["provisioning", "blocked_no_seat"],
   blocked_no_seat: ["provisioning", "rejected"],
-  provisioning: ["invited", "active", "failed"],
+  provisioning: ["invited", "active", "failed", "blocked_no_seat"],
   failed: ["provisioning"],
   invited: ["active", "deprovisioned"],
   active: ["flagged_inactive", "offboarding"],
