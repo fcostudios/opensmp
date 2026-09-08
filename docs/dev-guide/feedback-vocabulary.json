@@ -1,10 +1,11 @@
 {
-  "_nous_emitted": "e79a26ae055bcf9f",
+  "_nous_emitted": "2e4576e4a2a4a82a",
   "canonical": {
     "ac_fail": "annotation",
     "ac_pass": "annotation",
     "ac_unverifiable": "annotation",
     "ac_verify": "annotation",
+    "actuals_corrected": "annotation",
     "adversarial_review": "sprint_marker",
     "blocked": "annotation",
     "blocker": "annotation",
@@ -30,6 +31,85 @@
   "deprecated": [
     "checkpoint"
   ],
+  "event_schemas": {
+    "actuals_corrected": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "description": "IMP-404 I01. Replaces the complete currently effective actuals object while preserving the immutable raw readiness actuals. The target hash forms a linear append-only chain.",
+      "properties": {
+        "change": {
+          "description": "prior `CHG-NNN` decision authorizing the correction",
+          "pattern": "^CHG-[0-9]{3}$",
+          "type": "string"
+        },
+        "event": {
+          "description": "always `actuals_corrected`",
+          "enum": [
+            "actuals_corrected"
+          ],
+          "type": "string"
+        },
+        "evidence": {
+          "description": "one or more non-empty primary-source descriptions",
+          "items": {
+            "minLength": 1,
+            "pattern": ".*\\S.*",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "reason": {
+          "description": "non-empty factual explanation",
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "type": "string"
+        },
+        "ref": {
+          "description": "globally unique correction identity",
+          "pattern": "^[A-Z0-9]+(-[A-Z0-9]+)+$",
+          "type": "string"
+        },
+        "replacement_actuals": {
+          "description": "complete replacement actuals object; never a partial patch",
+          "minProperties": 1,
+          "type": "object"
+        },
+        "story": {
+          "description": "completed `US-NNN` or `CHG-NNN` whose immutable actuals are corrected",
+          "pattern": "^(US|CHG)-[0-9]{3}$",
+          "type": "string"
+        },
+        "target_actuals_sha256": {
+          "description": "SHA-256 of compact recursively key-sorted current effective actuals",
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "ts": {
+          "description": "ISO-8601 UTC timestamp after the terminal or preceding correction",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[^ ]*(Z|\\+00:00)$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "story",
+        "event",
+        "ref",
+        "change",
+        "target_actuals_sha256",
+        "replacement_actuals",
+        "reason",
+        "evidence",
+        "ts"
+      ],
+      "title": "Append-only completion actuals correction \u2014 `actuals_corrected`",
+      "type": "object",
+      "x-nous-doc": {
+        "heading": "Completion Actuals Corrections",
+        "summary": "Use `actuals_corrected` when primary evidence proves immutable completion actuals are factually wrong. Append a complete replacement; never edit the raw actuals or emit a partial patch. Each later correction targets the SHA-256 of the currently effective object, forming one linear audit chain."
+      }
+    }
+  },
   "local": [],
   "terminal_alias_prefix": "done_with_"
 }

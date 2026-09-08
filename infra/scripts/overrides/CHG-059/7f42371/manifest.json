@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "paths": {
+    "docs/dev-guide/TESTING.md": {
+      "source_path": "overrides/CHG-049/6466f60/docs/dev-guide/TESTING.md",
+      "source_sha256": "4c201f4ea67e3edc817e8edf1ff05b5d3a9ea4edff6bfb199b0120c57b902732",
+      "desired_sha256": "5dc6ebf9336f05c9643755887ee6c5c2757d55ebf215a6e168f6801c97a6df11"
+    }
+  }
+}

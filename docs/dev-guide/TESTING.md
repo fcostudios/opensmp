@@ -43,6 +43,10 @@ The **aggregate + projection layers should be the widest part of the suite**, no
 > mechanisms. Adding logic here without updating this file is a review smell.
 > *(Authoritative machine-derived set: [`testing/critical-paths.md`](../../testing/critical-paths.md),
 > generated from this project's business rules + graph. Keep current.)*
+>
+> **Adding a critical path of your own?** Declare it in config — not by editing a generated file:
+> `nous_trace.py config patch --project <id> --key testing.critical_paths --value '["**Your path** — what a silent fault here would cost."]'`
+> Declared rows are published verbatim — under `## Operator additions` in `testing/critical-paths.md`, and in the §3 list in `docs/dev-guide/TESTING.md` — and survive every regeneration.
 
 - **Tenant isolation** — every path that touches tenant-scoped data (filtered by `company_id`). → explicit isolation assertions (a query for tenant A must never return tenant B's rows).
 - **Authorization** — role/permission gates on commands/mutations. → integration tests for allowed vs forbidden (expect 403).
@@ -125,4 +129,4 @@ pnpm test:mutation  # ONE diff-scoped mutation campaign  ← the gate
 ## 8. Reference
 
 Full rationale + evidence base: `docs/TEST_EFFECTIVENESS_STANDARD.md`.
-<!-- nous-emitted: sha256=762e4971622fbce1 -->
+<!-- nous-emitted: sha256=91cce253f404c4f6 -->

@@ -125,13 +125,29 @@ a scoreless report is what made this gate un-gateable. Report the real numbers.
 If a later commit invalidates a campaign you already reported, emit a
 `mutation_invalidation` naming the reason rather than deleting the report.
 
+## Completion Actuals Corrections
+
+Use `actuals_corrected` when primary evidence proves immutable completion actuals are factually wrong. Append a complete replacement; never edit the raw actuals or emit a partial patch. Each later correction targets the SHA-256 of the currently effective object, forming one linear audit chain.
+
+| Field | Required | Meaning |
+|-------|----------|---------|
+| `story` | **yes** | completed `US-NNN` or `CHG-NNN` whose immutable actuals are corrected |
+| `event` | **yes** | always `actuals_corrected` |
+| `ref` | **yes** | globally unique correction identity |
+| `change` | **yes** | prior `CHG-NNN` decision authorizing the correction |
+| `target_actuals_sha256` | **yes** | SHA-256 of compact recursively key-sorted current effective actuals |
+| `replacement_actuals` | **yes** | complete replacement actuals object; never a partial patch |
+| `reason` | **yes** | non-empty factual explanation |
+| `evidence` | **yes** | one or more non-empty primary-source descriptions |
+| `ts` | **yes** | ISO-8601 UTC timestamp after the terminal or preceding correction |
+
 ## Canonical Event Vocabulary (authoritative)
 
 Canonical event vocabulary (single source: `feedback_schemas`). Unknown event names are surfaced by `pull`/`drift`, never silently dropped:
 
 - **Lifecycle (flip story status):** `started`, `done`, `verified`
 - **Terminal-with-deferral (→ dev_done + deferral note; prefer plain `done`):** `done_with_deferral`, `done_with_external_deferral`
-- **Annotation (recorded, no status change):** `ac_pass`, `ac_verify`, `blocked`, `blocker`, `deviation`, `ac_fail`, `ac_unverifiable`, `test_report`, `feedback`, `evidence_superseded`, `revalidated`, `mutation_invalidation`, `nav_gap`
+- **Annotation (recorded, no status change):** `ac_pass`, `ac_verify`, `blocked`, `blocker`, `deviation`, `ac_fail`, `ac_unverifiable`, `test_report`, `feedback`, `evidence_superseded`, `revalidated`, `mutation_invalidation`, `actuals_corrected`, `nav_gap`
 - **Decision (registered):** `decision`
 - **Sprint-level marker (project audit trail, never flips a story):** `closed_with_deferrals`, `adversarial_review`, `deferred_memory_saved`, `closure_hygiene`, `implemented_with_external_verification`
 - **Informational (counted, not persisted):** `build_pass`
@@ -142,4 +158,4 @@ Any `done_with_<qualifier>` event is recognized as terminal (recorded as a defer
 Retired names stay valid so previously written history keeps validating; do not emit them in new work.
 
 **Stamp every event with `ts`** — an ISO-8601 UTC timestamp of when the event happened, e.g. `date -u +%FT%TZ` → `"ts": "2026-09-06T14:30:00Z"`. It is optional on every event and absence is always legal, so a forgotten stamp never fails a sync — but `started` and `done` without it mean nobody can say how long the story took (`nous_trace.py story elapsed` reports it as "lacking an endpoint", never as zero). A malformed stamp is excluded and named rather than guessed at.
-<!-- nous-emitted: sha256=1dea349f48ee849d -->
+<!-- nous-emitted: sha256=38503c4b2a53f768 -->

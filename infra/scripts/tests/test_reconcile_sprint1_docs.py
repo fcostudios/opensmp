@@ -32,6 +32,7 @@ CRITICAL_SET_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-044/2d93300"
 CHG049_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-049/6466f60"
 CHG053_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-053/2dee869"
 CHG055_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-055/e240d85"
+CHG059_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-059/7f42371"
 CHG053_DELIVERED_ROOT = Path(__file__).parents[3]
 CHG053_GUIDES = (
     "CLAUDE.md",
@@ -97,6 +98,9 @@ def desired_guide(relative_path: str) -> bytes:
 
 
 def latest_desired_guide(relative_path: str) -> bytes:
+    chg059 = CHG059_OVERRIDE_ROOT / relative_path
+    if chg059.is_file():
+        return chg059.read_bytes()
     chg055 = CHG055_OVERRIDE_ROOT / relative_path
     if chg055.is_file():
         return chg055.read_bytes()
@@ -194,6 +198,11 @@ def copy_reconciler_data(root: Path) -> Path:
         shutil.copytree(
             CHG055_OVERRIDE_ROOT,
             data_root / "overrides/CHG-055/e240d85",
+        )
+    if CHG059_OVERRIDE_ROOT.is_dir():
+        shutil.copytree(
+            CHG059_OVERRIDE_ROOT,
+            data_root / "overrides/CHG-059/7f42371",
         )
     return data_root
 
@@ -895,6 +904,45 @@ class ReconciliationBehaviorTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(snapshot(root), before)
+
+    def test_chg059_manifest_binds_the_testing_contract_transition(self) -> None:
+        manifest_path = CHG059_OVERRIDE_ROOT / "manifest.json"
+        self.assertTrue(manifest_path.is_file(), "CHG-059 override manifest is missing")
+
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            manifest,
+            {
+                "version": 1,
+                "paths": {
+                    "docs/dev-guide/TESTING.md": {
+                        "source_path": (
+                            "overrides/CHG-049/6466f60/docs/dev-guide/TESTING.md"
+                        ),
+                        "source_sha256": (
+                            "4c201f4ea67e3edc817e8edf1ff05b5d3a9ea4edff6bfb199b0120c57b902732"
+                        ),
+                        "desired_sha256": (
+                            "5dc6ebf9336f05c9643755887ee6c5c2757d55ebf215a6e168f6801c97a6df11"
+                        ),
+                    },
+                },
+            },
+        )
+        metadata = manifest["paths"]["docs/dev-guide/TESTING.md"]
+        self.assertEqual(
+            hashlib.sha256(
+                (SCRIPT_DATA_ROOT / metadata["source_path"]).read_bytes()
+            ).hexdigest(),
+            metadata["source_sha256"],
+        )
+        self.assertEqual(
+            hashlib.sha256(
+                (CHG059_OVERRIDE_ROOT / "docs/dev-guide/TESTING.md").read_bytes()
+            ).hexdigest(),
+            metadata["desired_sha256"],
+        )
 
     def test_chg053_source_and_desired_tamper_fail_before_writes(self) -> None:
         for artifact_kind, relative_path in (
