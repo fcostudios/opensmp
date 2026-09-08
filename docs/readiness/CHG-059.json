@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "45e5e40df5b8d11061ac591bf0f9e1e71bae1d346a420118afd07297256727f2",
+  "work_id": "CHG-059",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Correct immutable completion actuals through an append-only hash chain",
+  "source": "Nous change ledger CHG-059",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "A completed work item can correct a factual actuals error without editing its original readiness actuals or terminal evidence.",
+      "demo": "Append a correction targeting the SHA-256 of the currently effective actuals and prove the original readiness and terminal bytes remain unchanged.",
+      "primary": true
+    },
+    {
+      "id": "O2",
+      "statement": "Readiness validation, Nous timeline reconciliation, and execution-budget recalibration resolve the same latest valid correction chain.",
+      "demo": "Load one corrected item through the tenant validator and Nous timeline/calibration paths and observe identical effective actuals plus visible provenance.",
+      "primary": false
+    },
+    {
+      "id": "O3",
+      "statement": "CHG-058 retains its original mistaken measurement as audit history while its effective changed-file count is corrected from 11 to 8 and its start boundary is described accurately.",
+      "demo": "Show the raw CHG-058 actuals, the appended correction, and effective actuals with changed_files 8, total 125, variance -175, and no replacement mutation campaign.",
+      "primary": false
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O2",
+        "O3"
+      ]
+    }
+  ],
+  "scopes": [
+    "planning",
+    "tooling"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 10,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 1,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 20,
+    "implementation": 120,
+    "focused_verification": 50,
+    "review": 75,
+    "integration": 35,
+    "total": 300
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Whether an append-only correction can preserve immutable raw actuals while every consumer resolves one unambiguous effective value.",
+      "status": "resolved",
+      "estimate_impact_minutes": 25,
+      "resolution": "Use an actuals_corrected feedback event whose target SHA-256 must equal the currently effective complete actuals. Each event carries a full replacement actuals object, unique ref, correcting CHG, reason, evidence, and timestamp; consumers fold the validated chain in ledger order while retaining the raw readiness object."
+    },
+    {
+      "id": "U2",
+      "statement": "Whether the tenant can introduce the event without diverging from Nous-owned vocabulary and recalibration semantics.",
+      "status": "resolved",
+      "estimate_impact_minutes": 25,
+      "resolution": "Nous owns the canonical event schema, ingestion, vocabulary emission, timeline reconciliation, and calibration projection. The tenant adopts the delivered vocabulary and implements the matching readiness projection; no tenant hand-edit of generated guidance is allowed."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG059-READY",
+    "payload_sha256": "45e5e40df5b8d11061ac591bf0f9e1e71bae1d346a420118afd07297256727f2"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
