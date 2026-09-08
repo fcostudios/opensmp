@@ -10,6 +10,18 @@ import pg from "pg";
 
 import { createProvisioningPlanningDispatcher } from "../connector-composition.js";
 
+export function assertProvisioningDispatcherReady(
+  dispatcher: ConnectorDispatcher,
+): ConnectorDispatcher {
+  try {
+    const connector = dispatcher.forProtocol("rest");
+    if (connector.capabilities().has("provision")) return dispatcher;
+  } catch {
+    // Normalize missing registration and missing capability to one local invariant.
+  }
+  throw new Error("CAPACITY_RECOVERY_PROVISIONING_CONNECTOR_UNAVAILABLE");
+}
+
 export function createCapacityRecoveryJob({
   connectionString,
   now = () => new Date(),
@@ -18,7 +30,9 @@ export function createCapacityRecoveryJob({
   readonly now?: () => Date;
 }) {
   const pool = new pg.Pool({ connectionString });
-  const dispatcher = createProvisioningPlanningDispatcher();
+  const dispatcher = assertProvisioningDispatcherReady(
+    createProvisioningPlanningDispatcher(),
+  );
   return {
     async close(): Promise<void> {
       await pool.end();

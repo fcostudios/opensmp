@@ -417,6 +417,15 @@ describe("US-057 PostgreSQL connector-call observation appender", () => {
         phase: "failed",
         classification: "provider_error",
       }) as never)).rejects.toThrowError("Invalid connector classification");
+      await expect(journal.append(requested({
+        summary: {
+          endpoint_class: "organization",
+          method: "POST",
+          failure_code: "forged_failure_code",
+        },
+      }) as never)).rejects.toThrowError(
+        "Invalid persisted connector failure code",
+      );
       await expect(app.query("UPDATE connector_call_observation SET summary = '{}'::jsonb")).rejects.toMatchObject({ code: "42501" });
       await expect(app.query("DELETE FROM connector_call_observation")).rejects.toMatchObject({ code: "42501" });
       await journal.close();

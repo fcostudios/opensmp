@@ -15,6 +15,14 @@ export const REQUEST_TRANSITIONS = {
 
 export type RequestState = keyof typeof REQUEST_TRANSITIONS;
 
+export function isRequestTransitionAllowed(
+  from: RequestState,
+  to: RequestState,
+): boolean {
+  const targets = REQUEST_TRANSITIONS[from] as readonly RequestState[];
+  return targets.indexOf(to) >= 0;
+}
+
 export type TransitionCommand = {
   requestId: string;
   from: RequestState;
@@ -29,7 +37,7 @@ export function assertLegalTransition(
   to: RequestState,
 ): void {
   if (
-    !(REQUEST_TRANSITIONS[from] as readonly RequestState[]).includes(to)
+    !isRequestTransitionAllowed(from, to)
   ) {
     throw new Error(`ILLEGAL_REQUEST_TRANSITION:${from}:${to}`);
   }

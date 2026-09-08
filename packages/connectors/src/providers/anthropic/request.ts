@@ -427,7 +427,7 @@ export function createAnthropicRequestExecutor(dependencies: Readonly<{
       }
 
       const classification = classifyStatus(response.status);
-      const failureCode = input.endpoint === "create_invite" && response.status === 400
+      const failureCode = classification === "client_error"
         ? await readAnthropicCapacityFailure(response, input.endpoint)
         : null;
       try {

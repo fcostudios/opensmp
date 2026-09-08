@@ -213,9 +213,6 @@ export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliver
          WHERE id=$1 AND status='pending' RETURNING id`,
         [candidate.actionId, vendorRef, occurredAt],
       );
-      // Stryker disable next-line ConditionalExpression,StringLiteral: @equivalent The action is
-      // locked and matched status='pending' above in this same transaction; a database failure
-      // rejects the UPDATE rather than returning a different cardinality.
       if (updated.rowCount !== 1) throw new Error("AUTOMATED_INVITE_ACTION_CONFLICT");
       // Stryker disable next-line ObjectLiteral: @equivalent This adapter uses only Drizzle's
       // raw execute method; the schema object changes typing, not the emitted SQL or runtime value.
@@ -295,6 +292,8 @@ export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliver
         ],
       );
       if (updated.rowCount !== 1) throw new Error("AUTOMATED_INVITE_ACTION_CONFLICT");
+      // Stryker disable next-line ObjectLiteral: @equivalent This adapter uses only Drizzle's
+      // raw execute method; the schema object changes typing, not the emitted SQL or runtime value.
       const database = drizzle(client, { schema });
       assertLegalTransition("provisioning", "blocked_no_seat");
       await applyRequestTransitionInTransaction(database, {

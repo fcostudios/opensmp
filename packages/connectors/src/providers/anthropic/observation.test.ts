@@ -131,14 +131,16 @@ describe("Anthropic connector observation bridge", () => {
   });
 
   it.each([
-    ["wrong endpoint", "members", "GET", 400, "client_error"],
-    ["wrong method", "create_invite", "GET", 400, "client_error"],
-    ["wrong status", "create_invite", "POST", 401, "client_error"],
-    ["wrong classification", "create_invite", "POST", 400, "provider_error"],
+    ["wrong endpoint", "members", "POST", "completed", 400, "client_error"],
+    ["wrong method", "create_invite", "GET", "completed", 400, "client_error"],
+    ["wrong phase", "create_invite", "POST", "requested", 400, "client_error"],
+    ["wrong status", "create_invite", "POST", "completed", 401, "client_error"],
+    ["wrong classification", "create_invite", "POST", "completed", 400, "provider_error"],
   ] as const)("rejects a capacity failure code with %s", async (
     _case,
     endpoint,
     method,
+    phase,
     status,
     classification,
   ) => {
@@ -148,7 +150,7 @@ describe("Anthropic connector observation bridge", () => {
     await expect(bridge(observation({
       endpoint,
       method,
-      phase: "completed",
+      phase,
       status,
       classification,
       failureCode: "capacity_unavailable",

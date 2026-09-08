@@ -1,13 +1,18 @@
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { createConnectorDispatcher } from "@smp/connectors";
 import {
   createPostgresFixture,
   type PostgresFixture,
 } from "@smp/db/testing/postgres-container";
 
 import { createOrchestrationService } from "../../../web/src/modules/request-workflow/orchestration.js";
-import { createCapacityRecoveryJob } from "./capacity-recovery.js";
+import { createProvisioningPlanningDispatcher } from "../connector-composition.js";
+import {
+  assertProvisioningDispatcherReady,
+  createCapacityRecoveryJob,
+} from "./capacity-recovery.js";
 
 const id = (suffix: string) =>
   `23100000-0000-4000-8000-${suffix.padStart(12, "0")}`;
@@ -191,6 +196,14 @@ afterAll(async () => {
 });
 
 describe("US-023 capacity recovery with real PostgreSQL", () => {
+  it("fails closed unless recovery has a provision-capable REST connector", () => {
+    expect(() => assertProvisioningDispatcherReady(
+      createConnectorDispatcher(),
+    )).toThrow("CAPACITY_RECOVERY_PROVISIONING_CONNECTOR_UNAVAILABLE");
+    const dispatcher = createProvisioningPlanningDispatcher();
+    expect(assertProvisioningDispatcherReady(dispatcher)).toBe(dispatcher);
+  });
+
   it("retains failed no-seat evidence and creates one distinct pending recovery action", async () => {
     await seedBlockedCapacityPool({
       accountId: ids.accountNoSeat,

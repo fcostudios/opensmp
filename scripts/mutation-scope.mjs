@@ -1245,8 +1245,21 @@ export async function createDatabaseShardSandbox(
   pgModule,
   { cleanupAttempts = 3 } = {},
 ) {
-  const ownerUrl = environment.DATABASE_ADMIN_URL ?? environment.US017_MUTATION_DATABASE_ADMIN_URL;
-  const appUrl = environment.DATABASE_URL ?? environment.US017_MUTATION_DATABASE_URL;
+  let ownerUrl = environment.DATABASE_ADMIN_URL;
+  let appUrl = environment.DATABASE_URL;
+  if (!ownerUrl || !appUrl) {
+    const storyHarnesses = Object.keys(environment)
+      .filter((key) => /^US\d+_MUTATION_DATABASE_ADMIN_URL$/.test(key))
+      .map((adminKey) => ({
+        adminKey,
+        appKey: adminKey.replace("_ADMIN_URL", "_URL"),
+      }))
+      .filter(({ adminKey, appKey }) => environment[adminKey] && environment[appKey]);
+    if (storyHarnesses.length === 1) {
+      ownerUrl = environment[storyHarnesses[0].adminKey];
+      appUrl = environment[storyHarnesses[0].appKey];
+    }
+  }
   if (!ownerUrl || !appUrl) throw new Error("database shard sandbox requires owner and app URLs");
   const template = new URL(ownerUrl).pathname.slice(1);
   if (!/^[a-z0-9_]+$/.test(template)) throw new Error("database shard template name is invalid");
@@ -1649,6 +1662,14 @@ export const DIRECT_TEST_ROUTES = {
   ],
   "packages/connectors/src/contracts.ts": [
     "packages/connectors/src/dispatch.test.ts",
+    "packages/connectors/src/providers/anthropic/connector.test.ts",
+  ],
+  "packages/connectors/src/dispatch.ts": [
+    "packages/connectors/src/dispatch.test.ts",
+    "packages/connectors/src/providers/anthropic/connector.test.ts",
+  ],
+  "packages/connectors/src/providers/anthropic/request.ts": [
+    "packages/connectors/src/providers/anthropic/request.test.ts",
     "packages/connectors/src/providers/anthropic/connector.test.ts",
   ],
   "packages/connectors/src/source-boundary.ts": [
@@ -2465,6 +2486,7 @@ export async function runMutationScope(options = {}) {
           databaseSandbox = await databaseSandboxRecord.promise;
         } catch (error) {
           activeDatabaseSandboxes.delete(databaseSandboxRecord);
+          databaseSandboxRecord = null;
           throw error;
         }
         shardEnvironment = databaseSandbox.environment;

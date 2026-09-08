@@ -5,6 +5,16 @@ export type ConnectorCapability =
   | "syncActivity"
   | "syncCost";
 
+export const connectorFailureCodes = Object.freeze([
+  "provider_error",
+  "capacity_unavailable",
+] as const);
+export type ConnectorFailureCode = (typeof connectorFailureCodes)[number];
+
+export function isConnectorFailureCode(value: unknown): value is ConnectorFailureCode {
+  return connectorFailureCodes.some((code) => code === value);
+}
+
 export type ConnectorResult<T> =
   | { ok: true; value: T; raw: unknown }
   | { ok: false; code: "unsupported"; checklistSteps: readonly string[] }

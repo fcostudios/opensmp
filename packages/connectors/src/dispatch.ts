@@ -1,5 +1,6 @@
 import {
   assertJsonValue,
+  isConnectorFailureCode,
   type ActivitySnapshot,
   type ConnectorCapability,
   type ConnectorResult,
@@ -174,11 +175,11 @@ function validateResult<T>(
   result: ConnectorResult<T>,
   operation: "instruction" | "sync",
 ): ConnectorResult<T> {
-  if (
-    result.ok
-    || result.code === "provider_error"
-    || result.code === "capacity_unavailable"
-  ) {
+  const hasRaw = (candidate: ConnectorResult<T>): candidate is Extract<
+    ConnectorResult<T>,
+    { raw: unknown }
+  > => candidate.ok || isConnectorFailureCode(candidate.code);
+  if (hasRaw(result)) {
     const raw = deepFreeze(assertJsonValue(result.raw, "raw"));
     if (result.ok) {
       return Object.freeze({

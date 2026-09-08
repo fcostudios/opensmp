@@ -328,6 +328,40 @@ assert.equal(
 await secondSandbox.cleanup();
 assert.deepEqual([...sandboxDatabases.keys()], ["ledger"]);
 
+const storyScopedSandbox = await createDatabaseShardSandbox({
+  US064_MUTATION_DATABASE_ADMIN_URL: "postgres://owner:secret@db/ledger",
+  US064_MUTATION_DATABASE_URL: "postgres://app:secret@db/ledger",
+}, "story-scoped-mutating-shard", { default: { Client: SandboxClient } });
+assert.equal(
+  new URL(storyScopedSandbox.environment.US064_MUTATION_DATABASE_ADMIN_URL).pathname,
+  `/${storyScopedSandbox.databaseName}`,
+  "the sandbox must select any unambiguous story-scoped owner/app harness pair",
+);
+assert.equal(
+  new URL(storyScopedSandbox.environment.US064_MUTATION_DATABASE_URL).pathname,
+  `/${storyScopedSandbox.databaseName}`,
+);
+await storyScopedSandbox.cleanup();
+assert.deepEqual([...sandboxDatabases.keys()], ["ledger"]);
+
+await assert.rejects(
+  createDatabaseShardSandbox({
+    US064_MUTATION_DATABASE_ADMIN_URL: "postgres://owner:secret@db/ledger",
+  }, "incomplete-story-scoped-shard", { default: { Client: SandboxClient } }),
+  /requires owner and app URLs/,
+  "an incomplete story-scoped database harness must fail closed",
+);
+await assert.rejects(
+  createDatabaseShardSandbox({
+    US064_MUTATION_DATABASE_ADMIN_URL: "postgres://owner:secret@db/ledger",
+    US064_MUTATION_DATABASE_URL: "postgres://app:secret@db/ledger",
+    US065_MUTATION_DATABASE_ADMIN_URL: "postgres://owner:secret@db/ledger",
+    US065_MUTATION_DATABASE_URL: "postgres://app:secret@db/ledger",
+  }, "ambiguous-story-scoped-shard", { default: { Client: SandboxClient } }),
+  /requires owner and app URLs/,
+  "multiple story-scoped database harnesses must fail closed",
+);
+
 let transientCleanupAttempts = 0;
 class TransientCleanupClient extends SandboxClient {
   async query(sql, values = []) {
@@ -715,6 +749,22 @@ assert.deepEqual(
     "packages/connectors/src/providers/anthropic/connector.test.ts",
   ],
   "the connector contract must retain JSON-safety and provider-result accountability routes",
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["packages/connectors/src/dispatch.ts"],
+  [
+    "packages/connectors/src/dispatch.test.ts",
+    "packages/connectors/src/providers/anthropic/connector.test.ts",
+  ],
+  "neutral result validation must retain both direct and shipped-provider accountability",
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["packages/connectors/src/providers/anthropic/request.ts"],
+  [
+    "packages/connectors/src/providers/anthropic/request.test.ts",
+    "packages/connectors/src/providers/anthropic/connector.test.ts",
+  ],
+  "request execution must retain direct and connector-level capacity-result accountability",
 );
 assert.deepEqual(
   DIRECT_TEST_ROUTES["packages/db/src/request-transition.ts"],

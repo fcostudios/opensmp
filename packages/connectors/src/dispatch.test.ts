@@ -20,7 +20,11 @@ import type {
   ProvisionInput,
   VendorConnector,
 } from "./contracts.js";
-import { assertJsonValue } from "./contracts.js";
+import {
+  assertJsonValue,
+  connectorFailureCodes,
+  isConnectorFailureCode,
+} from "./contracts.js";
 import {
   buildManualChecklistActions,
   ConnectorDispatcher,
@@ -222,6 +226,17 @@ describe("none connector", () => {
 });
 
 describe("ConnectorDispatcher", () => {
+  it("exports the exact immutable provider failure vocabulary", () => {
+    expect(connectorFailureCodes).toEqual(["provider_error", "capacity_unavailable"]);
+    expect(Object.isFrozen(connectorFailureCodes)).toBe(true);
+    expect(() => (connectorFailureCodes as unknown as string[]).push("unknown"))
+      .toThrow(TypeError);
+    expect(isConnectorFailureCode("provider_error")).toBe(true);
+    expect(isConnectorFailureCode("capacity_unavailable")).toBe(true);
+    expect(isConnectorFailureCode("unsupported")).toBe(false);
+    expect(isConnectorFailureCode(null)).toBe(false);
+  });
+
   it("leaves rest unregistered when construction input is omitted", () => {
     // Mutation caught: default-registering rest would activate a network connector for existing callers.
     expect(() => createConnectorDispatcher().forProtocol("rest")).toThrowError(
@@ -261,6 +276,55 @@ describe("ConnectorDispatcher", () => {
     });
     expect(Object.isFrozen(failure)).toBe(true);
     expect(connector).not.toBe(implementation);
+  });
+
+  it("accepts only the exact immutable capacity-unavailable result", async () => {
+    const implementation = connectorWith("provision");
+    implementation.provision = async () => ({
+      ok: false,
+      code: "capacity_unavailable",
+      retryable: false,
+      raw: { failure_code: "capacity_unavailable" },
+    });
+    const result = await createConnectorDispatcher({ rest: implementation })
+      .forProtocol("rest")
+      .provision(provisionInput);
+
+    expect(result).toEqual({
+      ok: false,
+      code: "capacity_unavailable",
+      retryable: false,
+      raw: { failure_code: "capacity_unavailable" },
+    });
+    expect(Object.isFrozen(result)).toBe(true);
+    expect(Object.isFrozen((result as { raw: object }).raw)).toBe(true);
+  });
+
+  it.each([
+    ["retryable", { failure_code: "capacity_unavailable" }, true],
+    ["null raw", null, false],
+    ["primitive raw", "capacity_unavailable", false],
+    ["array raw", ["capacity_unavailable"], false],
+    ["empty raw", {}, false],
+    ["extra raw key", { failure_code: "capacity_unavailable", detail: "private" }, false],
+    ["wrong raw code", { failure_code: "provider_error" }, false],
+  ] as const)("rejects an inexact capacity result with %s", async (
+    _case,
+    raw,
+    retryable,
+  ) => {
+    const implementation = connectorWith("provision");
+    implementation.provision = async () => ({
+      ok: false,
+      code: "capacity_unavailable",
+      retryable,
+      raw,
+    } as never);
+
+    await expect(createConnectorDispatcher({ rest: implementation })
+      .forProtocol("rest")
+      .provision(provisionInput))
+      .rejects.toThrowError("Invalid connector capacity unavailable result");
   });
 
   it.each(["rest", "scim"] as const)(

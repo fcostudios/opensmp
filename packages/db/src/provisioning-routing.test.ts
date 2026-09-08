@@ -140,6 +140,7 @@ describe("US-023 canonical provisioning routing primitives", () => {
       sql: "SELECT request.id::text AS \"requestId\",request.state::text AS \"requestState\",\n               request.company_id::text AS \"companyId\",request.person_id::text AS \"personId\",\n               request.vendor_account_id::text AS \"vendorAccountId\",\n               request.license_type_id::text AS \"licenseTypeId\",holder.email AS \"personEmail\",\n               license.name AS \"licenseTypeName\",account.mode::text AS \"accountMode\",\n               vendor.provisioning_protocol::text AS \"provisioningProtocol\",\n               vendor.can_provision AS \"canProvision\",vendor.can_deprovision AS \"canDeprovision\"\n        FROM license_request request\n        JOIN person holder ON holder.id=request.person_id AND holder.company_id=request.company_id\n        JOIN vendor_account account ON account.id=request.vendor_account_id AND account.status='active'\n        JOIN vendor ON vendor.id=account.vendor_id\n        JOIN license_type license ON license.id=request.license_type_id\n          AND license.vendor_id=vendor.id AND license.status='active'\n        WHERE request.id=$1::uuid FOR UPDATE OF request",
     });
     expect(queries[1]?.sql).toContain("raw_request->>'operation'='provision'");
+    expect(queries[1]?.params).toEqual([ids.request, "pending"]);
     expect(queries[1]?.sql).toContain("ORDER BY created_at,id FOR UPDATE");
   });
 

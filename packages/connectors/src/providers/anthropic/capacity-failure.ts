@@ -6,7 +6,7 @@ export const anthropicCapacityFailureMessages = Object.freeze([
   "Your organization has reached its seat limit.",
 ] as const);
 
-const maximumBodyBytes = 8 * 1024;
+const maximumBodyBytes = 8_192;
 
 /** Parse only the object/string grammar used by the closed two-level error envelope.
  * The caller bounds input to 8 KiB; depth is bounded independently. Decode string
@@ -146,10 +146,12 @@ export async function readAnthropicCapacityFailure(
   if (text === null) return null;
   try {
     const envelope = exactRecord(parseUniqueEnvelope(text), ["type", "error"]);
-    const error = envelope === null ? null : exactRecord(envelope.error, ["type", "message"]);
+    if (envelope === null) return null;
+    const error = exactRecord(envelope.error, ["type", "message"]);
+    if (error === null) return null;
     if (
-      envelope?.type === "error"
-      && error?.type === "invalid_request_error"
+      envelope.type === "error"
+      && error.type === "invalid_request_error"
       && anthropicCapacityFailureMessages.includes(
         error.message as (typeof anthropicCapacityFailureMessages)[number],
       )

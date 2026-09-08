@@ -148,18 +148,17 @@ export function buildConnectorCallSummary(input: SummaryInput): ConnectorCallSum
   ) {
     throw new Error("Invalid connector classification");
   }
-  if (input.phase === "requested") {
-    return Object.freeze({
-      endpoint_class: input.endpointClass,
-      method: input.method,
-    });
-  }
-
   if (
     input.failureCode !== undefined
     && (input.phase !== "failed" || input.failureCode !== "capacity_unavailable")
   ) {
     throw new Error("Invalid connector failure code");
+  }
+  if (input.phase === "requested") {
+    return Object.freeze({
+      endpoint_class: input.endpointClass,
+      method: input.method,
+    });
   }
 
   return Object.freeze({

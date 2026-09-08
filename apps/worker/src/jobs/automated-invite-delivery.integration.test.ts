@@ -773,6 +773,95 @@ describe("US-063 automated invite delivery", () => {
     }]);
   });
 
+  it("refuses no-seat finalization when the action changes after provider dispatch", async () => {
+    await seed();
+    const job = jobFor(async () => {
+      await owner.query(
+        "UPDATE provisioning_action SET status='failed' WHERE id=$1",
+        [ids.actionA],
+      );
+      return new Response(JSON.stringify({
+        type: "error",
+        error: {
+          type: "invalid_request_error",
+          message: providerSeatLimitMessage,
+        },
+      }), { status: 400, headers: { "content-type": "application/json" } });
+    });
+    try {
+      await expect(job.drain({ at, vendorAccountId: ids.accountA }))
+        .resolves.toEqual({ processed: 0 });
+    } finally {
+      await job.close();
+    }
+    const state = await owner.query(
+      `SELECT request.state,action.status,action.raw_response
+       FROM license_request request
+       JOIN provisioning_action action ON action.request_id=request.id
+       WHERE action.id=$1`,
+      [ids.actionA],
+    );
+    expect(state.rows).toEqual([{
+      state: "provisioning",
+      status: "failed",
+      raw_response: null,
+    }]);
+    const failure = await owner.query(
+      `SELECT phase,classification,summary
+       FROM connector_call_observation
+       WHERE provisioning_action_id=$1 AND phase='failed'`,
+      [ids.actionA],
+    );
+    expect(failure.rows).toEqual([{
+      phase: "failed",
+      classification: "client_error",
+      summary: {
+        endpoint_class: "invitations",
+        method: "POST",
+        http_status: 400,
+        status_class: "client_error",
+        failure_code: "capacity_unavailable",
+      },
+    }]);
+  });
+
+  it("rolls back when PostgreSQL suppresses the no-seat action update", async () => {
+    await seed();
+    await owner.query(`
+      CREATE OR REPLACE FUNCTION suppress_no_seat_action_update() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$;
+      CREATE TRIGGER suppress_no_seat_action_update
+      BEFORE UPDATE ON provisioning_action
+      FOR EACH ROW EXECUTE FUNCTION suppress_no_seat_action_update()`);
+    const job = jobFor(async () => exactNoSeatResponse());
+    try {
+      await expect(job.drain({ at, vendorAccountId: ids.accountA }))
+        .rejects.toThrow("AUTOMATED_INVITE_ACTION_CONFLICT");
+    } finally {
+      await job.close();
+      await owner.query(`
+        DROP TRIGGER IF EXISTS suppress_no_seat_action_update ON provisioning_action;
+        DROP FUNCTION IF EXISTS suppress_no_seat_action_update()`);
+    }
+    const state = await owner.query(
+      `SELECT request.state,action.status,action.raw_response
+       FROM license_request request
+       JOIN provisioning_action action ON action.request_id=request.id
+       WHERE action.id=$1`,
+      [ids.actionA],
+    );
+    expect(state.rows).toEqual([{
+      state: "provisioning",
+      status: "pending",
+      raw_response: null,
+    }]);
+    const transitions = await owner.query(
+      "SELECT count(*)::int AS count FROM request_transition WHERE request_id=$1",
+      [ids.requestA],
+    );
+    expect(transitions.rows).toEqual([{ count: 0 }]);
+  });
+
   it("rolls back no-seat finalization without deleting its durable sanitized observation", async () => {
     // Mutations killed: committing a partial local finalization after audit failure.
     await seed();

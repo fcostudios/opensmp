@@ -32,6 +32,12 @@ export function createConnectorCallObservationAppender(connectionString: string)
   const pool = new pg.Pool({ connectionString });
 
   const append: ConnectorCallObservationAppender = async (input) => {
+    if (
+      input.summary.failure_code !== undefined &&
+      input.summary.failure_code !== "capacity_unavailable"
+    ) {
+      throw new Error("Invalid persisted connector failure code");
+    }
     const summary = buildConnectorCallSummary({
       phase: input.phase,
       endpointClass: input.summary.endpoint_class,

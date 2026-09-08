@@ -56,44 +56,60 @@ describe("Anthropic capacity-failure classification", () => {
   });
 
   it.each([
-    ["another endpoint", "members", 400, "application/json", exactEnvelope],
-    ["another status", "create_invite", 401, "application/json", exactEnvelope],
-    ["non-JSON media type", "create_invite", 400, "text/plain", exactEnvelope],
+    ["another endpoint", "members", 400, "application/json", exactEnvelope, true],
+    ["another status", "create_invite", 401, "application/json", exactEnvelope, true],
+    ["non-JSON media type", "create_invite", 400, "text/plain", exactEnvelope, true],
     ["another error type", "create_invite", 400, "application/json", {
       ...exactEnvelope,
       error: { ...exactEnvelope.error, type: "authentication_error" },
-    }],
+    }, false],
+    ["wrong envelope key", "create_invite", 400, "application/json", {
+      kind: "error",
+      error: exactEnvelope.error,
+    }, false],
+    ["wrong nested key", "create_invite", 400, "application/json", {
+      type: "error",
+      error: { type: "invalid_request_error", detail: exactEnvelope.error.message },
+    }, false],
     ["message case", "create_invite", 400, "application/json", {
       ...exactEnvelope,
       error: { ...exactEnvelope.error, message: "Your Organization Has Reached Its Seat Limit." },
-    }],
+    }, false],
     ["message prefix", "create_invite", 400, "application/json", {
       ...exactEnvelope,
       error: { ...exactEnvelope.error, message: `Error: ${exactEnvelope.error.message}` },
-    }],
+    }, false],
     ["message suffix", "create_invite", 400, "application/json", {
       ...exactEnvelope,
       error: { ...exactEnvelope.error, message: `${exactEnvelope.error.message} Contact support.` },
-    }],
+    }, false],
     ["message whitespace", "create_invite", 400, "application/json", {
       ...exactEnvelope,
       error: { ...exactEnvelope.error, message: ` ${exactEnvelope.error.message}` },
-    }],
-    ["array envelope", "create_invite", 400, "application/json", [exactEnvelope]],
+    }, false],
+    ["array envelope", "create_invite", 400, "application/json", [exactEnvelope], false],
     ["missing error message", "create_invite", 400, "application/json", {
       type: "error",
       error: { type: "invalid_request_error" },
-    }],
+    }, false],
     ["extra error field", "create_invite", 400, "application/json", {
       ...exactEnvelope,
       error: { ...exactEnvelope.error, request_id: "provider-request-sentinel" },
-    }],
-  ] as const)("fails closed for %s", async (_case, endpoint, status, contentType, envelope) => {
-    const { response } = streamedResponse(JSON.stringify(envelope), { status, contentType });
+    }, false],
+  ] as const)("fails closed for %s", async (
+    _case,
+    endpoint,
+    status,
+    contentType,
+    envelope,
+    expectedCancelled,
+  ) => {
+    const { response, cancelled } = streamedResponse(JSON.stringify(envelope), { status, contentType });
 
     await expect(readAnthropicCapacityFailure(response, endpoint as "create_invite"))
       .resolves.toBeNull();
     expect(response.body?.locked).toBe(false);
+    expect(cancelled()).toBe(expectedCancelled);
   });
 
   it.each([
@@ -123,5 +139,47 @@ describe("Anthropic capacity-failure classification", () => {
     } `);
     await expect(readAnthropicCapacityFailure(response, "create_invite"))
       .resolves.toBe("capacity_unavailable");
+  });
+
+  it("accepts a canonical body at exactly 8 KiB and across multiple chunks", async () => {
+    const canonical = JSON.stringify(exactEnvelope);
+    const padded = `${canonical}${" ".repeat(8 * 1024 - canonical.length)}`;
+    const encoder = new TextEncoder();
+    const split = Math.floor(padded.length / 2);
+    const response = new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode(padded.slice(0, split)));
+        controller.enqueue(encoder.encode(padded.slice(split)));
+        controller.close();
+      },
+    }), {
+      status: 400,
+      headers: { "content-type": " Application/JSON ; charset=utf-8" },
+    });
+
+    await expect(readAnthropicCapacityFailure(response, "create_invite"))
+      .resolves.toBe("capacity_unavailable");
+  });
+
+  it("fails closed for a missing body, missing media type, and invalid UTF-8", async () => {
+    await expect(readAnthropicCapacityFailure(
+      new Response(null, { status: 400 }),
+      "create_invite",
+    )).resolves.toBeNull();
+    await expect(readAnthropicCapacityFailure(
+      new Response(JSON.stringify(exactEnvelope), { status: 400 }),
+      "create_invite",
+    )).resolves.toBeNull();
+    const invalidUtf8 = new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(Uint8Array.from([0xc3, 0x28]));
+        controller.close();
+      },
+    }), {
+      status: 400,
+      headers: { "content-type": "application/json" },
+    });
+    await expect(readAnthropicCapacityFailure(invalidUtf8, "create_invite"))
+      .resolves.toBeNull();
   });
 });

@@ -369,6 +369,44 @@ describe("connector call observation session", () => {
 });
 
 describe("connector call summary allowlist", () => {
+  it("includes the exact capacity recovery fact only on a failed summary", () => {
+    expect(buildConnectorCallSummary({
+      phase: "failed",
+      endpointClass: "invitations",
+      method: "POST",
+      httpStatus: 400,
+      classification: "client_error",
+      failureCode: "capacity_unavailable",
+    })).toEqual({
+      endpoint_class: "invitations",
+      method: "POST",
+      http_status: 400,
+      status_class: "client_error",
+      failure_code: "capacity_unavailable",
+    });
+  });
+
+  it.each([
+    ["requested phase", "requested", undefined, null, "capacity_unavailable"],
+    ["succeeded phase", "succeeded", 200, "success", "capacity_unavailable"],
+    ["unknown code", "failed", 400, "client_error", "provider_error"],
+  ] as const)("rejects a capacity recovery fact with %s", (
+    _case,
+    phase,
+    httpStatus,
+    classification,
+    failureCode,
+  ) => {
+    expect(() => buildConnectorCallSummary({
+      phase,
+      endpointClass: "invitations",
+      method: "POST",
+      ...(httpStatus === undefined ? {} : { httpStatus }),
+      ...(classification === null ? {} : { classification }),
+      failureCode,
+    } as never)).toThrowError("Invalid connector failure code");
+  });
+
   it.each([
     ["phase", "Invalid connector phase", {
       phase: "unknown",

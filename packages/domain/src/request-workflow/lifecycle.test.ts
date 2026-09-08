@@ -4,6 +4,7 @@ import {
   REQUEST_TRANSITIONS,
   assertLegalTransition,
   isApprovalDecisionTransition,
+  isRequestTransitionAllowed,
   type RequestState,
 } from "./lifecycle.js";
 
@@ -71,6 +72,14 @@ describe("US-014 request lifecycle", () => {
     expect(() => assertLegalTransition("failed", "blocked_no_seat")).toThrow(
       new Error("ILLEGAL_REQUEST_TRANSITION:failed:blocked_no_seat"),
     );
+  });
+
+  it.each(ALLOWED_EDGES)("classifies %s -> %s as allowed", (from, to) => {
+    expect(isRequestTransitionAllowed(from, to)).toBe(true);
+  });
+
+  it.each(ILLEGAL_EDGES)("classifies %s -> %s as illegal", (from, to) => {
+    expect(isRequestTransitionAllowed(from, to)).toBe(false);
   });
 
   it.each(ALLOWED_EDGES)(

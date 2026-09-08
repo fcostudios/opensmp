@@ -617,6 +617,70 @@ describe("Anthropic bounded retry policy", () => {
   );
 
   it.each([
+    [
+      "exact seat-limit envelope",
+      {
+        type: "error",
+        error: {
+          type: "invalid_request_error",
+          message: "Your organization has reached its seat limit.",
+        },
+      },
+      "capacity_unavailable",
+    ],
+    [
+      "generic client error",
+      {
+        type: "error",
+        error: { type: "invalid_request_error", message: "Another client error." },
+      },
+      null,
+    ],
+  ] as const)("propagates capacity evidence only for the %s", async (
+    _case,
+    envelope,
+    expectedFailureCode,
+  ) => {
+    const observations: AnthropicAttemptObservation[] = [];
+    const execute = createAnthropicRequestExecutor({
+      clock: { now: () => 1_000 },
+      sleep: async () => undefined,
+      limiter: inertLimiter(),
+      transport: async () => new Response(JSON.stringify(envelope), {
+        status: 400,
+        headers: { "content-type": "application/json" },
+      }),
+      observe: async (observation) => { observations.push(observation); },
+    });
+
+    const result = await execute({
+      endpoint: "create_invite",
+      vendorAccountId: "account-a",
+      credentials: validCredentials,
+      body: { email: "member@example.test" },
+    });
+    const terminal = observations.at(-1)!;
+
+    expect(result).toEqual({
+      ok: false,
+      classification: "client_error",
+      status: 400,
+      attempts: 1,
+      ...(expectedFailureCode === null ? {} : { failureCode: expectedFailureCode }),
+    });
+    expect(terminal).toEqual({
+      endpoint: "create_invite",
+      method: "POST",
+      attempt: 1,
+      phase: "completed",
+      observedAt: 1_000,
+      status: 400,
+      classification: "client_error",
+      ...(expectedFailureCode === null ? {} : { failureCode: expectedFailureCode }),
+    });
+  });
+
+  it.each([
     ["GET", 307, "members", undefined, undefined],
     ["GET", 308, "members", undefined, undefined],
     ["POST", 307, "create_invite", undefined, { email: "member@example.com" }],
