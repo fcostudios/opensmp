@@ -157,8 +157,23 @@ describe("US-003 append-only runtime grants", () => {
       );
 
       await expect(
-        app.query("UPDATE provisioning_action SET raw_response = '{}'::jsonb WHERE id = $1", [ids.provisioning]),
+        app.query("UPDATE provisioning_action SET raw_request = '{}'::jsonb WHERE id = $1", [ids.provisioning]),
       ).rejects.toMatchObject({ code: "42501" });
+      const provisioningEvidence = await app.query(
+        `UPDATE provisioning_action
+         SET raw_response = '{"failure_code":"capacity_unavailable"}'::jsonb
+         WHERE id = $1`,
+        [ids.provisioning],
+      );
+      expect(provisioningEvidence.rowCount).toBe(1);
+      await expect(
+        app.query<{ raw_response: { failure_code: string } }>(
+          "SELECT raw_response FROM provisioning_action WHERE id = $1",
+          [ids.provisioning],
+        ),
+      ).resolves.toMatchObject({
+        rows: [{ raw_response: { failure_code: "capacity_unavailable" } }],
+      });
       const provisioningAdvance = await app.query(
         "UPDATE provisioning_action SET status = 'sent', sent_at = now() WHERE id = $1",
         [ids.provisioning],
