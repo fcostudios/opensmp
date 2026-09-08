@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "6ba6abcb458604bd09a7fe30bf53652b141b8dd140b95f3a94854ed3b2e3ab24",
+  "work_id": "CHG-057",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Make diff-scoped mutation campaigns exhaustive, preflighted, and evidence-efficient",
+  "source": "Nous change ledger CHG-057",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "A cold diff-scoped mutation campaign runs every selected shard sequentially and returns one deterministic non-zero summary listing every failed shard and failure stage.",
+      "demo": "Exercise a fixture with multiple independently failing shards and verify that every shard runs, each sandbox is cleaned up, and the final aggregate names all failures and stages.",
+      "primary": true
+    },
+    {
+      "id": "O2",
+      "statement": "Mutation prerequisites are checked by pnpm check before the authoritative campaign begins.",
+      "demo": "Run pnpm check against fixtures with broken accountable routes, database templates, zero-mutant seams, and adapter or generated-config inputs, and verify each defect fails in the non-campaign preflight.",
+      "primary": false
+    },
+    {
+      "id": "O3",
+      "statement": "The preflight reports its calculated shard count without rejecting an immutable approved readiness payload when the count differs from expected_mutation_shards.",
+      "demo": "Use a readiness fixture whose expected_mutation_shards differs from the calculated count and verify preflight succeeds with a report, while the story records a timestamped deviation and mutation_shards_actual in actuals.",
+      "primary": false
+    },
+    {
+      "id": "O4",
+      "statement": "Each story uses one final evidence commit, with timestamped feedback events as its detailed execution record; preview shard selection remains available and never emits test_report.",
+      "demo": "Run a selected-shard preview and verify it produces no test_report, then inspect the documented closure flow and one final evidence commit containing the campaign actuals and timestamped events.",
+      "primary": false
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": ["O1"]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": ["O2", "O3"]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": ["O4"]
+    }
+  ],
+  "scopes": ["tooling"],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 4,
+    "expected_mutation_shards": 1,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 15,
+    "implementation": 100,
+    "focused_verification": 55,
+    "review": 65,
+    "integration": 25,
+    "total": 260
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Whether continuing after failures can preserve per-shard database cleanup and signal interruption semantics.",
+      "status": "resolved",
+      "estimate_impact_minutes": 20,
+      "resolution": "Wrap each shard in its own catch and finally boundary, aggregate ordinary failures, retain immediate SIGINT and SIGTERM shutdown, and keep campaign-level final cleanup as a last safeguard."
+    },
+    {
+      "id": "U2",
+      "statement": "Whether the shard count can authorize or invalidate an already approved readiness payload.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "It cannot. Preflight reports the calculated count; a mismatch produces a timestamped deviation feedback event, and completion records mutation_shards_actual so calibration learns from the observation."
+    },
+    {
+      "id": "U3",
+      "statement": "Whether preview shard selection would be lost when the full campaign becomes exhaustive.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "Retain an explicit shard selector for preview runs. A preview is non-authoritative and never emits test_report; the final cold campaign runs the complete calculated shard set."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG057-READY",
+    "payload_sha256": "6ba6abcb458604bd09a7fe30bf53652b141b8dd140b95f3a94854ed3b2e3ab24"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
