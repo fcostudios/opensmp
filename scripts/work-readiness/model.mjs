@@ -920,8 +920,8 @@ function validateCompleteActuals(actuals, value, feedbackRecords, doneIndex, pat
     if (evidence.length !== actuals.mutation_invalidations) fail("WR_MUTATION_INVALIDATION_EVIDENCE", `${path}.mutation_invalidations`, "Each mutation invalidation requires one non-empty reason event");
   }
   const campaignEvidence = feedbackRecords.slice(0, doneIndex).filter((record) => record.story === value.work_id && record.event === "test_report");
-  if (campaignEvidence.length > 0 && campaignEvidence.length !== attempts) {
-    fail("WR_MUTATION_CAMPAIGN_EVIDENCE", `${path}.cold_mutation_attempts`, "Cold mutation attempts must equal retained test_report campaign evidence");
+  if (campaignEvidence.length > 1) {
+    fail("WR_MUTATION_CAMPAIGN_EVIDENCE", `${path}.cold_mutation_attempts`, "Only the final retained cold campaign may emit test_report evidence");
   }
   return { total, variance };
 }
@@ -972,7 +972,7 @@ const CORRECTION_DECISION_REQUIRED = [
 ];
 const CORRECTION_DECISION_OPTIONAL = ["key_id", "signature", "ts"];
 
-function validCorrectionDecision(record, feedbackRecords, expectedWorkId) {
+function validCorrectionDecision(record, feedbackRecords, expectedWorkId, approvedReadinessAuthorities) {
   if (!isPlainObject(record)) return false;
   const allowed = new Set([...CORRECTION_DECISION_REQUIRED, ...CORRECTION_DECISION_OPTIONAL]);
   if (CORRECTION_DECISION_REQUIRED.some((key) => !Object.hasOwn(record, key))) return false;
@@ -990,6 +990,13 @@ function validCorrectionDecision(record, feedbackRecords, expectedWorkId) {
   const decisionTokens = [...record.text.matchAll(/\bDecision\s+(ready|partition_required|blocked)\b/giu)].map((match) => match[1].toLowerCase());
   const digestTokens = [...record.text.matchAll(/\bSHA-256\s+([0-9a-f]{64})\b/gu)].map((match) => match[1]);
   if (decisionTokens.length !== 1 || decisionTokens[0] !== "ready" || digestTokens.length !== 1) return false;
+  const authority = approvedReadinessAuthorities instanceof Map
+    ? approvedReadinessAuthorities.get(expectedWorkId)
+    : null;
+  if (!isPlainObject(authority)
+    || authority.digest !== digestTokens[0]
+    || authority.evidence !== record.id
+    || authority.approvedBy !== record.approved_by) return false;
   return feedbackRecords.filter((candidate) => candidate.event === "decision" && candidate.id === record.id).length === 1;
 }
 
@@ -1012,7 +1019,7 @@ export function resolveEffectiveActuals(rawActuals, feedbackRecords, context = {
   if (correctionEntries.length === 0) return { raw, effective, corrections, errors };
 
   const refCounts = new Map();
-  for (const event of feedbackRecords.filter((record) => isPlainObject(record) && record.event === "actuals_corrected")) {
+  for (const event of feedbackRecords.filter((record) => isPlainObject(record))) {
     if (typeof event.ref === "string") refCounts.set(event.ref, (refCounts.get(event.ref) ?? 0) + 1);
   }
   const terminalProjection = buildTerminalProjection(feedbackRecords, value.work_id);
@@ -1072,7 +1079,7 @@ export function resolveEffectiveActuals(rawActuals, feedbackRecords, context = {
 
     const decisionCandidates = feedbackRecords.slice(0, position)
       .filter((record) => isPlainObject(record) && record.event === "decision" && record.story === event.change)
-      .filter((record) => validCorrectionDecision(record, feedbackRecords, event.change));
+      .filter((record) => validCorrectionDecision(record, feedbackRecords, event.change, context.approvedReadinessAuthorities));
     if (decisionCandidates.length === 0) {
       exclude("missing_decision", `change '${event.change}' has no prior valid decision event`);
       return;
@@ -1107,6 +1114,13 @@ export function resolveEffectiveActuals(rawActuals, feedbackRecords, context = {
       exclude("target_hash_mismatch", "target_actuals_sha256 does not match the currently effective actuals");
       return;
     }
+    const retainedReports = feedbackRecords.slice(0, doneIndex)
+      .filter((record) => record.story === value.work_id && record.event === "test_report");
+    if (retainedReports.length === 0
+      && replacement.cold_mutation_attempts !== effective.cold_mutation_attempts) {
+      exclude("invalid_replacement_actuals", "cold_mutation_attempts cannot change without retained test_report evidence");
+      return;
+    }
     try {
       validateCompleteActuals(replacement, value, feedbackRecords, doneIndex, `$feedback[${position}].replacement_actuals`);
     } catch (error) {
@@ -1126,20 +1140,20 @@ function throwCorrectionError(error) {
   fail(`WR_ACTUALS_CORRECTION_${suffix}`, `$feedback[${error.index}]`, error.detail);
 }
 
-export function validateCompletionActuals(value, feedbackRecords) {
+export function validateCompletionActuals(value, feedbackRecords, { approvedReadinessAuthorities } = {}) {
   feedbackArray(feedbackRecords);
   const terminalProjection = buildTerminalProjection(feedbackRecords, value.work_id);
   const doneIndex = terminalDoneIndex(feedbackRecords, value, terminalProjection);
   if (doneIndex < 0) {
     const hasCorrection = feedbackRecords.some((record) => record.story === value.work_id && record.event === "actuals_corrected");
     if (!hasCorrection) return { complete: false };
-    const resolution = resolveEffectiveActuals(isPlainObject(value.actuals) ? value.actuals : {}, feedbackRecords, { assessment: value });
+    const resolution = resolveEffectiveActuals(isPlainObject(value.actuals) ? value.actuals : {}, feedbackRecords, { assessment: value, approvedReadinessAuthorities });
     if (resolution.errors.length > 0) throwCorrectionError(resolution.errors[0]);
     fail("WR_ACTUALS_CORRECTION_MISSING_TERMINAL", "$feedback", "Actuals corrections require an effective terminal with complete raw actuals");
   }
   if (value.actuals === null || value.actuals === undefined) fail("WR_ACTUALS_REQUIRED", "$.actuals", "Terminal done requires completion actuals");
   validateCompleteActuals(value.actuals, value, feedbackRecords, doneIndex, "$.actuals");
-  const resolution = resolveEffectiveActuals(value.actuals, feedbackRecords, { assessment: value });
+  const resolution = resolveEffectiveActuals(value.actuals, feedbackRecords, { assessment: value, approvedReadinessAuthorities });
   if (resolution.errors.length > 0) throwCorrectionError(resolution.errors[0]);
   const effectiveFacts = validateCompleteActuals(resolution.effective, value, feedbackRecords, doneIndex, "$.effective_actuals");
   return {
@@ -1162,7 +1176,7 @@ export function validateCompletionActuals(value, feedbackRecords) {
 // two real checkpoint events, and the closed-key shape check would reject it outright
 // if the key were dropped — the same history-preserving reasoning as CHG-036's optional
 // attestation keys. `init` no longer emits it for new artifacts.
-export function validateAssessment(value, { feedbackRecords = [] } = {}) {
+export function validateAssessment(value, { feedbackRecords = [], approvedReadinessAuthorities } = {}) {
   validateShape(value);
   feedbackArray(feedbackRecords);
   if (value.policy_bootstrap) {
@@ -1172,7 +1186,7 @@ export function validateAssessment(value, { feedbackRecords = [] } = {}) {
     if (value.bootstrap_authorization !== null) fail("WR_INVALID_BOOTSTRAP", "$.bootstrap_authorization", "Normal work cannot carry bootstrap authorization");
   }
   validatePartitionGraph(value);
-  const completion = validateCompletionActuals(value, feedbackRecords);
+  const completion = validateCompletionActuals(value, feedbackRecords, { approvedReadinessAuthorities });
   const computedDecision = value.policy_bootstrap ? "ready" : classifyAssessment(value);
   if (computedDecision !== value.decision) {
     const violation = computedDecision === "blocked" ? blockingViolation(value) : hardLimitViolation(value);

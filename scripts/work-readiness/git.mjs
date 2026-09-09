@@ -7,6 +7,7 @@ import {
   WorkReadinessError,
   actualsCorrectionSchemaErrors,
   classifyAssessment,
+  computeReadinessPayloadSha256,
   validateAssessment,
   validateCompletionActuals,
 } from "./model.mjs";
@@ -436,6 +437,25 @@ function requireImplementationPlan({ root, revision, feedback, workId }) {
 // validateAllActualTransitions survives too; actuals are not checkpoints.
 function validateAllActualTransitions({ root, parent, commit, changedPaths, parentFeedback, candidateFeedback }) {
   const appendedFeedback = candidateFeedback.slice(parentFeedback.length);
+  const approvedReadinessAuthorities = new Map();
+  for (const changeId of new Set(candidateFeedback
+    .filter((record) => record.event === "actuals_corrected" && typeof record.change === "string")
+    .map((record) => record.change))) {
+    const authorityPath = `docs/readiness/${changeId}.json`;
+    const authorityText = readRevisionFile(root, commit, authorityPath, { required: false });
+    if (authorityText === null) continue;
+    const authority = parseJson(authorityText, authorityPath);
+    if (authority.work_id === changeId
+      && authority.approval?.status === "approved"
+      && authority.approval.payload_sha256 === authority.readiness_payload_sha256
+      && computeReadinessPayloadSha256(authority) === authority.readiness_payload_sha256) {
+      approvedReadinessAuthorities.set(changeId, {
+        digest: authority.readiness_payload_sha256,
+        evidence: authority.approval.evidence,
+        approvedBy: authority.approval.approved_by,
+      });
+    }
+  }
   const workIds = new Set();
   changedPaths.forEach((path) => {
     const match = /^docs\/readiness\/((?:US|CHG)-[0-9]{3,})\.json$/u.exec(path);
@@ -451,8 +471,8 @@ function validateAllActualTransitions({ root, parent, commit, changedPaths, pare
     const candidateText = readRevisionFile(root, commit, readinessPath, { required: false });
     const parentArtifact = parentText === null ? null : parseJson(parentText, readinessPath);
     const candidateArtifact = candidateText === null ? null : parseJson(candidateText, readinessPath);
-    const parentComplete = parentArtifact === null ? false : validateCompletionActuals(parentArtifact, parentFeedback).complete;
-    if (parentComplete && (candidateArtifact === null || JSON.stringify(candidateArtifact.actuals) !== JSON.stringify(parentArtifact.actuals))) {
+    const parentComplete = parentArtifact === null ? false : validateCompletionActuals(parentArtifact, parentFeedback, { approvedReadinessAuthorities }).complete;
+    if (parentComplete && candidateText !== parentText) {
       fail("WR_ACTUALS_IMMUTABLE", "$.actuals", "Completion actuals are immutable after the first effective terminal");
     }
     if (candidateArtifact === null) {
@@ -461,7 +481,7 @@ function validateAllActualTransitions({ root, parent, commit, changedPaths, pare
       }
       continue;
     }
-    validateCompletionActuals(candidateArtifact, candidateFeedback);
+    validateCompletionActuals(candidateArtifact, candidateFeedback, { approvedReadinessAuthorities });
   }
 }
 

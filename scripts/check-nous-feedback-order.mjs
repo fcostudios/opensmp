@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import {
   WorkReadinessError,
   actualsCorrectionSchemaErrors,
+  computeReadinessPayloadSha256,
   validateCompletionActuals,
 } from "./work-readiness/model.mjs";
 
@@ -61,6 +62,26 @@ for (const [index, line] of readFileSync(path, "utf8").trimEnd().split("\n").ent
 }
 
 const correctionEntries = records.filter(({ record }) => record.event === "actuals_corrected");
+const approvedReadinessAuthorities = new Map();
+for (const changeId of new Set(correctionEntries.map(({ record }) => record.change))) {
+  const readinessPath = `${root}/docs/readiness/${changeId}.json`;
+  if (!existsSync(readinessPath)) continue;
+  try {
+    const authority = JSON.parse(readFileSync(readinessPath, "utf8"));
+    if (authority.work_id === changeId
+      && authority.approval?.status === "approved"
+      && authority.approval.payload_sha256 === authority.readiness_payload_sha256
+      && computeReadinessPayloadSha256(authority) === authority.readiness_payload_sha256) {
+      approvedReadinessAuthorities.set(changeId, {
+        digest: authority.readiness_payload_sha256,
+        evidence: authority.approval.evidence,
+        approvedBy: authority.approval.approved_by,
+      });
+    }
+  } catch {
+    // The target correction validation below reports the missing authority.
+  }
+}
 const correctionRefCounts = new Map();
 for (const { record } of correctionEntries) {
   correctionRefCounts.set(record.ref, (correctionRefCounts.get(record.ref) ?? 0) + 1);
@@ -80,7 +101,7 @@ for (const story of new Set(correctionEntries.map(({ record }) => record.story))
   }
   try {
     const assessment = JSON.parse(readFileSync(readinessPath, "utf8"));
-    validateCompletionActuals(assessment, records.map(({ record }) => record));
+    validateCompletionActuals(assessment, records.map(({ record }) => record), { approvedReadinessAuthorities });
   } catch (error) {
     const message = error instanceof WorkReadinessError
       ? `${error.code}: ${error.message}`

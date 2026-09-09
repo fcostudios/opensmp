@@ -79,6 +79,8 @@ run("all canonical feedback categories", [
 ], 0);
 
 const correctedReadiness = readFileSync(join(repo, "docs/readiness/CHG-058.json"), "utf8");
+const correctionAuthorityReadiness = readFileSync(join(repo, "docs/readiness/CHG-059.json"), "utf8");
+const correctionAuthority = JSON.parse(correctionAuthorityReadiness);
 const correctedActuals = JSON.parse(correctedReadiness).actuals;
 const replacementActuals = structuredClone(correctedActuals);
 replacementActuals.changed_files = 8;
@@ -92,7 +94,7 @@ const correctionHistory = [
     story: "CHG-059",
     event: "decision",
     id: "CHG059-READY",
-    text: `Decision ready for readiness payload SHA-256 ${"a".repeat(64)}.`,
+    text: `Decision ready for readiness payload SHA-256 ${correctionAuthority.readiness_payload_sha256}.`,
     reason: "Primary evidence disproves the immutable measurement.",
     approved_by: "Francisco Lomas",
     subject_work_id: "CHG-059",
@@ -111,7 +113,10 @@ const canonicalCorrection = {
   evidence: ["git diff --name-only -z authority/chg-058-base..HEAD reports 8 paths"],
   ts: "2026-09-08T15:30:00Z",
 };
-const correctionFiles = { "docs/readiness/CHG-058.json": correctedReadiness };
+const correctionFiles = {
+  "docs/readiness/CHG-058.json": correctedReadiness,
+  "docs/readiness/CHG-059.json": correctionAuthorityReadiness,
+};
 
 run("canonical actuals correction follows terminal and correcting decision", [
   ...correctionHistory,

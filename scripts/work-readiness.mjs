@@ -180,8 +180,25 @@ function loadAssessment(root, workId) {
 
 function validateOne(root, workId, feedbackRecords) {
   const value = loadAssessment(root, workId);
-  validateAssessment(value, { feedbackRecords });
+  validateAssessment(value, { feedbackRecords, approvedReadinessAuthorities: loadApprovedReadinessAuthorities(root) });
   return value;
+}
+
+function loadApprovedReadinessAuthorities(root) {
+  const authorities = new Map();
+  for (const workId of readinessFiles(root)) {
+    const value = loadAssessment(root, workId);
+    if (value.approval?.status === "approved"
+      && value.approval.payload_sha256 === value.readiness_payload_sha256
+      && computeReadinessPayloadSha256(value) === value.readiness_payload_sha256) {
+      authorities.set(workId, {
+        digest: value.readiness_payload_sha256,
+        evidence: value.approval.evidence,
+        approvedBy: value.approval.approved_by,
+      });
+    }
+  }
+  return authorities;
 }
 
 export function calibrateAssessment(value) {
