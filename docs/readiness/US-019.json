@@ -1,265 +1,83 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "f5ff91c3b8a9890ca06263e5c4eb80919f5b429be16e27c728dc0f8aae68a7f2",
+  "readiness_payload_sha256": "72b7e45e477bdaa0debfbf47ba0a16c4a07ce13875657bc2681a8a055e41bfdf",
   "work_id": "US-019",
   "kind": "US",
   "work_type": "functional",
-  "title": "Automated provisioning: invite within 15 minutes to Active",
+  "title": "Verify the delivered automated-provisioning aggregate",
   "source": "docs/stories/sprint-3/r1_misc_us_019.md",
   "outcomes": [
     {
       "id": "O1",
-      "statement": "An approved free-pool license request is invited, observed, activated, and recoverable without manual provisioning, while provider no-seat responses enter the existing capacity workflow.",
-      "demo": "Approve a free-pool request, observe invitation within 15 minutes, detect acceptance in the scheduled membership poll, and verify one active assignment; separately prove classified no-seat and retryable failure paths use legal lifecycle transitions.",
+      "statement": "The automated-provisioning aggregate is closed from traceable verification of canonical deliveries US-063 through US-066, without duplicating their implementation.",
+      "demo": "Three timestamped AC verifications cite the official child evidence, the current repository build passes once, no application or package code changes, and the terminal US-019 event unblocks its dependent stories.",
       "primary": true
     }
   ],
   "acceptance_criteria": [
-    {
-      "id": "AC1",
-      "outcome_ids": [
-        "O1"
-      ]
-    },
-    {
-      "id": "AC2",
-      "outcome_ids": [
-        "O1"
-      ]
-    },
-    {
-      "id": "AC3",
-      "outcome_ids": [
-        "O1"
-      ]
-    }
+    { "id": "AC1", "outcome_ids": ["O1"] },
+    { "id": "AC2", "outcome_ids": ["O1"] },
+    { "id": "AC3", "outcome_ids": ["O1"] }
   ],
-  "scopes": [
-    "server",
-    "db",
-    "infra"
-  ],
+  "scopes": ["contracts", "docs"],
   "signals": {
-    "routes_or_screens": 1,
-    "acceptance_flows": 4,
-    "expected_changed_files": 28,
-    "expected_mutation_shards": 4,
-    "lifecycle_or_concurrency_boundaries": 2,
-    "external_integrations": 1,
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 2,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
     "schema_or_migration_changes": 0,
-    "authorization_or_audit_boundaries": 1,
+    "authorization_or_audit_boundaries": 0,
     "tooling_change": false
   },
   "estimate_minutes": {
-    "readiness": 40,
-    "implementation": 300,
-    "focused_verification": 80,
-    "review": 80,
-    "integration": 20,
-    "total": 520
+    "readiness": 10,
+    "implementation": 5,
+    "focused_verification": 20,
+    "review": 10,
+    "integration": 15,
+    "total": 60
   },
   "uncertainties": [
     {
       "id": "U1",
-      "statement": "Whether three children remain executable if IMP-374 recalibrates one story point from 104 to 220 minutes.",
+      "statement": "Whether closing the aggregate requires new provisioning implementation.",
       "status": "resolved",
-      "estimate_impact_minutes": 40,
-      "resolution": "Use four one-point vertical slices. Each is 104 minutes at the current rate and 220 minutes after the possible recalibration, remaining below 320; combining any two would risk 440 minutes."
+      "estimate_impact_minutes": 0,
+      "resolution": "CHG-054 establishes verification-only closure: US-063 delivers the invitation path, US-064 the no-seat path, US-065 failure and retry, and US-066 accepted-invite activation. No application, package, migration, runtime, test, or executable-tooling change is allowed."
     },
     {
       "id": "U2",
-      "statement": "Whether no-seat handling requires a second capacity subsystem.",
+      "statement": "Whether parent verification requires another authoritative mutation campaign.",
       "status": "resolved",
-      "estimate_impact_minutes": 20,
-      "resolution": "US-023 already delivers transactional blocked_no_seat handling and capacity recovery. The child only classifies and routes the provider result through the existing lifecycle engine and workflow."
+      "estimate_impact_minutes": 0,
+      "resolution": "The canonical children retain their authoritative mutation evidence, this assessment changes no mutatable source, and preflight calculates zero shards. Run no parent cold campaign unless evidence inspection identifies a genuine new need, and never more than one."
     },
     {
       "id": "U3",
-      "statement": "Whether canonical child identifiers can be assigned locally to begin work immediately.",
+      "statement": "Whether every parent acceptance criterion has complete canonical child evidence.",
       "status": "resolved",
-      "estimate_impact_minutes": 10,
-      "resolution": "Nous accepted CHG-054, created canonical US-063 through US-066, and delivered their story specifications with DEC-SMP-021. The official IDs are now bound to the matching proposals; execution still requires each child's own approved readiness artifact."
-    },
-    {
-      "id": "U4",
-      "statement": "Whether the parent prerequisites still block partition design or may be omitted from the canonical children.",
-      "status": "resolved",
-      "estimate_impact_minutes": 0,
-      "resolution": "US-056, US-057, US-058, US-014, US-046, and US-042 are dev_done or verified, so the parent is currently unblocked. Every canonical child must nevertheless retain those six IDs in its Blocked By metadata, plus the sibling ordering declared by depends_on."
+      "estimate_impact_minutes": 5,
+      "resolution": "AC1 is jointly evidenced by US-063 invitation delivery and US-065 failure/retry; AC2 by US-066 accepted-invite activation; AC3 by US-064 no-seat routing. Each child is dev_done with passing adversarial verification, aggregate build evidence, and a terminal authoritative mutation report."
     }
   ],
   "dependencies": [],
-  "decision": "partition_required",
-  "partitions": [
-    {
-      "proposal_key": "automated-invite-delivery",
-      "work_id": "US-063",
-      "title": "Deliver approved requests as vendor invitations within 15 minutes",
-      "outcome": "A free-pool approved request executes the real connector invitation and durably reaches invited within the SLA, with provider reference and observation evidence bound to its ProvisioningAction.",
-      "demo": "Approve a free-pool request, run the provisioning worker, and verify provisioning then invited within 15 minutes with one provider invitation and durable attempt evidence.",
-      "acceptance_criteria": [
-        "AC1"
-      ],
-      "work_type": "functional",
-      "scopes": [
-        "server",
-        "db",
-        "infra"
-      ],
-      "signals": {
-        "routes_or_screens": 0,
-        "acceptance_flows": 1,
-        "expected_changed_files": 8,
-        "expected_mutation_shards": 1,
-        "lifecycle_or_concurrency_boundaries": 1,
-        "external_integrations": 1,
-        "schema_or_migration_changes": 0,
-        "authorization_or_audit_boundaries": 1,
-        "tooling_change": false
-      },
-      "uncertainties": [],
-      "estimate_minutes": {
-        "readiness": 8,
-        "implementation": 56,
-        "focused_verification": 16,
-        "review": 16,
-        "integration": 8,
-        "total": 104
-      },
-      "depends_on": [],
-      "cross_cutting_rationale": "AC1 contains independently demonstrable success and failure/retry flows. This child owns only approval-to-invited success and exposes the stable execution seam consumed by the failure child."
-    },
-    {
-      "proposal_key": "provider-no-seat-routing",
-      "work_id": "US-064",
-      "title": "Route provider no-seat responses to the capacity workflow",
-      "outcome": "A classified provider 400/no-seat result atomically moves the request to blocked_no_seat through the lifecycle engine and exposes the existing US-023 purchase or reclaim path instead of generic failure.",
-      "demo": "Return a provider no-seat response and verify one legal blocked_no_seat transition, no failed transition, and visibility to the existing capacity-recovery workflow.",
-      "acceptance_criteria": [
-        "AC3"
-      ],
-      "work_type": "functional",
-      "scopes": [
-        "contracts",
-        "server",
-        "db"
-      ],
-      "signals": {
-        "routes_or_screens": 1,
-        "acceptance_flows": 1,
-        "expected_changed_files": 6,
-        "expected_mutation_shards": 1,
-        "lifecycle_or_concurrency_boundaries": 1,
-        "external_integrations": 1,
-        "schema_or_migration_changes": 0,
-        "authorization_or_audit_boundaries": 1,
-        "tooling_change": false
-      },
-      "uncertainties": [],
-      "estimate_minutes": {
-        "readiness": 8,
-        "implementation": 56,
-        "focused_verification": 16,
-        "review": 16,
-        "integration": 8,
-        "total": 104
-      },
-      "depends_on": [
-        "automated-invite-delivery"
-      ],
-      "cross_cutting_rationale": null
-    },
-    {
-      "proposal_key": "provisioning-failure-retry",
-      "work_id": "US-065",
-      "title": "Recover failed automated provisioning with an operator retry",
-      "outcome": "Non-no-seat invitation failures persist a safe failure_reason, raise provisioning_failure, and retryProvisioning returns the same tenant-scoped request to provisioning without duplicate live actions.",
-      "demo": "Force a non-no-seat provider failure, verify failed state, sanitized reason, and one alert, then retry and verify one legal return to provisioning without duplicate provider execution.",
-      "acceptance_criteria": [
-        "AC1"
-      ],
-      "work_type": "functional",
-      "scopes": [
-        "server",
-        "ui",
-        "db"
-      ],
-      "signals": {
-        "routes_or_screens": 1,
-        "acceptance_flows": 1,
-        "expected_changed_files": 7,
-        "expected_mutation_shards": 1,
-        "lifecycle_or_concurrency_boundaries": 1,
-        "external_integrations": 1,
-        "schema_or_migration_changes": 0,
-        "authorization_or_audit_boundaries": 1,
-        "tooling_change": false
-      },
-      "uncertainties": [],
-      "estimate_minutes": {
-        "readiness": 8,
-        "implementation": 56,
-        "focused_verification": 16,
-        "review": 16,
-        "integration": 8,
-        "total": 104
-      },
-      "depends_on": [
-        "automated-invite-delivery",
-        "provider-no-seat-routing"
-      ],
-      "cross_cutting_rationale": "AC1 contains independently demonstrable success and failure/retry flows. This child owns only non-no-seat failure, alerting, and duplicate-safe retry after the success and no-seat classifications exist."
-    },
-    {
-      "proposal_key": "accepted-invite-activation",
-      "work_id": "US-066",
-      "title": "Activate accepted invitations from the 15-minute membership poll",
-      "outcome": "Scheduled tenant-scoped polling detects invitation acceptance and atomically moves invited to active while opening exactly one LicenseAssignment with started_on and source_request_id.",
-      "demo": "Run the membership poll before and after provider acceptance; verify the second run creates exactly one assignment and one invited-to-active transition, and replay creates neither again.",
-      "acceptance_criteria": [
-        "AC2"
-      ],
-      "work_type": "functional",
-      "scopes": [
-        "server",
-        "db",
-        "infra"
-      ],
-      "signals": {
-        "routes_or_screens": 0,
-        "acceptance_flows": 1,
-        "expected_changed_files": 8,
-        "expected_mutation_shards": 1,
-        "lifecycle_or_concurrency_boundaries": 1,
-        "external_integrations": 1,
-        "schema_or_migration_changes": 0,
-        "authorization_or_audit_boundaries": 1,
-        "tooling_change": false
-      },
-      "uncertainties": [],
-      "estimate_minutes": {
-        "readiness": 8,
-        "implementation": 56,
-        "focused_verification": 16,
-        "review": 16,
-        "integration": 8,
-        "total": 104
-      },
-      "depends_on": [
-        "automated-invite-delivery"
-      ],
-      "cross_cutting_rationale": null
-    }
-  ],
+  "decision": "ready",
+  "partitions": [],
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "CHG054-US019-PARTITION",
-    "payload_sha256": "f5ff91c3b8a9890ca06263e5c4eb80919f5b429be16e27c728dc0f8aae68a7f2"
+    "evidence": "US019-VERIFY-READY",
+    "payload_sha256": "72b7e45e477bdaa0debfbf47ba0a16c4a07ce13875657bc2681a8a055e41bfdf"
   },
   "actuals": null,
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
-  "controlling_change": null
+  "controlling_change": {
+    "work_id": "CHG-054",
+    "relationship": "readiness_governance",
+    "reason": "CHG-054 partitions US-019 into canonical US-063 through US-066 and requires parent-level verification after all four children reach dev_done."
+  }
 }
