@@ -6,8 +6,8 @@ this file is the authoritative event schema.
 ## Where to Write
 
 Append one JSON object per line to `.nous-feedback.jsonl` at the repo root.
-`ts` is optional (git fallback). Nous's `pull` command reads this file to update
-story status, add annotations, and register decisions.
+Timestamp requirements are schema-derived below. Nous's `pull` command reads
+this file to update story status, add annotations, and register decisions.
 
 ## Event Types
 
@@ -157,5 +157,15 @@ Any `done_with_<qualifier>` event is recognized as terminal (recorded as a defer
 
 Retired names stay valid so previously written history keeps validating; do not emit them in new work.
 
-**Stamp every event with `ts`** — an ISO-8601 UTC timestamp of when the event happened, e.g. `date -u +%FT%TZ` → `"ts": "2026-09-06T14:30:00Z"`. It is optional on every event and absence is always legal, so a forgotten stamp never fails a sync — but `started` and `done` without it mean nobody can say how long the story took (`nous_trace.py story elapsed` reports it as "lacking an endpoint", never as zero). A malformed stamp is excluded and named rather than guessed at.
-<!-- nous-emitted: sha256=38503c4b2a53f768 -->
+## Timestamp Requirements
+
+Stamp events with `ts` when they happen, for example
+`date -u +%FT%TZ` → `"ts": "2026-09-06T14:30:00Z"`.
+
+- `actuals_corrected` requires `ts`; it must be a valid ISO-8601 UTC timestamp.
+
+For every other event, `ts` remains recommended but optional; an absent stamp
+never fails a sync. Without timestamps, `nous_trace.py story elapsed` reports
+missing endpoints rather than inventing a zero duration. A malformed stamp is
+excluded and named rather than guessed at.
+<!-- nous-emitted: sha256=c81088627705ff03 -->
