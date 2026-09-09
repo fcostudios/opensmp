@@ -1,24 +1,27 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+
+import {
+  WorkReadinessError,
+  actualsCorrectionSchemaErrors,
+  validateCompletionActuals,
+} from "./work-readiness/model.mjs";
 
 const root = resolve(process.argv[2] || ".");
 const path = `${root}/.nous-feedback.jsonl`;
 function loadFeedbackSchema() {
-  const schemaPath = new URL("../docs/dev-guide/FEEDBACK.md", import.meta.url);
-  const source = readFileSync(schemaPath, "utf8");
-  const canonical = source.slice(source.indexOf("## Canonical Event Vocabulary (authoritative)"));
-  const categories = new Map();
-  for (const match of canonical.matchAll(/^- \*\*([^*]+):\*\* (.+)$/gm)) {
-    const events = [...match[2].matchAll(/`([^`]+)`/g)].map((event) => event[1]);
-    if (events.length) categories.set(match[1], events);
+  const schemaPath = new URL("../docs/dev-guide/feedback-vocabulary.json", import.meta.url);
+  const emitted = JSON.parse(readFileSync(schemaPath, "utf8"));
+  if (!emitted.canonical || !emitted.event_schemas?.actuals_corrected) {
+    throw new Error(`cannot load emitted canonical feedback vocabulary from ${schemaPath.pathname}`);
   }
-  const lifecycle = [...categories.entries()].find(([category]) => category.startsWith("Lifecycle"))?.[1];
-  const deferrals = [...categories.entries()].find(([category]) => category.startsWith("Terminal-with-deferral"))?.[1];
-  if (!lifecycle || !deferrals) throw new Error(`cannot load canonical feedback vocabulary from ${schemaPath.pathname}`);
+  const terminal = Object.entries(emitted.canonical)
+    .filter(([event, category]) => event !== "started" && ["lifecycle", "terminal_alias"].includes(category))
+    .map(([event]) => event);
   return {
-    events: new Set([...categories.values()].flat()),
-    terminalEvents: new Set([...lifecycle.filter((event) => event !== "started"), ...deferrals]),
+    events: new Set([...Object.keys(emitted.canonical), ...(emitted.deprecated ?? [])]),
+    terminalEvents: new Set(terminal),
   };
 }
 const { events, terminalEvents } = loadFeedbackSchema();
@@ -47,9 +50,42 @@ for (const [index, line] of readFileSync(path, "utf8").trimEnd().split("\n").ent
     if (record.event === "decision" && (typeof record.id !== "string" || typeof record.text !== "string" || typeof record.reason !== "string")) throw new Error("decision requires id, text, and reason");
     if (record.event === "feedback" && (typeof record.title !== "string" || typeof record.description !== "string" || !Array.isArray(record.images))) throw new Error("feedback requires title, description, and images");
     if (record.event === "nav_gap" && typeof record.route !== "string") throw new Error("nav_gap requires route");
+    if (record.event === "actuals_corrected") {
+      const schemaErrors = actualsCorrectionSchemaErrors(record, `.nous-feedback.jsonl:${index + 1}`);
+      if (schemaErrors.length > 0) throw new Error(schemaErrors.join("; "));
+    }
     records.push({ record, line: index + 1 });
   } catch (error) {
     fail(index + 1, error instanceof Error ? error.message : String(error));
+  }
+}
+
+const correctionEntries = records.filter(({ record }) => record.event === "actuals_corrected");
+const correctionRefCounts = new Map();
+for (const { record } of correctionEntries) {
+  correctionRefCounts.set(record.ref, (correctionRefCounts.get(record.ref) ?? 0) + 1);
+}
+for (const { record, line } of correctionEntries) {
+  if (correctionRefCounts.get(record.ref) !== 1) {
+    fail(line, `actuals correction ref ${record.ref} is not globally unique`);
+  }
+}
+
+for (const story of new Set(correctionEntries.map(({ record }) => record.story))) {
+  const firstLine = correctionEntries.find(({ record }) => record.story === story).line;
+  const readinessPath = `${root}/docs/readiness/${story}.json`;
+  if (!existsSync(readinessPath)) {
+    fail(firstLine, `actuals correction requires docs/readiness/${story}.json`);
+    continue;
+  }
+  try {
+    const assessment = JSON.parse(readFileSync(readinessPath, "utf8"));
+    validateCompletionActuals(assessment, records.map(({ record }) => record));
+  } catch (error) {
+    const message = error instanceof WorkReadinessError
+      ? `${error.code}: ${error.message}`
+      : error instanceof Error ? error.message : String(error);
+    fail(firstLine, `actuals correction rejected: ${message}`);
   }
 }
 

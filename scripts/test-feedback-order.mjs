@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -8,10 +8,15 @@ const repo = process.cwd();
 const node = process.execPath;
 const failures = [];
 
-function run(name, records, expectedExit) {
+function run(name, records, expectedExit, files = {}) {
   const root = mkdtempSync(join(tmpdir(), "smp-feedback-order-"));
   try {
     writeFileSync(join(root, ".nous-feedback.jsonl"), `${records.map((record) => JSON.stringify(record)).join("\n")}\n`);
+    for (const [path, contents] of Object.entries(files)) {
+      const absolute = join(root, path);
+      mkdirSync(join(absolute, ".."), { recursive: true });
+      writeFileSync(absolute, contents);
+    }
     const result = spawnSync(node, [join(repo, "scripts", "check-nous-feedback-order.mjs"), root], { encoding: "utf8" });
     if (result.status !== expectedExit) failures.push(`${name}: expected exit ${expectedExit}, got ${result.status}: ${result.stderr}`);
   } finally {
@@ -72,6 +77,78 @@ run("all canonical feedback categories", [
   { story: "US-001", event: "build_pass", notes: "ok" },
   { story: "US-001", event: "done" },
 ], 0);
+
+const correctedReadiness = readFileSync(join(repo, "docs/readiness/CHG-058.json"), "utf8");
+const correctedActuals = JSON.parse(correctedReadiness).actuals;
+const replacementActuals = structuredClone(correctedActuals);
+replacementActuals.changed_files = 8;
+replacementActuals.root_cause = "Raw NUL-delimited Git output proves eight unique changed paths.";
+const correctionHistory = [
+  { story: "CHG-058", event: "started", agent: "test", ts: "2026-09-08T14:53:25Z" },
+  { story: "CHG-058", event: "build_pass", notes: "ok", ts: "2026-09-08T14:53:30Z" },
+  { story: "CHG-058", event: "test_report", mutation_score: 100, ts: "2026-09-08T14:54:23Z" },
+  { story: "CHG-058", event: "done", ts: "2026-09-08T14:55:14Z" },
+  {
+    story: "CHG-059",
+    event: "decision",
+    id: "CHG059-READY",
+    text: "Authorize the correction.",
+    reason: "Primary evidence disproves the immutable measurement.",
+    ts: "2026-09-08T15:00:00Z",
+  },
+];
+const canonicalCorrection = {
+  story: "CHG-058",
+  event: "actuals_corrected",
+  ref: "CHG058-ACTUALS-1",
+  change: "CHG-059",
+  target_actuals_sha256: "dd232b1b4d60216c6ae8b4bb54ab9997b84db9868183ccd28839ba1faefce6d7",
+  replacement_actuals: replacementActuals,
+  reason: "Formatted display lines inflated the changed-file count.",
+  evidence: ["git diff --name-only -z authority/chg-058-base..HEAD reports 8 paths"],
+  ts: "2026-09-08T15:30:00Z",
+};
+const correctionFiles = { "docs/readiness/CHG-058.json": correctedReadiness };
+
+run("canonical actuals correction follows terminal and correcting decision", [
+  ...correctionHistory,
+  canonicalCorrection,
+], 0, correctionFiles);
+
+run("actuals correction cannot precede its terminal", [
+  correctionHistory[0],
+  correctionHistory[1],
+  correctionHistory[2],
+  correctionHistory[4],
+  canonicalCorrection,
+  correctionHistory[3],
+], 1, correctionFiles);
+
+run("actuals correction requires a prior correcting decision", [
+  ...correctionHistory.filter((record) => record.event !== "decision"),
+  canonicalCorrection,
+], 1, correctionFiles);
+
+for (const [name, mutate] of [
+  ["unknown property", (record) => { record.extra = true; }],
+  ["empty reason", (record) => { record.reason = ""; }],
+  ["empty evidence", (record) => { record.evidence = []; }],
+  ["malformed change", (record) => { record.change = "IMP-404"; }],
+  ["non-UTC timestamp", (record) => { record.ts = "2026-09-08T10:30:00-05:00"; }],
+  ["partial replacement", (record) => { record.replacement_actuals = { changed_files: 8 }; }],
+  ["bad replacement arithmetic", (record) => { record.replacement_actuals.total += 1; }],
+  ["forged target hash", (record) => { record.target_actuals_sha256 = "f".repeat(64); }],
+]) {
+  const correction = structuredClone(canonicalCorrection);
+  mutate(correction);
+  run(`actuals correction rejects ${name}`, [...correctionHistory, correction], 1, correctionFiles);
+}
+
+run("actuals correction refs are globally unique", [
+  ...correctionHistory,
+  canonicalCorrection,
+  { ...structuredClone(canonicalCorrection), story: "US-999" },
+], 1, correctionFiles);
 
 for (const terminal of ["done", "verified", "done_with_deferral", "done_with_external_deferral"]) {
   run(`${terminal} requires build_pass`, [

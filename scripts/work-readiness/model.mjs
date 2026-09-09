@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 
 const TOP_LEVEL_KEYS = [
   "schema_version", "readiness_payload_sha256", "work_id", "kind", "work_type", "title", "source",
@@ -32,6 +33,11 @@ export const MAX_READINESS_MINUTES = 320;
 
 const PHASE_KEYS = ["readiness", "implementation", "focused_verification", "review", "integration"];
 const ESTIMATE_KEYS = [...PHASE_KEYS, "total"];
+const ACTUALS_CORRECTED_SCHEMA = JSON.parse(readFileSync(
+  new URL("../../docs/dev-guide/feedback-vocabulary.json", import.meta.url),
+  "utf8",
+)).event_schemas.actuals_corrected;
+const EXPLICIT_UTC_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|\+00:00)$/u;
 const BOOTSTRAP_DIGEST = "c9526d8070e749820d83edfba136cd2ec129ea239bb9e94d710d0a2120a16d32";
 const BOOTSTRAP_TITLE = "Enforce work readiness and outcome-based partitioning";
 const BOOTSTRAP_SOURCE = "docs/superpowers/specs/2026-08-13-work-readiness-and-partitioning-design.md";
@@ -287,6 +293,67 @@ function canonicalize(value, path = "$") {
   return value;
 }
 
+function canonicalizeActuals(value) {
+  if (Array.isArray(value)) return value.map(canonicalizeActuals);
+  if (value !== null && typeof value === "object") {
+    if (!isPlainObject(value)) throw new TypeError("actuals must contain only JSON objects and arrays");
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalizeActuals(value[key])]));
+  }
+  if (typeof value === "number" && !Number.isFinite(value)) throw new TypeError("actuals must contain only finite JSON numbers");
+  if (!["string", "number", "boolean"].includes(typeof value) && value !== null) {
+    throw new TypeError("actuals must contain only JSON values");
+  }
+  return value;
+}
+
+export function canonicalActualsSha256(actuals) {
+  if (!isPlainObject(actuals)) throw new TypeError("actuals must be a JSON object");
+  return createHash("sha256").update(JSON.stringify(canonicalizeActuals(actuals)), "utf8").digest("hex");
+}
+
+function jsonSchemaErrors(value, schema, path = "$") {
+  const errors = [];
+  const expectedType = schema?.type;
+  const typeMatches = expectedType === undefined
+    || (expectedType === "object" && isPlainObject(value))
+    || (expectedType === "array" && Array.isArray(value))
+    || (expectedType === "string" && typeof value === "string")
+    || (expectedType === "integer" && Number.isInteger(value))
+    || (expectedType === "number" && typeof value === "number" && Number.isFinite(value))
+    || (expectedType === "boolean" && typeof value === "boolean")
+    || (expectedType === "null" && value === null);
+  if (!typeMatches) return [`${path} must be ${expectedType}`];
+  if (Array.isArray(schema?.enum) && !schema.enum.some((candidate) => Object.is(candidate, value))) {
+    errors.push(`${path} must equal one of the emitted enum values`);
+  }
+  if (typeof value === "string") {
+    if (Number.isInteger(schema.minLength) && value.length < schema.minLength) errors.push(`${path} is shorter than ${schema.minLength}`);
+    if (typeof schema.pattern === "string" && !(new RegExp(schema.pattern, "u")).test(value)) errors.push(`${path} does not match the emitted pattern`);
+  }
+  if (Array.isArray(value)) {
+    if (Number.isInteger(schema.minItems) && value.length < schema.minItems) errors.push(`${path} requires at least ${schema.minItems} item(s)`);
+    if (schema.items) value.forEach((item, index) => errors.push(...jsonSchemaErrors(item, schema.items, `${path}[${index}]`)));
+  }
+  if (isPlainObject(value)) {
+    const properties = isPlainObject(schema.properties) ? schema.properties : {};
+    if (Number.isInteger(schema.minProperties) && Object.keys(value).length < schema.minProperties) errors.push(`${path} requires at least ${schema.minProperties} properties`);
+    for (const key of schema.required ?? []) {
+      if (!Object.hasOwn(value, key)) errors.push(`${path}.${key} is required`);
+    }
+    if (schema.additionalProperties === false) {
+      for (const key of Object.keys(value)) if (!Object.hasOwn(properties, key)) errors.push(`${path}.${key} is not allowed`);
+    }
+    for (const [key, childSchema] of Object.entries(properties)) {
+      if (Object.hasOwn(value, key)) errors.push(...jsonSchemaErrors(value[key], childSchema, `${path}.${key}`));
+    }
+  }
+  return errors;
+}
+
+export function actualsCorrectionSchemaErrors(record, path = "$") {
+  return jsonSchemaErrors(record, ACTUALS_CORRECTED_SCHEMA, path);
+}
+
 export function canonicalReadinessPayload(value) {
   if (!isPlainObject(value)) fail("WR_UNSAFE_OBJECT", "$", "Readiness payload must be a plain object");
   const excluded = new Set(["readiness_payload_sha256", "approval", "actuals", "checkpoints"]);
@@ -492,7 +559,7 @@ function readinessTokens(text) {
 //
 // The digest binding (readiness_payload_sha256, "What stays" item 2) is
 // untouched and remains the tamper-evidence for every decision, old and new.
-const OPTIONAL_ATTESTATION_KEYS = ["approved_by", "subject_work_id", "relationship", "key_id", "signature"];
+const OPTIONAL_ATTESTATION_KEYS = ["approved_by", "subject_work_id", "relationship", "key_id", "signature", "ts"];
 
 function validateDecisionRecordShape(record) {
   const required = ["story", "event", "id", "text", "reason"];
@@ -527,7 +594,7 @@ function validatePriorDecisionRecord(record, seenIds) {
   return tokens;
 }
 
-const NON_EXECUTION_EVENTS = new Set(["feedback"]);
+const NON_EXECUTION_EVENTS = new Set(["feedback", "actuals_corrected"]);
 const REVOCATION_EVENTS = new Set(["blocked", "blocker"]);
 const IMPLEMENTATION_EVIDENCE_EVENTS = new Set([
   "started", "ac_pass", "ac_verify", "verified", "deviation", "ac_fail", "ac_unverifiable", "test_report",
@@ -826,38 +893,239 @@ function terminalDoneIndex(records, value, terminalProjection = buildTerminalPro
   return records.findIndex((record, index) => index > afterIndex && record.story === value.work_id && terminalProjection.terminalIndices.has(index));
 }
 
+function validateCompleteActuals(actuals, value, feedbackRecords, doneIndex, path) {
+  validateActualsShape(actuals, path);
+  for (const key of PHASE_KEYS) {
+    if (actuals.phase_minutes[key] === null) fail("WR_ACTUALS_INCOMPLETE", `${path}.phase_minutes.${key}`, "All actual phase minutes are required at done");
+  }
+  for (const key of ["total", "changed_files", "commits", "review_fix_loops", "cold_mutation_attempts", "mutation_invalidations", "estimate_variance_minutes", "root_cause"]) {
+    if (actuals[key] === null) fail("WR_ACTUALS_INCOMPLETE", `${path}.${key}`, `actuals.${key} is required at done`);
+  }
+  const total = phaseSum(actuals.phase_minutes);
+  if (actuals.total !== total) fail("WR_ACTUALS_TOTAL_MISMATCH", `${path}.total`, "Actual total must equal the five actual phase values");
+  const variance = total - value.estimate_minutes.total;
+  if (actuals.estimate_variance_minutes !== variance) fail("WR_ACTUALS_VARIANCE_MISMATCH", `${path}.estimate_variance_minutes`, "Estimate variance must equal actual total minus estimated total");
+  // CHG-037 §2: actuals no longer have to evidence 45/90-minute controls. The
+  // gate demanded a checkpoint for every long phase, which is why the bootstrap
+  // needed a "corrective deviation" escape to avoid fabricating controls it never
+  // took. Both the demand and the escape are gone.
+  const attempts = actuals.cold_mutation_attempts;
+  if (attempts === 0 && value.signals.expected_mutation_shards > 0) {
+    fail("WR_MUTATION_COLD_REQUIRED", `${path}.cold_mutation_attempts`, "At least one authoritative cold campaign is required when mutation shards are approved");
+  }
+  const expectedInvalidations = Math.max(0, attempts - 1);
+  if (actuals.mutation_invalidations !== expectedInvalidations) fail("WR_MUTATION_INVALIDATION_COUNT", `${path}.mutation_invalidations`, "Mutation invalidations must equal cold attempts minus one");
+  if (attempts > 1) {
+    const evidence = feedbackRecords.slice(0, doneIndex).filter((record) => record.story === value.work_id && record.event === "mutation_invalidation" && typeof record.reason === "string" && /\S/u.test(record.reason));
+    if (evidence.length !== actuals.mutation_invalidations) fail("WR_MUTATION_INVALIDATION_EVIDENCE", `${path}.mutation_invalidations`, "Each mutation invalidation requires one non-empty reason event");
+  }
+  const campaignEvidence = feedbackRecords.slice(0, doneIndex).filter((record) => record.story === value.work_id && record.event === "test_report");
+  if (campaignEvidence.length > 0 && campaignEvidence.length !== attempts) {
+    fail("WR_MUTATION_CAMPAIGN_EVIDENCE", `${path}.cold_mutation_attempts`, "Cold mutation attempts must equal retained test_report campaign evidence");
+  }
+  return { total, variance };
+}
+
+function missingShapePaths(reference, replacement, path = "$") {
+  if (isPlainObject(reference)) {
+    if (!isPlainObject(replacement)) return [path];
+    return Object.entries(reference).flatMap(([key, value]) => Object.hasOwn(replacement, key)
+      ? missingShapePaths(value, replacement[key], `${path}.${key}`)
+      : [`${path}.${key}`]);
+  }
+  if (Array.isArray(reference) && !Array.isArray(replacement)) return [path];
+  return [];
+}
+
+function parseExplicitUtcTimestamp(value) {
+  if (typeof value !== "string") return null;
+  const match = EXPLICIT_UTC_TIMESTAMP.exec(value);
+  if (match === null) return null;
+  const [, year, month, day, hour, minute, second] = match;
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return null;
+  const date = new Date(timestamp);
+  if (date.getUTCFullYear() !== Number(year)
+    || date.getUTCMonth() + 1 !== Number(month)
+    || date.getUTCDate() !== Number(day)
+    || date.getUTCHours() !== Number(hour)
+    || date.getUTCMinutes() !== Number(minute)
+    || date.getUTCSeconds() !== Number(second)) return null;
+  return timestamp;
+}
+
+function correctionError(index, event, reason, detail) {
+  return {
+    index,
+    ref: isPlainObject(event) ? event.ref ?? null : null,
+    story: isPlainObject(event) ? event.story ?? null : null,
+    change: isPlainObject(event) ? event.change ?? null : null,
+    reason,
+    detail,
+  };
+}
+
+function validCorrectionDecision(record, feedbackRecords) {
+  try {
+    validatePriorDecisionRecord(record, new Set());
+  } catch (error) {
+    if (error instanceof WorkReadinessError) return false;
+    throw error;
+  }
+  return feedbackRecords.filter((candidate) => candidate.event === "decision" && candidate.id === record.id).length === 1;
+}
+
+export function resolveEffectiveActuals(rawActuals, feedbackRecords, context = {}) {
+  if (!isPlainObject(rawActuals)) throw new TypeError("rawActuals must be a JSON object");
+  if (!Array.isArray(feedbackRecords)) throw new TypeError("feedbackRecords must be an array");
+  const value = context.assessment;
+  if (!isPlainObject(value)) throw new TypeError("context.assessment must be a readiness assessment");
+
+  const raw = structuredClone(rawActuals);
+  let effective = structuredClone(rawActuals);
+  const corrections = [];
+  const errors = [];
+  const allCorrectionEntries = feedbackRecords
+    .map((event, position) => ({ event, position }))
+    .filter(({ event }) => isPlainObject(event) && event.event === "actuals_corrected");
+  const correctionEntries = Array.isArray(context.correctionEvents)
+    ? context.correctionEvents.map((event) => ({ event, position: feedbackRecords.indexOf(event) }))
+    : allCorrectionEntries.filter(({ event }) => event.story === value.work_id);
+  if (correctionEntries.length === 0) return { raw, effective, corrections, errors };
+
+  const refCounts = new Map();
+  for (const event of feedbackRecords.filter((record) => isPlainObject(record) && record.event === "actuals_corrected")) {
+    if (typeof event.ref === "string") refCounts.set(event.ref, (refCounts.get(event.ref) ?? 0) + 1);
+  }
+  const terminalProjection = buildTerminalProjection(feedbackRecords, value.work_id);
+  const doneIndex = terminalDoneIndex(feedbackRecords, value, terminalProjection);
+  const terminalTimestamp = doneIndex < 0 ? null : parseExplicitUtcTimestamp(feedbackRecords[doneIndex]?.ts);
+  let previousTimestamp = terminalTimestamp;
+  let chainBroken = false;
+  let rawValidationError = null;
+  if (doneIndex >= 0) {
+    try {
+      validateCompleteActuals(rawActuals, value, feedbackRecords, doneIndex, "$.actuals");
+    } catch (error) {
+      if (!(error instanceof WorkReadinessError)) throw error;
+      rawValidationError = error;
+    }
+  }
+
+  correctionEntries.forEach(({ event, position }, index) => {
+    const exclude = (reason, detail, { breakChain = true } = {}) => {
+      errors.push(correctionError(index, event, reason, detail));
+      if (breakChain) chainBroken = true;
+    };
+    const eventTimestamp = parseExplicitUtcTimestamp(event.ts);
+    if (Object.hasOwn(event, "ts") && eventTimestamp === null) {
+      exclude("invalid_timestamp", "timestamp must be a valid ISO-8601 value explicitly in UTC");
+      return;
+    }
+    const schemaErrors = actualsCorrectionSchemaErrors(event, `$feedback[${position}]`);
+    if (schemaErrors.length > 0) {
+      exclude("invalid_schema", schemaErrors.join("; "));
+      return;
+    }
+    if ((refCounts.get(event.ref) ?? 0) !== 1) {
+      exclude("duplicate_ref", `correction ref '${event.ref}' occurs ${refCounts.get(event.ref)} times`);
+      return;
+    }
+    if (chainBroken) {
+      exclude("chain_not_linear", "an earlier correction was excluded, so this suffix cannot be applied", { breakChain: false });
+      return;
+    }
+    if (event.story !== value.work_id) {
+      exclude("story_mismatch", `story '${event.story}' does not match target '${value.work_id}'`);
+      return;
+    }
+    if (doneIndex < 0 || terminalTimestamp === null || rawValidationError !== null) {
+      exclude("missing_terminal", rawValidationError?.message ?? "the story has no timestamped effective terminal with complete raw actuals");
+      return;
+    }
+    if (position <= doneIndex || eventTimestamp <= terminalTimestamp) {
+      exclude("not_after_terminal", "correction must follow and be later than the effective terminal");
+      return;
+    }
+    if (corrections.length > 0 && eventTimestamp <= previousTimestamp) {
+      exclude("not_after_previous_correction", "correction timestamp must advance strictly in append order");
+      return;
+    }
+
+    const decisionCandidates = feedbackRecords.slice(0, position)
+      .filter((record) => isPlainObject(record) && record.event === "decision" && record.story === event.change)
+      .filter((record) => validCorrectionDecision(record, feedbackRecords));
+    if (decisionCandidates.length === 0) {
+      exclude("missing_decision", `change '${event.change}' has no prior valid decision event`);
+      return;
+    }
+    const decision = decisionCandidates.at(-1);
+    if (Object.hasOwn(decision, "ts")) {
+      const decisionTimestamp = parseExplicitUtcTimestamp(decision.ts);
+      if (decisionTimestamp === null) {
+        exclude("invalid_decision_timestamp", "decision timestamp must be a valid ISO-8601 value explicitly in UTC");
+        return;
+      }
+      if (decisionTimestamp >= eventTimestamp) {
+        exclude("decision_not_before_correction", "decision timestamp contradicts append-ledger order");
+        return;
+      }
+    }
+
+    const replacement = event.replacement_actuals;
+    const missing = missingShapePaths(rawActuals, replacement);
+    if (missing.length > 0) {
+      exclude("incomplete_replacement", `replacement is missing raw actuals shape at ${missing.join(", ")}`);
+      return;
+    }
+    try {
+      canonicalActualsSha256(replacement);
+    } catch (error) {
+      exclude("invalid_replacement_actuals", `replacement actuals must be canonical finite JSON: ${error.message}`);
+      return;
+    }
+    const expectedTarget = canonicalActualsSha256(effective);
+    if (event.target_actuals_sha256 !== expectedTarget) {
+      exclude("target_hash_mismatch", "target_actuals_sha256 does not match the currently effective actuals");
+      return;
+    }
+    try {
+      validateCompleteActuals(replacement, value, feedbackRecords, doneIndex, `$feedback[${position}].replacement_actuals`);
+    } catch (error) {
+      if (!(error instanceof WorkReadinessError)) throw error;
+      exclude("invalid_replacement_actuals", `${error.code}: ${error.message}`);
+      return;
+    }
+    corrections.push(structuredClone(event));
+    effective = structuredClone(replacement);
+    previousTimestamp = eventTimestamp;
+  });
+  return { raw, effective, corrections, errors };
+}
+
+function throwCorrectionError(error) {
+  const suffix = error.reason.toUpperCase().replace(/[^A-Z0-9]+/gu, "_");
+  fail(`WR_ACTUALS_CORRECTION_${suffix}`, `$feedback[${error.index}]`, error.detail);
+}
+
 export function validateCompletionActuals(value, feedbackRecords) {
   feedbackArray(feedbackRecords);
   const terminalProjection = buildTerminalProjection(feedbackRecords, value.work_id);
   const doneIndex = terminalDoneIndex(feedbackRecords, value, terminalProjection);
   if (doneIndex < 0) return { complete: false };
   if (value.actuals === null || value.actuals === undefined) fail("WR_ACTUALS_REQUIRED", "$.actuals", "Terminal done requires completion actuals");
-  validateActualsShape(value.actuals, "$.actuals");
-  for (const key of PHASE_KEYS) {
-    if (value.actuals.phase_minutes[key] === null) fail("WR_ACTUALS_INCOMPLETE", `$.actuals.phase_minutes.${key}`, "All actual phase minutes are required at done");
-  }
-  for (const key of ["total", "changed_files", "commits", "review_fix_loops", "cold_mutation_attempts", "mutation_invalidations", "estimate_variance_minutes", "root_cause"]) {
-    if (value.actuals[key] === null) fail("WR_ACTUALS_INCOMPLETE", `$.actuals.${key}`, `actuals.${key} is required at done`);
-  }
-  const total = phaseSum(value.actuals.phase_minutes);
-  if (value.actuals.total !== total) fail("WR_ACTUALS_TOTAL_MISMATCH", "$.actuals.total", "Actual total must equal the five actual phase values");
-  const variance = total - value.estimate_minutes.total;
-  if (value.actuals.estimate_variance_minutes !== variance) fail("WR_ACTUALS_VARIANCE_MISMATCH", "$.actuals.estimate_variance_minutes", "Estimate variance must equal actual total minus estimated total");
-  // CHG-037 §2: actuals no longer have to evidence 45/90-minute controls. The
-  // gate demanded a checkpoint for every long phase, which is why the bootstrap
-  // needed a "corrective deviation" escape to avoid fabricating controls it never
-  // took. Both the demand and the escape are gone.
-  const attempts = value.actuals.cold_mutation_attempts;
-  if (attempts === 0 && value.signals.expected_mutation_shards > 0) {
-    fail("WR_MUTATION_COLD_REQUIRED", "$.actuals.cold_mutation_attempts", "At least one authoritative cold campaign is required when mutation shards are approved");
-  }
-  const expectedInvalidations = Math.max(0, attempts - 1);
-  if (value.actuals.mutation_invalidations !== expectedInvalidations) fail("WR_MUTATION_INVALIDATION_COUNT", "$.actuals.mutation_invalidations", "Mutation invalidations must equal cold attempts minus one");
-  if (attempts > 1) {
-    const evidence = feedbackRecords.slice(0, doneIndex).filter((record) => record.story === value.work_id && record.event === "mutation_invalidation" && typeof record.reason === "string" && /\S/u.test(record.reason));
-    if (evidence.length !== value.actuals.mutation_invalidations) fail("WR_MUTATION_INVALIDATION_EVIDENCE", "$.actuals.mutation_invalidations", "Each mutation invalidation requires one non-empty reason event");
-  }
-  return { complete: true, total, variance };
+  validateCompleteActuals(value.actuals, value, feedbackRecords, doneIndex, "$.actuals");
+  const resolution = resolveEffectiveActuals(value.actuals, feedbackRecords, { assessment: value });
+  if (resolution.errors.length > 0) throwCorrectionError(resolution.errors[0]);
+  const effectiveFacts = validateCompleteActuals(resolution.effective, value, feedbackRecords, doneIndex, "$.effective_actuals");
+  return {
+    complete: true,
+    total: effectiveFacts.total,
+    variance: effectiveFacts.variance,
+    raw: resolution.raw,
+    effective: resolution.effective,
+    corrections: resolution.corrections,
+  };
 }
 
 // CHG-037 §2/§3 — the checkpoint machinery is gone: validateCheckpointPolicy (the

@@ -3,7 +3,13 @@ import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 
-import { WorkReadinessError, classifyAssessment, validateAssessment, validateCompletionActuals } from "./model.mjs";
+import {
+  WorkReadinessError,
+  actualsCorrectionSchemaErrors,
+  classifyAssessment,
+  validateAssessment,
+  validateCompletionActuals,
+} from "./model.mjs";
 
 const MAX_GIT_OUTPUT_BYTES = 1024 * 1024;
 const MAX_CI_EVENT_BYTES = 1024 * 1024;
@@ -265,7 +271,7 @@ const KNOWN_FEEDBACK_EVENTS = new Set([
   "blocked", "blocker", "deviation", "ac_fail", "ac_unverifiable", "test_report", "feedback", "nav_gap",
   "evidence_superseded", "revalidated", "decision", "build_pass", "closed_with_deferrals", "adversarial_review",
   "deferred_memory_saved", "closure_hygiene", "implemented_with_external_verification", "mutation_invalidation",
-  "checkpoint",
+  "checkpoint", "actuals_corrected",
 ]);
 
 function validateFeedbackStructure(records) {
@@ -293,6 +299,10 @@ function validateFeedbackStructure(records) {
                     : record.event === "evidence_superseded" ? [["ref", "string"], ["reason", "string"], ["target", "object"]]
                       : record.event === "revalidated" ? [["ref", "string"], ["change", "string"], ["as_event", "string"]]
                         : [];
+    if (record.event === "actuals_corrected") {
+      const schemaErrors = actualsCorrectionSchemaErrors(record, path);
+      if (schemaErrors.length > 0) fail("WR_FEEDBACK_INVALID", path, schemaErrors.join("; "));
+    }
     for (const [key, type] of required) {
       const value = record[key];
       const valid = type === "integer" ? Number.isInteger(value)
@@ -432,7 +442,7 @@ function validateAllActualTransitions({ root, parent, commit, changedPaths, pare
     if (match) workIds.add(match[1]);
   });
   appendedFeedback.forEach((record) => {
-    if ((isTerminalEvent(record.event) || ["evidence_superseded", "revalidated"].includes(record.event))
+    if ((isTerminalEvent(record.event) || ["evidence_superseded", "revalidated", "actuals_corrected"].includes(record.event))
       && typeof record.story === "string" && /^(?:US|CHG)-[0-9]{3,}$/u.test(record.story)) workIds.add(record.story);
   });
   for (const workId of workIds) {
@@ -446,8 +456,8 @@ function validateAllActualTransitions({ root, parent, commit, changedPaths, pare
       fail("WR_ACTUALS_IMMUTABLE", "$.actuals", "Completion actuals are immutable after the first effective terminal");
     }
     if (candidateArtifact === null) {
-      if (appendedFeedback.some((record) => record.story === workId && isTerminalEvent(record.event))) {
-        fail("WR_READINESS_MISSING", readinessPath, "Terminal evidence requires a readiness artifact with complete actuals");
+      if (appendedFeedback.some((record) => record.story === workId && (isTerminalEvent(record.event) || record.event === "actuals_corrected"))) {
+        fail("WR_READINESS_MISSING", readinessPath, "Terminal or actuals-correction evidence requires a readiness artifact with complete actuals");
       }
       continue;
     }
@@ -1107,7 +1117,13 @@ function validateCommitOwnership({
     .join("\n"));
   const workIds = [...new Set([...messageWorkIds, ...pathWorkIds])];
   const candidateFeedback = validateFeedbackHistoryTransition(root, parent, commit);
-  const authorizationFeedback = parseFeedback(readRevisionFile(root, parent, ".nous-feedback.jsonl", { required: false }));
+  const parentFeedbackRecords = parseFeedback(readRevisionFile(root, parent, ".nous-feedback.jsonl", { required: false }));
+  for (const record of candidateFeedback.slice(parentFeedbackRecords.length)) {
+    if (record.event === "actuals_corrected" && typeof record.story === "string" && !workIds.includes(record.story)) {
+      workIds.push(record.story);
+    }
+  }
+  const authorizationFeedback = parentFeedbackRecords;
   const policyActive = validatedActivationIndex(root, parent, authorizationFeedback) >= 0;
   validateAllActualTransitions({
     root,
