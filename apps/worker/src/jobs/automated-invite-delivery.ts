@@ -35,6 +35,8 @@ type ProvisionInstruction = Readonly<{
   personEmail: string;
 }>;
 
+const PROVIDER_INVITATION_FAILURE = "provider_invitation_failed";
+
 export type AutomatedInviteDeliveryJobOptions = Readonly<{
   allowedKekRoot?: string;
   connectionString: string;
@@ -312,6 +314,101 @@ export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliver
     }
   }
 
+  async function finalizeGenericFailure(
+    client: pg.PoolClient,
+    candidate: Candidate,
+    occurredAt: Date,
+  ): Promise<boolean> {
+    await client.query("BEGIN");
+    try {
+      const locked = await client.query(
+        `SELECT 1
+         FROM provisioning_action action
+         JOIN license_request request
+           ON request.id=action.request_id
+          AND request.vendor_account_id=action.vendor_account_id
+          AND request.company_id=$3
+         WHERE action.id=$1
+           AND action.vendor_account_id=$2
+           AND action.request_id=$4
+           AND action.kind='invite'
+           AND action.mode='automated'
+           AND action.status='pending'
+           AND request.state='provisioning'
+           AND EXISTS (
+             SELECT 1 FROM connector_call_observation observation
+             WHERE observation.provisioning_action_id=action.id
+               AND observation.vendor_account_id=action.vendor_account_id
+               AND observation.phase='failed'
+               AND COALESCE(observation.summary->>'failure_code','') <> 'capacity_unavailable'
+           )
+         FOR UPDATE OF action,request`,
+        [
+          candidate.actionId,
+          candidate.vendorAccountId,
+          candidate.companyId,
+          candidate.requestId,
+        ],
+      );
+      if (locked.rowCount !== 1) {
+        await client.query("ROLLBACK");
+        return false;
+      }
+      const updated = await client.query(
+        `UPDATE provisioning_action
+         SET status='failed',failure_reason=$2,raw_response=$3::jsonb,resolved_at=$4
+         WHERE id=$1 AND request_id=$5 AND vendor_account_id=$6 AND status='pending'
+         RETURNING id`,
+        [
+          candidate.actionId,
+          PROVIDER_INVITATION_FAILURE,
+          JSON.stringify({ failure_code: PROVIDER_INVITATION_FAILURE }),
+          occurredAt,
+          candidate.requestId,
+          candidate.vendorAccountId,
+        ],
+      );
+      if (updated.rowCount !== 1) throw new Error("AUTOMATED_INVITE_ACTION_CONFLICT");
+      // Stryker disable next-line ObjectLiteral: @equivalent This adapter uses only Drizzle's
+      // raw execute method; the schema object changes typing, not the emitted SQL or runtime value.
+      const database = drizzle(client, { schema });
+      assertLegalTransition("provisioning", "failed");
+      await applyRequestTransitionInTransaction(database, {
+        requestId: candidate.requestId,
+        from: "provisioning",
+        to: "failed",
+        actorUserId: null,
+        note: PROVIDER_INVITATION_FAILURE,
+        occurredAt,
+      }, { expectedCompanyId: candidate.companyId });
+      const alert = await client.query(
+        `INSERT INTO alert_event
+           (alert_rule_id,fired_at,subject_ref,notified,dedupe_key)
+         SELECT rule.id,$1,$2::jsonb,'{"status":"pending"}'::jsonb,$3
+         FROM alert_rule rule
+         WHERE rule.type='provisioning_failure' AND rule.enabled
+           AND (rule.scope_kind='global' OR
+                (rule.scope_kind='company' AND rule.company_id=$4))
+         ORDER BY CASE rule.scope_kind WHEN 'company' THEN 0 ELSE 1 END,rule.id
+         LIMIT 1
+         ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
+         RETURNING id`,
+        [
+          occurredAt,
+          JSON.stringify({ requestId: candidate.requestId }),
+          `automated-invite-failure:${candidate.actionId}`,
+          candidate.companyId,
+        ],
+      );
+      if (alert.rowCount !== 1) throw new Error("PROVISIONING_FAILURE_RULE_MISSING");
+      await client.query("COMMIT");
+      return true;
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    }
+  }
+
   async function deliver(
     candidate: Candidate,
     occurredAt: Date,
@@ -371,7 +468,7 @@ export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliver
       if (!result.ok) {
         return result.code === "capacity_unavailable"
           ? await finalizeNoSeat(client, candidate, occurredAt)
-          : false;
+          : await finalizeGenericFailure(client, candidate, occurredAt);
       }
       if (result.value.vendorRef === null) return false;
       return finalize(client, candidate, result.value.vendorRef, occurredAt);

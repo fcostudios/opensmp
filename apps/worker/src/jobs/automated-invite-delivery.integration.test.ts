@@ -29,6 +29,7 @@ const ids = {
   requestB: id("11"),
   actionA: id("12"),
   actionB: id("13"),
+  alertRule: id("14"),
 };
 const at = new Date("2026-09-07T15:00:00.000Z");
 const kek = Uint8Array.from({ length: 32 }, (_, index) => index);
@@ -79,7 +80,8 @@ function exactNoSeatResponse(): Response {
 
 async function seed(): Promise<void> {
   await owner.query(
-    `TRUNCATE TABLE audit_log, connector_call_observation, request_transition,
+    `TRUNCATE TABLE alert_notification_delivery, alert_event, audit_log,
+       connector_call_observation, request_transition,
        provisioning_action, license_request, integration_credential,
        license_type, vendor_account, vendor, person, company, user_account
      RESTART IDENTITY CASCADE`,
@@ -123,6 +125,13 @@ async function seed(): Promise<void> {
        (id,vendor_id,name,unit,status,created_at,created_by)
      VALUES ($1,$2,'Claude seat','seat','active',$3,$4)`,
     [ids.license, ids.vendor, at, ids.admin],
+  );
+  await owner.query(
+    `INSERT INTO alert_rule
+       (id,type,scope_kind,threshold,channel,enabled,created_at,created_by)
+     VALUES ($1,'provisioning_failure','global','{"failures":1}'::jsonb,
+             'email',true,$2,$3)`,
+    [ids.alertRule, at, ids.admin],
   );
   await owner.query(
     `INSERT INTO license_request
@@ -574,7 +583,7 @@ describe("US-063 automated invite delivery", () => {
       });
     });
     try {
-      await expect(job.drain({ at, vendorAccountId: ids.accountA })).resolves.toEqual({ processed: 0 });
+      await expect(job.drain({ at, vendorAccountId: ids.accountA })).resolves.toEqual({ processed: 1 });
       await expect(job.drain({ at, vendorAccountId: ids.accountA })).resolves.toEqual({ processed: 0 });
     } finally {
       await job.close();
@@ -727,37 +736,67 @@ describe("US-063 automated invite delivery", () => {
     [422, providerSeatLimitMessage],
     [429, providerSeatLimitMessage],
     [503, providerSeatLimitMessage],
-  ])("keeps generic provider status %i out of blocked_no_seat", async (status, message) => {
-    // Mutations killed: widening no-seat routing beyond the exact contract-recognized response.
+  ])("finalizes generic provider status %i as one safe, alerted failure", async (status, message) => {
+    // Mutations killed: widening no-seat routing, retaining provider-controlled data, or failing
+    // to finalize and alert the exact tenant-bound action after a known terminal observation.
     await seed();
-    const job = jobFor(async () => new Response(JSON.stringify({
-      type: "error",
-      error: { type: "invalid_request_error", message },
-    }), { status, headers: { "content-type": "application/json" } }));
+    let calls = 0;
+    const secret = "Bearer should-never-persist";
+    const job = jobFor(async () => {
+      calls += 1;
+      return new Response(JSON.stringify({
+        type: "error",
+        error: { type: "invalid_request_error", message, request_id: secret },
+      }), {
+        status,
+        headers: { "content-type": "application/json", "x-secret": secret },
+      });
+    });
     try {
+      await expect(job.drain({ at, vendorAccountId: ids.accountA }))
+        .resolves.toEqual({ processed: 1 });
       await expect(job.drain({ at, vendorAccountId: ids.accountA }))
         .resolves.toEqual({ processed: 0 });
     } finally {
       await job.close();
     }
+    expect(calls).toBe(1);
     const state = await owner.query(
-      `SELECT request.state,action.status,action.raw_response,action.resolved_at
+      `SELECT request.state,action.status,action.failure_reason,
+              action.raw_response,action.resolved_at
        FROM license_request request
        JOIN provisioning_action action ON action.request_id=request.id
        WHERE action.id=$1`,
       [ids.actionA],
     );
     expect(state.rows).toEqual([{
-      state: "provisioning",
-      status: "pending",
-      raw_response: null,
-      resolved_at: null,
+      state: "failed",
+      status: "failed",
+      failure_reason: "provider_invitation_failed",
+      raw_response: { failure_code: "provider_invitation_failed" },
+      resolved_at: at,
     }]);
     const transitions = await owner.query(
-      `SELECT count(*)::int AS count FROM request_transition WHERE request_id=$1`,
+      `SELECT from_state,to_state,actor_user_id,note
+       FROM request_transition WHERE request_id=$1`,
       [ids.requestA],
     );
-    expect(transitions.rows).toEqual([{ count: 0 }]);
+    expect(transitions.rows).toEqual([{
+      from_state: "provisioning",
+      to_state: "failed",
+      actor_user_id: null,
+      note: "provider_invitation_failed",
+    }]);
+    const alerts = await owner.query(
+      `SELECT rule.type,event.subject_ref,event.dedupe_key
+       FROM alert_event event
+       JOIN alert_rule rule ON rule.id=event.alert_rule_id`,
+    );
+    expect(alerts.rows).toEqual([{
+      type: "provisioning_failure",
+      subject_ref: { requestId: ids.requestA },
+      dedupe_key: `automated-invite-failure:${ids.actionA}`,
+    }]);
     const foreign = await owner.query(
       `SELECT request.state,action.status,action.raw_response,action.resolved_at
        FROM license_request request
@@ -771,6 +810,8 @@ describe("US-063 automated invite delivery", () => {
       raw_response: null,
       resolved_at: null,
     }]);
+    expect(JSON.stringify({ alerts: alerts.rows, state: state.rows })).not.toContain(secret);
+    expect(JSON.stringify({ alerts: alerts.rows, state: state.rows })).not.toContain(message);
   });
 
   it("refuses no-seat finalization when the action changes after provider dispatch", async () => {
