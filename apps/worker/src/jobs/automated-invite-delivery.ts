@@ -35,8 +35,6 @@ type ProvisionInstruction = Readonly<{
   personEmail: string;
 }>;
 
-const PROVIDER_INVITATION_FAILURE = "provider_invitation_failed";
-
 export type AutomatedInviteDeliveryJobOptions = Readonly<{
   allowedKekRoot?: string;
   connectionString: string;
@@ -66,6 +64,7 @@ function provisionInstruction(candidate: Candidate): ProvisionInstruction {
 }
 
 export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliveryJobOptions) {
+  const PROVIDER_INVITATION_FAILURE = "provider_invitation_failed";
   const pool = new pg.Pool({ connectionString: options.connectionString });
   const observations = createConnectorCallObservationAppender(options.connectionString);
   const now = options.now ?? (() => new Date());

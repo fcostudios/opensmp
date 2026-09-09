@@ -814,6 +814,105 @@ describe("US-063 automated invite delivery", () => {
     expect(JSON.stringify({ alerts: alerts.rows, state: state.rows })).not.toContain(message);
   });
 
+  it("rolls back a generic failure when PostgreSQL suppresses the action update", async () => {
+    await seed();
+    await owner.query(`
+      CREATE OR REPLACE FUNCTION suppress_generic_action_update() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$;
+      CREATE TRIGGER suppress_generic_action_update
+      BEFORE UPDATE ON provisioning_action
+      FOR EACH ROW EXECUTE FUNCTION suppress_generic_action_update()`);
+    const job = jobFor(async () => new Response(JSON.stringify({
+      type: "error",
+      error: { type: "authentication_error", message: "Rejected" },
+    }), { status: 401, headers: { "content-type": "application/json" } }));
+    try {
+      await expect(job.drain({ at, vendorAccountId: ids.accountA }))
+        .rejects.toThrow("AUTOMATED_INVITE_ACTION_CONFLICT");
+    } finally {
+      await job.close();
+      await owner.query(`
+        DROP TRIGGER IF EXISTS suppress_generic_action_update ON provisioning_action;
+        DROP FUNCTION IF EXISTS suppress_generic_action_update()`);
+    }
+    await expect(owner.query(
+      `SELECT request.state,action.status,action.raw_response,
+              (SELECT count(*)::int FROM request_transition transition
+               WHERE transition.request_id=request.id) AS transitions
+       FROM license_request request
+       JOIN provisioning_action action ON action.request_id=request.id
+       WHERE action.id=$1`,
+      [ids.actionA],
+    )).resolves.toMatchObject({ rows: [{
+      state: "provisioning",
+      status: "pending",
+      raw_response: null,
+      transitions: 0,
+    }] });
+  });
+
+  it("rolls back every generic failure write when no alert rule can accept it", async () => {
+    await seed();
+    await owner.query("DELETE FROM alert_rule");
+    const job = jobFor(async () => new Response(JSON.stringify({
+      type: "error",
+      error: { type: "authentication_error", message: "Rejected" },
+    }), { status: 401, headers: { "content-type": "application/json" } }));
+    try {
+      await expect(job.drain({ at, vendorAccountId: ids.accountA }))
+        .rejects.toThrow("PROVISIONING_FAILURE_RULE_MISSING");
+    } finally {
+      await job.close();
+    }
+    await expect(owner.query(
+      `SELECT request.state,action.status,action.raw_response,
+              (SELECT count(*)::int FROM request_transition transition
+               WHERE transition.request_id=request.id) AS transitions,
+              (SELECT count(*)::int FROM alert_event) AS alerts,
+              (SELECT count(*)::int FROM connector_call_observation observation
+               WHERE observation.provisioning_action_id=action.id
+                 AND observation.phase='failed') AS failed_observations
+       FROM license_request request
+       JOIN provisioning_action action ON action.request_id=request.id
+       WHERE action.id=$1`,
+      [ids.actionA],
+    )).resolves.toMatchObject({ rows: [{
+      alerts: 0,
+      failed_observations: 1,
+      state: "provisioning",
+      status: "pending",
+      raw_response: null,
+      transitions: 0,
+    }] });
+  });
+
+  it("closes the generic stale-candidate transaction before releasing its client", async () => {
+    await seed();
+    const job = jobFor(async () => {
+      await owner.query(
+        "UPDATE provisioning_action SET status='failed' WHERE id=$1",
+        [ids.actionA],
+      );
+      return new Response(JSON.stringify({
+        type: "error",
+        error: { type: "authentication_error", message: "Rejected" },
+      }), { status: 401, headers: { "content-type": "application/json" } });
+    });
+    try {
+      await expect(job.drain({ at, vendorAccountId: ids.accountA }))
+        .resolves.toEqual({ processed: 0 });
+      const applicationUser = new URL(fixture.appUrl).username;
+      await expect(owner.query(
+        `SELECT count(*)::int AS count FROM pg_stat_activity
+         WHERE datname=current_database() AND usename=$1
+           AND state='idle in transaction'`,
+        [applicationUser],
+      )).resolves.toMatchObject({ rows: [{ count: 0 }] });
+    } finally {
+      await job.close();
+    }
+  });
+
   it("refuses no-seat finalization when the action changes after provider dispatch", async () => {
     await seed();
     const job = jobFor(async () => {
