@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import Link from "next/link";
 
 import {
@@ -55,7 +56,7 @@ export function ChecklistExceptionsList({
   readonly failures: readonly ChecklistExceptionItem[];
   readonly labels: ChecklistExceptionsLabels;
   readonly locale?: "en-US" | "es-EC";
-  readonly retryAction?: (input: FormData) => Promise<void>;
+  readonly retryAction?: Exclude<ComponentProps<"form">["action"], string | undefined>;
 }) {
   if (failures.length === 0) {
     return (

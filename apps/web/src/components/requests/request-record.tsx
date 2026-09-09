@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import Link from "next/link";
 
 import {
@@ -160,7 +160,7 @@ export function RequestRecord({
   readonly labels: RequestRecordLabels;
   readonly locale: "es-EC" | "en-US";
   readonly record: RequestRecordProjection;
-  readonly retryAction?: (input: FormData) => Promise<void>;
+  readonly retryAction?: Exclude<ComponentProps<"form">["action"], string | undefined>;
   readonly statusLabels: Readonly<Record<RequestStatus, string>>;
 }) {
   const resolvedTab =
