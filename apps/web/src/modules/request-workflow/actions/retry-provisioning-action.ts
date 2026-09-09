@@ -2,8 +2,6 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { forbidden } from "next/navigation";
 import { z } from "zod";
 
-// eslint-disable-next-line no-restricted-imports -- This module owns production wiring for the audited retry transaction.
-import { db } from "@smp/db";
 // eslint-disable-next-line no-restricted-imports -- This action adapter only types its transaction-service dependency.
 import type * as schema from "@smp/db/schema";
 
@@ -12,7 +10,6 @@ import {
   AUTHORIZATION_SYSTEM_ENTITY_ID,
   type LedgerAuthorization,
 } from "../../identity-access/authorization";
-import { loadCurrentLedgerAuthorization } from "../../identity-access/server-authorization";
 import { createProvisioningService } from "../provisioning-service";
 
 export type RetryProvisioningDatabase = NodePgDatabase<typeof schema>;
@@ -67,9 +64,3 @@ export function createRetryProvisioningActionService({
     },
   };
 }
-
-const productionDatabase = db as unknown as RetryProvisioningDatabase;
-export const retryProvisioningActionService = createRetryProvisioningActionService({
-  database: productionDatabase,
-  loadAuthorization: loadCurrentLedgerAuthorization,
-});

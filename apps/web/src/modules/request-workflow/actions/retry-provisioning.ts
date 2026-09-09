@@ -4,7 +4,7 @@ import { forbidden, redirect } from "next/navigation";
 
 import {
   retryProvisioningActionService,
-} from "./retry-provisioning-action";
+} from "./retry-provisioning-action-production";
 
 export async function retryProvisioning(input: FormData): Promise<void> {
   const result = await retryProvisioningActionService.retryProvisioning(input);

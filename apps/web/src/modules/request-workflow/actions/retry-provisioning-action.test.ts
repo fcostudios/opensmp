@@ -29,6 +29,7 @@ const ids = {
   vendorAccount: id("5"),
 } as const;
 const failedAt = new Date("2026-09-09T01:00:00.000Z");
+const retriedAt = new Date("2026-09-09T02:00:00.000Z");
 
 let fixture: PostgresFixture;
 let owner: pg.Client;
@@ -178,6 +179,7 @@ it("parses FormData, loads authorization, and retries through the audited real s
   const actions = createRetryProvisioningActionService({
     database,
     loadAuthorization: async () => authorization,
+    now: () => retriedAt,
   });
   const input = new FormData();
   input.set("actionId", ids.action);
@@ -191,12 +193,24 @@ it("parses FormData, loads authorization, and retries through the audited real s
     [ids.request],
   );
   expect(pending.rows).toEqual([{ count: 1 }]);
+  await expect(owner.query(
+    `SELECT actor_user_id,action,entity_type,entity_id,after,occurred_at
+     FROM audit_log WHERE action='server_action.retryProvisioning'`,
+  )).resolves.toMatchObject({ rows: [{
+    actor_user_id: ids.user,
+    action: "server_action.retryProvisioning",
+    entity_type: "ProvisioningAction",
+    entity_id: ids.action,
+    after: { accepted: true },
+    occurred_at: retriedAt,
+  }] });
 });
 
 it("returns conflicts and preserves forbidden as HTTP 403", async () => {
   const conflict = createRetryProvisioningActionService({
     database,
     loadAuthorization: async () => authorization,
+    now: () => retriedAt,
   });
   await owner.query(
     `INSERT INTO provisioning_action
@@ -208,10 +222,22 @@ it("returns conflicts and preserves forbidden as HTTP 403", async () => {
   const conflictResult = await conflict.retryProvisioning({ actionId: ids.action });
 
   expect(conflictResult).toEqual({ ok: false, error: "conflict" });
+  await expect(owner.query(
+    `SELECT actor_user_id,entity_id,after,occurred_at
+     FROM audit_log WHERE action='server_action.retryProvisioning'`,
+  )).resolves.toMatchObject({ rows: [{
+    actor_user_id: ids.user,
+    entity_id: ids.action,
+    after: { accepted: false, errorCode: "conflict" },
+    occurred_at: retriedAt,
+  }] });
+
+  await owner.query("DELETE FROM provisioning_action WHERE id=$1", [id("11")]);
 
   const forbidden = createRetryProvisioningActionService({
     database,
     loadAuthorization: async () => null,
+    now: () => retriedAt,
   });
   const priorAuthInterrupts = process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS;
   process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS = "true";
@@ -222,6 +248,16 @@ it("returns conflicts and preserves forbidden as HTTP 403", async () => {
       : forbiddenResult.error)).toThrowError(expect.objectContaining({
       digest: "NEXT_HTTP_ERROR_FALLBACK;403",
     }));
+    await expect(owner.query(
+      `SELECT actor_user_id,entity_id,after,occurred_at
+       FROM audit_log WHERE action='server_action.retryProvisioning'
+       ORDER BY id DESC LIMIT 1`,
+    )).resolves.toMatchObject({ rows: [{
+      actor_user_id: null,
+      entity_id: ids.action,
+      after: { accepted: false, errorCode: "forbidden" },
+      occurred_at: retriedAt,
+    }] });
   } finally {
     if (priorAuthInterrupts === undefined) {
       delete process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS;
