@@ -32,6 +32,7 @@ describe("Next webpack workspace resolution", () => {
   });
 
   it("keeps this adjacent contract test in the web test project", () => {
+    expect(nextConfig.experimental?.authInterrupts).toBe(true);
     expect(vitestConfig.test?.include).toEqual([
       "src/**/*.{test,spec}.{ts,tsx}",
       "next.config.test.ts",

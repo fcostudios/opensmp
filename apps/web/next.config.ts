@@ -6,6 +6,7 @@ const withNextIntl = createNextIntlPlugin("./src/lib/i18n/request.ts");
 const nextConfig: NextConfig = {
   output: "standalone",
   experimental: {
+    authInterrupts: true,
     serverActions: { bodySizeLimit: "2mb" },
   },
   // This repository explicitly builds with `next build --webpack`. Preserve

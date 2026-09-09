@@ -1,24 +1,16 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { forbidden, redirect } from "next/navigation";
 
 import {
   loadProductionRetryAuthorization,
   productionProvisioningService,
 } from "./retry-provisioning-production-dependencies";
 
-export class RetryProvisioningForbiddenError extends Error {
-  readonly status = 403;
-
-  constructor() {
-    super("RETRY_PROVISIONING_FORBIDDEN");
-  }
-}
-
 export function retryProvisioningFailureDestination(
   error: "conflict" | "forbidden" | "invalid",
 ): string {
-  if (error === "forbidden") throw new RetryProvisioningForbiddenError();
+  if (error === "forbidden") forbidden();
   return `/excepciones?tab=failed&retryError=${error}`;
 }
 
