@@ -319,8 +319,8 @@ export function createOrchestrationOperations(
         actionId: string;
         companyName: string;
         failureReason: string;
-        kind: "checklist";
-        mode: "orchestration";
+        kind: "checklist" | "invite";
+        mode: "automated" | "orchestration";
         personEmail: string;
         requestId: string;
         requestNo: string;
@@ -353,9 +353,16 @@ export function createOrchestrationOperations(
             JOIN company tenant ON tenant.id = request.company_id
             JOIN vendor_account account
               ON account.id = request.vendor_account_id
-            WHERE action.kind = 'checklist'
-              AND action.mode = 'orchestration'
-              AND action.status IN ('failed', 'verification_failed')
+            WHERE (
+                (action.kind = 'checklist'
+                 AND action.mode = 'orchestration'
+                 AND action.status IN ('failed', 'verification_failed'))
+                OR
+                (action.kind = 'invite'
+                 AND action.mode = 'automated'
+                 AND action.status = 'failed'
+                 AND action.failure_reason = 'provider_invitation_failed')
+              )
               AND action.failure_reason IS NOT NULL
               AND (
                 ${validCursor?.at ?? null}::timestamptz IS NULL

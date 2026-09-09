@@ -7,6 +7,7 @@ import { ChecklistExceptionsList } from "@/components/requests/checklist-excepti
 import { loadCurrentLedgerAuthorization } from "@/modules/identity-access/server-authorization";
 import { createOrchestrationService } from "@/modules/request-workflow/orchestration";
 import { requestReadRepository } from "@/modules/request-workflow/repository";
+import { retryProvisioning } from "@/modules/request-workflow/actions/retry-provisioning";
 import { formatOperationalBadgeCount } from "@/modules/operational-alert-read";
 
 import {
@@ -137,8 +138,10 @@ export default async function ScrExceptionsPage({
                 "exceptionAssignmentMissing",
               ),
               kindChecklist: orchestration("exceptionChecklist"),
+              kindInvite: orchestration("exceptionInvite"),
               mode: orchestration("exceptionMode"),
               modeOrchestration: orchestration("exceptionOrchestration"),
+              modeAutomated: orchestration("exceptionAutomated"),
               noData: orchestration("exceptionNoData"),
               organization: orchestration("exceptionOrganization"),
               reason: orchestration("exceptionReason"),
@@ -155,6 +158,7 @@ export default async function ScrExceptionsPage({
               vendorReference: orchestration("exceptionVendorReference"),
             }}
             locale={locale as "en-US" | "es-EC"}
+            retryAction={retryProvisioning}
           />
         ) : null}
 

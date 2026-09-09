@@ -9,6 +9,7 @@ import {
 } from "@smp/db/testing/postgres-container";
 
 import type { LedgerAuthorization } from "../identity-access/authorization";
+import { createOrchestrationOperations } from "./orchestration";
 import { createProvisioningService } from "./provisioning-service";
 
 const id = (suffix: string) => `36500000-0000-4000-8000-${suffix.padStart(12, "0")}`;
@@ -167,6 +168,40 @@ afterAll(async () => {
 beforeEach(seed);
 
 describe("US-065 provisioning retry", () => {
+  it("lists generic automated failures with only safe retry fields", async () => {
+    const operations = createOrchestrationOperations(database);
+    const admin: LedgerAuthorization = {
+      ...authorization([ids.companyA, ids.companyB]),
+      globalRole: "group_admin",
+      roles: ["group_admin"],
+      userAccountId: ids.admin,
+      userId: ids.admin,
+    };
+
+    const result = await operations.verificationFailures(admin);
+
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        actionId: ids.actionB,
+        failureReason: "provider_invitation_failed",
+        kind: "invite",
+        mode: "automated",
+        requestId: ids.requestB,
+        status: "failed",
+      }),
+      expect.objectContaining({
+        actionId: ids.actionA,
+        failureReason: "provider_invitation_failed",
+        kind: "invite",
+        mode: "automated",
+        requestId: ids.requestA,
+        status: "failed",
+      }),
+    ]);
+    expect(JSON.stringify(result)).not.toContain("raw_request");
+    expect(JSON.stringify(result)).not.toContain("raw_response");
+  });
+
   it("creates one new live action and preserves the failed attempt under concurrent retries", async () => {
     const service = createProvisioningService(database, { now: () => retriedAt });
 

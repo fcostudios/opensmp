@@ -10,8 +10,8 @@ export interface ChecklistExceptionItem {
   readonly actionId: string;
   readonly companyName: string;
   readonly failureReason: string;
-  readonly kind: "checklist";
-  readonly mode: "orchestration";
+  readonly kind: "checklist" | "invite";
+  readonly mode: "automated" | "orchestration";
   readonly personEmail: string;
   readonly requestId: string;
   readonly requestNo: string;
@@ -26,8 +26,10 @@ export interface ChecklistExceptionsLabels {
   readonly empty: string;
   readonly failureAssignmentMissing: string;
   readonly kindChecklist: string;
+  readonly kindInvite: string;
   readonly mode: string;
   readonly modeOrchestration: string;
+  readonly modeAutomated: string;
   readonly noData: string;
   readonly organization: string;
   readonly reason: string;
@@ -42,40 +44,20 @@ export interface ChecklistExceptionsLabels {
   readonly vendorReference: string;
 }
 
-function DeferredRetry({
-  labels,
-}: {
-  readonly labels: ChecklistExceptionsLabels;
-}) {
-  return (
-    <div className="mb-3 flex items-center justify-end gap-3">
-      <span className="text-sm text-text-muted">{labels.retryUnavailable}</span>
-      <button
-        className="rounded border border-border px-3 py-2 text-sm font-semibold text-text-muted"
-        data-testid="btn_retry_provisioning"
-        disabled
-        title={labels.retryUnavailable}
-        type="button"
-      >
-        {labels.retryProvisioning}
-      </button>
-    </div>
-  );
-}
-
 export function ChecklistExceptionsList({
   failures,
   labels,
   locale = "es-EC",
+  retryAction,
 }: {
   readonly failures: readonly ChecklistExceptionItem[];
   readonly labels: ChecklistExceptionsLabels;
   readonly locale?: "en-US" | "es-EC";
+  readonly retryAction?: (input: FormData) => Promise<void>;
 }) {
   if (failures.length === 0) {
     return (
       <div className="mt-5" data-testid="table_failed">
-        <DeferredRetry labels={labels} />
         <p className="rounded border border-dashed border-border p-6 text-center text-text-secondary">
           {labels.empty}
         </p>
@@ -85,7 +67,6 @@ export function ChecklistExceptionsList({
 
   return (
     <div className="mt-5" data-testid="table_failed">
-      <DeferredRetry labels={labels} />
       <div className="overflow-x-auto">
       <table className="w-full border-collapse text-left">
         <thead>
@@ -143,10 +124,10 @@ export function ChecklistExceptionsList({
                   {failure.companyName} · {failure.vendorAccountName}
                 </td>
                 <td className="px-3 py-3 text-text-secondary">
-                  {labels.kindChecklist}
+                  {failure.kind === "invite" ? labels.kindInvite : labels.kindChecklist}
                 </td>
                 <td className="px-3 py-3 text-text-secondary">
-                  {labels.modeOrchestration}
+                  {failure.mode === "automated" ? labels.modeAutomated : labels.modeOrchestration}
                 </td>
                 <td className="px-3 py-3 font-mono text-text-secondary">
                   {failure.vendorRef ?? labels.noData}
@@ -174,11 +155,28 @@ export function ChecklistExceptionsList({
                 </td>
                 <td
                   className="max-w-md px-3 py-3 text-text-secondary"
-                  data-testid={`motivo-${failure.actionId}`}
                 >
-                  {checklistFailureReasonLabel(failure.failureReason, {
-                    assignmentMissing: labels.failureAssignmentMissing,
-                  })}
+                  <span data-testid={`motivo-${failure.actionId}`}>
+                    {checklistFailureReasonLabel(failure.failureReason, {
+                      assignmentMissing: labels.failureAssignmentMissing,
+                    })}
+                  </span>
+                  {failure.kind === "invite" && retryAction ? (
+                    <form action={retryAction} className="mt-2">
+                      <input name="actionId" type="hidden" value={failure.actionId} />
+                      <button
+                        className="rounded border border-border px-3 py-2 text-sm font-semibold text-text-primary"
+                        data-testid={`btn_retry_provisioning-${failure.actionId}`}
+                        type="submit"
+                      >
+                        {labels.retryProvisioning}
+                      </button>
+                    </form>
+                  ) : failure.kind === "checklist" ? (
+                    <span className="mt-2 block text-xs text-text-muted">
+                      {labels.retryUnavailable}
+                    </span>
+                  ) : null}
                 </td>
               </tr>
             );

@@ -13,7 +13,9 @@ const labels = {
     "La sincronización de miembros no encontró la asignación activa atestada.",
   empty: "No hay acciones fallidas.",
   kindChecklist: "Lista",
+  kindInvite: "Invitación",
   mode: "Modo",
+  modeAutomated: "Automatizada",
   modeOrchestration: "Orquestación",
   noData: "No disponible",
   organization: "Organización",
@@ -62,8 +64,23 @@ it("renders failed and verification-failed action evidence with TOON ids and saf
           vendorAccountName: "Organización B",
           vendorRef: null,
         },
+        {
+          actionId: "32000000-0000-4000-8000-000000000029",
+          companyName: "Compañía A",
+          failureReason: "provider_invitation_failed",
+          kind: "invite",
+          mode: "automated",
+          personEmail: "tercera@example.com",
+          requestId: "32000000-0000-4000-8000-000000000028",
+          requestNo: "REQ-3",
+          sentAt: null,
+          status: "failed",
+          vendorAccountName: "Organización A",
+          vendorRef: null,
+        },
       ]}
       labels={labels}
+      retryAction={async () => undefined}
     />,
   );
 
@@ -97,6 +114,8 @@ it("renders failed and verification-failed action evidence with TOON ids and saf
   ).toBe("/solicitudes/32000000-0000-4000-8000-000000000008");
   expect(within(table).getAllByText("Lista")).toHaveLength(2);
   expect(within(table).getAllByText("Orquestación")).toHaveLength(2);
+  expect(within(table).getByText("Invitación")).toBeTruthy();
+  expect(within(table).getByText("Automatizada")).toBeTruthy();
   expect(
     within(table).getByText("32000000-0000-4000-8000-000000000009"),
   ).toBeTruthy();
@@ -113,11 +132,14 @@ it("renders failed and verification-failed action evidence with TOON ids and saf
       }).format(new Date("2026-07-18T12:00:00.000Z")),
     ),
   );
-  expect(within(table).getByText("Disponible en Sprint 3")).toBeTruthy();
-  const retry = screen.getByTestId("btn_retry_provisioning");
-  expect(retry).toHaveProperty("disabled", true);
-  expect(retry.getAttribute("formaction")).toBeNull();
-  expect(retry).toHaveProperty("onclick", null);
+  expect(within(table).getAllByText("Disponible en Sprint 3")).toHaveLength(2);
+  const retry = screen.getByTestId(
+    "btn_retry_provisioning-32000000-0000-4000-8000-000000000029",
+  );
+  expect(retry).toHaveProperty("disabled", false);
+  expect(
+    retry.closest("form")?.querySelector<HTMLInputElement>('input[name="actionId"]')?.value,
+  ).toBe("32000000-0000-4000-8000-000000000029");
   expect(screen.queryByRole("link", { name: "Reintentar aprovisionamiento" })).toBeNull();
 });
 
@@ -148,14 +170,11 @@ it("does not turn a non-UUID request trace into a link", () => {
   expect(screen.getByText("REQ-X · persona@example.com")).toBeTruthy();
 });
 
-it("keeps the deferred retry action visible and disabled in the empty state", () => {
+it("does not render a retry action without an eligible failed invitation", () => {
   render(<ChecklistExceptionsList failures={[]} labels={labels} />);
 
   expect(screen.getByTestId("table_failed").textContent).toContain(
     "No hay acciones fallidas.",
   );
-  expect(screen.getByTestId("btn_retry_provisioning")).toHaveProperty(
-    "disabled",
-    true,
-  );
+  expect(screen.queryByRole("button", { name: "Reintentar aprovisionamiento" })).toBeNull();
 });

@@ -2,18 +2,19 @@
 
 import { redirect } from "next/navigation";
 
-import type { RetryProvisioningResult } from "../provisioning-service";
 import {
   loadProductionRetryAuthorization,
   productionProvisioningService,
 } from "./retry-provisioning-production-dependencies";
 
-export async function retryProvisioning(input: unknown): Promise<RetryProvisioningResult> {
+export async function retryProvisioning(input: FormData): Promise<void> {
+  const normalized = input instanceof FormData
+    ? { actionId: input.get("actionId") }
+    : input;
   const authorization = await loadProductionRetryAuthorization();
   const result = await productionProvisioningService.retryProvisioning(
     authorization,
-    input,
+    normalized,
   );
   if (result.ok) redirect(`/solicitudes/${result.requestId}?tab=actions`);
-  return result;
 }
