@@ -920,6 +920,9 @@ function validateCompleteActuals(actuals, value, feedbackRecords, doneIndex, pat
     if (evidence.length !== actuals.mutation_invalidations) fail("WR_MUTATION_INVALIDATION_EVIDENCE", `${path}.mutation_invalidations`, "Each mutation invalidation requires one non-empty reason event");
   }
   const campaignEvidence = feedbackRecords.slice(0, doneIndex).filter((record) => record.story === value.work_id && record.event === "test_report");
+  if (campaignEvidence.length === 1 && attempts === 0) {
+    fail("WR_MUTATION_CAMPAIGN_EVIDENCE", `${path}.cold_mutation_attempts`, "Retained test_report evidence requires at least one cold mutation attempt");
+  }
   if (campaignEvidence.length > 1) {
     fail("WR_MUTATION_CAMPAIGN_EVIDENCE", `${path}.cold_mutation_attempts`, "Only the final retained cold campaign may emit test_report evidence");
   }

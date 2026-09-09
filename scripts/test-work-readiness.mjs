@@ -1473,6 +1473,17 @@ test("correction cannot invent a cold campaign without retained evidence", () =>
   assert.deepEqual(result.effective, value.actuals);
 });
 
+test("correction cannot erase a cold campaign with retained final evidence", () => {
+  const { value, records, correction } = correctionFixture();
+  value.signals.expected_mutation_shards = 0;
+  correction.target_actuals_sha256 = canonicalActualsSha256(value.actuals);
+  correction.replacement_actuals.cold_mutation_attempts = 0;
+  correction.replacement_actuals.mutation_invalidations = 0;
+  const result = resolveEffectiveActuals(value.actuals, [...records, correction], correctionContext(value));
+  assert.deepEqual(correctionReasons(result), ["invalid_replacement_actuals"]);
+  assert.deepEqual(result.effective, value.actuals);
+});
+
 test("a stamped correcting decision must be timestamp-consistent with ledger order", () => {
   for (const timestamp of ["invalid", "2026-09-08T10:00:00-05:00", "2026-09-08T15:00:00Z", "2026-09-08T15:00:01Z"]) {
     const { value, records, correction } = correctionFixture();
