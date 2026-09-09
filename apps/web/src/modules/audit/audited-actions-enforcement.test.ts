@@ -131,6 +131,37 @@ describe("audited server action enforcement", () => {
     });
   });
 
+  test("accepts an imported factory-created audited service", async () => {
+    const root = await fixture({
+      "src/app/actions.ts": `"use server";
+        import { retryService } from "../modules/retry-production";
+        export async function retry(input) {
+          return retryService.retry(input);
+        }`,
+      "src/modules/retry-production.ts": `
+        import { createRetryService } from "./retry-service";
+        export const retryService = createRetryService(db);`,
+      "src/modules/retry-service.ts": `
+        import { withAudit } from "@/modules/audit/with-audit";
+        export function createRetryService(database) {
+          return { retry(input) {
+            return withAudit(database, async () => ({
+              value: input,
+              audit: evidence,
+            }));
+          }};
+        }`,
+      "src/modules/audit/with-audit.ts":
+        `export function withAudit(...args) { return args; }`,
+    });
+
+    await expect(
+      execFileAsync(process.execPath, [script, root]),
+    ).resolves.toMatchObject({
+      stdout: expect.stringContaining("Audited server action enforcement passed"),
+    });
+  });
+
   test("accepts a local action helper backed by a factory-created audited service", async () => {
     const root = await fixture({
       "src/app/actions.ts": `"use server";

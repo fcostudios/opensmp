@@ -568,6 +568,42 @@ function factoryOperationIsAudited(
   );
 }
 
+function importedFactoryMemberIsAudited(
+  compositionFile,
+  compositionSourcePath,
+  serviceName,
+  memberName,
+) {
+  const serviceTarget = namedTarget(compositionFile, serviceName);
+  const initializer = serviceTarget?.initializer;
+  const factoryCall = initializer ? callTarget(initializer) : null;
+  if (!factoryCall || factoryCall.member !== null) return false;
+  const factoryImport = importedBindings(compositionFile).get(factoryCall.root);
+  if (!factoryImport) return false;
+  const factorySource = resolveImportedSource(
+    compositionSourcePath,
+    factoryImport.specifier,
+  );
+  if (!factorySource) return false;
+  const factoryFile = ts.createSourceFile(
+    factorySource,
+    readFileSync(factorySource, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+    factorySource.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  const factoryTarget = namedTarget(factoryFile, factoryImport.importedName);
+  const memberTarget = factoryTarget
+    ? returnedFactoryMember(factoryTarget, memberName)
+    : null;
+  return !!memberTarget && wholeBodyUsesAudit(
+    memberTarget,
+    importedBindings(factoryFile),
+    factorySource,
+    true,
+  );
+}
+
 function safeStateReturn(statement) {
   if (!ts.isReturnStatement(statement) || !statement.expression) return false;
   const expression = unwrapExpression(statement.expression);
@@ -1015,13 +1051,18 @@ function serviceTargetIsAudited(
       sourceFile,
     call.member,
     );
-  return !!target &&
+  return (!!target &&
     wholeBodyUsesAudit(
       target,
       importedBindings(sourceFile),
       importedSourcePath,
       false,
-    );
+    )) || importedFactoryMemberIsAudited(
+    sourceFile,
+    importedSourcePath,
+    imported.importedName,
+    call.member,
+  );
 }
 
 function auditedServiceAssignment(
