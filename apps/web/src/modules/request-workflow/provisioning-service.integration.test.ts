@@ -205,7 +205,7 @@ describe("US-065 provisioning retry", () => {
   });
 
   it("creates one new live action and preserves the failed attempt under concurrent retries", async () => {
-    const service = createProvisioningService(database, { now: () => retriedAt });
+    const service = createProvisioningService(database);
 
     const results = await Promise.all([
       service.retryProvisioning(authorization([ids.companyA]), { actionId: ids.actionA }),
@@ -238,6 +238,28 @@ describe("US-065 provisioning retry", () => {
       actor_user_id: ids.approver,
       note: "Provisioning retry issued",
     }] });
+  });
+
+  it.each([
+    ["missing action id", {}],
+    ["malformed action id", { actionId: "not-a-uuid" }],
+    ["unexpected input", { actionId: ids.actionA, forged: true }],
+  ])("rejects %s before opening a retry transaction", async (_case, input) => {
+    const service = createProvisioningService(database, { now: () => retriedAt });
+
+    await expect(service.retryProvisioning(authorization([ids.companyA]), input))
+      .resolves.toEqual({ ok: false, error: "invalid" });
+    await expect(owner.query("SELECT count(*)::int AS count FROM audit_log"))
+      .resolves.toMatchObject({ rows: [{ count: 0 }] });
+  });
+
+  it("rejects a valid but unknown action id", async () => {
+    const service = createProvisioningService(database, { now: () => retriedAt });
+
+    await expect(service.retryProvisioning(
+      authorization([ids.companyA]),
+      { actionId: id("999") },
+    )).resolves.toEqual({ ok: false, error: "invalid" });
   });
 
   it("rejects requested-only unresolved evidence without creating another action", async () => {
@@ -304,9 +326,10 @@ describe("US-065 provisioning retry", () => {
       { actionId: ids.actionB },
     )).resolves.toEqual({ ok: false, error: "forbidden" });
     await expect(owner.query(
-      `SELECT action,entity_type,entity_id,company_id,after
+      `SELECT actor_user_id,action,entity_type,entity_id,company_id,after
        FROM audit_log WHERE action='authorization.denied'`,
     )).resolves.toMatchObject({ rows: [{
+      actor_user_id: ids.approver,
       action: "authorization.denied",
       entity_type: "ProvisioningAction",
       entity_id: ids.actionB,
@@ -319,6 +342,20 @@ describe("US-065 provisioning retry", () => {
        WHERE action.id=$1`,
       [ids.actionB],
     )).resolves.toMatchObject({ rows: [{ state: "failed", status: "failed" }] });
+  });
+
+  it("records an anonymous denial without forging an audit actor", async () => {
+    const service = createProvisioningService(database, { now: () => retriedAt });
+
+    await expect(service.retryProvisioning(null, { actionId: ids.actionA }))
+      .resolves.toEqual({ ok: false, error: "forbidden" });
+    await expect(owner.query(
+      `SELECT actor_user_id,after FROM audit_log
+       WHERE action='authorization.denied'`,
+    )).resolves.toMatchObject({ rows: [{
+      actor_user_id: null,
+      after: { capability: "request:approve", errorCode: "capability_forbidden" },
+    }] });
   });
 
   it("rolls back every retry write when final audit persistence fails", async () => {

@@ -75,6 +75,8 @@ export function createProvisioningService(
             transaction,
             target.requestId,
             authorization.companyIds,
+            // Stryker disable next-line StringLiteral: @equivalent Every lock/route
+            // exception is intentionally collapsed to the same public conflict result.
             "PROVISIONING_RETRY_FORBIDDEN",
           );
           const retryable = await transaction.execute<{ readonly requestId: string }>(
