@@ -580,7 +580,12 @@ function importedFactoryMemberIsAudited(
   if (!factoryCall || factoryCall.member !== null) return false;
   const compositionImports = importedBindings(compositionFile);
   if (!factoryCall.call.arguments.every((argument) =>
-    isNonMutatingExpression(argument, serviceTarget, compositionImports),
+    safeCompositionExpression(
+      argument,
+      serviceTarget,
+      compositionFile,
+      compositionImports,
+    ),
   )) return false;
   const factoryImport = compositionImports.get(factoryCall.root);
   if (!factoryImport) return false;
@@ -606,6 +611,108 @@ function importedFactoryMemberIsAudited(
     factorySource,
     true,
   );
+}
+
+function safeCompositionExpression(
+  expression,
+  owner,
+  sourceFile,
+  imports,
+  visited = new Set(),
+) {
+  if (!isNonMutatingExpression(expression, owner, imports)) return false;
+  const value = unwrapExpression(expression);
+  if (ts.isIdentifier(value)) {
+    if (imports.has(value.text)) return true;
+    if (visited.has(value.text)) return false;
+    const target = namedTarget(sourceFile, value.text);
+    const initializer = ts.isVariableDeclaration(target)
+      ? target.initializer
+      : null;
+    return !!initializer && safeCompositionExpression(
+      initializer,
+      target,
+      sourceFile,
+      imports,
+      new Set(visited).add(value.text),
+    );
+  }
+  if (ts.isObjectLiteralExpression(value)) {
+    return value.properties.every((property) => {
+      if (ts.isShorthandPropertyAssignment(property)) {
+        return safeCompositionExpression(
+          property.name,
+          owner,
+          sourceFile,
+          imports,
+          visited,
+        );
+      }
+      if (ts.isPropertyAssignment(property)) {
+        return safeCompositionExpression(
+          property.initializer,
+          owner,
+          sourceFile,
+          imports,
+          visited,
+        );
+      }
+      if (ts.isSpreadAssignment(property)) {
+        return safeCompositionExpression(
+          property.expression,
+          owner,
+          sourceFile,
+          imports,
+          visited,
+        );
+      }
+      return false;
+    });
+  }
+  if (ts.isArrayLiteralExpression(value)) {
+    return value.elements.every((element) =>
+      safeCompositionExpression(
+        element,
+        owner,
+        sourceFile,
+        imports,
+        visited,
+      ),
+    );
+  }
+  if (ts.isConditionalExpression(value)) {
+    return [value.condition, value.whenTrue, value.whenFalse].every((part) =>
+      safeCompositionExpression(part, owner, sourceFile, imports, visited),
+    );
+  }
+  if (ts.isBinaryExpression(value)) {
+    return safeCompositionExpression(
+      value.left,
+      owner,
+      sourceFile,
+      imports,
+      visited,
+    ) && safeCompositionExpression(
+      value.right,
+      owner,
+      sourceFile,
+      imports,
+      visited,
+    );
+  }
+  if (ts.isPropertyAccessExpression(value) || ts.isElementAccessExpression(value)) {
+    return safeCompositionExpression(
+      value.expression,
+      owner,
+      sourceFile,
+      imports,
+      visited,
+    );
+  }
+  return !ts.isCallExpression(value) &&
+    !ts.isNewExpression(value) &&
+    !ts.isArrowFunction(value) &&
+    !ts.isFunctionExpression(value);
 }
 
 function safeStateReturn(statement) {

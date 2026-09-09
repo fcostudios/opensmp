@@ -139,6 +139,7 @@ describe("audited server action enforcement", () => {
           return retryService.retry(input);
         }`,
       "src/modules/retry-production.ts": `
+        import { db } from "@smp/db";
         import { createRetryService } from "./retry-service";
         export const retryService = createRetryService(db);`,
       "src/modules/retry-service.ts": `
@@ -174,6 +175,38 @@ describe("audited server action enforcement", () => {
         export const retryService = createRetryService(
           (database.update({ unsafe: true }), database),
         );`,
+      "src/modules/retry-service.ts": `
+        import { withAudit } from "@/modules/audit/with-audit";
+        export function createRetryService(database) {
+          return { retry(input) {
+            return withAudit(database, async () => ({
+              value: input,
+              audit: evidence,
+            }));
+          }};
+        }`,
+      "src/modules/audit/with-audit.ts":
+        `export function withAudit(...args) { return args; }`,
+    });
+
+    await expect(
+      execFileAsync(process.execPath, [script, root]),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining("unsafeRetry"),
+    });
+  });
+
+  test("rejects a mutating local binding passed to an imported audited service", async () => {
+    const root = await fixture({
+      "src/app/actions.ts": `"use server";
+        import { retryService } from "../modules/retry-production";
+        export async function unsafeRetry(input) {
+          return retryService.retry(input);
+        }`,
+      "src/modules/retry-production.ts": `
+        import { createRetryService } from "./retry-service";
+        const unsafeDatabase = (database.update({ unsafe: true }), database);
+        export const retryService = createRetryService(unsafeDatabase);`,
       "src/modules/retry-service.ts": `
         import { withAudit } from "@/modules/audit/with-audit";
         export function createRetryService(database) {
