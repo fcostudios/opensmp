@@ -89,7 +89,25 @@
     "evidence": "CHG059-READY",
     "payload_sha256": "45e5e40df5b8d11061ac591bf0f9e1e71bae1d346a420118afd07297256727f2"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 20,
+      "implementation": 515,
+      "focused_verification": 0,
+      "review": 51,
+      "integration": 26
+    },
+    "total": 612,
+    "changed_files": 15,
+    "commits": 7,
+    "review_fix_loops": 4,
+    "cold_mutation_attempts": 2,
+    "mutation_invalidations": 1,
+    "mutation_minutes": 13,
+    "mutation_shards_actual": 0,
+    "estimate_variance_minutes": 312,
+    "root_cause": "Closed measurement cutoff is the independently reviewed source d01486796490b62c0b50d1a35bdc979ae86ce1ff followed only by evidence. The non-overlapping UTC intervals are readiness round(1201s/60)=20 from the approval/start boundary 2026-09-08T15:12:35Z to the plan authority boundary 2026-09-08T15:32:36Z; implementation round(30888s/60)=515 through the first complete tenant implementation 561e2cb55027f277c19928fc420878d6670edccd at 2026-09-09T00:07:24Z, including the awaited canonical substrate delivery and its tenant adoption; review round(3072s/60)=51 through d014867 at 2026-09-09T00:58:36Z; and integration round(1554s/60)=26 through the corrected Nous round-trip at 2026-09-09T01:24:30Z. Focused verification is zero because it was interleaved with implementation and review without an independent boundary. Reproduce changed_files=15 with git diff --name-only -z authority/chg-059-base..d014867 | tr -cd '\\0' | wc -c and commits=7 with git rev-list --count authority/chg-059-base..d014867. Four review-to-fix cycles covered canonical resolver alignment, timestamp precision/delivery adoption, adversarial trust/ref/immutability gaps, and retained-campaign consistency. Two cache-cleared attempts consumed 779.1s and 0.53s, rounded from their 779.63s sum to 13 mutation minutes: the first omitted the approved base and is retained as one mutation_invalidation after selecting 21 unrelated historical shards; the replacement used MUTATION_WORK_ID=CHG-059 and MUTATION_BASE=authority/chg-059-base, reported 16 changed paths but zero mutatable TypeScript ranges and zero shards, and exited 0. Total is 20+515+0+51+26=612 and variance is 612-300=312."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
