@@ -18,6 +18,12 @@ import {
 const tabs = ["blocked", "failed", "drift", "expiredInvites"] as const;
 type ExceptionTab = (typeof tabs)[number];
 
+export function retryErrorMessageKey(value: string | undefined) {
+  if (value === "conflict") return "retryConflict" as const;
+  if (value === "invalid") return "retryInvalid" as const;
+  return null;
+}
+
 function activeTab(value: string | undefined): ExceptionTab {
   return tabs.find((tab) => tab === value) ?? "blocked";
 }
@@ -68,6 +74,7 @@ export default async function ScrExceptionsPage({
       await service.close();
     }
   }
+  const retryErrorKey = retryErrorMessageKey(query.retryError);
   const counts: Record<ExceptionTab, string> = {
     blocked: formatOperationalBadgeCount(
       exceptionCounts.blocked,
@@ -100,9 +107,9 @@ export default async function ScrExceptionsPage({
         >
           {t("title")}
         </h2>
-        {query.retryError === "conflict" || query.retryError === "invalid" ? (
+        {retryErrorKey ? (
           <p className="mt-3 rounded border border-error-dot bg-error-bg p-3 text-error-text" role="alert">
-            {orchestration(query.retryError === "conflict" ? "retryConflict" : "retryInvalid")}
+            {orchestration(retryErrorKey)}
           </p>
         ) : null}
         <nav aria-label={t("tabsLabel")} className="mt-3 flex gap-2 overflow-x-auto pb-1">
