@@ -92,8 +92,11 @@ const correctionHistory = [
     story: "CHG-059",
     event: "decision",
     id: "CHG059-READY",
-    text: "Authorize the correction.",
+    text: `Decision ready for readiness payload SHA-256 ${"a".repeat(64)}.`,
     reason: "Primary evidence disproves the immutable measurement.",
+    approved_by: "Francisco Lomas",
+    subject_work_id: "CHG-059",
+    relationship: "self",
     ts: "2026-09-08T15:00:00Z",
   },
 ];
@@ -115,6 +118,14 @@ run("canonical actuals correction follows terminal and correcting decision", [
   canonicalCorrection,
 ], 0, correctionFiles);
 
+const fractionalHistory = structuredClone(correctionHistory);
+fractionalHistory.find((record) => record.event === "done").ts = "2026-09-08T14:55:14.000001Z";
+fractionalHistory.find((record) => record.event === "decision").ts = "2026-09-08T14:55:14.0000015Z";
+run("fractional UTC ordering preserves nine digits like Nous", [
+  ...fractionalHistory,
+  { ...structuredClone(canonicalCorrection), ts: "2026-09-08T14:55:14.000002Z" },
+], 0, correctionFiles);
+
 run("actuals correction cannot precede its terminal", [
   correctionHistory[0],
   correctionHistory[1],
@@ -128,6 +139,26 @@ run("actuals correction requires a prior correcting decision", [
   ...correctionHistory.filter((record) => record.event !== "decision"),
   canonicalCorrection,
 ], 1, correctionFiles);
+
+run("actuals correction fails when no terminal ever appears", [
+  ...correctionHistory.filter((record) => record.event !== "done"),
+  canonicalCorrection,
+], 1, correctionFiles);
+
+for (const [name, mutate] of [
+  ["legacy prose decision", (decision) => {
+    decision.text = "Legacy prose authorization.";
+    delete decision.approved_by;
+    delete decision.subject_work_id;
+    delete decision.relationship;
+  }],
+  ["blocked readiness decision", (decision) => { decision.text = `Decision blocked for readiness payload SHA-256 ${"a".repeat(64)}.`; }],
+  ["mismatched decision subject", (decision) => { decision.subject_work_id = "CHG-060"; }],
+]) {
+  const history = structuredClone(correctionHistory);
+  mutate(history.find((record) => record.event === "decision"));
+  run(`actuals correction rejects ${name}`, [...history, canonicalCorrection], 1, correctionFiles);
+}
 
 for (const [name, mutate] of [
   ["unknown property", (record) => { record.extra = true; }],

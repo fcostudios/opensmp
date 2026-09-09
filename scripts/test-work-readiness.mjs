@@ -1271,8 +1271,11 @@ function correctionFixture() {
       story: "CHG-059",
       event: "decision",
       id: "CHG059-ACTUALS-CORRECTION",
-      text: "Authorize the factual completion-actuals correction.",
+      text: `Decision ready for readiness payload SHA-256 ${"a".repeat(64)}.`,
       reason: "Primary Git evidence disproves the recorded count.",
+      approved_by: "Francisco Lomas",
+      subject_work_id: "CHG-059",
+      relationship: "self",
       ts: "2026-09-08T14:30:00Z",
     },
   ];
@@ -1288,6 +1291,20 @@ function correctionFixture() {
     ts: "2026-09-08T15:00:00Z",
   };
   return { value, replacement, records, correction };
+}
+
+function correctionAuthorityDecision(workId, overrides = {}) {
+  return {
+    story: workId,
+    event: "decision",
+    id: `${workId.replace("-", "")}-ACTUALS-CORRECTION`,
+    text: `Decision ready for readiness payload SHA-256 ${"b".repeat(64)}.`,
+    reason: "Primary evidence authorizes a factual correction.",
+    approved_by: "Francisco Lomas",
+    subject_work_id: workId,
+    relationship: "self",
+    ...overrides,
+  };
 }
 
 function correctionReasons(result) {
@@ -1362,7 +1379,7 @@ test("a raw-hash replay forks the chain and leaves the accepted prefix effective
     change: "CHG-060",
     ts: "2026-09-08T16:00:00Z",
   };
-  records.push({ story: "CHG-060", event: "decision", id: "CHG060-CORRECTION", text: "Authorize recount.", reason: "Evidence review." });
+  records.push(correctionAuthorityDecision("CHG-060"));
   const result = resolveEffectiveActuals(value.actuals, [...records, correction, replay], { assessment: value });
   assert.deepEqual(result.effective, replacement);
   assert.deepEqual(result.corrections, [correction]);
@@ -1400,6 +1417,26 @@ test("actuals correction requires a prior validated change decision by ledger or
   }
 });
 
+test("only a canonical digest-bound ready self-decision authorizes correction", () => {
+  const variants = [
+    (decision) => {
+      for (const key of ["approved_by", "subject_work_id", "relationship"]) delete decision[key];
+      decision.text = "Legacy prose approval without readiness digest binding.";
+    },
+    (decision) => { decision.text = `Decision blocked for readiness payload SHA-256 ${"a".repeat(64)}.`; },
+    (decision) => { decision.subject_work_id = "CHG-060"; },
+    (decision) => { decision.relationship = "controlling_change"; },
+    (decision) => { decision.unexpected = "open shape"; },
+  ];
+  for (const mutate of variants) {
+    const { value, records, correction } = correctionFixture();
+    mutate(records.find((record) => record.story === "CHG-059"));
+    const result = resolveEffectiveActuals(value.actuals, [...records, correction], { assessment: value });
+    assert.deepEqual(correctionReasons(result), ["missing_decision"]);
+    assert.deepEqual(result.effective, value.actuals);
+  }
+});
+
 test("a stamped correcting decision must be timestamp-consistent with ledger order", () => {
   for (const timestamp of ["invalid", "2026-09-08T10:00:00-05:00", "2026-09-08T15:00:00Z", "2026-09-08T15:00:01Z"]) {
     const { value, records, correction } = correctionFixture();
@@ -1407,6 +1444,17 @@ test("a stamped correcting decision must be timestamp-consistent with ledger ord
     const result = resolveEffectiveActuals(value.actuals, [...records, correction], { assessment: value });
     assert.deepEqual(correctionReasons(result), [timestamp.startsWith("2026-09-08T15") ? "decision_not_before_correction" : "invalid_decision_timestamp"]);
   }
+});
+
+test("correction authority uses the earliest canonical decision like Nous", () => {
+  const { value, records, correction } = correctionFixture();
+  records.push(correctionAuthorityDecision("CHG-059", {
+    id: "CHG059-LATER-READY",
+    ts: correction.ts,
+  }));
+  const result = resolveEffectiveActuals(value.actuals, [...records, correction], { assessment: value });
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.effective, correction.replacement_actuals);
 });
 
 test("actuals correction rejects wrong story and malformed change identities", () => {
@@ -1428,6 +1476,25 @@ test("actuals correction cannot precede the effective terminal in ledger order",
   const result = resolveEffectiveActuals(value.actuals, records, { assessment: value });
   assert.deepEqual(correctionReasons(result), ["not_after_terminal"]);
   assert.deepEqual(result.effective, value.actuals);
+});
+
+test("completion validation rejects a correction when no terminal ever exists", () => {
+  const { value, records, correction } = correctionFixture();
+  const withoutTerminal = records.filter((record) => record.event !== "done");
+  expectError("WR_ACTUALS_CORRECTION_MISSING_TERMINAL", "$feedback[0]", () => validateCompletionActuals(
+    value,
+    [...withoutTerminal, correction],
+  ));
+});
+
+test("sub-millisecond UTC ordering matches Nous without truncation", () => {
+  const { value, records, correction } = correctionFixture();
+  records.find((record) => record.event === "done").ts = "2026-09-08T14:00:00.000001Z";
+  records.find((record) => record.story === "CHG-059").ts = "2026-09-08T14:00:00.0000015Z";
+  correction.ts = "2026-09-08T14:00:00.000002Z";
+  const result = resolveEffectiveActuals(value.actuals, [...records, correction], { assessment: value });
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.effective, correction.replacement_actuals);
 });
 
 test("replacement actuals must be complete and satisfy arithmetic and campaign evidence", () => {
@@ -1468,7 +1535,7 @@ test("two corrections must form one timestamped linear hash chain", () => {
     replacement_actuals: secondReplacement,
     ts: "2026-09-08T16:00:00+00:00",
   };
-  records.push({ story: "CHG-060", event: "decision", id: "CHG060-CORRECTION", text: "Authorize recount.", reason: "Evidence review." });
+  records.push(correctionAuthorityDecision("CHG-060"));
   const result = resolveEffectiveActuals(value.actuals, [...records, correction, second], { assessment: value });
   assert.deepEqual(result, { raw: value.actuals, effective: secondReplacement, corrections: [correction, second], errors: [] });
 
@@ -3270,6 +3337,24 @@ test("a correction-only commit validates the appended event and includes its tar
     assert.equal(result.classification, "bootstrap-documentation");
     assert.deepEqual(result.workIds, ["CHG-059", value.work_id]);
     assert.deepEqual(JSON.parse(readFileSync(join(root, `docs/readiness/${value.work_id}.json`), "utf8")).actuals, value.actuals);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a correction-only Git transition fails when the target never reaches a terminal", () => {
+  const { root } = makeGitRepo();
+  try {
+    const { value, records, correction } = correctionFixture();
+    const correctingDecision = records.find((record) => record.story === "CHG-059");
+    const base = approveAfterPolicyActivation(root, value);
+    const prior = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+    writeRepoFile(root, ".nous-feedback.jsonl", `${prior}${JSON.stringify(correctingDecision)}\n${JSON.stringify(correction)}\n`);
+    const head = commitRepo(root, "docs(CHG-059): append pre-terminal actuals correction", [".nous-feedback.jsonl"]);
+    assert.throws(
+      () => validateRangeOwnership({ root, base, head }),
+      (error) => error.code === "WR_ACTUALS_CORRECTION_MISSING_TERMINAL",
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

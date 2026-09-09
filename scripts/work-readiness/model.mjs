@@ -37,7 +37,7 @@ const ACTUALS_CORRECTED_SCHEMA = JSON.parse(readFileSync(
   new URL("../../docs/dev-guide/feedback-vocabulary.json", import.meta.url),
   "utf8",
 )).event_schemas.actuals_corrected;
-const EXPLICIT_UTC_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|\+00:00)$/u;
+const EXPLICIT_UTC_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(?:Z|\+00:00)$/u;
 const BOOTSTRAP_DIGEST = "c9526d8070e749820d83edfba136cd2ec129ea239bb9e94d710d0a2120a16d32";
 const BOOTSTRAP_TITLE = "Enforce work readiness and outcome-based partitioning";
 const BOOTSTRAP_SOURCE = "docs/superpowers/specs/2026-08-13-work-readiness-and-partitioning-design.md";
@@ -941,17 +941,18 @@ function parseExplicitUtcTimestamp(value) {
   if (typeof value !== "string") return null;
   const match = EXPLICIT_UTC_TIMESTAMP.exec(value);
   if (match === null) return null;
-  const [, year, month, day, hour, minute, second] = match;
-  const timestamp = Date.parse(value);
-  if (!Number.isFinite(timestamp)) return null;
-  const date = new Date(timestamp);
+  const [, year, month, day, hour, minute, second, fractional = ""] = match;
+  const wholeSecond = `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
+  const milliseconds = Date.parse(wholeSecond);
+  if (!Number.isFinite(milliseconds)) return null;
+  const date = new Date(milliseconds);
   if (date.getUTCFullYear() !== Number(year)
     || date.getUTCMonth() + 1 !== Number(month)
     || date.getUTCDate() !== Number(day)
     || date.getUTCHours() !== Number(hour)
     || date.getUTCMinutes() !== Number(minute)
     || date.getUTCSeconds() !== Number(second)) return null;
-  return timestamp;
+  return BigInt(milliseconds) * 1_000_000n + BigInt(fractional.padEnd(9, "0") || "0");
 }
 
 function correctionError(index, event, reason, detail) {
@@ -965,13 +966,29 @@ function correctionError(index, event, reason, detail) {
   };
 }
 
-function validCorrectionDecision(record, feedbackRecords) {
-  try {
-    validatePriorDecisionRecord(record, new Set());
-  } catch (error) {
-    if (error instanceof WorkReadinessError) return false;
-    throw error;
+const CORRECTION_DECISION_REQUIRED = [
+  "story", "event", "id", "text", "reason", "approved_by", "subject_work_id", "relationship",
+];
+const CORRECTION_DECISION_OPTIONAL = ["key_id", "signature", "ts"];
+
+function validCorrectionDecision(record, feedbackRecords, expectedWorkId) {
+  if (!isPlainObject(record)) return false;
+  const allowed = new Set([...CORRECTION_DECISION_REQUIRED, ...CORRECTION_DECISION_OPTIONAL]);
+  if (CORRECTION_DECISION_REQUIRED.some((key) => !Object.hasOwn(record, key))) return false;
+  if (Object.keys(record).some((key) => !allowed.has(key))) return false;
+  for (const key of CORRECTION_DECISION_REQUIRED) {
+    if (key !== "event" && (typeof record[key] !== "string" || !/\S/u.test(record[key]))) return false;
   }
+  for (const key of CORRECTION_DECISION_OPTIONAL) {
+    if (Object.hasOwn(record, key) && (typeof record[key] !== "string" || !/\S/u.test(record[key]))) return false;
+  }
+  if (record.event !== "decision") return false;
+  if (!/^(?:US|CHG)-[0-9]{3,}$/u.test(record.story)) return false;
+  if (record.story !== expectedWorkId || record.subject_work_id !== expectedWorkId) return false;
+  if (record.relationship !== "self") return false;
+  const decisionTokens = [...record.text.matchAll(/\bDecision\s+(ready|partition_required|blocked)\b/giu)].map((match) => match[1].toLowerCase());
+  const digestTokens = [...record.text.matchAll(/\bSHA-256\s+([0-9a-f]{64})\b/gu)].map((match) => match[1]);
+  if (decisionTokens.length !== 1 || decisionTokens[0] !== "ready" || digestTokens.length !== 1) return false;
   return feedbackRecords.filter((candidate) => candidate.event === "decision" && candidate.id === record.id).length === 1;
 }
 
@@ -1054,12 +1071,12 @@ export function resolveEffectiveActuals(rawActuals, feedbackRecords, context = {
 
     const decisionCandidates = feedbackRecords.slice(0, position)
       .filter((record) => isPlainObject(record) && record.event === "decision" && record.story === event.change)
-      .filter((record) => validCorrectionDecision(record, feedbackRecords));
+      .filter((record) => validCorrectionDecision(record, feedbackRecords, event.change));
     if (decisionCandidates.length === 0) {
       exclude("missing_decision", `change '${event.change}' has no prior valid decision event`);
       return;
     }
-    const decision = decisionCandidates.at(-1);
+    const decision = decisionCandidates[0];
     if (Object.hasOwn(decision, "ts")) {
       const decisionTimestamp = parseExplicitUtcTimestamp(decision.ts);
       if (decisionTimestamp === null) {
@@ -1112,7 +1129,13 @@ export function validateCompletionActuals(value, feedbackRecords) {
   feedbackArray(feedbackRecords);
   const terminalProjection = buildTerminalProjection(feedbackRecords, value.work_id);
   const doneIndex = terminalDoneIndex(feedbackRecords, value, terminalProjection);
-  if (doneIndex < 0) return { complete: false };
+  if (doneIndex < 0) {
+    const hasCorrection = feedbackRecords.some((record) => record.story === value.work_id && record.event === "actuals_corrected");
+    if (!hasCorrection) return { complete: false };
+    const resolution = resolveEffectiveActuals(isPlainObject(value.actuals) ? value.actuals : {}, feedbackRecords, { assessment: value });
+    if (resolution.errors.length > 0) throwCorrectionError(resolution.errors[0]);
+    fail("WR_ACTUALS_CORRECTION_MISSING_TERMINAL", "$feedback", "Actuals corrections require an effective terminal with complete raw actuals");
+  }
   if (value.actuals === null || value.actuals === undefined) fail("WR_ACTUALS_REQUIRED", "$.actuals", "Terminal done requires completion actuals");
   validateCompleteActuals(value.actuals, value, feedbackRecords, doneIndex, "$.actuals");
   const resolution = resolveEffectiveActuals(value.actuals, feedbackRecords, { assessment: value });
