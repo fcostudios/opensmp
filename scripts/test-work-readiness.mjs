@@ -1487,7 +1487,7 @@ test("completion validation rejects a correction when no terminal ever exists", 
   ));
 });
 
-test("sub-millisecond UTC ordering matches Nous without truncation", () => {
+test("Nous timestamp differential accepts a full microsecond advance", () => {
   const { value, records, correction } = correctionFixture();
   records.find((record) => record.event === "done").ts = "2026-09-08T14:00:00.000001Z";
   records.find((record) => record.story === "CHG-059").ts = "2026-09-08T14:00:00.0000015Z";
@@ -1495,6 +1495,15 @@ test("sub-millisecond UTC ordering matches Nous without truncation", () => {
   const result = resolveEffectiveActuals(value.actuals, [...records, correction], { assessment: value });
   assert.deepEqual(result.errors, []);
   assert.deepEqual(result.effective, correction.replacement_actuals);
+});
+
+test("Nous timestamp differential rejects nanosecond changes within one microsecond", () => {
+  const { value, records, correction } = correctionFixture();
+  records.find((record) => record.event === "done").ts = "2026-09-08T15:00:00.000001100Z";
+  correction.ts = "2026-09-08T15:00:00.000001200Z";
+  const result = resolveEffectiveActuals(value.actuals, [...records, correction], { assessment: value });
+  assert.deepEqual(correctionReasons(result), ["not_after_terminal"]);
+  assert.deepEqual(result.effective, value.actuals);
 });
 
 test("replacement actuals must be complete and satisfy arithmetic and campaign evidence", () => {

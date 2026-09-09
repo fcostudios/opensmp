@@ -952,7 +952,8 @@ function parseExplicitUtcTimestamp(value) {
     || date.getUTCHours() !== Number(hour)
     || date.getUTCMinutes() !== Number(minute)
     || date.getUTCSeconds() !== Number(second)) return null;
-  return BigInt(milliseconds) * 1_000_000n + BigInt(fractional.padEnd(9, "0") || "0");
+  const microseconds = fractional.slice(0, 6).padEnd(6, "0");
+  return BigInt(milliseconds) * 1_000n + BigInt(microseconds || "0");
 }
 
 function correctionError(index, event, reason, detail) {
