@@ -206,7 +206,9 @@ describe("audited server action enforcement", () => {
       "src/modules/retry-production.ts": `
         import { createRetryService } from "./retry-service";
         const unsafeDatabase = (database.update({ unsafe: true }), database);
-        export const retryService = createRetryService(unsafeDatabase);`,
+        export const retryService = createRetryService(
+          unsafeDatabase satisfies RetryDatabase,
+        );`,
       "src/modules/retry-service.ts": `
         import { withAudit } from "@/modules/audit/with-audit";
         export function createRetryService(database) {

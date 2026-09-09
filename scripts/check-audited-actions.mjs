@@ -224,6 +224,7 @@ function unwrapExpression(expression) {
     ts.isAwaitExpression(current) ||
     ts.isParenthesizedExpression(current) ||
     ts.isAsExpression(current) ||
+    ts.isSatisfiesExpression(current) ||
     ts.isTypeAssertionExpression(current) ||
     ts.isNonNullExpression(current)
   ) {
