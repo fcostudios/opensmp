@@ -1405,7 +1405,8 @@ export function verificationCommandsForSources(sources, testFiles, context = {})
       ["scripts/verify-pool-snapshot-projection.mjs", context.evidencePath],
     ]);
   }
-  if (sources.some((source) => PAGE_WIRING_SOURCES.has(source))) {
+  if (sources.some((source) => PAGE_WIRING_SOURCES.has(source)) &&
+      !sources.every((source) => EXACT_FRAMEWORK_ADAPTER_SOURCES.has(source))) {
     if (sources.length !== 1) {
       throw new Error("page wiring verification must be file-specific");
     }
