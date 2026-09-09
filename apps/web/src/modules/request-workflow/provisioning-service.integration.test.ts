@@ -390,4 +390,38 @@ describe("US-065 provisioning retry", () => {
       [ids.requestA],
     )).resolves.toMatchObject({ rows: [{ count: 0 }] });
   });
+
+  it("rolls back the new action when the guarded request update loses its race", async () => {
+    await owner.query(`CREATE OR REPLACE FUNCTION suppress_retry_request_update() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN
+        IF OLD.state='failed' AND NEW.state='provisioning' THEN
+          RETURN NULL;
+        END IF;
+        RETURN NEW;
+      END $$`);
+    await owner.query(`CREATE TRIGGER suppress_retry_request_update
+      BEFORE UPDATE ON license_request FOR EACH ROW
+      EXECUTE FUNCTION suppress_retry_request_update()`);
+    const service = createProvisioningService(database, { now: () => retriedAt });
+    try {
+      await expect(service.retryProvisioning(
+        authorization([ids.companyA]),
+        { actionId: ids.actionA },
+      )).resolves.toEqual({ ok: false, error: "conflict" });
+    } finally {
+      await owner.query("DROP TRIGGER suppress_retry_request_update ON license_request");
+      await owner.query("DROP FUNCTION suppress_retry_request_update()");
+    }
+    await expect(owner.query(
+      `SELECT request.state,count(action.id)::int AS actions
+       FROM license_request request
+       JOIN provisioning_action action ON action.request_id=request.id
+       WHERE request.id=$1 GROUP BY request.state`,
+      [ids.requestA],
+    )).resolves.toMatchObject({ rows: [{ state: "failed", actions: 1 }] });
+    await expect(owner.query(
+      "SELECT count(*)::int AS count FROM request_transition WHERE request_id=$1",
+      [ids.requestA],
+    )).resolves.toMatchObject({ rows: [{ count: 0 }] });
+  });
 });

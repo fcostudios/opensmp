@@ -1,6 +1,8 @@
 "use server";
 
+// eslint-disable-next-line no-restricted-imports -- This server action wires the production transaction service.
 import { db } from "@smp/db";
+// eslint-disable-next-line no-restricted-imports -- This server action only types the production transaction service dependency.
 import type * as schema from "@smp/db/schema";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { forbidden, redirect } from "next/navigation";

@@ -4,6 +4,7 @@ import {
   lockRequestCapacityPool,
   routeProvisioningActionInTransaction,
 } from "@smp/db/provisioning-routing";
+// eslint-disable-next-line no-restricted-imports -- This transaction service owns the retry persistence boundary.
 import type * as schema from "@smp/db/schema";
 import { hasCapability } from "@smp/domain/identity-access";
 import { sql } from "drizzle-orm";
@@ -39,11 +40,12 @@ export function createProvisioningService(
       const parsed = retryProvisioningSchema.safeParse(input);
       if (!parsed.success) return { ok: false, error: "invalid" };
       const occurredAt = now();
-      return database.transaction(async (transaction) => {
-        const located = await transaction.execute<{
-          readonly companyId: string;
-          readonly requestId: string;
-        }>(sql`SELECT request.id::text AS "requestId",
+      try {
+        return await database.transaction(async (transaction) => {
+          const located = await transaction.execute<{
+            readonly companyId: string;
+            readonly requestId: string;
+          }>(sql`SELECT request.id::text AS "requestId",
                      request.company_id::text AS "companyId"
               FROM provisioning_action action
               JOIN license_request request
@@ -52,13 +54,13 @@ export function createProvisioningService(
               WHERE action.id=${parsed.data.actionId}::uuid
                 AND action.kind='invite'
                 AND action.mode='automated'`);
-        const target = located.rows[0];
-        if (!target) return { ok: false, error: "invalid" } as const;
-        if (
-          !authorization
-          || !hasCapability(authorization, "request:approve", target.companyId)
-        ) {
-          await transaction.execute(sql`INSERT INTO audit_log
+          const target = located.rows[0];
+          if (!target) return { ok: false, error: "invalid" } as const;
+          if (
+            !authorization
+            || !hasCapability(authorization, "request:approve", target.companyId)
+          ) {
+            await transaction.execute(sql`INSERT INTO audit_log
             (actor_user_id,action,entity_type,entity_id,company_id,note,before,after,occurred_at)
           VALUES (${authorization?.userAccountId ?? null}::uuid,'authorization.denied',
             'ProvisioningAction',${parsed.data.actionId}::uuid,${target.companyId}::uuid,
@@ -66,10 +68,9 @@ export function createProvisioningService(
               capability: "request:approve",
               errorCode: "capability_forbidden",
             })}::jsonb,${occurredAt})`);
-          return { ok: false, error: "forbidden" } as const;
-        }
+            return { ok: false, error: "forbidden" } as const;
+          }
 
-        try {
           await lockRequestCapacityPool(
             transaction,
             target.requestId,
@@ -131,10 +132,10 @@ export function createProvisioningService(
             requestId: target.requestId,
           }, dispatcher);
           return { ok: true, requestId: target.requestId } as const;
-        } catch {
-          return { ok: false, error: "conflict" } as const;
-        }
-      });
+        });
+      } catch {
+        return { ok: false, error: "conflict" };
+      }
     },
   };
 }
