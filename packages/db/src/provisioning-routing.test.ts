@@ -166,6 +166,19 @@ describe("US-023 canonical provisioning routing primitives", () => {
     expect(stale.queries).toHaveLength(2);
   });
 
+  test("rejects an invalid expected state before touching the database", async () => {
+    const invalid = scriptedExecutor([]);
+
+    await expect(routeProvisioningActionInTransaction(invalid.executor as never, {
+      actorUserId: ids.actor,
+      expectedState: "forged" as never,
+      note: "ignored",
+      occurredAt: new Date("2026-09-09T02:00:00.000Z"),
+      requestId: ids.request,
+    })).rejects.toThrow("PROVISIONING_EXPECTED_STATE_INVALID");
+    expect(invalid.queries).toEqual([]);
+  });
+
   test("writes one complete checklist transition with exact tenant and audit evidence", async () => {
     const occurredAt = new Date("2026-08-04T15:00:00.000Z");
     const { executor, queries } = scriptedExecutor([[request], [], [], [{ id: ids.request }], [], [], []]);

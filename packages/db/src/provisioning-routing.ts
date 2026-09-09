@@ -84,6 +84,13 @@ export async function routeProvisioningActionInTransaction(
   },
   dispatcher: ConnectorDispatcher = createConnectorDispatcher(),
 ) {
+  if (![
+    "approved",
+    "blocked_no_seat",
+    "failed",
+  ].includes(input.expectedState)) {
+    throw new Error("PROVISIONING_EXPECTED_STATE_INVALID");
+  }
   const result = await executor.execute<RequestWire>(
     sql`SELECT request.id::text AS "requestId",request.state::text AS "requestState",
                request.company_id::text AS "companyId",request.person_id::text AS "personId",
