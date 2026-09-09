@@ -16,7 +16,25 @@
   "decision": "ready",
   "partitions": [],
   "approval": {"status":"approved","approved_by":"Francisco Lomas","evidence":"US065-READY-CHG058-R2","payload_sha256":"38ea00196264b1bcdca52f24e8916cf0c8ca0a58c6c1bfcf9aecbe1a2c1d132e"},
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 9,
+      "implementation": 165,
+      "focused_verification": 45,
+      "review": 130,
+      "integration": 33
+    },
+    "total": 382,
+    "changed_files": 37,
+    "commits": 41,
+    "review_fix_loops": 15,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 4,
+    "mutation_shards_actual": 12,
+    "estimate_variance_minutes": 158,
+    "root_cause": "Measured from branch creation at 2026-09-09T01:39:58Z through the authoritative campaign ending at 2026-09-09T08:11:53Z, with the first readiness-bound plan committed after 9 minutes. The cohesive implementation changed 37 raw NUL-delimited Git paths and produced 41 source/test commits at cutoff 4790333, versus the approved 17 files and 8 shards. The expansion came from enforcing the complete vertical boundary: generic provider-failure sanitization and alert atomicity, unresolved-outcome retry fencing, tenant authorization and denial auditing, exact Next.js action composition, both user surfaces and i18n, and fail-closed mutation accountability. Fifteen adversarial review/fix loops closed transaction rollback, concurrency, source-state, HTTP-403, audit-composition, mutation-route, and deterministic-evidence gaps. Review remained below implementation time. The single cache-cleared campaign ran all 12 measured shards in 251 seconds, rounded once to 4 minutes; all shards passed on first contact and the weakest scored shard was 92.31%. The 158-minute variance includes repeated full-gate diagnosis after abandoned Testcontainers starved unrelated Vitest workers; controlled one-worker verification then passed the entire gate without a product-code workaround."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
