@@ -1,6 +1,7 @@
 import {
   assertJsonValue,
   isConnectorFailureCode,
+  isMemberPageStream,
   type ActivitySnapshot,
   type ConnectorCapability,
   type ConnectorResult,
@@ -269,7 +270,7 @@ function memberPageCursor(value: unknown): MemberPageCursor {
       || !Object.hasOwn(json, "stream")
       || !Object.hasOwn(json, "pageCount")
       || !Object.hasOwn(json, "memberSetSize")
-      || (json.stream !== "members" && json.stream !== "invitations")
+      || !isMemberPageStream(json.stream)
       || typeof json.pageCount !== "number" || !Number.isSafeInteger(json.pageCount) || json.pageCount < 0 || json.pageCount >= 100
       || typeof json.memberSetSize !== "number" || !Number.isSafeInteger(json.memberSetSize) || json.memberSetSize < 0
     ) invalid();
@@ -291,7 +292,7 @@ function memberPageResume(value: unknown, vendorAccountId?: string): MemberPageR
     if (!json || typeof json !== "object" || Array.isArray(json)
       || Object.keys(json).length !== 6 || typeof json.vendorAccountId !== "string"
       || (vendorAccountId !== undefined && json.vendorAccountId !== vendorAccountId)
-      || (json.stream !== "members" && json.stream !== "invitations")
+      || !isMemberPageStream(json.stream)
       || !(json.continuation === null || safeToken(json.continuation))
       || !Array.isArray(json.seenContinuations) || !json.seenContinuations.every(safeToken)
       || new Set(json.seenContinuations).size !== json.seenContinuations.length

@@ -2,6 +2,7 @@ import type {
   ConnectorCallObservationSession,
   ConnectorOperation,
 } from "../../connector-call-observation.js";
+import { isMemberPageStream } from "../../contracts.js";
 import type {
   ConnectorCapability,
   MemberPageCursor,
@@ -362,7 +363,7 @@ function memberPageCursor(value: unknown): MemberPageCursor | null {
   const candidate = value as Record<string, unknown>;
   if (
     Object.keys(candidate).length !== 3
-    || candidate.stream !== "members" && candidate.stream !== "invitations"
+    || !isMemberPageStream(candidate.stream)
     || !Number.isSafeInteger(candidate.pageCount) || (candidate.pageCount as number) < 0 || (candidate.pageCount as number) >= 100
     || !Number.isSafeInteger(candidate.memberSetSize) || (candidate.memberSetSize as number) < 0
   ) return null;
@@ -377,7 +378,7 @@ function memberPageResume(value: unknown, vendorAccountId: string): MemberPageRe
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const candidate = value as Record<string, unknown>;
   if (Object.keys(candidate).length !== 6 || candidate.vendorAccountId !== vendorAccountId
-    || (candidate.stream !== "members" && candidate.stream !== "invitations")
+    || !isMemberPageStream(candidate.stream)
     || !(candidate.continuation === null || providerToken(candidate.continuation))
     || !Array.isArray(candidate.seenContinuations)
     || !candidate.seenContinuations.every(providerToken)
@@ -525,6 +526,7 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
       };
     }
     if (stream === "members") {
+      if (pageCount >= 100) return providerFailure();
       return {
         snapshot: {
           members,

@@ -470,8 +470,8 @@ describe("Anthropic neutral connector", () => {
     expect(memberCalls).toBe(100);
   });
 
-  it("accepts a terminal ID page 100 and then proceeds to invitations", async () => {
-    // Mutations killed: a `>= 100` guard rejects the allowed terminal page.
+  it("fails at the total page budget before publishing an exhausted invitations continuation", async () => {
+    // The total 100-page bound cannot produce a resumable invitations cursor at count 100.
     let memberCalls = 0;
     let inviteCalls = 0;
     const { connector } = fixture(async (request) => {
@@ -484,8 +484,23 @@ describe("Anthropic neutral connector", () => {
       return json(idPage([]));
     });
     expect(await connector.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW }))
-      .toMatchObject({ ok: true, raw: null });
-    expect({ memberCalls, inviteCalls }).toEqual({ memberCalls: 100, inviteCalls: 1 });
+      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+    expect({ memberCalls, inviteCalls }).toEqual({ memberCalls: 100, inviteCalls: 0 });
+  });
+
+  it("rejects a page-100 members continuation but permits a terminal invitations page through both connector boundaries", async () => {
+    for (const dispatched of [false, true]) {
+      const { connector: implementation } = fixture(async () => json(idPage([])));
+      const connector = dispatched ? createConnectorDispatcher({ rest: implementation }).forProtocol("rest") : implementation;
+      for (const stream of ["members", "invitations"] as const) {
+        const result = await connector.syncMemberPage({ vendorAccountId: ACCOUNT, observedAt: NOW,
+          cursor: { stream, pageCount: 99, memberSetSize: 0 },
+          resume: { vendorAccountId: ACCOUNT, stream, continuation: "page99", seenContinuations: ["page99"], pageCount: 99, memberSetSize: 0 } });
+        expect(result).toEqual(stream === "members"
+          ? { ok: false, code: "provider_error", retryable: false, raw: null }
+          : { ok: true, raw: null, value: { members: [], cursor: null, resume: null, pageCount: 100, memberSetSize: 0, complete: true } });
+      }
+    }
   });
 
   it("uses each provider ID cursor and combines only terminal member pages", async () => {

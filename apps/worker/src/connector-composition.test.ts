@@ -29,4 +29,26 @@ describe("worker provider composition seam", () => {
       licenseTypeName: "Seat",
     })).rejects.toThrow("ANTHROPIC_EXECUTION_NOT_CONFIGURED");
   });
+
+  it("constructs the membership poll connector from the supplied runtime boundary", async () => {
+    // Mutations killed: an empty poll-composition factory hides a missing connector until a scheduled poll runs.
+    const connector = composition.createMembershipPollingConnector({
+      credentialsFor: async () => [],
+      observationSessionFor: async () => {
+        throw new Error("observation must not start without a configured request");
+      },
+      requestDependencies: {
+        clock: { now: () => 0 },
+        limiter: { acquire: async () => undefined },
+        sleep: async () => undefined,
+        transport: async () => new Response("{}", { status: 500 }),
+      },
+    });
+    expect(connector.capabilities().has("syncMembers")).toBe(true);
+    await expect(connector.syncMemberPage({
+      vendorAccountId: "23100000-0000-4000-8000-000000000002",
+      observedAt: new Date("2026-09-09T00:00:00.000Z"),
+      cursor: null,
+    })).rejects.toThrow("observation must not start without a configured request");
+  });
 });

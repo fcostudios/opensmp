@@ -39,8 +39,15 @@ export type SyncInput = { vendorAccountId: string; observedAt: Date };
 export type MemberSnapshot = {
   members: readonly { email: string; active: boolean }[];
 };
+export const memberPageStreams = Object.freeze(["members", "invitations"] as const);
+export type MemberPageStream = (typeof memberPageStreams)[number];
+
+export function isMemberPageStream(value: unknown): value is MemberPageStream {
+  return memberPageStreams.some((stream) => stream === value);
+}
+
 export type MemberPageCursor = Readonly<{
-  stream: "members" | "invitations";
+  stream: MemberPageStream;
   pageCount: number;
   memberSetSize: number;
 }>;
@@ -51,7 +58,7 @@ export type MemberPageCursor = Readonly<{
  */
 export type MemberPageResume = Readonly<{
   vendorAccountId: string;
-  stream: "members" | "invitations";
+  stream: MemberPageStream;
   continuation: string | null;
   seenContinuations: readonly string[];
   /** Bound to the public cursor so independently saved fragments cannot restart paging. */

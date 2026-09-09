@@ -24,6 +24,8 @@ import {
   assertJsonValue,
   connectorFailureCodes,
   isConnectorFailureCode,
+  isMemberPageStream,
+  memberPageStreams,
 } from "./contracts.js";
 import {
   buildManualChecklistActions,
@@ -44,6 +46,27 @@ const provisionInput: ProvisionInput = {
   personEmail: "person@example.com",
   licenseTypeName: "Standard",
 };
+
+describe("membership stream contract", () => {
+  it("accepts only the two wire streams without coercing unknown values", () => {
+    expect(isMemberPageStream("members")).toBe(true);
+    expect(isMemberPageStream("invitations")).toBe(true);
+    for (const value of ["activity", "", "MEMBERS", " members", null, undefined, 0,
+      ["members"], { toString: () => "members" }]) {
+      expect(isMemberPageStream(value)).toBe(false);
+    }
+  });
+
+  it("prevents a consumer from changing which checkpoint streams are accepted", () => {
+    expect(Reflect.set(memberPageStreams, "0", "activity")).toBe(false);
+    expect(Reflect.set(memberPageStreams, "2", "cost")).toBe(false);
+    expect(Reflect.deleteProperty(memberPageStreams, "1")).toBe(false);
+    expect(isMemberPageStream("members")).toBe(true);
+    expect(isMemberPageStream("invitations")).toBe(true);
+    expect(isMemberPageStream("activity")).toBe(false);
+    expect(isMemberPageStream("cost")).toBe(false);
+  });
+});
 
 function connectorWith(
   capability: ConnectorCapability,
