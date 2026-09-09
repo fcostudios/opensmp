@@ -978,11 +978,17 @@ export function classifyPageWiringBundle(changes) {
 }
 
 const EXACT_FRAMEWORK_ADAPTERS = {
+  "apps/web/src/app/(authenticated)/excepciones/page.tsx": {
+    sha256: "78c3c1c4c15eee01e5f28274e9b3aee1f0bed2fd477d76a135dd22c5b617de0e",
+  },
   "apps/web/src/app/(authenticated)/organizaciones/page.tsx": {
     sha256: "23f45735460082b1f28e52da675d060d2996fbfe566ac27db6db60d75e6f99fc",
   },
   "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx": {
     sha256: "5394f1abbd72a39d45581fce4f41a4884d12cb1678b20512deddf025c11cfcc9",
+  },
+  "apps/web/src/app/(authenticated)/solicitudes/[requestId]/page.tsx": {
+    sha256: "8d73d617abd0680d49a5cbb30e9105462129584ba3b71c96f55836819c9643ef",
   },
   "apps/web/src/modules/alerts/actions.ts": {
     sha256: "299c49983de6cf124eea30c0fd1308052987f9c6d518658c445a203a3005d879",
