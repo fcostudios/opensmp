@@ -67,6 +67,7 @@ async function seed(): Promise<void> {
     VALUES ($1,'POL-A',$3,$5,$7,$9,'invited','A',$10,$11,$10),($2,'POL-B',$4,$6,$8,$9,'invited','B',$10,$11,$10)`, [ids.requestA, ids.requestB, ids.personA, ids.personB, ids.companyA, ids.companyB, ids.accountA, ids.accountB, ids.license, at, ids.admin]);
   await owner.query(`INSERT INTO provisioning_action (id,request_id,vendor_account_id,kind,mode,status,sent_at,created_at)
     VALUES ($1,$3,$5,'invite','automated','sent',$7,$7),($2,$4,$6,'invite','automated','sent',$7,$7)`, [ids.actionA, ids.actionB, ids.requestA, ids.requestB, ids.accountA, ids.accountB, at]);
+  await owner.query("UPDATE license_request SET requested_by=$1", [ids.admin]);
   await owner.query(`INSERT INTO integration_credential (vendor_account_id,kind,encrypted_secret,health,status,created_at,created_by)
     VALUES ($1,'admin_scoped',$2,'ok','active',$4,$5),($1,'analytics',$3,'ok','active',$4,$5)`,
   [ids.accountA, await credential("admin-secret"), await credential("analytics-secret"), at, ids.admin]);
@@ -127,6 +128,10 @@ describe("US-066 accepted invitation membership poll", () => {
       (SELECT count(*)::int FROM request_transition WHERE request_id=$1 AND from_state='invited' AND to_state='active') AS transitions,
       (SELECT count(*)::int FROM audit_log WHERE entity_id=$1 AND action='request.active') AS audits`, [ids.requestA]);
     expect(counts.rows).toEqual([{ assignments: 1, transitions: 1, audits: 1 }]);
+    expect((await owner.query("SELECT request_id,company_id,kind,recipient_user_account_id,recipient_email,recipient_locale,request_state,created_at FROM lifecycle_notification")).rows).toEqual([{
+      request_id: ids.requestA, company_id: ids.companyA, kind: "provisioning_complete",
+      recipient_user_account_id: ids.admin, recipient_email: "admin@poll.test", recipient_locale: "en", request_state: "active", created_at: at,
+    }]);
     expect((await owner.query("SELECT note FROM request_transition WHERE request_id=$1", [ids.requestA])).rows).toEqual([{ note: "Membership poll accepted invitation" }]);
     const foreign = await owner.query(`SELECT request.state,action.status FROM license_request request JOIN provisioning_action action ON action.request_id=request.id WHERE request.id=$1`, [ids.requestB]);
     expect(foreign.rows).toEqual([{ state: "invited", status: "sent" }]);
@@ -398,6 +403,29 @@ describe("US-066 accepted invitation membership poll", () => {
     const counts = await owner.query(`SELECT (SELECT count(*)::int FROM license_assignment WHERE source_request_id=$1) AS assignments,
       (SELECT count(*)::int FROM request_transition WHERE request_id=$1) AS transitions`, [ids.requestA]);
     expect(counts.rows).toEqual([{ assignments: 1, transitions: 1 }]);
+    expect((await owner.query("SELECT count(*)::int AS notifications FROM lifecycle_notification WHERE request_id=$1", [ids.requestA])).rows).toEqual([{ notifications: 1 }]);
+  });
+
+  it("rolls back activation and all evidence when the lifecycle outbox insert fails", async () => {
+    await seed();
+    await owner.query(`CREATE FUNCTION reject_poll_notification() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'poll outbox unavailable'; END $$;
+      CREATE TRIGGER reject_poll_notification BEFORE INSERT ON lifecycle_notification FOR EACH ROW EXECUTE FUNCTION reject_poll_notification()`);
+    const job = createMembershipPollJob({ allowedKekRoot: privateRoot, connectionString: fixture.appUrl, kekFile, now: () => at, sleep: async () => undefined, transport: pageTransport(true) });
+    try {
+      await expect(job.drain({ at, vendorAccountId: ids.accountA })).rejects.toThrow();
+      expect((await owner.query(`SELECT request.state,request.license_assignment_id,action.status,action.raw_response,action.resolved_at,
+        (SELECT count(*)::int FROM license_assignment) AS assignments,
+        (SELECT count(*)::int FROM request_transition) AS transitions,
+        (SELECT count(*)::int FROM audit_log) AS audits,
+        (SELECT count(*)::int FROM lifecycle_notification) AS notifications
+        FROM license_request request JOIN provisioning_action action ON action.request_id=request.id WHERE request.id=$1`, [ids.requestA])).rows).toEqual([{
+        state: "invited", license_assignment_id: null, status: "sent", raw_response: null, resolved_at: null,
+        assignments: 0, transitions: 0, audits: 0, notifications: 0,
+      }]);
+    } finally {
+      await job.close();
+      await owner.query("DROP TRIGGER reject_poll_notification ON lifecycle_notification; DROP FUNCTION reject_poll_notification()");
+    }
   });
 
   it("revalidates the locked request after provider I/O changes its state", async () => {

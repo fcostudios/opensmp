@@ -272,53 +272,68 @@ test("shares a real mutation-template cleanup failure with concurrent callers", 
 }, 150_000);
 
 test("stops a real pinned PostgreSQL container after bootstrap failure", async () => {
+  const restoreEnvironment = isolateMutationDatabaseEnvironment();
   let startedContainerUrl: string | undefined;
 
-  await expect(
-    createPostgresFixture({
-      afterBootstrapSql: "SELECT missing_fixture_bootstrap_function()",
-      onContainerStarted: (container) => {
-        startedContainerUrl = container.getConnectionUri();
-      },
-    }),
-  ).rejects.toMatchObject({ code: "42883" });
+  try {
+    await expect(
+      createPostgresFixture({
+        afterBootstrapSql: "SELECT missing_fixture_bootstrap_function()",
+        onContainerStarted: (container) => {
+          startedContainerUrl = container.getConnectionUri();
+        },
+      }),
+    ).rejects.toMatchObject({ code: "42883" });
 
-  expect(startedContainerUrl).toBeDefined();
-  const client = new pg.Client({
-    connectionString: startedContainerUrl,
-    connectionTimeoutMillis: 1_000,
-  });
-  await expect(client.connect()).rejects.toBeDefined();
-  await client.end().catch(() => undefined);
+    expect(startedContainerUrl).toBeDefined();
+    const client = new pg.Client({
+      connectionString: startedContainerUrl,
+      connectionTimeoutMillis: 1_000,
+    });
+    await expect(client.connect()).rejects.toBeDefined();
+    await client.end().catch(() => undefined);
+  } finally {
+    restoreEnvironment();
+  }
 }, 150_000);
 
 test("stops a real fixture idempotently when called repeatedly", async () => {
-  const fixture = await createPostgresFixture();
+  const restoreEnvironment = isolateMutationDatabaseEnvironment();
+  try {
+    const fixture = await createPostgresFixture();
 
-  await expect(Promise.all([fixture.stop(), fixture.stop()])).resolves.toEqual([
-    undefined,
-    undefined,
-  ]);
-  await expect(fixture.stop()).resolves.toBeUndefined();
+    await expect(Promise.all([fixture.stop(), fixture.stop()])).resolves.toEqual([
+      undefined,
+      undefined,
+    ]);
+    await expect(fixture.stop()).resolves.toBeUndefined();
+  } finally {
+    restoreEnvironment();
+  }
 }, 150_000);
 
 test("reports an unexpected cleanup failure after attempting to stop the real container", async () => {
+  const restoreEnvironment = isolateMutationDatabaseEnvironment();
   let startedContainerUrl: string | undefined;
-  const fixture = await createPostgresFixture({
-    beforeCleanupSql: "SELECT missing_fixture_cleanup_function()",
-    onContainerStarted: (container) => {
-      startedContainerUrl = container.getConnectionUri();
-    },
-  });
+  try {
+    const fixture = await createPostgresFixture({
+      beforeCleanupSql: "SELECT missing_fixture_cleanup_function()",
+      onContainerStarted: (container) => {
+        startedContainerUrl = container.getConnectionUri();
+      },
+    });
 
-  await expect(fixture.stop()).rejects.toMatchObject({ code: "42883" });
-  await expect(fixture.stop()).rejects.toMatchObject({ code: "42883" });
+    await expect(fixture.stop()).rejects.toMatchObject({ code: "42883" });
+    await expect(fixture.stop()).rejects.toMatchObject({ code: "42883" });
 
-  expect(startedContainerUrl).toBeDefined();
-  const client = new pg.Client({
-    connectionString: startedContainerUrl,
-    connectionTimeoutMillis: 1_000,
-  });
-  await expect(client.connect()).rejects.toBeDefined();
-  await client.end().catch(() => undefined);
+    expect(startedContainerUrl).toBeDefined();
+    const client = new pg.Client({
+      connectionString: startedContainerUrl,
+      connectionTimeoutMillis: 1_000,
+    });
+    await expect(client.connect()).rejects.toBeDefined();
+    await client.end().catch(() => undefined);
+  } finally {
+    restoreEnvironment();
+  }
 }, 150_000);

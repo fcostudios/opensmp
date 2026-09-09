@@ -273,6 +273,16 @@ describe("none connector", () => {
 });
 
 describe("ConnectorDispatcher", () => {
+  it("rejects an adapter's manual checklist for the sync-member-page operation", async () => {
+    // Losing operation='sync' permits instruction-only manual actions on a read-only poll.
+    const implementation = connectorWith("syncMembers");
+    implementation.syncMemberPage = async () => ({ ok: false, code: "unsupported", checklistSteps: ["Manual"] });
+    const connector = createConnectorDispatcher({ rest: implementation }).forProtocol("rest");
+    await expect(connector.syncMemberPage({
+      vendorAccountId: "vendor-account-1", observedAt: new Date("2026-09-06T12:00:00.000Z"), cursor: null,
+    })).rejects.toThrow("Invalid connector unsupported checklist: sync");
+  });
+
   it("validates and freezes a JSON-safe resumable member page without exposing mutable state", async () => {
     const cursor = {
       stream: "members",
@@ -395,6 +405,55 @@ describe("ConnectorDispatcher", () => {
       observedAt: new Date("2026-09-06T12:00:00.000Z"),
       cursor: null,
     })).rejects.toThrowError("Invalid connector member page result");
+  });
+
+  it.each([
+    ["public page total", { ...validMemberPageValue(), pageCount: 2 }] as const,
+    ["public member total", { ...validMemberPageValue(), memberSetSize: 2 }] as const,
+    ["coercible email", { ...validMemberPageValue(), members: [{ email: ["member@example.test"], active: true }] }] as const,
+    ["nonstring account", { ...validMemberPageValue(), resume: { ...validMemberPageValue().resume, vendorAccountId: 1 } }] as const,
+    ["extra resume key", { ...validMemberPageValue(), resume: { ...validMemberPageValue().resume, extra: true } }] as const,
+    ["truthy terminal flag", { ...validMemberPageValue(), cursor: null, resume: null, complete: 1 }] as const,
+    ["falsey page flag", { ...validMemberPageValue(), complete: 0 }] as const,
+    ["array-shaped result", Object.assign([], validMemberPageValue())] as const,
+    ["array-shaped member", { ...validMemberPageValue(), members: [Object.assign([], { email: "member@example.test", active: true })] }] as const,
+    ["array-shaped resume", { ...validMemberPageValue(), resume: Object.assign([], validMemberPageValue().resume) }] as const,
+    ...[NaN, "1", 1.5, 0, 101].map((pageCount) => ["terminal page total", { ...validMemberPageValue(), cursor: null, resume: null, complete: true, pageCount }] as const),
+    ...[NaN, "1", 1.5, 0].map((memberSetSize) => ["terminal member total", { ...validMemberPageValue(), cursor: null, resume: null, complete: true, memberSetSize }] as const),
+  ])("rejects independently invalid %s", async (_name, value) => {
+    // A mutually consistent cursor/resume cannot mask invalid outer result counters.
+    const implementation = connectorWith("syncMembers");
+    implementation.syncMemberPage = async () => ({ ok: true, raw: null, value } as never);
+    const connector = createConnectorDispatcher({ rest: implementation }).forProtocol("rest");
+    await expect(connector.syncMemberPage({ vendorAccountId: "vendor-account-1", observedAt: new Date("2026-09-06T12:00:00.000Z"), cursor: null }))
+      .rejects.toThrow("Invalid connector member page result");
+  });
+
+  it.each(["", " ", " leading", "trailing ", "x".repeat(513), "x\u202ey"])("rejects unsafe tokens in an otherwise paired checkpoint: %j", async (token) => {
+    const value = validMemberPageValue();
+    const connector = createConnectorDispatcher({ rest: connectorWith("syncMembers") }).forProtocol("rest");
+    await expect(connector.syncMemberPage({ vendorAccountId: "vendor-account-1", observedAt: new Date("2026-09-06T12:00:00.000Z"), cursor: value.cursor,
+      resume: { ...value.resume, continuation: token, seenContinuations: [] } }))
+      .rejects.toThrow("Invalid connector member page resume");
+  });
+
+  it("accepts the maximum-length valid page token", async () => {
+    const value = validMemberPageValue();
+    const implementation = connectorWith("syncMembers");
+    implementation.syncMemberPage = async () => ({ ok: true, raw: null, value });
+    const connector = createConnectorDispatcher({ rest: implementation }).forProtocol("rest");
+    const result = await connector.syncMemberPage({ vendorAccountId: "vendor-account-1", observedAt: new Date("2026-09-06T12:00:00.000Z"), cursor: value.cursor,
+      resume: { ...value.resume, continuation: "x".repeat(512), seenContinuations: ["x".repeat(512)] } });
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects extra public evidence keys despite a valid paired resume", async () => {
+    const value = validMemberPageValue();
+    const connector = createConnectorDispatcher({ rest: connectorWith("syncMembers") }).forProtocol("rest");
+    await expect(connector.syncMemberPage({ vendorAccountId: "vendor-account-1", observedAt: new Date("2026-09-06T12:00:00.000Z"),
+      cursor: { ...value.cursor, private: true } as never, resume: value.resume })).rejects.toThrow("Invalid connector member page cursor");
+    await expect(connector.syncMemberPage({ vendorAccountId: "vendor-account-1", observedAt: new Date("2026-09-06T12:00:00.000Z"),
+      cursor: Object.assign([], value.cursor) as never, resume: value.resume })).rejects.toThrow("Invalid connector member page cursor");
   });
 
   it.each([

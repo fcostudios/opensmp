@@ -46,6 +46,13 @@ export function isMemberPageStream(value: unknown): value is MemberPageStream {
   return memberPageStreams.some((stream) => stream === value);
 }
 
+/** The same safe opaque-token grammar applies at direct and dispatched page boundaries. */
+export function isMemberPageToken(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= 512
+    && value === value.trim()
+    && !/[\u0000-\u001f\u007f-\u009f\u2028\u2029\p{Bidi_Control}\ud800-\udfff]/u.test(value);
+}
+
 export type MemberPageCursor = Readonly<{
   stream: MemberPageStream;
   pageCount: number;

@@ -11,6 +11,7 @@
     "./connector-call-observations": "./src/connector-call-observations.ts",
     "./provisioning-routing": "./src/provisioning-routing.ts",
     "./request-transition": "./src/request-transition.ts",
+    "./lifecycle-notifications": "./src/lifecycle-notifications.ts",
     "./schema": "./src/schema.ts",
     "./pool-snapshots": "./src/pool-snapshots.ts",
     "./system-ids": "./src/system-ids.ts",

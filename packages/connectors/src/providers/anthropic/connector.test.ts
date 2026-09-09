@@ -536,6 +536,70 @@ describe("Anthropic neutral connector", () => {
     ]);
   });
 
+  it.each([
+    ["null pending email", [invite("i1", null)], [], 0],
+    ["two distinct emails", [invite("i1", "A@example.test"), invite("i2", "b@example.test")], [{ email: "a@example.test", active: false }, { email: "b@example.test", active: false }], 2],
+  ])("maps invitation page members independently: %s", async (_name, data, members, memberSetSize) => {
+    const { connector } = fixture(async () => json(idPage(data as never)));
+    expect(await connector.syncMemberPage({ vendorAccountId: ACCOUNT, observedAt: NOW,
+      cursor: { stream: "invitations", pageCount: 1, memberSetSize: 0 },
+      resume: { vendorAccountId: ACCOUNT, stream: "invitations", continuation: null, seenContinuations: [], pageCount: 1, memberSetSize: 0 } }))
+      .toEqual({ ok: true, raw: null, value: { members, cursor: null, resume: null, pageCount: 2, memberSetSize, complete: true } });
+  });
+
+  it("rejects duplicate normalized emails on a direct member page", async () => {
+    const { connector } = fixture(async () => json(idPage([member("u1", "A@example.test"), member("u2", "a@example.test")])));
+    expect(await connector.syncMemberPage({ vendorAccountId: ACCOUNT, observedAt: NOW, cursor: null }))
+      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+  });
+
+  it.each(["x".repeat(513), "x\u202ey"])("rejects unsafe direct page tokens before transport: %j", async (token) => {
+    let calls = 0;
+    const { connector } = fixture(async () => { calls += 1; return json(idPage([])); });
+    expect(await connector.syncMemberPage({ vendorAccountId: ACCOUNT, observedAt: NOW,
+      cursor: { stream: "members", pageCount: 1, memberSetSize: 0 },
+      resume: { vendorAccountId: ACCOUNT, stream: "members", continuation: token, seenContinuations: [token], pageCount: 1, memberSetSize: 0 } }))
+      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+    expect(calls).toBe(0);
+  });
+
+  it.each(["x".repeat(513), "x\u202ey"])("does not publish an unusable provider continuation: %j", async (token) => {
+    const { connector } = fixture(async () => json(idPage([], true, token)));
+    expect(await connector.syncMemberPage({ vendorAccountId: ACCOUNT, observedAt: NOW, cursor: null }))
+      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+  });
+
+  it("rejects malformed direct checkpoints independently of the detached-pair guard", async () => {
+    let calls = 0;
+    const { connector } = fixture(async () => { calls += 1; return json(idPage([])); });
+    const cursor = { stream: "members", pageCount: 1, memberSetSize: 1 };
+    const resume = { vendorAccountId: ACCOUNT, stream: "members", continuation: "next", seenContinuations: ["next"], pageCount: 1, memberSetSize: 1 };
+    for (const pair of [
+      { cursor: undefined, resume: undefined },
+      { cursor: { ...cursor, extra: true }, resume },
+      { cursor: Object.assign([], cursor), resume },
+      { cursor: Object.assign(() => undefined, cursor), resume },
+      { cursor, resume: { ...resume, extra: true } },
+      { cursor, resume: Object.assign([], resume) },
+      { cursor, resume: Object.assign(() => undefined, resume) },
+      { cursor, resume: { ...resume, seenContinuations: ["next", "next"] } },
+      { cursor, resume: { ...resume, continuation: undefined } },
+      { cursor, resume: { ...resume, memberSetSize: 2 } },
+      { cursor: { ...cursor, pageCount: 0 }, resume: { ...resume, pageCount: 0 } },
+    ]) {
+      await expect(connector.syncMemberPage({ vendorAccountId: ACCOUNT, observedAt: NOW, ...pair } as never))
+        .resolves.toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+    }
+    expect(calls).toBe(0);
+  });
+
+  it("accepts an explicit null initial resume without rejecting the first page", async () => {
+    const { connector } = fixture(async () => json(idPage([member("u1", "a@example.test")])));
+    const page = await successValue(connector.syncMemberPage({ vendorAccountId: ACCOUNT, observedAt: NOW, cursor: null, resume: null }));
+    expect(page.members).toEqual([{ email: "a@example.test", active: true }]);
+    expect(page.pageCount).toBe(1);
+  });
+
   it("returns immutable member pages that resume members then invitations without refetching a completed page", async () => {
     // Mutations killed: losing a continuation, resetting page totals, or fetching a completed stream causes a different request trace or evidence.
     const seen: string[] = [];

@@ -2,6 +2,7 @@ import {
   assertJsonValue,
   isConnectorFailureCode,
   isMemberPageStream,
+  isMemberPageToken,
   type ActivitySnapshot,
   type ConnectorCapability,
   type ConnectorResult,
@@ -285,16 +286,12 @@ function memberPageResume(value: unknown, vendorAccountId?: string): MemberPageR
   try {
     assertJsonValue(value, "resume");
     const json = value as Record<string, unknown>;
-    const safeToken = (token: unknown) => typeof token === "string"
-      && token.length > 0 && token.length <= 512
-      && token === token.trim()
-      && !/[\u0000-\u001f\u007f-\u009f\u2028\u2029\p{Bidi_Control}]/u.test(token);
     if (!json || typeof json !== "object" || Array.isArray(json)
       || Object.keys(json).length !== 6 || typeof json.vendorAccountId !== "string"
       || (vendorAccountId !== undefined && json.vendorAccountId !== vendorAccountId)
       || !isMemberPageStream(json.stream)
-      || !(json.continuation === null || safeToken(json.continuation))
-      || !Array.isArray(json.seenContinuations) || !json.seenContinuations.every(safeToken)
+      || !(json.continuation === null || isMemberPageToken(json.continuation))
+      || !Array.isArray(json.seenContinuations) || !json.seenContinuations.every(isMemberPageToken)
       || new Set(json.seenContinuations).size !== json.seenContinuations.length
       || typeof json.pageCount !== "number" || !Number.isSafeInteger(json.pageCount) || json.pageCount < 1 || json.pageCount >= 100
       || typeof json.memberSetSize !== "number" || !Number.isSafeInteger(json.memberSetSize) || json.memberSetSize < 0

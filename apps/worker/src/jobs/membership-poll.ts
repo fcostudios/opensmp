@@ -5,6 +5,7 @@ import type { MemberPageCursor, MemberPageResume } from "@smp/connectors";
 import { decryptCredential, encryptCredential, readKekFile } from "@smp/db/credential-crypto";
 import { createConnectorCallObservationAppender } from "@smp/db/connector-call-observations";
 import { applyRequestTransitionInTransaction } from "@smp/db/request-transition";
+import { enqueueLifecycleProvisioningComplete } from "@smp/db/lifecycle-notifications";
 import { ecuadorOperatingDate, parseCredentialEnvelope, serializeCredentialEnvelope } from "@smp/domain";
 import { assertLegalTransition } from "@smp/domain/request-workflow";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -231,6 +232,7 @@ export function createMembershipPollJob(options: MembershipPollJobOptions) {
         requestId: current.requestId, from: "invited", to: "active", actorUserId: null,
         note: "Membership poll accepted invitation", occurredAt,
       }, { expectedCompanyId: current.companyId });
+      await enqueueLifecycleProvisioningComplete(database, current.requestId, occurredAt);
       await client.query("COMMIT");
       return true;
     } catch (error) {

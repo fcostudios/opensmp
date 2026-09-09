@@ -2,7 +2,7 @@ import type {
   ConnectorCallObservationSession,
   ConnectorOperation,
 } from "../../connector-call-observation.js";
-import { isMemberPageStream } from "../../contracts.js";
+import { isMemberPageStream, isMemberPageToken } from "../../contracts.js";
 import type {
   ConnectorCapability,
   MemberPageCursor,
@@ -379,9 +379,9 @@ function memberPageResume(value: unknown, vendorAccountId: string): MemberPageRe
   const candidate = value as Record<string, unknown>;
   if (Object.keys(candidate).length !== 6 || candidate.vendorAccountId !== vendorAccountId
     || !isMemberPageStream(candidate.stream)
-    || !(candidate.continuation === null || providerToken(candidate.continuation))
+    || !(candidate.continuation === null || isMemberPageToken(candidate.continuation))
     || !Array.isArray(candidate.seenContinuations)
-    || !candidate.seenContinuations.every(providerToken)
+    || !candidate.seenContinuations.every(isMemberPageToken)
     || new Set(candidate.seenContinuations).size !== candidate.seenContinuations.length
     || !Number.isSafeInteger(candidate.pageCount) || (candidate.pageCount as number) < 1 || (candidate.pageCount as number) >= 100
     || !Number.isSafeInteger(candidate.memberSetSize) || (candidate.memberSetSize as number) < 0
@@ -509,7 +509,7 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
     const memberSetSize = (cursor?.memberSetSize ?? 0) + members.length;
     if (page.has_more) {
       if (
-        pageCount >= 100 || page.last_id === null || resume?.seenContinuations.includes(page.last_id)
+        pageCount >= 100 || !isMemberPageToken(page.last_id) || resume?.seenContinuations.includes(page.last_id)
       ) return providerFailure();
       return {
         snapshot: {

@@ -1016,7 +1016,7 @@ const EXACT_DELEGATION_ADAPTERS = {
     sha256: "7ba858cb6007c2866d8f1f1156dcdc01f1aec6e2606bd0eaf319512b64aee6bb",
   },
   "apps/worker/src/connector-composition.ts": {
-    sha256: "77851634f5d18fc7a2b52255a34389aa38f27926dd10991285ffff10976aa6b6",
+    sha256: "07fa4dd937ec738ca9529ec430196a3dd3a06bdc99a3cea15259ec539ed474c4",
   },
 };
 const EXACT_DELEGATION_ADAPTER_SOURCES = new Set(Object.keys(EXACT_DELEGATION_ADAPTERS));
