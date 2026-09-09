@@ -289,4 +289,37 @@ describe("US-065 provisioning retry", () => {
       [ids.actionB],
     )).resolves.toMatchObject({ rows: [{ state: "failed", status: "failed" }] });
   });
+
+  it("rolls back every retry write when final audit persistence fails", async () => {
+    await owner.query(`CREATE OR REPLACE FUNCTION reject_retry_audit() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN
+        IF NEW.action='request.provisioning' THEN
+          RAISE EXCEPTION 'retry audit rejected';
+        END IF;
+        RETURN NEW;
+      END $$`);
+    await owner.query(`CREATE TRIGGER reject_retry_audit
+      BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION reject_retry_audit()`);
+    const service = createProvisioningService(database, { now: () => retriedAt });
+    try {
+      await expect(service.retryProvisioning(
+        authorization([ids.companyA]),
+        { actionId: ids.actionA },
+      )).resolves.toEqual({ ok: false, error: "conflict" });
+    } finally {
+      await owner.query("DROP TRIGGER reject_retry_audit ON audit_log");
+      await owner.query("DROP FUNCTION reject_retry_audit()");
+    }
+    await expect(owner.query(
+      `SELECT request.state,count(action.id)::int AS actions
+       FROM license_request request
+       JOIN provisioning_action action ON action.request_id=request.id
+       WHERE request.id=$1 GROUP BY request.state`,
+      [ids.requestA],
+    )).resolves.toMatchObject({ rows: [{ state: "failed", actions: 1 }] });
+    await expect(owner.query(
+      "SELECT count(*)::int AS count FROM request_transition WHERE request_id=$1",
+      [ids.requestA],
+    )).resolves.toMatchObject({ rows: [{ count: 0 }] });
+  });
 });
