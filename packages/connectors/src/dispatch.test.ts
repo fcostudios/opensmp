@@ -945,6 +945,8 @@ describe("vendor-neutral core source boundary", () => {
       "apps/web/src/modules/request-workflow/actions/checklist.ts",
       "apps/web/src/modules/request-workflow/actions/decide-request-policy.ts",
       "apps/web/src/modules/request-workflow/actions/decide-request.ts",
+      "apps/web/src/modules/request-workflow/actions/retry-provisioning-action-production.ts",
+      "apps/web/src/modules/request-workflow/actions/retry-provisioning-action.ts",
       "apps/web/src/modules/request-workflow/actions/retry-provisioning.ts",
       "apps/web/src/modules/request-workflow/actions/submit-request-policy.ts",
       "apps/web/src/modules/request-workflow/actions/submit-request.ts",
