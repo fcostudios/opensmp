@@ -285,4 +285,27 @@ describe("US-023 canonical provisioning routing primitives", () => {
       occurredAt,
     ]);
   });
+
+  test("uses the trusted retry note when resuming a failed request", async () => {
+    const occurredAt = new Date("2026-09-09T02:00:00.000Z");
+    const failedRequest = { ...request, requestState: "failed" };
+    const { executor, queries } = scriptedExecutor([[failedRequest], [], [], [{ id: ids.request }], [], [], []]);
+
+    await routeProvisioningActionInTransaction(executor as never, {
+      actorUserId: ids.actor,
+      expectedState: "failed",
+      note: "Provisioning retry issued",
+      occurredAt,
+      requestId: ids.request,
+    });
+
+    expect(queries[3]?.params).toEqual([occurredAt, ids.request, ids.company, "failed"]);
+    expect(queries[4]?.params).toEqual([
+      ids.request,
+      "failed",
+      ids.actor,
+      "Provisioning retry issued",
+      occurredAt,
+    ]);
+  });
 });

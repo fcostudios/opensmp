@@ -77,7 +77,7 @@ export async function routeProvisioningActionInTransaction(
   executor: Executor,
   input: {
     readonly actorUserId: string | null;
-    readonly expectedState: "approved" | "blocked_no_seat";
+    readonly expectedState: "approved" | "blocked_no_seat" | "failed";
     readonly note: string;
     readonly occurredAt: Date;
     readonly requestId: string;
