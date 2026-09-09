@@ -578,7 +578,11 @@ function importedFactoryMemberIsAudited(
   const initializer = serviceTarget?.initializer;
   const factoryCall = initializer ? callTarget(initializer) : null;
   if (!factoryCall || factoryCall.member !== null) return false;
-  const factoryImport = importedBindings(compositionFile).get(factoryCall.root);
+  const compositionImports = importedBindings(compositionFile);
+  if (!factoryCall.call.arguments.every((argument) =>
+    isNonMutatingExpression(argument, serviceTarget, compositionImports),
+  )) return false;
+  const factoryImport = compositionImports.get(factoryCall.root);
   if (!factoryImport) return false;
   const factorySource = resolveImportedSource(
     compositionSourcePath,

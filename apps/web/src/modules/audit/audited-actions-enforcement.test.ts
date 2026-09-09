@@ -162,6 +162,39 @@ describe("audited server action enforcement", () => {
     });
   });
 
+  test("rejects mutation while composing an imported audited service", async () => {
+    const root = await fixture({
+      "src/app/actions.ts": `"use server";
+        import { retryService } from "../modules/retry-production";
+        export async function unsafeRetry(input) {
+          return retryService.retry(input);
+        }`,
+      "src/modules/retry-production.ts": `
+        import { createRetryService } from "./retry-service";
+        export const retryService = createRetryService(
+          (database.update({ unsafe: true }), database),
+        );`,
+      "src/modules/retry-service.ts": `
+        import { withAudit } from "@/modules/audit/with-audit";
+        export function createRetryService(database) {
+          return { retry(input) {
+            return withAudit(database, async () => ({
+              value: input,
+              audit: evidence,
+            }));
+          }};
+        }`,
+      "src/modules/audit/with-audit.ts":
+        `export function withAudit(...args) { return args; }`,
+    });
+
+    await expect(
+      execFileAsync(process.execPath, [script, root]),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining("unsafeRetry"),
+    });
+  });
+
   test("accepts a local action helper backed by a factory-created audited service", async () => {
     const root = await fixture({
       "src/app/actions.ts": `"use server";
