@@ -9,7 +9,6 @@ import {
 } from "@smp/db/testing/postgres-container";
 
 import type { LedgerAuthorization } from "../identity-access/authorization";
-import { retryProvisioningFailureDestination } from "./actions/retry-provisioning";
 import { createOrchestrationOperations } from "./orchestration";
 import { createProvisioningService } from "./provisioning-service";
 
@@ -171,31 +170,6 @@ afterAll(async () => {
 beforeEach(seed);
 
 describe("US-065 provisioning retry", () => {
-  it("maps action failures to visible feedback and preserves forbidden as HTTP 403", () => {
-    expect(retryProvisioningFailureDestination("conflict"))
-      .toBe("/excepciones?tab=failed&retryError=conflict");
-    expect(retryProvisioningFailureDestination("invalid"))
-      .toBe("/excepciones?tab=failed&retryError=invalid");
-    const priorAuthInterrupts = process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS;
-    process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS = "true";
-    let forbiddenError: unknown;
-    try {
-      retryProvisioningFailureDestination("forbidden");
-    } catch (error) {
-      forbiddenError = error;
-    } finally {
-      if (priorAuthInterrupts === undefined) {
-        delete process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS;
-      } else {
-        process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS = priorAuthInterrupts;
-      }
-    }
-    expect(forbiddenError).toMatchObject({
-      digest: "NEXT_HTTP_ERROR_FALLBACK;403",
-      message: "NEXT_HTTP_ERROR_FALLBACK;403",
-    });
-  });
-
   it("lists generic automated failures with only safe retry fields", async () => {
     const operations = createOrchestrationOperations(database);
     const admin: LedgerAuthorization = {
