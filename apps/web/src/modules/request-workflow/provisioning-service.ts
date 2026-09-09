@@ -100,8 +100,22 @@ export function createProvisioningService(
                   AND NOT EXISTS (
                     SELECT 1 FROM provisioning_action live
                     WHERE live.request_id=request.id
-                      AND live.raw_request->>'operation'='provision'
                       AND live.status IN ('pending','sent')
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM provisioning_action attempted
+                    JOIN connector_call_observation requested
+                      ON requested.provisioning_action_id=attempted.id
+                     AND requested.phase='requested'
+                    WHERE attempted.request_id=request.id
+                      AND NOT EXISTS (
+                        SELECT 1 FROM connector_call_observation terminal
+                        WHERE terminal.provisioning_action_id=attempted.id
+                          AND terminal.correlation_id=requested.correlation_id
+                          AND terminal.attempt=requested.attempt
+                          AND terminal.phase IN ('succeeded','failed')
+                      )
                   )
                 FOR UPDATE OF action,request`,
           );

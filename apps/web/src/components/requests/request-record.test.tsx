@@ -59,6 +59,8 @@ const labels: RequestRecordLabels = {
   rawPayload: "Detalle técnico",
   rawRequest: "Solicitud enviada",
   rawResponse: "Respuesta recibida",
+  retryProvisioning: "Reintentar aprovisionamiento",
+  retryingProvisioning: "Reintentando…",
   request: "Solicitud",
   requestedBy: "Pedida por",
   resolvedAt: "Resuelta",
@@ -304,5 +306,35 @@ describe("RequestRecord", () => {
     expect(html).not.toContain('data-testid="btn_ver_cupos"');
     expect(html).not.toContain('data-testid="tab_asignacion"');
     expect(html).not.toContain('data-testid="asignacion_panel"');
+  });
+
+  test("offers the exact failed automated invite retry on request detail to a group admin", () => {
+    const html = renderToStaticMarkup(
+      <RequestRecord
+        activeTab="actions"
+        isGroupAdmin
+        labels={labels}
+        locale="es-EC"
+        record={{
+          ...blockedRecord,
+          assignment: null,
+          state: "failed",
+          actions: [{
+            ...blockedRecord.actions[0]!,
+            id: "32000000-0000-4000-8000-000000000029",
+            kind: "invite",
+            mode: "automated",
+            failureReason: "provider_invitation_failed",
+          }],
+        }}
+        retryAction={async () => undefined}
+        statusLabels={statusLabels}
+      />,
+    );
+
+    expect(html).toContain('data-testid="btn_retry_provisioning_detail"');
+    expect(html).toContain('name="actionId"');
+    expect(html).toContain('value="32000000-0000-4000-8000-000000000029"');
+    expect(html).toContain("Reintentar aprovisionamiento");
   });
 });

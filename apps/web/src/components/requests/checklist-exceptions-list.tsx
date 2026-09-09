@@ -5,6 +5,7 @@ import {
   checklistExceptionStatusLabel,
   checklistRequestHref,
 } from "./checklist-exception-presenter";
+import { ProvisioningRetrySubmit } from "./provisioning-retry-submit";
 
 export interface ChecklistExceptionItem {
   readonly actionId: string;
@@ -34,6 +35,7 @@ export interface ChecklistExceptionsLabels {
   readonly organization: string;
   readonly reason: string;
   readonly retryProvisioning: string;
+  readonly retryingProvisioning: string;
   readonly retryUnavailable: string;
   readonly request: string;
   readonly sentAt: string;
@@ -164,13 +166,11 @@ export function ChecklistExceptionsList({
                   {failure.kind === "invite" && retryAction ? (
                     <form action={retryAction} className="mt-2">
                       <input name="actionId" type="hidden" value={failure.actionId} />
-                      <button
-                        className="rounded border border-border px-3 py-2 text-sm font-semibold text-text-primary"
-                        data-testid={`btn_retry_provisioning-${failure.actionId}`}
-                        type="submit"
-                      >
-                        {labels.retryProvisioning}
-                      </button>
+                      <ProvisioningRetrySubmit
+                        label={labels.retryProvisioning}
+                        pendingLabel={labels.retryingProvisioning}
+                        testId={`btn_retry_provisioning-${failure.actionId}`}
+                      />
                     </form>
                   ) : failure.kind === "checklist" ? (
                     <span className="mt-2 block text-xs text-text-muted">

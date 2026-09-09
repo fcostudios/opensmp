@@ -20,6 +20,7 @@ import {
   markChecklistNotDone,
 } from "@/modules/request-workflow/actions/checklist";
 import { decideRequest } from "@/modules/request-workflow/actions/decide-request";
+import { retryProvisioning } from "@/modules/request-workflow/actions/retry-provisioning";
 import { createOrchestrationService } from "@/modules/request-workflow/orchestration";
 import {
   requestReadRepository,
@@ -141,6 +142,8 @@ export default async function ScrRequestDetailPage({
     rawPayload: history("rawPayload"),
     rawRequest: history("rawRequest"),
     rawResponse: history("rawResponse"),
+    retryProvisioning: orchestration("retryProvisioning"),
+    retryingProvisioning: orchestration("retryingProvisioning"),
     request: history("request"),
     requestedBy: history("requestedBy"),
     resolvedAt: history("resolvedAt"),
@@ -237,6 +240,7 @@ export default async function ScrRequestDetailPage({
         labels={labels}
         locale={locale === "en-US" ? "en-US" : "es-EC"}
         record={record}
+        retryAction={retryProvisioning}
         statusLabels={statusLabels}
       />
     </main>

@@ -21,6 +21,7 @@ const labels = {
   organization: "Organización",
   reason: "Motivo",
   retryProvisioning: "Reintentar aprovisionamiento",
+  retryingProvisioning: "Reintentando…",
   retryUnavailable: "Disponible en Sprint 3",
   request: "Solicitud",
   sentAt: "Enviada",

@@ -27,6 +27,7 @@ export default async function ScrExceptionsPage({
 }: {
   readonly searchParams: Promise<{
     readonly cursor?: string;
+    readonly retryError?: string;
     readonly tab?: string;
   }>;
 }) {
@@ -99,6 +100,11 @@ export default async function ScrExceptionsPage({
         >
           {t("title")}
         </h2>
+        {query.retryError === "conflict" || query.retryError === "invalid" ? (
+          <p className="mt-3 rounded border border-error-dot bg-error-bg p-3 text-error-text" role="alert">
+            {orchestration(query.retryError === "conflict" ? "retryConflict" : "retryInvalid")}
+          </p>
+        ) : null}
         <nav aria-label={t("tabsLabel")} className="mt-3 flex gap-2 overflow-x-auto pb-1">
           {tabs.map((tab) => (
             <Link
@@ -146,6 +152,7 @@ export default async function ScrExceptionsPage({
               organization: orchestration("exceptionOrganization"),
               reason: orchestration("exceptionReason"),
               retryProvisioning: orchestration("retryProvisioning"),
+              retryingProvisioning: orchestration("retryingProvisioning"),
               retryUnavailable: orchestration("retryUnavailable"),
               request: orchestration("exceptionRequest"),
               sentAt: orchestration("exceptionSentAt"),

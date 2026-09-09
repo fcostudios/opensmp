@@ -9,6 +9,7 @@ import {
 
 import type { RequestRecordProjection } from "@/modules/request-workflow/read-repository";
 import { PayloadDialog } from "./payload-dialog";
+import { ProvisioningRetrySubmit } from "./provisioning-retry-submit";
 
 export type RequestRecordTab = "actions" | "assignment" | "audit";
 
@@ -49,6 +50,8 @@ export interface RequestRecordLabels {
   readonly rawPayload: string;
   readonly rawRequest: string;
   readonly rawResponse: string;
+  readonly retryProvisioning: string;
+  readonly retryingProvisioning: string;
   readonly request: string;
   readonly requestedBy: string;
   readonly resolvedAt: string;
@@ -146,6 +149,7 @@ export function RequestRecord({
   labels,
   locale,
   record,
+  retryAction,
   statusLabels,
 }: {
   readonly activeTab: RequestRecordTab;
@@ -156,6 +160,7 @@ export function RequestRecord({
   readonly labels: RequestRecordLabels;
   readonly locale: "es-EC" | "en-US";
   readonly record: RequestRecordProjection;
+  readonly retryAction?: (input: FormData) => Promise<void>;
   readonly statusLabels: Readonly<Record<RequestStatus, string>>;
 }) {
   const resolvedTab =
@@ -173,6 +178,12 @@ export function RequestRecord({
     occurredAtLabel: formatTimelineDateTime(item.occurredAt, locale),
     to: statusLabels[item.to as RequestStatus] ?? item.to,
   }));
+  const retryableAction = record.actions.find((action) =>
+    action.kind === "invite"
+    && action.mode === "automated"
+    && action.status === "failed"
+    && action.failureReason === "provider_invitation_failed"
+  );
 
   return (
     <div className="space-y-5">
@@ -260,6 +271,16 @@ export function RequestRecord({
             {labels.failedTitle}
           </h2>
           <p className="mt-1">{labels.failedBody}</p>
+          {isGroupAdmin && retryAction && retryableAction ? (
+            <form action={retryAction} className="mt-3">
+              <input name="actionId" type="hidden" value={retryableAction.id} />
+              <ProvisioningRetrySubmit
+                label={labels.retryProvisioning}
+                pendingLabel={labels.retryingProvisioning}
+                testId="btn_retry_provisioning_detail"
+              />
+            </form>
+          ) : null}
         </section>
       ) : null}
 

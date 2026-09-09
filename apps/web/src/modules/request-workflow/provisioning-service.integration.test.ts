@@ -9,6 +9,10 @@ import {
 } from "@smp/db/testing/postgres-container";
 
 import type { LedgerAuthorization } from "../identity-access/authorization";
+import {
+  RetryProvisioningForbiddenError,
+  retryProvisioningFailureDestination,
+} from "./actions/retry-provisioning";
 import { createOrchestrationOperations } from "./orchestration";
 import { createProvisioningService } from "./provisioning-service";
 
@@ -30,6 +34,8 @@ const ids = {
   actionB: id("14"),
   correlationA: id("15"),
   correlationB: id("16"),
+  actionC: id("17"),
+  correlationC: id("18"),
 } as const;
 const failedAt = new Date("2026-09-09T01:00:00.000Z");
 const retriedAt = new Date("2026-09-09T02:00:00.000Z");
@@ -168,6 +174,20 @@ afterAll(async () => {
 beforeEach(seed);
 
 describe("US-065 provisioning retry", () => {
+  it("maps action failures to visible feedback and preserves forbidden as HTTP 403", () => {
+    expect(retryProvisioningFailureDestination("conflict"))
+      .toBe("/excepciones?tab=failed&retryError=conflict");
+    expect(retryProvisioningFailureDestination("invalid"))
+      .toBe("/excepciones?tab=failed&retryError=invalid");
+    expect(() => retryProvisioningFailureDestination("forbidden"))
+      .toThrow(RetryProvisioningForbiddenError);
+    try {
+      retryProvisioningFailureDestination("forbidden");
+    } catch (error) {
+      expect(error).toMatchObject({ status: 403, message: "RETRY_PROVISIONING_FORBIDDEN" });
+    }
+  });
+
   it("lists generic automated failures with only safe retry fields", async () => {
     const operations = createOrchestrationOperations(database);
     const admin: LedgerAuthorization = {
@@ -241,7 +261,7 @@ describe("US-065 provisioning retry", () => {
   it("rejects requested-only unresolved evidence without creating another action", async () => {
     await owner.query(
       `UPDATE provisioning_action SET status='pending',failure_reason=NULL,
-         raw_response=NULL,resolved_at=NULL WHERE id=$1`,
+         raw_request='{}'::jsonb,raw_response=NULL,resolved_at=NULL WHERE id=$1`,
       [ids.actionA],
     );
     await owner.query("TRUNCATE TABLE connector_call_observation");
@@ -263,6 +283,35 @@ describe("US-065 provisioning retry", () => {
       "SELECT count(*)::int AS count FROM provisioning_action WHERE request_id=$1",
       [ids.requestA],
     )).resolves.toMatchObject({ rows: [{ count: 1 }] });
+  });
+
+  it("rejects another requested-only journal even when its action is not live", async () => {
+    await owner.query(
+      `INSERT INTO provisioning_action
+         (id,request_id,vendor_account_id,kind,mode,status,failure_reason,
+          raw_request,created_at,resolved_at)
+       VALUES ($1,$2,$3,'invite','automated','failed','provider_invitation_failed',
+               '{}'::jsonb,$4,$4)`,
+      [ids.actionC, ids.requestA, ids.accountA, failedAt],
+    );
+    await owner.query(
+      `INSERT INTO connector_call_observation
+         (vendor_account_id,provisioning_action_id,correlation_id,operation,
+          attempt,phase,classification,summary,occurred_at)
+       VALUES ($1,$2,$3,'provision',1,'requested',NULL,
+               '{"endpoint_class":"invitations","method":"POST"}'::jsonb,$4)`,
+      [ids.accountA, ids.actionC, ids.correlationC, failedAt],
+    );
+    const service = createProvisioningService(database, { now: () => retriedAt });
+
+    await expect(service.retryProvisioning(
+      authorization([ids.companyA]),
+      { actionId: ids.actionA },
+    )).resolves.toEqual({ ok: false, error: "conflict" });
+    await expect(owner.query(
+      "SELECT count(*)::int AS count FROM provisioning_action WHERE request_id=$1",
+      [ids.requestA],
+    )).resolves.toMatchObject({ rows: [{ count: 2 }] });
   });
 
   it("returns forbidden for another company and records only sanitized denial evidence", async () => {
