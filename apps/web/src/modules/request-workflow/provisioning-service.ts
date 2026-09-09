@@ -14,10 +14,6 @@ import type { LedgerAuthorization } from "../identity-access/authorization";
 
 type Database = NodePgDatabase<typeof schema>;
 
-const retryProvisioningSchema = z.object({
-  actionId: z.string().uuid(),
-}).strict();
-
 export type RetryProvisioningResult =
   | { readonly ok: true; readonly requestId: string }
   | { readonly ok: false; readonly error: "conflict" | "forbidden" | "invalid" };
@@ -37,6 +33,9 @@ export function createProvisioningService(
       authorization: LedgerAuthorization | null,
       input: unknown,
     ): Promise<RetryProvisioningResult> {
+      const retryProvisioningSchema = z.object({
+        actionId: z.string().uuid(),
+      }).strict();
       const parsed = retryProvisioningSchema.safeParse(input);
       if (!parsed.success) return { ok: false, error: "invalid" };
       const occurredAt = now();
