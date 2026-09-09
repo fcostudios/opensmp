@@ -337,4 +337,67 @@ describe("RequestRecord", () => {
     expect(html).toContain('value="32000000-0000-4000-8000-000000000029"');
     expect(html).toContain("Reintentar aprovisionamiento");
   });
+
+  test.each([
+    ["non-invite action", { kind: "checklist" as const }],
+    ["non-automated action", { mode: "orchestration" as const }],
+    ["non-failed action", { status: "pending" as const }],
+    ["non-generic failure", { failureReason: "no_seat" }],
+  ])("does not offer retry for a %s", (_case, actionOverride) => {
+    const html = renderToStaticMarkup(
+      <RequestRecord
+        activeTab="actions"
+        isGroupAdmin
+        labels={labels}
+        locale="es-EC"
+        record={{
+          ...blockedRecord,
+          assignment: null,
+          state: "failed",
+          actions: [{
+            ...blockedRecord.actions[0]!,
+            kind: "invite",
+            mode: "automated",
+            status: "failed",
+            failureReason: "provider_invitation_failed",
+            ...actionOverride,
+          }],
+        }}
+        retryAction={async () => undefined}
+        statusLabels={statusLabels}
+      />,
+    );
+
+    expect(html).not.toContain('data-testid="btn_retry_provisioning_detail"');
+  });
+
+  test.each([
+    ["non-admin viewer", false, async () => undefined],
+    ["missing protected action", true, undefined],
+  ])("does not offer retry to a %s", (_case, isGroupAdmin, retryAction) => {
+    const html = renderToStaticMarkup(
+      <RequestRecord
+        activeTab="actions"
+        isGroupAdmin={isGroupAdmin}
+        labels={labels}
+        locale="es-EC"
+        record={{
+          ...blockedRecord,
+          assignment: null,
+          state: "failed",
+          actions: [{
+            ...blockedRecord.actions[0]!,
+            kind: "invite",
+            mode: "automated",
+            status: "failed",
+            failureReason: "provider_invitation_failed",
+          }],
+        }}
+        retryAction={retryAction}
+        statusLabels={statusLabels}
+      />,
+    );
+
+    expect(html).not.toContain('data-testid="btn_retry_provisioning_detail"');
+  });
 });
