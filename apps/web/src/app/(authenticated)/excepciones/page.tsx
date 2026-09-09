@@ -24,6 +24,18 @@ export function retryErrorMessageKey(value: string | undefined) {
   return null;
 }
 
+export function failedInviteLabels(
+  translate: (
+    key: "exceptionAutomated" | "exceptionInvite" | "retryingProvisioning",
+  ) => string,
+) {
+  return {
+    kindInvite: translate("exceptionInvite"),
+    modeAutomated: translate("exceptionAutomated"),
+    retryingProvisioning: translate("retryingProvisioning"),
+  };
+}
+
 function activeTab(value: string | undefined): ExceptionTab {
   return tabs.find((tab) => tab === value) ?? "blocked";
 }
@@ -145,21 +157,19 @@ export default async function ScrExceptionsPage({
           <ChecklistExceptionsList
             failures={failures.items}
             labels={{
+              ...failedInviteLabels(orchestration),
               action: orchestration("exceptionAction"),
               empty: orchestration("exceptionsEmpty"),
               failureAssignmentMissing: orchestration(
                 "exceptionAssignmentMissing",
               ),
               kindChecklist: orchestration("exceptionChecklist"),
-              kindInvite: orchestration("exceptionInvite"),
               mode: orchestration("exceptionMode"),
               modeOrchestration: orchestration("exceptionOrchestration"),
-              modeAutomated: orchestration("exceptionAutomated"),
               noData: orchestration("exceptionNoData"),
               organization: orchestration("exceptionOrganization"),
               reason: orchestration("exceptionReason"),
               retryProvisioning: orchestration("retryProvisioning"),
-              retryingProvisioning: orchestration("retryingProvisioning"),
               retryUnavailable: orchestration("retryUnavailable"),
               request: orchestration("exceptionRequest"),
               sentAt: orchestration("exceptionSentAt"),

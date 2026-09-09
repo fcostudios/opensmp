@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-import { retryErrorMessageKey } from "./page";
+import { failedInviteLabels, retryErrorMessageKey } from "./page";
 
 describe("US-023 exceptions page wiring", () => {
   it("binds typed request and label composers to BlockedRequestsTable", async () => {
@@ -20,5 +20,10 @@ describe("US-023 exceptions page wiring", () => {
     expect(retryErrorMessageKey("invalid")).toBe("retryInvalid");
     expect(retryErrorMessageKey(undefined)).toBeNull();
     expect(retryErrorMessageKey("forged")).toBeNull();
+    expect(failedInviteLabels((key) => `translated:${key}`)).toEqual({
+      kindInvite: "translated:exceptionInvite",
+      modeAutomated: "translated:exceptionAutomated",
+      retryingProvisioning: "translated:retryingProvisioning",
+    });
   });
 });
