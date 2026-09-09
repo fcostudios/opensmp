@@ -315,6 +315,10 @@ export function createOrchestrationOperations(
         100,
         Math.max(1, Math.trunc(options.limit ?? 50)),
       );
+      const retryableInviteKind = "invite";
+      const retryableInviteMode = "automated";
+      const retryableInviteStatus = "failed";
+      const retryableInviteReason = "provider_invitation_failed";
       const result = await database.execute<{
         actionId: string;
         companyName: string;
@@ -358,10 +362,10 @@ export function createOrchestrationOperations(
                  AND action.mode = 'orchestration'
                  AND action.status IN ('failed', 'verification_failed'))
                 OR
-                (action.kind = 'invite'
-                 AND action.mode = 'automated'
-                 AND action.status = 'failed'
-                 AND action.failure_reason = 'provider_invitation_failed')
+                (action.kind = ${retryableInviteKind}
+                 AND action.mode = ${retryableInviteMode}
+                 AND action.status = ${retryableInviteStatus}
+                 AND action.failure_reason = ${retryableInviteReason})
               )
               AND action.failure_reason IS NOT NULL
               AND (
