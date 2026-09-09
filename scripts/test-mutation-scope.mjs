@@ -398,6 +398,13 @@ assert.equal(
   strykerMutationTarget("packages/contracts/src/vendor-catalog.ts:1-20"),
   "packages/contracts/src/vendor-catalog.ts:1-20",
 );
+assert.equal(
+  strykerMutationTarget(
+    "apps/web/src/app/(authenticated)/solicitudes/[requestId]/page.test.ts",
+  ),
+  "apps/web/src/app/(authenticated)/solicitudes/[[]requestId[]]/page.test.ts",
+  "Stryker test-file globs must treat dynamic route brackets literally",
+);
 
 assert.deepEqual(
   mutatable([

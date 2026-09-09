@@ -2288,7 +2288,7 @@ export async function runMutationScope(options = {}) {
             related: false,
             configFile: "vitest.mutation.config.mjs",
           },
-          testFiles: spec.testFiles,
+          testFiles: spec.testFiles.map(strykerMutationTarget),
         };
     const configText = `${JSON.stringify(config, null, 2)}\n`;
     const configIdentity = normalizeMutationConfigIdentity(config);
