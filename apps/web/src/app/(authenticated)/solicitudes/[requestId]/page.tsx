@@ -28,14 +28,7 @@ import {
 } from "@/modules/request-workflow/repository";
 import { canDecideRequestDetail } from "@/modules/request-workflow/request-detail-decision-policy";
 
-export function retryProvisioningLabels(
-  translate: (key: "retryProvisioning" | "retryingProvisioning") => string,
-) {
-  return {
-    retryProvisioning: translate("retryProvisioning"),
-    retryingProvisioning: translate("retryingProvisioning"),
-  };
-}
+import { retryProvisioningLabels } from "./retry-labels";
 
 function activeTab(value: string | undefined): RequestRecordTab {
   return value === "assignment" || value === "audit" ? value : "actions";

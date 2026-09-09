@@ -11,9 +11,9 @@ import {
 import type { LedgerAuthorization } from "../../identity-access/authorization";
 
 import {
-  createRetryProvisioningAction,
+  createRetryProvisioningActionService,
   retryProvisioningFailureDestination,
-} from "./retry-provisioning";
+} from "./retry-provisioning-action";
 
 const id = (suffix: string) =>
   `36510000-0000-4000-8000-${suffix.padStart(12, "0")}`;
@@ -174,19 +174,17 @@ it("maps retry failures to localized destinations and a real Next 403 interrupt"
   });
 });
 
-it("parses FormData, loads authorization, retries through the real service, and navigates", async () => {
-  const destinations: string[] = [];
-  const action = createRetryProvisioningAction({
+it("parses FormData, loads authorization, and retries through the audited real service", async () => {
+  const actions = createRetryProvisioningActionService({
     database,
     loadAuthorization: async () => authorization,
-    navigate: (destination) => { destinations.push(destination); },
   });
   const input = new FormData();
   input.set("actionId", ids.action);
 
-  await action(input);
+  const result = await actions.retryProvisioning(input);
 
-  expect(destinations).toEqual([`/solicitudes/${ids.request}?tab=actions`]);
+  expect(result).toEqual({ ok: true, requestId: ids.request });
   const pending = await owner.query(
     `SELECT count(*)::int AS count FROM provisioning_action
      WHERE request_id=$1 AND status='pending'`,
@@ -195,12 +193,10 @@ it("parses FormData, loads authorization, retries through the real service, and 
   expect(pending.rows).toEqual([{ count: 1 }]);
 });
 
-it("navigates conflicts to localized feedback and preserves forbidden as HTTP 403", async () => {
-  const destinations: string[] = [];
-  const conflict = createRetryProvisioningAction({
+it("returns conflicts and preserves forbidden as HTTP 403", async () => {
+  const conflict = createRetryProvisioningActionService({
     database,
     loadAuthorization: async () => authorization,
-    navigate: (destination) => { destinations.push(destination); },
   });
   await owner.query(
     `INSERT INTO provisioning_action
@@ -209,21 +205,23 @@ it("navigates conflicts to localized feedback and preserves forbidden as HTTP 40
     [id("11"), ids.request, ids.vendorAccount, failedAt],
   );
 
-  await conflict({ actionId: ids.action });
+  const conflictResult = await conflict.retryProvisioning({ actionId: ids.action });
 
-  expect(destinations).toEqual(["/excepciones?tab=failed&retryError=conflict"]);
+  expect(conflictResult).toEqual({ ok: false, error: "conflict" });
 
-  const forbidden = createRetryProvisioningAction({
+  const forbidden = createRetryProvisioningActionService({
     database,
     loadAuthorization: async () => null,
-    navigate: () => { throw new Error("navigation must not run"); },
   });
   const priorAuthInterrupts = process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS;
   process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS = "true";
   try {
-    await expect(forbidden({ actionId: ids.action })).rejects.toMatchObject({
+    const forbiddenResult = await forbidden.retryProvisioning({ actionId: ids.action });
+    expect(() => retryProvisioningFailureDestination(forbiddenResult.ok
+      ? "invalid"
+      : forbiddenResult.error)).toThrowError(expect.objectContaining({
       digest: "NEXT_HTTP_ERROR_FALLBACK;403",
-    });
+    }));
   } finally {
     if (priorAuthInterrupts === undefined) {
       delete process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS;

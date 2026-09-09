@@ -1056,7 +1056,8 @@ function safeRedirectCall(expression, owner, imports) {
     return false;
   }
   const imported = imports.get(target.root);
-  return ((imported?.importedName === "redirect" &&
+  return (((imported?.importedName === "redirect" ||
+    imported?.importedName === "forbidden") &&
     imported.specifier === "next/navigation") ||
     (imported?.importedName === "revalidatePath" &&
       imported.specifier === "next/cache")) &&

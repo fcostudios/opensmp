@@ -98,6 +98,39 @@ describe("audited server action enforcement", () => {
     });
   });
 
+  test("accepts a trusted forbidden interrupt after an audited service result", async () => {
+    const root = await fixture({
+      "src/app/actions.ts": `"use server";
+        import { forbidden, redirect } from "next/navigation";
+        import { requestService } from "../modules/request-service";
+        export async function retry(input) {
+          const result = await requestService.retry(input);
+          if (result.ok) redirect(\`/requests/\${result.requestId}\`);
+          if (result.error === "forbidden") forbidden();
+          redirect(\`/exceptions?error=\${result.error}\`);
+        }`,
+      "src/modules/request-service.ts": `import { withAudit } from "@/modules/audit/with-audit";
+        export const requestService = {
+          retry(input) {
+            return withAudit(db, async (transaction) => ({
+              value: input,
+              audit: evidence,
+            }));
+          },
+        };`,
+      "src/modules/audit/with-audit.ts":
+        `export function withAudit(...args) { return args; }`,
+    });
+
+    await expect(
+      execFileAsync(process.execPath, [script, root]),
+    ).resolves.toMatchObject({
+      stdout: expect.stringContaining(
+        "Audited server action enforcement passed",
+      ),
+    });
+  });
+
   test("accepts a local action helper backed by a factory-created audited service", async () => {
     const root = await fixture({
       "src/app/actions.ts": `"use server";

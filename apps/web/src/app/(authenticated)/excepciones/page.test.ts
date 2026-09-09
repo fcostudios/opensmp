@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-import { failedInviteLabels, retryErrorMessageKey } from "./page";
+import { failedInviteLabels, retryErrorMessageKey } from "./labels";
 
 describe("US-023 exceptions page wiring", () => {
   it("binds typed request and label composers to BlockedRequestsTable", async () => {

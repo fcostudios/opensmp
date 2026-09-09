@@ -1,17 +1,7 @@
 import { readFile } from "node:fs/promises";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-vi.mock("next-auth", () => ({
-  default: () => ({
-    auth: async () => null,
-    handlers: { GET: () => undefined, POST: () => undefined },
-    signIn: () => undefined,
-    signOut: () => undefined,
-  }),
-}));
-vi.mock("next-auth/providers/keycloak", () => ({ default: () => ({}) }));
-
-import { retryProvisioningLabels } from "./page";
+import { retryProvisioningLabels } from "./retry-labels";
 
 describe("US-065 request-detail retry wiring", () => {
   it("binds the protected retry action and localized pending label to RequestRecord", async () => {
