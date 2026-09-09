@@ -28,6 +28,15 @@ import {
 } from "@/modules/request-workflow/repository";
 import { canDecideRequestDetail } from "@/modules/request-workflow/request-detail-decision-policy";
 
+export function retryProvisioningLabels(
+  translate: (key: "retryProvisioning" | "retryingProvisioning") => string,
+) {
+  return {
+    retryProvisioning: translate("retryProvisioning"),
+    retryingProvisioning: translate("retryingProvisioning"),
+  };
+}
+
 function activeTab(value: string | undefined): RequestRecordTab {
   return value === "assignment" || value === "audit" ? value : "actions";
 }
@@ -142,8 +151,7 @@ export default async function ScrRequestDetailPage({
     rawPayload: history("rawPayload"),
     rawRequest: history("rawRequest"),
     rawResponse: history("rawResponse"),
-    retryProvisioning: orchestration("retryProvisioning"),
-    retryingProvisioning: orchestration("retryingProvisioning"),
+    ...retryProvisioningLabels(orchestration),
     request: history("request"),
     requestedBy: history("requestedBy"),
     resolvedAt: history("resolvedAt"),
