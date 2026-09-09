@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   createBlockedRequestsLabels,
-  failedInviteLabels,
-  retryErrorMessageKey,
   toBlockedRequestItem,
 } from "./labels";
 
@@ -64,20 +62,6 @@ describe("US-023 blocked-request composition", () => {
       requestNo: "REQ-1",
       vendorAccountId: "00000000-0000-4000-8000-000000000003",
       vendorAccountName: "Vendor A",
-    });
-  });
-});
-
-describe("US-065 retry label composition", () => {
-  it("maps only known retry feedback and every failed-invite label", () => {
-    expect(retryErrorMessageKey("conflict")).toBe("retryConflict");
-    expect(retryErrorMessageKey("invalid")).toBe("retryInvalid");
-    expect(retryErrorMessageKey(undefined)).toBeNull();
-    expect(retryErrorMessageKey("forged")).toBeNull();
-    expect(failedInviteLabels((key) => `translated:${key}`)).toEqual({
-      kindInvite: "translated:exceptionInvite",
-      modeAutomated: "translated:exceptionAutomated",
-      retryingProvisioning: "translated:retryingProvisioning",
     });
   });
 });

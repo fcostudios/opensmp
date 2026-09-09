@@ -993,6 +993,9 @@ const EXACT_FRAMEWORK_ADAPTERS = {
   "apps/web/src/modules/request-workflow/actions/checklist.ts": {
     sha256: "ae0f2a348c97f8f4e0776b002e42ac29a6228cb504aecb1ce6bef33c377dffa9",
   },
+  "apps/web/src/modules/request-workflow/actions/retry-provisioning.ts": {
+    sha256: "cf5b1ae4610e29b4f3a9b286de0c789384a326a93009879c1179465073e3e4a4",
+  },
 };
 
 const EXACT_FRAMEWORK_ADAPTER_SOURCES = new Set(Object.keys(EXACT_FRAMEWORK_ADAPTERS));

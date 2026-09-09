@@ -12,10 +12,10 @@ import { formatOperationalBadgeCount } from "@/modules/operational-alert-read";
 
 import {
   createBlockedRequestsLabels,
-  failedInviteLabels,
-  retryErrorMessageKey,
   toBlockedRequestItem,
 } from "./labels";
+
+import { failedInviteLabels, retryErrorMessageKey } from "./retry-labels";
 
 const tabs = ["blocked", "failed", "drift", "expiredInvites"] as const;
 type ExceptionTab = (typeof tabs)[number];
