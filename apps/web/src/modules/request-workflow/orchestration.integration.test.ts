@@ -1308,6 +1308,30 @@ describe("US-020 orchestration checklist", () => {
     ).resolves.toEqual({ items: [], nextCursor: null });
   });
 
+  it("lists only the exact generic automated invitation failure as retryable", async () => {
+    await owner.query(
+      `UPDATE provisioning_action
+       SET kind = 'invite', mode = 'automated', status = 'failed',
+           failure_reason = 'provider_invitation_failed'
+       WHERE id = $1`,
+      [ids.failureAction],
+    );
+
+    const failures = await service.verificationFailures(authorization);
+
+    expect(failures.items).toEqual([
+      expect.objectContaining({
+        actionId: ids.failureAction,
+        failureReason: "provider_invitation_failed",
+        kind: "invite",
+        mode: "automated",
+        status: "failed",
+      }),
+    ]);
+    expect(JSON.stringify(failures)).not.toContain("raw_request");
+    expect(JSON.stringify(failures)).not.toContain("raw_response");
+  });
+
   it("records later mismatch evidence without removing the active assignment", async () => {
     const action = await service.routeApprovedRequest(
       authorization,
