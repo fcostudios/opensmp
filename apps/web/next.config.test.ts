@@ -1,13 +1,13 @@
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import nextConfig from "./next.config";
-
+let nextConfig: typeof import("./next.config").default;
 let vitestConfig: typeof import("./vitest.config").default;
 
 describe("Next webpack workspace resolution", () => {
   beforeEach(async () => {
     vi.resetModules();
+    nextConfig = (await import("./next.config")).default;
     vitestConfig = (await import("./vitest.config")).default;
   });
 
