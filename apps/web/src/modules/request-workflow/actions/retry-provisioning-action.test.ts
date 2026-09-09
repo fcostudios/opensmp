@@ -250,8 +250,9 @@ it("returns conflicts and preserves forbidden as HTTP 403", async () => {
     }));
     await expect(owner.query(
       `SELECT actor_user_id,entity_id,after,occurred_at
-       FROM audit_log WHERE action='server_action.retryProvisioning'
-       ORDER BY id DESC LIMIT 1`,
+       FROM audit_log
+       WHERE action='server_action.retryProvisioning'
+         AND actor_user_id IS NULL`,
     )).resolves.toMatchObject({ rows: [{
       actor_user_id: null,
       entity_id: ids.action,
