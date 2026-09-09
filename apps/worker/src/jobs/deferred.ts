@@ -11,6 +11,7 @@ import type { NotificationMailer } from "@smp/notifications";
 import { createAlertEvaluationJob } from "../alerts/evaluate-alerts.js";
 import { createAutomatedInviteDeliveryJob } from "./automated-invite-delivery.js";
 import { createCapacityRecoveryJob } from "./capacity-recovery.js";
+import { createMembershipPollJob } from "./membership-poll.js";
 
 export type WorkerJobContext = {
   at: Date;
@@ -26,8 +27,12 @@ export function createDeferredJobHandlers(
   calendar: EcuadorBusinessCalendar = { holidays: new Set() },
   services?: {
     connectionString: string;
+    credentialKekAllowedRoot?: string;
     credentialKekFile?: string;
     mailer?: NotificationMailer;
+    now: () => Date;
+    sleep: (milliseconds: number) => Promise<void>;
+    transport: (request: Request) => Promise<Response>;
     workerId: string;
   },
 ): JobHandlers {
@@ -36,15 +41,28 @@ export function createDeferredJobHandlers(
     memberSync: async () => dependencyNotDelivered("US-018"),
     invitePoll: async ({ at, vendorAccountId }) => {
       if (!services) return dependencyNotDelivered("US-063");
-      const job = createAutomatedInviteDeliveryJob({
+      const inviteDelivery = createAutomatedInviteDeliveryJob({
+        allowedKekRoot: services.credentialKekAllowedRoot,
         connectionString: services.connectionString,
         kekFile: services.credentialKekFile,
+        now: services.now,
+        sleep: services.sleep,
+        transport: services.transport,
+      });
+      const membershipPoll = createMembershipPollJob({
+        allowedKekRoot: services.credentialKekAllowedRoot,
+        connectionString: services.connectionString,
+        kekFile: services.credentialKekFile,
+        now: services.now,
+        sleep: services.sleep,
+        transport: services.transport,
       });
       try {
-        const result = await job.drain({ at, vendorAccountId });
-        return successfulJob(result.processed);
+        const delivered = await inviteDelivery.drain({ at, vendorAccountId });
+        const activated = await membershipPoll.drain({ at, vendorAccountId });
+        return successfulJob(delivered.processed + activated.processed);
       } finally {
-        await job.close();
+        await Promise.allSettled([inviteDelivery.close(), membershipPoll.close()]);
       }
     },
     alertEvaluation: async ({ at }) => {

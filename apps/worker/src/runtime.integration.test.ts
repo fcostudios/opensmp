@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import pg from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,16 +10,21 @@ import {
   createPostgresFixture,
   type PostgresFixture,
 } from "../../../packages/db/src/testing/postgres-container.js";
+import { encryptCredential } from "@smp/db/credential-crypto";
+import { serializeCredentialEnvelope } from "@smp/domain";
 import type { WorkerRuntime } from "./runtime.js";
 
 type RuntimeModule = typeof import("./runtime.js");
 
 let createWorkerRuntime: RuntimeModule["createWorkerRuntime"];
 let resolveCredentialKekFile: RuntimeModule["resolveCredentialKekFile"];
+let resolveWorkerSleep: RuntimeModule["resolveWorkerSleep"];
 let PG_BOSS_RUNTIME_SECURITY: RuntimeModule["PG_BOSS_RUNTIME_SECURITY"];
 
 let fixture: PostgresFixture;
 let appConnectionString: string;
+let privateRoot: string;
+let credentialKekFile: string;
 
 beforeEach(async () => {
   // Runtime schedules are initialized at module load, so load them after
@@ -25,6 +33,7 @@ beforeEach(async () => {
   ({
     createWorkerRuntime,
     resolveCredentialKekFile,
+    resolveWorkerSleep,
     PG_BOSS_RUNTIME_SECURITY,
   } = await import("./runtime.js"));
 });
@@ -127,6 +136,10 @@ beforeAll(async () => {
   fixture = await createPostgresFixture();
   await fixture.migrate();
   appConnectionString = fixture.appUrl;
+  privateRoot = await mkdtemp(join(tmpdir(), "ledger-runtime-"));
+  credentialKekFile = join(privateRoot, "credential-kek");
+  await writeFile(credentialKekFile, `${Buffer.alloc(32).toString("base64")}\n`, "utf8");
+  await chmod(credentialKekFile, 0o400);
   await queryAsOwner(
     `INSERT INTO close_run (period, status, started_at, finished_at, created_at)
      VALUES
@@ -138,6 +151,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await fixture.stop();
+  if (privateRoot) await rm(privateRoot, { recursive: true });
 });
 
 describe("US-046 worker runtime with real PostgreSQL", () => {
@@ -151,6 +165,13 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
     expect(() => resolveCredentialKekFile("   ", {})).toThrow("must not be blank");
   });
 
+  it("preserves an injected rate-limit sleeper instead of substituting the production delay", async () => {
+    const sleeper = async () => undefined;
+
+    expect(resolveWorkerSleep(sleeper)).toBe(sleeper);
+    expect(resolveWorkerSleep(undefined)).toEqual(expect.any(Function));
+  });
+
   it("starts migration-disabled under ledger_app, reconciles every queue and schedule, and cannot create schema objects", async () => {
     expect(PG_BOSS_RUNTIME_SECURITY).toEqual({
       createSchema: false,
@@ -161,6 +182,8 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
     const logs: Array<{ errorCode?: string | null; status?: string }> = [];
     const runtime = createWorkerRuntime({
       connectionString: appConnectionString,
+      credentialKekAllowedRoot: privateRoot,
+      credentialKekFile,
       logger: { write: (entry) => logs.push(entry) },
     });
     try {
@@ -210,6 +233,8 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
     const logs: object[] = [];
     const runtime = createWorkerRuntime({
       connectionString: appConnectionString,
+      credentialKekAllowedRoot: privateRoot,
+      credentialKekFile,
       logger: { write: (entry) => logs.push(entry) },
     });
     try {
@@ -436,6 +461,8 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
     const logs: Array<{ id?: string; jobId?: string; jobName?: string; status?: string }> = [];
     const runtime = createWorkerRuntime({
       connectionString: appConnectionString,
+      credentialKekAllowedRoot: privateRoot,
+      credentialKekFile,
       logger: { write: (entry) => logs.push(entry) },
     });
     try {
@@ -483,6 +510,101 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
       await runtime.stop();
     }
   });
+
+  it("runs the quarter-hour invite poll through pg-boss with the supplied runtime dependencies", async () => {
+    const at = new Date("2026-09-09T04:30:00.000Z");
+    const id = (suffix: string) => `46700000-0000-4000-8000-${suffix.padStart(12, "0")}`;
+    const ids = {
+      account: id("7"), action: id("12"), admin: id("1"), company: id("2"),
+      license: id("9"), person: id("4"), request: id("10"), vendor: id("6"),
+    };
+    const kek = new Uint8Array(32);
+    const owner = await fixture.connectAsOwner();
+    try {
+      const adminCredential = serializeCredentialEnvelope(await encryptCredential("runtime-admin-secret", kek));
+      const analyticsCredential = serializeCredentialEnvelope(await encryptCredential("runtime-analytics-secret", kek));
+      await owner.query(`INSERT INTO user_account (id,email,idp_subject,global_role,ui_language,status,created_at)
+        VALUES ($1,'runtime-poll-admin@ledger.test','runtime-poll-admin','group_admin','en','active',$2)`, [ids.admin, at]);
+      await owner.query(`INSERT INTO company (id,name,code,type,status,statement_language,created_at,created_by)
+        VALUES ($1,'Runtime poll','RTPL','internal','active','en',$2,$3)`, [ids.company, at, ids.admin]);
+      await owner.query(`INSERT INTO person (id,email,full_name,company_id,status,created_at,created_by)
+        VALUES ($1,'accepted@runtime-poll.test','Accepted',$2,'active',$3,$4)`, [ids.person, ids.company, at, ids.admin]);
+      await owner.query(`INSERT INTO vendor (id,name,connector_type,provisioning_protocol,can_provision,can_deprovision,
+        has_usage_data,has_cost_data,identity_matching,status,created_at,created_by)
+        VALUES ($1,'Runtime poll vendor','api','rest',true,true,true,true,'email','active',$2,$3)`, [ids.vendor, at, ids.admin]);
+      await owner.query(`INSERT INTO vendor_account (id,vendor_id,name,mode,low_pool_floor,status,created_at,created_by)
+        VALUES ($1,$2,'Runtime poll account','automated',1,'active',$3,$4)`, [ids.account, ids.vendor, at, ids.admin]);
+      await owner.query(`INSERT INTO license_type (id,vendor_id,name,unit,status,created_at,created_by)
+        VALUES ($1,$2,'Runtime poll seat','seat','active',$3,$4)`, [ids.license, ids.vendor, at, ids.admin]);
+      await owner.query(`INSERT INTO license_request (id,request_no,person_id,company_id,vendor_account_id,license_type_id,
+        state,justification,created_at,created_by,updated_at)
+        VALUES ($1,'RTPL-1',$2,$3,$4,$5,'provisioning','Runtime composition',$6,$7,$6)`,
+      [ids.request, ids.person, ids.company, ids.account, ids.license, at, ids.admin]);
+      await owner.query(`INSERT INTO provisioning_action (id,request_id,vendor_account_id,kind,mode,status,raw_request,created_at)
+        VALUES ($1,$2,$3,'invite','automated','pending',$4::jsonb,$5)`, [
+        ids.action, ids.request, ids.account,
+        JSON.stringify({
+          checklistSteps: [],
+          context: { companyId: ids.company, requestId: ids.request },
+          instruction: { licenseTypeName: "Runtime poll seat", personEmail: "accepted@runtime-poll.test", requestId: ids.request, vendorAccountId: ids.account },
+          operation: "provision", protocol: "rest", version: 1,
+        }),
+        at,
+      ]);
+      await owner.query(`INSERT INTO integration_credential (vendor_account_id,kind,encrypted_secret,health,status,created_at,created_by)
+        VALUES ($1,'admin_scoped',$2,'ok','active',$4,$5),($1,'analytics',$3,'ok','active',$4,$5)`,
+      [ids.account, adminCredential, analyticsCredential, at, ids.admin]);
+    } finally {
+      await owner.end();
+    }
+
+    const calls: string[] = [];
+    const logs: Array<{ jobId?: string; processed?: number; status?: string }> = [];
+    const runtime = createWorkerRuntime({
+      connectionString: appConnectionString,
+      credentialKekAllowedRoot: privateRoot,
+      credentialKekFile,
+      logger: { write: (entry) => logs.push(entry) },
+      now: () => at,
+      sleep: async () => undefined,
+      transport: async (request) => {
+        const url = new URL(request.url);
+        if (request.method === "POST" && url.pathname.endsWith("/invites")) {
+          calls.push("invite");
+          return new Response(JSON.stringify({ type: "invite", id: "runtime-invite", email: "accepted@runtime-poll.test", status: "pending" }), { status: 200, headers: { "content-type": "application/json" } });
+        }
+        if (request.method === "GET" && url.pathname.endsWith("/users")) {
+          calls.push("members");
+          return new Response(JSON.stringify({ data: [{ type: "user", id: "runtime-user", name: "Accepted", email: "accepted@runtime-poll.test" }], has_more: false, first_id: "runtime-user", last_id: "runtime-user" }), { status: 200, headers: { "content-type": "application/json" } });
+        }
+        throw new Error(`unexpected provider request: ${request.method} ${url.pathname}`);
+      },
+    });
+    try {
+      await runtime.start();
+      const jobId = await runtime.enqueue("invitePoll", at, { vendorAccountId: ids.account });
+      expect(jobId).toMatch(/[0-9a-f-]{36}/);
+      await waitFor(async () => {
+        expect(logs).toContainEqual(expect.objectContaining({ jobId, processed: 2, status: "succeeded" }));
+      }, 15_000);
+    } finally {
+      await runtime.stop();
+    }
+    expect(calls).toEqual(["invite", "members"]);
+    await expect(queryAsOwner(`SELECT request.state,action.status,action.sent_at,transition.occurred_at,
+      (SELECT count(*)::int FROM license_assignment assignment WHERE assignment.source_request_id=request.id) AS assignments
+      FROM license_request request JOIN provisioning_action action ON action.request_id=request.id
+      JOIN request_transition transition ON transition.request_id=request.id AND transition.to_state='active'
+      WHERE request.id=$1`, [ids.request])).resolves.toMatchObject({
+      rows: [{ state: "active", status: "confirmed", sent_at: at, occurred_at: at, assignments: 1 }],
+    });
+    await waitFor(async () => {
+      const sessions = await queryAsOwner<{ count: string }>(
+        "SELECT count(*)::text AS count FROM pg_stat_activity WHERE usename='ledger_app' AND application_name='ledger-worker'",
+      );
+      expect(sessions.rows).toEqual([{ count: "0" }]);
+    });
+  }, 30_000);
 
   it("rejects a vendor job without an account and deduplicates a real vendor execution key", async () => {
     const logs: object[] = [];

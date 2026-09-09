@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from "node:timers/promises";
+
 import {
   createJobIdempotencyKey,
   createScheduledJobIdempotencyKey,
@@ -94,6 +96,7 @@ export type WorkerRuntimeOptions = {
   };
   calendar?: EcuadorBusinessCalendar;
   connectionString: string;
+  credentialKekAllowedRoot?: string;
   credentialKekFile?: string;
   failureReporter?: JobFailureAlertReporter;
   handlers?: Partial<Record<JobName, WorkerJobHandler>>;
@@ -111,7 +114,9 @@ export type WorkerRuntimeOptions = {
   now?: () => Date;
   onFatalError?: (error: unknown) => Promise<void> | void;
   publicOrigin?: string;
+  sleep?: (milliseconds: number) => Promise<void>;
   smtpUrl?: string;
+  transport?: (request: Request) => Promise<Response>;
 };
 
 export function resolveCredentialKekFile(
@@ -127,9 +132,18 @@ export function resolveCredentialKekFile(
   return normalized;
 }
 
+/** Resolves the delay boundary used by provider rate limiting in worker jobs. */
+export function resolveWorkerSleep(
+  value: ((milliseconds: number) => Promise<void>) | undefined,
+): (milliseconds: number) => Promise<void> {
+  return value ?? sleep;
+}
+
 export function createWorkerRuntime(options: WorkerRuntimeOptions): WorkerRuntime {
   const logger = options.logger ?? createJobLogger();
   const now = options.now ?? (() => new Date());
+  const sleeper = resolveWorkerSleep(options.sleep);
+  const transport = options.transport ?? fetch;
   const instanceId = options.instanceId ?? workerInstanceIdFromEnvironment();
   const failureReporter = options.failureReporter ??
     createJobFailureAlertReporter({
@@ -165,8 +179,12 @@ export function createWorkerRuntime(options: WorkerRuntimeOptions): WorkerRuntim
   const handlers = {
     ...createDeferredJobHandlers(options.calendar, {
       connectionString: options.connectionString,
+      credentialKekAllowedRoot: options.credentialKekAllowedRoot,
       credentialKekFile: resolveCredentialKekFile(options.credentialKekFile),
       mailer: options.notificationMailer,
+      now,
+      sleep: sleeper,
+      transport,
       workerId: instanceId,
     }),
     ...options.handlers,
