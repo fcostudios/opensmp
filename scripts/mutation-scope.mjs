@@ -445,7 +445,9 @@ export function validateMutationReportIdentity(
     }
   }
   if (
-    JSON.stringify(report?.config?.mutate) !== JSON.stringify(shard.mutate) ||
+    JSON.stringify(report?.config?.mutate) !== JSON.stringify(
+      shard.mutate.map(strykerMutationTarget),
+    ) ||
     report?.config?.configFile !== shard.configPath ||
     report?.config?.jsonReporter?.fileName !== shard.jsonReportPath
   ) {

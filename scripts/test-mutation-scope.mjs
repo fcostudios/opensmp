@@ -1670,6 +1670,43 @@ assert.equal(
   validateMutationReportIdentity(identityReport, identityShard, identityConfig, () => "hello world"),
   true,
 );
+const bracketIdentityConfig = '{"mutate":["src/[[]item[]]/page.ts:2-3"]}\n';
+const bracketNormalizedConfig = {
+  mutate: ["src/[[]item[]]/page.ts:2-3"],
+  tempDirName: "<mutation-temp-dir>",
+  htmlReporter: { fileName: "<mutation-report-html>" },
+  jsonReporter: { fileName: "<mutation-report-json>" },
+};
+const bracketIdentityShard = {
+  ...identityShard,
+  configHash: createHash("sha256")
+    .update(`${JSON.stringify(bracketNormalizedConfig, null, 2)}\n`)
+    .digest("hex"),
+  contentHashes: {
+    "src/[item]/page.ts": identityShard.contentHashes["src/a.ts"],
+  },
+  mutate: ["src/[item]/page.ts:2-3"],
+  sources: ["src/[item]/page.ts"],
+};
+assert.equal(
+  validateMutationReportIdentity(
+    {
+      ...identityReport,
+      config: {
+        ...identityReport.config,
+        mutate: ["src/[[]item[]]/page.ts:2-3"],
+      },
+      files: {
+        "src/[item]/page.ts": identityReport.files["src/a.ts"],
+      },
+    },
+    bracketIdentityShard,
+    bracketIdentityConfig,
+    () => "hello world",
+  ),
+  true,
+  "report identity must compare Stryker's literal-bracket glob representation",
+);
 const statusReport = (statuses) => ({
   files: { "src/a.ts": { mutants: statuses.map((status, id) => ({ id: String(id), status })) } },
 });
