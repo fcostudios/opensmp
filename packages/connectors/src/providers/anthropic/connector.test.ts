@@ -521,6 +521,141 @@ describe("Anthropic neutral connector", () => {
     ]);
   });
 
+  it("returns immutable member pages that resume members then invitations without refetching a completed page", async () => {
+    // Mutations killed: losing a continuation, resetting page totals, or fetching a completed stream causes a different request trace or evidence.
+    const seen: string[] = [];
+    const { connector: implementation } = fixture(async (request) => {
+      const url = new URL(request.url);
+      seen.push(`${url.pathname}?${url.searchParams.toString()}`);
+      const afterId = url.searchParams.get("after_id");
+      if (url.pathname.endsWith("/users")) {
+        return afterId === null
+          ? json(idPage([member("u1", "first@example.test")], true, "member-next"))
+          : json(idPage([member("u2", "second@example.test")]));
+      }
+      return json(idPage([invite("i1", "pending@example.test")]));
+    });
+    const connector = createConnectorDispatcher({ rest: implementation }).forProtocol("rest");
+    const input = { vendorAccountId: ACCOUNT, observedAt: NOW };
+
+    const first = await successValue(connector.syncMemberPage({ ...input, cursor: null }));
+    expect(first).toEqual({
+      members: [{ email: "first@example.test", active: true }],
+      cursor: { stream: "members", pageCount: 1, memberSetSize: 1 },
+      resume: { vendorAccountId: ACCOUNT, stream: "members", continuation: "member-next", seenContinuations: ["member-next"], pageCount: 1, memberSetSize: 1 },
+      pageCount: 1,
+      memberSetSize: 1,
+      complete: false,
+    });
+    expect(Object.isFrozen(first.cursor!)).toBe(true);
+    expect(JSON.stringify(first.cursor)).not.toContain("member-next");
+    expect(JSON.stringify(first.cursor)).not.toContain("u1");
+    expect(JSON.stringify(first.cursor)).not.toContain("first@example.test");
+
+    const second = await successValue(connector.syncMemberPage({ ...input, cursor: first.cursor, resume: first.resume }));
+    expect(second).toEqual({
+      members: [{ email: "second@example.test", active: true }],
+      cursor: { stream: "invitations", pageCount: 2, memberSetSize: 2 },
+      resume: { vendorAccountId: ACCOUNT, stream: "invitations", continuation: null, seenContinuations: [], pageCount: 2, memberSetSize: 2 },
+      pageCount: 2,
+      memberSetSize: 2,
+      complete: false,
+    });
+
+    const terminal = await successValue(connector.syncMemberPage({ ...input, cursor: second.cursor, resume: second.resume }));
+    expect(terminal).toEqual({
+      members: [{ email: "pending@example.test", active: false }],
+      cursor: null,
+      resume: null,
+      pageCount: 3,
+      memberSetSize: 3,
+      complete: true,
+    });
+    expect(seen).toEqual([
+      "/v1/organizations/users?limit=1000",
+      "/v1/organizations/users?limit=1000&after_id=member-next",
+      "/v1/organizations/invites?limit=1000",
+    ]);
+  });
+
+  it("rejects detached or recombined member-page evidence before a provider request", async () => {
+    // A public checkpoint and account-bound resume are one atomic continuation; fragments must not re-fetch page one.
+    let calls = 0;
+    const { connector } = fixture(async () => {
+      calls += 1;
+      return calls === 1
+        ? json(idPage([member("u1", "first@example.test")], true, "member-next"))
+        : json(idPage([member("u2", "second@example.test")]));
+    });
+    const input = { vendorAccountId: ACCOUNT, observedAt: NOW };
+    const first = await successValue(connector.syncMemberPage({ ...input, cursor: null }));
+
+    for (const fragment of [
+      { cursor: first.cursor },
+      { cursor: null, resume: first.resume },
+      { cursor: { ...first.cursor!, stream: "invitations" as const }, resume: first.resume },
+      { cursor: { ...first.cursor!, pageCount: first.pageCount + 1 }, resume: first.resume },
+      { cursor: first.cursor, resume: { ...first.resume!, vendorAccountId: "55555555-5555-4555-8555-555555555555" } },
+    ]) {
+      await expect(connector.syncMemberPage({ ...input, ...fragment } as never))
+        .resolves.toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+    }
+    expect(calls).toBe(1);
+  });
+
+  it("fails the legacy full snapshot at the first non-adjacent page cycle", async () => {
+    // Mutations killed: retaining only an adjacent-cycle guard issues provider calls until the 100-page bound.
+    let calls = 0;
+    const { connector } = fixture(async (request) => {
+      if (!new URL(request.url).pathname.endsWith("/users")) return json(idPage([]));
+      calls += 1;
+      return calls === 1
+        ? json(idPage([], true, "cursor-a"))
+        : calls === 2
+          ? json(idPage([], true, "cursor-b"))
+          : json(idPage([], true, "cursor-a"));
+    });
+    await expect(connector.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW }))
+      .resolves.toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+    expect(calls).toBe(3);
+  });
+
+  it.each([
+    ["an array", []],
+    ["the wrong number of fields", { stream: "members", pageCount: 1 }],
+    ["an unknown stream", { stream: "other", pageCount: 1, memberSetSize: 1 }],
+    ["a negative page count", { stream: "members", pageCount: -1, memberSetSize: 1 }],
+    ["a fractional page count", { stream: "members", pageCount: 1.5, memberSetSize: 1 }],
+    ["the page limit", { stream: "members", pageCount: 100, memberSetSize: 1 }],
+    ["a negative member total", { stream: "members", pageCount: 1, memberSetSize: -1 }],
+  ] as const)("rejects a direct page request with %s public evidence before contacting Anthropic", async (_case, cursor) => {
+    // Mutations killed: accepting malformed public evidence can reissue pages or bypass the bounded resumable protocol.
+    let calls = 0;
+    const { connector } = fixture(async () => { calls += 1; return json(idPage([])); });
+
+    await expect(connector.syncMemberPage({ vendorAccountId: ACCOUNT, observedAt: NOW, cursor: cursor as never }))
+      .resolves.toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+    expect(calls).toBe(0);
+  });
+
+  it.each([
+    ["an array", []],
+    ["the wrong number of fields", { vendorAccountId: ACCOUNT, stream: "members", continuation: "next" }],
+    ["another vendor account", { vendorAccountId: "55555555-5555-4555-8555-555555555555", stream: "members", continuation: "next", seenContinuations: ["next"], pageCount: 1, memberSetSize: 1 }],
+    ["an unknown stream", { vendorAccountId: ACCOUNT, stream: "other", continuation: "next", seenContinuations: ["next"], pageCount: 1, memberSetSize: 1 }],
+    ["a control character token", { vendorAccountId: ACCOUNT, stream: "members", continuation: "next\n", seenContinuations: ["next"], pageCount: 1, memberSetSize: 1 }],
+    ["an invalid seen token", { vendorAccountId: ACCOUNT, stream: "members", continuation: "next", seenContinuations: ["next\n"], pageCount: 1, memberSetSize: 1 }],
+    ["a duplicate seen token", { vendorAccountId: ACCOUNT, stream: "members", continuation: "next", seenContinuations: ["next", "next"], pageCount: 1, memberSetSize: 1 }],
+  ] as const)("rejects a direct page request with %s sensitive continuation before contacting Anthropic", async (_case, resume) => {
+    // Mutations killed: accepting foreign, malformed, or repeated provider state breaks the secure account-bound resume boundary.
+    let calls = 0;
+    const { connector } = fixture(async () => { calls += 1; return json(idPage([])); });
+
+    await expect(connector.syncMemberPage({ vendorAccountId: ACCOUNT, observedAt: NOW, cursor: null, resume: resume as never }))
+      .resolves.toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+    expect(calls).toBe(0);
+  });
+
   it.each([
     ["repeated", "same", 2],
     ["missing", "", 1],

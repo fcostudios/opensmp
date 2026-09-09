@@ -39,6 +39,37 @@ export type SyncInput = { vendorAccountId: string; observedAt: Date };
 export type MemberSnapshot = {
   members: readonly { email: string; active: boolean }[];
 };
+export type MemberPageCursor = Readonly<{
+  stream: "members" | "invitations";
+  pageCount: number;
+  memberSetSize: number;
+}>;
+/**
+ * Sensitive provider paging state. This is deliberately separate from
+ * `MemberPageCursor`: callers must encrypt and account-bind it before durable
+ * storage, while `MemberPageCursor` is safe poll evidence.
+ */
+export type MemberPageResume = Readonly<{
+  vendorAccountId: string;
+  stream: "members" | "invitations";
+  continuation: string | null;
+  seenContinuations: readonly string[];
+  /** Bound to the public cursor so independently saved fragments cannot restart paging. */
+  pageCount: number;
+  memberSetSize: number;
+}>;
+export type SyncMemberPageInput = SyncInput & {
+  cursor: MemberPageCursor | null;
+  resume?: MemberPageResume | null;
+};
+export type MemberPageSnapshot = {
+  members: readonly { email: string; active: boolean }[];
+  cursor: MemberPageCursor | null;
+  resume: MemberPageResume | null;
+  pageCount: number;
+  memberSetSize: number;
+  complete: boolean;
+};
 export type ActivitySnapshot = {
   records: readonly { email: string; activityDate: string; counters: unknown }[];
 };
@@ -51,9 +82,14 @@ export interface VendorConnector {
   provision(input: ProvisionInput): Promise<ConnectorResult<ProvisionResult>>;
   deprovision(input: DeprovisionInput): Promise<ConnectorResult<DeprovisionResult>>;
   syncMembers(input: SyncInput): Promise<ConnectorResult<MemberSnapshot>>;
+  syncMemberPage(input: SyncMemberPageInput): Promise<ConnectorResult<MemberPageSnapshot>>;
   syncActivity(input: SyncInput): Promise<ConnectorResult<ActivitySnapshot>>;
   syncCost(input: SyncInput): Promise<ConnectorResult<CostSnapshot>>;
 }
+
+export type LegacyVendorConnector = Omit<VendorConnector, "syncMemberPage"> & {
+  syncMemberPage?: VendorConnector["syncMemberPage"];
+};
 
 export type JsonValue =
   | null

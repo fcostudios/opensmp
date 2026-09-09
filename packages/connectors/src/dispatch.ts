@@ -7,9 +7,14 @@ import {
   type CostSnapshot,
   type DeprovisionInput,
   type DeprovisionResult,
+  type MemberPageCursor,
+  type MemberPageResume,
+  type MemberPageSnapshot,
+  type LegacyVendorConnector,
   type MemberSnapshot,
   type ProvisionInput,
   type ProvisionResult,
+  type SyncMemberPageInput,
   type SyncInput,
   type VendorConnector,
 } from "./contracts.js";
@@ -162,6 +167,9 @@ function createNoneConnector(): VendorConnector {
     async syncMembers(_input: SyncInput) {
       return unsupported([]);
     },
+    async syncMemberPage(_input: SyncMemberPageInput) {
+      return unsupported([]);
+    },
     async syncActivity(_input: SyncInput) {
       return unsupported([]);
     },
@@ -248,11 +256,119 @@ function cloneAndFreeze<T>(value: T): T {
   }
 }
 
-function validatedConnector(connector: VendorConnector): VendorConnector {
+function memberPageCursor(value: unknown): MemberPageCursor {
+  const invalid = (): never => {
+    throw new Error("Invalid connector member page cursor");
+  };
+  try {
+    assertJsonValue(value, "cursor");
+    const json = value as Record<string, unknown>;
+    if (
+      !json || typeof json !== "object" || Array.isArray(json)
+      || Object.keys(json).length !== 3
+      || !Object.hasOwn(json, "stream")
+      || !Object.hasOwn(json, "pageCount")
+      || !Object.hasOwn(json, "memberSetSize")
+      || (json.stream !== "members" && json.stream !== "invitations")
+      || typeof json.pageCount !== "number" || !Number.isSafeInteger(json.pageCount) || json.pageCount < 0 || json.pageCount >= 100
+      || typeof json.memberSetSize !== "number" || !Number.isSafeInteger(json.memberSetSize) || json.memberSetSize < 0
+    ) invalid();
+    return json as MemberPageCursor;
+  } catch {
+    throw new Error("Invalid connector member page cursor");
+  }
+}
+
+function memberPageResume(value: unknown, vendorAccountId?: string): MemberPageResume {
+  const invalid = (): never => { throw new Error("Invalid connector member page resume"); };
+  try {
+    assertJsonValue(value, "resume");
+    const json = value as Record<string, unknown>;
+    const safeToken = (token: unknown) => typeof token === "string"
+      && token.length > 0 && token.length <= 512
+      && token === token.trim()
+      && !/[\u0000-\u001f\u007f-\u009f\u2028\u2029\p{Bidi_Control}]/u.test(token);
+    if (!json || typeof json !== "object" || Array.isArray(json)
+      || Object.keys(json).length !== 6 || typeof json.vendorAccountId !== "string"
+      || (vendorAccountId !== undefined && json.vendorAccountId !== vendorAccountId)
+      || (json.stream !== "members" && json.stream !== "invitations")
+      || !(json.continuation === null || safeToken(json.continuation))
+      || !Array.isArray(json.seenContinuations) || !json.seenContinuations.every(safeToken)
+      || new Set(json.seenContinuations).size !== json.seenContinuations.length
+      || typeof json.pageCount !== "number" || !Number.isSafeInteger(json.pageCount) || json.pageCount < 1 || json.pageCount >= 100
+      || typeof json.memberSetSize !== "number" || !Number.isSafeInteger(json.memberSetSize) || json.memberSetSize < 0
+    ) invalid();
+    return json as MemberPageResume;
+  } catch { throw new Error("Invalid connector member page resume"); }
+}
+
+function validateMemberPageInput(input: SyncMemberPageInput): void {
+  const cursor = input.cursor === null ? null : memberPageCursor(input.cursor);
+  const resume = input.resume === undefined || input.resume === null
+    ? null : memberPageResume(input.resume, input.vendorAccountId);
+  if (
+    (cursor === null) !== (resume === null)
+    || (cursor !== null && resume !== null && (
+      cursor.stream !== resume.stream
+      || cursor.pageCount !== resume.pageCount
+      || cursor.memberSetSize !== resume.memberSetSize
+    ))
+  ) {
+    throw new Error("Invalid connector member page checkpoint");
+  }
+}
+
+function validateMemberPageSnapshot(value: MemberPageSnapshot): MemberPageSnapshot {
+  const invalid = (): never => {
+    throw new Error("Invalid connector member page result");
+  };
+  try {
+    assertJsonValue(value, "value");
+    const json = value as unknown as Record<string, unknown>;
+    if (
+      !json || typeof json !== "object" || Array.isArray(json)
+      || Object.keys(json).length !== 6
+      || !Object.hasOwn(json, "members")
+      || !Object.hasOwn(json, "cursor")
+      || !Object.hasOwn(json, "resume")
+      || !Object.hasOwn(json, "pageCount")
+      || !Object.hasOwn(json, "memberSetSize")
+      || !Object.hasOwn(json, "complete")
+      || !Array.isArray(json.members)
+      || !json.members.every((member) =>
+        member !== null && typeof member === "object" && !Array.isArray(member)
+        && Object.keys(member).length === 2
+        && Object.hasOwn(member, "email") && Object.hasOwn(member, "active")
+        && typeof member.email === "string" && email.test(member.email)
+        && typeof member.active === "boolean",
+      )
+      || typeof json.pageCount !== "number" || !Number.isSafeInteger(json.pageCount) || json.pageCount < 1 || json.pageCount > 100
+      || typeof json.memberSetSize !== "number" || !Number.isSafeInteger(json.memberSetSize) || json.memberSetSize < json.members.length
+      || typeof json.complete !== "boolean"
+      || (json.complete ? json.cursor !== null || json.resume !== null : json.cursor === null || json.resume === null)
+    ) invalid();
+    if (json.cursor !== null) {
+      const cursor = memberPageCursor(json.cursor);
+      if (cursor.pageCount !== json.pageCount || cursor.memberSetSize !== json.memberSetSize) invalid();
+      const resume = memberPageResume(json.resume);
+      if (
+        cursor.stream !== resume.stream
+        || cursor.pageCount !== resume.pageCount
+        || cursor.memberSetSize !== resume.memberSetSize
+      ) invalid();
+    }
+    return json as MemberPageSnapshot;
+  } catch {
+    throw new Error("Invalid connector member page result");
+  }
+}
+
+function validatedConnector(connector: LegacyVendorConnector): VendorConnector {
   const capabilities = frozenSet<ConnectorCapability>(connector.capabilities());
   const provision = connector.provision.bind(connector);
   const deprovision = connector.deprovision.bind(connector);
   const syncMembers = connector.syncMembers.bind(connector);
+  const syncMemberPage = connector.syncMemberPage?.bind(connector);
   const syncActivity = connector.syncActivity.bind(connector);
   const syncCost = connector.syncCost.bind(connector);
   return Object.freeze({
@@ -268,6 +384,18 @@ function validatedConnector(connector: VendorConnector): VendorConnector {
     async syncMembers(input: SyncInput) {
       const result = await syncMembers(input);
       return validateResult(result, "sync");
+    },
+    async syncMemberPage(input: SyncMemberPageInput) {
+      validateMemberPageInput(input);
+      if (!syncMemberPage) return unsupported([]);
+      const result = await syncMemberPage(input);
+      const validated = validateResult(result, "sync");
+      if (!validated.ok) return validated;
+      return Object.freeze({
+        ok: true as const,
+        value: cloneAndFreeze(validateMemberPageSnapshot(validated.value)),
+        raw: validated.raw,
+      });
     },
     async syncActivity(input: SyncInput) {
       const result = await syncActivity(input);
@@ -293,7 +421,7 @@ export class ConnectorDispatcher {
     this.#connectors.set("none", createNoneConnector());
   }
 
-  register(candidate: ConnectorProtocol, connector: VendorConnector): void {
+  register(candidate: ConnectorProtocol, connector: LegacyVendorConnector): void {
     const resolvedProtocol = protocol(candidate);
     if (this.#connectors.has(resolvedProtocol)) {
       throw new Error(`Connector protocol already registered: ${resolvedProtocol}`);
@@ -312,7 +440,7 @@ export class ConnectorDispatcher {
 }
 
 export function createConnectorDispatcher(
-  input: Readonly<{ rest?: VendorConnector }> = {},
+  input: Readonly<{ rest?: LegacyVendorConnector }> = {},
 ): ConnectorDispatcher {
   const dispatcher = new ConnectorDispatcher();
   if (input.rest) dispatcher.register("rest", input.rest);

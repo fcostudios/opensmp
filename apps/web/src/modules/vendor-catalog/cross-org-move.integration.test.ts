@@ -203,6 +203,9 @@ beforeAll(async () => {
     syncMembers: async () => ({
       code: "unsupported", checklistSteps: [], ok: false,
     }),
+    syncMemberPage: async () => ({
+      code: "unsupported", checklistSteps: [], ok: false,
+    }),
   };
   const dispatcher = createConnectorDispatcher();
   dispatcher.register("rest", connector);

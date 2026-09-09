@@ -44,6 +44,11 @@ function inMemoryConnector(
       checklistSteps: [],
       ok: false,
     }),
+    syncMemberPage: async () => ({
+      code: "unsupported",
+      checklistSteps: [],
+      ok: false,
+    }),
   };
 }
 

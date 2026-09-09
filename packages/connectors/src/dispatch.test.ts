@@ -66,8 +66,31 @@ function connectorWith(
     provision: instructionUnsupported,
     deprovision: instructionUnsupported,
     syncMembers: syncUnsupported,
+    syncMemberPage: syncUnsupported,
     syncActivity: syncUnsupported,
     syncCost: syncUnsupported,
+  };
+}
+
+function validMemberPageValue() {
+  return {
+    members: [{ email: "member@example.test", active: true }],
+    cursor: {
+      stream: "members" as const,
+      pageCount: 1,
+      memberSetSize: 1,
+    },
+    resume: {
+      vendorAccountId: "vendor-account-1",
+      stream: "members" as const,
+      continuation: "provider-continuation",
+      seenContinuations: ["provider-continuation"],
+      pageCount: 1,
+      memberSetSize: 1,
+    },
+    pageCount: 1,
+    memberSetSize: 1,
+    complete: false,
   };
 }
 
@@ -220,12 +243,206 @@ describe("none connector", () => {
     };
 
     await expect(connector.syncMembers(syncInput)).resolves.toEqual(unsupported);
+    await expect(connector.syncMemberPage({ ...syncInput, cursor: null })).resolves.toEqual(unsupported);
     await expect(connector.syncActivity(syncInput)).resolves.toEqual(unsupported);
     await expect(connector.syncCost(syncInput)).resolves.toEqual(unsupported);
   });
 });
 
 describe("ConnectorDispatcher", () => {
+  it("validates and freezes a JSON-safe resumable member page without exposing mutable state", async () => {
+    const cursor = {
+      stream: "members",
+      pageCount: 1,
+      memberSetSize: 1,
+    } as const;
+    const implementation = connectorWith("syncMembers");
+    implementation.syncMemberPage = async () => ({
+      ok: true,
+      raw: null,
+      value: {
+        members: [{ email: "member@example.test", active: true }],
+        cursor,
+        resume: validMemberPageValue().resume,
+        pageCount: 1,
+        memberSetSize: 1,
+        complete: false,
+      },
+    });
+    const connector = createConnectorDispatcher({ rest: implementation }).forProtocol("rest");
+
+    const result = await connector.syncMemberPage({
+      vendorAccountId: "vendor-account-1",
+      observedAt: new Date("2026-09-06T12:00:00.000Z"),
+      cursor: null,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      raw: null,
+      value: {
+        members: [{ email: "member@example.test", active: true }],
+        cursor,
+        resume: validMemberPageValue().resume,
+        pageCount: 1,
+        memberSetSize: 1,
+        complete: false,
+      },
+    });
+    expect(Object.isFrozen(result)).toBe(true);
+    if (result.ok) {
+      expect(Object.isFrozen(result.value)).toBe(true);
+      expect(Object.isFrozen(result.value.members)).toBe(true);
+      expect(Object.isFrozen(result.value.cursor!)).toBe(true);
+    }
+  });
+
+  it.each([
+    ["malformed cursor", { stream: "members", continuation: 1, pageCount: 0, memberSetSize: 0 }],
+    ["cyclic cursor", (() => {
+      const cursor: Record<string, unknown> = { stream: "members", continuation: null, pageCount: 0, memberSetSize: 0 };
+      cursor.self = cursor;
+      return cursor;
+    })()],
+  ])("fails safely for a %s member-page cursor", async (_case, cursor) => {
+    const connector = createConnectorDispatcher({ rest: connectorWith("syncMembers") })
+      .forProtocol("rest");
+
+    await expect(connector.syncMemberPage({
+      vendorAccountId: "vendor-account-1",
+      observedAt: new Date("2026-09-06T12:00:00.000Z"),
+      cursor: cursor as never,
+    })).rejects.toThrowError("Invalid connector member page cursor");
+  });
+
+  it.each([
+    ["array", []],
+    ["missing stream", { continuation: "provider-continuation", pageCount: 1, memberSetSize: 1 }],
+    ["unknown stream", { stream: "activity", continuation: "provider-continuation", pageCount: 1, memberSetSize: 1 }],
+    ["blank continuation", { stream: "members", continuation: "", pageCount: 1, memberSetSize: 1 }],
+    ["wrong continuation", { stream: "members", continuation: false, pageCount: 1, memberSetSize: 1 }],
+    ["member initial stream", { stream: "members", continuation: null, pageCount: 1, memberSetSize: 1 }],
+    ["fractional page count", { stream: "members", continuation: "provider-continuation", pageCount: 1.5, memberSetSize: 1 }],
+    ["negative page count", { stream: "members", continuation: "provider-continuation", pageCount: -1, memberSetSize: 1 }],
+    ["hundredth continuation", { stream: "members", continuation: "provider-continuation", pageCount: 100, memberSetSize: 1 }],
+    ["negative member count", { stream: "members", continuation: "provider-continuation", pageCount: 1, memberSetSize: -1 }],
+    ["fractional member count", { stream: "members", continuation: "provider-continuation", pageCount: 1, memberSetSize: 1.5 }],
+  ])("rejects each unsafe member-page continuation field: %s", async (_case, cursor) => {
+    const connector = createConnectorDispatcher({ rest: connectorWith("syncMembers") })
+      .forProtocol("rest");
+    await expect(connector.syncMemberPage({
+      vendorAccountId: "vendor-account-1",
+      observedAt: new Date("2026-09-06T12:00:00.000Z"),
+      cursor: cursor as never,
+    })).rejects.toThrowError("Invalid connector member page cursor");
+  });
+
+  it.each([
+    ["non-object", []],
+    ["missing members", (() => { const value = validMemberPageValue(); delete (value as { members?: unknown }).members; return value; })()],
+    ["extra field", { ...validMemberPageValue(), private: true }],
+    ["non-array members", { ...validMemberPageValue(), members: {} }],
+    ["malformed member", { ...validMemberPageValue(), members: [{ email: "not-an-email", active: true }] }],
+    ["member extra field", { ...validMemberPageValue(), members: [{ email: "member@example.test", active: true, secret: "private" }] }],
+    ["non-boolean active", { ...validMemberPageValue(), members: [{ email: "member@example.test", active: "yes" }] }],
+    ["invalid page count", { ...validMemberPageValue(), pageCount: 0 }],
+    ["page count over bound", { ...validMemberPageValue(), pageCount: 101 }],
+    ["member size too small", { ...validMemberPageValue(), memberSetSize: 0 }],
+    ["non-boolean complete", { ...validMemberPageValue(), complete: "no" }],
+    ["complete with cursor", { ...validMemberPageValue(), complete: true }],
+    ["incomplete without cursor", { ...validMemberPageValue(), cursor: null }],
+    ["incomplete without resume", { ...validMemberPageValue(), resume: null }],
+    ["complete with resume only", { ...validMemberPageValue(), complete: true, cursor: null }],
+    ["resume missing vendor account", { ...validMemberPageValue(), resume: { stream: "members", continuation: "provider-continuation", seenContinuations: ["provider-continuation"] } }],
+    ["resume wrong stream", { ...validMemberPageValue(), resume: { ...validMemberPageValue().resume, stream: "activity" } }],
+    ["resume control token", { ...validMemberPageValue(), resume: { ...validMemberPageValue().resume, continuation: "provider\ncontinuation" } }],
+    ["resume duplicate seen token", { ...validMemberPageValue(), resume: { ...validMemberPageValue().resume, seenContinuations: ["provider-continuation", "provider-continuation"] } }],
+    ["resume malformed seen token", { ...validMemberPageValue(), resume: { ...validMemberPageValue().resume, seenContinuations: ["provider\u202Econtinuation"] } }],
+    ["cursor count mismatch", { ...validMemberPageValue(), cursor: { ...validMemberPageValue().cursor, pageCount: 2 } }],
+    ["cursor set-size mismatch", { ...validMemberPageValue(), cursor: { ...validMemberPageValue().cursor, memberSetSize: 2 } }],
+    ["resume stream mismatch", { ...validMemberPageValue(), resume: { ...validMemberPageValue().resume, stream: "invitations" } }],
+    ["resume page-count mismatch", { ...validMemberPageValue(), resume: { ...validMemberPageValue().resume, pageCount: 2 } }],
+    ["resume set-size mismatch", { ...validMemberPageValue(), resume: { ...validMemberPageValue().resume, memberSetSize: 2 } }],
+  ])("rejects each unsafe member-page result: %s", async (_case, value) => {
+    const implementation = connectorWith("syncMembers");
+    implementation.syncMemberPage = async () => ({ ok: true, raw: null, value } as never);
+    const connector = createConnectorDispatcher({ rest: implementation }).forProtocol("rest");
+    await expect(connector.syncMemberPage({
+      vendorAccountId: "vendor-account-1",
+      observedAt: new Date("2026-09-06T12:00:00.000Z"),
+      cursor: null,
+    })).rejects.toThrowError("Invalid connector member page result");
+  });
+
+  it.each([
+    ["wrong account", { ...validMemberPageValue().resume, vendorAccountId: "other-account" }],
+    ["bidi continuation", { ...validMemberPageValue().resume, continuation: "provider\u202Econtinuation" }],
+    ["oversized continuation", { ...validMemberPageValue().resume, continuation: "x".repeat(513) }],
+    ["duplicate cycle state", { ...validMemberPageValue().resume, seenContinuations: ["provider-continuation", "provider-continuation"] }],
+    ["zero bound page count", { ...validMemberPageValue().resume, pageCount: 0 }],
+    ["fractional page count", { ...validMemberPageValue().resume, pageCount: 1.5 }],
+    ["page-count bound", { ...validMemberPageValue().resume, pageCount: 100 }],
+    ["negative cumulative members", { ...validMemberPageValue().resume, memberSetSize: -1 }],
+  ])("rejects unsafe account-bound resume state: %s", async (_case, resume) => {
+    const connector = createConnectorDispatcher({ rest: connectorWith("syncMembers") }).forProtocol("rest");
+    await expect(connector.syncMemberPage({
+      vendorAccountId: "vendor-account-1",
+      observedAt: new Date("2026-09-06T12:00:00.000Z"),
+      cursor: null,
+      resume: resume as never,
+    })).rejects.toThrowError("Invalid connector member page resume");
+  });
+
+  it("rejects detached or recombined member-page checkpoints before invoking an adapter", async () => {
+    // A cursor is public evidence while resume is account-bound secret state; either fragment alone must never restart paging.
+    let pageCalls = 0;
+    const implementation = connectorWith("syncMembers");
+    implementation.syncMemberPage = async () => {
+      pageCalls += 1;
+      return { ok: true, raw: null, value: validMemberPageValue() };
+    };
+    const connector = createConnectorDispatcher({ rest: implementation }).forProtocol("rest");
+    const input = {
+      vendorAccountId: "vendor-account-1",
+      observedAt: new Date("2026-09-06T12:00:00.000Z"),
+    };
+    const checkpoint = validMemberPageValue();
+
+    for (const fragment of [
+      { cursor: checkpoint.cursor },
+      { cursor: checkpoint.cursor, resume: null },
+      { cursor: null, resume: checkpoint.resume },
+      { cursor: { ...checkpoint.cursor, stream: "invitations" }, resume: checkpoint.resume },
+      { cursor: { ...checkpoint.cursor, pageCount: checkpoint.pageCount + 1 }, resume: checkpoint.resume },
+      { cursor: { ...checkpoint.cursor, memberSetSize: checkpoint.memberSetSize + 1 }, resume: checkpoint.resume },
+    ]) {
+      await expect(connector.syncMemberPage({ ...input, ...fragment } as never))
+        .rejects.toThrowError("Invalid connector member page checkpoint");
+    }
+    expect(pageCalls).toBe(0);
+  });
+
+  it("preserves an unsupported member-page result without attempting success validation", async () => {
+    const connector = createConnectorDispatcher({ rest: connectorWith("syncMembers") })
+      .forProtocol("rest");
+    await expect(connector.syncMemberPage({
+      vendorAccountId: "vendor-account-1",
+      observedAt: new Date("2026-09-06T12:00:00.000Z"),
+      cursor: null,
+    })).resolves.toEqual({ ok: false, code: "unsupported", checklistSteps: [] });
+  });
+
+  it("registers a pre-page legacy adapter and supplies canonical unsupported paging", async () => {
+    const legacy = connectorWith("syncMembers") as Omit<VendorConnector, "syncMemberPage">;
+    delete (legacy as Partial<VendorConnector>).syncMemberPage;
+    const connector = createConnectorDispatcher({ rest: legacy }).forProtocol("rest");
+    await expect(connector.syncMemberPage({
+      vendorAccountId: "vendor-account-1",
+      observedAt: new Date("2026-09-06T12:00:00.000Z"),
+      cursor: null,
+    })).resolves.toEqual({ ok: false, code: "unsupported", checklistSteps: [] });
+  });
+
   it("exports the exact immutable provider failure vocabulary", () => {
     expect(connectorFailureCodes).toEqual(["provider_error", "capacity_unavailable"]);
     expect(Object.isFrozen(connectorFailureCodes)).toBe(true);
@@ -424,6 +641,11 @@ describe("JSON-safe connector results", () => {
         checklistSteps: ["Manual"],
       }),
       syncMembers: async () => ({
+        ok: false,
+        code: "unsupported",
+        checklistSteps: [],
+      }),
+      syncMemberPage: async () => ({
         ok: false,
         code: "unsupported",
         checklistSteps: [],

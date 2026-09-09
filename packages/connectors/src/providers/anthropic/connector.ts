@@ -4,6 +4,10 @@ import type {
 } from "../../connector-call-observation.js";
 import type {
   ConnectorCapability,
+  MemberPageCursor,
+  MemberPageResume,
+  MemberPageSnapshot,
+  SyncMemberPageInput,
   SyncInput,
   VendorConnector,
 } from "../../contracts.js";
@@ -348,6 +352,61 @@ type OperationContext = Readonly<{
   execute: ReturnType<typeof createRequestExecutor>;
 }>;
 
+type InternalMemberPage = Readonly<{
+  snapshot: MemberPageSnapshot;
+  providerIds: readonly string[];
+}>;
+
+function memberPageCursor(value: unknown): MemberPageCursor | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const candidate = value as Record<string, unknown>;
+  if (
+    Object.keys(candidate).length !== 3
+    || candidate.stream !== "members" && candidate.stream !== "invitations"
+    || !Number.isSafeInteger(candidate.pageCount) || (candidate.pageCount as number) < 0 || (candidate.pageCount as number) >= 100
+    || !Number.isSafeInteger(candidate.memberSetSize) || (candidate.memberSetSize as number) < 0
+  ) return null;
+  return {
+    stream: candidate.stream,
+    pageCount: candidate.pageCount as number,
+    memberSetSize: candidate.memberSetSize as number,
+  };
+}
+
+function memberPageResume(value: unknown, vendorAccountId: string): MemberPageResume | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const candidate = value as Record<string, unknown>;
+  if (Object.keys(candidate).length !== 6 || candidate.vendorAccountId !== vendorAccountId
+    || (candidate.stream !== "members" && candidate.stream !== "invitations")
+    || !(candidate.continuation === null || providerToken(candidate.continuation))
+    || !Array.isArray(candidate.seenContinuations)
+    || !candidate.seenContinuations.every(providerToken)
+    || new Set(candidate.seenContinuations).size !== candidate.seenContinuations.length
+    || !Number.isSafeInteger(candidate.pageCount) || (candidate.pageCount as number) < 1 || (candidate.pageCount as number) >= 100
+    || !Number.isSafeInteger(candidate.memberSetSize) || (candidate.memberSetSize as number) < 0
+  ) return null;
+  return { vendorAccountId, stream: candidate.stream, continuation: candidate.continuation,
+    seenContinuations: candidate.seenContinuations,
+    pageCount: candidate.pageCount as number,
+    memberSetSize: candidate.memberSetSize as number };
+}
+
+function normalMemberPageMembers(
+  stream: MemberPageCursor["stream"],
+  data: readonly Member[] | readonly Invitation[],
+): readonly { email: string; active: boolean }[] | null {
+  const normalized = stream === "members"
+    ? (data as readonly Member[])
+      .filter((item): item is Member & { email: string } => item.email !== null)
+      .map(({ email }) => ({ email, active: true }))
+    : (data as readonly Invitation[])
+      .filter((item): item is Invitation & { email: string } => item.email !== null && item.status === "pending")
+      .map(({ email }) => ({ email, active: false }));
+  return new Set(normalized.map(({ email }) => email)).size === normalized.length
+    ? normalized
+    : null;
+}
+
 // Capability inspection does not need credentials, observations, or transport.
 // Execution always requires the complete runtime dependencies.
 export function createAnthropicConnector(dependencies?: AnthropicConnectorDependencies): VendorConnector {
@@ -411,6 +470,77 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
       continuation = page.last_id;
     }
     return providerFailure();
+  }
+
+  async function nextMemberPage(
+    operation: OperationContext,
+    vendorAccountId: string,
+    cursor: MemberPageCursor | null,
+    resume: MemberPageResume | null,
+  ): Promise<InternalMemberPage | ProviderFailure | CapacityFailure> {
+    if (
+      (cursor === null) !== (resume === null)
+      || (cursor !== null && resume !== null && (
+        resume.vendorAccountId !== vendorAccountId
+        || resume.stream !== cursor.stream
+        || resume.pageCount !== cursor.pageCount
+        || resume.memberSetSize !== cursor.memberSetSize
+      ))
+    ) return providerFailure();
+    const stream = cursor?.stream ?? "members";
+    const continuation = resume?.continuation ?? undefined;
+    const pageResult = await request(operation, {
+      endpoint: stream === "members" ? "members" : "invites",
+      vendorAccountId,
+      credentials: operation.credentials,
+      query: continuation === undefined
+        ? undefined
+        : { continuation: { kind: "after_id", value: continuation } },
+    });
+    if (!pageResult.ok) return pageResult;
+    const page = stream === "members"
+      ? parseIdPage(pageResult.body, parseMember)
+      : parseIdPage(pageResult.body, parseInvitation);
+    if (!page) return providerFailure();
+    const members = normalMemberPageMembers(stream, page.data);
+    if (!members) return providerFailure();
+    const pageCount = (cursor?.pageCount ?? 0) + 1;
+    const memberSetSize = (cursor?.memberSetSize ?? 0) + members.length;
+    if (page.has_more) {
+      if (
+        pageCount >= 100 || page.last_id === null || resume?.seenContinuations.includes(page.last_id)
+      ) return providerFailure();
+      return {
+        snapshot: {
+          members,
+          cursor: { stream, pageCount, memberSetSize },
+          resume: { vendorAccountId, stream, continuation: page.last_id,
+            seenContinuations: [...(resume?.seenContinuations ?? []), page.last_id],
+            pageCount, memberSetSize },
+          pageCount,
+          memberSetSize,
+          complete: false,
+        },
+        providerIds: page.data.map(({ id }) => id),
+      };
+    }
+    if (stream === "members") {
+      return {
+        snapshot: {
+          members,
+          cursor: { stream: "invitations", pageCount, memberSetSize },
+          resume: { vendorAccountId, stream: "invitations", continuation: null, seenContinuations: [], pageCount, memberSetSize },
+          pageCount,
+          memberSetSize,
+          complete: false,
+        },
+        providerIds: page.data.map(({ id }) => id),
+      };
+    }
+    return {
+      snapshot: { members, cursor: null, resume: null, pageCount, memberSetSize, complete: true },
+      providerIds: page.data.map(({ id }) => id),
+    };
   }
 
   async function opaquePages<T>(
@@ -500,19 +630,33 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
     async syncMembers(input) {
       syncDate(input);
       const operation = await context(input.vendorAccountId, null, "sync_members");
-      const members = await idPages(operation, "members", input.vendorAccountId, parseMember);
-      if (!members.ok) return members;
-      const invites = await idPages(operation, "invites", input.vendorAccountId, parseInvitation);
-      if (!invites.ok) return invites;
-      if (!hasUniqueProviderIds(members.data, invites.data)) return providerFailure();
-      const normalized = [
-        ...members.data.filter((item): item is Member & { email: string } => item.email !== null)
-          .map(({ email }) => ({ email, active: true })),
-        ...invites.data.filter((item): item is Invitation & { email: string } => item.email !== null && item.status === "pending")
-          .map(({ email }) => ({ email, active: false })),
-      ];
+      const normalized: { email: string; active: boolean }[] = [];
+      const providerIds = new Set<string>();
+      let cursor: MemberPageCursor | null = null;
+      let resume: MemberPageResume | null = null;
+      while (true) {
+        const page = await nextMemberPage(operation, input.vendorAccountId, cursor, resume);
+        if ("ok" in page) return page;
+        if (page.providerIds.some((id) => providerIds.has(id))) return providerFailure();
+        page.providerIds.forEach((id) => providerIds.add(id));
+        normalized.push(...page.snapshot.members);
+        if (page.snapshot.complete) break;
+        cursor = page.snapshot.cursor;
+        resume = page.snapshot.resume;
+      }
       if (new Set(normalized.map(({ email }) => email)).size !== normalized.length) return providerFailure();
       return success({ members: normalized });
+    },
+    async syncMemberPage(input) {
+      syncDate(input);
+      const cursor = input.cursor === null ? null : memberPageCursor(input.cursor);
+      if (input.cursor !== null && !cursor) return providerFailure();
+      const resume = input.resume === undefined || input.resume === null
+        ? null : memberPageResume(input.resume, input.vendorAccountId);
+      if (input.resume !== undefined && input.resume !== null && !resume) return providerFailure();
+      const operation = await context(input.vendorAccountId, null, "sync_members");
+      const page = await nextMemberPage(operation, input.vendorAccountId, cursor, resume);
+      return "ok" in page ? page : success(page.snapshot);
     },
     async syncActivity(input) {
       const observedOn = syncDate(input);

@@ -63,6 +63,9 @@ const automatedConnector: VendorConnector = {
   async syncMembers() {
     return { code: "unsupported", checklistSteps: [], ok: false };
   },
+  async syncMemberPage() {
+    return { code: "unsupported", checklistSteps: [], ok: false };
+  },
 };
 
 let fixture: PostgresFixture | undefined;
