@@ -2659,7 +2659,7 @@ export async function runMutationScope(options = {}) {
           config: {
             configFile: shard.configPath,
             jsonReporter: { fileName: shard.jsonReportPath },
-            mutate: shard.mutate,
+            mutate: shard.mutate.map(strykerMutationTarget),
           },
           files: {},
         })}\n`, "utf8");
