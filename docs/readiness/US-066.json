@@ -16,7 +16,25 @@
   "decision": "ready",
   "partitions": [],
   "approval": {"status":"approved","approved_by":"Francisco Lomas","evidence":"US066-READY-CHG058-R2","payload_sha256":"a95626d9a0d27a1f296bc521acd0e6907f4e53c76d8ba9bddb093c94434716f2"},
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 8,
+      "implementation": 205,
+      "focused_verification": 70,
+      "review": 80,
+      "integration": 28
+    },
+    "total": 391,
+    "changed_files": 23,
+    "commits": 4,
+    "review_fix_loops": 6,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 18,
+    "mutation_shards_actual": 8,
+    "estimate_variance_minutes": 167,
+    "root_cause": "Measured from the readiness-bound plan commit at 2026-09-09T11:47:19Z through the sole authoritative campaign ending at 2026-09-09T18:18:33Z. The approved 224-minute assessment correctly predicted eight mutation shards but underestimated the cohesive boundary at 16 files versus 23 raw NUL-delimited Git paths. Four source/test commits and six adversarial review/fix loops added encrypted account-bound pagination resume, exact lifecycle/source-request locking, shared transactional provisioning-complete notification semantics, runtime composition, and gate hardening for the story-scoped mutation environment. Review remained below implementation time. Preview campaigns were repaired before the final cutoff and emitted no test_report. The one cache-cleared authoritative campaign ran all eight shards in 1,062 seconds, rounded once to 18 mutation minutes; it passed on first contact with a 94.46% aggregate score and a weakest shard of 91.18%. The 167-minute variance also includes diagnosis of two non-authoritative full-gate retries that exposed and then cleared stale exact-adapter and orphan Testcontainers state before the bounded two-worker pnpm check passed."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
