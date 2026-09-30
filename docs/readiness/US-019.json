@@ -71,7 +71,19 @@
     "evidence": "CHG054-US019-VERIFY",
     "payload_sha256": "72b7e45e477bdaa0debfbf47ba0a16c4a07ce13875657bc2681a8a055e41bfdf"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": { "readiness": 6, "implementation": 0, "focused_verification": 7, "review": 4, "integration": 5 },
+    "total": 22,
+    "changed_files": 2,
+    "commits": 3,
+    "review_fix_loops": 1,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "estimate_variance_minutes": -38,
+    "root_cause": "Verification-only closure changes readiness and feedback only. Three commits include approval, controlling-CHG binding repair, and final evidence. Rounded active-session reconstruction excludes the September 9-to-29 interruption: readiness 6 minutes from 21:12:26 to 21:18:06 on September 9; focused verification 7 minutes from RTK history.db pnpm-check exec_time_ms 174765 plus 244038 (418803 ms); review 4 minutes for resumed source/child evidence tracing outside the gate runtime; integration 5 minutes for completion actuals, event validation, and ledger handoff. The 12.588-second preapproval diagnostic is inside readiness. These are rounded phase measurements, not calendar elapsed time; resumed review and verification overlapped and are counted once. pnpm check exited 0 with valid Turbo cache hits for unchanged packages and root gates executed. Parent preflight calculated zero shards."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
