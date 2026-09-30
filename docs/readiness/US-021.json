@@ -1,0 +1,230 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "91bc185ea9bc7dd5f5dd459fe02e8fda60dcd2f793c5f16332c3049d3bea327e",
+  "work_id": "US-021",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Partition invite hygiene into canonical vertical outcomes",
+  "source": "docs/stories/sprint-3/r1_misc_us_021.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Pending invitations stop consuming seats indefinitely through configurable overdue alerts and safe manual or scheduled withdrawal with requester notification and a durable trail.",
+      "demo": "An overdue pending invitation alerts; authorized manual or scheduled withdrawal deletes only that invitation, frees the reservation after success, and records its action and notification.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "contracts",
+    "server",
+    "db",
+    "ui",
+    "infra"
+  ],
+  "signals": {
+    "routes_or_screens": 3,
+    "acceptance_flows": 5,
+    "expected_changed_files": 30,
+    "expected_mutation_shards": 15,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 1,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 40,
+    "implementation": 270,
+    "focused_verification": 200,
+    "review": 140,
+    "integration": 80,
+    "total": 730
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "The canonical 2-SP estimate is 448 minutes at 224 min/SP; measured neighboring children also exceeded their optimistic estimates.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Use three complete vertical outcomes with measured-scope estimates of 140, 310 and 280 minutes, including preview, review and final campaign. Parent is non-executable and estimates must be recalculated against exact child plans before approval."
+    },
+    {
+      "id": "U2",
+      "statement": "Canonical child IDs and the automatic-withdraw configuration contract are not delivered.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "This is a non-executable partition proposal. Work IDs remain null until a functional CHG creates and delivers canonical children. Nous must approve the invitation-only boundary and disabled-by-default expiry semantics before child readiness. US-019 and US-042 are already dev_done; all children must retain both canonical prerequisite IDs."
+    }
+  ],
+  "dependencies": [],
+  "decision": "partition_required",
+  "partitions": [
+    {
+      "proposal_key": "overdue-invite-alerts",
+      "work_id": null,
+      "title": "Surface overdue invitations with configurable alerts",
+      "outcome": "Group Admins see only eligible unaccepted invitations older than the configured threshold, with one actionable invite_unaccepted alert per open breach.",
+      "demo": "Evaluate invitations just below, exactly at, and above 168 hours; only the above-threshold invitation alerts, repeated evaluation deduplicates, and disabled or foreign-company rules do not alert.",
+      "acceptance_criteria": [
+        "AC1"
+      ],
+      "work_type": "functional",
+      "scopes": [
+        "server",
+        "db",
+        "ui"
+      ],
+      "signals": {
+        "routes_or_screens": 1,
+        "acceptance_flows": 2,
+        "expected_changed_files": 8,
+        "expected_mutation_shards": 4,
+        "lifecycle_or_concurrency_boundaries": 1,
+        "external_integrations": 0,
+        "schema_or_migration_changes": 0,
+        "authorization_or_audit_boundaries": 1,
+        "tooling_change": false
+      },
+      "uncertainties": [],
+      "estimate_minutes": {
+        "readiness": 10,
+        "implementation": 50,
+        "focused_verification": 40,
+        "review": 25,
+        "integration": 15,
+        "total": 140
+      },
+      "depends_on": [],
+      "cross_cutting_rationale": null
+    },
+    {
+      "proposal_key": "manual-invite-withdrawal",
+      "work_id": null,
+      "title": "Withdraw a pending invitation safely from exceptions",
+      "outcome": "An authorized Group Admin withdraws exactly the selected pending invitation with a required note, releases its seat reservation only after provider success, and sees the durable withdrawn action in the request trail.",
+      "demo": "Withdraw an overdue invitation from exceptions and verify the provider invitation deletion, invited-to-deprovisioned transition, freed reservation and note in Acciones; race with acceptance and prove no active member or assignment is removed.",
+      "acceptance_criteria": [
+        "AC2",
+        "AC3"
+      ],
+      "work_type": "functional",
+      "scopes": [
+        "contracts",
+        "server",
+        "ui"
+      ],
+      "signals": {
+        "routes_or_screens": 2,
+        "acceptance_flows": 3,
+        "expected_changed_files": 19,
+        "expected_mutation_shards": 12,
+        "lifecycle_or_concurrency_boundaries": 1,
+        "external_integrations": 1,
+        "schema_or_migration_changes": 0,
+        "authorization_or_audit_boundaries": 1,
+        "tooling_change": false
+      },
+      "uncertainties": [
+        {
+          "id": "U1",
+          "statement": "The existing generic deprovision operation may delete an active member when an invitation is accepted concurrently.",
+          "status": "budgeted",
+          "estimate_impact_minutes": 35,
+          "resolution": "Add an invitation-specific vendor-neutral operation pinned to the durable provider invitation reference, with Pact-backed invitation deletion, shared action locking, post-I/O state revalidation, and fail-closed ambiguous outcomes. Never use email-based member removal for invite hygiene."
+        }
+      ],
+      "estimate_minutes": {
+        "readiness": 15,
+        "implementation": 120,
+        "focused_verification": 85,
+        "review": 60,
+        "integration": 30,
+        "total": 310
+      },
+      "depends_on": [
+        "overdue-invite-alerts"
+      ],
+      "cross_cutting_rationale": "AC2 is split by manual versus scheduled trigger. This child owns the complete manual withdrawal and shared invitation-only service; AC3 records manual withdrawals. The automatic child reuses the service and verifies its own notification and trail evidence."
+    },
+    {
+      "proposal_key": "automatic-invite-expiry",
+      "work_id": null,
+      "title": "Expire stale invitations automatically and notify the requester",
+      "outcome": "The scheduled hygiene job withdraws eligible pending invitations after an explicitly enabled configurable expiry window, releases the seat reservation and re-notifies the requester exactly once with a durable action trail.",
+      "demo": "Configure expiry, advance an injected clock, run the job twice and verify one invitation-only deletion, one lifecycle transition, one requester notification and one visible action; accepted, foreign-company, disabled and not-yet-due invitations remain untouched.",
+      "acceptance_criteria": [
+        "AC2",
+        "AC3"
+      ],
+      "work_type": "functional",
+      "scopes": [
+        "server",
+        "db",
+        "infra"
+      ],
+      "signals": {
+        "routes_or_screens": 1,
+        "acceptance_flows": 3,
+        "expected_changed_files": 14,
+        "expected_mutation_shards": 9,
+        "lifecycle_or_concurrency_boundaries": 1,
+        "external_integrations": 1,
+        "schema_or_migration_changes": 0,
+        "authorization_or_audit_boundaries": 1,
+        "tooling_change": false
+      },
+      "uncertainties": [
+        {
+          "id": "U1",
+          "statement": "Canonical sources name a configurable auto-withdraw window but do not establish its default or a validated threshold key.",
+          "status": "budgeted",
+          "estimate_impact_minutes": 15,
+          "resolution": "Propose auto-withdraw disabled until an operator explicitly configures a positive window no shorter than the alert threshold. Store it with existing AlertRule thresholds; Nous must approve and emit the exact key and semantics in the partition CHG before child readiness. The allowance is included in the estimate."
+        }
+      ],
+      "estimate_minutes": {
+        "readiness": 15,
+        "implementation": 100,
+        "focused_verification": 75,
+        "review": 55,
+        "integration": 35,
+        "total": 280
+      },
+      "depends_on": [
+        "manual-invite-withdrawal"
+      ],
+      "cross_cutting_rationale": "AC2 automatic withdrawal is independently observable from the manual trigger. This child verifies automatic requester notification and the AC3 automatic action trail while reusing the manual child's safe service."
+    }
+  ],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "91bc185ea9bc7dd5f5dd459fe02e8fda60dcd2f793c5f16332c3049d3bea327e"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
