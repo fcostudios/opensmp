@@ -4,6 +4,7 @@ import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 
 import {
+  DELIVERED_CANONICAL_EVENTS,
   WorkReadinessError,
   actualsCorrectionSchemaErrors,
   classifyAssessment,
@@ -273,6 +274,8 @@ const KNOWN_FEEDBACK_EVENTS = new Set([
   "evidence_superseded", "revalidated", "decision", "build_pass", "closed_with_deferrals", "adversarial_review",
   "deferred_memory_saved", "closure_hygiene", "implemented_with_external_verification", "mutation_invalidation",
   "checkpoint", "actuals_corrected",
+  // CHG-062: plus every canonical name in the delivered feedback vocabulary.
+  ...DELIVERED_CANONICAL_EVENTS,
 ]);
 
 function validateFeedbackStructure(records) {
@@ -540,9 +543,24 @@ function validBuild(record) {
     && (record.ts === undefined || (typeof record.ts === "string" && !Number.isNaN(Date.parse(record.ts))));
 }
 
-function validDone(record) {
-  const keys = ["story", "event", ...(record.source_commit === undefined ? [] : ["source_commit"]), ...(record.ts === undefined ? [] : ["ts"])];
+// CHG-062: the optional session `cost` on `done` (IMP-412) — token counts,
+// never money; `calls` and `context_tokens` required inside the object.
+function validDoneCost(cost) {
+  if (cost === null || typeof cost !== "object" || Array.isArray(cost)) return false;
+  const count = (value) => Number.isInteger(value) && value >= 0;
+  const allowed = new Set(["model", "window", "calls", "context_tokens", "output_tokens"]);
+  return Object.keys(cost).every((key) => allowed.has(key))
+    && count(cost.calls) && count(cost.context_tokens)
+    && (cost.model === undefined || (typeof cost.model === "string" && cost.model.length > 0))
+    && (cost.window === undefined || count(cost.window))
+    && (cost.output_tokens === undefined || count(cost.output_tokens));
+}
+
+export function validDone(record) {
+  const keys = ["story", "event", ...(record.source_commit === undefined ? [] : ["source_commit"]), ...(record.ts === undefined ? [] : ["ts"]),
+    ...(record.cost === undefined ? [] : ["cost"])];
   return closedKeys(record, keys)
+    && (record.cost === undefined || validDoneCost(record.cost))
     && (record.source_commit === undefined || (typeof record.source_commit === "string" && /^[0-9a-f]{40}$/u.test(record.source_commit)))
     && (record.ts === undefined || (typeof record.ts === "string" && !Number.isNaN(Date.parse(record.ts))));
 }

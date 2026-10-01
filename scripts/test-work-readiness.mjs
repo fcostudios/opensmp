@@ -21,8 +21,10 @@ import {
   validateCompletionActuals,
   validatePartitionGraph,
   resolveEffectiveActuals,
+  DELIVERED_CANONICAL_EVENTS,
 } from "./work-readiness/model.mjs";
 import {
+  validDone,
   classifyChangedPath,
   extractWorkIds,
   listChangedPaths,
@@ -2821,9 +2823,15 @@ test("CLI check-range acquires exact missing GitHub base commits in depth-one PR
   }
 });
 
-test("repository test gate runs the readiness range backstop before focused tests", () => {
+// DEC-SMP-022 (2026-10-01) reversed this pin: root `test` is the substrate value and
+// the readiness backstop is deliberately NOT chained into it (scripts kept, run on
+// demand; check-staged still runs on every commit via .githooks/commit-msg).
+test("repository test gate is the substrate value; the readiness backstop stays runnable on demand (DEC-SMP-022)", () => {
   const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-  assert.match(manifest.scripts.test, /^pnpm run readiness:check:all && pnpm run readiness:check:range && pnpm run test:work-readiness\b/u);
+  assert.equal(manifest.scripts.test, "turbo run test");
+  for (const script of ["readiness:check:all", "readiness:check:range", "test:work-readiness"]) {
+    assert.equal(typeof manifest.scripts[script], "string", `${script} must remain runnable on demand`);
+  }
 });
 
 test("CLI parser rejects range mixtures and treats post-separator flags as positional", () => {
@@ -5037,6 +5045,39 @@ test("mutation invalidation evidence after done cannot satisfy completion", () =
     { story: value.work_id, event: "mutation_invalidation", reason: "Too late." },
   ];
   expectError("WR_MUTATION_INVALIDATION_EVIDENCE", "$.actuals.mutation_invalidations", () => validateCompletionActuals(value, records));
+});
+
+test("CHG-062: a delivered canonical event (phase) is known; an invented event is still rejected", () => {
+  assert.ok(DELIVERED_CANONICAL_EVENTS.has("phase"));
+  const accepted = makeGitRepo();
+  try {
+    writeRepoFile(accepted.root, ".nous-feedback.jsonl", `${JSON.stringify({ story: "US-321", event: "phase", phase: "focused_verification", ts: "2026-10-01T16:00:00Z" })}\n`);
+    const head = commitRepo(accepted.root, "docs(US-321): record a phase marker", [".nous-feedback.jsonl"]);
+    validateRangeOwnership({ root: accepted.root, base: accepted.base, head });
+  } finally {
+    rmSync(accepted.root, { recursive: true, force: true });
+  }
+  const rejected = makeGitRepo();
+  try {
+    writeRepoFile(rejected.root, ".nous-feedback.jsonl", `${JSON.stringify({ story: "US-321", event: "invented_event", ts: "2026-10-01T16:00:00Z" })}\n`);
+    const head = commitRepo(rejected.root, "docs(US-321): record an invented event", [".nous-feedback.jsonl"]);
+    assert.throws(() => validateRangeOwnership({ root: rejected.root, base: rejected.base, head }), (error) => error.code === "WR_FEEDBACK_INVALID");
+  } finally {
+    rmSync(rejected.root, { recursive: true, force: true });
+  }
+});
+
+test("CHG-062: done accepts an optional well-formed cost and rejects a malformed one", () => {
+  const sha = "a".repeat(40);
+  assert.equal(validDone({ story: "US-321", event: "done", source_commit: sha }), true);
+  assert.equal(validDone({ story: "US-321", event: "done", source_commit: sha, ts: "2026-10-01T16:00:00Z",
+    cost: { model: "claude", window: 1000000, calls: 142, context_tokens: 310000, output_tokens: 41000 } }), true);
+  assert.equal(validDone({ story: "US-321", event: "done", cost: { calls: 1, context_tokens: 0 } }), true);
+  assert.equal(validDone({ story: "US-321", event: "done", cost: { calls: "many", context_tokens: 1 } }), false);
+  assert.equal(validDone({ story: "US-321", event: "done", cost: { calls: 1 } }), false);
+  assert.equal(validDone({ story: "US-321", event: "done", cost: { calls: 1, context_tokens: 1, usd: 3 } }), false);
+  assert.equal(validDone({ story: "US-321", event: "done", cost: { calls: -1, context_tokens: 1 } }), false);
+  assert.equal(validDone({ story: "US-321", event: "done", notes: "extra key" }), false);
 });
 
 assert.ok(assertions >= 30);

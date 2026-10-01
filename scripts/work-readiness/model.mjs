@@ -33,10 +33,15 @@ export const MAX_READINESS_MINUTES = 320;
 
 const PHASE_KEYS = ["readiness", "implementation", "focused_verification", "review", "integration"];
 const ESTIMATE_KEYS = [...PHASE_KEYS, "total"];
-const ACTUALS_CORRECTED_SCHEMA = JSON.parse(readFileSync(
+const DELIVERED_VOCABULARY = JSON.parse(readFileSync(
   new URL("../../docs/dev-guide/feedback-vocabulary.json", import.meta.url),
   "utf8",
-)).event_schemas.actuals_corrected;
+));
+const ACTUALS_CORRECTED_SCHEMA = DELIVERED_VOCABULARY.event_schemas.actuals_corrected;
+// CHG-062: event names Nous delivers as canonical (e.g. the DoD's `phase`
+// marker). The gate treats any of them it has no specific rule for as a known,
+// non-execution annotation; an event in neither set stays unknown.
+export const DELIVERED_CANONICAL_EVENTS = new Set(Object.keys(DELIVERED_VOCABULARY.canonical ?? {}));
 const EXPLICIT_UTC_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(?:Z|\+00:00)$/u;
 const BOOTSTRAP_DIGEST = "c9526d8070e749820d83edfba136cd2ec129ea239bb9e94d710d0a2120a16d32";
 const BOOTSTRAP_TITLE = "Enforce work readiness and outcome-based partitioning";
@@ -720,7 +725,8 @@ function buildTerminalProjection(records, workId) {
 
 function isKnownFeedbackEvent(event) {
   return event === "decision" || NON_EXECUTION_EVENTS.has(event)
-    || REVOCATION_EVENTS.has(event) || isExecutionEvidenceEvent(event);
+    || REVOCATION_EVENTS.has(event) || isExecutionEvidenceEvent(event)
+    || DELIVERED_CANONICAL_EVENTS.has(event);
 }
 
 function validatePreapprovalHistory(value, feedbackRecords, evidenceIndex, terminalProjection) {
