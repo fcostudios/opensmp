@@ -58,8 +58,9 @@
 | **CHG-058** | 📦 delivered | Next child faster: preview campaign per task, honest sizing, plan-only for partition children, fix the sandbox selector | — | — |
 | **CHG-059** | 📦 delivered | Append-only completion actuals correction | — | — |
 | **CHG-060** | 🔵 analyzed | Scope discipline and parallel siblings: AC-bound tasks, hardening declared or deferred, two sessions on parallel-safe children | — | — |
-| **CHG-061** | 🟡 proposed | Adopt IMP-410: commit-msg accepts a pure Nous sync via scripts/nous-sync-owns.mjs | — | — |
-| **CHG-062** | 🟡 proposed | Readiness gate accepts the delivered feedback vocabulary: phase markers and done.cost | — | — |
+| **CHG-061** | 📦 delivered | Adopt IMP-410: commit-msg accepts a pure Nous sync via scripts/nous-sync-owns.mjs | — | — |
+| **CHG-062** | 📦 delivered | Readiness gate accepts the delivered feedback vocabulary: phase markers and done.cost | — | — |
+| **CHG-063** | 📦 delivered | Partition US-021 (730 min > 320) into three canonical children US-067..069; invite-expiry config contract | US-067, US-068, US-069 | S3 |
 
 ---
 
@@ -777,13 +778,30 @@ _No stories linked to this change yet._
 
 ### CHG-061: Adopt IMP-410: commit-msg accepts a pure Nous sync via scripts/nous-sync-owns.mjs
 
-**Status:** 🟡 `proposed`
+**Status:** 📦 `delivered`
 
 _No stories linked to this change yet._
 
 ### CHG-062: Readiness gate accepts the delivered feedback vocabulary: phase markers and done.cost
 
-**Status:** 🟡 `proposed`
+**Status:** 📦 `delivered`
 
 _No stories linked to this change yet._
+
+### CHG-063: Partition US-021 (730 min > 320) into three canonical children US-067..069; invite-expiry config contract
+
+**Status:** 📦 `delivered`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** Partition US-021 (Invite hygiene, 2 SP; tenant assessment 730 min > 320-minute execution budget, `partition_required`, docs/readiness/US-021.json @ smp b29f559) into three canonical 1-SP vertical children, following the CHG-054 / DEC-SMP-021 shape:
+
+- **US-067** — Surface overdue invitations with...
+
+**Stories created by this change:**
+
+| Story | Name | Sprint | Status | File |
+|-------|------|--------|--------|------|
+| **US-067** | Surface overdue invitations with configurable alerts | Sprint 3 | ⬜ backlog | [r1_misc_us_067.md](sprint-3/r1_misc_us_067.md) |
+| **US-068** | Withdraw a pending invitation safely from exceptions | Sprint 3 | ⬜ backlog | [r1_misc_us_068.md](sprint-3/r1_misc_us_068.md) |
+| **US-069** | Expire stale invitations automatically and notify the requester | Sprint 3 | ⬜ backlog | [r1_misc_us_069.md](sprint-3/r1_misc_us_069.md) |
 

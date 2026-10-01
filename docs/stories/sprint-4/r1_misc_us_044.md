@@ -34,3 +34,4 @@ As a Group Admin (persona_01), I want to tune thresholds and notification identi
 
 - ACs are copied verbatim from `08_scope.md` (generated 10b pass, 2026-07-22) — the scope is the single source; edit there and regenerate.
 - Sprint 4 milestone: Money core (rates + close engine + license lines + statement template) THEN money complete (usage lines, finalization, exports, reconciliation, rollup) + company CRUD, credentials store, runbooks/restore drill, production deploy. MVP COMPLETE.
+- **CHG-063 / DEC-SMP-023:** the `invite_unaccepted` rule edits `threshold.hours` (default 168) and `threshold.auto_withdraw_after_hours` (`null` = automatic expiry disabled, the default; when set, an integer strictly greater than `hours`). Validate through the shared validator US-069 introduces — do not re-implement the rule here.

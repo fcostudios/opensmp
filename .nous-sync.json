@@ -1,13 +1,13 @@
 {
-  "synced_at": "2026-10-01T16:25:01.383134+00:00",
+  "synced_at": "2026-10-01T16:44:39.887646+00:00",
   "project_id": "fcostudios__smp",
   "files": {
     "docs/stories/SPRINT_PLAN.md": {
-      "hash": "ac0438bbbb98e743",
+      "hash": "e4af34ffb64a1b8e",
       "source": "generated"
     },
     "docs/stories/CHANGES.md": {
-      "hash": "c0f936be6a4fa507",
+      "hash": "c892043529992871",
       "source": "generated"
     },
     "docs/stories/ASSIGNMENTS.md": {
@@ -19,11 +19,11 @@
       "source": "generated"
     },
     ".nous-project.json": {
-      "hash": "4f6e3ca452d88e31",
+      "hash": "545c5c0f8ba9474b",
       "source": "generated"
     },
     "docs/stories/INDEX.md": {
-      "hash": "facb13aa621fe5b0",
+      "hash": "4e1622fc401ff78e",
       "source": "generated"
     },
     "docs/stories/sprint-1/r1_misc_us_001.md": {
@@ -107,7 +107,7 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_020.md"
     },
     "docs/stories/sprint-3/r1_misc_us_021.md": {
-      "hash": "14a05e9d9ecc7f83",
+      "hash": "2f60af8254c89c14",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_021.md"
     },
     "docs/stories/sprint-2/r1_misc_us_022.md": {
@@ -199,7 +199,7 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_043.md"
     },
     "docs/stories/sprint-4/r1_misc_us_044.md": {
-      "hash": "18bce5eebdb78b93",
+      "hash": "81a78db7cbcfb53e",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_044.md"
     },
     "docs/stories/sprint-2/r1_misc_us_045.md": {
@@ -311,7 +311,7 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/14_legal.md"
     },
     "docs/decisions/DECISION_MATRIX.md": {
-      "hash": "554678c2e59b6e5e",
+      "hash": "d738cc0a4a00c555",
       "source": "/Users/fcolomas/Projects/nous/Nous/WorkControl/fcostudios/smp/DECISION_MATRIX.md"
     },
     "docs/dashboard.html": {
@@ -677,6 +677,18 @@
     "packages/db/scripts/migration-plan.mjs": {
       "hash": "e7c5a55a2d1b9f23",
       "source": "toolchain"
+    },
+    "docs/stories/sprint-3/r1_misc_us_067.md": {
+      "hash": "1576e0cdce8ef1db",
+      "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_067.md"
+    },
+    "docs/stories/sprint-3/r1_misc_us_068.md": {
+      "hash": "39024e59914a70c4",
+      "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_068.md"
+    },
+    "docs/stories/sprint-3/r1_misc_us_069.md": {
+      "hash": "f0746f750066c518",
+      "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_069.md"
     }
   }
 }
