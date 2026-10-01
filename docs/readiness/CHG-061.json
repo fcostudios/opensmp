@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "3065e70edac14d097cd4116e9b5b7cd15ee52b973a67fa9f9b0a17761af8b269",
+  "work_id": "CHG-061",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Adopt IMP-410: commit-msg accepts a pure Nous sync via scripts/nous-sync-owns.mjs",
+  "source": "Nous change ledger CHG-061",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "A commit that is exactly a Nous sync (consistent delivery envelope, every other staged path claimed in .nous-sync.json at its delivered hash under the substrate-managed allowlist, clean-tree provenance) is accepted by commit-msg without a US/CHG work id.",
+      "demo": "Stage a real Nous sync and commit it with no work id; node scripts/nous-sync-owns.mjs --staged exits 0 and the hook accepts it (proven on 86d1ba8).",
+      "primary": true
+    },
+    {
+      "id": "O2",
+      "statement": "Every other commit keeps today's behaviour: a work id is required and work-readiness check-staged still runs.",
+      "demo": "Stage a non-sync change and run the hook with a message lacking a work id; it is rejected with the existing traceability error.",
+      "primary": false
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O2"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 2,
+    "expected_changed_files": 1,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 5,
+    "implementation": 5,
+    "focused_verification": 5,
+    "review": 5,
+    "integration": 5,
+    "total": 25
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Whether an early exit for sync commits weakens the readiness gate for non-sync commits.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "The exit is taken only when nous-sync-owns exits 0; any violation falls through to the unchanged traceability and check-staged path. Output is silenced so ordinary commits see no new noise."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG061-READY",
+    "payload_sha256": "3065e70edac14d097cd4116e9b5b7cd15ee52b973a67fa9f9b0a17761af8b269"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
