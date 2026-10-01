@@ -74,7 +74,25 @@
     "evidence": "CHG062-READY",
     "payload_sha256": "7d0eb3ae0941a01c7c989d4316fe2475849e4ee7376b1febb2839ee74abb8003"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 3,
+      "implementation": 0,
+      "focused_verification": 0,
+      "review": 0,
+      "integration": 2
+    },
+    "total": 5,
+    "changed_files": 3,
+    "commits": 5,
+    "review_fix_loops": 0,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "estimate_variance_minutes": -55,
+    "root_cause": "Wall-clock from the ledger: readiness = decision to started (3 min), implementation = started to the focused_verification phase marker (0 min), focused verification = marker to evidence (0 min, dominated by pnpm check), integration 2 min for the evidence commit; review not separately bounded (0). Scope note: the suite's pin on the old chained root test value (reversed by DEC-SMP-022 the same day) aborted test-work-readiness, so that single assertion was updated to pin DEC-SMP-022 inside this CHG instead of opening a second one. No mutation campaign: JavaScript gate tooling, 0 mutatable TypeScript shards."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
