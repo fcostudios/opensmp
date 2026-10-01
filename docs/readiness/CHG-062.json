@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "7d0eb3ae0941a01c7c989d4316fe2475849e4ee7376b1febb2839ee74abb8003",
+  "work_id": "CHG-062",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Readiness gate accepts the delivered feedback vocabulary: phase markers and done.cost",
+  "source": "Nous change ledger CHG-062",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "A feedback event named in the delivered docs/dev-guide/feedback-vocabulary.json canonical set (e.g. the DoD's phase marker) is a known event for the readiness gate; an event in neither the gate's own set nor the delivered vocabulary is still rejected.",
+      "demo": "Commit a feedback ledger with a phase marker and verify the range validates; commit one with an invented event and verify WR_FEEDBACK_INVALID.",
+      "primary": true
+    },
+    {
+      "id": "O2",
+      "statement": "A done event may carry an optional cost object (calls and context_tokens required non-negative integers; model string; window and output_tokens non-negative integers; no other keys) and still counts as a valid terminal; a malformed cost does not.",
+      "demo": "Validate done with a well-formed cost, without cost, and with cost.calls as a string; only the last is rejected.",
+      "primary": false
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O2"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 2,
+    "expected_changed_files": 3,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 10,
+    "implementation": 20,
+    "focused_verification": 15,
+    "review": 5,
+    "integration": 10,
+    "total": 60
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Whether widening the known-event set weakens the gate.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "The widening is a union with the substrate's canonical names only; every event the gate already validates keeps its specific checks, and an event outside both sets is still rejected. Newly known names are treated as non-execution annotations, so they never authorize implementation evidence."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG062-READY",
+    "payload_sha256": "7d0eb3ae0941a01c7c989d4316fe2475849e4ee7376b1febb2839ee74abb8003"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
