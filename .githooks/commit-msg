@@ -36,6 +36,17 @@ fi
 
 MSG="$(cat "$COMMIT_MSG_FILE")"
 
+# IMP-410: a commit that is exactly a Nous sync needs no work id. The emitted,
+# provenance-stamped scripts/nous-sync-owns.mjs authorizes it only when the
+# delivery envelope is consistent, every other staged path is claimed in
+# .nous-sync.json at its delivered hash under the substrate-managed allowlist,
+# and provenance is clean. A convention gate, not proof of authorship.
+if [ -f scripts/nous-sync-owns.mjs ] && command -v node >/dev/null 2>&1 \
+   && node scripts/nous-sync-owns.mjs --staged >/dev/null 2>&1; then
+  echo "commit-msg: Nous sync commit (nous-sync-owns) — work id not required" >&2
+  exit 0
+fi
+
 # Traceability-only emergency bypass (leaves an audit trail via env var usage).
 # Readiness still runs below.
 TRACEABILITY_EXEMPT=0
