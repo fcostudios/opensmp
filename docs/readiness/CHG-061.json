@@ -74,7 +74,25 @@
     "evidence": "CHG061-READY",
     "payload_sha256": "3065e70edac14d097cd4116e9b5b7cd15ee52b973a67fa9f9b0a17761af8b269"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 8,
+      "implementation": 2,
+      "focused_verification": 3,
+      "review": 0,
+      "integration": 5
+    },
+    "total": 18,
+    "changed_files": 1,
+    "commits": 4,
+    "review_fix_loops": 0,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "estimate_variance_minutes": -7,
+    "root_cause": "Rounded operator-session reconstruction. Readiness 8 minutes covers the artifact, the digest-bound decision, and the readiness-bound plan the gate required before the hook commit. Implementation 2 minutes is the 11-line guarded block in .githooks/commit-msg. Focused verification 3 minutes: the range predicate on 86d1ba8 and the negative hook control. Integration 5 minutes: approval, plan, implementation and evidence commits. No mutation campaign: the change is a bash hook with no mutatable TypeScript (0 shards). The sync it enables was proven before this CHG on 86d1ba8."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
