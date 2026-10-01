@@ -58,6 +58,8 @@
 | **CHG-058** | 📦 delivered | Next child faster: preview campaign per task, honest sizing, plan-only for partition children, fix the sandbox selector | — | — |
 | **CHG-059** | 📦 delivered | Append-only completion actuals correction | — | — |
 | **CHG-060** | 🔵 analyzed | Scope discipline and parallel siblings: AC-bound tasks, hardening declared or deferred, two sessions on parallel-safe children | — | — |
+| **CHG-061** | 🟡 proposed | Adopt IMP-410: commit-msg accepts a pure Nous sync via scripts/nous-sync-owns.mjs | — | — |
+| **CHG-062** | 🟡 proposed | Readiness gate accepts the delivered feedback vocabulary: phase markers and done.cost | — | — |
 
 ---
 
@@ -770,6 +772,18 @@ _No stories linked to this change yet._
 ## Why (measured 2026-09-09)
 US-066 closed with a clean process (readiness 8 min, one cold campaign at 94.46%, review 80 <
 implementation 205) and still took 391 minut...
+
+_No stories linked to this change yet._
+
+### CHG-061: Adopt IMP-410: commit-msg accepts a pure Nous sync via scripts/nous-sync-owns.mjs
+
+**Status:** 🟡 `proposed`
+
+_No stories linked to this change yet._
+
+### CHG-062: Readiness gate accepts the delivered feedback vocabulary: phase markers and done.cost
+
+**Status:** 🟡 `proposed`
 
 _No stories linked to this change yet._
 
