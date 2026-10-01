@@ -1,5 +1,5 @@
 <!-- nous-sprint-stamp
-generated_at: 2026-09-07T17:48:18Z
+generated_at: 2026-10-01T15:52:20Z
 current_sprint: sprint-3
 sprints_hash: eeb36cc3ba3f14ec
 -->
@@ -100,17 +100,17 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | 8 | frontend | **US-029** ⬜ | Freshness labels + staleness alert | 2SP | `apps/web/src/components/` | — | US-026, US-042 | — | — | [r1_misc_us_029.md](sprint-3/r1_misc_us_029.md) |
 | 9 | full-stack | **US-056** ✅ | Anthropic transport with separated credentials and bounded retry | 1SP | `See story file` | CHG-045 | US-003, US-025, US-045 | →7 | — | [r1_misc_us_056.md](sprint-3/r1_misc_us_056.md) |
 | 10 | full-stack | **US-057** ✅ | Append-only sanitized connector-call journal | 2SP | `See story file` | CHG-045 | US-056 | →6 | — | [r1_misc_us_057.md](sprint-3/r1_misc_us_057.md) |
-| 11 | full-stack | **US-065** ⬜ | Recover failed automated provisioning with an operator retry | 1SP | `See story file` | CHG-054 | US-014, US-042, US-063 | →1 | — | [r1_misc_us_065.md](sprint-3/r1_misc_us_065.md) |
-| 12 | full-stack | **US-066** ⬜ | Activate accepted invitations from the 15-minute membership poll | 1SP | `See story file` | CHG-054 | US-014, US-046, US-063 | →1 | — | [r1_misc_us_066.md](sprint-3/r1_misc_us_066.md) |
+| 11 | full-stack | **US-065** ✅ | Recover failed automated provisioning with an operator retry | 1SP | `See story file` | CHG-054 | US-014, US-042, US-063 | →1 | — | [r1_misc_us_065.md](sprint-3/r1_misc_us_065.md) |
+| 12 | full-stack | **US-066** ✅ | Activate accepted invitations from the 15-minute membership poll | 1SP | `See story file` | CHG-054 | US-014, US-046, US-063 | →1 | — | [r1_misc_us_066.md](sprint-3/r1_misc_us_066.md) |
 | 13 | full-stack | **US-028** ⬜ | Reclamation proposals: approve or dismiss | 3SP | `See story file` | — | US-024, US-027 | — | — | [r1_misc_us_028.md](sprint-3/r1_misc_us_028.md) |
 | 14 | full-stack | **US-058** ✅ | Anthropic connector conformance and Pact contracts | 1SP | `See story file` | CHG-045 | US-056, US-057 | →5 | — | [r1_misc_us_058.md](sprint-3/r1_misc_us_058.md) |
-| 15 | full-stack | **US-064** ⬜ | Route provider no-seat responses to the capacity workflow | 1SP | `See story file` | CHG-054 | US-014, US-023, US-063 | →1 | — | [r1_misc_us_064.md](sprint-3/r1_misc_us_064.md) |
+| 15 | full-stack | **US-064** ✅ | Route provider no-seat responses to the capacity workflow | 1SP | `See story file` | CHG-054 | US-014, US-023, US-063 | →1 | — | [r1_misc_us_064.md](sprint-3/r1_misc_us_064.md) |
 | 16 | full-stack | **US-055** ⬜ | API-less ingestion: member/usage CSV import + manual register upkeep | 3SP | `See story file` | — | US-003, US-025, US-026, US-030 | — | — | [r1_misc_us_055.md](sprint-3/r1_misc_us_055.md) |
-| 17 | full-stack | **US-063** ⬜ | Deliver approved requests as vendor invitations within 15 minutes | 1SP | `See story file` | CHG-054 | US-014, US-042, US-046, US-056, US-057, US-058 | →4 | — | [r1_misc_us_063.md](sprint-3/r1_misc_us_063.md) |
+| 17 | full-stack | **US-063** ✅ | Deliver approved requests as vendor invitations within 15 minutes | 1SP | `See story file` | CHG-054 | US-014, US-042, US-046, US-056, US-057, US-058 | →4 | — | [r1_misc_us_063.md](sprint-3/r1_misc_us_063.md) |
 | 18 | full-stack | **US-018** ✅ | Anthropic connector client | 4SP | `See story file` | — | US-003, US-025, US-045, US-056, US-057, US-058 | →3 | — | [r1_misc_us_018.md](sprint-3/r1_misc_us_018.md) |
 | 19 | full-stack | **US-026** ⬜ | Analytics sync: activity + cost | 3SP | `See story file` | — | US-018, US-046, US-056, US-057, US-058 | →4 | — | [r1_misc_us_026.md](sprint-3/r1_misc_us_026.md) |
 | 20 | full-stack | **US-030** ⬜ | Drift detection + retroactive claim | 3SP | `See story file` | — | US-018, US-042, US-046, US-056, US-057, US-058 | →1 | — | [r1_misc_us_030.md](sprint-3/r1_misc_us_030.md) |
-| 21 | full-stack | **US-019** ⬜ | Automated provisioning: invite ≤ 15 min → Active | 5SP | `See story file` | — | US-014, US-018, US-042, US-046, US-056, US-057, US-058, US-063, US-064, US-065, US-066 | →2 | — | [r1_misc_us_019.md](sprint-3/r1_misc_us_019.md) |
+| 21 | full-stack | **US-019** ✅ | Automated provisioning: invite ≤ 15 min → Active | 5SP | `See story file` | — | US-014, US-018, US-042, US-046, US-056, US-057, US-058, US-063, US-064, US-065, US-066 | →2 | — | [r1_misc_us_019.md](sprint-3/r1_misc_us_019.md) |
 
 ### Parallel Tracks
 

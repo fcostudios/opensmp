@@ -49,7 +49,7 @@ function stripCode(text) {
 }
 const ROOTS = ["packages", "apps"];
 const TEST_EXTS = [".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx"];
-const CFG_EXTS = ["vitest.config.ts", "vitest.config.mts", "vitest.config.js"];
+const CFG_EXTS = ["vitest.config.ts", "vitest.config.mts", "vitest.config.cts", "vitest.config.js", "vitest.config.mjs", "vitest.config.cjs", "vite.config.ts", "vite.config.mts", "vite.config.cts", "vite.config.js", "vite.config.mjs", "vite.config.cjs"];
 const HAS_TEST = /\b(?:it|test)\s*\(/;
 // Generous oracle detection (safe direction — only flag when confident there is
 // NO oracle): expect(/assert (any custom expect*/assert* helper), a vitest/jest
@@ -104,4 +104,4 @@ for (const f of cfgs) {
 if (testFiles) console.error(`[test-oracles] diagnostic: ${assertFree}/${testFiles} test file(s) assertion-free (${printOnly} print-only)`);
 if (failed) process.exit(1);
 console.log("[test-oracles] ok");
-// nous-emitted: sha256=8c68d79272628d9e
+// nous-emitted: sha256=e3e4d2e5024513e4

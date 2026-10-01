@@ -33,6 +33,32 @@ Related guides: [`NAVIGATION.md`](NAVIGATION.md) (routes & screens),
 | Estimates / QA (proofread, risk, legal) | `11_estimates.md`, `12_proofread.md`, `13_risk.md`, `14_legal.md` *(if present)* |
 | How/why a decision was made | `docs/decisions/`, tech-specs & design docs in `docs/specs/` |
 
+## Work ids — where a `CHG-NNN` comes from
+
+**Never mint a `CHG-NNN` locally.** A change id is allocated in `nous.db`
+**before** it appears in a readiness artifact, a commit message, or a feedback
+event. Ask the operator to run:
+
+```bash
+nous_trace.py change next --project <project-id> --reserve --title "…"
+```
+
+That prints the next free id for this project *and* creates the row, so the id
+you use is one the substrate already knows about. Without `--reserve` it only
+reports the next free number.
+
+Why it matters: **CHG ids are scoped to a project, and the substrate allocates
+them.** An id you pick yourself may be the one the operator allocates to a
+different change the same day — and until it is registered, the work behind it is
+invisible to `nous.db`, so it reaches no roadmap, no impact query, and no report.
+The `[CHG Id Provenance]` drift section names every id used in this package that
+has no ledger row.
+
+**The CHG narrative lives in `nous.db`** and is delivered here as
+`docs/stories/CHANGES.md`. Don't maintain a parallel `docs/changes/*.md` set — a
+second hand-written channel drifts from the canonical body, and then neither one
+is trustworthy.
+
 Design docs, tech specs, sprint plans, and QA verifications are also in
 `docs/specs/` (see the second table in `INDEX.md`) — useful for the "why" behind
 a feature or a past change.

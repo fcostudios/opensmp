@@ -4,6 +4,10 @@
 > materially costly. Mutation testing runs on **the diff**; this set decides which
 > **stories owe mutation evidence** before they can close — two separate mechanisms.
 > Governed by the **Test Effectiveness Standard** §3.1.
+>
+> **Adding a critical path of your own?** Declare it in config — not by editing a generated file:
+> `nous_trace.py config patch --project <id> --key testing.critical_paths --value '["**Your path** — what a silent fault here would cost."]'`
+> Declared rows are published verbatim — under `## Operator additions` in `testing/critical-paths.md`, and in the §3 list in `docs/dev-guide/TESTING.md` — and survive every regeneration.
 
 ## Always-mandated (Standard §3.1)
 
@@ -37,4 +41,4 @@
 | UserAccount | auth-sensitive entity (name heuristic) | heuristic |
 | VendorAccount | auth-sensitive entity (name heuristic) | heuristic |
 | VendorAccountCapacity | auth-sensitive entity (name heuristic) | heuristic |
-<!-- nous-emitted: sha256=b8c488853d71d0d5 -->
+<!-- nous-emitted: sha256=7f92177f9e9f6285 -->

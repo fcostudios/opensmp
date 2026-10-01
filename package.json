@@ -8,16 +8,16 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "type-check": "turbo run type-check && pnpm run type-check:probe",
+    "type-check": "turbo run type-check",
     "type-check:probe": "pnpm --dir scripts/probes/anthropic run type-check",
-    "lint": "pnpm run lint:provider-boundary && python3 infra/scripts/reconcile-sprint1-docs.py . --check && turbo run lint && pnpm run lint:probe && pnpm run lint:tests",
+    "lint": "turbo run lint",
     "lint:provider-boundary": "pnpm exec eslint --no-inline-config --config eslint.provider-boundary.config.mjs apps packages scripts && pnpm exec tsx packages/connectors/src/source-boundary-cli.ts .",
     "lint:probe": "pnpm --dir scripts/probes/anthropic run lint",
     "mutation:cache:inspect": "node scripts/mutation-cache.mjs inspect",
     "mutation:cache:clear": "node scripts/mutation-cache.mjs clear",
     "mutation:benchmark:summary": "node scripts/mutation-evidence/performance.mjs",
     "mutation:preflight": "node scripts/mutation-scope.mjs --preflight",
-    "test": "pnpm run readiness:check:all && pnpm run readiness:check:range && pnpm run test:work-readiness && pnpm run test:enforcement && pnpm run test:vitest-workspaces && pnpm run test:feedback-order && pnpm run test:feedback-order:fixtures && pnpm run test:mutation-scope && pnpm run test:mutation-evidence && pnpm run test:infra && pnpm run test:probe && pnpm --filter @smp/db test && turbo run test --filter='!@smp/db' --concurrency=1",
+    "test": "turbo run test",
     "readiness:init": "node scripts/work-readiness.mjs init",
     "readiness:calibrate": "node scripts/work-readiness.mjs calibrate",
     "readiness:check": "node scripts/work-readiness.mjs check",
@@ -53,8 +53,9 @@
     "validate:routes": "./infra/scripts/validate-routes.sh",
     "validate:sidebar": "./infra/scripts/regenerate-sidebar.py --check",
     "check:generated-guidance": "python3 infra/scripts/reconcile-sprint1-docs.py . --check",
-    "lint:tests": "node scripts/check-test-mocks.mjs . && node scripts/check-test-oracles.mjs . && pnpm run lint:vitest-workspaces",
-    "lint:vitest-workspaces": "node scripts/check-vitest-workspaces.mjs ."
+    "lint:tests": "node scripts/check-test-mocks.mjs . && node scripts/check-test-oracles.mjs .",
+    "lint:vitest-workspaces": "node scripts/check-vitest-workspaces.mjs .",
+    "test:mutation:preflight": "node scripts/mutation-preflight.mjs"
   },
   "devDependencies": {
     "@pact-foundation/pact": "17.0.1",

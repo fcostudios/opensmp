@@ -52,6 +52,12 @@
 | **CHG-052** | 📦 delivered | Reconcile the US-018 partition: retire tenant-local US-059..062 as superseded; close US-018 by parent-level verification | — | — |
 | **CHG-053** | 📦 delivered | Register the 2026-09-07 IMP-393/398 guidance refresh and two-file immutable overlay | — | — |
 | **CHG-054** | 📦 delivered | Partition US-019 (520 min > 320) into four canonical children US-063..066; parent closes by verification | US-063, US-064, US-065, US-066 | S3 |
+| **CHG-055** | 📦 delivered | Register the 2026-09-07 PM authorization-guidance refresh and three-file immutable overlay | — | — |
+| **CHG-056** | 🔵 analyzed | Run every diff-scoped mutation shard before reporting the campaign result | — | — |
+| **CHG-057** | 🟢 accepted | Mutation campaign: run every shard, lint the preflights before the campaign, one evidence commit per story | — | — |
+| **CHG-058** | 📦 delivered | Next child faster: preview campaign per task, honest sizing, plan-only for partition children, fix the sandbox selector | — | — |
+| **CHG-059** | 📦 delivered | Append-only completion actuals correction | — | — |
+| **CHG-060** | 🔵 analyzed | Scope discipline and parallel siblings: AC-bound tasks, hardening declared or deferred, two sessions on parallel-safe children | — | — |
 
 ---
 
@@ -685,8 +691,85 @@ US-019 "Automated provisioning: invite ≤ 15 min → Active" is 5 SP = 520 min 
 
 | Story | Name | Sprint | Status | File |
 |-------|------|--------|--------|------|
-| **US-063** | Deliver approved requests as vendor invitations within 15 minutes | Sprint 3 | ⬜ backlog | [r1_misc_us_063.md](sprint-3/r1_misc_us_063.md) |
-| **US-064** | Route provider no-seat responses to the capacity workflow | Sprint 3 | ⬜ backlog | [r1_misc_us_064.md](sprint-3/r1_misc_us_064.md) |
-| **US-065** | Recover failed automated provisioning with an operator retry | Sprint 3 | ⬜ backlog | [r1_misc_us_065.md](sprint-3/r1_misc_us_065.md) |
-| **US-066** | Activate accepted invitations from the 15-minute membership poll | Sprint 3 | ⬜ backlog | [r1_misc_us_066.md](sprint-3/r1_misc_us_066.md) |
+| **US-063** | Deliver approved requests as vendor invitations within 15 minutes | Sprint 3 | ✅ dev_done | [r1_misc_us_063.md](sprint-3/r1_misc_us_063.md) |
+| **US-064** | Route provider no-seat responses to the capacity workflow | Sprint 3 | ✅ dev_done | [r1_misc_us_064.md](sprint-3/r1_misc_us_064.md) |
+| **US-065** | Recover failed automated provisioning with an operator retry | Sprint 3 | ✅ dev_done | [r1_misc_us_065.md](sprint-3/r1_misc_us_065.md) |
+| **US-066** | Activate accepted invitations from the 15-minute membership poll | Sprint 3 | ✅ dev_done | [r1_misc_us_066.md](sprint-3/r1_misc_us_066.md) |
+
+### CHG-055: Register the 2026-09-07 PM authorization-guidance refresh and three-file immutable overlay
+
+**Status:** 📦 `delivered`
+**Notes:** # CHG-055 — Register the 2026-09-07 PM authorization-guidance refresh
+
+## Context
+
+The substrate refresh after IMP-397 and IMP-399 delivers verified database-authorization guidance in `docs/dev-guide/SECURITY.md`, `docs/dev-guide/STANDARDS.md`, and `docs/dev-guide/DEFINITION_OF_DONE.md`, plus ten...
+
+_No stories linked to this change yet._
+
+### CHG-056: Run every diff-scoped mutation shard before reporting the campaign result
+
+**Status:** 🔵 `analyzed`
+**Notes:** # CHG-056 — Run every diff-scoped mutation shard before reporting the campaign result
+
+## Context
+
+IMP-397 identified an execution-conformance gap in the tenant mutation runner. `pnpm test:mutation` currently chains selected Stryker shards with fail-fast semantics, so the first below-threshold sh...
+
+_No stories linked to this change yet._
+
+### CHG-057: Mutation campaign: run every shard, lint the preflights before the campaign, one evidence commit per story
+
+**Status:** 🟢 `accepted`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** # The mutation campaign discovers one obstacle per run: run every shard, lint the preflights before the campaign, and stop documenting every attempt
+
+## Why (measured 2026-09-08 from `story timeline` — IMP-397)
+
+| story | est | actual | implementation | review | cold campaigns | campaign minutes ...
+
+_No stories linked to this change yet._
+
+### CHG-058: Next child faster: preview campaign per task, honest sizing, plan-only for partition children, fix the sandbox selector
+
+**Status:** 📦 `delivered`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** # Run the next child faster: preview campaign per task, honest sizing, plan-only for partition children, fix the sandbox selector
+
+## Why (measured on US-064 under CHG-057, 2026-09-08)
+
+CHG-057 held: 2 cold campaigns, 9 campaign minutes (US-063: 9 and 44). The 189 minutes that
+remain are three ot...
+
+_No stories linked to this change yet._
+
+### CHG-059: Append-only completion actuals correction
+
+**Status:** 📦 `delivered`
+**Source:** tenant_feedback
+**Requested by:** Francisco Lomas
+**Notes:** # CHG-059 Append-Only Completion Actuals Correction Design
+
+## Problem
+
+CHG-058 completed with valid source, review, mutation, and terminal evidence, but
+its completion artifact records `changed_files: 11`. The value came from piping
+RTK's human-formatted `git diff --name-only` display into `wc -...
+
+_No stories linked to this change yet._
+
+### CHG-060: Scope discipline and parallel siblings: AC-bound tasks, hardening declared or deferred, two sessions on parallel-safe children
+
+**Status:** 🔵 `analyzed`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** # Scope discipline and parallel siblings: AC-bound tasks, hardening declared or deferred, two sessions on parallel-safe children
+
+## Why (measured 2026-09-09)
+US-066 closed with a clean process (readiness 8 min, one cold campaign at 94.46%, review 80 <
+implementation 205) and still took 391 minut...
+
+_No stories linked to this change yet._
 

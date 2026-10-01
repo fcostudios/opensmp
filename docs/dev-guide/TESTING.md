@@ -81,6 +81,13 @@ Pipeline order (fail-fast): lint/type → domain+property → aggregate+projecti
 
 ## 5. Agent test-generation loop
 
+**The campaign is the LAST step of this loop, not its first feedback.** Write the
+test with the code, and use the cheap signals below while you do.
+
+- Run `pnpm test:mutation:preflight` as you go — seconds, no mutants. It names a changed file no test imports, an assertion-free test in the diff, and a test database that cannot be built.
+- Preview the touched scope any time you want an early read on oracle strength. A preview is NOT reported as a `test_report` (§4).
+- The preflight is not the gate: it says nothing about the oracle strength of tests that already exist. Only a campaign scores that.
+
 1. Generate tests for changed code in §3.
 2. Run `pnpm test:mutation` — it scopes to this branch's diff and runs ONE campaign (a diff with nothing mutatable exits immediately). Do not hand-write per-story mutation configs.
 3. **Keep only tests that kill previously-surviving mutants;** drop coverage-only redundant tests.
@@ -129,4 +136,4 @@ pnpm test:mutation  # ONE diff-scoped mutation campaign  ← the gate
 ## 8. Reference
 
 Full rationale + evidence base: `docs/TEST_EFFECTIVENESS_STANDARD.md`.
-<!-- nous-emitted: sha256=91cce253f404c4f6 -->
+<!-- nous-emitted: sha256=fdafb067584c0980 -->

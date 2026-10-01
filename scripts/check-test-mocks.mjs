@@ -52,6 +52,26 @@ function ownedAliases(root) {
     const m = String(pkg.name || "").match(/^(@[^/]+)\//) || String(pkg.name || "").match(/^(@[^/]+)$/);
     if (m) set.add(m[1] + "/");
   } catch { /* no root package.json => just the defaults */ }
+  // IMP-402 — the WORKSPACE packages' own names. Reading the scope from the ROOT
+  // package.json is where the scope is not: smp's root is named `smp` and its
+  // packages are `@smp/*`, so the alias set never contained the scope its 206
+  // test files actually import through. Measured 2026-09-09 on three live
+  // tenants: smp +0 findings, kontract +0, mi-banquito 27 -> 109, and all 82 are
+  // genuine over-mocks of `@mi-banquito/{db,db/tenant,domain,db/schema}`.
+  for (const group of ["packages", "apps"]) {
+    let entries = [];
+    try { entries = readdirSync(join(root, group)); } catch { continue; }
+    for (const entry of entries) {
+      try {
+        const wp = JSON.parse(readFileSync(join(root, group, entry, "package.json"), "utf8"));
+        // The trailing "/" is load-bearing, same reason the campaign script
+        // anchors its worktree patterns: an UNSCOPED workspace name (`smp-web`)
+        // added bare would make `isOwned` match `smp-web-utils` by prefix — a
+        // real npm package read as owned code. With the separator it cannot.
+        if (wp.name) set.add(String(wp.name) + "/");
+      } catch { /* not a package directory */ }
+    }
+  }
   for (const tc of ["tsconfig.json", "tsconfig.base.json"]) {
     try {
       const j = JSON.parse(stripComments(readFileSync(join(root, tc), "utf8")));
@@ -87,4 +107,4 @@ for (const f of walkRoots(root, ROOTS, EXTS)) {
 if (files) console.error(`[test-mocks] diagnostic: ${mocks} mock(s) across ${files} test file(s) (ratio ${(mocks / files).toFixed(2)})`);
 if (failed) process.exit(1);
 console.log("[test-mocks] ok");
-// nous-emitted: sha256=11996379fc46543f
+// nous-emitted: sha256=d09a9ada992c2026

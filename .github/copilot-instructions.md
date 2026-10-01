@@ -1,4 +1,4 @@
-<!-- agent-sync: 93caf0fd67a9 | source: CLAUDE.md | DO NOT EDIT — this file is auto-generated from CLAUDE.md. Edit CLAUDE.md then run: python3 nous_agent_sync.py -->
+<!-- agent-sync: ca4a7c18b2c9 | source: CLAUDE.md | DO NOT EDIT — this file is auto-generated from CLAUDE.md. Edit CLAUDE.md then run: python3 nous_agent_sync.py -->
 # CLAUDE.md — Ledger
 
 > Project intelligence file for AI-assisted development.
@@ -255,11 +255,25 @@ Before marking any story `done`:
 - `pnpm lint` passes (Next.js lint + the design-system token lints).
 - `pnpm build` succeeds — runs `next build --webpack` (the serverless/PWA bundler).
 - `pnpm test` passes — Vitest across the workspace (real-DB seam tests via the pglite fixture, strongest available oracle; coverage is a diagnostic, never a completion target — TE-1 / R1). The effectiveness gate is a separate, LATER step.
-- `cd packages/db && pnpm drizzle-kit push && node scripts/verify-schema.mjs` applies the Drizzle schema to a fresh database AND verifies it landed (push exits 0 on an unreachable URL — the verifier fails loud on a silent no-op); no duplicate timestamp migrations under `packages/db/src/migrations/`.
+- `cd packages/db && node scripts/apply-migrations.mjs && node scripts/verify-schema.mjs` applies the COMMITTED migrations to a fresh database AND verifies the result landed (the applier is checksum-verified under an advisory lock; the verifier fails loud on a silent no-op); no duplicate timestamp migrations under `packages/db/src/migrations/`. `drizzle-kit push` is NOT the gate: it diffs only what `schema.ts` can model, while the committed migrations also carry RLS policies, triggers and composite tenant-scoped foreign keys — so push proposes DROPPING them and can hard-fail. Use `drizzle-kit generate` to AUTHOR a migration and the committed-migration applier (`db:migrate`) to PROVE the committed set applies.
 - Report build evidence: `{"story":"US-XXX","event":"build_pass",...}`.
 - Adversarially verify every AC — try to BREAK each one — logging `{"event":"ac_verify","ac":N,...}` per AC ([`docs/dev-guide/FEEDBACK.md`](docs/dev-guide/FEEDBACK.md)).
-- ONLY THEN run the effectiveness gate: `pnpm test:mutation` — ONE diff-scoped cold campaign meeting the bar in [`docs/dev-guide/TESTING.md`](docs/dev-guide/TESTING.md) §4. Any commit after the campaign invalidates it, so it runs after review closes, not before. Report `{"event":"test_report","mutation_score":N,"scope":"diff",...}`.
+- ONLY THEN run the effectiveness gate: `pnpm test:mutation` — ONE diff-scoped cold campaign meeting the bar in [`docs/dev-guide/TESTING.md`](docs/dev-guide/TESTING.md) §4. A change to what the campaign scored invalidates it — a mutatable `.ts`/`.tsx` source (not a test), a test, `stryker.conf.json` or a dependency; committing the scored tree or a docs-only commit does not — so it runs after review closes, not before. Report `{"event":"test_report","mutation_score":N,"scope":"diff",...}`.
 - Only then report terminal evidence: `{"event":"done",...}`. Never `done` before `ac_verify`.
+
+### While you implement (the loop, not the gate)
+
+- **Write the test WITH the code, not after it.** The campaign in the gate above is the LAST step of the loop below, never its first feedback.
+
+1. Write a unit of work and the test that constrains it.
+2. `pnpm test:mutation:preflight` — seconds, no mutants: names a changed file no test imports, an assertion-free test in the diff, and a test database that cannot be built.
+3. Preview the touched scope for an early read on oracle strength — allowed at any time, and NOT reported (see the gate above).
+4. Next unit. Repeat.
+5. Adversarial AC verification, then ONE cold campaign, last.
+
+- **A preflight is not the gate and cannot replace it.** It says nothing about whether the tests that DO exist have strong oracles; only a campaign scores that.
+
+- **Every unit of work above serves an acceptance criterion.** If one does not, say so before you build it — declare it in the assessment, or open a named follow-up. Absorbing it silently is how an approved scope becomes a number nobody agreed to.
 
 Full gate (commands, rejection criteria, troubleshooting):
 [`docs/dev-guide/DEFINITION_OF_DONE.md`](docs/dev-guide/DEFINITION_OF_DONE.md).
@@ -300,6 +314,20 @@ check `.nous-feedback.jsonl` first. To force a refresh (when you have access):
 
 Full event schema + AC protocol: [`docs/dev-guide/FEEDBACK.md`](docs/dev-guide/FEEDBACK.md).
 Build gate + rejection criteria: [`docs/dev-guide/DEFINITION_OF_DONE.md`](docs/dev-guide/DEFINITION_OF_DONE.md).
+
+## Agent session contract
+
+How you run a session is the largest lever on what a story costs. Defaults:
+
+- **One session per work item** (one story or one CHG) — never carry a session across items.
+- **Effort ≤ high** — thinking is retained for the whole session, so every later turn pays for it again.
+- **Close when idle; resume from the story file + `.nous-feedback.jsonl`** — after a >1 h idle gap the whole context is re-created anyway.
+- **Never run a whole-repo read skill** (e.g. `learn-codebase`) — read the files the story names.
+- **If you delegate** (e.g. superpowers `subagent-driven-development`): the orchestrator plans, briefs and reviews — it does not implement; each worker gets a bounded brief; a parent above ~200K context is the expensive shape.
+- **Large tool output goes through a sandbox or a summary** — never paste it into the conversation.
+- **Checkpoint = commit what is green and start a fresh session** at ~150 tool calls or ~300K context. There is no `checkpoint` feedback event — it is retired; do not emit one.
+
+These thresholds are defaults measured on one harness (Claude Code, 2026-08/09). On another harness keep the shape and adjust the numbers.
 
 ## Skills Required
 
@@ -361,4 +389,4 @@ Run `pnpm readiness:check -- <WORK-ID>`. The complete mandatory contract is in
   runtime checks use `ledger_app`; no duplicate timestamp migrations exist
   under `packages/db/src/migrations/`.
 - Report evidence: `{"story":"US-XXX","event":"build_pass",...}` then `{"event":"done",...}`.
-<!-- nous-emitted: sha256=605030616266e738 -->
+<!-- nous-emitted: sha256=3e0ea9395895a5ac -->

@@ -1,102 +1,57 @@
 # AGENTS.md — Ledger
 
 > Agent coordination rules for AI-assisted multi-agent development.
-> This is a **single self-hosted Next.js app** — no separate backend service.
+> This is a **single self-hosted nextjs app** — no separate backend service.
 
 ## Getting Started (read this first)
 
 1. **Onboard:** install + database + the full conventions are in
    [`CLAUDE.md`](CLAUDE.md) (Quick Start). Run `pnpm install`, set
-   `DATABASE_URL`, then apply the schema with
-   `cd packages/db && pnpm drizzle-kit push && node scripts/verify-schema.mjs`
-   (the drizzle config + verifier live with the schema, matching
-   DEFINITION_OF_DONE).
+   `DATABASE_URL`, then apply the COMMITTED migrations with
+   `cd packages/db && node scripts/apply-migrations.mjs && node scripts/verify-schema.mjs`
+   (the applier + verifier live with the schema, matching
+   DEFINITION_OF_DONE). Not `drizzle-kit push` — see step 3.
 2. **Pick work from [`docs/stories/SPRINT_PLAN.md`](docs/stories/SPRINT_PLAN.md)** — the
    sprint-ordered work queue (links to each story spec by sprint). `docs/stories/INDEX.md`
    is a flat catalog, NOT the queue; start from SPRINT_PLAN.
 3. **Definition of Done:** a story is done only when
    [`docs/dev-guide/DEFINITION_OF_DONE.md`](docs/dev-guide/DEFINITION_OF_DONE.md) passes —
-   `pnpm type-check && pnpm lint && pnpm build`, and the committed migrations +
-   `verify-schema.mjs` apply the schema.
-4. **Conventions** (tenant column `company_id`, per-table soft delete, App Router,
-   design tokens) live in [`CLAUDE.md`](CLAUDE.md) and `docs/dev-guide/` — follow
-   them verbatim.
-5. **Sprint 1 execution contract:** read
-   [`DEC-SMP-017`](docs/decisions/DEC-SMP-017-sprint-1-execution-contract.md)
-   before implementing US-001/003/004/005/007/054.
-
-## Sprint 1 Execution Contract
-
-- `Company` is the Ledger application-tenant boundary. Every company-scoped
-  query filters the real `company_id` column declared by its table.
-- `VendorAccount` is a vendor organization/account. It is business data inside
-  Ledger, not an application tenant and not an authorization boundary.
-- Auth.js uses Keycloak for OIDC identity. Ledger loads roles and company grants
-  from `UserAccount` and `CompanyRoleAssignment`; it never accepts authorization
-  from a client request or Keycloak business-role claim.
-- Keycloak renders and verifies the OIDC password and TOTP screens. Ledger uses
-  redirect-based OIDC and never renders or collects those credentials.
-- Keycloak-retained, operator-queryable security events evidence password/TOTP
-  failures for US-004. Ledger `AuditLog` records the OIDC/session linking,
-  callback failures, and authorization failures that Ledger observes.
-- US-004 establishes and tests the Keycloak admin-service seam required for
-  admin-group synchronization. The complete user-management UI remains US-011.
-- Releases apply committed migrations using `ledger_owner`. The running
-  application connects as `ledger_app`.
-- R1 deploys through Docker Compose on a VPS.
+   `pnpm type-check && pnpm lint && pnpm build`, and `apply-migrations.mjs` +
+   `verify-schema.mjs` apply the COMMITTED migrations. `drizzle-kit push` is NOT the gate: it diffs only what `schema.ts` can model, while the committed migrations also carry RLS policies, triggers and composite tenant-scoped foreign keys — so push proposes DROPPING them and can hard-fail. Use `drizzle-kit generate` to AUTHOR a migration and the committed-migration applier (`db:migrate`) to PROVE the committed set applies.
+4. **Conventions** (tenant column `company_id`, per-table soft delete, App Router, design tokens)
+   live in [`CLAUDE.md`](CLAUDE.md) and `docs/dev-guide/` — follow them verbatim.
 
 ## Agent Roles
 
 ### App Agent
-
 - **Scope:** `apps/web/`
 - **Language:** TypeScript
-- **Framework:** Next.js / React
+- **Framework:** nextjs 16 / react
 - **Rules:**
   - App Router with Server Components by default; `"use client"` only when needed
   - Import design tokens from `packages/design-system`
-  - Use Zustand for client state; validate forms with Zod
+  - Use Zustand for client state; validate forms with zod
   - All user-facing strings go in i18n locale files
 
 ### API Agent
-
 - **Scope:** `apps/web/src/app/api/`, `packages/db/src/`
 - **Rules:**
   - Endpoints are route handlers (`route.ts`); no separate backend service
-  - Persist via the shared Drizzle client; every company-scoped query filters
-    `company_id`; add a soft-delete filter only on a table that declares
-    `deleted_at`
-  - Protect handlers with the Auth.js session (`auth()`)
-  - Resolve authorization from Ledger DB roles/grants after session validation
+  - Persist via the shared `drizzle` client; every multi-tenant query filters `company_id` (the generated tenant column — not `tenant_id`); add a soft-delete filter only on a table that declares `deleted_at`
+  - Protect handlers with the Auth.js with Keycloak session (`auth()`)
 
 ### Infrastructure Agent
-
 - **Scope:** `infra/`
 - **Rules:**
-  - Hosting: self-hosted Docker Compose on a VPS — one Next.js app plus its
-    declared infrastructure services (see `docs/specs/09_architecture.md`)
-  - Release migrations run as `ledger_owner`; application runtime uses
-    `ledger_app`
+  - Hosting: self-hosted (Docker Compose on a VPS) — a single Next.js app plus its declared infra services (see docs/specs/09_architecture.md)
   - Shell scripts must be idempotent (`set -euo pipefail`)
 
 ### Docs Agent
-
 - **Scope:** `docs/`, `CLAUDE.md`, `AGENTS.md`
 - **Rules:**
   - Keep CLAUDE.md in sync with architecture changes
   - Story index must reflect current sprint assignments
-  - Decisions must reference their DEC-SMP-NNN IDs
-  - Open a CHG in Nous before editing generator-owned guidance
-
-## Work Readiness Gate
-
-Before writing a design, implementation plan, production code, test, migration,
-or executable tooling for any US-* or CHG-*, run its approved readiness
-assessment. A work item above 320 minutes or any cohesion limit is not
-execution-ready; partition it into official, approved vertical children first.
-
-Run `pnpm readiness:check -- <WORK-ID>`. The complete mandatory contract is in
-[`docs/dev-guide/WORK_READINESS.md`](docs/dev-guide/WORK_READINESS.md).
+  - Decisions must reference their DEC-NNN IDs
 
 ## Coordination Rules
 
@@ -104,7 +59,7 @@ Run `pnpm readiness:check -- <WORK-ID>`. The complete mandatory contract is in
 2. **Shared code lives in `packages/`.** Never duplicate logic between modules.
 3. **Migrations are append-only.** Never modify a committed migration under `packages/db/src/migrations/`.
 4. **Feature branches follow `feature/<context>/<short-desc>`.** Example: `feature/members/member-crud`.
-5. **Every PR must reference a story or change ID** (for example, `US-004` or `CHG-001`).
+5. **Every PR must reference a story ID** (e.g., US-004).
 6. **`pnpm type-check && pnpm lint && pnpm build` must pass** before any PR is merged.
 
 ## Sprint Flow
@@ -135,6 +90,20 @@ When an agent needs to coordinate with another:
 1. **API Contract:** Define the route handler path + shape before implementing
 2. **UI Contract:** Define the component props interface before building
 3. **Migration Ordering:** Timestamp-slug filenames avoid version conflicts
+
+## Agent session contract
+
+How you run a session is the largest lever on what a story costs. Defaults:
+
+- **One session per work item** (one story or one CHG) — never carry a session across items.
+- **Effort ≤ high** — thinking is retained for the whole session, so every later turn pays for it again.
+- **Close when idle; resume from the story file + `.nous-feedback.jsonl`** — after a >1 h idle gap the whole context is re-created anyway.
+- **Never run a whole-repo read skill** (e.g. `learn-codebase`) — read the files the story names.
+- **If you delegate** (e.g. superpowers `subagent-driven-development`): the orchestrator plans, briefs and reviews — it does not implement; each worker gets a bounded brief; a parent above ~200K context is the expensive shape.
+- **Large tool output goes through a sandbox or a summary** — never paste it into the conversation.
+- **Checkpoint = commit what is green and start a fresh session** at ~150 tool calls or ~300K context. There is no `checkpoint` feedback event — it is retired; do not emit one.
+
+These thresholds are defaults measured on one harness (Claude Code, 2026-08/09). On another harness keep the shape and adjust the numbers.
 
 ## Testing
 
@@ -167,4 +136,4 @@ expected behavior. Do not spray shallow or heavily-mocked tests to inflate volum
 is not a goal and is measured as a cost, not a quality.
 
 When you change logic in a `docs/dev-guide/TESTING.md` §3 critical path, update its §3 in the same PR.
-<!-- nous-emitted: sha256=d39549ad3aec2340 -->
+<!-- nous-emitted: sha256=276bb5c132c5c40d -->

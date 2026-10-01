@@ -1,5 +1,5 @@
 {
-  "_nous_emitted": "2e4576e4a2a4a82a",
+  "_nous_emitted": "0918bd2afeceee3b",
   "canonical": {
     "ac_fail": "annotation",
     "ac_pass": "annotation",
@@ -23,6 +23,7 @@
     "implemented_with_external_verification": "sprint_marker",
     "mutation_invalidation": "annotation",
     "nav_gap": "annotation",
+    "phase": "annotation",
     "revalidated": "annotation",
     "started": "lifecycle",
     "test_report": "annotation",

@@ -96,8 +96,11 @@ or toolchain gap can be linked to only one of them.
 
 Emitted ONCE per story, at the campaign step of
 [`DEFINITION_OF_DONE.md`](DEFINITION_OF_DONE.md) — **after** adversarial AC
-verification and every fix it produced. Any commit after the campaign invalidates
-it, so a report emitted before review is superseded and has to be run again.
+verification and every fix it produced. A change to what the campaign scored
+invalidates it — a mutated source file, a test, the mutation config or a
+dependency. Committing the tree it just scored, or a docs/ledger-only commit,
+changes none of that and does not. A report emitted before review is superseded
+and has to be run again.
 
 A report missing a required field is **rejected at pull and persists nothing** —
 a scoreless report is what made this gate un-gateable. Report the real numbers.
@@ -147,7 +150,7 @@ Canonical event vocabulary (single source: `feedback_schemas`). Unknown event na
 
 - **Lifecycle (flip story status):** `started`, `done`, `verified`
 - **Terminal-with-deferral (→ dev_done + deferral note; prefer plain `done`):** `done_with_deferral`, `done_with_external_deferral`
-- **Annotation (recorded, no status change):** `ac_pass`, `ac_verify`, `blocked`, `blocker`, `deviation`, `ac_fail`, `ac_unverifiable`, `test_report`, `feedback`, `evidence_superseded`, `revalidated`, `mutation_invalidation`, `actuals_corrected`, `nav_gap`
+- **Annotation (recorded, no status change):** `ac_pass`, `ac_verify`, `blocked`, `blocker`, `deviation`, `ac_fail`, `ac_unverifiable`, `test_report`, `feedback`, `evidence_superseded`, `revalidated`, `mutation_invalidation`, `actuals_corrected`, `phase`, `nav_gap`
 - **Decision (registered):** `decision`
 - **Sprint-level marker (project audit trail, never flips a story):** `closed_with_deferrals`, `adversarial_review`, `deferred_memory_saved`, `closure_hygiene`, `implemented_with_external_verification`
 - **Informational (counted, not persisted):** `build_pass`
@@ -163,9 +166,10 @@ Stamp events with `ts` when they happen, for example
 `date -u +%FT%TZ` → `"ts": "2026-09-06T14:30:00Z"`.
 
 - `actuals_corrected` requires `ts`; it must be a valid ISO-8601 UTC timestamp.
+- `phase` requires `ts`; it must be a valid ISO-8601 UTC timestamp.
 
 For every other event, `ts` remains recommended but optional; an absent stamp
 never fails a sync. Without timestamps, `nous_trace.py story elapsed` reports
 missing endpoints rather than inventing a zero duration. A malformed stamp is
 excluded and named rather than guessed at.
-<!-- nous-emitted: sha256=c81088627705ff03 -->
+<!-- nous-emitted: sha256=080b9a3abb626d00 -->
