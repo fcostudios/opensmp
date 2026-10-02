@@ -137,9 +137,13 @@ export const alertRuleContractSchema = z
         path: ["threshold"],
       });
     }
-  }).transform(rule => rule.type === "invite_unaccepted"
+  }).transform(normalizeAlertRule);
+
+function normalizeAlertRule(rule: { enabled: boolean; type: AlertType; threshold: Record<string, number | null> }) {
+  return rule.type === "invite_unaccepted"
     ? { ...rule, threshold: inviteUnacceptedThresholdSchema.parse(rule.threshold) }
-    : rule);
+    : rule;
+}
 
 export type AlertRuleContract = z.infer<typeof alertRuleContractSchema>;
 export type ApprovalAgingThresholdContract = z.infer<

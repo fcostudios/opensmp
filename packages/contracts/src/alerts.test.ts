@@ -134,3 +134,22 @@ describe("US-069 invitation expiry contract", () => {
     expect(alertRuleContractSchema.parse({ enabled: true, type: "low_pool", threshold: { floor: 2 } }).threshold).toEqual({ floor: 2 });
   });
 });
+
+
+describe("US-069 public validation issues", () => {
+  it("reports invitation window errors and targets the editable rule threshold", () => {
+    const threshold = { hours: 24, auto_withdraw_after_hours: 24 };
+    const window = inviteUnacceptedThresholdSchema.safeParse(threshold);
+    expect(window.success).toBe(false);
+    if (window.success) throw new Error("expected window rejection");
+    expect(window.error.issues).toEqual([{ code: "custom", message: "invite_unaccepted requires finite hours and a null or integer expiry greater than hours", path: [] }]);
+    const rule = alertRuleContractSchema.safeParse({ enabled: true, type: "invite_unaccepted", threshold });
+    expect(rule.success).toBe(false);
+    if (rule.success) throw new Error("expected rule rejection");
+    expect(rule.error.issues).toEqual([{ code: "custom", message: "invite_unaccepted requires valid invitation expiry threshold", path: ["threshold"] }]);
+    const numeric = alertRuleContractSchema.safeParse({ enabled: true, type: "low_pool", threshold: { floor: null } });
+    expect(numeric.success).toBe(false);
+    if (numeric.success) throw new Error("expected numeric threshold rejection");
+    expect(numeric.error.issues).toEqual([{ code: "custom", message: "alert threshold values must be nonnegative finite numbers", path: ["threshold"] }]);
+  });
+});

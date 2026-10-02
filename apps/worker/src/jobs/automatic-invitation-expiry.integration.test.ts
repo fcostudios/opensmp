@@ -117,12 +117,12 @@ test.each(['legacy','null','invalid','below','exact','disabled','foreign','accou
  try{expect(await job.drain({at,vendorAccountId:kind==='account'?randomUUID():input.vendorAccountId})).toEqual({processed:0});expect(calls).toEqual([]);await expectUntouched(input,before);}finally{await job.close();}
 },30000);
 
-test('receipt replay survives disabled rules and locale change after real outbox failure',async()=>{
+test.each([true,false])('receipt replay preserves its note after outbox failure with disabled rules=%s',async(disableRule)=>{
  const input=await configured(),calls:string[]=[],before=await available(input),name='expiry_fault_'+input.requestId.replaceAll('-','');
  await owner.query(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'EXPIRY_NOTICE_FAULT';END $$;CREATE TRIGGER ${name} BEFORE INSERT ON lifecycle_notification FOR EACH ROW WHEN(NEW.request_id='${input.requestId}'::uuid) EXECUTE FUNCTION ${name}();`);
  const job=jobFor(provider(calls));
  try{await expect(job.drain({at,vendorAccountId:input.vendorAccountId})).rejects.toThrow('EXPIRY_NOTICE_FAULT');await expectUntouched(input,before);}finally{await owner.query(`DROP TRIGGER ${name} ON lifecycle_notification;DROP FUNCTION ${name}();`);await job.close();}
- await owner.query(`UPDATE alert_rule SET enabled=false WHERE id=$1`,[input.rule]);await owner.query(`UPDATE user_account SET ui_language='es' WHERE id=$1`,[input.actorUserId]);
+ if(disableRule)await owner.query(`UPDATE alert_rule SET enabled=false WHERE id=$1`,[input.rule]);await owner.query(`UPDATE user_account SET ui_language='es' WHERE id=$1`,[input.actorUserId]);
  const replay=jobFor(provider(calls));
  try{expect(await replay.drain({at,vendorAccountId:input.vendorAccountId})).toEqual({processed:1});expect(await replay.drain({at,vendorAccountId:input.vendorAccountId})).toEqual({processed:0});}finally{await replay.close();}
  expect(calls.filter(call=>call.startsWith('DELETE'))).toHaveLength(1);
@@ -132,7 +132,7 @@ test('receipt replay survives disabled rules and locale change after real outbox
 },30000);
 
 
-test.each(['disabled','invalid','scope','type','acceptance','replacement'] as const)('fresh expiry rechecks %s after waiting on the real invitation lock',async(change)=>{
+test.each(['disabled','invalid','scope','type','acceptance','replacement','requester','company'] as const)('fresh expiry rechecks %s after waiting on the real invitation lock',async(change)=>{
  const input=await configured(),calls:string[]=[],barrier=await fixture.connectAsApp();
  await barrier.query('SELECT pg_advisory_lock(hashtextextended($1,0))',[input.actionId]);
  const job=jobFor(provider(calls)),pending=job.drain({at,vendorAccountId:input.vendorAccountId});
@@ -143,6 +143,8 @@ test.each(['disabled','invalid','scope','type','acceptance','replacement'] as co
    if(change==='invalid')await owner.query(`UPDATE alert_rule SET threshold='{"hours":24,"auto_withdraw_after_hours":24}' WHERE id=$1`,[input.rule]);
    if(change==='scope')await owner.query(`UPDATE alert_rule SET company_id=$2 WHERE id=$1`,[input.rule,input.foreignCompanyId]);
    if(change==='type')await owner.query(`UPDATE alert_rule SET type='approval_aging' WHERE id=$1`,[input.rule]);
+   if(change==='requester')await owner.query(`UPDATE user_account SET status='disabled' WHERE id=$1`,[input.actorUserId]);
+   if(change==='company')await owner.query(`UPDATE company SET status='inactive' WHERE id=$1`,[input.companyId]);
    if(change==='acceptance')await owner.query(`UPDATE provisioning_action SET status='confirmed',resolved_at=$2 WHERE id=$1`,[input.actionId,at]);
    if(change==='replacement')await owner.query(`INSERT INTO provisioning_action(request_id,vendor_account_id,kind,mode,status,created_at) VALUES($1,$2,'invite','automated','pending',$3)`,[input.requestId,input.vendorAccountId,at]);
    const changedBefore=await available(input);
@@ -187,8 +189,55 @@ test('rejects malformed scheduled time and account before any tenant or provider
  const input=await configured(),calls:string[]=[],job=jobFor(provider(calls));
  try{
    await expect(job.drain({at:new Date(NaN),vendorAccountId:input.vendorAccountId})).rejects.toThrow('AUTOMATIC_INVITATION_EXPIRY_TIME_INVALID');
-   await expect(job.drain({at,vendorAccountId:'invalid'})).rejects.toThrow('AUTOMATIC_INVITATION_EXPIRY_VENDOR_INVALID');
+   for(const invalid of ['invalid','x'+input.vendorAccountId,input.vendorAccountId+'x'])await expect(job.drain({at,vendorAccountId:invalid})).rejects.toThrow('AUTOMATIC_INVITATION_EXPIRY_VENDOR_INVALID');
    expect(calls).toEqual([]);
    expect((await owner.query(`SELECT count(*)::int AS count FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId])).rows[0].count).toBe(0);
  }finally{await job.close();}
+},30000);
+
+
+test.each(['manual','different-command','wrong-request','non-string-note','padded-note','invalid-receipt'] as const)('never adopts a %s receipt as automatic expiry',async(kind)=>{
+ const input=await configured(),calls:string[]=[],before=await available(input);
+ await owner.query(`UPDATE alert_rule SET enabled=false WHERE id=$1`,[input.rule]);
+ const command={companyId:input.companyId,requestId:kind==='wrong-request'?randomUUID():input.requestId,actionId:input.actionId,commandId:kind==='different-command'?randomUUID():input.actionId,actorUserId:kind==='manual'?input.actorUserId:null,actorLabel:kind==='manual'?'Manual administrator':null,note:kind==='non-string-note'?42:kind==='padded-note'?'  Existing intent  ':'Existing intent'};
+ await owner.query(`INSERT INTO provisioning_action(request_id,vendor_account_id,kind,mode,status,vendor_ref,raw_request,raw_response,created_at) VALUES($1,$2,'withdraw_invite','automated','pending','invite-pinned',$3::jsonb,$4::jsonb,$5)`,[input.requestId,input.vendorAccountId,JSON.stringify(command),JSON.stringify({id:kind==='invalid-receipt'?'wrong':'invite-pinned',type:'invite_deleted'}),at]);
+ const job=jobFor(provider(calls));
+ try{expect(await job.drain({at,vendorAccountId:input.vendorAccountId})).toEqual({processed:0});expect(calls).toEqual([]);await expectUntouched(input,before);expect((await owner.query(`SELECT status,raw_request FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId])).rows).toEqual([{status:'pending',raw_request:command}]);}finally{await job.close();}
+},30000);
+
+test('receipt recovery respects the scheduled vendor account before a global drain',async()=>{
+ const input=await configured(),calls:string[]=[],before=await available(input);
+ await owner.query(`UPDATE alert_rule SET enabled=false`);
+ const command={companyId:input.companyId,requestId:input.requestId,actionId:input.actionId,commandId:input.actionId,actorUserId:null,actorLabel:null,note:'Existing expiry intent'};
+ await owner.query(`INSERT INTO provisioning_action(request_id,vendor_account_id,kind,mode,status,vendor_ref,raw_request,raw_response,created_at) VALUES($1,$2,'withdraw_invite','automated','pending','invite-pinned',$3::jsonb,$4::jsonb,$5)`,[input.requestId,input.vendorAccountId,JSON.stringify(command),JSON.stringify({id:'invite-pinned',type:'invite_deleted'}),at]);
+ const job=jobFor(provider(calls));
+ try{expect(await job.drain({at,vendorAccountId:randomUUID()})).toEqual({processed:0});await expectUntouched(input,before);expect(await job.drain({at})).toEqual({processed:1});expect(calls).toEqual([]);expect(await available(input)-before).toBe(1);expect((await owner.query(`SELECT company_id,recipient_user_account_id FROM lifecycle_notification WHERE request_id=$1`,[input.requestId])).rows).toEqual([{company_id:input.companyId,recipient_user_account_id:input.actorUserId}]);}finally{await job.close();}
+},30000);
+
+test('holds the applicable rule through preparation commit',async()=>{
+ const input=await configured(),calls:string[]=[],barrier=await fixture.connectAsApp(),updater=await fixture.connectAsOwner();
+ const name='expiry_lock_'+input.requestId.replaceAll('-',''),key='expiry-preparation-'+input.actionId;
+ await barrier.query('SELECT pg_advisory_lock(hashtextextended($1,0))',[key]);
+ await owner.query(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_lock(hashtextextended('${key}',0));PERFORM pg_advisory_unlock(hashtextextended('${key}',0));RETURN NEW;END $$;CREATE TRIGGER ${name} BEFORE INSERT ON provisioning_action FOR EACH ROW WHEN(NEW.request_id='${input.requestId}'::uuid AND NEW.kind='withdraw_invite') EXECUTE FUNCTION ${name}();`);
+ const updaterPid=(await updater.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+ const job=jobFor(provider(calls)),pending=job.drain({at,vendorAccountId:input.vendorAccountId});let update:Promise<unknown>|undefined,updateFinished=false;
+ async function waitFor(query:string,parameters:unknown[]=[]){const deadline=Date.now()+10000;for(;;){if(updateFinished||(await owner.query(query,parameters)).rows[0].waiting)return;if(Date.now()>deadline)throw new Error('Expected database lock did not appear');await new Promise<void>(resolve=>setImmediate(resolve));}}
+ try{
+  await waitFor(`SELECT EXISTS(SELECT 1 FROM pg_locks WHERE locktype='advisory' AND NOT granted) AS waiting`);
+  update=updater.query(`UPDATE alert_rule SET enabled=false WHERE id=$1`,[input.rule]).finally(()=>{updateFinished=true;});
+  await waitFor(`SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid=$1 AND state='active') AS waiting`,[updaterPid]);
+  expect((await owner.query(`SELECT pg_blocking_pids($1)::int[] AS blockers`,[updaterPid])).rows[0].blockers).not.toEqual([]);
+  await barrier.query('SELECT pg_advisory_unlock(hashtextextended($1,0))',[key]);
+  expect(await pending).toEqual({processed:1});await update;
+  expect(calls.filter(call=>call.startsWith('DELETE'))).toHaveLength(1);
+  expect((await owner.query(`SELECT enabled FROM alert_rule WHERE id=$1`,[input.rule])).rows).toEqual([{enabled:false}]);
+ }finally{await barrier.query('SELECT pg_advisory_unlock_all()');await pending;await update;await job.close();await barrier.end();await updater.end();await owner.query(`DROP TRIGGER ${name} ON provisioning_action;DROP FUNCTION ${name}();`);}
+},30000);
+
+
+test('closing the job ends its real pool before another valid drain',async()=>{
+ const calls:string[]=[],job=jobFor(provider(calls));
+ await job.close();
+ await expect(job.drain({at})).rejects.toThrow('Cannot use a pool after calling end on the pool');
+ expect(calls).toEqual([]);
 },30000);

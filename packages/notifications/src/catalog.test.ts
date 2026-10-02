@@ -219,6 +219,7 @@ it("renders expiry-specific requester text and escaped context with a stable loc
    expect(message.subject).toContain(subject);expect(message.text).toContain(input.requestNo);
    expect(message.html).toContain("&lt;Requester&gt;");expect(message.html).toContain("A &amp; B");
    expect(automaticInvitationExpiryNote(locale)).toBe(note);
+   expect(renderLifecycleNotification(locale,"provisioning_complete",input).subject).not.toContain(subject);
    expect(renderLifecycleNotification(locale,"decision",{...input,state:"approved"}).subject).not.toContain(subject);
  }
  expect(automaticInvitationExpiryNote("unknown")).toBe("Se retiró automáticamente la invitación no aceptada al vencer el plazo configurado.");

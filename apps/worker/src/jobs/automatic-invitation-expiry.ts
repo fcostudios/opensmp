@@ -21,7 +21,7 @@ export type AutomaticInvitationExpiryJobOptions = Readonly<{
   sleep: (milliseconds: number) => Promise<void>;
   transport: (request: Request) => Promise<Response>;
 }>;
-const uuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+function uuid(value: string): boolean { return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value); }
 
 export function createAutomaticInvitationExpiryJob(options: AutomaticInvitationExpiryJobOptions) {
   const pool = new pg.Pool({ connectionString: options.connectionString });
