@@ -1,5 +1,5 @@
 <!-- nous-sprint-stamp
-generated_at: 2026-10-02T01:38:12Z
+generated_at: 2026-10-02T02:42:50Z
 current_sprint: sprint-3
 sprints_hash: d84c64fec8470c24
 -->
@@ -101,7 +101,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | 9 | full-stack | **US-057** ✅ | Append-only sanitized connector-call journal | 2SP | `See story file` | CHG-045 | US-056 | →6 | — | [r1_misc_us_057.md](sprint-3/r1_misc_us_057.md) |
 | 10 | full-stack | **US-065** ✅ | Recover failed automated provisioning with an operator retry | 1SP | `See story file` | CHG-054 | US-014, US-042, US-063 | →1 | — | [r1_misc_us_065.md](sprint-3/r1_misc_us_065.md) |
 | 11 | full-stack | **US-066** ✅ | Activate accepted invitations from the 15-minute membership poll | 1SP | `See story file` | CHG-054 | US-014, US-046, US-063 | →1 | — | [r1_misc_us_066.md](sprint-3/r1_misc_us_066.md) |
-| 12 | full-stack | **US-067** ⬜ | Surface overdue invitations with configurable alerts | 1SP | `See story file` | CHG-063 | US-019, US-042 | →2 | — | [r1_misc_us_067.md](sprint-3/r1_misc_us_067.md) |
+| 12 | full-stack | **US-067** ✅ | Surface overdue invitations with configurable alerts | 1SP | `See story file` | CHG-063 | US-019, US-042 | →2 | — | [r1_misc_us_067.md](sprint-3/r1_misc_us_067.md) |
 | 13 | full-stack | **US-028** ⬜ | Reclamation proposals: approve or dismiss | 3SP | `See story file` | — | US-024, US-027 | — | — | [r1_misc_us_028.md](sprint-3/r1_misc_us_028.md) |
 | 14 | full-stack | **US-058** ✅ | Anthropic connector conformance and Pact contracts | 1SP | `See story file` | CHG-045 | US-056, US-057 | →5 | — | [r1_misc_us_058.md](sprint-3/r1_misc_us_058.md) |
 | 15 | full-stack | **US-064** ✅ | Route provider no-seat responses to the capacity workflow | 1SP | `See story file` | CHG-054 | US-014, US-023, US-063 | →1 | — | [r1_misc_us_064.md](sprint-3/r1_misc_us_064.md) |
