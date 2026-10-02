@@ -36,8 +36,8 @@ const savedAuthEnvironment={AUTH_SECRET:process.env.AUTH_SECRET,AUTH_URL:process
 const at=new Date("2026-10-02T15:00:00Z");
 beforeAll(async()=>{unregisterAuthLoader=require("tsx/esm/api").register({tsconfig:false});unregisterCompositionLoader=require("tsx/cjs/api").register();fixture=await createPostgresFixture();await fixture.migrate();owner=await fixture.connectAsOwner();pool=new pg.Pool({connectionString:fixture.ownerUrl,max:2,connectionTimeoutMillis:1000});productionPool.options.connectionString=fixture.ownerUrl;productionPool.options.max=2;productionPool.options.connectionTimeoutMillis=1000;process.env.AUTH_SECRET="us068-verified-session-fixture-secret";process.env.AUTH_URL="http://localhost:3000";process.env.AUTH_TRUST_HOST="true";},30000);
 afterAll(async()=>{await unregisterAuthLoader?.();unregisterCompositionLoader?.();await productionPool.end();await pool?.end();await owner?.end();await fixture?.stop();for(const [key,value] of Object.entries(savedAuthEnvironment)){if(value===undefined)delete process.env[key];else process.env[key]=value;}});
-async function arrange(role:"group_admin"|null) {
- const actor=randomUUID(),company=randomUUID(),vendor=randomUUID(),account=randomUUID(),license=randomUUID(),person=randomUUID(),request=randomUUID(),action=randomUUID();
+async function arrange(role:"group_admin"|null,ids:Partial<{actor:string;company:string;request:string;action:string}>={}) {
+ const actor=ids.actor??randomUUID(),company=ids.company??randomUUID(),vendor=randomUUID(),account=randomUUID(),license=randomUUID(),person=randomUUID(),request=ids.request??randomUUID(),action=ids.action??randomUUID();
  await owner.query(`INSERT INTO user_account(id,email,idp_subject,global_role,status,created_at) VALUES($1,$2,$1::uuid::text,$3,'active',$4)`,[actor,actor+"@auth.test",role,at]);
  await owner.query(`INSERT INTO company(id,name,code,type,status,created_at,created_by) VALUES($1,$1::uuid::text,$1::uuid::text,'internal','active',$2,$3)`,[company,at,actor]);
  await owner.query(`INSERT INTO vendor(id,name,connector_type,provisioning_protocol,can_provision,can_deprovision,has_usage_data,has_cost_data,identity_matching,status,created_at,created_by) VALUES($1,$1::uuid::text,'api','rest',true,true,false,false,'email','active',$2,$3)`,[vendor,at,actor]);
@@ -101,8 +101,11 @@ test("foreign request/action pairing cannot withdraw another company's invitatio
 
 
 test("authorized withdrawal persists immutable human actor and note through unchanged reader into Acciones",async()=>{
- const selected=await arrange("group_admin"),foreign=await arrange("group_admin");
- const outcome=await selected.execute(selected.form);expect(outcome.ok).toBe(true);if(!outcome.ok)throw new Error("WITHDRAWAL_FAILED");
+ const selected=await arrange("group_admin",{actor:"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",company:"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",request:"cccccccc-cccc-4ccc-8ccc-cccccccccccc",action:"dddddddd-dddd-4ddd-8ddd-dddddddddddd"}),foreign=await arrange("group_admin");
+ await owner.query(`UPDATE user_account SET email='Verified.Admin@Auth.Test' WHERE id=$1`,[selected.actor]);
+ for(const field of ["requestId","actionId","commandId"])selected.form.set(field,(selected.form.get(field) as string).toUpperCase());
+ selected.form.set("note","  Required withdrawal note  ");
+ const outcome=await selected.execute(selected.form);expect(outcome).toEqual({ok:true,requestId:selected.request,actionId:expect.any(String)});if(!outcome.ok)throw new Error("WITHDRAWAL_FAILED");
  expect((await owner.query(`SELECT observation.vendor_account_id,observation.provisioning_action_id,observation.operation,observation.phase,observation.classification,observation.summary FROM connector_call_observation observation JOIN provisioning_action action ON action.id=observation.provisioning_action_id JOIN license_request request ON request.id=action.request_id WHERE request.id=$1 AND request.company_id=$2 ORDER BY observation.summary->>'method',observation.phase`,[selected.request,selected.company])).rows).toEqual([
   {vendor_account_id:selected.account,provisioning_action_id:outcome.actionId,operation:"deprovision",phase:"requested",classification:null,summary:{endpoint_class:"invitations",method:"DELETE"}},
   {vendor_account_id:selected.account,provisioning_action_id:outcome.actionId,operation:"deprovision",phase:"succeeded",classification:"success",summary:{endpoint_class:"invitations",method:"DELETE",http_status:200,status_class:"success"}},
@@ -114,13 +117,13 @@ test("authorized withdrawal persists immutable human actor and note through unch
  expect(await selected.execute(selected.form)).toEqual(outcome);expect(selected.remoteCalls()).toBe(2);
  const authorization=await selected.entrypoints.loadCurrentLedgerAuthorization();
  const record=await createRequestReadRepository(selected.database,()=>at).detail(authorization!,selected.request);
- expect(record!.actions.find(action=>action.id===outcome.actionId)!.rawRequest).toMatchObject({actorUserId:selected.actor,actorLabel:selected.actor+"@auth.test",note:"Required withdrawal note",companyId:selected.company});
+ expect(record!.actions.find(action=>action.id===outcome.actionId)!.rawRequest).toEqual({actorUserId:selected.actor,actorLabel:"Verified.Admin@Auth.Test",note:"Required withdrawal note",companyId:selected.company,requestId:selected.request,actionId:selected.action,commandId:selected.action});
  expect(record!.audit.some(entry=>entry.note === "Foreign tenant note")).toBe(false);
  const history=en.requestHistory;
  const labels:RequestRecordLabels={...history,actionKind:{assign_sku:history.actionAssignSku,checklist:history.actionChecklist,invite:history.actionInvite,remove:history.actionRemove,withdraw_invite:history.actionWithdrawInvite},actionMode:{automated:history.actionAutomated,orchestration:history.actionOrchestration},actionStatus:{confirmed:history.actionConfirmed,failed:history.actionFailed,pending:history.actionPending,sent:history.actionSent,verification_failed:history.actionVerificationFailed,withdrawn:history.actionWithdrawn},retryProvisioning:en.orchestration.retryProvisioning,retryingProvisioning:en.orchestration.retryingProvisioning};
  const markup=renderToStaticMarkup(createElement(RequestRecord,{activeTab:"actions",isGroupAdmin:true,labels,locale:"en-US",statusLabels:getNotificationCatalog("en-US").status,record:record!}));
  const evidence=markup.match(/<div[^>]+data-testid="withdrawal_evidence"[^>]*>(.*?)<\/div>/)![1]!;
- expect(evidence).toContain(selected.actor+"@auth.test");expect(evidence).toContain("Required withdrawal note");expect(evidence).not.toContain("FORGED ACTOR");expect(evidence).not.toContain("Foreign tenant note");
+ expect(evidence).toContain("Verified.Admin@Auth.Test");expect(evidence).toContain("Required withdrawal note");expect(evidence).not.toContain("FORGED ACTOR");expect(evidence).not.toContain("Foreign tenant note");
 });
 
 
@@ -144,13 +147,16 @@ test("actual signed-session server action rejects unauthorized and invalid comma
  expect((await owner.query(`SELECT actor_user_id,entity_type,after FROM audit_log WHERE action='server_action.withdrawInvite' AND entity_id=$1`,[denied.request])).rows).toEqual([{actor_user_id:denied.actor,entity_type:"LicenseRequest",after:{ok:false,error:"forbidden"}}]);expect(selected.remoteCalls()+denied.remoteCalls()).toBe(0);
 });
 test("actual signed-session action finalizes durable validated receipt and revalidates once without another DELETE",async()=>{
- const selected=await arrange("group_admin"),before=await productionSnapshot(selected),name="us068_action_"+selected.request.replaceAll("-","");
+ const selected=await arrange("group_admin",{request:"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",action:"ffffffff-ffff-4fff-8fff-ffffffffffff"}),before=await productionSnapshot(selected),name="us068_action_"+selected.request.replaceAll("-","");
  await owner.query(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.request_id='${selected.request}'::uuid AND NEW.kind='withdraw_invite' AND NEW.status='withdrawn' THEN RETURN NULL; END IF; RETURN NEW; END $$; CREATE TRIGGER ${name} BEFORE UPDATE ON provisioning_action FOR EACH ROW EXECUTE FUNCTION ${name}();`);
  try{expect(await selected.execute(selected.form)).toEqual({ok:false,error:"ambiguous"});}finally{await owner.query(`DROP TRIGGER ${name} ON provisioning_action;DROP FUNCTION ${name}();`);}
  expect((await owner.query(`SELECT state FROM license_request WHERE id=$1`,[selected.request])).rows[0].state).toBe("invited");
+ const metadata=(await owner.query(`SELECT raw_request FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[selected.request])).rows;
+ for(const field of ["requestId","actionId","commandId"])selected.form.set(field,(selected.form.get(field) as string).toUpperCase());
  const result=await invokeProduction(selected.actor,selected.form);expect(result.outcome).toEqual({ok:true,requestId:selected.request,actionId:expect.any(String)});expect(result.tags).toEqual(["_N_T_/excepciones","_N_T_/solicitudes/"+selected.request]);expect((await productionSnapshot(selected)).available-before.available).toBe(1);
  expect((await invokeProduction(selected.actor,selected.form)).outcome).toEqual(result.outcome);expect(selected.remoteCalls()).toBe(2);
  expect((await owner.query(`SELECT count(*)::int AS count FROM request_transition WHERE request_id=$1`,[selected.request])).rows[0].count).toBe(1);
+ expect((await owner.query(`SELECT raw_request FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[selected.request])).rows).toEqual(metadata);
  expect((await owner.query(`SELECT actor_user_id,note FROM audit_log WHERE company_id=$1 AND action='invitation.withdrawn'`,[selected.company])).rows).toEqual([{actor_user_id:selected.actor,note:"Required withdrawal note"}]);
  expect((await owner.query(`SELECT actor_user_id,after FROM audit_log WHERE entity_id=$1 AND action='server_action.withdrawInvite' AND after->>'ok'='true'`,[selected.request])).rows).toEqual([{actor_user_id:selected.actor,after:result.outcome},{actor_user_id:selected.actor,after:result.outcome}]);
 });

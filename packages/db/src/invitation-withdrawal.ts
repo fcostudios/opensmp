@@ -48,7 +48,8 @@ export function createInvitationWithdrawalService(dependencies: {
 }) {
   return { async withdraw(command: InvitationWithdrawalCommand): Promise<InvitationWithdrawalOutcome> {
     if (!valid(command)) return {ok:false,error:"invalid"};
-    const normalized={...command,note:command.note.trim()};
+    // PostgreSQL UUIDs and membership polling use this same canonical identity.
+    command={...command,companyId:command.companyId.toLowerCase(),requestId:command.requestId.toLowerCase(),actionId:command.actionId.toLowerCase(),commandId:command.commandId.toLowerCase(),actorUserId:command.actorUserId === null ? null : command.actorUserId.toLowerCase(),note:command.note.trim()};
     const client=await dependencies.pool.connect();
     let locked=false,transaction=false;
     try {
@@ -59,7 +60,7 @@ export function createInvitationWithdrawalService(dependencies: {
         WHERE request.id=$1::uuid AND request.company_id=$2::uuid AND action.kind='withdraw_invite'
           AND action.raw_request->>'actionId'=$3 ORDER BY action.created_at,action.id FOR UPDATE OF action`,[command.requestId,command.companyId,command.actionId]);
       const intent=existing.rows[0];
-      if (intent && (intent.raw_request.commandId !== normalized.commandId || intent.raw_request.actorUserId !== normalized.actorUserId || intent.raw_request.note !== normalized.note || intent.raw_request.companyId !== normalized.companyId)) {
+      if (intent && (intent.raw_request.commandId !== command.commandId || intent.raw_request.actorUserId !== command.actorUserId || intent.raw_request.note !== command.note || intent.raw_request.companyId !== command.companyId)) {
         await client.query("ROLLBACK");transaction=false;return {ok:false,error:"conflict"};
       }
       if (intent?.status === "withdrawn") {
@@ -76,7 +77,7 @@ export function createInvitationWithdrawalService(dependencies: {
           await client.query("ROLLBACK");transaction=false;return {ok:false,error:"conflict"};
         }
         await client.query(`INSERT INTO provisioning_action(id,request_id,vendor_account_id,kind,mode,status,vendor_ref,raw_request,created_at)
-          VALUES($1,$2,$3,'withdraw_invite','automated','pending',$4,$5::jsonb,$6)`,[context.withdrawalActionId,command.requestId,context.vendorAccountId,context.vendorRef,JSON.stringify({...normalized,actorLabel:actor}),dependencies.now()]);
+          VALUES($1,$2,$3,'withdraw_invite','automated','pending',$4,$5::jsonb,$6)`,[context.withdrawalActionId,command.requestId,context.vendorAccountId,context.vendorRef,JSON.stringify({...command,actorLabel:actor}),dependencies.now()]);
       }
       await client.query("COMMIT");transaction=false;
       if (intent && !isInvitationDeletionReceipt(intent.raw_response,context.vendorRef)) return {ok:false,error:"ambiguous"};
@@ -101,16 +102,16 @@ export function createInvitationWithdrawalService(dependencies: {
         WHERE action.id=$1::uuid AND request.id=$2::uuid AND request.company_id=$3::uuid
           AND action.vendor_account_id=$4::uuid AND action.kind='withdraw_invite' FOR UPDATE OF action`,[context.withdrawalActionId,command.requestId,command.companyId,context.vendorAccountId]);
       const final=finalIntent.rows[0];
-      if(!revalidated || revalidated.vendorAccountId !== context.vendorAccountId || revalidated.vendorRef !== context.vendorRef || !final || final.status !== "pending" || final.vendor_ref !== context.vendorRef || final.raw_request.commandId !== normalized.commandId || final.raw_request.actionId !== normalized.actionId || final.raw_request.companyId !== normalized.companyId || final.raw_request.actorUserId !== normalized.actorUserId || final.raw_request.note !== normalized.note || !isInvitationDeletionReceipt(final.raw_response,context.vendorRef)) {
+      if(!revalidated || revalidated.vendorAccountId !== context.vendorAccountId || revalidated.vendorRef !== context.vendorRef || !final || final.status !== "pending" || final.vendor_ref !== context.vendorRef || final.raw_request.commandId !== command.commandId || final.raw_request.actionId !== command.actionId || final.raw_request.companyId !== command.companyId || final.raw_request.actorUserId !== command.actorUserId || final.raw_request.note !== command.note || !isInvitationDeletionReceipt(final.raw_response,context.vendorRef)) {
         await client.query("ROLLBACK");transaction=false;return {ok:false,error:"conflict"};
       }
       const occurredAt=dependencies.now();
       dependencies.assertLegalTransition("invited","deprovisioned");
-      await applyRequestTransitionInTransaction(drizzle(client),{requestId:command.requestId,from:"invited",to:"deprovisioned",actorUserId:command.actorUserId,note:normalized.note,occurredAt},{expectedCompanyId:command.companyId});
+      await applyRequestTransitionInTransaction(drizzle(client),{requestId:command.requestId,from:"invited",to:"deprovisioned",actorUserId:command.actorUserId,note:command.note,occurredAt},{expectedCompanyId:command.companyId});
       const updated=await client.query(`UPDATE provisioning_action action SET status='withdrawn',resolved_at=$3 FROM license_request request WHERE action.id IN ($1::uuid,$2::uuid) AND request.id=action.request_id AND request.company_id=$4::uuid AND request.id=$5::uuid AND action.vendor_account_id=$6::uuid`,[command.actionId,context.withdrawalActionId,occurredAt,command.companyId,command.requestId,context.vendorAccountId]);
       if(updated.rowCount !== 2) throw new Error("WITHDRAWAL_ACTION_CONFLICT");
       await client.query(`INSERT INTO audit_log(actor_user_id,action,entity_type,entity_id,company_id,note,before,after,occurred_at)
-        VALUES($1,'invitation.withdrawn','ProvisioningAction',$2,$3,$4,NULL,$5::jsonb,$6)`,[command.actorUserId,context.withdrawalActionId,command.companyId,normalized.note,JSON.stringify({originalActionId:command.actionId,vendorRef:context.vendorRef}),occurredAt]);
+        VALUES($1,'invitation.withdrawn','ProvisioningAction',$2,$3,$4,NULL,$5::jsonb,$6)`,[command.actorUserId,context.withdrawalActionId,command.companyId,command.note,JSON.stringify({originalActionId:command.actionId,vendorRef:context.vendorRef}),occurredAt]);
       await client.query("COMMIT");transaction=false;
       return {ok:true,requestId:command.requestId,actionId:context.withdrawalActionId};
     } finally {
@@ -165,18 +166,20 @@ export function createAuthorizedInvitationWithdrawal(dependencies: {
 }) {
   return async (form: FormData): Promise<InvitationWithdrawalOutcome> => {
     const authorization=await dependencies.loadAuthorization();
-    const requestId=form.get("requestId"),actionId=form.get("actionId"),commandId=form.get("commandId"),note=form.get("note");
+    const submittedRequestId=form.get("requestId"),actionId=form.get("actionId"),commandId=form.get("commandId"),note=form.get("note");
+    const requestId=typeof submittedRequestId === "string" && uuid(submittedRequestId) ? submittedRequestId.toLowerCase() : null;
+    const actorUserId=authorization && uuid(authorization.userAccountId) ? authorization.userAccountId.toLowerCase() : authorization?.userAccountId??null;
     let outcome:InvitationWithdrawalOutcome;
     if(authorization?.globalRole !== "group_admin") outcome={ok:false,error:"forbidden"};
-    else if(typeof requestId !== "string" || !uuid(requestId) || typeof actionId !== "string" || !uuid(actionId) || typeof commandId !== "string" || !uuid(commandId) || typeof note !== "string" || !note.trim() || note.length>2000) outcome={ok:false,error:"invalid"};
+    else if(requestId === null || typeof actionId !== "string" || !uuid(actionId) || typeof commandId !== "string" || !uuid(commandId) || typeof note !== "string" || !note.trim() || note.length>2000) outcome={ok:false,error:"invalid"};
     else {
       const scoped=await dependencies.pool.query<{companyId:string}>(`SELECT company_id::text AS "companyId" FROM license_request WHERE id=$1::uuid AND company_id=ANY($2::uuid[])`,[requestId,authorization.companyIds]);
       const companyId=scoped.rows[0]?.companyId;
       try {
-        outcome=companyId ? await dependencies.service.withdraw({companyId,requestId,actionId,commandId,note,actorUserId:authorization.userAccountId}) : {ok:false,error:"forbidden"};
+        outcome=companyId ? await dependencies.service.withdraw({companyId,requestId,actionId:actionId.toLowerCase(),commandId:commandId.toLowerCase(),note,actorUserId}) : {ok:false,error:"forbidden"};
       } catch { outcome={ok:false,error:"ambiguous"}; }
     }
-    await dependencies.recordOutcome(authorization?.userAccountId??null,typeof requestId === "string" && uuid(requestId)?requestId:null,outcome);
+    await dependencies.recordOutcome(actorUserId,requestId,outcome);
     return outcome;
   };
 }
