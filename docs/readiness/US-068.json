@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "e15c0cb5c686d1a97998d41f14fe957f3fcd407bcba131c4ddb0b4b235d1af07",
+  "work_id": "US-068",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Withdraw a pending invitation safely from exceptions",
+  "source": "docs/stories/sprint-3/r1_misc_us_068.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "An authorized Group Admin withdraws exactly the selected pending invitation with a required note, releases its seat reservation only after provider success, and sees the durable withdrawn action in the request trail.",
+      "demo": "Withdraw an overdue invitation from exceptions and verify the provider invitation deletion, invited-to-deprovisioned transition, freed reservation and note in Acciones; race with acceptance and prove no active member or assignment is removed.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "contracts",
+    "server",
+    "ui"
+  ],
+  "signals": {
+    "routes_or_screens": 2,
+    "acceptance_flows": 3,
+    "expected_changed_files": 20,
+    "expected_mutation_shards": 7,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 1,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 20,
+    "implementation": 115,
+    "focused_verification": 85,
+    "review": 55,
+    "integration": 35,
+    "total": 310
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Proposal provenance and canonical scope allocation for US-068.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "docs/readiness/US-021.json partitions[proposal_key=manual-invite-withdrawal] supplies the initial outcome, demo and estimate; docs/stories/sprint-3/r1_misc_us_068.md allocates the child ACs under CHG-063. DEC-SMP-023 is recorded in docs/decisions/DECISION_MATRIX.md. The historical parent proposal is not implementation or approval evidence. Child AC1..AC4 are mapped individually to O1; parent coverage is AC2 manual withdrawal and AC3 manual trail."
+    },
+    {
+      "id": "U2",
+      "statement": "Canonical foundation prerequisites are delivered.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Parsed .nous-feedback.jsonl contains terminal done events for US-019, US-042 and US-046. Their generated specs and current worker composition establish provisioning, alert evaluation and the 15-minute scheduler. Completed prerequisites are not represented as execution-blocking dependencies. US-067 is now canonical dev_done at ba88eee, with reusable pending invitation identity/read model and original-action advisory locking."
+    },
+    {
+      "id": "U3",
+      "statement": "Generic deprovision is unsafe for invitation hygiene.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 35,
+      "resolution": "packages/connectors/src/providers/anthropic/connector.ts deprovision enumerates members and invitations by email and may call delete_member. DEC-SMP-023 and child AC1/AC2 require a distinct vendor-neutral invitation-only operation pinned to provisioning_action.vendor_ref. Reuse provider transport and observation with Pact-backed delete_invite, shared request/action locking, acceptance-race refusal and fail-closed ambiguous outcomes; release reservation only after confirmed deletion. The original manual-invite-withdrawal proposal budgets 35 minutes for this boundary within its 310-minute total. Official provider contract https://platform.claude.com/docs/en/manage-claude/user-management (Members and invites; Withdraw an invite) permits only pending invitations and returns 400 for accepted/expired invitations. https://platform.claude.com/docs/en/api/beta/organization/invites/delete returns 200 with matching id and type invite_deleted. Validate both, reject all missing/malformed/ambiguous confirmation; never remove a member. Use a committed withdraw_invite intent and original invitation advisory lock across I/O; keep rows unlocked during observation persistence, recheck under row locks at finalization. Durable matching successful deletion receipt permits finalize-only recovery; requested-only evidence refuses blind retries. This is one invitation withdrawal lifecycle/concurrency boundary."
+    },
+    {
+      "id": "U4",
+      "statement": "Exact implementation plan, file count and mutation scope depend on the delivered US-067 read model.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Post-US-067 bounded read-only review confirms 17 production/test paths plus readiness, plan and append-only feedback = 20 total forecast files. No migration or tooling change. Existing TESTING section 3 already covers the canonical withdrawal contract. New Pact file covers the distinct optional connector method without redundant existing connector.test edits; existing exceptions-view tests retain unchanged composition assertions while table tests own form wiring. Shared DB service uses required injected real domain lifecycle validator to avoid new runtime dependency/lockfile edits. Seven provisional mutation groupings; actual ordinary preflight is authoritative. Exact manifest and AC oracles are in the bound plan. Stop at a task boundary for reassessment if an additional path or material boundary is required; never conceal growth."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "US068-READY-20261002",
+    "payload_sha256": "e15c0cb5c686d1a97998d41f14fe957f3fcd407bcba131c4ddb0b4b235d1af07"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
