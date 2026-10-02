@@ -308,9 +308,16 @@ test.each([true,false])('stored request identity must stay canonical with enable
  for(const kind of ['wrong','missing','uppercase'] as const){
   const input=await configured({hours:24,auto_withdraw_after_hours:48},'abcdefab-'+randomUUID().slice(9)),calls:string[]=[],before=await available(input);
   if(!enabled)await owner.query(`UPDATE alert_rule SET enabled=false WHERE id=$1`,[input.rule]);
-  const command:Record<string,unknown>={companyId:input.companyId,requestId:kind==='wrong'?randomUUID():input.requestId.toUpperCase(),actionId:input.actionId,commandId:input.actionId,actorUserId:null,actorLabel:null,note:'Automatically withdrew the unaccepted invitation after its configured expiry window.'};
+  const wrongRequestId=randomUUID();
+  const command:Record<string,unknown>={companyId:input.companyId,requestId:kind==='wrong'?wrongRequestId:input.requestId.toUpperCase(),actionId:input.actionId,commandId:input.actionId,actorUserId:null,actorLabel:null,note:'Automatically withdrew the unaccepted invitation after its configured expiry window.'};
   if(kind==='missing')delete command.requestId;
   const withdrawalId=randomUUID(),receipt={id:'invite-pinned',type:'invite_deleted'};
+  if(kind==='wrong'){
+   // A schema-valid completed intent in the same company must not turn a
+   // mismatched recovery request into a successful completed-shortcut replay.
+   await owner.query(`INSERT INTO license_request(id,request_no,person_id,company_id,vendor_account_id,license_type_id,state,justification,requested_by,created_at,created_by) SELECT $1,$2,person_id,company_id,vendor_account_id,license_type_id,'deprovisioned',justification,requested_by,created_at,created_by FROM license_request WHERE id=$3 AND company_id=$4`,[wrongRequestId,'SHADOW-'+wrongRequestId,input.requestId,input.companyId]);
+   await owner.query(`INSERT INTO provisioning_action(request_id,vendor_account_id,kind,mode,status,vendor_ref,raw_request,raw_response,created_at) VALUES($1,$2,'withdraw_invite','automated','withdrawn','invite-pinned',$3::jsonb,$4::jsonb,$5)`,[wrongRequestId,input.vendorAccountId,JSON.stringify(command),JSON.stringify(receipt),at]);
+  }
   await owner.query(`INSERT INTO provisioning_action(id,request_id,vendor_account_id,kind,mode,status,vendor_ref,raw_request,raw_response,created_at) VALUES($1,$2,$3,'withdraw_invite','automated','pending','invite-pinned',$4::jsonb,$5::jsonb,$6)`,[withdrawalId,input.requestId,input.vendorAccountId,JSON.stringify(command),JSON.stringify(receipt),at]);
   const job=jobFor(provider(calls));
   try{expect(await job.drain({at,vendorAccountId:input.vendorAccountId})).toEqual({processed:0});expect(calls).toEqual([]);await expectUntouched(input,before);expect((await owner.query(`SELECT status,raw_request,raw_response FROM provisioning_action WHERE id=$1 AND request_id=$2`,[withdrawalId,input.requestId])).rows).toEqual([{status:'pending',raw_request:command,raw_response:receipt}]);expect((await owner.query(`SELECT status FROM provisioning_action WHERE id=$1 AND request_id=$2`,[input.actionId,input.requestId])).rows).toEqual([{status:'sent'}]);expect((await owner.query(`SELECT id FROM lifecycle_notification WHERE company_id=$1 AND request_id=$2`,[input.companyId,input.requestId])).rows).toEqual([]);expect((await owner.query(`SELECT id FROM audit_log WHERE company_id=$1 AND action='invitation.withdrawn'`,[input.companyId])).rows).toEqual([]);}finally{await job.close();}
