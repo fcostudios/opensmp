@@ -104,7 +104,25 @@
     "evidence": "US067-READY-20261002",
     "payload_sha256": "ab3342ce3e495f9f1a016b28585b06a5c30745c7d54974e8d1b2641fab8457fd"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 8,
+      "implementation": 33,
+      "focused_verification": 22,
+      "review": 9,
+      "integration": 10
+    },
+    "total": 82,
+    "changed_files": 28,
+    "commits": 6,
+    "review_fix_loops": 2,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 14,
+    "mutation_shards_actual": 7,
+    "estimate_variance_minutes": -118,
+    "root_cause": "Minute-rounded active checkpoint blocks from task/review reports, implementation commit times and gate logs; approval idle time excluded. Larger raw file count includes parent readiness coordination, canonical testing-contract sync, existing component/test cleanup and data-only adapter responsibility registration. Mutation previews closed genuine boundary/lock/rendering gaps before the final cold diff campaign. One optional whole-set run was canceled after correcting runner scope; only final diff evidence closes this story. A pre-existing pg-pool socket-close/fixture-termination race failed one full check; retained diagnosis and unchanged lower-concurrency retry passed without suppressing errors. cold_mutation_attempts counts the one authoritative diff run; the canceled optional whole-set run is recorded separately as non-authoritative overhead. No scored input changed after the authoritative campaign. An omitted started marker was transparently backfilled in logical order on the unpublished ledger without rewriting prior execution records."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
