@@ -241,3 +241,21 @@ test('closing the job ends its real pool before another valid drain',async()=>{
  await expect(job.drain({at})).rejects.toThrow('Cannot use a pool after calling end on the pool');
  expect(calls).toEqual([]);
 },30000);
+
+
+test('the initial scan reaches the original invitation lock before waiting on a rule writer',async()=>{
+ const input=await configured(),calls:string[]=[],writer=await fixture.connectAsOwner();
+ await writer.query('BEGIN');await writer.query(`UPDATE alert_rule SET threshold=threshold WHERE id=$1`,[input.rule]);
+ const writerPid=(await writer.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+ const job=jobFor(provider(calls)),pending=job.drain({at,vendorAccountId:input.vendorAccountId});
+ try{
+  const deadline=Date.now()+10000;
+  for(;;){if((await owner.query(`SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pg_blocking_pids(pid) @> ARRAY[$1::int]) AS waiting`,[writerPid])).rows[0].waiting)break;if(Date.now()>deadline)throw new Error('Expiry never waited behind the rule writer');await new Promise<void>(resolve=>setImmediate(resolve));}
+  expect((await owner.query('SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS available',[input.actionId])).rows[0].available).toBe(false);
+  expect(calls).toEqual([]);
+  await writer.query('COMMIT');
+  expect(await pending).toEqual({processed:1});
+  expect(calls.filter(call=>call.startsWith('DELETE'))).toHaveLength(1);
+  expect((await owner.query(`SELECT company_id,recipient_user_account_id FROM lifecycle_notification WHERE request_id=$1`,[input.requestId])).rows).toEqual([{company_id:input.companyId,recipient_user_account_id:input.actorUserId}]);
+ }finally{await owner.query('SELECT pg_advisory_unlock_all()');await writer.query('ROLLBACK');await pending;await job.close();await writer.end();}
+},30000);
