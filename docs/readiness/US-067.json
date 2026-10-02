@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "ab3342ce3e495f9f1a016b28585b06a5c30745c7d54974e8d1b2641fab8457fd",
+  "work_id": "US-067",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Surface overdue invitations with configurable alerts",
+  "source": "docs/stories/sprint-3/r1_misc_us_067.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Group Admins see only eligible unaccepted invitations older than the configured threshold, with one actionable invite_unaccepted alert per open breach.",
+      "demo": "Evaluate invitations just below, exactly at, and above 168 hours; only the above-threshold invitation alerts, repeated evaluation deduplicates, and disabled or foreign-company rules do not alert.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "server",
+    "db",
+    "ui"
+  ],
+  "signals": {
+    "routes_or_screens": 1,
+    "acceptance_flows": 2,
+    "expected_changed_files": 14,
+    "expected_mutation_shards": 6,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 20,
+    "implementation": 70,
+    "focused_verification": 50,
+    "review": 40,
+    "integration": 20,
+    "total": 200
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Proposal provenance and canonical scope allocation for US-067.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "docs/readiness/US-021.json partitions[proposal_key=overdue-invite-alerts] supplies the initial outcome, demo and estimate; docs/stories/sprint-3/r1_misc_us_067.md allocates the child ACs under CHG-063. DEC-SMP-023 is recorded in docs/decisions/DECISION_MATRIX.md. The historical parent proposal is not implementation or approval evidence. Child AC1..AC3 are mapped individually to O1; parent coverage is AC1."
+    },
+    {
+      "id": "U2",
+      "statement": "Canonical foundation prerequisites are delivered.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Parsed .nous-feedback.jsonl contains terminal done events for US-019, US-042 and US-046. Their generated specs and current worker composition establish provisioning, alert evaluation and the 15-minute scheduler. Completed prerequisites are not represented as execution-blocking dependencies."
+    },
+    {
+      "id": "U3",
+      "statement": "Existing alert evaluation must produce one event per open invitation breach across evaluation windows, not one per run.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 30,
+      "resolution": "apps/worker/src/alerts/evaluate-alerts.ts currently uses windowStart in evaluation and a timestamp-bearing dedupe key for invite_unaccepted; requestAgeFacts derives age from the latest invited request_transition. packages/domain/src/alerts/evaluate.ts already uses strict greater-than. Introduce invitation-specific eligibility and a stable rule/request/invitation breach identity, preserving the existing outbox unique-event contract and unrelated alert types. Evaluate boundary age against injected at rather than a rounded window. Verify sequential and concurrent repeated evaluation against a real database and SMTP boundary. The extra implementation and verification allowance is included in the 200-minute total."
+    },
+    {
+      "id": "U4",
+      "statement": "Exceptions currently has no invitation list or count.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 20,
+      "resolution": "apps/web/src/app/(authenticated)/excepciones/page.tsx renders expiredInvites count as 0 and has no loaded invitation rows. Add a paginated company-scoped read model and localized list with age and an authorized request link, reusing the existing route, authorization and design tokens. Actionability for this child is the request drilldown; manual withdrawal belongs to US-068. Verify foreign-company exclusion, disabled rules, empty state and request-link composition. UI/read-model allowance is included in the total."
+    },
+    {
+      "id": "U5",
+      "statement": "Eligibility and race handling must align with delivered pending invitations.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "packages/db/src/schema.ts provisioningAction carries vendorRef, status, sentAt and resolvedAt; invited state and its current provider invitation identify the breach. Read facts only for eligible current pending invitations and exclude active/withdrawn or superseded actions. Revalidate current invitation state at event persistence so the membership acceptance path cannot create an actionable stale breach. No provider call, lifecycle mutation, expiry validator, new route, migration or tooling hardening is included. Verify this eligibility query against real fixtures during implementation; if discovery requires a migration or expands the approved boundary, stop and reassess."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "US067-READY-20261002",
+    "payload_sha256": "ab3342ce3e495f9f1a016b28585b06a5c30745c7d54974e8d1b2641fab8457fd"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
