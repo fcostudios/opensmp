@@ -268,6 +268,11 @@
     "types": { "approval_aging": "Aprobación demorada", "blocked_no_seat": "Bloqueada sin cupo", "close_missed": "Cierre incumplido", "credential_failure": "Falla de credencial", "deprovision_overdue": "Desaprovisionamiento vencido", "invite_unaccepted": "Invitación sin aceptar", "low_pool": "Cupo bajo", "provisioning_failure": "Falla de aprovisionamiento", "register_drift": "Deriva del registro", "sync_stale": "Sincronización desactualizada" }
   },
   "exceptions": {
+    "overdueInvites": {
+      "request": "Solicitud",
+      "ageHours": "Antigüedad (horas)",
+      "empty": "No hay invitaciones vencidas."
+    },
     "countOverflow": "99+",
     "blocked": { "addCapacity": "Agregar capacidad", "company": "Compañía", "daysBlocked": "Días hábiles bloqueada", "effectiveFrom": "Fecha efectiva", "empty": "No hay solicitudes bloqueadas por falta de cupo.", "escalated": "Escalada", "lastActive": "Última actividad", "monthlyCost": "Costo mensual", "neededBy": "La necesita para", "noDate": "No disponible", "noUsageData": "Sin datos de uso", "organization": "Organización", "person": "Persona", "prorationNote": "La compra se prorratea por los días reales del ciclo de facturación.", "purchasedQty": "Total comprado", "reclaimCandidates": "Candidatas para recuperar", "request": "Solicitud", "saveCapacity": "Guardar capacidad", "status": "Estado", "statusBlocked": "Bloqueada sin cupo", "viewPools": "Ver cupos" },
     "eyebrow": "Mesa de excepciones",

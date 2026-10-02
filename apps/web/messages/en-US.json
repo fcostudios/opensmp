@@ -268,6 +268,11 @@
     "types": { "approval_aging": "Approval aging", "blocked_no_seat": "Blocked without a seat", "close_missed": "Close missed", "credential_failure": "Credential failure", "deprovision_overdue": "Deprovision overdue", "invite_unaccepted": "Invitation unaccepted", "low_pool": "Low pool", "provisioning_failure": "Provisioning failure", "register_drift": "Register drift", "sync_stale": "Stale synchronization" }
   },
   "exceptions": {
+    "overdueInvites": {
+      "request": "Request",
+      "ageHours": "Age (hours)",
+      "empty": "No overdue invitations."
+    },
     "countOverflow": "99+",
     "blocked": { "addCapacity": "Add capacity", "company": "Company", "daysBlocked": "Business days blocked", "effectiveFrom": "Effective date", "empty": "No requests are currently blocked for lack of a seat.", "escalated": "Escalated", "lastActive": "Last active", "monthlyCost": "Monthly cost", "neededBy": "Needed by", "noDate": "Not available", "noUsageData": "No usage data", "organization": "Organization", "person": "Person", "prorationNote": "A purchase is prorated by actual days in the billing cycle.", "purchasedQty": "Purchased total", "reclaimCandidates": "Reclaim candidates", "request": "Request", "saveCapacity": "Save capacity", "status": "Status", "statusBlocked": "Blocked without a seat", "viewPools": "View pools" },
     "eyebrow": "Exception workbench",

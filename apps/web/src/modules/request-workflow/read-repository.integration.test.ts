@@ -825,3 +825,40 @@ describe("request read repository", () => {
     expect(second?.actions.map((item) => item.id)).toContain(writerAction);
   });
 });
+
+
+test("overdue invitation projection uses strict configured age, current identity, company membership and a bounded cursor", async () => {
+  const at = new Date("2026-08-01T12:07:00Z");
+  const admin = await authorization("read-admin");
+  await owner.query("UPDATE alert_rule SET enabled=false WHERE type='invite_unaccepted'");
+  await owner.query(`UPDATE license_request SET state='invited',license_assignment_id=NULL WHERE id=ANY($1::uuid[])`, [[ids.requestA,ids.requestA2,ids.requestB]]);
+  for (const [request, age] of [[ids.requestA,169],[ids.requestA2,168],[ids.requestB,200]] as const) {
+    await owner.query(`INSERT INTO provisioning_action (request_id,vendor_account_id,kind,mode,status,vendor_ref,sent_at,created_at)
+      VALUES ($1,$2,'invite','automated','sent',$3,$4,$4)`,[request,ids.vendorAccount,`current-${request}`,new Date(at.getTime()-age*3600000)]);
+  }
+  await owner.query(`INSERT INTO alert_rule (type,scope_kind,threshold,channel,enabled,created_at,created_by)
+    VALUES ('invite_unaccepted','global','{"hours":168}','email',true,$1,$2)`,[at,ids.admin]);
+  const repository=createRequestReadRepository(database,()=>at);
+  const scoped={...admin,companyIds:[ids.companyA]};
+  const first=await repository.listOverdueInvitations(scoped,{limit:1});
+  expect(first.items.map(item=>[item.requestId,item.ageHours])).toEqual([[ids.requestA,169]]);
+  expect(first.count).toBe(BigInt(1));
+  expect(first.nextCursor).toBeNull();
+  // Changing the rule changes eligibility; exactly the configured threshold remains excluded.
+  await owner.query(`UPDATE alert_rule SET threshold='{"hours":167}' WHERE type='invite_unaccepted' AND enabled`);
+  const lower=await repository.listOverdueInvitations(scoped,{limit:1});
+  expect(lower.count).toBe(BigInt(2));
+  expect(lower.items.map(item=>item.requestId)).toEqual([ids.requestA2]);
+  expect(lower.nextCursor).not.toBeNull();
+  const next=await repository.listOverdueInvitations(scoped,{cursor:lower.nextCursor,limit:1});
+  expect(next.items.map(item=>item.requestId)).toEqual([ids.requestA]);
+  expect(next.nextCursor).toBeNull();
+  const rejected=await repository.listOverdueInvitations({...scoped,globalRole:null});
+  expect(rejected).toEqual({items:[],count:BigInt(0),nextCursor:null});
+  expect((await repository.listOverdueInvitations({...scoped,companyIds:[]})).count).toBe(BigInt(0));
+  await owner.query(`INSERT INTO provisioning_action (request_id,vendor_account_id,kind,mode,status,created_at)
+    VALUES ($1,$2,'invite','automated','pending',$3)`,[ids.requestA2,ids.vendorAccount,at]);
+  expect((await repository.listOverdueInvitations(scoped)).items.map(item=>item.requestId)).toEqual([ids.requestA]);
+  await owner.query(`UPDATE alert_rule SET enabled=false WHERE type='invite_unaccepted'`);
+  expect((await repository.listOverdueInvitations(scoped)).count).toBe(BigInt(0));
+});

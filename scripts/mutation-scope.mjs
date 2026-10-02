@@ -979,7 +979,7 @@ export function classifyPageWiringBundle(changes) {
 
 const EXACT_FRAMEWORK_ADAPTERS = {
   "apps/web/src/app/(authenticated)/excepciones/page.tsx": {
-    sha256: "78c3c1c4c15eee01e5f28274e9b3aee1f0bed2fd477d76a135dd22c5b617de0e",
+    sha256: "b9292276ec5b67fbff635832d65a7bf77192e4b264adb22aff70ed010a094d05",
   },
   "apps/web/src/app/(authenticated)/organizaciones/page.tsx": {
     sha256: "23f45735460082b1f28e52da675d060d2996fbfe566ac27db6db60d75e6f99fc",
@@ -1566,6 +1566,12 @@ const ADJACENT_TEST_SUFFIXES = [
 // exceptional routes explicit prevents a changed source from silently riding
 // along merely because some unrelated story test also changed.
 export const DIRECT_TEST_ROUTES = {
+  "apps/worker/src/alerts/evaluate-alerts.ts": [
+    "apps/worker/src/alerts/overdue-invitations.integration.test.ts",
+  ],
+  "apps/web/src/app/(authenticated)/excepciones/page.tsx": [
+    "apps/web/src/components/exceptions/exception-page-boundaries.test.ts",
+  ],
   "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx": [
     "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
     "apps/web/src/modules/vendor-catalog/vendor-account-page-loaders.test.ts",

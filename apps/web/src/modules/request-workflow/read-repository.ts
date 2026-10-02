@@ -1,3 +1,4 @@
+import { pendingInvitationRows, type PendingInvitationRow } from "./repository";
 import { sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
@@ -197,6 +198,38 @@ function readScope(
   )`;
 }
 
+export interface OverdueInvitationPage {
+  readonly items: readonly (Omit<PendingInvitationRow, "invitedAt"> & {
+    readonly invitedAt: string;
+  })[];
+  readonly count: bigint;
+  readonly nextCursor: string | null;
+}
+
+function overdueInvitationRows(
+  authorization: LedgerAuthorization,
+  at: Date,
+): SQL {
+  const companyScope = authorization.globalRole === "group_admin" &&
+      authorization.companyIds.length > 0
+    ? sql`request.company_id IN (${sql.join(
+        authorization.companyIds.map((id) => sql`${id}::uuid`),
+        sql`,`,
+      )})`
+    : sql`FALSE`;
+  return sql`SELECT invitation.*
+    FROM (${pendingInvitationRows(at, companyScope)}) invitation
+    WHERE EXISTS (
+      SELECT 1 FROM alert_rule rule
+      WHERE rule.type='invite_unaccepted' AND rule.enabled
+        AND (rule.company_id IS NULL
+          OR rule.company_id::text=invitation."companyId")
+        AND (rule.vendor_account_id IS NULL
+          OR rule.vendor_account_id::text=invitation."vendorAccountId")
+        AND invitation."ageHours" > (rule.threshold->>'hours')::double precision
+    )`;
+}
+
 export function createRequestReadRepository(
   database: Database,
   clock: () => Date,
@@ -204,7 +237,53 @@ export function createRequestReadRepository(
     readonly afterBaseRead?: (transaction: Transaction) => Promise<void>;
   } = {},
 ) {
+  async function countOverdueInvitations(
+    authorization: LedgerAuthorization,
+    at: Date,
+  ): Promise<bigint> {
+    const result = await database.execute<{ count: string }>(sql`
+      SELECT count(*)::text AS count
+      FROM (${overdueInvitationRows(authorization, at)}) overdue`);
+    return BigInt(result.rows[0]!.count);
+  }
   return {
+    async countOverdueInvitations(
+      authorization: LedgerAuthorization,
+      at: Date = clock(),
+    ) {
+      return await countOverdueInvitations(authorization, at);
+    },
+    async listOverdueInvitations(
+      authorization: LedgerAuthorization,
+      options: {
+        readonly at?: Date;
+        readonly cursor?: string | null;
+        readonly limit?: number;
+      } = {},
+    ): Promise<OverdueInvitationPage> {
+      const at = options.at ?? clock();
+      const cursor = parseBlockedCursor(options.cursor);
+      const limit = Math.min(100, Math.max(1, Math.trunc(options.limit ?? 50)));
+      const result = await database.execute<PendingInvitationRow>(sql`
+        SELECT * FROM (${overdueInvitationRows(authorization, at)}) overdue
+        WHERE (${cursor?.blockedAt ?? null}::timestamptz IS NULL
+          OR (overdue."invitedAt", overdue."actionId"::uuid) <
+            (${cursor?.blockedAt ?? null}::timestamptz, ${cursor?.id ?? null}::uuid))
+        ORDER BY overdue."invitedAt" DESC, overdue."actionId" DESC
+        LIMIT ${limit + 1}`);
+      const items = result.rows.slice(0, limit).map((row) => ({
+        ...row,
+        invitedAt: iso(row.invitedAt),
+      }));
+      const last = items.at(-1);
+      return {
+        items,
+        count: await countOverdueInvitations(authorization, at),
+        nextCursor: result.rows.length > limit && last
+          ? `${last.invitedAt}|${last.actionId}`
+          : null,
+      };
+    },
     async countOperationalExceptions(
       authorization: LedgerAuthorization,
     ): Promise<OperationalExceptionCounts> {

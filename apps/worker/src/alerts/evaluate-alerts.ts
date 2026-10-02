@@ -1,3 +1,6 @@
+import { pendingInvitationRows, type PendingInvitationRow } from "@smp/db/pending-invitations";
+import { sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
 import {
   approvalAgingThresholdSchema,
   alertRuleContractSchema,
@@ -150,22 +153,28 @@ export function createAlertEvaluationJob(options: {
           const facts = await gatherFacts(
             pool,
             row,
-            windowStart,
+            row.type === "invite_unaccepted" ? at : windowStart,
             options.calendar ?? { holidays: new Set() },
           );
           for (const fact of facts) {
             const evaluation = evaluateAlertRule(parsed, fact, windowStart);
             if (!evaluation) continue;
-            const eventDedupeKey = row.type === "blocked_no_seat" &&
+            const eventDedupeKey = row.type === "invite_unaccepted"
+              ? `${row.id}:breach:invite_unaccepted:${fact.invitationActionId}`
+              : row.type === "blocked_no_seat" &&
                 "requestId" in evaluation.subjectRef
               ? `${row.id}:breach:blocked_no_seat:${evaluation.subjectRef.requestId}:escalation`
               : `${row.id}:breach:${evaluation.dedupeKey}`;
-            const event = await outbox.enqueue({
+            const eventInput = {
               alertRuleId: row.id,
               dedupeKey: eventDedupeKey,
               firedAt: windowStart,
               subjectRef: evaluation.subjectRef,
-            });
+            };
+            const event = row.type === "invite_unaccepted"
+              ? await enqueueCurrentInvitation(pool, outbox, row, fact, at, eventInput)
+              : await outbox.enqueue(eventInput);
+            if (!event) continue;
             const claim = await outbox.claim({
               alertEventId: event.id,
               at,
@@ -655,7 +664,7 @@ async function gatherFacts(
   rule: RuleRow,
   at: Date,
   calendar: EcuadorBusinessCalendar,
-): Promise<AlertFacts[]> {
+): Promise<InvitationAlertFacts[]> {
   if (!isAlertRuleScopeAllowed(rule)) return [];
   switch (rule.type) {
     case "low_pool":
@@ -668,7 +677,7 @@ async function gatherFacts(
     case "blocked_no_seat":
       return await requestBusinessDayFacts(pool, rule, at, calendar);
     case "invite_unaccepted":
-      return await requestAgeFacts(pool, rule, at, "invited");
+      return await invitationFacts(pool, rule, at);
     case "deprovision_overdue":
       return await deprovisionOverdueFacts(pool, rule, at, calendar);
     case "provisioning_failure":
@@ -934,4 +943,86 @@ function errorCode(error: unknown): string {
     return error.code.replaceAll(/[^A-Za-z0-9_-]/g, "_").slice(0, 64) || "ALERT_EVALUATION_FAILED";
   }
   return "ALERT_EVALUATION_FAILED";
+}
+
+
+type InvitationAlertFacts = AlertFacts & {
+  invitationActionId?: string;
+  companyId?: string;
+};
+
+async function invitationFacts(
+  pool: pg.Pool | pg.PoolClient,
+  rule: RuleRow,
+  at: Date,
+  actionId: string | null = null,
+): Promise<InvitationAlertFacts[]> {
+  const companyScope = sql`(${rule.company_id}::uuid IS NULL
+    OR request.company_id=${rule.company_id}::uuid)`;
+  const result = await drizzle(pool).execute<PendingInvitationRow>(sql`
+    SELECT * FROM (${pendingInvitationRows(at, companyScope)}) invitation
+    WHERE (${rule.vendor_account_id}::uuid IS NULL
+      OR invitation."vendorAccountId"=${rule.vendor_account_id})
+      AND (${actionId}::uuid IS NULL OR invitation."actionId"=${actionId})`);
+  return result.rows.map((row) => ({
+    ageHours: row.ageHours,
+    subject: { requestId: row.requestId },
+    invitationActionId: row.actionId,
+    companyId: row.companyId,
+  }));
+}
+
+async function enqueueCurrentInvitation(
+  pool: pg.Pool,
+  outbox: AlertNotificationOutbox,
+  rule: RuleRow,
+  fact: InvitationAlertFacts,
+  at: Date,
+  input: Parameters<AlertNotificationOutbox["enqueue"]>[0],
+) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    // Same action key as membership polling; wait for an in-flight acceptance,
+    // then re-read committed state instead of enqueuing a stale candidate.
+    await client.query(
+      "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+      [fact.invitationActionId],
+    );
+    await client.query(
+      `SELECT action.id FROM provisioning_action action
+       JOIN license_request request ON request.id=action.request_id
+       WHERE action.id=$1 AND request.company_id=$2
+       FOR UPDATE OF action,request`,
+      [fact.invitationActionId, fact.companyId],
+    );
+    const currentRule = await client.query<RuleRow>(
+      `SELECT id,type::text,scope_kind::text,company_id,vendor_account_id,threshold,enabled
+       FROM alert_rule WHERE id=$1 AND enabled FOR SHARE`,
+      [rule.id],
+    );
+    const current = currentRule.rows[0];
+    if (!current || current.type !== "invite_unaccepted") {
+      await client.query("ROLLBACK");
+      return null;
+    }
+    const parsed = alertRuleContractSchema.parse({
+      enabled: current.enabled,
+      type: current.type,
+      threshold: current.threshold,
+    });
+    const [eligible] = await invitationFacts(client, current, at, fact.invitationActionId);
+    if (!eligible || !evaluateAlertRule(parsed, eligible, at)) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+    const event = await outbox.enqueue({ ...input, firedAt: at });
+    await client.query("COMMIT");
+    return event;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }

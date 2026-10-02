@@ -1,3 +1,4 @@
+export { pendingInvitationRows, type PendingInvitationRow } from "@smp/db/pending-invitations";
 import { sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { z } from "zod";
