@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "1583eb379d2e1454174747ee352822dba8c0d11c04b9f994e594c555839521bd",
+  "readiness_payload_sha256": "afb2c504987e33e8de7e1997fefe7065f738a569a652b08a07fa2398341e2bf0",
   "work_id": "US-021",
   "kind": "US",
   "work_type": "functional",
-  "title": "Partition invite hygiene into canonical vertical outcomes",
+  "title": "Verify the delivered invitation-hygiene aggregate",
   "source": "docs/stories/sprint-3/r1_misc_us_021.md",
   "outcomes": [
     {
       "id": "O1",
-      "statement": "Pending invitations stop consuming seats indefinitely through configurable overdue alerts and safe manual or scheduled withdrawal with requester notification and a durable trail.",
-      "demo": "An overdue pending invitation alerts; authorized manual or scheduled withdrawal deletes only that invitation, frees the reservation after success, and records its action and notification.",
+      "statement": "The invitation-hygiene aggregate is closed from traceable verification of canonical deliveries US-067 through US-069, without duplicating their implementation.",
+      "demo": "Three timestamped parent AC verifications cite the official child evidence, current repository build passes once, and no production, test or tooling code changes are introduced.",
       "primary": true
     }
   ],
@@ -36,195 +36,66 @@
   ],
   "scopes": [
     "contracts",
-    "server",
-    "db",
-    "ui",
-    "infra"
+    "docs"
   ],
   "signals": {
-    "routes_or_screens": 3,
-    "acceptance_flows": 5,
-    "expected_changed_files": 30,
-    "expected_mutation_shards": 15,
-    "lifecycle_or_concurrency_boundaries": 1,
-    "external_integrations": 1,
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 2,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
     "schema_or_migration_changes": 0,
-    "authorization_or_audit_boundaries": 1,
+    "authorization_or_audit_boundaries": 0,
     "tooling_change": false
   },
   "estimate_minutes": {
-    "readiness": 40,
-    "implementation": 270,
-    "focused_verification": 200,
-    "review": 140,
-    "integration": 80,
-    "total": 730
+    "readiness": 10,
+    "implementation": 5,
+    "focused_verification": 20,
+    "review": 10,
+    "integration": 15,
+    "total": 60
   },
   "uncertainties": [
     {
       "id": "U1",
-      "statement": "The canonical 2-SP estimate is 448 minutes at 224 min/SP; measured neighboring children also exceeded their optimistic estimates.",
+      "statement": "Whether parent closure requires new implementation.",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Use three complete vertical outcomes with measured-scope estimates of 140, 310 and 280 minutes, including preview, review and final campaign. Parent is non-executable and estimates must be recalculated against exact child plans before approval."
+      "resolution": "CHG-063 and canonical US-021 Notes require parent-level verification after all children dev_done, following US-018/US-019. US-067 delivers overdue alerts, US-068 manual withdrawal, US-069 configured automatic expiry/requester notification. Historical partition proposals remain in Git; no application, package, migration, runtime, test or executable-tooling changes are authorized. The original partition_required proposal JSON is retained at Git commit e0d6e33:docs/readiness/US-021.json and /tmp/smp-us021-verification/historical-partition-assessment.json; this new assessment governs verification-only closure."
     },
     {
       "id": "U2",
-      "statement": "Canonical child IDs and the automatic-withdraw configuration contract are not delivered.",
+      "statement": "Whether another parent mutation campaign is required.",
       "status": "resolved",
-      "estimate_impact_minutes": 15,
-      "resolution": "CHG-063 delivered canonical children US-067, US-068 and US-069 in docs/stories/sprint-3/r1_misc_us_067.md through r1_misc_us_069.md. DEC-SMP-023 in docs/decisions/DECISION_MATRIX.md resolves the invitation-only boundary and exact threshold.auto_withdraw_after_hours key: null disables expiry; a configured integer must be strictly greater than threshold.hours. Each child requires a separate readiness assessment and executes in order after predecessor dev_done. US-019, US-042 and US-046 have terminal done evidence."
+      "estimate_impact_minutes": 0,
+      "resolution": "Child authoritative campaigns retain exact source-bound evidence. Parent assessment and feedback introduce no mutatable source; ordinary preflight must prove zero shards. No duplicated cold campaign unless inspection exposes a genuine new need."
+    },
+    {
+      "id": "U3",
+      "statement": "Whether every parent acceptance criterion has canonical completed child evidence.",
+      "status": "resolved",
+      "estimate_impact_minutes": 5,
+      "resolution": "Canonical US-067 ba88eee, US-068 27f31a1 and US-069 e0d6e33 are all dev_done. Their official build_pass/ac_verify/test_report/done events map parent AC1 to067, AC2 manual to068 and scheduled expiry/requester notice to069, and AC3 to068/069. Final child source89e42ac complete gate2702passed12existing conditional skips and all7 cold shards96.598639% are retained. Parent introduces no application/test/tooling work."
     }
   ],
   "dependencies": [],
-  "decision": "partition_required",
-  "partitions": [
-    {
-      "proposal_key": "overdue-invite-alerts",
-      "work_id": "US-067",
-      "title": "Surface overdue invitations with configurable alerts",
-      "outcome": "Group Admins see only eligible unaccepted invitations older than the configured threshold, with one actionable invite_unaccepted alert per open breach.",
-      "demo": "Evaluate invitations just below, exactly at, and above 168 hours; only the above-threshold invitation alerts, repeated evaluation deduplicates, and disabled or foreign-company rules do not alert.",
-      "acceptance_criteria": [
-        "AC1"
-      ],
-      "work_type": "functional",
-      "scopes": [
-        "server",
-        "db",
-        "ui"
-      ],
-      "signals": {
-        "routes_or_screens": 1,
-        "acceptance_flows": 2,
-        "expected_changed_files": 8,
-        "expected_mutation_shards": 4,
-        "lifecycle_or_concurrency_boundaries": 1,
-        "external_integrations": 0,
-        "schema_or_migration_changes": 0,
-        "authorization_or_audit_boundaries": 1,
-        "tooling_change": false
-      },
-      "uncertainties": [],
-      "estimate_minutes": {
-        "readiness": 10,
-        "implementation": 50,
-        "focused_verification": 40,
-        "review": 25,
-        "integration": 15,
-        "total": 140
-      },
-      "depends_on": [],
-      "cross_cutting_rationale": null
-    },
-    {
-      "proposal_key": "manual-invite-withdrawal",
-      "work_id": "US-068",
-      "title": "Withdraw a pending invitation safely from exceptions",
-      "outcome": "An authorized Group Admin withdraws exactly the selected pending invitation with a required note, releases its seat reservation only after provider success, and sees the durable withdrawn action in the request trail.",
-      "demo": "Withdraw an overdue invitation from exceptions and verify the provider invitation deletion, invited-to-deprovisioned transition, freed reservation and note in Acciones; race with acceptance and prove no active member or assignment is removed.",
-      "acceptance_criteria": [
-        "AC2",
-        "AC3"
-      ],
-      "work_type": "functional",
-      "scopes": [
-        "contracts",
-        "server",
-        "ui"
-      ],
-      "signals": {
-        "routes_or_screens": 2,
-        "acceptance_flows": 3,
-        "expected_changed_files": 19,
-        "expected_mutation_shards": 12,
-        "lifecycle_or_concurrency_boundaries": 1,
-        "external_integrations": 1,
-        "schema_or_migration_changes": 0,
-        "authorization_or_audit_boundaries": 1,
-        "tooling_change": false
-      },
-      "uncertainties": [
-        {
-          "id": "U1",
-          "statement": "The existing generic deprovision operation may delete an active member when an invitation is accepted concurrently.",
-          "status": "budgeted",
-          "estimate_impact_minutes": 35,
-          "resolution": "Add an invitation-specific vendor-neutral operation pinned to the durable provider invitation reference, with Pact-backed invitation deletion, shared action locking, post-I/O state revalidation, and fail-closed ambiguous outcomes. Never use email-based member removal for invite hygiene."
-        }
-      ],
-      "estimate_minutes": {
-        "readiness": 15,
-        "implementation": 120,
-        "focused_verification": 85,
-        "review": 60,
-        "integration": 30,
-        "total": 310
-      },
-      "depends_on": [
-        "overdue-invite-alerts"
-      ],
-      "cross_cutting_rationale": "AC2 is split by manual versus scheduled trigger. This child owns the complete manual withdrawal and shared invitation-only service; AC3 records manual withdrawals. The automatic child reuses the service and verifies its own notification and trail evidence."
-    },
-    {
-      "proposal_key": "automatic-invite-expiry",
-      "work_id": "US-069",
-      "title": "Expire stale invitations automatically and notify the requester",
-      "outcome": "The scheduled hygiene job withdraws eligible pending invitations after an explicitly enabled configurable expiry window, releases the seat reservation and re-notifies the requester exactly once with a durable action trail.",
-      "demo": "Configure expiry, advance an injected clock, run the job twice and verify one invitation-only deletion, one lifecycle transition, one requester notification and one visible action; accepted, foreign-company, disabled and not-yet-due invitations remain untouched.",
-      "acceptance_criteria": [
-        "AC2",
-        "AC3"
-      ],
-      "work_type": "functional",
-      "scopes": [
-        "server",
-        "db",
-        "infra"
-      ],
-      "signals": {
-        "routes_or_screens": 1,
-        "acceptance_flows": 3,
-        "expected_changed_files": 14,
-        "expected_mutation_shards": 9,
-        "lifecycle_or_concurrency_boundaries": 1,
-        "external_integrations": 1,
-        "schema_or_migration_changes": 0,
-        "authorization_or_audit_boundaries": 1,
-        "tooling_change": false
-      },
-      "uncertainties": [
-        {
-          "id": "U1",
-          "statement": "Canonical sources name a configurable auto-withdraw window but do not establish its default or a validated threshold key.",
-          "status": "resolved",
-          "estimate_impact_minutes": 15,
-          "resolution": "DEC-SMP-023 and US-069 AC1 deliver AlertRule(invite_unaccepted).threshold.auto_withdraw_after_hours: null disables expiry, and configured integers must be strictly greater than threshold.hours. US-069 owns the shared validator reused by US-044; no schema change or US-044 editing UI is needed."
-        }
-      ],
-      "estimate_minutes": {
-        "readiness": 15,
-        "implementation": 100,
-        "focused_verification": 75,
-        "review": 55,
-        "integration": 35,
-        "total": 280
-      },
-      "depends_on": [
-        "manual-invite-withdrawal"
-      ],
-      "cross_cutting_rationale": "AC2 automatic withdrawal is independently observable from the manual trigger. This child verifies automatic requester notification and the AC3 automatic action trail while reusing the manual child's safe service."
-    }
-  ],
+  "decision": "ready",
+  "partitions": [],
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "US021-PARTITION-CHG063-20261002",
-    "payload_sha256": "1583eb379d2e1454174747ee352822dba8c0d11c04b9f994e594c555839521bd"
+    "evidence": "CHG063-US021-VERIFY",
+    "payload_sha256": "afb2c504987e33e8de7e1997fefe7065f738a569a652b08a07fa2398341e2bf0"
   },
   "actuals": null,
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
-  "controlling_change": null
+  "controlling_change": {
+    "work_id": "CHG-063",
+    "relationship": "readiness_governance",
+    "reason": "CHG-063 partitions US-021 into canonical US-067/US-068/US-069 and requires parent-level verification after all children dev_done."
+  }
 }
