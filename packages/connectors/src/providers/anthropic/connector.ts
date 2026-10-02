@@ -440,7 +440,7 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
   async function request(
     operation: OperationContext,
     input: Parameters<OperationContext["execute"]>[0],
-  ): Promise<{ ok: true; body: unknown } | ProviderFailure | CapacityFailure> {
+  ): Promise<{ ok: true; body: unknown; status: number } | ProviderFailure | CapacityFailure> {
     const result = await operation.execute(input);
     if (!result.ok) {
       if (result.failureCode === "capacity_unavailable") return capacityFailure();
@@ -450,7 +450,7 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
       ));
     }
     try {
-      return { ok: true, body: await responseBody(result.response) };
+      return { ok: true, body: await responseBody(result.response), status: result.response.status };
     } catch {
       return providerFailure();
     }
@@ -618,7 +618,7 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
         endpoint: "delete_invite", parameters: { resourceId: input.vendorRef },
         vendorAccountId: input.vendorAccountId, credentials: operation.credentials,
       });
-      if (!deleted.ok) return providerFailure();
+      if (!deleted.ok || deleted.status !== 200) return providerFailure();
       const receipt = exact(deleted.body, ["id", "type"]);
       if (!receipt || receipt.id !== input.vendorRef || receipt.type !== "invite_deleted") return providerFailure();
       return Object.freeze({ ok: true, vendorRef: input.vendorRef,

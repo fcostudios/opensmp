@@ -1,11 +1,12 @@
 import { mkdtempSync,writeFileSync,chmodSync,rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { encryptCredential } from "./credential-crypto";
 import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
-import { afterAll, beforeAll, expect, test } from "vitest";
+import { afterAll, beforeAll, expect, test, vi } from "vitest";
 import { createConnectorCallObservationSession } from "@smp/connectors/connector-call-observation";
 const webRequire=createRequire(new URL("../../../apps/web/package.json",import.meta.url));
 const {createAnthropicConnector}=await import(webRequire.resolve("@smp/connectors/providers/anthropic/connector")) as {createAnthropicConnector:import("./invitation-withdrawal").InvitationWithdrawalConnectorFactory};
@@ -13,7 +14,7 @@ const {createAnthropicRateLimiter}=await import(webRequire.resolve("@smp/connect
 const {assertLegalTransition}=await import(webRequire.resolve("@smp/domain/request-workflow")) as {assertLegalTransition:(from:"invited",to:"deprovisioned")=>void};
 import { createPostgresFixture, type PostgresFixture } from "./testing/postgres-container";
 import { listCurrentSeatPoolCounts } from "./pool-snapshots";
-import { createInvitationWithdrawalService } from "./invitation-withdrawal";
+import { createInvitationWithdrawalService, createProductionInvitationWithdrawalConnector } from "./invitation-withdrawal";
 
 const at = new Date("2026-10-02T15:00:00Z");
 const sent = new Date("2026-09-20T15:00:00Z");
@@ -60,7 +61,7 @@ test("commits observed intent before I/O and releases exactly one reservation af
  const input=await seed();const before=await snapshot(input);
  const execution=service(input,{beforeDelete:async()=>{
  const intent=(await owner.query(`SELECT status,raw_request FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId])).rows;
- expect(intent).toHaveLength(1);expect(intent[0].status).toBe("pending");expect(intent[0].raw_request).toMatchObject({actorUserId:input.actorUserId,note:input.note,actionId:input.actionId});
+ expect(intent).toHaveLength(1);expect(intent[0].status).toBe("pending");expect(intent[0].raw_request).toMatchObject({actorUserId:input.actorUserId,actorLabel:input.actorUserId+"@test.example",note:input.note,actionId:input.actionId});
  expect((await snapshot(input)).available).toBe(before.available);
  const lock=(await owner.query(`SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS locked`,[input.actionId])).rows[0].locked;
  if(lock) await owner.query(`SELECT pg_advisory_unlock(hashtextextended($1,0))`,[input.actionId]);
@@ -75,14 +76,14 @@ test("commits observed intent before I/O and releases exactly one reservation af
  expect((await owner.query(`SELECT count(*)::int AS count FROM request_transition WHERE request_id=$1`,[input.requestId])).rows[0].count).toBe(1);
 },30000);
 
-test.each(["foreign","stale","accepted","ambiguous","unsupported","note"])("%s refusal retains reservation and assignments",async(kind)=>{
+test.each(["foreign","stale","accepted","ambiguous","unsupported","note","non200"])("%s refusal retains reservation and assignments",async(kind)=>{
  const input=await seed();const before=await snapshot(input);
- const execution=service(input,{status:kind === "accepted"?"accepted":undefined,body:kind === "ambiguous"?{id:"wrong",type:"invite_deleted"}:undefined,unsupported:kind === "unsupported"});
+ const execution=service(input,{status:kind === "accepted"?"accepted":undefined,body:kind === "ambiguous"?{id:"wrong",type:"invite_deleted"}:undefined,unsupported:kind === "unsupported",deleteStatus:kind === "non200"?202:undefined});
  const command={...input,...(kind === "foreign"?{companyId:input.foreignCompanyId}:{}),...(kind === "stale"?{actionId:randomUUID()}:{}),...(kind === "note"?{note:"  "}: {})};
  expect((await execution.service.withdraw(command)).ok).toBe(false);
  expect(await snapshot(input)).toEqual(before);
  expect(execution.calls.some(c=>c.path.includes("/users"))).toBe(false);
- if(kind !== "ambiguous") expect(execution.calls.filter(c=>c.method === "DELETE")).toEqual([]);
+ if(kind !== "ambiguous" && kind !== "non200") expect(execution.calls.filter(c=>c.method === "DELETE")).toEqual([]);
 },30000);
 
 test("state change after I/O refuses finalization and validated receipt recovers without another DELETE",async()=>{
@@ -152,3 +153,57 @@ test("partial action status write rolls back transition and preserves the valida
  } finally {await owner.query(`DROP TRIGGER IF EXISTS ${name} ON provisioning_action; DROP FUNCTION IF EXISTS ${name}();`);}
  expect((await execution.service.withdraw(input)).ok).toBe(true);expect(execution.calls.filter(call=>call.method === "DELETE")).toHaveLength(1);
 },30000);
+
+
+test("bounded pool lock holder uses its own client for production credentials and observations",async()=>{
+ const input=await seed(),before=await snapshot(input);
+ const bounded=new pg.Pool({connectionString:fixture.ownerUrl,max:2,connectionTimeoutMillis:1000});
+ const root=mkdtempSync(join(tmpdir(),"withdraw-production-kek-")),kekFile=join(root,"kek");
+ const kek=Uint8Array.from({length:32},(_,index)=>index+1);writeFileSync(kekFile,Buffer.from(kek).toString("base64"));chmodSync(kekFile,0o400);
+ for(const kind of ["admin_scoped","analytics"] as const) await owner.query(`INSERT INTO integration_credential(vendor_account_id,kind,encrypted_secret,health,status,created_at,created_by) VALUES($1,$2,$3,'ok','active',$4,$5)`,[input.vendorAccountId,kind,JSON.stringify(await encryptCredential(kind+"-key",kek)),at,input.actorUserId]);
+ const {parseCredentialEnvelope}=await import(webRequire.resolve("@smp/domain"));
+ let started!:()=>void,release!:()=>void;
+ const entered=new Promise<void>(resolve=>{started=resolve;}),gate=new Promise<void>(resolve=>{release=resolve;});
+ const calls:string[]=[];
+ const network=vi.spyOn(globalThis,"fetch").mockImplementation(async(request)=>{
+ const outbound=request as Request;calls.push(outbound.method);
+ expect(outbound.headers.get("x-api-key")).toBe("admin_scoped-key");
+ if(outbound.method === "GET") {started();await gate;return new Response(JSON.stringify({data:[{id:"invite-pinned",type:"invite",email:"selected@example.test",status:"pending"}],has_more:false,first_id:"invite-pinned",last_id:"invite-pinned"}),{headers:{"content-type":"application/json"}});}
+ return new Response(JSON.stringify({id:"invite-pinned",type:"invite_deleted"}),{headers:{"content-type":"application/json"}});
+ });
+ const execution=createInvitationWithdrawalService({pool:bounded,now:()=>at,assertLegalTransition,connectorFor:async(context,client)=>createProductionInvitationWithdrawalConnector({database:client,now:()=>at,createConnector:createAnthropicConnector,createLimiter:createAnthropicRateLimiter,parseCredentialEnvelope,kekFile,allowedKekRoot:root})(context)});
+ try {
+ const {withAudit}=await import(new URL("../../../apps/web/src/modules/audit/with-audit.ts",import.meta.url).href);
+ const submit=async(command:typeof input)=>{const outcome=await execution.withdraw(command);return withAudit(drizzle(bounded),async()=>({value:outcome,audit:{actorUserId:input.actorUserId,action:"server_action.withdrawInvite",entityType:"LicenseRequest",entityId:input.requestId,companyId:input.companyId,note:null,before:null,after:outcome}}),{occurredAt:at});};
+ const first=submit(input);await entered;
+ const acquired=new Promise<void>(resolve=>bounded.once("acquire",()=>resolve()));
+ const second=submit(input);await acquired;
+ let waiting=false;
+ for(let attempt=0;attempt<100&&!waiting;attempt++)waiting=(await owner.query(`SELECT EXISTS(SELECT 1 FROM pg_locks WHERE locktype='advisory' AND NOT granted) AS waiting`)).rows[0].waiting;
+ expect(waiting).toBe(true);expect(bounded.totalCount).toBe(2);expect((await snapshot(input)).available).toBe(before.available);
+ release();const results=await Promise.allSettled([first,second]);
+ expect(results).toEqual([{status:"fulfilled",value:expect.objectContaining({ok:true})},{status:"fulfilled",value:expect.objectContaining({ok:true})}]);
+ expect(calls).toEqual(["GET","DELETE"]);expect((await snapshot(input)).available-before.available).toBe(1);
+ const after=await snapshot(input);expect(await submit({...input,commandId:randomUUID()})).toEqual({ok:false,error:"conflict"});expect(await snapshot(input)).toEqual(after);
+ expect((await owner.query(`SELECT action,count(*)::int AS count FROM audit_log WHERE company_id=$1 AND action IN ('invitation.withdrawn','server_action.withdrawInvite') GROUP BY action ORDER BY action`,[input.companyId])).rows).toEqual([{action:"invitation.withdrawn",count:1},{action:"server_action.withdrawInvite",count:3}]);
+ expect((await owner.query(`SELECT count(*)::int AS count FROM request_transition WHERE request_id=$1`,[input.requestId])).rows[0].count).toBe(1);
+ expect((await owner.query(`SELECT operation,phase FROM connector_call_observation observation JOIN provisioning_action action ON action.id=observation.provisioning_action_id WHERE action.request_id=$1 ORDER BY observation.occurred_at,observation.id`,[input.requestId])).rows).toHaveLength(4);
+ }finally{release();network.mockRestore();await bounded.end();rmSync(root,{recursive:true,force:true});}
+},10000);
+
+
+test.each(["companyId","requestId","actionId","commandId","actorUserId"] as const)("invalid %s command identity refuses without database state or provider changes",async(field)=>{
+ const input=await seed(),before=await snapshot(input),execution=service(input);
+ expect(await execution.service.withdraw({...input,[field]:"invalid"})).toEqual({ok:false,error:"invalid"});expect(await snapshot(input)).toEqual(before);expect(execution.calls).toEqual([]);
+});
+test("overlong note refuses and nullable trusted system actor is recorded",async()=>{
+ const input=await seed(),before=await snapshot(input),execution=service(input);
+ expect(await execution.service.withdraw({...input,note:"x".repeat(2001)})).toEqual({ok:false,error:"invalid"});expect(await snapshot(input)).toEqual(before);expect(execution.calls).toEqual([]);
+ expect((await execution.service.withdraw({...input,actorUserId:null})).ok).toBe(true);
+ expect((await owner.query(`SELECT raw_request->'actorUserId' AS actor,raw_request->'actorLabel' AS label FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId])).rows).toEqual([{actor:null,label:null}]);
+});
+test("a durable completed command refuses changed actor or note without another provider call",async()=>{
+ const input=await seed(),execution=service(input);expect((await execution.service.withdraw(input)).ok).toBe(true);const before=await snapshot(input);
+ for(const changed of [{note:"Different reason"},{actorUserId:randomUUID()},{commandId:randomUUID()}]){expect(await execution.service.withdraw({...input,...changed})).toEqual({ok:false,error:"conflict"});expect(await snapshot(input)).toEqual(before);}
+ expect(execution.calls.filter(call=>call.method === "DELETE")).toHaveLength(1);
+});

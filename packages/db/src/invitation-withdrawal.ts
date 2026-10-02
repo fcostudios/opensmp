@@ -48,7 +48,7 @@ export function createInvitationWithdrawalService(dependencies: {
   readonly pool: pg.Pool;
   readonly now: () => Date;
   readonly assertLegalTransition: (from: "invited", to: "deprovisioned") => void;
-  readonly connectorFor: (context: Context) => Promise<VendorConnector | null>;
+  readonly connectorFor: (context: Context, database: pg.PoolClient) => Promise<VendorConnector | null>;
 }) {
   return { async withdraw(command: InvitationWithdrawalCommand): Promise<InvitationWithdrawalOutcome> {
     if (!valid(command)) return {ok:false,error:"invalid"};
@@ -74,12 +74,18 @@ export function createInvitationWithdrawalService(dependencies: {
         await client.query("ROLLBACK");transaction=false;return {ok:false,error:"conflict"};
       }
       const context={...eligible,withdrawalActionId:intent?.id ?? randomUUID()};
-      if (!intent) await client.query(`INSERT INTO provisioning_action(id,request_id,vendor_account_id,kind,mode,status,vendor_ref,raw_request,created_at)
-        VALUES($1,$2,$3,'withdraw_invite','automated','pending',$4,$5::jsonb,$6)`,[context.withdrawalActionId,command.requestId,context.vendorAccountId,context.vendorRef,JSON.stringify(normalized),dependencies.now()]);
+      if (!intent) {
+        const actor=command.actorUserId === null ? null : (await client.query<{label:string}>(`SELECT COALESCE(person.full_name,account.email) AS label FROM user_account account LEFT JOIN person ON person.id=account.person_id WHERE account.id=$1::uuid`,[command.actorUserId])).rows[0]?.label;
+        if(command.actorUserId !== null && (!actor || actor.length>320)) {
+          await client.query("ROLLBACK");transaction=false;return {ok:false,error:"conflict"};
+        }
+        await client.query(`INSERT INTO provisioning_action(id,request_id,vendor_account_id,kind,mode,status,vendor_ref,raw_request,created_at)
+          VALUES($1,$2,$3,'withdraw_invite','automated','pending',$4,$5::jsonb,$6)`,[context.withdrawalActionId,command.requestId,context.vendorAccountId,context.vendorRef,JSON.stringify({...normalized,actorLabel:actor}),dependencies.now()]);
+      }
       await client.query("COMMIT");transaction=false;
       if (intent && !receiptMatches(intent.raw_response,context.vendorRef)) return {ok:false,error:"ambiguous"};
       if (!intent) {
-        const connector=await dependencies.connectorFor(context);
+        const connector=await dependencies.connectorFor(context,client);
         if (!connector?.withdrawInvitation) return {ok:false,error:"unsupported"};
         const result=await connector.withdrawInvitation({requestId:command.requestId,vendorAccountId:context.vendorAccountId,vendorRef:context.vendorRef});
         if (!result.ok || result.vendorRef !== context.vendorRef || !receiptMatches(result.receipt,context.vendorRef)) return {ok:false,error:"provider_error"};
@@ -130,7 +136,7 @@ export type InvitationWithdrawalLimiterFactory = (dependencies:{clock:{now:()=>n
 
 /** Production credentials and observation composition; callers supply the approved connector runtime. */
 export function createProductionInvitationWithdrawalConnector(input: {
-  readonly pool: pg.Pool; readonly now: () => Date;
+  readonly database: Pick<pg.PoolClient,"query">; readonly now: () => Date;
   readonly createConnector: InvitationWithdrawalConnectorFactory;
   readonly createLimiter: InvitationWithdrawalLimiterFactory;
   readonly parseCredentialEnvelope: (value: string) => Parameters<typeof decryptCredential>[0];
@@ -139,16 +145,16 @@ export function createProductionInvitationWithdrawalConnector(input: {
   const clock={now:()=>input.now().getTime()},sleep=async(milliseconds:number)=>new Promise<void>(resolve=>setTimeout(resolve,milliseconds));
   const limiter=input.createLimiter({clock,sleep});
   return async (context: Context): Promise<VendorConnector | null> => {
-    const provider=await input.pool.query(`SELECT vendor.provisioning_protocol FROM vendor_account account JOIN vendor ON vendor.id=account.vendor_id
+    const provider=await input.database.query(`SELECT vendor.provisioning_protocol FROM vendor_account account JOIN vendor ON vendor.id=account.vendor_id
       WHERE account.id=$1 AND account.mode='automated' AND account.status='active' AND vendor.status='active' AND vendor.can_deprovision`,[context.vendorAccountId]);
     if(provider.rows[0]?.provisioning_protocol !== "rest") return null;
     const kek=await readKekFile(input.kekFile,{allowedRoot:input.allowedKekRoot});
     return input.createConnector({credentialsFor:async(account)=>{
       if(account !== context.vendorAccountId) throw new Error("WITHDRAWAL_ACCOUNT_MISMATCH");
-      const result=await input.pool.query<{encrypted_secret:string;kind:"admin_scoped"|"analytics";status:"active"|"retired";health:"ok"|"auth_failed"|"unverified"}>(`SELECT encrypted_secret,kind,status,health FROM integration_credential WHERE vendor_account_id=$1 AND status='active' ORDER BY kind`,[account]);
+      const result=await input.database.query<{encrypted_secret:string;kind:"admin_scoped"|"analytics";status:"active"|"retired";health:"ok"|"auth_failed"|"unverified"}>(`SELECT encrypted_secret,kind,status,health FROM integration_credential WHERE vendor_account_id=$1 AND status='active' ORDER BY kind`,[account]);
       return Promise.all(result.rows.map(async(row)=>({...row,vendorAccountId:account,secret:await decryptCredential(input.parseCredentialEnvelope(row.encrypted_secret),kek)})));
     },observationSessionFor:async(operation)=>createConnectorCallObservationSession({vendorAccountId:context.vendorAccountId,provisioningActionId:context.withdrawalActionId,operation:operation.operation,clock:input.now,randomId:randomUUID,append:async(event)=>{
-      await input.pool.query(`INSERT INTO connector_call_observation(vendor_account_id,provisioning_action_id,correlation_id,operation,attempt,phase,classification,summary,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[event.vendorAccountId,event.provisioningActionId,event.correlationId,event.operation,event.attempt,event.phase,event.classification,event.summary,event.occurredAt]);
+      await input.database.query(`INSERT INTO connector_call_observation(vendor_account_id,provisioning_action_id,correlation_id,operation,attempt,phase,classification,summary,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[event.vendorAccountId,event.provisioningActionId,event.correlationId,event.operation,event.attempt,event.phase,event.classification,event.summary,event.occurredAt]);
     }}),requestDependencies:{clock,sleep,limiter,transport:async(request)=>fetch(request)}});
   };
 }

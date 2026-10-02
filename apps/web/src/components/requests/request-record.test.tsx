@@ -402,8 +402,21 @@ describe("RequestRecord", () => {
   });
 });
 
-test("Acciones visibly retains the withdrawal actor and required note",()=>{
- const {container}=render(<RequestRecord activeTab="actions" isGroupAdmin labels={labels} locale="en-US" statusLabels={statusLabels} record={{...blockedRecord,state:"deprovisioned",timeline:[],actions:[{...blockedRecord.actions[0]!,kind:"withdraw_invite",status:"withdrawn",actor:"Group Administrator",note:"Not needed anymore"}]}} />);
- const actions=container.querySelector('[data-testid="acciones_table"]')!;
- expect(actions.textContent).toContain("Group Administrator");expect(actions.textContent).toContain("Not needed anymore");expect(actions.textContent).toContain("Retirada");
+
+const withdrawalMetadata={companyId:"68000000-0000-4000-8000-000000000003",requestId:"68000000-0000-4000-8000-000000000001",actionId:"68000000-0000-4000-8000-000000000002",commandId:"68000000-0000-4000-8000-000000000002",actorUserId:"68000000-0000-4000-8000-000000000004",actorLabel:"Group Administrator",note:"Not needed anymore"};
+function withdrawalRecord(rawRequest:unknown,kind:RequestRecordProjection["actions"][number]["kind"]="withdraw_invite"):RequestRecordProjection{return {...blockedRecord,id:withdrawalMetadata.requestId,company:{...blockedRecord.company,id:withdrawalMetadata.companyId},state:"deprovisioned",timeline:[],actions:[{...blockedRecord.actions[0]!,kind,status:"withdrawn",rawRequest}]};}
+test("Acciones visibly retains validated durable withdrawal actor and required note",()=>{
+ const {container}=render(<RequestRecord activeTab="actions" isGroupAdmin labels={labels} locale="en-US" statusLabels={statusLabels} record={withdrawalRecord(withdrawalMetadata)} />);
+ const evidence=container.querySelector('[data-testid="withdrawal_evidence"]')!;
+ expect(evidence.textContent).toContain("Group Administrator");expect(evidence.textContent).toContain("Not needed anymore");expect(container.querySelector('[data-testid="acciones_table"]')!.textContent).toContain("Retirada");
+});
+test.each([null,[],{...withdrawalMetadata,requestId:"foreign"},{...withdrawalMetadata,companyId:"foreign"},{...withdrawalMetadata,actorUserId:"not-a-uuid"},{...withdrawalMetadata,actorLabel:""},{...withdrawalMetadata,actorLabel:"x".repeat(321)},{...withdrawalMetadata,note:"   "},{...withdrawalMetadata,note:"x".repeat(2001)},{...withdrawalMetadata,actionId:"invalid"},{...withdrawalMetadata,commandId:"invalid"}])("Acciones omits malformed or foreign withdrawal metadata %#",rawRequest=>{
+ const {container}=render(<RequestRecord activeTab="actions" isGroupAdmin labels={labels} locale="en-US" statusLabels={statusLabels} record={withdrawalRecord(rawRequest)} />);
+ expect(container.querySelector('[data-testid="withdrawal_evidence"]')).toBeNull();
+});
+test("withdrawal evidence requires action kind and renders nullable system actor safely",()=>{
+ const {container,unmount}=render(<RequestRecord activeTab="actions" isGroupAdmin labels={labels} locale="en-US" statusLabels={statusLabels} record={withdrawalRecord(withdrawalMetadata,"invite")} />);
+ expect(container.querySelector('[data-testid="withdrawal_evidence"]')).toBeNull();unmount();
+ const system=render(<RequestRecord activeTab="actions" isGroupAdmin labels={labels} locale="en-US" statusLabels={statusLabels} record={withdrawalRecord({...withdrawalMetadata,actorUserId:null,actorLabel:null})} />);
+ expect(system.container.querySelector('[data-testid="withdrawal_evidence"]')!.textContent).toContain(labels.systemActor);
 });

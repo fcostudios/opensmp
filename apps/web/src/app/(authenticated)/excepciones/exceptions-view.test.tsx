@@ -1,4 +1,9 @@
 // @vitest-environment jsdom
+import type { ReactElement } from "react";
+import { Children, isValidElement } from "react";
+import { OverdueInvitesTable } from "../../../components/exceptions/overdue-invites-table";
+import { withdrawInvite } from "../../../modules/request-workflow/actions/withdraw-invite";
+import es from "../../../../messages/es-EC.json";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vitest";
 import { createTranslator, type AbstractIntlMessages } from "next-intl";
@@ -100,4 +105,15 @@ test("keeps the blocked continuation tied to its own cursor",()=>{
   expect(screen.getByTestId('exceptions_load_more').getAttribute('href')).toBe('?tab=blocked&cursor=blocked-next');
   expect(screen.queryByTestId('table_drift')).toBeNull();
   expect(screen.queryByTestId('table_expired_invites')).toBeNull();
+});
+
+
+test.each([["en-US",en],["es-EC",es]] as const)("withdrawal form wiring preserves every %s catalog label and real server action",(locale,messages)=>{
+ const props={...emptyProps,selected:"expiredInvites" as const,locale,t:createTranslator({locale,messages:messages as AbstractIntlMessages,namespace:"exceptions"}),orchestration:createTranslator({locale,messages:messages as AbstractIntlMessages,namespace:"orchestration"}),invitations:{items:[{requestId:"68000000-0000-4000-8000-000000000001",requestNo:"REQ-068",ageHours:200,actionId:"68000000-0000-4000-8000-000000000002",companyId:"68000000-0000-4000-8000-000000000003",vendorAccountId:"68000000-0000-4000-8000-000000000004",vendorRef:"invite-pinned",invitedAt:"2026-09-25T14:07:00Z"}],nextCursor:null}};
+ const tree=ExceptionsView(props);let selected:ReactElement<Parameters<typeof OverdueInvitesTable>[0]>|undefined;
+ function visit(node:unknown){if(!isValidElement(node))return;if(node.type===OverdueInvitesTable)selected=node as typeof selected;Children.forEach((node.props as {children?:React.ReactNode}).children,visit);}visit(tree);
+ expect(selected!.props.withdrawAction).toBe(withdrawInvite);
+ const catalog=messages.exceptions.overdueInvites;
+ expect(selected!.props.labels).toEqual({request:catalog.request,ageHours:catalog.ageHours,empty:catalog.empty,withdraw:catalog.withdraw,pending:catalog.pending,note:catalog.note,success:catalog.success,errors:catalog.errors});
+ render(tree);expect(screen.getByLabelText(catalog.note)).toHaveProperty("required",true);expect(screen.getByRole("button",{name:catalog.withdraw})).toHaveProperty("disabled",false);
 });

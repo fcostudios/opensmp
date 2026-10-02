@@ -1,3 +1,9 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { RequestRecord, type RequestRecordLabels } from "../../../components/requests/request-record";
+import { createRequestReadRepository } from "../read-repository";
+import en from "../../../../messages/en-US.json";
+import { getNotificationCatalog } from "@smp/notifications/catalog";
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -21,7 +27,7 @@ import { withAudit } from "../../audit/with-audit";
 
 let fixture:PostgresFixture, owner:pg.Client,pool:pg.Pool;
 const at=new Date("2026-10-02T15:00:00Z");
-beforeAll(async()=>{fixture=await createPostgresFixture();await fixture.migrate();owner=await fixture.connectAsOwner();pool=new pg.Pool({connectionString:fixture.ownerUrl});},30000);
+beforeAll(async()=>{fixture=await createPostgresFixture();await fixture.migrate();owner=await fixture.connectAsOwner();pool=new pg.Pool({connectionString:fixture.ownerUrl,max:2,connectionTimeoutMillis:1000});},30000);
 afterAll(async()=>{await pool?.end();await owner?.end();await fixture?.stop();});
 async function arrange(role:"group_admin"|null) {
  const actor=randomUUID(),company=randomUUID(),vendor=randomUUID(),account=randomUUID(),license=randomUUID(),person=randomUUID(),request=randomUUID(),action=randomUUID();
@@ -43,8 +49,8 @@ async function arrange(role:"group_admin"|null) {
  const database=drizzle(pool,{schema});
  const entrypoints=createServerAuthorizationEntrypoints({loadSession:async()=>({user:{idpSubject:actor}}),repository:createAuthorizationRepository(database)});
  const execute=createAuthorizedInvitationWithdrawal({pool,loadAuthorization:entrypoints.loadCurrentLedgerAuthorization,service:createInvitationWithdrawalService({pool,now:()=>at,assertLegalTransition,connectorFor:async()=>connector}),recordOutcome:async(userId,requestId,outcome)=>{await withAudit(database,async()=>({value:outcome,audit:{actorUserId:userId,action:"server_action.withdrawInvite",entityType:"LicenseRequest",entityId:requestId??request,companyId:company,note:null,before:null,after:outcome}}),{occurredAt:at});}});
- const form=new FormData();form.set("requestId",request);form.set("actionId",action);form.set("commandId",action);form.set("note","Required withdrawal note");form.set("actorUserId",randomUUID());form.set("companyId",randomUUID());
- return {execute,form,actor,company,request,action,remoteCalls:()=>remoteCalls};
+ const form=new FormData();form.set("requestId",request);form.set("actionId",action);form.set("commandId",action);form.set("note","Required withdrawal note");form.set("actorUserId",randomUUID());form.set("companyId",randomUUID());form.set("actorLabel","FORGED ACTOR");
+ return {execute,form,actor,company,request,action,database,entrypoints,remoteCalls:()=>remoteCalls};
 }
 test("non-admin cannot withdraw and denial is audited without provider calls",async()=>{
  const fixture=await arrange(null);expect(await fixture.execute(fixture.form)).toEqual({ok:false,error:"forbidden"});expect(fixture.remoteCalls()).toBe(0);
@@ -67,6 +73,12 @@ test("production action composes trusted authorization, lifecycle, audited servi
  const imports=source.statements.filter(ts.isImportDeclaration).map(statement=>statement.moduleSpecifier.getText(source));
  expect(imports).toContain('"@smp/db/invitation-withdrawal"');expect(imports).toContain('"@smp/domain/request-workflow"');
  const calls:string[]=[];function visit(node:ts.Node){if(ts.isCallExpression(node))calls.push(node.expression.getText(source));ts.forEachChild(node,visit);}visit(source);
+ const wrapper=source.statements.find(statement=>statement.getText(source).includes("export async function withdrawInvite"))!;
+ const auditCalls:ts.CallExpression[]=[];function inspect(node:ts.Node){if(ts.isCallExpression(node)&&node.expression.getText(source)==="withAudit")auditCalls.push(node);ts.forEachChild(node,inspect);}inspect(wrapper);
+ expect(auditCalls).toHaveLength(1);const preparation=auditCalls[0]!.arguments[1]!;expect(ts.isAwaitExpression(preparation)).toBe(true);expect(preparation.getText(source)).toBe("await prepareWithdrawalResult(form)");
+ const prepare=source.statements.find(statement=>ts.isFunctionDeclaration(statement)&&statement.name?.text==="prepareWithdrawalResult") as ts.FunctionDeclaration;
+ const callback=prepare.body!.statements.find(ts.isReturnStatement)!.expression!;
+ expect(ts.isArrowFunction(callback)).toBe(true);expect(callback.getText(source)).not.toContain("execute(form)");expect(prepare.getText(source)).toContain("await execute(form)");
  expect(calls).toContain("createAuthorizedInvitationWithdrawal");expect(calls).toContain("createInvitationWithdrawalService");expect(calls).toContain("withAudit");
 });
 
@@ -75,4 +87,22 @@ test("foreign request/action pairing cannot withdraw another company's invitatio
  selected.form.set("requestId",foreign.request);
  expect(await selected.execute(selected.form)).toEqual({ok:false,error:"conflict"});expect(selected.remoteCalls()).toBe(0);
  expect((await owner.query(`SELECT state FROM license_request WHERE (id=$1 AND company_id=$2) OR (id=$3 AND company_id=$4) ORDER BY id`,[selected.request,selected.company,foreign.request,foreign.company])).rows.map(row=>row.state)).toEqual(["invited","invited"]);
+});
+
+
+test("authorized withdrawal persists immutable human actor and note through unchanged reader into Acciones",async()=>{
+ const selected=await arrange("group_admin"),foreign=await arrange("group_admin");
+ const outcome=await selected.execute(selected.form);expect(outcome.ok).toBe(true);if(!outcome.ok)throw new Error("WITHDRAWAL_FAILED");
+ await owner.query(`INSERT INTO audit_log(actor_user_id,action,entity_type,entity_id,company_id,note,occurred_at) VALUES($1,'invitation.withdrawn','ProvisioningAction',$2,$3,'Foreign tenant note',$4)`,[foreign.actor,outcome.actionId,foreign.company,at]);
+ await owner.query(`UPDATE user_account SET email='renamed@auth.test' WHERE id=$1`,[selected.actor]);
+ expect(await selected.execute(selected.form)).toEqual(outcome);expect(selected.remoteCalls()).toBe(2);
+ const authorization=await selected.entrypoints.loadCurrentLedgerAuthorization();
+ const record=await createRequestReadRepository(selected.database,()=>at).detail(authorization!,selected.request);
+ expect(record!.actions.find(action=>action.id===outcome.actionId)!.rawRequest).toMatchObject({actorUserId:selected.actor,actorLabel:selected.actor+"@auth.test",note:"Required withdrawal note",companyId:selected.company});
+ expect(record!.audit.some(entry=>entry.note === "Foreign tenant note")).toBe(false);
+ const history=en.requestHistory;
+ const labels:RequestRecordLabels={...history,actionKind:{assign_sku:history.actionAssignSku,checklist:history.actionChecklist,invite:history.actionInvite,remove:history.actionRemove,withdraw_invite:history.actionWithdrawInvite},actionMode:{automated:history.actionAutomated,orchestration:history.actionOrchestration},actionStatus:{confirmed:history.actionConfirmed,failed:history.actionFailed,pending:history.actionPending,sent:history.actionSent,verification_failed:history.actionVerificationFailed,withdrawn:history.actionWithdrawn},retryProvisioning:en.orchestration.retryProvisioning,retryingProvisioning:en.orchestration.retryingProvisioning};
+ const markup=renderToStaticMarkup(createElement(RequestRecord,{activeTab:"actions",isGroupAdmin:true,labels,locale:"en-US",statusLabels:getNotificationCatalog("en-US").status,record:record!}));
+ const evidence=markup.match(/<div[^>]+data-testid="withdrawal_evidence"[^>]*>(.*?)<\/div>/)![1]!;
+ expect(evidence).toContain(selected.actor+"@auth.test");expect(evidence).toContain("Required withdrawal note");expect(evidence).not.toContain("FORGED ACTOR");expect(evidence).not.toContain("Foreign tenant note");
 });

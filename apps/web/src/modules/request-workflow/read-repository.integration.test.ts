@@ -690,8 +690,6 @@ describe("request read repository", () => {
     expect(detail?.warnings).toEqual([]);
     expect(detail?.actions).toEqual([
       {
-        actor: null,
-        note: null,
         createdAt: "2026-07-28T12:05:00.000Z",
         id: ids.action,
         failureReason: "Console rejected invite",
@@ -872,13 +870,4 @@ test("overdue invitation projection uses strict configured age, current identity
   expect((await repository.listOverdueInvitations(scoped)).items.map(item=>item.requestId)).toEqual([ids.requestA]);
   await owner.query(`UPDATE alert_rule SET enabled=false WHERE type='invite_unaccepted'`);
   expect((await repository.listOverdueInvitations(scoped)).count).toBe(BigInt(0));
-});
-
-test("projects company-scoped withdrawal actor and note into Acciones",async()=>{
- await owner.query(`UPDATE provisioning_action SET kind='withdraw_invite',status='withdrawn' WHERE id=$1`,[ids.action]);
- await owner.query(`INSERT INTO audit_log(actor_user_id,action,entity_type,entity_id,company_id,note,occurred_at) VALUES($1,'invitation.withdrawn','ProvisioningAction',$2,$3,'Selected invite no longer needed','2026-07-29T12:00:00Z'),($1,'invitation.withdrawn','ProvisioningAction',$2,$4,'Foreign tenant note','2026-07-28T12:00:00Z')`,[ids.admin,ids.action,ids.companyA,ids.companyB]);
- const authorization=await createAuthorizationRepository(database).load({subject:"read-admin"});
- const detail=await createRequestReadRepository(database,()=>new Date("2026-07-30T12:00:00Z")).detail(authorization!,ids.requestA);
- expect(detail?.actions[0]).toMatchObject({actor:"admin@ledger.test",note:"Selected invite no longer needed"});
- expect(detail?.actions.some(action=>action.note === "Foreign tenant note")).toBe(false);
 });

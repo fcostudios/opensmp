@@ -17,6 +17,9 @@ const failure = { ok: false, code: "provider_error", retryable: false, raw: null
 
 test.each([
   { name: "confirmed pinned deletion beyond first page", pages: [page([invite("other")], true), page([invite(pinned)])], body: { id: pinned, type: "invite_deleted" }, status: 200, success: true },
+  { name: "non200 201 matching receipt refusal", pages: [page([invite(pinned)])], body: { id: pinned, type: "invite_deleted" }, status: 201 },
+  { name: "non200 202 matching receipt refusal", pages: [page([invite(pinned)])], body: { id: pinned, type: "invite_deleted" }, status: 202 },
+  { name: "non200 206 matching receipt refusal", pages: [page([invite(pinned)])], body: { id: pinned, type: "invite_deleted" }, status: 206 },
   { name: "accepted refusal", pages: [page([invite(pinned,"accepted")])], noDelete: true },
   { name: "expired refusal", pages: [page([invite(pinned,"expired")])], noDelete: true },
   { name: "missing pinned invitation", pages: [page([invite("other")])], noDelete: true },

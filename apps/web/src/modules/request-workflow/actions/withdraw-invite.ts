@@ -23,21 +23,20 @@ import { withAudit } from "../../audit/with-audit";
 const pool=(db as unknown as {$client:pg.Pool}).$client;
 const now=()=>new Date();
 const service=createInvitationWithdrawalService({pool,now,assertLegalTransition,
-  connectorFor:async(context)=>{
+  connectorFor:async(context,database)=>{
     // eslint-disable-next-line @typescript-eslint/no-require-imports -- Literal import lets Next bundle the approved neutral worker composition without importing provider source into web tsc.
     const {createProvisioningConnector,createProvisioningRateLimiter}=require("../../../../../worker/src/connector-composition.ts") as {
       createProvisioningConnector:InvitationWithdrawalConnectorFactory;
       createProvisioningRateLimiter:InvitationWithdrawalLimiterFactory;
     };
-    return createProductionInvitationWithdrawalConnector({pool,now,parseCredentialEnvelope,kekFile:process.env.LEDGER_CREDENTIAL_KEK_FILE??"",
+    return createProductionInvitationWithdrawalConnector({database,now,parseCredentialEnvelope,kekFile:process.env.LEDGER_CREDENTIAL_KEK_FILE??"",
       createConnector:createProvisioningConnector,createLimiter:createProvisioningRateLimiter,
     })(context);
   },
 });
 const command=z.object({requestId:z.string().uuid(),actionId:z.string().uuid(),commandId:z.string().uuid(),note:z.string().trim().min(1).max(2000)});
 
-export async function withdrawInvite(form: FormData): Promise<InvitationWithdrawalOutcome> {
-  return withAudit(db as unknown as Parameters<typeof withAudit>[0],async()=>{
+async function prepareWithdrawalResult(form: FormData) {
     let actorUserId:string|null=null,requestId:string|null=null;
     const execute=createAuthorizedInvitationWithdrawal({pool,loadAuthorization:loadCurrentLedgerAuthorization,service,
       recordOutcome:async(actor,request)=>{actorUserId=actor;requestId=request;},
@@ -45,7 +44,13 @@ export async function withdrawInvite(form: FormData): Promise<InvitationWithdraw
     const parsed=command.safeParse(Object.fromEntries(form));
     if(!parsed.success) form.set("note","");
     const result=await execute(form);
+  return async()=>{
     if(result.ok){revalidatePath("/excepciones");revalidatePath(`/solicitudes/${result.requestId}`);}
     return {value:result,audit:{actorUserId,action:"server_action.withdrawInvite",entityType:"LicenseRequest",entityId:requestId??AUTHORIZATION_SYSTEM_ENTITY_ID,companyId:null,note:null,before:null,after:result}};
-  },{occurredAt:now()});
+  };
+}
+
+export async function withdrawInvite(form: FormData): Promise<InvitationWithdrawalOutcome> {
+  // Await preparation before withAudit acquires a connection; its callback only records the completed outcome.
+  return withAudit(db as unknown as Parameters<typeof withAudit>[0],await prepareWithdrawalResult(form),{occurredAt:now()});
 }

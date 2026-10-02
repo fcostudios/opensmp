@@ -1,5 +1,6 @@
 import type { ComponentProps, ReactNode } from "react";
 import Link from "next/link";
+import { z } from "zod";
 
 import {
   StateTimeline,
@@ -442,10 +443,7 @@ function ActionsPanel({
                 <td className="py-3 pr-3 text-text-primary">
                   {labels.actionKind[action.kind]} ·{" "}
                   {labels.actionMode[action.mode]}
-                  {action.kind === "withdraw_invite" ? <div className="mt-2 text-text-secondary">
-                    <p>{labels.requestedBy} {action.actor ?? labels.systemActor}</p>
-                    <p className="whitespace-pre-wrap">{action.note}</p>
-                  </div> : null}
+                  <WithdrawalEvidence action={action} record={record} labels={labels} />
                   {isGroupAdmin &&
                   (action.rawRequest !== null ||
                     action.rawResponse !== null) ? (
@@ -569,4 +567,21 @@ function AuditPanel({
       )}
     </section>
   );
+}
+
+
+const withdrawalEvidenceSchema=z.object({
+ companyId:z.string().uuid(),requestId:z.string().uuid(),actionId:z.string().uuid(),commandId:z.string().uuid(),
+ actorUserId:z.string().uuid().nullable(),actorLabel:z.string().trim().min(1).max(320).nullable(),note:z.string().trim().min(1).max(2000),
+});
+function WithdrawalEvidence({action,record,labels}:{action:RequestRecordProjection["actions"][number];record:RequestRecordProjection;labels:RequestRecordLabels}) {
+ if(action.kind !== "withdraw_invite") return null;
+ const metadata=withdrawalEvidenceSchema.safeParse(action.rawRequest);
+ if(!metadata.success) return null;
+ const value=metadata.data;
+ if(value.requestId !== record.id || value.companyId !== record.company.id || (value.actorUserId === null) !== (value.actorLabel === null)) return null;
+ return <div className="mt-2 text-text-secondary" data-testid="withdrawal_evidence">
+   <p>{labels.requestedBy} {value.actorLabel ?? labels.systemActor}</p>
+   <p className="whitespace-pre-wrap">{value.note}</p>
+ </div>;
 }
