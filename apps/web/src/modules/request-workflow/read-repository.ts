@@ -83,6 +83,8 @@ export interface RequestTimelineItem {
 }
 
 export interface RequestActionProjection {
+  readonly actor?: string | null;
+  readonly note?: string | null;
   readonly id: string;
   readonly kind: RequestActionKind;
   readonly mode: RequestActionMode;
@@ -522,6 +524,7 @@ export function createRequestReadRepository(
         const actions = await loadActions(
           transaction,
           requestId,
+          base.companyId,
           authorization.globalRole === "group_admin",
         );
         const assignment = await loadAssignment(
@@ -702,6 +705,7 @@ async function loadTimeline(
 async function loadActions(
   transaction: Transaction,
   requestId: string,
+  companyId: string,
   includePayload: boolean,
 ): Promise<readonly RequestActionProjection[]> {
   const result = await transaction.execute<{
@@ -718,6 +722,7 @@ async function loadActions(
     readonly createdAt: Date | string;
   }>(
     sql`SELECT pa.id::text AS id,
+               action_audit.actor,action_audit.note,
                pa.kind,
                pa.mode,
                pa.status,
@@ -736,7 +741,16 @@ async function loadActions(
         JOIN license_request action_request
           ON action_request.id = pa.request_id
          AND action_request.vendor_account_id = pa.vendor_account_id
-        WHERE pa.request_id = ${requestId}::uuid
+        LEFT JOIN LATERAL (
+          SELECT COALESCE(actor_person.full_name,actor.email) AS actor,al.note
+          FROM audit_log al
+          LEFT JOIN user_account actor ON actor.id=al.actor_user_id
+          LEFT JOIN person actor_person ON actor_person.id=actor.person_id
+          WHERE al.company_id=${companyId}::uuid AND al.entity_type='ProvisioningAction'
+            AND al.entity_id=pa.id AND al.action='invitation.withdrawn'
+          ORDER BY al.occurred_at,al.id LIMIT 1
+        ) action_audit ON true
+        WHERE action_request.company_id=${companyId}::uuid AND pa.request_id = ${requestId}::uuid
         ORDER BY pa.created_at, pa.id`,
   );
   return result.rows.map((row) => ({

@@ -401,3 +401,9 @@ describe("RequestRecord", () => {
     expect(html).not.toContain('data-testid="btn_retry_provisioning_detail"');
   });
 });
+
+test("Acciones visibly retains the withdrawal actor and required note",()=>{
+ const {container}=render(<RequestRecord activeTab="actions" isGroupAdmin labels={labels} locale="en-US" statusLabels={statusLabels} record={{...blockedRecord,state:"deprovisioned",timeline:[],actions:[{...blockedRecord.actions[0]!,kind:"withdraw_invite",status:"withdrawn",actor:"Group Administrator",note:"Not needed anymore"}]}} />);
+ const actions=container.querySelector('[data-testid="acciones_table"]')!;
+ expect(actions.textContent).toContain("Group Administrator");expect(actions.textContent).toContain("Not needed anymore");expect(actions.textContent).toContain("Retirada");
+});

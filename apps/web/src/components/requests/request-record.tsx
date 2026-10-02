@@ -442,6 +442,10 @@ function ActionsPanel({
                 <td className="py-3 pr-3 text-text-primary">
                   {labels.actionKind[action.kind]} ·{" "}
                   {labels.actionMode[action.mode]}
+                  {action.kind === "withdraw_invite" ? <div className="mt-2 text-text-secondary">
+                    <p>{labels.requestedBy} {action.actor ?? labels.systemActor}</p>
+                    <p className="whitespace-pre-wrap">{action.note}</p>
+                  </div> : null}
                   {isGroupAdmin &&
                   (action.rawRequest !== null ||
                     action.rawResponse !== null) ? (

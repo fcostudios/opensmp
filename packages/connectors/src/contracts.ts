@@ -91,7 +91,12 @@ export type CostSnapshot = {
   records: readonly { email: string; costDate: string; amountUsd: string }[];
 };
 
+export type InvitationWithdrawalResult =
+  | { readonly ok: true; readonly vendorRef: string; readonly receipt: { readonly id: string; readonly type: "invite_deleted" } }
+  | { readonly ok: false; readonly code: "provider_error"; readonly retryable: boolean; readonly raw: null };
+
 export interface VendorConnector {
+  withdrawInvitation?(input: { requestId: string; vendorAccountId: string; vendorRef: string }): Promise<InvitationWithdrawalResult>;
   capabilities(): ReadonlySet<ConnectorCapability>;
   provision(input: ProvisionInput): Promise<ConnectorResult<ProvisionResult>>;
   deprovision(input: DeprovisionInput): Promise<ConnectorResult<DeprovisionResult>>;

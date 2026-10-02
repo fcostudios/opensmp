@@ -271,8 +271,20 @@
     "overdueInvites": {
       "request": "Solicitud",
       "ageHours": "Antigüedad (horas)",
-      "empty": "No hay invitaciones vencidas."
-    },
+      "empty": "No hay invitaciones vencidas.",
+      "withdraw": "Retirar invitación",
+      "pending": "Retirando…",
+      "note": "Motivo (obligatorio)",
+      "success": "Invitación retirada. La licencia está disponible.",
+      "errors": {
+            "invalid": "Ingresa un motivo para la invitación seleccionada.",
+            "forbidden": "No puedes retirar esta invitación.",
+            "conflict": "Esta invitación cambió. Actualiza y revisa su último estado.",
+            "unsupported": "Este proveedor no permite retirar invitaciones.",
+            "provider_error": "El proveedor no confirmó el retiro. La licencia sigue reservada.",
+            "ambiguous": "No se pudo confirmar el retiro. La licencia sigue reservada."
+      }
+},
     "countOverflow": "99+",
     "blocked": { "addCapacity": "Agregar capacidad", "company": "Compañía", "daysBlocked": "Días hábiles bloqueada", "effectiveFrom": "Fecha efectiva", "empty": "No hay solicitudes bloqueadas por falta de cupo.", "escalated": "Escalada", "lastActive": "Última actividad", "monthlyCost": "Costo mensual", "neededBy": "La necesita para", "noDate": "No disponible", "noUsageData": "Sin datos de uso", "organization": "Organización", "person": "Persona", "prorationNote": "La compra se prorratea por los días reales del ciclo de facturación.", "purchasedQty": "Total comprado", "reclaimCandidates": "Candidatas para recuperar", "request": "Solicitud", "saveCapacity": "Guardar capacidad", "status": "Estado", "statusBlocked": "Bloqueada sin cupo", "viewPools": "Ver cupos" },
     "eyebrow": "Mesa de excepciones",

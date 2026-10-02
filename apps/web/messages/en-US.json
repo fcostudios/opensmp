@@ -271,8 +271,20 @@
     "overdueInvites": {
       "request": "Request",
       "ageHours": "Age (hours)",
-      "empty": "No overdue invitations."
-    },
+      "empty": "No overdue invitations.",
+      "withdraw": "Withdraw invitation",
+      "pending": "Withdrawing…",
+      "note": "Reason (required)",
+      "success": "Invitation withdrawn. The seat is available.",
+      "errors": {
+            "invalid": "Enter a reason for the selected invitation.",
+            "forbidden": "You cannot withdraw this invitation.",
+            "conflict": "This invitation changed. Refresh and review its latest state.",
+            "unsupported": "This provider does not support invitation withdrawal.",
+            "provider_error": "The provider did not confirm withdrawal. The seat remains reserved.",
+            "ambiguous": "Withdrawal could not be confirmed. The seat remains reserved."
+      }
+},
     "countOverflow": "99+",
     "blocked": { "addCapacity": "Add capacity", "company": "Company", "daysBlocked": "Business days blocked", "effectiveFrom": "Effective date", "empty": "No requests are currently blocked for lack of a seat.", "escalated": "Escalated", "lastActive": "Last active", "monthlyCost": "Monthly cost", "neededBy": "Needed by", "noDate": "Not available", "noUsageData": "No usage data", "organization": "Organization", "person": "Person", "prorationNote": "A purchase is prorated by actual days in the billing cycle.", "purchasedQty": "Purchased total", "reclaimCandidates": "Reclaim candidates", "request": "Request", "saveCapacity": "Save capacity", "status": "Status", "statusBlocked": "Blocked without a seat", "viewPools": "View pools" },
     "eyebrow": "Exception workbench",

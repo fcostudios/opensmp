@@ -415,14 +415,23 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
     vendorAccountId: string,
     requestId: string | null,
     operation: ConnectorOperation,
+    singleDeletion = false,
   ): Promise<OperationContext> {
     if (!dependencies) throw new Error("ANTHROPIC_EXECUTION_NOT_CONFIGURED");
     const credentials = await dependencies.credentialsFor(vendorAccountId);
     const session = await dependencies.observationSessionFor({ vendorAccountId, requestId, operation });
+    let deletionAttempted = false;
     return {
       credentials,
       execute: createRequestExecutor({
         ...dependencies.requestDependencies,
+        transport: async (request) => {
+          if (singleDeletion && request.method === "DELETE") {
+            if (deletionAttempted) throw new Error("INVITATION_DELETE_ALREADY_ATTEMPTED");
+            deletionAttempted = true;
+          }
+          return dependencies.requestDependencies.transport(request);
+        },
         observe: createAnthropicConnectorObservationBridge(session),
       }),
     };
@@ -596,6 +605,24 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
       return invitation?.email === input.personEmail.toLowerCase()
         ? success({ vendorRef: invitation.id })
         : providerFailure();
+    },
+    async withdrawInvitation(input) {
+      if (!opaqueToken(input.vendorRef)) return providerFailure();
+      const operation = await context(input.vendorAccountId, input.requestId, "deprovision", true);
+      const invites = await idPages(operation, "invites", input.vendorAccountId, parseInvitation);
+      if (!invites.ok) return providerFailure();
+      if (new Set(invites.data.map(({ id }) => id)).size !== invites.data.length) return providerFailure();
+      const matches = invites.data.filter(({ id }) => id === input.vendorRef);
+      if (matches.length !== 1 || matches[0]!.status !== "pending") return providerFailure();
+      const deleted = await request(operation, {
+        endpoint: "delete_invite", parameters: { resourceId: input.vendorRef },
+        vendorAccountId: input.vendorAccountId, credentials: operation.credentials,
+      });
+      if (!deleted.ok) return providerFailure();
+      const receipt = exact(deleted.body, ["id", "type"]);
+      if (!receipt || receipt.id !== input.vendorRef || receipt.type !== "invite_deleted") return providerFailure();
+      return Object.freeze({ ok: true, vendorRef: input.vendorRef,
+        receipt: Object.freeze({ id: input.vendorRef, type: "invite_deleted" }) });
     },
     async deprovision(input) {
       validateProvisionInstruction(input);

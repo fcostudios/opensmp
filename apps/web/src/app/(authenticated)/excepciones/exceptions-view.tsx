@@ -1,3 +1,4 @@
+import { withdrawInvite } from "@/modules/request-workflow/actions/withdraw-invite";
 import Link from "next/link";
 import { OverdueInvitesTable } from "@/components/exceptions/overdue-invites-table";
 import { BlockedRequestsTable } from "@/components/exceptions/blocked-requests-table";
@@ -129,7 +130,10 @@ export function ExceptionsView({
         ) : null}
         {selected === "expiredInvites" ? (
           <OverdueInvitesTable items={invitations.items} locale={locale as "en-US"|"es-EC"}
-            labels={{request:t("overdueInvites.request"),ageHours:t("overdueInvites.ageHours"),empty:t("overdueInvites.empty")}} />
+            withdrawAction={withdrawInvite}
+            labels={{request:t("overdueInvites.request"),ageHours:t("overdueInvites.ageHours"),empty:t("overdueInvites.empty"),
+              withdraw:t("overdueInvites.withdraw"),pending:t("overdueInvites.pending"),note:t("overdueInvites.note"),success:t("overdueInvites.success"),
+              errors:{invalid:t("overdueInvites.errors.invalid"),forbidden:t("overdueInvites.errors.forbidden"),conflict:t("overdueInvites.errors.conflict"),unsupported:t("overdueInvites.errors.unsupported"),provider_error:t("overdueInvites.errors.provider_error"),ambiguous:t("overdueInvites.errors.ambiguous")}}} />
         ) : null}
         {(selected === "blocked" ? blocked.nextCursor : selected === "expiredInvites" ? invitations.nextCursor : failures.nextCursor) ? (
           <Link
