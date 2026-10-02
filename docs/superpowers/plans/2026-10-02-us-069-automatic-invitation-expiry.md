@@ -44,4 +44,59 @@ Independent task and fresh broad reviews, complete required scripts/fresh commit
 
 ## Executable plan
 
-Not yet authored in this design commit. No implementation has started.
+Design section above was committed first at1ea63a0 after readiness approval4e595c1. Both canonical story and this committed child design bind the tasks below.
+
+
+## Global constraints
+- AC1 canonical threshold.auto_withdraw_after_hours is null/default-disabled; configured value must be finite integer strictly greater than threshold.hours. Missing legacy key normalizes disabled. Shared validator rejects invalid configuration; never reinterpret invalid as enabled. Future US-044 reuses this contract.
+- AC2 use actual durable invitation sent_at and strict age > configured hours. Select latest invitation before eligibility. Restrict active company, applicable enabled rule, scheduled vendor-account scope, automated delivered unresolved pending invitation and no assignment. Accepted, foreign, disabled, malformed and not-due fixtures remain untouched.
+- AC3 distinct durable withdraw_invite action is attributed to null/system actor and rendered by existing Acciones; stable localized note is persisted once.
+- AC4 injected clock and two job runs prove exactly one pinned DELETE, legal transition, +1 available reservation, durable notification and visible system action; unset expiry withdraws nothing.
+- Reuse shared original-invitation advisory lock through I/O and exact HTTP200/matching reference/type confirmation. Never generic deprovision/email/member removal. Commit intent before I/O; no preparation row locks across observations.
+- Same-client pre-intent guard rechecks enabled applicable rule and eligibility under original lock immediately before a NEW intent. Confirmed-receipt recovery may finalize after rule disable; scan automatic receipt-bearing pending intents independently of enabled rules. Requested-only ambiguity never repeats DELETE.
+- Stable automatic command identity uses original invitation action ID. Recovery reuses stored normalized note/command despite locale changes. Never reinterpret a manual intent or replace its actor/note.
+- Same-client transactional completion hook enqueues requester notice before finalization COMMIT. Enqueue failure rolls back lifecycle work but retains validated receipt for no-network recovery. Postcommit crash cannot lose enqueue. Dedupe includes original invitation/requester identity.
+- Existing outbox guarantees one durable enqueue plus normal delivery ledger/dedupe behavior. Do not expand SMTP architecture. Preserve approved/rejected decision wording and all other notification types.
+- Real PostgreSQL, authorization/domain/service/outbox implementations; injected clock/RNG and deterministic barriers. Only true third-party network boundaries may be doubled and must be Pact-backed. Read TESTING.md and TEST_EFFECTIVENESS_STANDARD.md before changing tests. Assert tenant isolation on each path.
+- Exactly20 anticipated paths including readiness, plan and feedback; no spare path. No migrations, dependency/config/mutation policy changes, new route/settings UI, schedule/queue/cron or unrelated refactor. Existing TESTING section3 already covers this contract. Report any extra path or estimate expansion before implementation.
+
+## Task 1: Deliver the complete automatic expiry slice
+
+Production paths9:
+- packages/contracts/src/alerts.ts
+- packages/domain/src/alerts/evaluate.ts
+- packages/db/src/invitation-withdrawal.ts
+- packages/db/src/lifecycle-notifications.ts
+- apps/worker/src/jobs/automatic-invitation-expiry.ts (new)
+- apps/worker/src/jobs/deferred.ts
+- packages/notifications/src/catalog.ts
+- packages/notifications/src/locales/en-US.json
+- packages/notifications/src/locales/es-EC.json
+
+Test paths8:
+- packages/contracts/src/alerts.test.ts
+- packages/domain/src/alerts/evaluate.test.ts
+- packages/db/src/invitation-withdrawal.integration.test.ts
+- packages/db/src/lifecycle-notifications.integration.test.ts
+- apps/worker/src/jobs/automatic-invitation-expiry.integration.test.ts (new)
+- apps/worker/src/jobs/deferred.test.ts
+- packages/notifications/src/catalog.test.ts
+- apps/web/src/components/requests/request-record.test.tsx
+
+Administrative paths3: docs/readiness/US-069.json; this plan; .nous-feedback.jsonl.
+
+- [ ] Re-read delivered US-068 service and existing pending read model, alert contract/evaluator, deferred composition, lifecycle outbox/catalog and adjacent tests. No worker delegation.
+- [ ] RED exact legacy/default/null/invalid/equality/below/above configuration cases, preserving approval and other rule contracts. Implement shared expiry validator and existing alert contract normalization; narrow numeric evaluator access without unrelated sync_stale fix. Avoid frozen module-init mutation blind spots by executing new validation at runtime.
+- [ ] RED realDB same-client pre-intent rule-disable/current-eligibility races and transactional notification rollback/recovery. Add the design-named optional beforeNewIntent and beforeCompletionCommit hooks to shared service. Manual behavior remains unchanged. Add optional injected clock/sleep/transport to existing production connector composition if required, retaining defaults and same held client for crypto/observations.
+- [ ] RED dedicated expiry enqueue dedupe/tenant/recipient/state evidence. Implement helper using decision/deprovisioned existing outbox representation; never incorrectly call approval-only helper. Transactional enqueue once per original invitation/requester.
+- [ ] RED real worker integrated candidate matrix and two-run demo using actual encrypted credentials/provider composition and US-068 Pact-backed withdrawal HTTP contract. Implement scheduled job with active company/enabled applicable valid rule and strict age. Guard fresh intent under lock. Recover automatic validated receipts without enabled rule and without new DELETE; reuse persisted note. Refuse manual pending intent conflicts.
+- [ ] Compose after delivery/membership in existing invitePoll, include processed totals and close every real job. Use the existing runtime lifecycle-notification drain for delivery; no mailer loop or schedule change. Integrated job test may drain the real dispatcher against a local real SMTP server through the production mailer to verify one delivery after two runs. Real deferred tests verify route/account/clock ordering and no-service semantics.
+- [ ] RED localized expiry notice and system trail. Add catalog/locales specialized decision/deprovisioned wording plus stable localized automatic note; retain ordinary decision messages/escaping. Existing request-record production already supports system action; test actual durable automatic metadata without new UI source.
+- [ ] Prove injected below/exact/above expiry boundaries, default-disabled, valid/invalid config, foreign company/account/latest invitation, accepted/assigned, unsupported/ambiguous provider, acceptance lock race, manual conflict, enabled-rule change before intent, disabled after durable receipt, notification rollback/replay, unchanged excluded capacity and one durable system trail/notification. Use strongest exact/property oracles and real service/domain/outbox; no owned mocks.
+- [ ] Run affected adjacent suites, type/lint/boundary/test lint; self-review all ACs and commit candidate. Ordinary preflight against authority/us-069-base discovers shards; preview every intersecting returned shard once on each changed candidate. Repair genuine gaps; no authoritative test_report for previews. Report exact RED/GREEN, commands/output, commit, changed paths and remaining estimate.
+
+## Task 2: Independent review and authoritative closure
+- [ ] Task spec/quality review then fresh broad whole-branch review, bounded fixes and scoped re-review. Inspect invalid/default config, strict sent_at boundary, guarded rule race, shared acceptance locking, receipt recovery after disable, manual identity conflicts, transactional notification/dedupe, tenant/account scope and system trail.
+- [ ] Full unchanged required scripts (complete package-serial test scheduling may address recorded host contention, without exclusions/timeout/config changes) and fresh committed migrations apply/verify/parity on disposable real PostgreSQL. Controller adversarially verifies each AC with source-bound evidence.
+- [ ] After reviews/repairs close, clear cache and run one authoritative cold diff campaign with MUTATION_WORK_ID=US-069/MUTATION_BASE=authority/us-069-base/cache off/no selected shard. Record final complete results; any scored code/test/config/dependency change invalidates campaign.
+- [ ] Record reproducible actuals and raw changed paths/commits, append required build_pass/ac_verify/test_report/done in order, validate readiness/feedback, commit closure and sync canonical status through Nous. No merge/publish.
