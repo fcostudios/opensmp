@@ -1,3 +1,4 @@
+import "next/dist/server/node-environment";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { RequestRecord, type RequestRecordLabels } from "../../../components/requests/request-record";
@@ -6,6 +7,7 @@ import en from "../../../../messages/en-US.json";
 import { getNotificationCatalog } from "@smp/notifications/catalog";
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
+import { db as productionDatabase } from "@smp/db";
 import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
@@ -26,9 +28,12 @@ import { createAuthorizationRepository } from "../../identity-access/authorizati
 import { withAudit } from "../../audit/with-audit";
 
 let fixture:PostgresFixture, owner:pg.Client,pool:pg.Pool;
+let unregisterAuthLoader:()=>Promise<void>;
+const productionPool=(productionDatabase as unknown as {$client:pg.Pool}).$client;
+const savedAuthEnvironment={AUTH_SECRET:process.env.AUTH_SECRET,AUTH_URL:process.env.AUTH_URL,AUTH_TRUST_HOST:process.env.AUTH_TRUST_HOST};
 const at=new Date("2026-10-02T15:00:00Z");
-beforeAll(async()=>{fixture=await createPostgresFixture();await fixture.migrate();owner=await fixture.connectAsOwner();pool=new pg.Pool({connectionString:fixture.ownerUrl,max:2,connectionTimeoutMillis:1000});},30000);
-afterAll(async()=>{await pool?.end();await owner?.end();await fixture?.stop();});
+beforeAll(async()=>{unregisterAuthLoader=require("tsx/esm/api").register({tsconfig:false});fixture=await createPostgresFixture();await fixture.migrate();owner=await fixture.connectAsOwner();pool=new pg.Pool({connectionString:fixture.ownerUrl,max:2,connectionTimeoutMillis:1000});productionPool.options.connectionString=fixture.ownerUrl;productionPool.options.max=2;productionPool.options.connectionTimeoutMillis=1000;process.env.AUTH_SECRET="us068-verified-session-fixture-secret";process.env.AUTH_URL="http://localhost:3000";process.env.AUTH_TRUST_HOST="true";},30000);
+afterAll(async()=>{await unregisterAuthLoader?.();await productionPool.end();await pool?.end();await owner?.end();await fixture?.stop();for(const [key,value] of Object.entries(savedAuthEnvironment)){if(value===undefined)delete process.env[key];else process.env[key]=value;}});
 async function arrange(role:"group_admin"|null) {
  const actor=randomUUID(),company=randomUUID(),vendor=randomUUID(),account=randomUUID(),license=randomUUID(),person=randomUUID(),request=randomUUID(),action=randomUUID();
  await owner.query(`INSERT INTO user_account(id,email,idp_subject,global_role,status,created_at) VALUES($1,$2,$1::uuid::text,$3,'active',$4)`,[actor,actor+"@auth.test",role,at]);
@@ -77,8 +82,8 @@ test("production action composes trusted authorization, lifecycle, audited servi
  const auditCalls:ts.CallExpression[]=[];function inspect(node:ts.Node){if(ts.isCallExpression(node)&&node.expression.getText(source)==="withAudit")auditCalls.push(node);ts.forEachChild(node,inspect);}inspect(wrapper);
  expect(auditCalls).toHaveLength(1);const preparation=auditCalls[0]!.arguments[1]!;expect(ts.isAwaitExpression(preparation)).toBe(true);expect(preparation.getText(source)).toBe("await prepareWithdrawalResult(form)");
  const prepare=source.statements.find(statement=>ts.isFunctionDeclaration(statement)&&statement.name?.text==="prepareWithdrawalResult") as ts.FunctionDeclaration;
- const callback=prepare.body!.statements.find(ts.isReturnStatement)!.expression!;
- expect(ts.isArrowFunction(callback)).toBe(true);expect(callback.getText(source)).not.toContain("execute(form)");expect(prepare.getText(source)).toContain("await execute(form)");
+ let callback:ts.Expression|undefined;function returned(node:ts.Node){if(node!==prepare && ts.isFunctionLike(node))return;if(ts.isReturnStatement(node)&&node.expression&&ts.isArrowFunction(node.expression))callback=node.expression;ts.forEachChild(node,returned);}returned(prepare);expect(callback).toBeDefined();
+ expect(ts.isArrowFunction(callback!)).toBe(true);expect(callback!.getText(source)).not.toContain("execute(form)");expect(prepare.getText(source)).toContain("await execute(form)");
  expect(calls).toContain("createAuthorizedInvitationWithdrawal");expect(calls).toContain("createInvitationWithdrawalService");expect(calls).toContain("withAudit");
 });
 
@@ -105,4 +110,36 @@ test("authorized withdrawal persists immutable human actor and note through unch
  const markup=renderToStaticMarkup(createElement(RequestRecord,{activeTab:"actions",isGroupAdmin:true,labels,locale:"en-US",statusLabels:getNotificationCatalog("en-US").status,record:record!}));
  const evidence=markup.match(/<div[^>]+data-testid="withdrawal_evidence"[^>]*>(.*?)<\/div>/)![1]!;
  expect(evidence).toContain(selected.actor+"@auth.test");expect(evidence).toContain("Required withdrawal note");expect(evidence).not.toContain("FORGED ACTOR");expect(evidence).not.toContain("Foreign tenant note");
+});
+
+
+async function invokeProduction(actor:string,form:FormData){
+ const {encode}=await import(require.resolve("next-auth/jwt"));
+ const token=await encode({secret:process.env.AUTH_SECRET!,salt:"authjs.session-token",token:{idpSubject:actor,displayName:"Verified fixture administrator"}});
+ const {createRequestStoreForAPI}=require("next/dist/server/async-storage/request-store");const {createWorkStore}=require("next/dist/server/async-storage/work-store");const {IncrementalCache}=require("next/dist/server/lib/incremental-cache");
+ const {workAsyncStorage}=require("next/dist/server/app-render/work-async-storage.external");const {workUnitAsyncStorage}=require("next/dist/server/app-render/work-unit-async-storage.external");
+ const url=new URL("http://localhost:3000/excepciones"),request=new Request(url,{headers:{cookie:"authjs.session-token="+token,host:url.host}});
+ const store=createRequestStoreForAPI(request,url,{tags:[],expirationsByCacheKind:new Map()});
+ const incrementalCache=new IncrementalCache({dev:false,minimalMode:false,requestHeaders:{},getPrerenderManifest:()=>({version:4,routes:{},dynamicRoutes:{},notFoundRoutes:[],preview:{previewModeId:"us068-fixture"}})});
+ const work=createWorkStore({page:"/excepciones/page",renderOpts:{supportsDynamicResponse:true,isDraftMode:false,isPossibleServerAction:true,incrementalCache},isPrefetchRequest:false,buildId:"us068-fixture",previouslyRevalidatedTags:[]});
+ const outcome=await workAsyncStorage.run(work,()=>workUnitAsyncStorage.run(store,()=>withdrawInvite(form)));
+ return {outcome,tags:work.pendingRevalidatedTags?.map((entry:{tag:string})=>entry.tag)??[]};
+}
+test("actual signed-session server action rejects unauthorized and invalid commands with trusted result auditing",async()=>{
+ const selected=await arrange("group_admin"),denied=await arrange(null);
+ selected.form.set("note","");expect(await invokeProduction(selected.actor,selected.form)).toEqual({outcome:{ok:false,error:"invalid"},tags:[]});
+ expect(await invokeProduction(denied.actor,denied.form)).toEqual({outcome:{ok:false,error:"forbidden"},tags:[]});
+ expect((await owner.query(`SELECT actor_user_id,after FROM audit_log WHERE action='server_action.withdrawInvite' AND entity_id=$1`,[selected.request])).rows).toEqual([{actor_user_id:selected.actor,after:{ok:false,error:"invalid"}}]);
+ expect((await owner.query(`SELECT actor_user_id,after FROM audit_log WHERE action='server_action.withdrawInvite' AND entity_id=$1`,[denied.request])).rows).toEqual([{actor_user_id:denied.actor,after:{ok:false,error:"forbidden"}}]);expect(selected.remoteCalls()+denied.remoteCalls()).toBe(0);
+});
+test("actual signed-session action finalizes durable validated receipt and revalidates once without another DELETE",async()=>{
+ const selected=await arrange("group_admin"),name="us068_action_"+selected.request.replaceAll("-","");
+ await owner.query(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.request_id='${selected.request}'::uuid AND NEW.kind='withdraw_invite' AND NEW.status='withdrawn' THEN RETURN NULL; END IF; RETURN NEW; END $$; CREATE TRIGGER ${name} BEFORE UPDATE ON provisioning_action FOR EACH ROW EXECUTE FUNCTION ${name}();`);
+ try{expect(await selected.execute(selected.form)).toEqual({ok:false,error:"ambiguous"});}finally{await owner.query(`DROP TRIGGER ${name} ON provisioning_action;DROP FUNCTION ${name}();`);}
+ expect((await owner.query(`SELECT state FROM license_request WHERE id=$1`,[selected.request])).rows[0].state).toBe("invited");
+ const result=await invokeProduction(selected.actor,selected.form);expect(result.outcome).toEqual({ok:true,requestId:selected.request,actionId:expect.any(String)});expect(result.tags).toEqual(["_N_T_/excepciones","_N_T_/solicitudes/"+selected.request]);
+ expect((await invokeProduction(selected.actor,selected.form)).outcome).toEqual(result.outcome);expect(selected.remoteCalls()).toBe(2);
+ expect((await owner.query(`SELECT count(*)::int AS count FROM request_transition WHERE request_id=$1`,[selected.request])).rows[0].count).toBe(1);
+ expect((await owner.query(`SELECT actor_user_id,note FROM audit_log WHERE company_id=$1 AND action='invitation.withdrawn'`,[selected.company])).rows).toEqual([{actor_user_id:selected.actor,note:"Required withdrawal note"}]);
+ expect((await owner.query(`SELECT actor_user_id,after FROM audit_log WHERE entity_id=$1 AND action='server_action.withdrawInvite' AND after->>'ok'='true'`,[selected.request])).rows).toEqual([{actor_user_id:selected.actor,after:result.outcome},{actor_user_id:selected.actor,after:result.outcome}]);
 });

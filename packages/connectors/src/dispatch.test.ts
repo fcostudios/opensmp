@@ -1254,6 +1254,7 @@ describe("vendor-neutral core source boundary", () => {
       "apps/web/src/modules/request-workflow/actions/retry-provisioning.ts",
       "apps/web/src/modules/request-workflow/actions/submit-request-policy.ts",
       "apps/web/src/modules/request-workflow/actions/submit-request.ts",
+      "apps/web/src/modules/request-workflow/actions/withdraw-invite.ts",
       "apps/web/src/modules/request-workflow/approval-repository.ts",
       "apps/web/src/modules/request-workflow/approval/ecuador-calendar.ts",
       "apps/web/src/modules/request-workflow/approval/repository.ts",

@@ -21,7 +21,10 @@ import { AUTHORIZATION_SYSTEM_ENTITY_ID } from "../../identity-access/authorizat
 import { withAudit } from "../../audit/with-audit";
 
 const pool=(db as unknown as {$client:pg.Pool}).$client;
-const now=()=>new Date();
+function now(){return new Date();}
+
+
+async function prepareWithdrawalResult(form: FormData) {
 const service=createInvitationWithdrawalService({pool,now,assertLegalTransition,
   connectorFor:async(context,database)=>{
     // eslint-disable-next-line @typescript-eslint/no-require-imports -- Literal import lets Next bundle the approved neutral worker composition without importing provider source into web tsc.
@@ -36,7 +39,6 @@ const service=createInvitationWithdrawalService({pool,now,assertLegalTransition,
 });
 const command=z.object({requestId:z.string().uuid(),actionId:z.string().uuid(),commandId:z.string().uuid(),note:z.string().trim().min(1).max(2000)});
 
-async function prepareWithdrawalResult(form: FormData) {
     let actorUserId:string|null=null,requestId:string|null=null;
     const execute=createAuthorizedInvitationWithdrawal({pool,loadAuthorization:loadCurrentLedgerAuthorization,service,
       recordOutcome:async(actor,request)=>{actorUserId=actor;requestId=request;},

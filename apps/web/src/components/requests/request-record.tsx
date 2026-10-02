@@ -570,12 +570,12 @@ function AuditPanel({
 }
 
 
+function WithdrawalEvidence({action,record,labels}:{action:RequestRecordProjection["actions"][number];record:RequestRecordProjection;labels:RequestRecordLabels}) {
+ if(action.kind !== "withdraw_invite") return null;
 const withdrawalEvidenceSchema=z.object({
  companyId:z.string().uuid(),requestId:z.string().uuid(),actionId:z.string().uuid(),commandId:z.string().uuid(),
  actorUserId:z.string().uuid().nullable(),actorLabel:z.string().trim().min(1).max(320).nullable(),note:z.string().trim().min(1).max(2000),
 });
-function WithdrawalEvidence({action,record,labels}:{action:RequestRecordProjection["actions"][number];record:RequestRecordProjection;labels:RequestRecordLabels}) {
- if(action.kind !== "withdraw_invite") return null;
  const metadata=withdrawalEvidenceSchema.safeParse(action.rawRequest);
  if(!metadata.success) return null;
  const value=metadata.data;

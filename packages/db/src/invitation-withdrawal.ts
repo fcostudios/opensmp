@@ -15,10 +15,10 @@ export type InvitationWithdrawalOutcome =
   | { readonly ok: false; readonly error: "invalid" | "forbidden" | "conflict" | "unsupported" | "provider_error" | "ambiguous" };
 type Context = { companyId: string; requestId: string; actionId: string; vendorAccountId: string; vendorRef: string; withdrawalActionId: string };
 type Intent = { id: string; vendor_ref: string; status: string; raw_request: InvitationWithdrawalCommand; raw_response: unknown };
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function uuid(value:string):boolean {return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);}
 function valid(command: InvitationWithdrawalCommand): boolean {
-  return [command.companyId,command.requestId,command.actionId,command.commandId].every(value=>typeof value === "string" && uuid.test(value))
-    && (command.actorUserId === null || (typeof command.actorUserId === "string" && uuid.test(command.actorUserId)))
+  return [command.companyId,command.requestId,command.actionId,command.commandId].every(value=>typeof value === "string" && uuid(value))
+    && (command.actorUserId === null || (typeof command.actorUserId === "string" && uuid(command.actorUserId)))
     && typeof command.note === "string" && command.note.trim().length > 0 && command.note.length <= 2000;
 }
 function receiptMatches(value: unknown, reference: string): boolean {
@@ -170,7 +170,7 @@ export function createAuthorizedInvitationWithdrawal(dependencies: {
     const requestId=form.get("requestId"),actionId=form.get("actionId"),commandId=form.get("commandId"),note=form.get("note");
     let outcome:InvitationWithdrawalOutcome;
     if(authorization?.globalRole !== "group_admin") outcome={ok:false,error:"forbidden"};
-    else if(typeof requestId !== "string" || !uuid.test(requestId) || typeof actionId !== "string" || !uuid.test(actionId) || typeof commandId !== "string" || !uuid.test(commandId) || typeof note !== "string" || !note.trim() || note.length>2000) outcome={ok:false,error:"invalid"};
+    else if(typeof requestId !== "string" || !uuid(requestId) || typeof actionId !== "string" || !uuid(actionId) || typeof commandId !== "string" || !uuid(commandId) || typeof note !== "string" || !note.trim() || note.length>2000) outcome={ok:false,error:"invalid"};
     else {
       const scoped=await dependencies.pool.query<{companyId:string}>(`SELECT company_id::text AS "companyId" FROM license_request WHERE id=$1::uuid AND company_id=ANY($2::uuid[])`,[requestId,authorization.companyIds]);
       const companyId=scoped.rows[0]?.companyId;
@@ -178,7 +178,7 @@ export function createAuthorizedInvitationWithdrawal(dependencies: {
         outcome=companyId ? await dependencies.service.withdraw({companyId,requestId,actionId,commandId,note,actorUserId:authorization.userAccountId}) : {ok:false,error:"forbidden"};
       } catch { outcome={ok:false,error:"ambiguous"}; }
     }
-    await dependencies.recordOutcome(authorization?.userAccountId??null,typeof requestId === "string" && uuid.test(requestId)?requestId:null,outcome);
+    await dependencies.recordOutcome(authorization?.userAccountId??null,typeof requestId === "string" && uuid(requestId)?requestId:null,outcome);
     return outcome;
   };
 }

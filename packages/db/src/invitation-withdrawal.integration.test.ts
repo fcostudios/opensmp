@@ -14,7 +14,7 @@ const {createAnthropicRateLimiter}=await import(webRequire.resolve("@smp/connect
 const {assertLegalTransition}=await import(webRequire.resolve("@smp/domain/request-workflow")) as {assertLegalTransition:(from:"invited",to:"deprovisioned")=>void};
 import { createPostgresFixture, type PostgresFixture } from "./testing/postgres-container";
 import { listCurrentSeatPoolCounts } from "./pool-snapshots";
-import { createInvitationWithdrawalService, createProductionInvitationWithdrawalConnector } from "./invitation-withdrawal";
+import { createAuthorizedInvitationWithdrawal, createInvitationWithdrawalService, createProductionInvitationWithdrawalConnector } from "./invitation-withdrawal";
 
 const at = new Date("2026-10-02T15:00:00Z");
 const sent = new Date("2026-09-20T15:00:00Z");
@@ -175,7 +175,7 @@ test("bounded pool lock holder uses its own client for production credentials an
  try {
  const {withAudit}=await import(new URL("../../../apps/web/src/modules/audit/with-audit.ts",import.meta.url).href);
  const submit=async(command:typeof input)=>{const outcome=await execution.withdraw(command);return withAudit(drizzle(bounded),async()=>({value:outcome,audit:{actorUserId:input.actorUserId,action:"server_action.withdrawInvite",entityType:"LicenseRequest",entityId:input.requestId,companyId:input.companyId,note:null,before:null,after:outcome}}),{occurredAt:at});};
- const first=submit(input);await entered;
+ const first=submit(input);await Promise.race([entered,first.then(()=>{throw new Error("PROVIDER_GET_NOT_REACHED");})]);
  const acquired=new Promise<void>(resolve=>bounded.once("acquire",()=>resolve()));
  const second=submit(input);await acquired;
  let waiting=false;
@@ -206,4 +206,74 @@ test("a durable completed command refuses changed actor or note without another 
  const input=await seed(),execution=service(input);expect((await execution.service.withdraw(input)).ok).toBe(true);const before=await snapshot(input);
  for(const changed of [{note:"Different reason"},{actorUserId:randomUUID()},{commandId:randomUUID()}]){expect(await execution.service.withdraw({...input,...changed})).toEqual({ok:false,error:"conflict"});expect(await snapshot(input)).toEqual(before);}
  expect(execution.calls.filter(call=>call.method === "DELETE")).toHaveLength(1);
+});
+
+
+async function authorized(input:Awaited<ReturnType<typeof seed>>,mode:"admin"|"nonadmin"|"anonymous"="admin",fault=false){
+ const {createAuthorizationRepository}=await import(new URL("../../../apps/web/src/modules/identity-access/authorization.ts",import.meta.url).href);
+ const {withAudit}=await import(new URL("../../../apps/web/src/modules/audit/with-audit.ts",import.meta.url).href);
+ if(mode === "nonadmin")await owner.query(`UPDATE user_account SET global_role=NULL WHERE id=$1`,[input.actorUserId]);
+ const repository=createAuthorizationRepository(drizzle(pool));const execution=service(input,{validator:fault?()=>{throw new Error("FINALIZATION_FAULT");}:undefined});
+ const recorded:{actor:string|null;request:string|null}[]=[];
+ const execute=createAuthorizedInvitationWithdrawal({pool,loadAuthorization:async()=>mode === "anonymous"?null:repository.load({subject:input.actorUserId}),service:execution.service,recordOutcome:async(actor,request,outcome)=>{recorded.push({actor,request});await withAudit(drizzle(pool),async()=>({value:outcome,audit:{actorUserId:actor,action:"server_action.withdrawInvite",entityType:"LicenseRequest",entityId:request??input.requestId,companyId:null,note:null,before:null,after:outcome}}),{occurredAt:at});}});
+ const form=new FormData();for(const key of ["requestId","actionId","commandId","note"] as const)form.set(key,input[key]);form.set("actorUserId",randomUUID());form.set("companyId",input.foreignCompanyId);
+ return {...execution,execute,form,recorded};
+}
+test.each(["admin","nonadmin","anonymous"] as const)("real authorization %s supplies trusted identity and audits exact outcome",async(mode)=>{
+ const input=await seed(),before=await snapshot(input),execution=await authorized(input,mode);
+ const outcome=await execution.execute(execution.form);expect(outcome).toEqual(mode === "admin"?{ok:true,requestId:input.requestId,actionId:expect.any(String)}:{ok:false,error:"forbidden"});
+ expect(execution.recorded).toEqual([{actor:mode === "anonymous"?null:input.actorUserId,request:input.requestId}]);
+ expect((await owner.query(`SELECT actor_user_id,after FROM audit_log WHERE entity_id=$1 AND action='server_action.withdrawInvite'`,[input.requestId])).rows).toEqual([{actor_user_id:mode === "anonymous"?null:input.actorUserId,after:outcome}]);
+ if(mode === "admin"){expect((await snapshot(input)).available-before.available).toBe(1);expect((await owner.query(`SELECT raw_request->>'companyId' AS company,raw_request->>'actorUserId' AS actor FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId])).rows).toEqual([{company:input.companyId,actor:input.actorUserId}]);}else{expect(await snapshot(input)).toEqual(before);expect(execution.calls).toEqual([]);}
+});
+test.each(["requestId","actionId","commandId","note"] as const)("authorized invalid %s refuses, attributes denial and retains reservation",async(field)=>{
+ const input=await seed(),before=await snapshot(input),execution=await authorized(input);execution.form.set(field,field === "note"?"   ":"invalid");
+ expect(await execution.execute(execution.form)).toEqual({ok:false,error:"invalid"});expect(await snapshot(input)).toEqual(before);expect(execution.calls).toEqual([]);expect(execution.recorded).toEqual([{actor:input.actorUserId,request:field === "requestId"?null:input.requestId}]);
+});
+test("authorized missing identities, inaccessible request and overlong note fail closed",async()=>{
+ const input=await seed(),before=await snapshot(input),execution=await authorized(input);
+ for(const field of ["requestId","actionId","commandId","note"] as const){const form=new FormData();for(const [key,value] of execution.form)if(key!==field)form.set(key,value);expect(await execution.execute(form)).toEqual({ok:false,error:"invalid"});}
+ execution.form.set("note","x".repeat(2001));expect(await execution.execute(execution.form)).toEqual({ok:false,error:"invalid"});execution.form.set("note","Needed");execution.form.set("requestId",randomUUID());expect(await execution.execute(execution.form)).toEqual({ok:false,error:"forbidden"});
+ expect(await snapshot(input)).toEqual(before);expect(execution.calls).toEqual([]);
+});
+test("exact note limit is allowed, whitespace is normalized and service fault is audited as ambiguous",async()=>{
+ const input=await seed(),execution=await authorized(input);execution.form.set("note","x".repeat(2000));expect((await execution.execute(execution.form)).ok).toBe(true);
+ const faultInput=await seed(),before=await snapshot(faultInput),fault=await authorized(faultInput,"admin",true);fault.form.set("note","  Trimmed note  ");expect(await fault.execute(fault.form)).toEqual({ok:false,error:"ambiguous"});expect(await snapshot(faultInput)).toEqual(before);
+ expect((await owner.query(`SELECT raw_request->>'note' AS note,raw_response FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[faultInput.requestId])).rows).toEqual([{note:"Trimmed note",raw_response:{id:"invite-pinned",type:"invite_deleted"}}]);
+ expect((await owner.query(`SELECT actor_user_id,after FROM audit_log WHERE entity_id=$1 AND action='server_action.withdrawInvite'`,[faultInput.requestId])).rows).toEqual([{actor_user_id:faultInput.actorUserId,after:{ok:false,error:"ambiguous"}}]);
+});
+
+
+test("persisted malformed confirmation cannot recover or contact the provider",async()=>{
+ const input=await seed(),before=await snapshot(input),initial=service(input,{validator:()=>{throw new Error("FINALIZATION_FAULT");}});await expect(initial.service.withdraw(input)).rejects.toThrow("FINALIZATION_FAULT");
+ const retry=service(input);
+ for(const receipt of [null,[],{}, {id:"other",type:"invite_deleted"},{id:"invite-pinned",type:"user_deleted"},{id:"invite-pinned",type:"invite_deleted",extra:true}]){
+ await owner.query(`UPDATE provisioning_action SET raw_response=$2::jsonb WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId,JSON.stringify(receipt)]);
+ expect(await retry.service.withdraw(input)).toEqual({ok:false,error:"ambiguous"});expect(await snapshot(input)).toEqual(before);expect(retry.calls).toEqual([]);
+ }
+ await owner.query(`UPDATE provisioning_action SET raw_response=$2::jsonb WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId,JSON.stringify({id:"invite-pinned",type:"invite_deleted"})]);
+ expect((await retry.service.withdraw(input)).ok).toBe(true);expect(retry.calls).toEqual([]);expect((await snapshot(input)).available-before.available).toBe(1);
+});
+test.each(["actorUserId","companyId","actionId","commandId","note","status"] as const)("intent %s changed during provider I/O cannot finalize or release capacity",async(field)=>{
+ const input=await seed(),before=await snapshot(input),changed=field === "note"?"Tampered note":randomUUID();
+ const execution=service(input,{beforeDelete:async()=>{
+ if(field === "status")await owner.query(`UPDATE provisioning_action SET status='failed' WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId]);
+ else await owner.query(`UPDATE provisioning_action SET raw_request=jsonb_set(raw_request,ARRAY[$2],$3::jsonb) WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId,field,JSON.stringify(changed)]);
+ }});
+ expect(await execution.service.withdraw(input)).toEqual({ok:false,error:"conflict"});expect(await snapshot(input)).toEqual(before);expect(execution.calls.filter(call=>call.method === "DELETE")).toHaveLength(1);
+});
+test("latest invitation and pinned reference are rechecked after provider I/O",async()=>{
+ for(const latest of [false,true]){
+ const input=await seed(),before=await snapshot(input);
+ const execution=service(input,{beforeDelete:async()=>{
+ if(latest)await owner.query(`INSERT INTO provisioning_action(id,request_id,vendor_account_id,kind,mode,status,vendor_ref,sent_at,created_at) VALUES($1,$2,$3,'invite','automated','sent','invite-new',$4,$4)`,[randomUUID(),input.requestId,input.vendorAccountId,new Date(at.getTime()+1)]);
+ else await owner.query(`UPDATE provisioning_action SET vendor_ref='invite-changed' WHERE id=$1`,[input.actionId]);
+ }});
+ expect(await execution.service.withdraw(input)).toEqual({ok:false,error:"conflict"});expect(await snapshot(input)).toEqual(before);expect(execution.calls.filter(call=>call.method === "DELETE")).toHaveLength(1);
+ }
+});
+test("anchored UUID and command scalar types reject malformed internal commands before I/O",async()=>{
+ const input=await seed(),before=await snapshot(input),execution=service(input);
+ for(const command of [{...input,commandId:"prefix"+input.commandId},{...input,commandId:input.commandId+"suffix"},{...input,actorUserId:7},{...input,note:7},{...input,requestId:null}]){expect(await execution.service.withdraw(command as unknown as typeof input)).toEqual({ok:false,error:"invalid"});expect(await snapshot(input)).toEqual(before);}
+ expect(execution.calls).toEqual([]);
 });
