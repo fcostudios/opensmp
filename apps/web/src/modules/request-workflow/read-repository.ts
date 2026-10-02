@@ -1,4 +1,4 @@
-import { pendingInvitationRows, type PendingInvitationRow } from "./repository";
+import type { PendingInvitationRow } from "./repository";
 import { sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
@@ -209,7 +209,9 @@ export interface OverdueInvitationPage {
 function overdueInvitationRows(
   authorization: LedgerAuthorization,
   at: Date,
+  invitationRows: ((at: Date, scope: SQL) => SQL) | undefined,
 ): SQL {
+  if (!invitationRows) throw new Error("PENDING_INVITATION_READER_REQUIRED");
   const companyScope = authorization.globalRole === "group_admin" &&
       authorization.companyIds.length > 0
     ? sql`request.company_id IN (${sql.join(
@@ -218,7 +220,7 @@ function overdueInvitationRows(
       )})`
     : sql`FALSE`;
   return sql`SELECT invitation.*
-    FROM (${pendingInvitationRows(at, companyScope)}) invitation
+    FROM (${invitationRows(at, companyScope)}) invitation
     WHERE EXISTS (
       SELECT 1 FROM alert_rule rule
       WHERE rule.type='invite_unaccepted' AND rule.enabled
@@ -235,6 +237,7 @@ export function createRequestReadRepository(
   clock: () => Date,
   hooks: {
     readonly afterBaseRead?: (transaction: Transaction) => Promise<void>;
+    readonly pendingInvitationRows?: (at: Date, companyScope: SQL) => SQL;
   } = {},
 ) {
   async function countOverdueInvitations(
@@ -243,7 +246,7 @@ export function createRequestReadRepository(
   ): Promise<bigint> {
     const result = await database.execute<{ count: string }>(sql`
       SELECT count(*)::text AS count
-      FROM (${overdueInvitationRows(authorization, at)}) overdue`);
+      FROM (${overdueInvitationRows(authorization, at, hooks.pendingInvitationRows)}) overdue`);
     return BigInt(result.rows[0]!.count);
   }
   return {
@@ -265,7 +268,7 @@ export function createRequestReadRepository(
       const cursor = parseBlockedCursor(options.cursor);
       const limit = Math.min(100, Math.max(1, Math.trunc(options.limit ?? 50)));
       const result = await database.execute<PendingInvitationRow>(sql`
-        SELECT * FROM (${overdueInvitationRows(authorization, at)}) overdue
+        SELECT * FROM (${overdueInvitationRows(authorization, at, hooks.pendingInvitationRows)}) overdue
         WHERE (${cursor?.blockedAt ?? null}::timestamptz IS NULL
           OR (overdue."invitedAt", overdue."actionId"::uuid) <
             (${cursor?.blockedAt ?? null}::timestamptz, ${cursor?.id ?? null}::uuid))

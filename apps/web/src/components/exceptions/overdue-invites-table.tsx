@@ -39,7 +39,7 @@ export function OverdueInvitesTable({ items, labels, locale }: {
                   </Link>
                 </td>
                 <td className="px-3 py-3 font-mono text-text-secondary">
-                  {new Intl.NumberFormat(locale, { maximumFractionDigits: 3 }).format(item.ageHours)}
+                  {new Intl.NumberFormat(locale).format(item.ageHours)}
                 </td>
               </tr>
             ))}

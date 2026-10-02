@@ -30,7 +30,7 @@ test("current delivered invitation facts exclude other companies and superseded 
       await owner.query(`INSERT INTO license_request (id,request_no,person_id,company_id,vendor_account_id,license_type_id,state,justification,created_at,created_by)
         VALUES ($1,$2,$3,$4,$5,$6,'invited','Facts evidence',$7,'00000000-0000-0000-0000-000000000001')`,[request,`REQ-FACTS-${name}`,person,company,account,license,sent]);
       await owner.query(`INSERT INTO provisioning_action (request_id,vendor_account_id,kind,mode,status,vendor_ref,sent_at,resolved_at,created_at)
-        VALUES ($1,$2,'invite','automated',$3,$4,$5,$6,$5)`,[request,account,status,`facts-${name}`,sent,status==='confirmed'?at:null]);
+        VALUES ($1,$2,'invite','automated',$3,$4,$5,$6,$7)`,[request,account,status,`facts-${name}`,sent,status==='confirmed'?at:null,new Date(sent.getTime()-86400000)]);
       if (name==='superseded') await owner.query(`INSERT INTO provisioning_action (request_id,vendor_account_id,kind,mode,status,created_at)
         VALUES ($1,$2,'invite','automated','pending',$3)`,[request,account,at]);
     }

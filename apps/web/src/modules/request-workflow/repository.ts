@@ -1,4 +1,5 @@
-export { pendingInvitationRows, type PendingInvitationRow } from "@smp/db/pending-invitations";
+export type { PendingInvitationRow } from "@smp/db/pending-invitations";
+import { pendingInvitationRows } from "@smp/db/pending-invitations";
 import { sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { z } from "zod";
@@ -731,7 +732,14 @@ export const requestRepository = createRequestRepository(productionDatabase, {
   ),
 });
 
-export const requestReadRepository = createRequestReadRepository(
+export function createProductionRequestReadRepository(
+  database: Database,
+  clock: () => Date,
+) {
+  return createRequestReadRepository(database, clock, { pendingInvitationRows });
+}
+
+export const requestReadRepository = createProductionRequestReadRepository(
   db as unknown as Database,
   () => new Date(),
 );

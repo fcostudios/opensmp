@@ -1,3 +1,4 @@
+import { createProductionRequestReadRepository } from "./repository";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
@@ -834,15 +835,16 @@ test("overdue invitation projection uses strict configured age, current identity
   await owner.query(`UPDATE license_request SET state='invited',license_assignment_id=NULL WHERE id=ANY($1::uuid[])`, [[ids.requestA,ids.requestA2,ids.requestB]]);
   for (const [request, age] of [[ids.requestA,169],[ids.requestA2,168],[ids.requestB,200]] as const) {
     await owner.query(`INSERT INTO provisioning_action (request_id,vendor_account_id,kind,mode,status,vendor_ref,sent_at,created_at)
-      VALUES ($1,$2,'invite','automated','sent',$3,$4,$4)`,[request,ids.vendorAccount,`current-${request}`,new Date(at.getTime()-age*3600000)]);
+      VALUES ($1,$2,'invite','automated','sent',$3,$4,$5)`,[request,ids.vendorAccount,`current-${request}`,new Date(at.getTime()-age*3600000),new Date(at.getTime()-(age+24)*3600000)]);
   }
   await owner.query(`INSERT INTO alert_rule (type,scope_kind,threshold,channel,enabled,created_at,created_by)
     VALUES ('invite_unaccepted','global','{"hours":168}','email',true,$1,$2)`,[at,ids.admin]);
-  const repository=createRequestReadRepository(database,()=>at);
+  const repository=createProductionRequestReadRepository(database,()=>at);
   const scoped={...admin,companyIds:[ids.companyA]};
   const first=await repository.listOverdueInvitations(scoped,{limit:1});
   expect(first.items.map(item=>[item.requestId,item.ageHours])).toEqual([[ids.requestA,169]]);
   expect(first.count).toBe(BigInt(1));
+  await expect(createRequestReadRepository(database,()=>at).countOverdueInvitations(scoped)).rejects.toThrow('PENDING_INVITATION_READER_REQUIRED');
   expect(first.nextCursor).toBeNull();
   // Changing the rule changes eligibility; exactly the configured threshold remains excluded.
   await owner.query(`UPDATE alert_rule SET threshold='{"hours":167}' WHERE type='invite_unaccepted' AND enabled`);
@@ -850,6 +852,13 @@ test("overdue invitation projection uses strict configured age, current identity
   expect(lower.count).toBe(BigInt(2));
   expect(lower.items.map(item=>item.requestId)).toEqual([ids.requestA2]);
   expect(lower.nextCursor).not.toBeNull();
+  expect((await repository.listOverdueInvitations(scoped)).items.map(item=>item.requestId)).toEqual([ids.requestA2,ids.requestA]);
+  expect(await repository.countOverdueInvitations(scoped)).toBe(BigInt(2));
+  const acrossCompanies=await repository.listOverdueInvitations({...scoped,companyIds:[ids.companyA,ids.companyB]});
+  expect(acrossCompanies.items.map(item=>item.requestId).sort()).toEqual([ids.requestA,ids.requestA2,ids.requestB].sort());
+  expect(acrossCompanies.count).toBe(BigInt(3));
+  const earlier=await repository.listOverdueInvitations(scoped,{at:new Date(at.getTime()-3600000)});
+  expect(earlier.items.map(item=>[item.requestId,item.ageHours])).toEqual([[ids.requestA,168]]);
   const next=await repository.listOverdueInvitations(scoped,{cursor:lower.nextCursor,limit:1});
   expect(next.items.map(item=>item.requestId)).toEqual([ids.requestA]);
   expect(next.nextCursor).toBeNull();

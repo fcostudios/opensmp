@@ -19,6 +19,8 @@ test("renders the overdue tab count, invitation request and continuation togethe
   expect(screen.getByTestId("tab_expired_invites").textContent).toContain("51");
   expect(screen.getByRole("link",{name:"REQ-067-PAGE"}).getAttribute("href")).toBe("/solicitudes/67000000-0000-4000-8000-000000000001");
   expect(screen.getByText("169")).toBeTruthy();
+  expect(screen.getByRole('columnheader',{name:en.exceptions.overdueInvites.request})).toBeTruthy();
+  expect(screen.getByRole('columnheader',{name:en.exceptions.overdueInvites.ageHours})).toBeTruthy();
   expect(screen.getByTestId("exceptions_load_more").getAttribute("href")).toBe("?tab=expiredInvites&cursor=2026-09-25T14%3A07%3A00.000Z%7C67000000-0000-4000-8000-000000000002");
   expect(screen.queryByTestId("table_blocked")).toBeNull();
   expect(screen.queryByTestId("table_failed")).toBeNull();
@@ -47,11 +49,55 @@ test.each(['blocked','failed','drift','expiredInvites'] as const)("preserves %s 
     expect(link.getAttribute('href')).toBe(`?tab=${tab}`);
     expect(link.getAttribute('aria-current')).toBe(tab===selected?'page':null);
     expect(link.textContent).toContain(en.exceptions.tabs[tab]);
-    expect(link.textContent).toContain(emptyProps.counts[tab]);
+    expect(link.textContent).toBe(`${en.exceptions.tabs[tab]} ${emptyProps.counts[tab]}`);
   }
   const expected = selected==='blocked' ? en.exceptions.blocked.empty
     : selected==='failed' ? en.orchestration.exceptionsEmpty
     : selected==='drift' ? en.exceptions.future.drift : en.exceptions.overdueInvites.empty;
   expect(screen.getByText(expected)).toBeTruthy();
   expect(screen.queryByTestId('exceptions_load_more')).toBeNull();
+});
+
+
+test("keeps failed invitation evidence, translated headers, retry controls and feedback connected", () => {
+  const failures = {items:[{
+    actionId:"67000000-0000-4000-8000-000000000010",companyName:"Acme",failureReason:"provider_failure",
+    kind:"invite" as const,mode:"automated" as const,personEmail:"invite@example.test",
+    requestId:"67000000-0000-4000-8000-000000000011",requestNo:"REQ-FAILED",sentAt:null,
+    status:"failed" as const,vendorAccountName:"Vendor account",vendorRef:null,
+  },{
+    actionId:"67000000-0000-4000-8000-000000000020",companyName:"Acme",failureReason:"checklist_assignment_missing|missing assignment",
+    kind:"checklist" as const,mode:"orchestration" as const,personEmail:"checklist@example.test",
+    requestId:"67000000-0000-4000-8000-000000000021",requestNo:"REQ-CHECKLIST",sentAt:null,
+    status:"verification_failed" as const,vendorAccountName:"Vendor account",vendorRef:"checklist-ref",
+  }],nextCursor:"failed-next"};
+  render(<ExceptionsView {...emptyProps} selected="failed" failures={failures} retryErrorKey="retryInvalid" />);
+  expect(screen.getByRole('alert').textContent).toBe(en.orchestration.retryInvalid);
+  expect(screen.getByText(en.exceptions.eyebrow)).toBeTruthy();
+  expect(screen.getByText(en.exceptions.subtitle)).toBeTruthy();
+  expect(screen.getByRole('region',{name:en.exceptions.title})).toBeTruthy();
+  for (const label of [en.orchestration.exceptionRequest,en.orchestration.exceptionOrganization,en.orchestration.exceptionMode,
+    en.orchestration.exceptionReason,en.orchestration.exceptionSentAt,en.orchestration.exceptionStatus,en.orchestration.exceptionVendorReference,
+    en.orchestration.exceptionAction]) expect(screen.getByRole('columnheader',{name:label})).toBeTruthy();
+  expect(screen.getByText(en.orchestration.exceptionInvite)).toBeTruthy();
+  expect(screen.getByText(en.orchestration.exceptionAutomated)).toBeTruthy();
+  expect(screen.getByText(en.orchestration.exceptionChecklist)).toBeTruthy();
+  expect(screen.getByText(en.orchestration.exceptionOrchestration)).toBeTruthy();
+  expect(screen.getByText(en.orchestration.exceptionFailed)).toBeTruthy();
+  expect(screen.getByText(en.orchestration.exceptionVerificationFailed)).toBeTruthy();
+  expect(screen.getByText(en.orchestration.exceptionAssignmentMissing)).toBeTruthy();
+  expect(screen.getAllByText(en.orchestration.exceptionNoData).length).toBeGreaterThan(0);
+  expect(screen.getByText(en.orchestration.retryUnavailable)).toBeTruthy();
+  expect(screen.getByRole('button',{name:en.orchestration.retryProvisioning})).toHaveProperty('disabled',false);
+  expect(screen.getByTestId('exceptions_load_more').getAttribute('href')).toBe('?tab=failed&cursor=failed-next');
+  expect(screen.getByTestId('exceptions_load_more').textContent).toBe(en.exceptions.loadMore);
+  expect(screen.queryByTestId('table_drift')).toBeNull();
+  expect(screen.queryByTestId('table_expired_invites')).toBeNull();
+});
+
+test("keeps the blocked continuation tied to its own cursor",()=>{
+  render(<ExceptionsView {...emptyProps} selected="blocked" blocked={{items:[],nextCursor:"blocked-next"}} />);
+  expect(screen.getByTestId('exceptions_load_more').getAttribute('href')).toBe('?tab=blocked&cursor=blocked-next');
+  expect(screen.queryByTestId('table_drift')).toBeNull();
+  expect(screen.queryByTestId('table_expired_invites')).toBeNull();
 });

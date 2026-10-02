@@ -35,13 +35,15 @@ beforeAll(async () => {
     const person = randomUUID(), request = randomUUID(), action = randomUUID();
     requests[name] = request; actions[name] = action;
     const sent = new Date(at.getTime()-age*3600000);
+    const created = new Date(sent.getTime()-86400000);
+    const enteredInvited = new Date(sent.getTime()+120000);
     await owner.query(`INSERT INTO person (id,email,full_name,company_id,status,created_at,created_by)
       VALUES ($1,$2,$3,$4,'active',$5,'00000000-0000-0000-0000-000000000001')`,[person,`${name}@invite.test`,name,company,sent]);
     await owner.query(`INSERT INTO license_request (id,request_no,person_id,company_id,vendor_account_id,license_type_id,state,justification,created_at,created_by)
       VALUES ($1,$2,$3,$4,$5,$6,'invited','Invite evidence',$7,'00000000-0000-0000-0000-000000000001')`,[request,`REQ-067-${name}`,person,company,account,license,sent]);
-    await owner.query(`INSERT INTO request_transition (request_id,from_state,to_state,occurred_at) VALUES ($1,'provisioning','invited',$2)`,[request,sent]);
+    await owner.query(`INSERT INTO request_transition (request_id,from_state,to_state,occurred_at) VALUES ($1,'provisioning','invited',$2)`,[request,enteredInvited]);
     await owner.query(`INSERT INTO provisioning_action (id,request_id,vendor_account_id,kind,mode,status,vendor_ref,sent_at,resolved_at,created_at)
-      VALUES ($1,$2,$3,'invite','automated',$4,$5,$6,$7,$6)`,[action,request,account,status,`inv-${name}`,sent,status==='sent'?null:at]);
+      VALUES ($1,$2,$3,'invite','automated',$4,$5,$6,$7,$8)`,[action,request,account,status,`inv-${name}`,sent,status==='sent'?null:at,created]);
     if (name==='superseded') await owner.query(`INSERT INTO provisioning_action (request_id,vendor_account_id,kind,mode,status,created_at)
       VALUES ($1,$2,'invite','automated','pending',$3)`,[request,account,at]);
   }
@@ -51,6 +53,7 @@ beforeAll(async () => {
 },120000);
 beforeEach(async () => {
   await owner.query("TRUNCATE alert_event CASCADE");
+  await owner.query("UPDATE alert_rule SET enabled=false");
   await owner.query("UPDATE alert_rule SET type='invite_unaccepted',threshold='{\"hours\":168}',enabled=true WHERE id=$1",[rule]);
   for (const [name, action] of Object.entries(actions)) {
     const status = name === 'withdrawn' ? 'withdrawn' : name === 'accepted' ? 'confirmed' : 'sent';
@@ -89,7 +92,7 @@ test('alerts only strict overdue current invitations and preserves one event acr
 },30000);
 
 
-test.each(['acceptance','rule-type-change'] as const)("revalidates a gathered invitation after %s holds the action lock", async (change) => {
+test.each(['acceptance','rule-type-change','rule-disabled','invalid-rule'] as const)("revalidates a gathered invitation after %s holds the action lock", async (change) => {
   await owner.query("UPDATE provisioning_action SET status='withdrawn',resolved_at=$2 WHERE id=ANY($1::uuid[])",[[actions.below,actions.exact,actions.above],at]);
   await owner.query("UPDATE alert_rule SET enabled=true WHERE id=$1",[rule]);
   await owner.query("UPDATE provisioning_action SET status='sent',resolved_at=NULL WHERE id=$1",[actions.race]);
@@ -111,16 +114,78 @@ test.each(['acceptance','rule-type-change'] as const)("revalidates a gathered in
       WHERE action.id=$1 AND request.company_id=$2 FOR UPDATE OF action,request`,[actions.race,companyA]);
     if (change==='acceptance') {
       await membership.query("UPDATE provisioning_action SET status='confirmed',resolved_at=$2 WHERE id=$1",[actions.race,at]);
+    } else if (change==='rule-type-change') {
+      await owner.query("UPDATE alert_rule SET type='approval_aging',threshold='{\"hours\":24,\"escalationHours\":48}' WHERE id=$1",[rule]);
+    } else if (change==='rule-disabled') {
+      await owner.query("UPDATE alert_rule SET enabled=false WHERE id=$1",[rule]);
     } else {
-      await owner.query("UPDATE alert_rule SET type='blocked_no_seat',threshold='{\"businessDays\":1}' WHERE id=$1",[rule]);
+      await owner.query("UPDATE alert_rule SET threshold='{\"hours\":\"invalid\"}' WHERE id=$1",[rule]);
     }
     await membership.query("COMMIT");
     await membership.query("SELECT pg_advisory_unlock(hashtextextended($1,0))",[actions.race]);
-    await expect(pending).resolves.toMatchObject({processed:0,status:'succeeded'});
+    await expect(pending).resolves.toMatchObject({processed:0,status:change==='invalid-rule'?'failed':'succeeded'});
+    const released=await membership.query('SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS acquired',[actions.race]);
+    expect(released.rows[0].acquired).toBe(true);
+    await membership.query('SELECT pg_advisory_unlock(hashtextextended($1,0))',[actions.race]);
     const events=await owner.query(`SELECT id FROM alert_event WHERE alert_rule_id=$1 AND subject_ref->>'requestId'=$2`,[rule,requests.race]);
     expect(events.rows).toEqual([]);
   } finally {
     await membership.query("SELECT pg_advisory_unlock_all()"); await membership.end();
     await pending; await job.close();
   }
+},30000);
+
+
+test("holds action and request locks through actual outbox persistence", async () => {
+  await owner.query("UPDATE provisioning_action SET status='withdrawn',resolved_at=$2 WHERE id=ANY($1::uuid[])",[[actions.below,actions.exact,actions.above],at]);
+  await owner.query(`CREATE FUNCTION pause_invite_outbox_test() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN PERFORM pg_advisory_xact_lock(hashtextextended('us067-outbox-persistence',0)); RETURN NEW; END $$;
+    CREATE TRIGGER pause_invite_outbox_test BEFORE INSERT ON alert_event FOR EACH ROW EXECUTE FUNCTION pause_invite_outbox_test()`);
+  await owner.query("SELECT pg_advisory_lock(hashtextextended('us067-outbox-persistence',0))");
+  const monitor=await fixture.connectAsApp();
+  const smtp = new SMTPServer({authOptional:true,disabledCommands:['AUTH','STARTTLS'],onData(stream,_session,callback){stream.on('data',()=>undefined);stream.on('end',callback);}});
+  smtp.listen(0,'127.0.0.1'); await once(smtp.server,'listening');
+  const address=smtp.server.address(); if (!address || typeof address==='string') throw new Error('SMTP port unavailable');
+  const job=createAlertEvaluationJob({connectionString:fixture.appUrl,mailer:createSmtpMailer(`smtp://127.0.0.1:${address.port}`),workerId:'invite-persistence-067'});
+  const pending=job.run(at);
+  try {
+    const deadline=Date.now()+10000;
+    for (;;) {
+      const waiting=await owner.query("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype='advisory' AND NOT granted) AS waiting");
+      if(waiting.rows[0].waiting) break;
+      if(Date.now()>deadline) throw new Error('Outbox never reached persistence barrier');
+      await new Promise<void>(resolve=>setImmediate(resolve));
+    }
+    const actionLock=await monitor.query("SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS acquired",[actions.race]);
+    expect(actionLock.rows[0].acquired).toBe(false);
+    await monitor.query('BEGIN');
+    await expect(monitor.query("SELECT id FROM license_request WHERE id=$1 AND company_id=$2 FOR UPDATE NOWAIT",[requests.race,companyA])).rejects.toMatchObject({code:'55P03'});
+    await monitor.query('ROLLBACK');
+    await owner.query("SELECT pg_advisory_unlock(hashtextextended('us067-outbox-persistence',0))");
+    await expect(pending).resolves.toMatchObject({status:'succeeded',processed:1});
+    const events=await owner.query("SELECT count(*)::int AS count FROM alert_event WHERE alert_rule_id=$1 AND subject_ref->>'requestId'=$2",[rule,requests.race]);
+    expect(events.rows).toEqual([{count:1}]);
+  } finally {
+    await monitor.query('ROLLBACK'); await monitor.query('SELECT pg_advisory_unlock_all()'); await monitor.end();
+    await owner.query("SELECT pg_advisory_unlock(hashtextextended('us067-outbox-persistence',0))");
+    await pending; await job.close();
+    await owner.query('DROP TRIGGER pause_invite_outbox_test ON alert_event; DROP FUNCTION pause_invite_outbox_test()');
+    await new Promise<void>((resolve,reject)=>smtp.close(error=>error?reject(error):resolve()));
+  }
+},30000);
+
+test("preserves rounded-window facts for other hourly alerts", async () => {
+  await owner.query('UPDATE alert_rule SET enabled=false');
+  const syncedAt=new Date(at.getTime()-168.001*3600000);
+  await owner.query(`INSERT INTO activity_record (vendor_account_id,person_id,activity_date,counters,synced_at)
+    SELECT $1,person_id,'2026-09-25','{}',$2 FROM license_request WHERE id=$3`,[account,syncedAt,requests.above]);
+  const syncRule=randomUUID();
+  await owner.query(`INSERT INTO alert_rule (id,type,scope_kind,vendor_account_id,threshold,channel,enabled,created_at,created_by)
+    VALUES ($1,'sync_stale','vendor_account',$2,'{"hours":168}','email',true,$3,'00000000-0000-0000-0000-000000000001')`,[syncRule,account,at]);
+  const job=createAlertEvaluationJob({connectionString:fixture.appUrl,workerId:'invite-preserve-window-067'});
+  try {
+    await expect(job.run(at)).resolves.toMatchObject({status:'succeeded',processed:0});
+    const events=await owner.query('SELECT id FROM alert_event WHERE alert_rule_id=$1',[syncRule]);
+    expect(events.rows).toEqual([]);
+  } finally { await job.close(); }
 },30000);

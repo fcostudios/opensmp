@@ -1566,6 +1566,9 @@ const ADJACENT_TEST_SUFFIXES = [
 // exceptional routes explicit prevents a changed source from silently riding
 // along merely because some unrelated story test also changed.
 export const DIRECT_TEST_ROUTES = {
+  "apps/web/src/modules/request-workflow/repository.ts": [
+    "apps/web/src/modules/request-workflow/read-repository.integration.test.ts",
+  ],
   "apps/worker/src/alerts/evaluate-alerts.ts": [
     "apps/worker/src/alerts/overdue-invitations.integration.test.ts",
   ],
