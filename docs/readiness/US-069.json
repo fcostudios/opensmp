@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "5146e69c27467a5061f71882c45a3f20518a9c0e96f8e20956fb4c5d5d342aaf",
+  "work_id": "US-069",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Expire stale invitations automatically and notify the requester",
+  "source": "docs/stories/sprint-3/r1_misc_us_069.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The scheduled hygiene job withdraws eligible pending invitations after an explicitly enabled configurable expiry window, releases the seat reservation and re-notifies the requester exactly once with a durable action trail.",
+      "demo": "Configure expiry, advance an injected clock, run the job twice and verify one invitation-only deletion, one lifecycle transition, one requester notification and one visible action; accepted, foreign-company, disabled and not-yet-due invitations remain untouched.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "server",
+    "db",
+    "infra"
+  ],
+  "signals": {
+    "routes_or_screens": 1,
+    "acceptance_flows": 3,
+    "expected_changed_files": 20,
+    "expected_mutation_shards": 9,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 1,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 15,
+    "implementation": 100,
+    "focused_verification": 75,
+    "review": 55,
+    "integration": 35,
+    "total": 280
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Proposal provenance and canonical scope allocation for US-069.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "docs/readiness/US-021.json partitions[proposal_key=automatic-invite-expiry] supplies the initial outcome, demo and estimate; docs/stories/sprint-3/r1_misc_us_069.md allocates the child ACs under CHG-063. DEC-SMP-023 is recorded in docs/decisions/DECISION_MATRIX.md. The historical parent proposal is not implementation or approval evidence. Child AC1..AC4 are mapped individually to O1; parent coverage is AC2 scheduled withdrawal and AC3 automatic trail."
+    },
+    {
+      "id": "U2",
+      "statement": "Canonical foundation prerequisites are delivered.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Parsed .nous-feedback.jsonl contains terminal done events for US-019, US-042 and US-046. Their generated specs and current worker composition establish provisioning, alert evaluation and the 15-minute scheduler. Completed prerequisites are not represented as execution-blocking dependencies. US-067 is canonical dev_done at ba88eee and US-068 at27f31a1 (reviewed/scored sourcea4169fa), all passing AC/build/final-campaign evidence retained; no execution-blocking dependency remains."
+    },
+    {
+      "id": "U3",
+      "statement": "Expiry key, default and validation semantics are now canonical.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "DEC-SMP-023 in docs/decisions/DECISION_MATRIX.md and US-069 AC1 require AlertRule(type=invite_unaccepted).threshold.auto_withdraw_after_hours: null disables automatic expiry; a configured integer must be strictly greater than threshold.hours. Reject invalid values in a shared validator owned by US-069 and later reused by US-044. Rule seed/record configuration is sufficient until US-044; no settings UI is included. This replaces the parent proposal wording that allowed a window equal to the alert threshold."
+    },
+    {
+      "id": "U4",
+      "statement": "Scheduled service composition and exactly-once notification evidence depend on US-068 delivery.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 35,
+      "resolution": "Post-US-068 assessment against canonical dev_done27f31a1/sourcea4169fa: reuse canonical UUID original-action session lock, committed intent, strict receipt recovery and same-client production factory. Add optional same-client fresh-intent eligibility guard and transactional completion hook to shared service, retaining manual behavior. Compose after delivery/membership in existing invitePoll with existing runtime lifecycle notification drain, no new schedule/loop. Shared expiry validator normalizes legacy missing key to disabled and requires configured finite integer strictly greater than hours; narrow numeric evaluator reads without unrelated alert changes. Dedicated decision/deprovisioned requester notice is atomically enqueued before final COMMIT with original invitation/requester dedupe; durable receipt supports no-network recovery after rule disable or enqueue rollback, preserving manual attribution and stored automatic note across locale changes. Real PostgreSQL/domain/outbox/crypto/provider composition and Pact-backed HTTP plus production mailer/local SMTP server prove two-run delivery and system trail. Exact17 source/test paths plus readiness/combined design-plan/feedback=20, no spare; original automatic-invite-expiry280 estimate unchanged. Embed complete child design in the readiness-bound plan path, commit design before executable task plan; no separate extra path. Expected9 shards remain provisional until ordinary discovery. No migration/dependency/tooling policy/settings UI. Material extra paths or remaining-estimate overrun require reassessment/deviation before continuing."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "US069-READY-20261002",
+    "payload_sha256": "5146e69c27467a5061f71882c45a3f20518a9c0e96f8e20956fb4c5d5d342aaf"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
