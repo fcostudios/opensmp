@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   alertRuleContractSchema,
   approvalAgingThresholdSchema,
+  inviteUnacceptedThresholdSchema,
 } from "./alerts.js";
 
 describe("US-024 deprovision alert contract", () => {
@@ -110,5 +111,26 @@ describe("US-017 approval-aging alert contract", () => {
         type: "approval_aging",
       }).success,
     ).toBe(false);
+  });
+});
+
+
+describe("US-069 invitation expiry contract", () => {
+  it("normalizes legacy and null expiry to disabled and rejects invalid windows", () => {
+    for (const threshold of [{ hours: 24 }, { hours: 24, auto_withdraw_after_hours: null }]) {
+      expect(inviteUnacceptedThresholdSchema.parse(threshold)).toEqual({ hours: 24, auto_withdraw_after_hours: null });
+      expect(alertRuleContractSchema.parse({ enabled: true, type: "invite_unaccepted", threshold }).threshold).toEqual({ hours: 24, auto_withdraw_after_hours: null });
+    }
+    expect(inviteUnacceptedThresholdSchema.parse({ hours: 24.5, auto_withdraw_after_hours: 25 }).auto_withdraw_after_hours).toBe(25);
+    for (const threshold of [
+      { hours: -1 }, { hours: Infinity }, {},
+      ...[0, -1, 24, 23, 24.5, Infinity, NaN, "48"].map(value => ({ hours: 24, auto_withdraw_after_hours: value })),
+      { hours: 24, auto_withdraw_after_hours: 48, extra: 1 },
+    ]) {
+      expect(inviteUnacceptedThresholdSchema.safeParse(threshold).success).toBe(false);
+      expect(alertRuleContractSchema.safeParse({ enabled: true, type: "invite_unaccepted", threshold }).success).toBe(false);
+    }
+    expect(alertRuleContractSchema.safeParse({ enabled: true, type: "low_pool", threshold: { floor: null } }).success).toBe(false);
+    expect(alertRuleContractSchema.parse({ enabled: true, type: "low_pool", threshold: { floor: 2 } }).threshold).toEqual({ floor: 2 });
   });
 });

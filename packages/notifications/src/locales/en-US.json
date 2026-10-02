@@ -52,5 +52,11 @@
     "offboarding": "Offboarding",
     "deprovisioned": "Deprovisioned",
     "rejected": "Rejected"
+  },
+  "automaticInvitationExpiryNote": "Automatically withdrew the unaccepted invitation after its configured expiry window.",
+  "invitationExpired": {
+    "subject": "Invitation expired: {requestNo}",
+    "text": "Hello {requesterName}. The unaccepted invitation for request {requestNo} at {companyName} expired and was automatically withdrawn. The seat reservation has been released. Review the details at {url}",
+    "html": "<p>Hello {requesterName}.</p><p>The unaccepted invitation for request <strong>{requestNo}</strong> at {companyName} expired and was automatically withdrawn. The seat reservation has been released.</p><p><a href=\"{url}\">View details</a></p>"
   }
 }

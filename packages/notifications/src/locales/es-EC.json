@@ -52,5 +52,11 @@
     "offboarding": "En retiro",
     "deprovisioned": "Retirada",
     "rejected": "Rechazada"
+  },
+  "automaticInvitationExpiryNote": "Se retiró automáticamente la invitación no aceptada al vencer el plazo configurado.",
+  "invitationExpired": {
+    "subject": "Invitación vencida: {requestNo}",
+    "text": "Hola {requesterName}. La invitación no aceptada de la solicitud {requestNo} en {companyName} venció y se retiró automáticamente. Se liberó la reserva del cupo. Revisa los detalles en {url}",
+    "html": "<p>Hola {requesterName}.</p><p>La invitación no aceptada de la solicitud <strong>{requestNo}</strong> en {companyName} venció y se retiró automáticamente. Se liberó la reserva del cupo.</p><p><a href=\"{url}\">Ver detalles</a></p>"
   }
 }

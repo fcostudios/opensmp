@@ -11,6 +11,7 @@ import type { NotificationMailer } from "@smp/notifications";
 import { createAlertEvaluationJob } from "../alerts/evaluate-alerts.js";
 import { createAutomatedInviteDeliveryJob } from "./automated-invite-delivery.js";
 import { createCapacityRecoveryJob } from "./capacity-recovery.js";
+import { createAutomaticInvitationExpiryJob } from "./automatic-invitation-expiry.js";
 import { createMembershipPollJob } from "./membership-poll.js";
 
 export type WorkerJobContext = {
@@ -57,12 +58,21 @@ export function createDeferredJobHandlers(
         sleep: services.sleep,
         transport: services.transport,
       });
+      const automaticExpiry = createAutomaticInvitationExpiryJob({
+        allowedKekRoot: services.credentialKekAllowedRoot,
+        connectionString: services.connectionString,
+        kekFile: services.credentialKekFile,
+        now: services.now,
+        sleep: services.sleep,
+        transport: services.transport,
+      });
       try {
         const delivered = await inviteDelivery.drain({ at, vendorAccountId });
         const activated = await membershipPoll.drain({ at, vendorAccountId });
-        return successfulJob(delivered.processed + activated.processed);
+        const expired = await automaticExpiry.drain({ at, vendorAccountId });
+        return successfulJob(delivered.processed + activated.processed + expired.processed);
       } finally {
-        await Promise.allSettled([inviteDelivery.close(), membershipPoll.close()]);
+        await Promise.allSettled([inviteDelivery.close(), membershipPoll.close(), automaticExpiry.close()]);
       }
     },
     alertEvaluation: async ({ at }) => {

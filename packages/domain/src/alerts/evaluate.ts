@@ -70,12 +70,13 @@ export function evaluateAlertRule(
   if (!rule.enabled) return null;
 
   const [thresholdName, factName] = thresholdMeasures[rule.type];
+  const thresholds: Readonly<Record<string, number | null>> = rule.threshold;
   const threshold =
     rule.type === "low_pool" && facts.lowPoolFloor !== undefined
       ? facts.lowPoolFloor
-      : rule.threshold[thresholdName];
+      : thresholds[thresholdName];
   const measure = facts[factName];
-  if (!Number.isFinite(threshold)) {
+  if (typeof threshold !== "number" || !Number.isFinite(threshold)) {
     throw new TypeError(
       rule.type === "low_pool" && facts.lowPoolFloor !== undefined
         ? "low_pool lowPoolFloor must be finite"

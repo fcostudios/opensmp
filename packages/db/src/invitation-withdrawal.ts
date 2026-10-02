@@ -45,6 +45,8 @@ export function createInvitationWithdrawalService(dependencies: {
   readonly now: () => Date;
   readonly assertLegalTransition: (from: "invited", to: "deprovisioned") => void;
   readonly connectorFor: (context: Context, database: pg.PoolClient) => Promise<VendorConnector | null>;
+  readonly beforeNewIntent?: (context: Context, database: pg.PoolClient) => Promise<boolean>;
+  readonly beforeCompletionCommit?: (context: Context, canonicalCommand: InvitationWithdrawalCommand, occurredAt: Date, database: pg.PoolClient) => Promise<void>;
 }) {
   return { async withdraw(command: InvitationWithdrawalCommand): Promise<InvitationWithdrawalOutcome> {
     if (!valid(command)) return {ok:false,error:"invalid"};
@@ -72,6 +74,9 @@ export function createInvitationWithdrawalService(dependencies: {
       }
       const context={...eligible,withdrawalActionId:intent?.id ?? randomUUID()};
       if (!intent) {
+        if (dependencies.beforeNewIntent && !await dependencies.beforeNewIntent(context,client)) {
+          await client.query("ROLLBACK");transaction=false;return {ok:false,error:"conflict"};
+        }
         const actor=command.actorUserId === null ? null : (await client.query<{label:string}>(`SELECT COALESCE(person.full_name,account.email) AS label FROM user_account account LEFT JOIN person ON person.id=account.person_id WHERE account.id=$1::uuid`,[command.actorUserId])).rows[0]?.label;
         if(command.actorUserId !== null && (!actor || actor.length>320)) {
           await client.query("ROLLBACK");transaction=false;return {ok:false,error:"conflict"};
@@ -112,6 +117,7 @@ export function createInvitationWithdrawalService(dependencies: {
       if(updated.rowCount !== 2) throw new Error("WITHDRAWAL_ACTION_CONFLICT");
       await client.query(`INSERT INTO audit_log(actor_user_id,action,entity_type,entity_id,company_id,note,before,after,occurred_at)
         VALUES($1,'invitation.withdrawn','ProvisioningAction',$2,$3,$4,NULL,$5::jsonb,$6)`,[command.actorUserId,context.withdrawalActionId,command.companyId,command.note,JSON.stringify({originalActionId:command.actionId,vendorRef:context.vendorRef}),occurredAt]);
+      await dependencies.beforeCompletionCommit?.(context,command,occurredAt,client);
       await client.query("COMMIT");transaction=false;
       return {ok:true,requestId:command.requestId,actionId:context.withdrawalActionId};
     } finally {
@@ -138,8 +144,10 @@ export function createProductionInvitationWithdrawalConnector(input: {
   readonly createLimiter: InvitationWithdrawalLimiterFactory;
   readonly parseCredentialEnvelope: (value: string) => Parameters<typeof decryptCredential>[0];
   readonly kekFile?: string; readonly allowedKekRoot?: string;
+  readonly sleep?: (milliseconds: number) => Promise<void>;
+  readonly transport?: (request: Request) => Promise<Response>;
 }) {
-  const clock={now:()=>input.now().getTime()},sleep=async(milliseconds:number)=>new Promise<void>(resolve=>setTimeout(resolve,milliseconds));
+  const clock={now:()=>input.now().getTime()},sleep=input.sleep??(async(milliseconds:number)=>new Promise<void>(resolve=>setTimeout(resolve,milliseconds)));
   const limiter=input.createLimiter({clock,sleep});
   return async (context: Context): Promise<VendorConnector | null> => {
     const provider=await input.database.query(`SELECT vendor.provisioning_protocol FROM vendor_account account JOIN vendor ON vendor.id=account.vendor_id
@@ -154,7 +162,7 @@ export function createProductionInvitationWithdrawalConnector(input: {
       return Promise.all(result.rows.map(async(row)=>({...row,vendorAccountId:account,secret:await decryptCredential(input.parseCredentialEnvelope(row.encrypted_secret),kek)})));
     },observationSessionFor:async(operation)=>createConnectorCallObservationSession({vendorAccountId:context.vendorAccountId,provisioningActionId:context.withdrawalActionId,operation:operation.operation,clock:input.now,randomId:randomUUID,append:async(event)=>{
       await input.database.query(`INSERT INTO connector_call_observation(vendor_account_id,provisioning_action_id,correlation_id,operation,attempt,phase,classification,summary,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[event.vendorAccountId,event.provisioningActionId,event.correlationId,event.operation,event.attempt,event.phase,event.classification,event.summary,event.occurredAt]);
-    }}),requestDependencies:{clock,sleep,limiter,transport:async(request)=>fetch(request)}});
+    }}),requestDependencies:{clock,sleep,limiter,transport:input.transport??(async(request)=>fetch(request))}});
   };
 }
 

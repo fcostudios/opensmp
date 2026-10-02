@@ -302,3 +302,11 @@ describe("US-042 deterministic alert evaluation", () => {
     ).toBeNull();
   });
 });
+
+
+it("continues invitation alerts at hours when expiry is disabled and rejects null numeric measures",()=>{
+ const rule={enabled:true,type:"invite_unaccepted" as const,threshold:{hours:24,auto_withdraw_after_hours:null}};
+ expect(evaluateAlertRule(rule,{ageHours:24,subject:{requestId:"invitation"}},at)).toBeNull();
+ expect(evaluateAlertRule(rule,{ageHours:25,subject:{requestId:"invitation"}},at)?.type).toBe("invite_unaccepted");
+ expect(()=>evaluateAlertRule({...rule,threshold:{hours:null}},{ageHours:25,subject:{requestId:"invitation"}},at)).toThrow("invite_unaccepted threshold.hours must be finite");
+});

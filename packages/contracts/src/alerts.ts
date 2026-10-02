@@ -58,6 +58,20 @@ export const alertSubjectForTypeSchema = z.discriminatedUnion("type", [
 
 export const alertThresholdSchema = z.record(z.number().finite().nonnegative());
 
+/** Runtime validation shared by rule editing and automatic expiry. */
+export const inviteUnacceptedThresholdSchema = z.unknown().transform((value, context) => {
+  const parsed = z.object({
+    hours: z.number().finite().nonnegative(),
+    auto_withdraw_after_hours: z.number().finite().int().nullable().optional(),
+  }).strict().safeParse(value);
+  if (!parsed.success || (parsed.data.auto_withdraw_after_hours != null && parsed.data.auto_withdraw_after_hours <= parsed.data.hours)) {
+    context.addIssue({ code: "custom", message: "invite_unaccepted requires finite hours and a null or integer expiry greater than hours" });
+    return z.NEVER;
+  }
+  return { hours: parsed.data.hours, auto_withdraw_after_hours: parsed.data.auto_withdraw_after_hours ?? null };
+});
+
+
 // Stryker disable ObjectLiteral:
 // @equivalent Zod eagerly captures this object shape before mutant activation;
 // focused tests parse both required keys and reject missing/extra keys.
@@ -85,11 +99,19 @@ export const approvalAgingThresholdSchema = z
 export const alertRuleContractSchema = z
   .object({
     enabled: z.boolean(),
-    threshold: alertThresholdSchema,
+    threshold: z.record(z.number().finite().nonnegative().nullable()),
     type: alertTypeSchema,
   })
   // Stryker restore ObjectLiteral
   .superRefine((rule, context) => {
+    if (rule.type === "invite_unaccepted") {
+      if (!inviteUnacceptedThresholdSchema.safeParse(rule.threshold).success) {
+        context.addIssue({ code: "custom", message: "invite_unaccepted requires valid invitation expiry threshold", path: ["threshold"] });
+      }
+    } else if (!alertThresholdSchema.safeParse(rule.threshold).success) {
+      context.addIssue({ code: "custom", message: "alert threshold values must be nonnegative finite numbers", path: ["threshold"] });
+    }
+
     if (
       rule.type === "approval_aging" &&
       !approvalAgingThresholdSchema.safeParse(rule.threshold).success
@@ -115,7 +137,9 @@ export const alertRuleContractSchema = z
         path: ["threshold"],
       });
     }
-  });
+  }).transform(rule => rule.type === "invite_unaccepted"
+    ? { ...rule, threshold: inviteUnacceptedThresholdSchema.parse(rule.threshold) }
+    : rule);
 
 export type AlertRuleContract = z.infer<typeof alertRuleContractSchema>;
 export type ApprovalAgingThresholdContract = z.infer<

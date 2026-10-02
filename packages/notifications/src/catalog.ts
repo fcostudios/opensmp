@@ -76,7 +76,8 @@ export function renderLifecycleNotification(
   input: LifecycleNotificationInput,
 ): { html: string; subject: string; text: string } {
   const catalog = getNotificationCatalog(locale);
-  const template = catalog.lifecycle[kind];
+  const template = kind === "decision" && input.state === "deprovisioned"
+    ? catalog.invitationExpired : catalog.lifecycle[kind];
   const url = lifecycleUrl(kind, input.publicOrigin, input.requestId);
   const textValues = {
     companyName: input.companyName,
@@ -93,6 +94,10 @@ export function renderLifecycleNotification(
     subject: interpolate(template.subject, textValues),
     text: interpolate(template.text, textValues),
   };
+}
+
+export function automaticInvitationExpiryNote(locale: unknown): string {
+  return getNotificationCatalog(locale).automaticInvitationExpiryNote;
 }
 
 function normalizeLocale(locale: unknown): NotificationLocale {

@@ -2,7 +2,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import type pg from "pg";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { createPostgresFixture, type PostgresFixture } from "./testing/postgres-container.js";
-import { enqueueLifecycleDecision, enqueueLifecycleProvisioningComplete } from "./lifecycle-notifications.js";
+import { enqueueLifecycleInvitationExpired, enqueueLifecycleDecision, enqueueLifecycleProvisioningComplete } from "./lifecycle-notifications.js";
 
 const id = (n: number) => `36600000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const at = new Date("2026-09-09T12:00:00.000Z");
@@ -55,4 +55,23 @@ it("never queues the wrong state, inactive requester, or mismatched tenant", asy
     await database.transaction((transaction) => enqueueLifecycleProvisioningComplete(transaction, id(8), at));
     expect((await owner.query("SELECT count(*)::int AS notifications FROM lifecycle_notification")).rows).toEqual([{ notifications: 0 }]);
   }
+});
+
+
+it("dedupes expiry by tenant original invitation and requester and refuses foreign identity or wrong state",async()=>{
+ await owner.query("TRUNCATE lifecycle_notification CASCADE");
+ await owner.query("UPDATE user_account SET status='active' WHERE id=$1",[id(1)]);
+ await owner.query("UPDATE license_request SET state='deprovisioned',company_id=$1 WHERE id=$2",[id(2),id(8)]);
+ await owner.query(`INSERT INTO provisioning_action(id,request_id,vendor_account_id,kind,mode,status,vendor_ref,sent_at,resolved_at,created_at) VALUES($1,$2,$3,'invite','automated','withdrawn','expired-reference',$4,$4,$4)`,[id(9),id(8),id(6),at]);
+ const database=drizzle(app);
+ await expect(database.transaction(transaction=>enqueueLifecycleInvitationExpired(transaction,id(3),id(8),id(9),at))).rejects.toThrow("INVITATION_EXPIRY_NOTIFICATION_MISSING");
+ for(const companyId of [id(2),id(2)]) await database.transaction(transaction=>enqueueLifecycleInvitationExpired(transaction,companyId,id(8),id(9),at));
+ expect((await owner.query("SELECT company_id,kind,recipient_email,request_state,dedupe_key FROM lifecycle_notification WHERE request_id=$1",[id(8)])).rows).toEqual([{company_id:id(2),kind:"decision",recipient_email:"requester@outbox.test",request_state:"deprovisioned",dedupe_key:`${id(2)}:${id(8)}:invitation-expired:${id(9)}:${id(1)}`}]);
+ await owner.query("TRUNCATE lifecycle_notification CASCADE");
+ for(const variant of ["state","original","inactive"]){
+   await owner.query("UPDATE license_request SET state=$1 WHERE id=$2",[variant==='state'?'invited':'deprovisioned',id(8)]);
+   await owner.query("UPDATE user_account SET status=$1 WHERE id=$2",[variant==='inactive'?'disabled':'active',id(1)]);
+   await expect(database.transaction(transaction=>enqueueLifecycleInvitationExpired(transaction,id(2),id(8),variant==='original'?id(99):id(9),at))).rejects.toThrow('INVITATION_EXPIRY_NOTIFICATION_MISSING');
+   expect((await owner.query("SELECT count(*)::int AS count FROM lifecycle_notification")).rows[0].count).toBe(0);
+ }
 });

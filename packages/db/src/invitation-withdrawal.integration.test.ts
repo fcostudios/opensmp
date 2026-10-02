@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { createHook,executionAsyncId } from "node:async_hooks";
 import { join } from "node:path";
 import { drizzle } from "drizzle-orm/node-postgres";
+import { enqueueLifecycleInvitationExpired } from "./lifecycle-notifications";
 import { encryptCredential } from "./credential-crypto";
 import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
@@ -51,7 +52,7 @@ async function blockFinalization(input:Awaited<ReturnType<typeof seed>>,label:"L
  await owner.query(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION '${label}';END $$;CREATE TRIGGER ${name} BEFORE UPDATE ON license_request FOR EACH ROW WHEN (OLD.id='${input.requestId}'::uuid AND OLD.state='invited' AND NEW.state='deprovisioned') EXECUTE FUNCTION ${name}();`);
  return async()=>{await owner.query(`DROP TRIGGER ${name} ON license_request;DROP FUNCTION ${name}();`);};
 }
-function service(input: Awaited<ReturnType<typeof seed>>, options: { status?: string; body?: unknown; deleteStatus?:number; beforeDelete?:()=>Promise<void>;  } = {}) {
+function service(input: Awaited<ReturnType<typeof seed>>, options: { status?: string; body?: unknown; deleteStatus?:number; beforeDelete?:()=>Promise<void>; hooks?: Pick<Parameters<typeof createInvitationWithdrawalService>[0], "beforeNewIntent" | "beforeCompletionCommit">;  } = {}) {
  const calls: {method:string;path:string}[]=[];
  const clock={now:()=>at.getTime()},sleep=async()=>undefined;
  const connector = createAnthropicConnector({credentialsFor:async()=>[
@@ -65,7 +66,7 @@ function service(input: Awaited<ReturnType<typeof seed>>, options: { status?: st
  return new Response(JSON.stringify({data:[{id:"invite-pinned",type:"invite",email:"selected@example.test",status:options.status??"pending"}],has_more:false,first_id:"invite-pinned",last_id:"invite-pinned"}),{headers:{"content-type":"application/json"}});
  }}});
  let observationAction:string;
- return {calls,service:createInvitationWithdrawalService({pool,now:()=>at,assertLegalTransition,connectorFor:async(context)=>{observationAction=context.withdrawalActionId;return connector;}})};
+ return {calls,service:createInvitationWithdrawalService({...options.hooks,pool,now:()=>at,assertLegalTransition,connectorFor:async(context)=>{observationAction=context.withdrawalActionId;return connector;}})};
 }
 
 test("commits observed intent before I/O and releases exactly one reservation after matching success, once",async()=>{
@@ -486,3 +487,41 @@ test("null verified session is denied through real authorization entrypoint and 
  expect(execution.recorded).toEqual([{actor:null,request:input.requestId}]);expect((await owner.query(`SELECT actor_user_id,entity_type,after FROM audit_log WHERE entity_id=$1 AND action='server_action.withdrawInvite'`,[input.requestId])).rows).toEqual([{actor_user_id:null,entity_type:"LicenseRequest",after:{ok:false,error:"forbidden"}}]);
  expect(await snapshot(input)).toEqual(before);expect(execution.calls).toEqual([]);expect((await owner.query(`SELECT id FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId])).rows).toEqual([]);await assertReleasedResources();
 });
+
+
+test("fresh-intent guard uses the held client and refuses real changed eligibility before provider I/O",async()=>{
+ const input=await seed(),before=await snapshot(input);
+ const execution=service(input,{hooks:{beforeNewIntent:async(context,database)=>{
+   const lock=(await owner.query(`SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS locked`,[context.actionId])).rows[0].locked;
+   if(lock) await owner.query(`SELECT pg_advisory_unlock(hashtextextended($1,0))`,[context.actionId]);
+   expect(lock).toBe(false);
+   const current=(await database.query(`SELECT state FROM license_request WHERE id=$1 AND company_id=$2`,[context.requestId,context.companyId])).rows[0];
+   return current.state === 'active';
+ }}});
+ expect(await execution.service.withdraw(input)).toEqual({ok:false,error:"conflict"});
+ expect(execution.calls).toEqual([]);expect(await snapshot(input)).toEqual(before);
+ expect((await owner.query(`SELECT count(*)::int AS count FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId])).rows[0].count).toBe(0);
+},30000);
+
+test("expiry notice failure rolls back finalization but confirmed receipt recovers without fresh guard or DELETE",async()=>{
+ const input=await seed(),before=await snapshot(input);
+ await owner.query(`UPDATE license_request SET requested_by=$1 WHERE id=$2 AND company_id=$3`,[input.actorUserId,input.requestId,input.companyId]);
+ const command={...input,actorUserId:null,commandId:input.actionId,note:"Automatically expired invitation"};
+ const name="us069_notice_"+input.requestId.replaceAll("-","");
+ await owner.query(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'EXPIRY_NOTICE_FAULT';END $$;CREATE TRIGGER ${name} BEFORE INSERT ON lifecycle_notification FOR EACH ROW WHEN (NEW.request_id='${input.requestId}'::uuid) EXECUTE FUNCTION ${name}();`);
+ const hooks={beforeCompletionCommit:async(context:Parameters<NonNullable<Parameters<typeof createInvitationWithdrawalService>[0]["beforeCompletionCommit"]>>[0],_command:unknown,occurredAt:Date,database:pg.PoolClient)=>enqueueLifecycleInvitationExpired(drizzle(database),context.companyId,context.requestId,context.actionId,occurredAt)};
+ const execution=service(input,{hooks});
+ try {
+   await expect(execution.service.withdraw(command)).rejects.toThrow("EXPIRY_NOTICE_FAULT");
+   expect(await snapshot(input)).toEqual(before);
+   expect((await owner.query(`SELECT status,raw_response FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId])).rows).toEqual([{status:"pending",raw_response:{id:"invite-pinned",type:"invite_deleted"}}]);
+   expect((await owner.query(`SELECT count(*)::int AS count FROM audit_log WHERE company_id=$1 AND action='invitation.withdrawn'`,[input.companyId])).rows[0].count).toBe(0);
+ } finally {await owner.query(`DROP TRIGGER ${name} ON lifecycle_notification; DROP FUNCTION ${name}();`);}
+ const replay=service(input,{hooks:{...hooks,beforeNewIntent:async(_context,database)=>{return (await database.query(`SELECT false AS eligible`)).rows[0].eligible;}}});
+ expect((await replay.service.withdraw(command)).ok).toBe(true);expect(replay.calls).toEqual([]);
+ expect(execution.calls.filter(call=>call.method==='DELETE')).toHaveLength(1);
+ expect((await snapshot(input)).available-before.available).toBe(1);
+ expect((await owner.query(`SELECT company_id,recipient_user_account_id,request_state FROM lifecycle_notification WHERE request_id=$1`,[input.requestId])).rows).toEqual([{company_id:input.companyId,recipient_user_account_id:input.actorUserId,request_state:"deprovisioned"}]);
+ expect((await owner.query(`SELECT actor_user_id,note FROM audit_log WHERE company_id=$1 AND action='invitation.withdrawn'`,[input.companyId])).rows).toEqual([{actor_user_id:null,note:command.note}]);
+ expect((await replay.service.withdraw({...command,companyId:input.foreignCompanyId})).ok).toBe(false);
+},30000);

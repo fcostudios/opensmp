@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   notificationCatalogs,
+  automaticInvitationExpiryNote,
   renderApprovalAgingNotification,
   renderAlertNotification,
   renderLifecycleNotification,
@@ -208,4 +209,17 @@ describe("US-016 lifecycle notification catalog", () => {
       }).html,
     ).toContain("Ana&#39;s Team");
   });
+});
+
+
+it("renders expiry-specific requester text and escaped context with a stable localized system note",()=>{
+ const input={companyName:"A & B",requesterName:"<Requester>",requestNo:"REQ-069",requestId:"expiry",publicOrigin:"https://ledger.test",state:"deprovisioned" as const};
+ for(const [locale,subject,note] of [["en","Invitation expired","Automatically withdrew the unaccepted invitation after its configured expiry window."],["es","Invitación vencida","Se retiró automáticamente la invitación no aceptada al vencer el plazo configurado."]] as const){
+   const message=renderLifecycleNotification(locale,"decision",input);
+   expect(message.subject).toContain(subject);expect(message.text).toContain(input.requestNo);
+   expect(message.html).toContain("&lt;Requester&gt;");expect(message.html).toContain("A &amp; B");
+   expect(automaticInvitationExpiryNote(locale)).toBe(note);
+   expect(renderLifecycleNotification(locale,"decision",{...input,state:"approved"}).subject).not.toContain(subject);
+ }
+ expect(automaticInvitationExpiryNote("unknown")).toBe("Se retiró automáticamente la invitación no aceptada al vencer el plazo configurado.");
 });

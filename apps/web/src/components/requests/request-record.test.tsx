@@ -417,6 +417,8 @@ test.each([{...withdrawalMetadata,actorUserId:null},{...withdrawalMetadata,actor
 test("withdrawal evidence requires action kind and renders nullable system actor safely",()=>{
  const {container,unmount}=render(<RequestRecord activeTab="actions" isGroupAdmin labels={labels} locale="en-US" statusLabels={statusLabels} record={withdrawalRecord(withdrawalMetadata,"invite")} />);
  expect(container.querySelector('[data-testid="withdrawal_evidence"]')).toBeNull();unmount();
- const system=render(<RequestRecord activeTab="actions" isGroupAdmin labels={labels} locale="en-US" statusLabels={statusLabels} record={withdrawalRecord({...withdrawalMetadata,actorUserId:null,actorLabel:null})} />);
- expect(system.container.querySelector('[data-testid="withdrawal_evidence"]')!.textContent).toContain(labels.systemActor);
+ const system=render(<RequestRecord activeTab="actions" isGroupAdmin labels={labels} locale="en-US" statusLabels={statusLabels} record={withdrawalRecord({...withdrawalMetadata,actorUserId:null,actorLabel:null,note:"Automatically withdrew the unaccepted invitation after its configured expiry window."})} />);
+ const evidence=system.container.querySelector('[data-testid="withdrawal_evidence"]')!;
+ expect(evidence.textContent).toContain(labels.systemActor);
+ expect(evidence.textContent).toContain("Automatically withdrew the unaccepted invitation after its configured expiry window.");
 });

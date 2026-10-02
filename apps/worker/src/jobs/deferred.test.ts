@@ -127,7 +127,7 @@ describe("US-046 deferred job handlers", () => {
     }
   }, 120_000);
 
-  it("closes both invite-poll resources when the membership activation dependency fails", async () => {
+  it("closes all invite-poll resources when the membership activation dependency fails", async () => {
     let fixture: PostgresFixture | undefined;
     try {
       fixture = await createPostgresFixture();
@@ -172,6 +172,10 @@ describe("US-046 deferred job handlers", () => {
     const ids = {
       account: id("7"),
       action: id("12"),
+      expiryPerson: id("20"),
+      expiryRequest: id("21"),
+      expiryAction: id("22"),
+      expiryRule: id("23"),
       admin: id("1"),
       company: id("2"),
       license: id("9"),
@@ -231,6 +235,16 @@ describe("US-046 deferred job handlers", () => {
         await owner.query(`INSERT INTO integration_credential (vendor_account_id,kind,encrypted_secret,health,status,created_at,created_by)
           VALUES ($1,'admin_scoped',$2,'ok','active',$4,$5),($1,'analytics',$3,'ok','active',$4,$5)`,
         [ids.account, adminCredential, analyticsCredential, at, ids.admin]);
+        const expiredAt = new Date(at.getTime()-72*3600000);
+        await owner.query(`INSERT INTO person(id,email,full_name,company_id,status,created_at,created_by)
+          VALUES($1,'expired@deferred.test','Expired',$2,'active',$3,$4)`,[ids.expiryPerson,ids.company,expiredAt,ids.admin]);
+        await owner.query(`INSERT INTO license_request(id,request_no,person_id,company_id,vendor_account_id,license_type_id,state,justification,requested_by,created_at,created_by)
+          VALUES($1,'DEFR-EXPIRY',$2,$3,$4,$5,'invited','Expired access',$6,$7,$6)`,[ids.expiryRequest,ids.expiryPerson,ids.company,ids.account,ids.license,ids.admin,expiredAt]);
+        await owner.query(`INSERT INTO provisioning_action(id,request_id,vendor_account_id,kind,mode,status,vendor_ref,sent_at,created_at)
+          VALUES($1,$2,$3,'invite','automated','sent','expired-invite',$4,$4)`,[ids.expiryAction,ids.expiryRequest,ids.account,expiredAt]);
+        await owner.query(`UPDATE alert_rule SET enabled=false`);
+        await owner.query(`INSERT INTO alert_rule(id,type,scope_kind,company_id,threshold,channel,enabled,created_at,created_by)
+          VALUES($1,'invite_unaccepted','company',$2,'{"hours":24,"auto_withdraw_after_hours":48}','email',true,$3,$4)`,[ids.expiryRule,ids.company,at,ids.admin]);
       } finally {
         await owner.end();
       }
@@ -259,6 +273,14 @@ describe("US-046 deferred job handlers", () => {
                 has_more: false, first_id: "provider-user", last_id: "provider-user",
               }), { status: 200, headers: { "content-type": "application/json" } });
             }
+            if(request.method==='GET' && url.pathname.endsWith('/invites')) {
+              calls.push('invitations');
+              return new Response(JSON.stringify({data:[{id:'expired-invite',type:'invite',email:'expired@deferred.test',status:'pending'}],has_more:false,first_id:'expired-invite',last_id:'expired-invite'}),{headers:{'content-type':'application/json'}});
+            }
+            if(request.method==='DELETE' && url.pathname.endsWith('/invites/expired-invite')) {
+              calls.push('withdrawal');
+              return new Response(JSON.stringify({id:'expired-invite',type:'invite_deleted'}),{headers:{'content-type':'application/json'}});
+            }
             throw new Error(`unexpected provider request: ${request.method} ${url.pathname}`);
           },
           workerId: "deferred-invite-poll-order-test",
@@ -271,11 +293,13 @@ describe("US-046 deferred job handlers", () => {
         jobId: "invite-poll-order-test-job",
         jobName: "invitePoll",
         vendorAccountId: ids.account,
-      })).resolves.toEqual({ processed: 2, status: "succeeded" });
-      expect(calls).toEqual(["invite", "members"]);
+      })).resolves.toEqual({ processed: 3, status: "succeeded" });
+      expect(calls).toEqual(["invite", "members", "invitations", "members", "invitations", "withdrawal"]);
 
       const verify = await fixture.connectAsOwner();
       try {
+        expect((await verify.query(`SELECT state FROM license_request WHERE id=$1 AND company_id=$2`,[ids.expiryRequest,ids.company])).rows).toEqual([{state:'deprovisioned'}]);
+        expect((await verify.query(`SELECT count(*)::int AS count FROM lifecycle_notification WHERE company_id=$1 AND request_id=$2`,[ids.company,ids.expiryRequest])).rows[0].count).toBe(1);
         await expect(verify.query(
           `SELECT request.state,action.status,action.sent_at,transition.occurred_at
              FROM license_request request
