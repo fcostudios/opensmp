@@ -73,18 +73,18 @@ test.each([
 });
 
 test("missing reference and transport ambiguity fail closed", async () => {
-  let calls = 0;
+  let calls = 0;const observations:ConnectorCallObservationAppendInput[]=[];
   const clock = { now: () => at.getTime() }, sleep = async () => undefined;
   const connector = createAnthropicConnector({ credentialsFor: async () => [
     {vendorAccountId:account,kind:"admin_scoped",secret:"admin",status:"active",health:"ok"},
     {vendorAccountId:account,kind:"analytics",secret:"analytics",status:"active",health:"ok"},
-  ], observationSessionFor: async (input) => createConnectorCallObservationSession({ vendorAccountId: account, provisioningActionId:null,operation:input.operation,clock:()=>at,randomId:()=>requestId,append:async()=>undefined }),
+  ], observationSessionFor: async (input) => createConnectorCallObservationSession({ vendorAccountId: account, provisioningActionId:null,operation:input.operation,clock:()=>at,randomId:()=>requestId,append:async(event)=>{observations.push(event);} }),
     requestDependencies:{clock,sleep,limiter:createAnthropicRateLimiter({clock,sleep}),transport:async()=>{ calls++; throw new Error("network uncertain"); }} });
   expect(typeof connector.withdrawInvitation).toBe("function");
   expect(await connector.withdrawInvitation!({requestId,vendorAccountId:account,vendorRef:""})).toEqual(failure);
-  expect(calls).toBe(0);
+  expect(calls).toBe(0);expect(observations).toEqual([]);
   const result = await connector.withdrawInvitation!({requestId,vendorAccountId:account,vendorRef:pinned});
-  expect(result.ok).toBe(false);
+  expect(result.ok).toBe(false);expect(observations.map(({phase,classification,summary})=>({phase,classification,summary}))).toEqual([{phase:"requested",classification:null,summary:{endpoint_class:"invitations",method:"GET"}}]);
 });
 
 
@@ -94,11 +94,12 @@ test("invitation withdrawal single-DELETE gate preserves legacy deprovision retr
  pact.addInteraction({uponReceiving:"legacy invitation lookup",withRequest:{method:"GET",path:"/v1/organizations/invites",query:{limit:"1000"}},willRespondWith:{status:200,headers:{"Content-Type":"application/json"},body:page([invite(pinned)])}});
  pact.addInteraction({uponReceiving:"legacy invitation removal temporarily unavailable",withRequest:{method:"DELETE",path:"/v1/organizations/invites/"+pinned},willRespondWith:{status:500,headers:{"Content-Type":"application/json"},body:{error:"unavailable"}}});
  try{await pact.executeTest(async(server)=>{
-  const calls:{method:string;path:string}[]=[],clock={now:()=>at.getTime()},sleep=async()=>undefined;
-  const connector=createAnthropicConnector({credentialsFor:async()=>[{vendorAccountId:account,kind:"admin_scoped",secret:"contract-admin",status:"active",health:"ok"},{vendorAccountId:account,kind:"analytics",secret:"contract-analytics",status:"active",health:"ok"}],observationSessionFor:async(input)=>createConnectorCallObservationSession({vendorAccountId:account,provisioningActionId:null,operation:input.operation,clock:()=>at,randomId:()=>requestId,append:async()=>undefined}),requestDependencies:{clock,sleep,limiter:createAnthropicRateLimiter({clock,sleep}),transport:async(input)=>{
+  const observations:ConnectorCallObservationAppendInput[]=[];const calls:{method:string;path:string}[]=[],clock={now:()=>at.getTime()},sleep=async()=>undefined;
+  const connector=createAnthropicConnector({credentialsFor:async()=>[{vendorAccountId:account,kind:"admin_scoped",secret:"contract-admin",status:"active",health:"ok"},{vendorAccountId:account,kind:"analytics",secret:"contract-analytics",status:"active",health:"ok"}],observationSessionFor:async(input)=>createConnectorCallObservationSession({vendorAccountId:account,provisioningActionId:null,operation:input.operation,clock:()=>at,randomId:()=>requestId,append:async(event)=>{observations.push(event);}}),requestDependencies:{clock,sleep,limiter:createAnthropicRateLimiter({clock,sleep}),transport:async(input)=>{
    const url=new URL(input.url);calls.push({method:input.method,path:url.pathname});return fetch(new Request(new URL(url.pathname+url.search,server.url),input));
   }}});
   expect(await connector.deprovision({requestId,vendorAccountId:account,personEmail:"selected@example.test",licenseTypeName:"Claude"})).toEqual({...failure,retryable:true});
   expect(calls.filter(call=>call.method === "DELETE")).toEqual(Array.from({length:3},()=>({method:"DELETE",path:"/v1/organizations/invites/"+pinned})));
+  expect(observations.filter(event=>event.summary.method === "DELETE").map(({phase,classification,summary})=>({phase,classification,summary}))).toEqual(Array.from({length:3},()=>[{phase:"requested",classification:null,summary:{endpoint_class:"invitations",method:"DELETE"}},{phase:"failed",classification:"provider_error",summary:{endpoint_class:"invitations",method:"DELETE",http_status:500,status_class:"provider_error"}}]).flat());
  });}finally{rmSync(dir,{recursive:true,force:true});}
 });

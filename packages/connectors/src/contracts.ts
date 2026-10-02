@@ -99,7 +99,8 @@ export type InvitationWithdrawalResult =
 export function isInvitationDeletionReceipt(value: unknown, reference: string): value is { readonly id: string; readonly type: "invite_deleted" } {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const receipt=value as Record<string,unknown>;
-  return Object.keys(receipt).length === 2 && receipt.id === reference && receipt.type === "invite_deleted";
+  const keys=Object.keys(receipt).sort();
+  return keys.length === 2 && keys[0] === "id" && keys[1] === "type" && receipt.id === reference && receipt.type === "invite_deleted";
 }
 
 export interface VendorConnector {

@@ -31,7 +31,7 @@ const service=createInvitationWithdrawalService({pool,now,assertLegalTransition,
       createProvisioningConnector:InvitationWithdrawalConnectorFactory;
       createProvisioningRateLimiter:InvitationWithdrawalLimiterFactory;
     };
-    return createProductionInvitationWithdrawalConnector({database,now,parseCredentialEnvelope,kekFile:process.env.LEDGER_CREDENTIAL_KEK_FILE??"",
+    return createProductionInvitationWithdrawalConnector({database,now,parseCredentialEnvelope,
       createConnector:createProvisioningConnector,createLimiter:createProvisioningRateLimiter,
     })(context);
   },
@@ -50,5 +50,5 @@ const service=createInvitationWithdrawalService({pool,now,assertLegalTransition,
 
 export async function withdrawInvite(form: FormData): Promise<InvitationWithdrawalOutcome> {
   // Await preparation before withAudit acquires a connection; its callback only records the completed outcome.
-  return withAudit(db as unknown as Parameters<typeof withAudit>[0],await prepareWithdrawalResult(form),{occurredAt:now()});
+  return withAudit(db as unknown as Parameters<typeof withAudit>[0],await prepareWithdrawalResult(form));
 }

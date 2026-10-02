@@ -136,7 +136,7 @@ export function createProductionInvitationWithdrawalConnector(input: {
   readonly createConnector: InvitationWithdrawalConnectorFactory;
   readonly createLimiter: InvitationWithdrawalLimiterFactory;
   readonly parseCredentialEnvelope: (value: string) => Parameters<typeof decryptCredential>[0];
-  readonly kekFile: string; readonly allowedKekRoot?: string;
+  readonly kekFile?: string; readonly allowedKekRoot?: string;
 }) {
   const clock={now:()=>input.now().getTime()},sleep=async(milliseconds:number)=>new Promise<void>(resolve=>setTimeout(resolve,milliseconds));
   const limiter=input.createLimiter({clock,sleep});
@@ -144,7 +144,9 @@ export function createProductionInvitationWithdrawalConnector(input: {
     const provider=await input.database.query(`SELECT vendor.provisioning_protocol FROM vendor_account account JOIN vendor ON vendor.id=account.vendor_id
       WHERE account.id=$1 AND account.mode='automated' AND account.status='active' AND vendor.status='active' AND vendor.can_deprovision`,[context.vendorAccountId]);
     if(provider.rows[0]?.provisioning_protocol !== "rest") return null;
-    const kek=await readKekFile(input.kekFile,{allowedRoot:input.allowedKekRoot});
+    const kekFile=input.kekFile??process.env.LEDGER_CREDENTIAL_KEK_FILE;
+    if(kekFile===undefined)throw new Error("INVITATION_WITHDRAWAL_KEK_NOT_CONFIGURED");
+    const kek=await readKekFile(kekFile,{allowedRoot:input.allowedKekRoot});
     return input.createConnector({credentialsFor:async(account)=>{
       if(account !== context.vendorAccountId) throw new Error("WITHDRAWAL_ACCOUNT_MISMATCH");
       const result=await input.database.query<{encrypted_secret:string;kind:"admin_scoped"|"analytics";status:"active"|"retired";health:"ok"|"auth_failed"|"unverified"}>(`SELECT encrypted_secret,kind,status,health FROM integration_credential WHERE vendor_account_id=$1 AND status='active' ORDER BY kind`,[account]);

@@ -1,5 +1,6 @@
 import { mkdtempSync,writeFileSync,chmodSync,rmSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { createHook,executionAsyncId } from "node:async_hooks";
 import { join } from "node:path";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { encryptCredential } from "./credential-crypto";
@@ -21,10 +22,11 @@ const sent = new Date("2026-09-20T15:00:00Z");
 let fixture: PostgresFixture, owner: pg.Client, pool: pg.Pool;
 beforeAll(async () => { fixture = await createPostgresFixture(); await fixture.migrate(); owner = await fixture.connectAsOwner(); pool = new pg.Pool({connectionString:fixture.ownerUrl}); },30000);
 afterAll(async () => { await pool?.end(); await owner?.end(); await fixture?.stop(); });
-afterEach(async()=>{
+async function assertReleasedResources(){
  expect((await owner.query(`SELECT pid,state FROM pg_stat_activity WHERE datname=current_database() AND state LIKE 'idle in transaction%'`)).rows).toEqual([]);
  expect((await owner.query(`SELECT lock.pid FROM pg_locks lock JOIN pg_stat_activity activity ON activity.pid=lock.pid WHERE activity.datname=current_database() AND lock.locktype='advisory'`)).rows).toEqual([]);
-});
+}
+afterEach(assertReleasedResources);
 async function seed() {
   const companyId=randomUUID(),foreignCompanyId=randomUUID(), vendor=randomUUID(), vendorAccountId=randomUUID(),license=randomUUID(),person=randomUUID(),requestId=randomUUID(),actionId=randomUUID(),actorUserId=randomUUID();
   await owner.query(`INSERT INTO company(id,name,code,type,status,created_at,created_by) VALUES($1,'Withdraw A',$3,'internal','active',$4,'00000000-0000-0000-0000-000000000001'),($2,'Withdraw B',$5,'internal','active',$4,'00000000-0000-0000-0000-000000000001')`,[companyId,foreignCompanyId,companyId, sent,foreignCompanyId]);
@@ -84,7 +86,7 @@ test.each(["foreign","stale","accepted","ambiguous","unsupported","note","non200
  const input=await seed();const before=await snapshot(input);
  const execution=service(input,{status:kind === "accepted"?"accepted":undefined,body:kind === "ambiguous"?{id:"wrong",type:"invite_deleted"}:undefined,unsupported:kind === "unsupported",deleteStatus:kind === "non200"?202:undefined});
  const command={...input,...(kind === "foreign"?{companyId:input.foreignCompanyId}:{}),...(kind === "stale"?{actionId:randomUUID()}:{}),...(kind === "note"?{note:"  "}: {})};
- expect((await execution.service.withdraw(command)).ok).toBe(false);
+ expect(await execution.service.withdraw(command)).toEqual({ok:false,error:({foreign:"conflict",stale:"conflict",accepted:"provider_error",ambiguous:"provider_error",unsupported:"unsupported",note:"invalid",non200:"provider_error"} as const)[kind]});
  expect(await snapshot(input)).toEqual(before);
  expect(execution.calls.some(c=>c.path.includes("/users"))).toBe(false);
  if(kind !== "ambiguous" && kind !== "non200") expect(execution.calls.filter(c=>c.method === "DELETE")).toEqual([]);
@@ -159,10 +161,11 @@ test("partial action status write rolls back transition and preserves the valida
 },30000);
 
 
-test("bounded pool lock holder uses its own client for production credentials and observations",async()=>{
+test("env-configured bounded pool lock holder uses its own client for production credentials and observations",async()=>{
  const input=await seed(),before=await snapshot(input);
  const bounded=new pg.Pool({connectionString:fixture.ownerUrl,max:2,connectionTimeoutMillis:1000});
- const root=mkdtempSync(join(tmpdir(),"withdraw-production-kek-")),kekFile=join(root,"kek");
+ const root=mkdtempSync(join(tmpdir(),"withdraw-production-kek-")),kekFile=join(root,"kek"),savedKek=process.env.LEDGER_CREDENTIAL_KEK_FILE;
+ process.env.LEDGER_CREDENTIAL_KEK_FILE=kekFile;
  const kek=Uint8Array.from({length:32},(_,index)=>index+1);writeFileSync(kekFile,Buffer.from(kek).toString("base64"));chmodSync(kekFile,0o400);
  for(const kind of ["admin_scoped","analytics"] as const) await owner.query(`INSERT INTO integration_credential(vendor_account_id,kind,encrypted_secret,health,status,created_at,created_by) VALUES($1,$2,$3,'ok','active',$4,$5)`,[input.vendorAccountId,kind,JSON.stringify(await encryptCredential(kind+"-key",kek)),at,input.actorUserId]);
  const {parseCredentialEnvelope}=await import(webRequire.resolve("@smp/domain"));
@@ -175,7 +178,7 @@ test("bounded pool lock holder uses its own client for production credentials an
  if(outbound.method === "GET") {started();await gate;return new Response(JSON.stringify({data:[{id:"invite-pinned",type:"invite",email:"selected@example.test",status:"pending"}],has_more:false,first_id:"invite-pinned",last_id:"invite-pinned"}),{headers:{"content-type":"application/json"}});}
  return new Response(JSON.stringify({id:"invite-pinned",type:"invite_deleted"}),{headers:{"content-type":"application/json"}});
  });
- const execution=createInvitationWithdrawalService({pool:bounded,now:()=>at,assertLegalTransition,connectorFor:async(context,client)=>createProductionInvitationWithdrawalConnector({database:client,now:()=>at,createConnector:createAnthropicConnector,createLimiter:createAnthropicRateLimiter,parseCredentialEnvelope,kekFile,allowedKekRoot:root})(context)});
+ const execution=createInvitationWithdrawalService({pool:bounded,now:()=>at,assertLegalTransition,connectorFor:async(context,client)=>createProductionInvitationWithdrawalConnector({database:client,now:()=>at,createConnector:createAnthropicConnector,createLimiter:createAnthropicRateLimiter,parseCredentialEnvelope,allowedKekRoot:root})(context)});
  try {
  const {withAudit}=await import(new URL("../../../apps/web/src/modules/audit/with-audit.ts",import.meta.url).href);
  const submit=async(command:typeof input)=>{const outcome=await execution.withdraw(command);return withAudit(drizzle(bounded),async()=>({value:outcome,audit:{actorUserId:input.actorUserId,action:"server_action.withdrawInvite",entityType:"LicenseRequest",entityId:input.requestId,companyId:input.companyId,note:null,before:null,after:outcome}}),{occurredAt:at});};
@@ -192,7 +195,7 @@ test("bounded pool lock holder uses its own client for production credentials an
  expect((await owner.query(`SELECT action,count(*)::int AS count FROM audit_log WHERE company_id=$1 AND action IN ('invitation.withdrawn','server_action.withdrawInvite') GROUP BY action ORDER BY action`,[input.companyId])).rows).toEqual([{action:"invitation.withdrawn",count:1},{action:"server_action.withdrawInvite",count:3}]);
  expect((await owner.query(`SELECT count(*)::int AS count FROM request_transition WHERE request_id=$1`,[input.requestId])).rows[0].count).toBe(1);
  expect((await owner.query(`SELECT operation,phase FROM connector_call_observation observation JOIN provisioning_action action ON action.id=observation.provisioning_action_id WHERE action.request_id=$1 ORDER BY observation.occurred_at,observation.id`,[input.requestId])).rows).toHaveLength(4);
- }finally{release();network.mockRestore();await bounded.end();rmSync(root,{recursive:true,force:true});}
+ }finally{release();network.mockRestore();await bounded.end();rmSync(root,{recursive:true,force:true});if(savedKek===undefined)delete process.env.LEDGER_CREDENTIAL_KEK_FILE;else process.env.LEDGER_CREDENTIAL_KEK_FILE=savedKek;}
 },10000);
 
 
@@ -204,7 +207,7 @@ test("overlong note refuses and nullable trusted system actor is recorded",async
  const input=await seed(),before=await snapshot(input),execution=service(input);
  expect(await execution.service.withdraw({...input,note:"x".repeat(2001)})).toEqual({ok:false,error:"invalid"});expect(await snapshot(input)).toEqual(before);expect(execution.calls).toEqual([]);
  expect((await execution.service.withdraw({...input,actorUserId:null})).ok).toBe(true);
- expect((await owner.query(`SELECT raw_request->'actorUserId' AS actor,raw_request->'actorLabel' AS label FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId])).rows).toEqual([{actor:null,label:null}]);
+ expect((await owner.query(`SELECT raw_request->'actorUserId' AS actor,raw_request->'actorLabel' AS label,raw_request ? 'actorLabel' AS has_label FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId])).rows).toEqual([{actor:null,label:null,has_label:true}]);
 });
 test("a durable completed command refuses changed actor or note without another provider call",async()=>{
  const input=await seed(),execution=service(input);expect((await execution.service.withdraw(input)).ok).toBe(true);const before=await snapshot(input);
@@ -237,7 +240,7 @@ test.each(["requestId","actionId","commandId","note"] as const)("authorized inva
 test("authorized missing identities, inaccessible request and overlong note fail closed",async()=>{
  const input=await seed(),before=await snapshot(input),execution=await authorized(input);
  for(const field of ["requestId","actionId","commandId","note"] as const){const form=new FormData();for(const [key,value] of execution.form)if(key!==field)form.set(key,value);expect(await execution.execute(form)).toEqual({ok:false,error:"invalid"});}
- execution.form.set("note","x".repeat(2001));expect(await execution.execute(execution.form)).toEqual({ok:false,error:"invalid"});execution.form.set("note","Needed");execution.form.set("requestId",randomUUID());expect(await execution.execute(execution.form)).toEqual({ok:false,error:"forbidden"});
+ execution.form.set("note","x".repeat(2001));expect(await execution.execute(execution.form)).toEqual({ok:false,error:"invalid"});execution.form.set("requestId",randomUUID());for(const note of ["   ","x".repeat(2001)]){execution.form.set("note",note);expect(await execution.execute(execution.form)).toEqual({ok:false,error:"invalid"});}execution.form.set("note","Needed");expect(await execution.execute(execution.form)).toEqual({ok:false,error:"forbidden"});
  expect(await snapshot(input)).toEqual(before);expect(execution.calls).toEqual([]);
 });
 test("exact note limit is allowed, whitespace is normalized and service fault is audited as ambiguous",async()=>{
@@ -278,7 +281,7 @@ test("latest invitation and pinned reference are rechecked after provider I/O",a
 });
 test("anchored UUID and command scalar types reject malformed internal commands before I/O",async()=>{
  const input=await seed(),before=await snapshot(input),execution=service(input);
- for(const command of [{...input,commandId:"prefix"+input.commandId},{...input,commandId:input.commandId+"suffix"},{...input,actorUserId:7},{...input,note:7},{...input,requestId:null}]){expect(await execution.service.withdraw(command as unknown as typeof input)).toEqual({ok:false,error:"invalid"});expect(await snapshot(input)).toEqual(before);}
+ for(const command of [{...input,commandId:"prefix"+input.commandId},{...input,commandId:input.commandId+"suffix"},{...input,actorUserId:7},{...input,actorUserId:Object(input.actorUserId)},{...input,requestId:Object(input.requestId)},{...input,note:7},{...input,requestId:null}]){expect(await execution.service.withdraw(command as unknown as typeof input)).toEqual({ok:false,error:"invalid"});expect(await snapshot(input)).toEqual(before);}
  expect(execution.calls).toEqual([]);
 });
 
@@ -287,7 +290,7 @@ test("missing and overlong trusted actor refuse before intent while exact actor-
  for(const label of [null,"x".repeat(321)]){
   const input=await seed(),before=await snapshot(input),execution=service(input);
   if(label!==null)await owner.query(`UPDATE user_account SET email=$2 WHERE id=$1`,[input.actorUserId,label]);
-  expect(await execution.service.withdraw({...input,actorUserId:label===null?randomUUID():input.actorUserId})).toEqual({ok:false,error:"conflict"});
+  expect(await execution.service.withdraw({...input,actorUserId:label===null?randomUUID():input.actorUserId})).toEqual({ok:false,error:"conflict"});await assertReleasedResources();
   expect(await snapshot(input)).toEqual(before);expect(execution.calls).toEqual([]);expect((await owner.query(`SELECT id FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId])).rows).toEqual([]);
  }
  const input=await seed(),execution=service(input),label="x".repeat(320);
@@ -311,6 +314,7 @@ test.each(["status","vendor_ref","commandId"])("%s changed after durable receipt
 test("real production connector rejects a different account before network and unsupported protocol returns null",async()=>{
  const input=await seed(),root=mkdtempSync(join(tmpdir(),"us068-account-")),kekFile=join(root,"kek");writeFileSync(kekFile,Buffer.alloc(32,7).toString("base64"));chmodSync(kekFile,0o400);
  const {parseCredentialEnvelope}=await import(webRequire.resolve("@smp/domain"));
+ const savedKek=process.env.LEDGER_CREDENTIAL_KEK_FILE;process.env.LEDGER_CREDENTIAL_KEK_FILE=join(root,"missing-env-key");
  const factory=createProductionInvitationWithdrawalConnector({database:owner,now:()=>at,createConnector:createAnthropicConnector,createLimiter:createAnthropicRateLimiter,parseCredentialEnvelope,kekFile,allowedKekRoot:root});
  const context={companyId:input.companyId,requestId:input.requestId,actionId:input.actionId,vendorAccountId:input.vendorAccountId,vendorRef:"invite-pinned",withdrawalActionId:randomUUID()};
  const network=vi.spyOn(globalThis,"fetch").mockImplementation(async()=>{throw new Error("UNEXPECTED_PROVIDER_NETWORK");});
@@ -318,7 +322,7 @@ test("real production connector rejects a different account before network and u
   const connector=await factory(context);expect(connector).not.toBeNull();await expect(connector!.withdrawInvitation!({requestId:input.requestId,vendorAccountId:randomUUID(),vendorRef:"invite-pinned"})).rejects.toThrow("WITHDRAWAL_ACCOUNT_MISMATCH");expect(network).not.toHaveBeenCalled();
   await owner.query(`UPDATE vendor SET provisioning_protocol='none' WHERE id=(SELECT vendor_id FROM vendor_account WHERE id=$1)`,[input.vendorAccountId]);expect(await factory(context)).toBeNull();
   expect(await factory({...context,vendorAccountId:randomUUID()})).toBeNull();expect(network).not.toHaveBeenCalled();
- }finally{network.mockRestore();rmSync(root,{recursive:true,force:true});}
+ }finally{network.mockRestore();rmSync(root,{recursive:true,force:true});if(savedKek===undefined)delete process.env.LEDGER_CREDENTIAL_KEK_FILE;else process.env.LEDGER_CREDENTIAL_KEK_FILE=savedKek;}
 });
 
 
@@ -342,6 +346,86 @@ test("preparation keeps request rows locked until durable withdrawal intent comm
   await owner.query(`SELECT pg_advisory_unlock(hashtextextended($1,0))`,[name]);expect((await pending).ok).toBe(true);await writing;
   expect((await snapshot(input)).available-before.available).toBe(1);expect(execution.calls.filter(call=>call.method==='DELETE')).toHaveLength(1);
  }finally{
-  await owner.query(`SELECT pg_advisory_unlock(hashtextextended($1,0))`,[name]);await pending;await writing;await owner.query(`DROP TRIGGER ${name} ON provisioning_action;DROP FUNCTION ${name}();`);await writer.end();
+  await owner.query(`SELECT pg_advisory_unlock(hashtextextended($1,0))`,[name]);await Promise.allSettled([pending,...(writing?[writing]:[])]);await owner.query(`DROP TRIGGER ${name} ON provisioning_action;DROP FUNCTION ${name}();`);await writer.end();
  }
 },10000);
+
+
+test("requested-only intent with a different pinned reference refuses as conflict before retry",async()=>{
+ const input=await seed(),before=await snapshot(input),execution=service(input,{status:"accepted"});
+ expect(await execution.service.withdraw(input)).toEqual({ok:false,error:"provider_error"});
+ await owner.query(`UPDATE provisioning_action SET vendor_ref='different-pin' WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId]);
+ expect(await execution.service.withdraw(input)).toEqual({ok:false,error:"conflict"});expect(await snapshot(input)).toEqual(before);expect(execution.calls).toHaveLength(1);
+});
+
+test("suppressed durable receipt write retains reservation and refuses blind retry",async()=>{
+ const input=await seed(),before=await snapshot(input),execution=service(input),name="us068_receipt_"+input.requestId.replaceAll("-","");
+ await owner.query(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$;CREATE TRIGGER ${name} BEFORE UPDATE ON provisioning_action FOR EACH ROW WHEN (NEW.request_id='${input.requestId}'::uuid AND NEW.kind='withdraw_invite' AND NEW.raw_response IS NOT NULL) EXECUTE FUNCTION ${name}();`);
+ try{
+  expect(await execution.service.withdraw(input)).toEqual({ok:false,error:"conflict"});expect(await snapshot(input)).toEqual(before);
+  expect((await owner.query(`SELECT status,raw_response FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId])).rows).toEqual([{status:"pending",raw_response:null}]);
+  expect(await execution.service.withdraw(input)).toEqual({ok:false,error:"ambiguous"});expect(execution.calls.filter(call=>call.method==='DELETE')).toHaveLength(1);expect(await snapshot(input)).toEqual(before);
+ }finally{await owner.query(`DROP TRIGGER ${name} ON provisioning_action;DROP FUNCTION ${name}();`);}
+});
+
+test("production factory missing environment config fails closed and unsupported protocol returns unsupported",async()=>{
+ const input=await seed(),before=await snapshot(input),savedKek=process.env.LEDGER_CREDENTIAL_KEK_FILE;delete process.env.LEDGER_CREDENTIAL_KEK_FILE;
+ const {parseCredentialEnvelope}=await import(webRequire.resolve("@smp/domain"));const network=vi.spyOn(globalThis,"fetch").mockImplementation(async()=>{throw new Error("UNEXPECTED_PROVIDER_NETWORK");});
+ const execution=createInvitationWithdrawalService({pool,now:()=>at,assertLegalTransition,connectorFor:async(context,client)=>createProductionInvitationWithdrawalConnector({database:client,now:()=>at,createConnector:createAnthropicConnector,createLimiter:createAnthropicRateLimiter,parseCredentialEnvelope})(context)});
+ try{
+  await expect(execution.withdraw(input)).rejects.toThrow("INVITATION_WITHDRAWAL_KEK_NOT_CONFIGURED");expect(await snapshot(input)).toEqual(before);expect(network).not.toHaveBeenCalled();
+  expect(await execution.withdraw(input)).toEqual({ok:false,error:"ambiguous"});
+  const unsupported=await seed(),unsupportedBefore=await snapshot(unsupported);await owner.query(`UPDATE vendor SET provisioning_protocol='none' WHERE id=(SELECT vendor_id FROM vendor_account WHERE id=$1)`,[unsupported.vendorAccountId]);
+  expect(await execution.withdraw(unsupported)).toEqual({ok:false,error:"unsupported"});expect(await snapshot(unsupported)).toEqual(unsupportedBefore);expect(network).not.toHaveBeenCalled();
+ }finally{network.mockRestore();if(savedKek===undefined)delete process.env.LEDGER_CREDENTIAL_KEK_FILE;else process.env.LEDGER_CREDENTIAL_KEK_FILE=savedKek;}
+});
+
+test("production default retry sleep settles a 500 refusal without a second destructive network call",async()=>{
+ const input=await seed(),before=await snapshot(input),root=mkdtempSync(join(tmpdir(),"us068-retry-")),kekFile=join(root,"kek"),kek=Buffer.alloc(32,9);writeFileSync(kekFile,kek.toString("base64"));chmodSync(kekFile,0o400);
+ for(const kind of ["admin_scoped","analytics"] as const)await owner.query(`INSERT INTO integration_credential(vendor_account_id,kind,encrypted_secret,health,status,created_at,created_by) VALUES($1,$2,$3,'ok','active',$4,$5)`,[input.vendorAccountId,kind,JSON.stringify(await encryptCredential(kind+"-key",kek)),at,input.actorUserId]);
+ const {parseCredentialEnvelope}=await import(webRequire.resolve("@smp/domain"));const calls:string[]=[];
+ const network=vi.spyOn(globalThis,"fetch").mockImplementation(async(request)=>{const outbound=request as Request;calls.push(outbound.method);return new Response(JSON.stringify(outbound.method==='DELETE'?{error:"uncertain"}:{data:[{id:"invite-pinned",type:"invite",email:"selected@example.test",status:"pending"}],has_more:false,first_id:"invite-pinned",last_id:"invite-pinned"}),{status:outbound.method==='DELETE'?500:200,headers:{"content-type":"application/json","retry-after":"0.001"}});});
+ const execution=createInvitationWithdrawalService({pool,now:()=>at,assertLegalTransition,connectorFor:async(context,client)=>createProductionInvitationWithdrawalConnector({database:client,now:()=>at,createConnector:createAnthropicConnector,createLimiter:createAnthropicRateLimiter,parseCredentialEnvelope,kekFile,allowedKekRoot:root})(context)});
+ try{
+  expect(await execution.withdraw(input)).toEqual({ok:false,error:"provider_error"});expect(calls).toEqual(["GET","DELETE"]);expect(await snapshot(input)).toEqual(before);
+  expect((await owner.query(`SELECT phase,classification,summary FROM connector_call_observation observation JOIN provisioning_action action ON action.id=observation.provisioning_action_id WHERE action.request_id=$1 AND observation.summary->>'method'='DELETE' ORDER BY attempt,CASE phase WHEN 'requested' THEN 0 ELSE 1 END`,[input.requestId])).rows).toEqual([
+   {phase:"requested",classification:null,summary:{endpoint_class:"invitations",method:"DELETE"}},
+   {phase:"failed",classification:"provider_error",summary:{endpoint_class:"invitations",method:"DELETE",http_status:500,status_class:"provider_error"}},
+   {phase:"requested",classification:null,summary:{endpoint_class:"invitations",method:"DELETE"}},
+  ]);
+  expect(await execution.withdraw(input)).toEqual({ok:false,error:"ambiguous"});expect(calls).toEqual(["GET","DELETE"]);expect(await snapshot(input)).toEqual(before);
+ }finally{network.mockRestore();rmSync(root,{recursive:true,force:true});}
+},10000);
+
+
+test("production clock and real limiter require refill before paginated request101",async()=>{
+ const input=await seed(),before=await snapshot(input),root=mkdtempSync(join(tmpdir(),"us068-clock-")),kekFile=join(root,"kek"),kek=Buffer.alloc(32,11);writeFileSync(kekFile,kek.toString("base64"));chmodSync(kekFile,0o400);
+ for(const kind of ["admin_scoped","analytics"] as const)await owner.query(`INSERT INTO integration_credential(vendor_account_id,kind,encrypted_secret,health,status,created_at,created_by) VALUES($1,$2,$3,'ok','active',$4,$5)`,[input.vendorAccountId,kind,JSON.stringify(await encryptCredential(kind+"-key",kek)),at,input.actorUserId]);
+ const {parseCredentialEnvelope}=await import(webRequire.resolve("@smp/domain"));let milliseconds=at.getTime(),phase:"initial"|"awaiting-refill"|"refilled"="initial",clockTrigger=0;const refillTimers:number[]=[],requests:{method:string;time:number;phase:string}[]=[];let pages=0;
+ // Drive only the real Timeout causally created after this injected clock sample.
+ // Hooks stay synchronous and only record state; behavior assertions run outside the hook.
+ const now=()=>{if(phase==='awaiting-refill')clockTrigger=executionAsyncId();return new Date(milliseconds);};
+ const hook=createHook({init(asyncId,type,triggerAsyncId){if(type==='Timeout'&&phase==='awaiting-refill'&&triggerAsyncId===clockTrigger){refillTimers.push(asyncId);milliseconds=at.getTime()+60000;phase='refilled';}}});
+ const network=vi.spyOn(globalThis,"fetch").mockImplementation(async(request)=>{
+  const outbound=request as Request;requests.push({method:outbound.method,time:milliseconds,phase});
+  if(outbound.method==='DELETE')return new Response(JSON.stringify({id:"invite-pinned",type:"invite_deleted"}),{headers:{"content-type":"application/json"}});
+  pages++;const id=pages===100?"invite-pinned":"other-"+pages;
+  if(pages===100){milliseconds=at.getTime()+59999;phase='awaiting-refill';}
+  return new Response(JSON.stringify({data:[{id,type:"invite",email:"selected@example.test",status:"pending"}],has_more:pages<100,first_id:id,last_id:id}),{headers:{"content-type":"application/json"}});
+ });
+ const execution=createInvitationWithdrawalService({pool,now,assertLegalTransition,connectorFor:async(context,client)=>createProductionInvitationWithdrawalConnector({database:client,now,createConnector:createAnthropicConnector,createLimiter:createAnthropicRateLimiter,parseCredentialEnvelope,kekFile,allowedKekRoot:root})(context)});
+ try{
+  hook.enable();expect((await execution.withdraw(input)).ok).toBe(true);
+  expect(requests.slice(0,100)).toEqual(Array.from({length:100},()=>({method:"GET",time:at.getTime(),phase:"initial"})));
+  expect(requests.slice(100)).toEqual([{method:"DELETE",time:at.getTime()+60000,phase:"refilled"}]);expect(refillTimers).toHaveLength(1);expect((await snapshot(input)).available-before.available).toBe(1);
+  expect((await owner.query(`SELECT count(*)::int AS count FROM connector_call_observation observation JOIN provisioning_action action ON action.id=observation.provisioning_action_id WHERE action.request_id=$1`,[input.requestId])).rows[0].count).toBe(202);
+ }finally{hook.disable();network.mockRestore();rmSync(root,{recursive:true,force:true});}
+},10000);
+
+
+test("preparation SQL failure rolls back and preserves the original rejection without leaked locks",async()=>{
+ const input=await seed(),before=await snapshot(input),execution=service(input),name="us068_prepare_fault_"+input.requestId.replaceAll("-","");
+ await owner.query(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'PREPARATION_FAULT';END $$;CREATE TRIGGER ${name} BEFORE INSERT ON provisioning_action FOR EACH ROW WHEN (NEW.request_id='${input.requestId}'::uuid AND NEW.kind='withdraw_invite') EXECUTE FUNCTION ${name}();`);
+ try{await expect(execution.service.withdraw(input)).rejects.toThrow("PREPARATION_FAULT");await assertReleasedResources();expect(await snapshot(input)).toEqual(before);expect(execution.calls).toEqual([]);expect((await owner.query(`SELECT id FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId])).rows).toEqual([]);}
+ finally{await owner.query(`DROP TRIGGER ${name} ON provisioning_action;DROP FUNCTION ${name}();`);}
+});

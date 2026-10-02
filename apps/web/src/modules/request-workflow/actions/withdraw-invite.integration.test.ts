@@ -48,15 +48,17 @@ async function arrange(role:"group_admin"|null) {
  await owner.query(`INSERT INTO license_request(id,request_no,person_id,company_id,vendor_account_id,license_type_id,state,justification,created_at,created_by) VALUES($1,$1::uuid::text,$2,$3,$4,$5,'invited','Need',$6,$7)`,[request,person,company,account,license,at,actor]);
  await owner.query(`INSERT INTO provisioning_action(id,request_id,vendor_account_id,kind,mode,status,vendor_ref,sent_at,created_at) VALUES($1,$2,$3,'invite','automated','sent','invite-pinned',$4,$4)`,[action,request,account,at]);
  const clock={now:()=>at.getTime()},sleep=async()=>undefined;
- let remoteCalls=0;
+ let remoteCalls=0;let observationClient:pg.PoolClient,observationAction:string;
  const connector=createAnthropicConnector({credentialsFor:async()=>[
  {vendorAccountId:account,kind:"admin_scoped",secret:"admin",status:"active",health:"ok"},{vendorAccountId:account,kind:"analytics",secret:"analytics",status:"active",health:"ok"},
- ],observationSessionFor:async(operation)=>createConnectorCallObservationSession({vendorAccountId:account,provisioningActionId:null,operation:operation.operation,clock:()=>at,randomId:randomUUID,append:async()=>undefined}),requestDependencies:{clock,sleep,limiter:createAnthropicRateLimiter({clock,sleep}),transport:async(input)=>{
+ ],observationSessionFor:async(operation)=>createConnectorCallObservationSession({vendorAccountId:account,provisioningActionId:observationAction,operation:operation.operation,clock:()=>at,randomId:randomUUID,append:async(event)=>{
+ await observationClient.query(`INSERT INTO connector_call_observation(vendor_account_id,provisioning_action_id,correlation_id,operation,attempt,phase,classification,summary,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[event.vendorAccountId,event.provisioningActionId,event.correlationId,event.operation,event.attempt,event.phase,event.classification,event.summary,event.occurredAt]);
+ }}),requestDependencies:{clock,sleep,limiter:createAnthropicRateLimiter({clock,sleep}),transport:async(input)=>{
  remoteCalls++;return new Response(JSON.stringify(input.method === "DELETE"?{id:"invite-pinned",type:"invite_deleted"}:{data:[{id:"invite-pinned",type:"invite",email:"selected@example.test",status:"pending"}],has_more:false,first_id:"invite-pinned",last_id:"invite-pinned"}),{headers:{"content-type":"application/json"}});
  }}});
  const database=drizzle(pool,{schema});
  const entrypoints=createServerAuthorizationEntrypoints({loadSession:async()=>({user:{idpSubject:actor}}),repository:createAuthorizationRepository(database)});
- const execute=createAuthorizedInvitationWithdrawal({pool,loadAuthorization:entrypoints.loadCurrentLedgerAuthorization,service:createInvitationWithdrawalService({pool,now:()=>at,assertLegalTransition,connectorFor:async()=>connector}),recordOutcome:async(userId,requestId,outcome)=>{await withAudit(database,async()=>({value:outcome,audit:{actorUserId:userId,action:"server_action.withdrawInvite",entityType:"LicenseRequest",entityId:requestId??request,companyId:company,note:null,before:null,after:outcome}}),{occurredAt:at});}});
+ const execute=createAuthorizedInvitationWithdrawal({pool,loadAuthorization:entrypoints.loadCurrentLedgerAuthorization,service:createInvitationWithdrawalService({pool,now:()=>at,assertLegalTransition,connectorFor:async(context,client)=>{observationClient=client;observationAction=context.withdrawalActionId;return connector;}}),recordOutcome:async(userId,requestId,outcome)=>{await withAudit(database,async()=>({value:outcome,audit:{actorUserId:userId,action:"server_action.withdrawInvite",entityType:"LicenseRequest",entityId:requestId??request,companyId:company,note:null,before:null,after:outcome}}),{occurredAt:at});}});
  const form=new FormData();form.set("requestId",request);form.set("actionId",action);form.set("commandId",action);form.set("note","Required withdrawal note");form.set("actorUserId",randomUUID());form.set("companyId",randomUUID());form.set("actorLabel","FORGED ACTOR");
  return {execute,form,actor,company,request,action,account,vendor,database,entrypoints,remoteCalls:()=>remoteCalls};
 }
@@ -101,6 +103,12 @@ test("foreign request/action pairing cannot withdraw another company's invitatio
 test("authorized withdrawal persists immutable human actor and note through unchanged reader into Acciones",async()=>{
  const selected=await arrange("group_admin"),foreign=await arrange("group_admin");
  const outcome=await selected.execute(selected.form);expect(outcome.ok).toBe(true);if(!outcome.ok)throw new Error("WITHDRAWAL_FAILED");
+ expect((await owner.query(`SELECT observation.vendor_account_id,observation.provisioning_action_id,observation.operation,observation.phase,observation.classification,observation.summary FROM connector_call_observation observation JOIN provisioning_action action ON action.id=observation.provisioning_action_id JOIN license_request request ON request.id=action.request_id WHERE request.id=$1 AND request.company_id=$2 ORDER BY observation.summary->>'method',observation.phase`,[selected.request,selected.company])).rows).toEqual([
+  {vendor_account_id:selected.account,provisioning_action_id:outcome.actionId,operation:"deprovision",phase:"requested",classification:null,summary:{endpoint_class:"invitations",method:"DELETE"}},
+  {vendor_account_id:selected.account,provisioning_action_id:outcome.actionId,operation:"deprovision",phase:"succeeded",classification:"success",summary:{endpoint_class:"invitations",method:"DELETE",http_status:200,status_class:"success"}},
+  {vendor_account_id:selected.account,provisioning_action_id:outcome.actionId,operation:"deprovision",phase:"requested",classification:null,summary:{endpoint_class:"invitations",method:"GET"}},
+  {vendor_account_id:selected.account,provisioning_action_id:outcome.actionId,operation:"deprovision",phase:"succeeded",classification:"success",summary:{endpoint_class:"invitations",method:"GET",http_status:200,status_class:"success"}},
+ ]);
  await owner.query(`INSERT INTO audit_log(actor_user_id,action,entity_type,entity_id,company_id,note,occurred_at) VALUES($1,'invitation.withdrawn','ProvisioningAction',$2,$3,'Foreign tenant note',$4)`,[foreign.actor,outcome.actionId,foreign.company,at]);
  await owner.query(`UPDATE user_account SET email='renamed@auth.test' WHERE id=$1`,[selected.actor]);
  expect(await selected.execute(selected.form)).toEqual(outcome);expect(selected.remoteCalls()).toBe(2);

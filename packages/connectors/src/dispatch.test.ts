@@ -1339,7 +1339,8 @@ describe("connector source-package build", () => {
 
 it("invitation deletion receipt confirms only the exact pinned identity and invite type",()=>{
  expect(isInvitationDeletionReceipt({id:"invite-pinned",type:"invite_deleted"},"invite-pinned")).toBe(true);
- for(const receipt of [null,undefined,false,1,"invite_deleted",[],Object.assign([],{id:"invite-pinned",type:"invite_deleted"}),{}, {id:"invite-pinned"},{type:"invite_deleted"},{id:"foreign",type:"invite_deleted"},{id:"invite-pinned",type:"user_deleted"},{id:"invite-pinned",type:"invite_deleted",extra:true}]){
+ expect(isInvitationDeletionReceipt({type:"invite_deleted",id:"invite-pinned"},"invite-pinned")).toBe(true);
+ for(const receipt of [null,undefined,false,1,"invite_deleted",Object.assign(()=>undefined,{id:"invite-pinned",type:"invite_deleted"}),Object.assign(Object.create({id:"invite-pinned",type:"invite_deleted"}),{unrelated:true,another:true}),Object.assign(Object.create({id:"invite-pinned"}),{type:"invite_deleted",foo:true}),Object.assign(Object.create({type:"invite_deleted"}),{id:"invite-pinned",zzz:true}),[],Object.assign([],{id:"invite-pinned",type:"invite_deleted"}),{}, {id:"invite-pinned"},{type:"invite_deleted"},{id:"foreign",type:"invite_deleted"},{id:"invite-pinned",type:"user_deleted"},{id:"invite-pinned",type:"invite_deleted",extra:true}]){
   expect(isInvitationDeletionReceipt(receipt,"invite-pinned")).toBe(false);
  }
 });
