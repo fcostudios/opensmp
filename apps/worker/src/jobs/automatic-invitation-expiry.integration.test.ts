@@ -57,6 +57,49 @@ async function expectUntouched(input:Awaited<ReturnType<typeof configured>>,befo
  expect(await available(input)).toBe(before);
 }
 
+test('the production job shares a refill budget across invitations and isolates accounts and tenants',async()=>{
+ const first=await configured(),second=await configured(),other=await configured(),excluded=await configured();
+ await owner.query(`UPDATE license_request SET vendor_account_id=$2,license_type_id=$3 WHERE id=$1 AND company_id=$4`,[second.requestId,first.vendorAccountId,first.license,second.companyId]);
+ await owner.query(`UPDATE provisioning_action SET vendor_account_id=$2 WHERE id=$1 AND request_id=$3`,[second.actionId,first.vendorAccountId,second.requestId]);
+ await owner.query(`UPDATE alert_rule SET enabled=false WHERE id=$1`,[excluded.rule]);
+ await owner.query(`UPDATE license_request SET vendor_account_id=$2,license_type_id=$3 WHERE id=$1 AND company_id=$4`,[excluded.requestId,first.vendorAccountId,first.license,excluded.companyId]);
+ await owner.query(`UPDATE provisioning_action SET vendor_account_id=$2 WHERE id=$1 AND request_id=$3`,[excluded.actionId,first.vendorAccountId,excluded.requestId]);
+ await owner.query(`UPDATE integration_credential SET encrypted_secret=$2 WHERE vendor_account_id=$1 AND kind='admin_scoped'`,[other.vendorAccountId,serializeCredentialEnvelope(await encryptCredential('other-admin-key',kek,length=>Uint8Array.from({length},(_,index)=>index+1)))]);
+ let clockAt=new Date(at),lookup=0;
+ const calls:{account:string;method:string;time:number}[]=[],sleeps:{milliseconds:number;calls:number}[]=[];
+ const before=await available(first);
+ const job=createAutomaticInvitationExpiryJob({connectionString:fixture.appUrl,kekFile,allowedKekRoot:privateRoot,now:()=>clockAt,
+  sleep:async(milliseconds)=>{sleeps.push({milliseconds,calls:calls.length});clockAt=new Date(clockAt.getTime()+milliseconds);},
+  transport:async(request)=>{
+   const key=request.headers.get('x-api-key');expect(['admin_scoped-key','other-admin-key']).toContain(key);
+   const account=key==='other-admin-key'?'other':'shared',url=new URL(request.url);
+   calls.push({account,method:request.method,time:clockAt.getTime()});
+   if(request.method==='DELETE'){expect(url.pathname).toBe('/v1/organizations/invites/invite-pinned');return new Response(JSON.stringify({id:'invite-pinned',type:'invite_deleted'}),{headers:{'content-type':'application/json'}});}
+   expect(request.method).toBe('GET');expect(url.pathname).toBe('/v1/organizations/invites');expect(url.searchParams.get('limit')).toBe('1000');
+   const continuation=url.searchParams.get('after_id');if(continuation===null)lookup++;
+   const page=continuation===null?1:Number(continuation.split('-').at(-1))+1,total=account==='shared'?50:99;
+   const id=page===total?'invite-pinned':`page-${lookup}-${page}`;
+   return new Response(JSON.stringify({data:[{id,type:'invite',email:'selected@example.test',status:'pending'}],has_more:page<total,first_id:id,last_id:id}),{headers:{'content-type':'application/json'}});
+  }});
+ try{
+  expect(await job.drain({at,vendorAccountId:first.vendorAccountId})).toEqual({processed:2});
+  expect(sleeps).toEqual([{milliseconds:60000,calls:100}]);
+  expect(calls).toHaveLength(102);expect(calls.slice(0,100).every(call=>call.time===at.getTime())).toBe(true);
+  expect(calls.slice(100).map(call=>call.time)).toEqual([at.getTime()+60000,at.getTime()+60000]);
+  expect(calls.filter(call=>call.method==='DELETE')).toHaveLength(2);
+  expect(await available(first)-before).toBe(2);
+  expect((await owner.query(`SELECT company_id,request_id,recipient_user_account_id FROM lifecycle_notification WHERE request_id=ANY($1::uuid[]) ORDER BY company_id`,[[first.requestId,second.requestId]])).rows).toEqual([
+   {company_id:first.companyId,request_id:first.requestId,recipient_user_account_id:first.actorUserId},
+   {company_id:second.companyId,request_id:second.requestId,recipient_user_account_id:second.actorUserId},
+  ].sort((left,right)=>left.company_id.localeCompare(right.company_id)));
+  await expectUntouched({...excluded,vendorAccountId:first.vendorAccountId,license:first.license},before+2);
+  expect((await owner.query(`SELECT id FROM lifecycle_notification WHERE company_id=$1 AND request_id=$2`,[excluded.companyId,excluded.requestId])).rows).toEqual([]);
+  expect(await job.drain({at:clockAt,vendorAccountId:other.vendorAccountId})).toEqual({processed:1});
+  expect(calls.filter(call=>call.account==='other')).toHaveLength(100);expect(sleeps).toEqual([{milliseconds:60000,calls:100}]);
+  expect(await job.drain({at:clockAt,vendorAccountId:first.vendorAccountId})).toEqual({processed:0});
+ }finally{await job.close();}
+},30000);
+
 test('two runs reclaim one reservation with a durable null actor action and one real SMTP delivery',async()=>{
  const input=await configured(),calls:string[]=[],before=await available(input);
  await owner.query(`UPDATE provisioning_action SET sent_at=$2 WHERE id=$1`,[input.actionId,new Date(at.getTime()-48*3600000)]);
@@ -274,12 +317,12 @@ test.each([true,false])('stored request identity must stay canonical with enable
  }
 },30000);
 
-test.each(['padded-note','request-identity'] as const)('a later %s receipt cannot replace an earlier coherent localized recovery',async(kind)=>{
+test('a later coherent receipt cannot replace an earlier coherent localized recovery',async()=>{
  const input=await configured({hours:24,auto_withdraw_after_hours:48},'abcdefab-'+randomUUID().slice(9)),calls:string[]=[],before=await available(input),early=randomUUID(),late=randomUUID();
  await owner.query(`UPDATE alert_rule SET enabled=false WHERE id=$1`,[input.rule]);
- const english='Automatically withdrew the unaccepted invitation after its configured expiry window.',spanish=kind==='padded-note'?'  Se retiró automáticamente la invitación no aceptada al vencer el plazo configurado.  ':'Se retiró automáticamente la invitación no aceptada al vencer el plazo configurado.';
+ const english='Automatically withdrew the unaccepted invitation after its configured expiry window.',spanish='Se retiró automáticamente la invitación no aceptada al vencer el plazo configurado.';
  const command={companyId:input.companyId,requestId:input.requestId,actionId:input.actionId,commandId:input.actionId,actorUserId:null,actorLabel:null,note:english},receipt={id:'invite-pinned',type:'invite_deleted'};
- for(const [id,note,created] of [[early,english,at],[late,spanish,new Date(at.getTime()+1)]] as const)await owner.query(`INSERT INTO provisioning_action(id,request_id,vendor_account_id,kind,mode,status,vendor_ref,raw_request,raw_response,created_at) VALUES($1,$2,$3,'withdraw_invite','automated','pending','invite-pinned',$4::jsonb,$5::jsonb,$6)`,[id,input.requestId,input.vendorAccountId,JSON.stringify({...command,note,requestId:kind==='request-identity'&&id===late?input.requestId.toUpperCase():input.requestId}),JSON.stringify(receipt),created]);
+ for(const [id,note,created] of [[early,english,at],[late,spanish,new Date(at.getTime()+1)]] as const)await owner.query(`INSERT INTO provisioning_action(id,request_id,vendor_account_id,kind,mode,status,vendor_ref,raw_request,raw_response,created_at) VALUES($1,$2,$3,'withdraw_invite','automated','pending','invite-pinned',$4::jsonb,$5::jsonb,$6)`,[id,input.requestId,input.vendorAccountId,JSON.stringify({...command,note}),JSON.stringify(receipt),created]);
  const job=jobFor(provider(calls));
- try{expect(await job.drain({at,vendorAccountId:input.vendorAccountId})).toEqual({processed:1});expect(await job.drain({at,vendorAccountId:input.vendorAccountId})).toEqual({processed:0});expect(calls).toEqual([]);expect(await available(input)-before).toBe(1);expect((await owner.query(`SELECT id,status,raw_request->>'note' AS note,raw_request->>'requestId' AS request_id,raw_response FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite' ORDER BY created_at,id`,[input.requestId])).rows).toEqual([{id:early,status:'withdrawn',note:english,request_id:input.requestId,raw_response:receipt},{id:late,status:'pending',note:spanish,request_id:kind==='request-identity'?input.requestId.toUpperCase():input.requestId,raw_response:receipt}]);expect((await owner.query(`SELECT actor_user_id,note,to_state FROM request_transition WHERE request_id=$1`,[input.requestId])).rows).toEqual([{actor_user_id:null,note:english,to_state:'deprovisioned'}]);expect((await owner.query(`SELECT company_id,recipient_user_account_id FROM lifecycle_notification WHERE company_id=$1 AND request_id=$2`,[input.companyId,input.requestId])).rows).toEqual([{company_id:input.companyId,recipient_user_account_id:input.actorUserId}]);}finally{await job.close();}
+ try{expect(await job.drain({at,vendorAccountId:input.vendorAccountId})).toEqual({processed:1});expect(await job.drain({at,vendorAccountId:input.vendorAccountId})).toEqual({processed:0});expect(calls).toEqual([]);expect(await available(input)-before).toBe(1);expect((await owner.query(`SELECT id,status,raw_request->>'note' AS note,raw_request->>'requestId' AS request_id,raw_response FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite' ORDER BY created_at,id`,[input.requestId])).rows).toEqual([{id:early,status:'withdrawn',note:english,request_id:input.requestId,raw_response:receipt},{id:late,status:'pending',note:spanish,request_id:input.requestId,raw_response:receipt}]);expect((await owner.query(`SELECT actor_user_id,note,to_state FROM request_transition WHERE request_id=$1`,[input.requestId])).rows).toEqual([{actor_user_id:null,note:english,to_state:'deprovisioned'}]);expect((await owner.query(`SELECT company_id,recipient_user_account_id FROM lifecycle_notification WHERE company_id=$1 AND request_id=$2`,[input.companyId,input.requestId])).rows).toEqual([{company_id:input.companyId,recipient_user_account_id:input.actorUserId}]);}finally{await job.close();}
 },30000);

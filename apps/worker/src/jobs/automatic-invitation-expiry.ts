@@ -25,6 +25,7 @@ function uuid(value: string): boolean { return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f
 
 export function createAutomaticInvitationExpiryJob(options: AutomaticInvitationExpiryJobOptions) {
   const pool = new pg.Pool({ connectionString: options.connectionString });
+  const limiter = createProvisioningRateLimiter({clock:{now:()=>options.now().getTime()},sleep:options.sleep});
 
   async function candidates(database: pg.Pool | pg.PoolClient, at: Date, vendorAccountId?: string, identity?: { companyId: string; requestId: string; actionId: string }): Promise<Candidate[]> {
     const scope = identity ? sql`request.company_id=${identity.companyId}::uuid AND request.id=${identity.requestId}::uuid`
@@ -83,7 +84,8 @@ export function createAutomaticInvitationExpiryJob(options: AutomaticInvitationE
       const command = row.rawRequest as InvitationWithdrawalCommand | null;
       // @equivalent: Actual SQL predicates already guarantee a truthy decoded
       // command and exact company/action strings. Only those identity prefixes
-      // are redundant; requestId and normalized-note gates affect Map arbitration.
+      // are redundant. Other guard equivalence depends on earliest-intent
+      // service validation and first-wins recovery, not on SQL identity alone.
       if (command && command.companyId === row.companyId && command.requestId === row.requestId
         && command.actionId === row.actionId && command.commandId === row.actionId && command.actorUserId === null
         && typeof command.note === "string" && command.note.trim() === command.note
@@ -104,7 +106,7 @@ export function createAutomaticInvitationExpiryJob(options: AutomaticInvitationE
       const service = createInvitationWithdrawalService({
         pool, now: options.now, assertLegalTransition,
         connectorFor: async (context,database) => createProductionInvitationWithdrawalConnector({
-          database, now: options.now, createConnector: createProvisioningConnector, createLimiter: createProvisioningRateLimiter,
+          database, now: options.now, createConnector: createProvisioningConnector, createLimiter: () => limiter,
           parseCredentialEnvelope, kekFile: options.kekFile, allowedKekRoot: options.allowedKekRoot,
           sleep: options.sleep, transport: options.transport,
         })(context),
@@ -117,7 +119,7 @@ export function createAutomaticInvitationExpiryJob(options: AutomaticInvitationE
         },
       });
       const commands = new Map<string,InvitationWithdrawalCommand>();
-      for (const command of await recoverable(vendorAccountId)) commands.set(command.actionId,command);
+      for (const command of await recoverable(vendorAccountId)) if (!commands.has(command.actionId)) commands.set(command.actionId,command);
       for (const candidate of await candidates(pool,at,vendorAccountId)) {
         if (!commands.has(candidate.actionId) && await eligible(pool,candidate,false)) commands.set(candidate.actionId,{
           companyId: candidate.companyId, requestId: candidate.requestId, actionId: candidate.actionId,
