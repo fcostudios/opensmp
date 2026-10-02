@@ -802,6 +802,6 @@ _No stories linked to this change yet._
 | Story | Name | Sprint | Status | File |
 |-------|------|--------|--------|------|
 | **US-067** | Surface overdue invitations with configurable alerts | Sprint 3 | ✅ dev_done | [r1_misc_us_067.md](sprint-3/r1_misc_us_067.md) |
-| **US-068** | Withdraw a pending invitation safely from exceptions | Sprint 3 | ⬜ backlog | [r1_misc_us_068.md](sprint-3/r1_misc_us_068.md) |
+| **US-068** | Withdraw a pending invitation safely from exceptions | Sprint 3 | ✅ dev_done | [r1_misc_us_068.md](sprint-3/r1_misc_us_068.md) |
 | **US-069** | Expire stale invitations automatically and notify the requester | Sprint 3 | ⬜ backlog | [r1_misc_us_069.md](sprint-3/r1_misc_us_069.md) |
 

@@ -1,5 +1,5 @@
 <!-- nous-sprint-stamp
-generated_at: 2026-10-02T02:42:50Z
+generated_at: 2026-10-02T09:16:00Z
 current_sprint: sprint-3
 sprints_hash: d84c64fec8470c24
 -->
@@ -105,7 +105,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | 13 | full-stack | **US-028** ⬜ | Reclamation proposals: approve or dismiss | 3SP | `See story file` | — | US-024, US-027 | — | — | [r1_misc_us_028.md](sprint-3/r1_misc_us_028.md) |
 | 14 | full-stack | **US-058** ✅ | Anthropic connector conformance and Pact contracts | 1SP | `See story file` | CHG-045 | US-056, US-057 | →5 | — | [r1_misc_us_058.md](sprint-3/r1_misc_us_058.md) |
 | 15 | full-stack | **US-064** ✅ | Route provider no-seat responses to the capacity workflow | 1SP | `See story file` | CHG-054 | US-014, US-023, US-063 | →1 | — | [r1_misc_us_064.md](sprint-3/r1_misc_us_064.md) |
-| 16 | full-stack | **US-068** ⬜ | Withdraw a pending invitation safely from exceptions | 1SP | `See story file` | CHG-063 | US-019, US-042, US-067 | →2 | — | [r1_misc_us_068.md](sprint-3/r1_misc_us_068.md) |
+| 16 | full-stack | **US-068** ✅ | Withdraw a pending invitation safely from exceptions | 1SP | `See story file` | CHG-063 | US-019, US-042, US-067 | →2 | — | [r1_misc_us_068.md](sprint-3/r1_misc_us_068.md) |
 | 17 | full-stack | **US-069** ⬜ | Expire stale invitations automatically and notify the requester | 1SP | `See story file` | CHG-063 | US-019, US-042, US-068 | →1 | — | [r1_misc_us_069.md](sprint-3/r1_misc_us_069.md) |
 | 18 | full-stack | **US-055** ⬜ | API-less ingestion: member/usage CSV import + manual register upkeep | 3SP | `See story file` | — | US-003, US-025, US-026, US-030 | — | — | [r1_misc_us_055.md](sprint-3/r1_misc_us_055.md) |
 | 19 | full-stack | **US-063** ✅ | Deliver approved requests as vendor invitations within 15 minutes | 1SP | `See story file` | CHG-054 | US-014, US-042, US-046, US-056, US-057, US-058 | →4 | — | [r1_misc_us_063.md](sprint-3/r1_misc_us_063.md) |
