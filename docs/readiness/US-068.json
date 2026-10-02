@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "e15c0cb5c686d1a97998d41f14fe957f3fcd407bcba131c4ddb0b4b235d1af07",
+  "readiness_payload_sha256": "3e438753d5903237ac370941c87ce42fa8cddc4f8f48aa942c87d5748fca5762",
   "work_id": "US-068",
   "kind": "US",
   "work_type": "functional",
@@ -48,7 +48,7 @@
   "signals": {
     "routes_or_screens": 2,
     "acceptance_flows": 3,
-    "expected_changed_files": 20,
+    "expected_changed_files": 19,
     "expected_mutation_shards": 7,
     "lifecycle_or_concurrency_boundaries": 1,
     "external_integrations": 1,
@@ -91,7 +91,7 @@
       "statement": "Exact implementation plan, file count and mutation scope depend on the delivered US-067 read model.",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Post-US-067 bounded read-only review confirms 17 production/test paths plus readiness, plan and append-only feedback = 20 total forecast files. No migration or tooling change. Existing TESTING section 3 already covers the canonical withdrawal contract. New Pact file covers the distinct optional connector method without redundant existing connector.test edits; existing exceptions-view tests retain unchanged composition assertions while table tests own form wiring. Shared DB service uses required injected real domain lifecycle validator to avoid new runtime dependency/lockfile edits. Seven provisional mutation groupings; actual ordinary preflight is authoritative. Exact manifest and AC oracles are in the bound plan. Stop at a task boundary for reassessment if an additional path or material boundary is required; never conceal growth."
+      "resolution": "Post-US-067 technical review and first mutation preview refine the manifest to 16 production/test paths plus readiness, plan and feedback = 19 total. Restore existing read-repository source/test unchanged: its Group Admin rawRequest projection already contains durable withdrawal command metadata. Shared service snapshots trusted actor display label from the real database with actor ID/note; RequestRecord validates identity and bounded metadata and renders only actor/note. New action integration verifies actual authorized withdrawal through unchanged reader and rendered Acciones; adjacent exceptions-view.test verifies action/locale wiring for its mutation shard. Existing TESTING section3 already covers this contract. No migration, tooling or dependency changes. Required real domain validator and approved neutral provider composition retained. Review repairs enforce exact HTTP200 and eliminate nested bounded-pool acquisition through short post-service result auditing plus credential/observation operations on the checked-out service client after preparation commits. Budget remains310 with same outcome/scopes/screens/flows/boundary. Stop for reassessment if additional paths or budget expansion are needed. Ordinary preflight determines actual shards."
     }
   ],
   "dependencies": [],
@@ -100,8 +100,8 @@
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "US068-READY-20261002",
-    "payload_sha256": "e15c0cb5c686d1a97998d41f14fe957f3fcd407bcba131c4ddb0b4b235d1af07"
+    "evidence": "US068-READY-REV1-20261002",
+    "payload_sha256": "3e438753d5903237ac370941c87ce42fa8cddc4f8f48aa942c87d5748fca5762"
   },
   "actuals": null,
   "policy_bootstrap": false,
