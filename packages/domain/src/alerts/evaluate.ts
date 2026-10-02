@@ -76,6 +76,8 @@ export function evaluateAlertRule(
       ? facts.lowPoolFloor
       : thresholds[thresholdName];
   const measure = facts[factName];
+  // @equivalent: Removing only the typeof guard preserves this runtime boundary:
+  // the following non-coercing Number.isFinite rejects every non-number too.
   if (typeof threshold !== "number" || !Number.isFinite(threshold)) {
     throw new TypeError(
       rule.type === "low_pool" && facts.lowPoolFloor !== undefined

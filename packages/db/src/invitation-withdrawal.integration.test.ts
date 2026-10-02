@@ -525,3 +525,45 @@ test("expiry notice failure rolls back finalization but confirmed receipt recove
  expect((await owner.query(`SELECT actor_user_id,note FROM audit_log WHERE company_id=$1 AND action='invitation.withdrawn'`,[input.companyId])).rows).toEqual([{actor_user_id:null,note:command.note}]);
  expect((await replay.service.withdraw({...command,companyId:input.foreignCompanyId})).ok).toBe(false);
 },30000);
+
+
+test.each(['wrong','missing','uppercase'] as const)('shared service refuses %s stored request identity before receipt recovery',async(kind)=>{
+ const input=await seed({requestId:'abcdefab-'+randomUUID().slice(9)}),before=await snapshot(input),execution=service(input),receipt={id:'invite-pinned',type:'invite_deleted'},withdrawalId=randomUUID();
+ const stored:Record<string,unknown>={...input,requestId:kind==='wrong'?randomUUID():input.requestId.toUpperCase(),actorLabel:input.actorUserId+'@test.example'};
+ if(kind==='missing')delete stored.requestId;
+ await owner.query(`INSERT INTO provisioning_action(id,request_id,vendor_account_id,kind,mode,status,vendor_ref,raw_request,raw_response,created_at) VALUES($1,$2,$3,'withdraw_invite','automated','pending','invite-pinned',$4::jsonb,$5::jsonb,$6)`,[withdrawalId,input.requestId,input.vendorAccountId,JSON.stringify(stored),JSON.stringify(receipt),at]);
+ expect(await execution.service.withdraw({...input,requestId:input.requestId.toUpperCase()})).toEqual({ok:false,error:'conflict'});
+ expect(execution.calls).toEqual([]);expect(await snapshot(input)).toEqual(before);
+ expect((await owner.query(`SELECT status,raw_request,raw_response FROM provisioning_action WHERE id=$1 AND request_id=$2`,[withdrawalId,input.requestId])).rows).toEqual([{status:'pending',raw_request:stored,raw_response:receipt}]);
+ expect((await owner.query(`SELECT id FROM request_transition WHERE request_id=$1`,[input.requestId])).rows).toEqual([]);
+ expect((await owner.query(`SELECT id FROM audit_log WHERE company_id=$1 AND action='invitation.withdrawn'`,[input.companyId])).rows).toEqual([]);
+},30000);
+
+test('final revalidation refuses provider-time stored request corruption and preserves the receipt for canonical recovery',async()=>{
+ const input=await seed({requestId:'abcdefab-'+randomUUID().slice(9)}),before=await snapshot(input),wrong=randomUUID();
+ const execution=service(input,{beforeDelete:async()=>{await owner.query(`UPDATE provisioning_action SET raw_request=jsonb_set(raw_request,'{requestId}',to_jsonb($2::text)) WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId,wrong]);}});
+ expect(await execution.service.withdraw(input)).toEqual({ok:false,error:'conflict'});expect(await snapshot(input)).toEqual(before);
+ expect((await owner.query(`SELECT status,raw_request->>'requestId' AS request_id,raw_response FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId])).rows).toEqual([{status:'pending',request_id:wrong,raw_response:{id:'invite-pinned',type:'invite_deleted'}}]);
+ expect((await owner.query(`SELECT id FROM request_transition WHERE request_id=$1`,[input.requestId])).rows).toEqual([]);expect((await owner.query(`SELECT id FROM audit_log WHERE company_id=$1 AND action='invitation.withdrawn'`,[input.companyId])).rows).toEqual([]);
+ await owner.query(`UPDATE provisioning_action SET raw_request=jsonb_set(raw_request,'{requestId}',to_jsonb($2::text)) WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId,input.requestId]);
+ expect((await execution.service.withdraw({...input,requestId:input.requestId.toUpperCase()})).ok).toBe(true);
+ expect(execution.calls.filter(call=>call.method==='DELETE')).toHaveLength(1);expect((await snapshot(input)).available-before.available).toBe(1);
+ expect((await owner.query(`SELECT request_id,actor_user_id,note FROM request_transition WHERE request_id=$1`,[input.requestId])).rows).toEqual([{request_id:input.requestId,actor_user_id:input.actorUserId,note:input.note}]);
+},30000);
+
+
+test('completed withdrawal checks stored request identity before its idempotent shortcut',async()=>{
+ const input=await seed({requestId:'abcdefab-'+randomUUID().slice(9)}),execution=service(input);
+ expect((await execution.service.withdraw(input)).ok).toBe(true);
+ const completed=await snapshot(input),row=(await owner.query(`SELECT id,raw_request,raw_response FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId])).rows[0];
+ for(const kind of ['wrong','missing','uppercase'] as const){
+  const stored:Record<string,unknown>={...row.raw_request,requestId:kind==='wrong'?randomUUID():input.requestId.toUpperCase()};if(kind==='missing')delete stored.requestId;
+  await owner.query(`UPDATE provisioning_action SET raw_request=$2::jsonb WHERE id=$1`,[row.id,JSON.stringify(stored)]);
+  expect(await execution.service.withdraw({...input,requestId:input.requestId.toUpperCase()})).toEqual({ok:false,error:'conflict'});
+  expect(await snapshot(input)).toEqual(completed);
+  expect((await owner.query(`SELECT status,raw_request,raw_response FROM provisioning_action WHERE id=$1`,[row.id])).rows).toEqual([{status:'withdrawn',raw_request:stored,raw_response:row.raw_response}]);
+ }
+ expect(execution.calls.filter(call=>call.method==='DELETE')).toHaveLength(1);
+ expect((await owner.query(`SELECT count(*)::int AS count FROM request_transition WHERE request_id=$1`,[input.requestId])).rows[0].count).toBe(1);
+ expect((await owner.query(`SELECT count(*)::int AS count FROM audit_log WHERE company_id=$1 AND action='invitation.withdrawn'`,[input.companyId])).rows[0].count).toBe(1);
+},30000);

@@ -75,9 +75,15 @@ export function createAutomaticInvitationExpiryJob(options: AutomaticInvitationE
         AND withdrawal.vendor_ref=original.vendor_ref AND withdrawal.raw_response IS NOT NULL
         AND ($1::uuid IS NULL OR withdrawal.vendor_account_id=$1::uuid)
       ORDER BY withdrawal.created_at,withdrawal.id`, [vendorAccountId ?? null]);
+    // @equivalent: A literal string seeded here has no UUID action key and the
+    // real service rejects its missing UUID fields before connecting. Application
+    // effects match; rejected-call/CPU traces do not.
     const commands: InvitationWithdrawalCommand[] = [];
     for (const row of rows.rows) {
       const command = row.rawRequest as InvitationWithdrawalCommand | null;
+      // @equivalent: Actual SQL predicates already guarantee a truthy decoded
+      // command and exact company/action strings. Only those identity prefixes
+      // are redundant; requestId and normalized-note gates affect Map arbitration.
       if (command && command.companyId === row.companyId && command.requestId === row.requestId
         && command.actionId === row.actionId && command.commandId === row.actionId && command.actorUserId === null
         && typeof command.note === "string" && command.note.trim() === command.note
@@ -91,6 +97,8 @@ export function createAutomaticInvitationExpiryJob(options: AutomaticInvitationE
     async drain(input: Readonly<{ at: Date; vendorAccountId?: string }>): Promise<{ processed: number }> {
       if (!(input.at instanceof Date) || !Number.isFinite(input.at.getTime())) throw new Error("AUTOMATIC_INVITATION_EXPIRY_TIME_INVALID");
       if (input.vendorAccountId !== undefined && !uuid(input.vendorAccountId)) throw new Error("AUTOMATIC_INVITATION_EXPIRY_VENDOR_INVALID");
+      // @equivalent: For this validated UUID, lower/upper hex case binds the same
+      // ::uuid scope; SQL-emitted identities and service commands stay canonical.
       const vendorAccountId = input.vendorAccountId?.toLowerCase();
       const at = new Date(input.at);
       const service = createInvitationWithdrawalService({

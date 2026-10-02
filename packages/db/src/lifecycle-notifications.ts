@@ -101,5 +101,7 @@ export async function enqueueLifecycleInvitationExpired(
       AND notification.recipient_user_account_id=recipient.requester_id
       AND notification.kind='decision' AND notification.request_state='deprovisioned'
   ) AS enqueued`);
+  // @equivalent: This unconditional actual PostgreSQL SELECT EXISTS returns one
+  // boolean row even with empty CTEs; SQL errors reject before either access.
   if (result.rows[0]?.enqueued !== true) throw new Error("INVITATION_EXPIRY_NOTIFICATION_MISSING");
 }

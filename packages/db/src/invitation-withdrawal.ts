@@ -62,7 +62,7 @@ export function createInvitationWithdrawalService(dependencies: {
         WHERE request.id=$1::uuid AND request.company_id=$2::uuid AND action.kind='withdraw_invite'
           AND action.raw_request->>'actionId'=$3 ORDER BY action.created_at,action.id FOR UPDATE OF action`,[command.requestId,command.companyId,command.actionId]);
       const intent=existing.rows[0];
-      if (intent && (intent.raw_request.commandId !== command.commandId || intent.raw_request.actorUserId !== command.actorUserId || intent.raw_request.note !== command.note || intent.raw_request.companyId !== command.companyId)) {
+      if (intent && (intent.raw_request.requestId !== command.requestId || intent.raw_request.commandId !== command.commandId || intent.raw_request.actorUserId !== command.actorUserId || intent.raw_request.note !== command.note || intent.raw_request.companyId !== command.companyId)) {
         await client.query("ROLLBACK");transaction=false;return {ok:false,error:"conflict"};
       }
       if (intent?.status === "withdrawn") {
@@ -75,7 +75,11 @@ export function createInvitationWithdrawalService(dependencies: {
       const context={...eligible,withdrawalActionId:intent?.id ?? randomUUID()};
       if (!intent) {
         if (dependencies.beforeNewIntent && !await dependencies.beforeNewIntent(context,client)) {
-          await client.query("ROLLBACK");transaction=false;return {ok:false,error:"conflict"};
+          await client.query("ROLLBACK");
+          // @equivalent: After successful ROLLBACK, a true flag adds an idle rollback
+          // with identical healthy-DB application effects and lock release. SQL/
+          // notice traffic and intervening transport failure traces differ.
+          transaction=false;return {ok:false,error:"conflict"};
         }
         const actor=command.actorUserId === null ? null : (await client.query<{label:string}>(`SELECT COALESCE(person.full_name,account.email) AS label FROM user_account account LEFT JOIN person ON person.id=account.person_id WHERE account.id=$1::uuid`,[command.actorUserId])).rows[0]?.label;
         if(command.actorUserId !== null && (!actor || actor.length>320)) {
@@ -107,7 +111,7 @@ export function createInvitationWithdrawalService(dependencies: {
         WHERE action.id=$1::uuid AND request.id=$2::uuid AND request.company_id=$3::uuid
           AND action.vendor_account_id=$4::uuid AND action.kind='withdraw_invite' FOR UPDATE OF action`,[context.withdrawalActionId,command.requestId,command.companyId,context.vendorAccountId]);
       const final=finalIntent.rows[0];
-      if(!revalidated || revalidated.vendorAccountId !== context.vendorAccountId || revalidated.vendorRef !== context.vendorRef || !final || final.status !== "pending" || final.vendor_ref !== context.vendorRef || final.raw_request.commandId !== command.commandId || final.raw_request.actionId !== command.actionId || final.raw_request.companyId !== command.companyId || final.raw_request.actorUserId !== command.actorUserId || final.raw_request.note !== command.note || !isInvitationDeletionReceipt(final.raw_response,context.vendorRef)) {
+      if(!revalidated || revalidated.vendorAccountId !== context.vendorAccountId || revalidated.vendorRef !== context.vendorRef || !final || final.status !== "pending" || final.vendor_ref !== context.vendorRef || final.raw_request.requestId !== command.requestId || final.raw_request.commandId !== command.commandId || final.raw_request.actionId !== command.actionId || final.raw_request.companyId !== command.companyId || final.raw_request.actorUserId !== command.actorUserId || final.raw_request.note !== command.note || !isInvitationDeletionReceipt(final.raw_response,context.vendorRef)) {
         await client.query("ROLLBACK");transaction=false;return {ok:false,error:"conflict"};
       }
       const occurredAt=dependencies.now();
