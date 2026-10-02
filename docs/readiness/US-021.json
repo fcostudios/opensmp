@@ -89,7 +89,25 @@
     "evidence": "CHG063-US021-VERIFY",
     "payload_sha256": "afb2c504987e33e8de7e1997fefe7065f738a569a652b08a07fa2398341e2bf0"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 2,
+      "implementation": 0,
+      "focused_verification": 9,
+      "review": 1,
+      "integration": 0
+    },
+    "total": 12,
+    "changed_files": 2,
+    "commits": 2,
+    "review_fix_loops": 0,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "estimate_variance_minutes": -48,
+    "root_cause": "Verification-only CHG063 aggregate closure after all three canonical children dev_done. Nonoverlapping recorded phase envelopes from14:07:36.129546Z through2026-10-02T14:19:28.066044Z, rounded once per phase, include trace inspection, review wait/collection, current complete gate and orchestration. Implementation0; review work before recorded review transition remains in focused_verification, no cost excluded. Two documentation paths and ready/evidence commits; later separate canonical Nous projection outside terminal accounting. Current valid unchanged-source cached gate2702passed12existing skips/type9/lint8/test15/build9; source89 application tree unchanged, zero actual preflight shards/no parent cold/test_report. Historical parent partition proposals retained in Git e0d6e33 and private archive. Original60estimate and approved digest unchanged."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
