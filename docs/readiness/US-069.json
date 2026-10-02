@@ -103,7 +103,25 @@
     "evidence": "US069-READY-20261002",
     "payload_sha256": "5146e69c27467a5061f71882c45a3f20518a9c0e96f8e20956fb4c5d5d342aaf"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 3,
+      "implementation": 75,
+      "focused_verification": 157,
+      "review": 28,
+      "integration": 20
+    },
+    "total": 283,
+    "changed_files": 20,
+    "commits": 12,
+    "review_fix_loops": 2,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 15,
+    "mutation_shards_actual": 7,
+    "estimate_variance_minutes": 3,
+    "root_cause": "Nonoverlapping UTC phase reconstruction from09:19:49.809821Z includes every diagnostic preview, actual mutant repair, report collection, failed fullgate, isolation and orchestration cost, rounded once per phase envelope; cutoff2026-10-02T14:02:35.740987Z. Original280estimate/digest retained, forecasts/deviations recorded before overrun. One task jointfixloopF1F2F3 plus one finaljointF4F5wave/scopedreview. Finalwave fixes realjob-lifetime accountbudget and earliestcoherentduplicate recovery; actual completed-shortcut oracles kill seven prefix/note gaps after arbitration changes. Repeated unchangedPG57P01fullgate failures led completepackage+file serial CLI scheduling, every suite/internalrace retained and no exclusions/config/timeout changes. Exactly20paths and all11reachable storycommits after27f31a1 plus this evidencecommit; later separatecanonicalNous sync outside terminal accounting. One cachecleared/cacheoff authoritativeALL7campaign, raw283Killed10Survived1Timeout/294scored; source89frozen afterward. Primary process13:42:30.797Z\u201313:57:29.822Z=899.025s, independent of1.984sfixture preparation and subsequentcollection/cleanup, allalreadyinside integration cost. Manifest rejected labels indicate cacheeligibility rejection for excluded-runtime-inputs; performance cacheModebypass confirms no reuse/allseven freshreports withpassedpositive durations. One initial ignored collector assertion was corrected to actual runner semantics, not a campaign failure or repeatedattempt."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
