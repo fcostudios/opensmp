@@ -103,7 +103,25 @@
     "evidence": "US068-READY-REV2-20261002",
     "payload_sha256": "7f4d83db331d98753e27466c089aa6a59034a3d2b5cf57ce85621ec04006459b"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 7,
+      "implementation": 34,
+      "review": 64,
+      "focused_verification": 221,
+      "integration": 61
+    },
+    "total": 387,
+    "changed_files": 20,
+    "commits": 15,
+    "review_fix_loops": 4,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 30,
+    "mutation_shards_actual": 7,
+    "estimate_variance_minutes": 77,
+    "root_cause": "Nonoverlapping UTC wall-phase reconstruction includes all review, diagnostic, host-contention and orchestration overhead, rounded once per envelope. Original310 estimate retained. Three task review-fix loops plus sole final UUID fix. Repeated real mutation diagnostics, ownership/config/receipt/cleanup oracle repair and default parallel compiler deadline/unchanged US-046 reporter race cost exceeded forecast. Branch anchor ba88eee/2026-10-02T02:46:35Z; phase markers02:53:12.802198Z,03:27:32.371644Z,04:31:47.112224Z and recorded integration; cutoff 2026-10-02T09:08:15.882903+00:00. All20 paths including readiness/plan/feedback; all reachable story commits after branchpoint plus this one evidence commit. Later separate canonical Nous sync is outside terminal work-item accounting. One cache-cleared cache-off authoritative campaign; canceled/in-progress earlier previews are diagnostic overhead, never cold attempts or invalidations. Wall campaign time is already included in integration, not added again. Unpublished completion timing draft corrected before first commit/Nous ingestion using RTK history command180104 (1752187ms outer/cacheclear/fixture) and180103 (1747441ms actual campaign, completed08:42:17Z). Postcampaign collection latency remains integration overhead, not mutation runtime. Original draft archived/tmp/us068-unpublished-closure-timing-draft.json. Final evidence cutoff 2026-10-02T09:14:30.724112Z."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
