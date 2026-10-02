@@ -43,7 +43,6 @@ export interface ChecklistExceptionsLabels {
   readonly status: string;
   readonly statusFailed: string;
   readonly statusVerificationFailed: string;
-  readonly viewRequest: string;
   readonly vendorReference: string;
 }
 

@@ -28,7 +28,6 @@ const labels = {
   status: "Estado",
   statusFailed: "Fallida",
   statusVerificationFailed: "Verificación fallida",
-  viewRequest: "Abrir solicitud",
   vendorReference: "Referencia",
 };
 

@@ -161,6 +161,9 @@ test("holds action and request locks through actual outbox persistence", async (
     await monitor.query('BEGIN');
     await expect(monitor.query("SELECT id FROM license_request WHERE id=$1 AND company_id=$2 FOR UPDATE NOWAIT",[requests.race,companyA])).rejects.toMatchObject({code:'55P03'});
     await monitor.query('ROLLBACK');
+    await monitor.query('BEGIN');
+    await expect(monitor.query("SELECT action.id FROM provisioning_action action JOIN license_request request ON request.id=action.request_id WHERE action.id=$1 AND request.company_id=$2 FOR UPDATE OF action NOWAIT",[actions.race,companyA])).rejects.toMatchObject({code:'55P03'});
+    await monitor.query('ROLLBACK');
     await owner.query("SELECT pg_advisory_unlock(hashtextextended('us067-outbox-persistence',0))");
     await expect(pending).resolves.toMatchObject({status:'succeeded',processed:1});
     const events=await owner.query("SELECT count(*)::int AS count FROM alert_event WHERE alert_rule_id=$1 AND subject_ref->>'requestId'=$2",[rule,requests.race]);
@@ -174,18 +177,20 @@ test("holds action and request locks through actual outbox persistence", async (
   }
 },30000);
 
-test("preserves rounded-window facts for other hourly alerts", async () => {
+test("preserves quarter-hour snapshot facts for other alerts", async () => {
   await owner.query('UPDATE alert_rule SET enabled=false');
-  const syncedAt=new Date(at.getTime()-168.001*3600000);
-  await owner.query(`INSERT INTO activity_record (vendor_account_id,person_id,activity_date,counters,synced_at)
-    SELECT $1,person_id,'2026-09-25','{}',$2 FROM license_request WHERE id=$3`,[account,syncedAt,requests.above]);
-  const syncRule=randomUUID();
+  await owner.query("UPDATE provisioning_action SET status='withdrawn',resolved_at=$1",[at]);
+  await owner.query(`INSERT INTO vendor_account_capacity
+    (vendor_account_id,license_type_id,purchased_qty,effective_from,created_at,created_by)
+    VALUES ($1,$2,2,'2026-10-01','2026-10-02T14:00:00Z','00000000-0000-0000-0000-000000000001'),
+           ($1,$2,0,'2026-10-02','2026-10-02T15:05:00Z','00000000-0000-0000-0000-000000000001')`,[account,license]);
+  const poolRule=randomUUID();
   await owner.query(`INSERT INTO alert_rule (id,type,scope_kind,vendor_account_id,threshold,channel,enabled,created_at,created_by)
-    VALUES ($1,'sync_stale','vendor_account',$2,'{"hours":168}','email',true,$3,'00000000-0000-0000-0000-000000000001')`,[syncRule,account,at]);
+    VALUES ($1,'low_pool','vendor_account',$2,'{"floor":1}','email',true,$3,'00000000-0000-0000-0000-000000000001')`,[poolRule,account,at]);
   const job=createAlertEvaluationJob({connectionString:fixture.appUrl,workerId:'invite-preserve-window-067'});
   try {
     await expect(job.run(at)).resolves.toMatchObject({status:'succeeded',processed:0});
-    const events=await owner.query('SELECT id FROM alert_event WHERE alert_rule_id=$1',[syncRule]);
+    const events=await owner.query('SELECT id FROM alert_event WHERE alert_rule_id=$1',[poolRule]);
     expect(events.rows).toEqual([]);
   } finally { await job.close(); }
 },30000);

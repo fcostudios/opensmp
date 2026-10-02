@@ -112,7 +112,6 @@ export function ExceptionsView({
               statusVerificationFailed: orchestration(
                 "exceptionVerificationFailed",
               ),
-              viewRequest: orchestration("viewRequest"),
               vendorReference: orchestration("exceptionVendorReference"),
             }}
             locale={locale as "en-US" | "es-EC"}
