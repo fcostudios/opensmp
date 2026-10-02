@@ -41,4 +41,8 @@
 | UserAccount | auth-sensitive entity (name heuristic) | heuristic |
 | VendorAccount | auth-sensitive entity (name heuristic) | heuristic |
 | VendorAccountCapacity | auth-sensitive entity (name heuristic) | heuristic |
-<!-- nous-emitted: sha256=7f92177f9e9f6285 -->
+
+## Operator additions (`testing.critical_paths`)
+
+- **Invitation hygiene (US-067, US-068, US-069; DEC-SMP-023)** — overdue age derives from the durable invitation sent_at, with strict configured boundaries, company-scoped current eligibility and one alert per open breach. Withdrawal targets the pinned invitation only, refuses acceptance races and releases capacity only after confirmed removal; automatic expiry reuses that contract and records its system action.
+<!-- nous-emitted: sha256=82e142851587a250 -->

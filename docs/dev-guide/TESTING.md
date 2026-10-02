@@ -68,6 +68,7 @@ The **aggregate + projection layers should be the widest part of the suite**, no
 - **UserAccount** — auth-sensitive entity (name heuristic).
 - **VendorAccount** — auth-sensitive entity (name heuristic).
 - **VendorAccountCapacity** — auth-sensitive entity (name heuristic).
+- **Invitation hygiene (US-067, US-068, US-069; DEC-SMP-023)** — overdue age derives from the durable invitation sent_at, with strict configured boundaries, company-scoped current eligibility and one alert per open breach. Withdrawal targets the pinned invitation only, refuses acceptance races and releases capacity only after confirmed removal; automatic expiry reuses that contract and records its system action.
 - *(Derived from this project's business rules + graph — `testing/critical-paths.md`. Keep current.)*
 
 ## 4. CI gates
@@ -136,4 +137,4 @@ pnpm test:mutation  # ONE diff-scoped mutation campaign  ← the gate
 ## 8. Reference
 
 Full rationale + evidence base: `docs/TEST_EFFECTIVENESS_STANDARD.md`.
-<!-- nous-emitted: sha256=fdafb067584c0980 -->
+<!-- nous-emitted: sha256=6276ddb89b5468d5 -->
