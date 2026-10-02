@@ -240,12 +240,29 @@ test('rejects malformed scheduled time and account before any tenant or provider
 
 
 test.each(['manual','different-command','wrong-request','non-string-note','padded-note','invalid-receipt'] as const)('never adopts a %s receipt as automatic expiry',async(kind)=>{
- const input=await configured(),calls:string[]=[],before=await available(input);
+ const input=await configured(),calls:string[]=[],note='Automatically withdrew the unaccepted invitation after its configured expiry window.';
+ if(kind==='padded-note'){
+  const completion=jobFor(provider(calls));
+  try{expect(await completion.drain({at,vendorAccountId:input.vendorAccountId})).toEqual({processed:1});expect(calls.filter(call=>call.startsWith('DELETE'))).toHaveLength(1);}finally{await completion.close();}
+  calls.length=0;
+ }
+ const before=await available(input),withdrawalId=randomUUID();
  await owner.query(`UPDATE alert_rule SET enabled=false WHERE id=$1`,[input.rule]);
- const command={companyId:input.companyId,requestId:kind==='wrong-request'?randomUUID():input.requestId,actionId:input.actionId,commandId:kind==='different-command'?randomUUID():input.actionId,actorUserId:kind==='manual'?input.actorUserId:null,actorLabel:kind==='manual'?'Manual administrator':null,note:kind==='non-string-note'?42:kind==='padded-note'?'  Existing intent  ':'Existing intent'};
- await owner.query(`INSERT INTO provisioning_action(request_id,vendor_account_id,kind,mode,status,vendor_ref,raw_request,raw_response,created_at) VALUES($1,$2,'withdraw_invite','automated','pending','invite-pinned',$3::jsonb,$4::jsonb,$5)`,[input.requestId,input.vendorAccountId,JSON.stringify(command),JSON.stringify({id:kind==='invalid-receipt'?'wrong':'invite-pinned',type:'invite_deleted'}),at]);
+ const command={companyId:input.companyId,requestId:kind==='wrong-request'?randomUUID():input.requestId,actionId:input.actionId,commandId:kind==='different-command'?randomUUID():input.actionId,actorUserId:kind==='manual'?input.actorUserId:null,actorLabel:kind==='manual'?'Manual administrator':null,note:kind==='non-string-note'?42:kind==='padded-note'?`  ${note}  `:'Existing intent'};
+ await owner.query(`INSERT INTO provisioning_action(id,request_id,vendor_account_id,kind,mode,status,vendor_ref,raw_request,raw_response,created_at) VALUES($1,$2,$3,'withdraw_invite','automated','pending','invite-pinned',$4::jsonb,$5::jsonb,$6)`,[withdrawalId,input.requestId,input.vendorAccountId,JSON.stringify(command),JSON.stringify({id:kind==='invalid-receipt'?'wrong':'invite-pinned',type:'invite_deleted'}),new Date(at.getTime()+1)]);
  const job=jobFor(provider(calls));
- try{expect(await job.drain({at,vendorAccountId:input.vendorAccountId})).toEqual({processed:0});expect(calls).toEqual([]);await expectUntouched(input,before);expect((await owner.query(`SELECT status,raw_request FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId])).rows).toEqual([{status:'pending',raw_request:command}]);}finally{await job.close();}
+ try{
+  expect(await job.drain({at,vendorAccountId:input.vendorAccountId})).toEqual({processed:0});expect(calls).toEqual([]);
+  if(kind==='padded-note'){
+   expect((await owner.query(`SELECT state FROM license_request WHERE id=$1 AND company_id=$2`,[input.requestId,input.companyId])).rows).toEqual([{state:'deprovisioned'}]);
+   expect(await available(input)).toBe(before);
+   expect((await owner.query(`SELECT actor_user_id,note,to_state FROM request_transition WHERE request_id=$1`,[input.requestId])).rows).toEqual([{actor_user_id:null,note,to_state:'deprovisioned'}]);
+   expect((await owner.query(`SELECT status,raw_request FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite' AND status='withdrawn'`,[input.requestId])).rows).toEqual([{status:'withdrawn',raw_request:{...command,note}}]);
+   expect((await owner.query(`SELECT company_id,recipient_user_account_id FROM lifecycle_notification WHERE company_id=$1 AND request_id=$2`,[input.companyId,input.requestId])).rows).toEqual([{company_id:input.companyId,recipient_user_account_id:input.actorUserId}]);
+   expect((await owner.query(`SELECT count(*)::int AS count FROM audit_log WHERE company_id=$1 AND action='invitation.withdrawn'`,[input.companyId])).rows[0].count).toBe(1);
+  }else await expectUntouched(input,before);
+  expect((await owner.query(`SELECT status,raw_request FROM provisioning_action WHERE id=$1 AND request_id=$2`,[withdrawalId,input.requestId])).rows).toEqual([{status:'pending',raw_request:command}]);
+ }finally{await job.close();}
 },30000);
 
 test('receipt recovery respects the scheduled vendor account before a global drain',async()=>{
