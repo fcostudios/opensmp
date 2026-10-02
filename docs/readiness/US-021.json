@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "91bc185ea9bc7dd5f5dd459fe02e8fda60dcd2f793c5f16332c3049d3bea327e",
+  "readiness_payload_sha256": "1583eb379d2e1454174747ee352822dba8c0d11c04b9f994e594c555839521bd",
   "work_id": "US-021",
   "kind": "US",
   "work_type": "functional",
@@ -71,9 +71,9 @@
     {
       "id": "U2",
       "statement": "Canonical child IDs and the automatic-withdraw configuration contract are not delivered.",
-      "status": "budgeted",
+      "status": "resolved",
       "estimate_impact_minutes": 15,
-      "resolution": "This is a non-executable partition proposal. Work IDs remain null until a functional CHG creates and delivers canonical children. Nous must approve the invitation-only boundary and disabled-by-default expiry semantics before child readiness. US-019 and US-042 are already dev_done; all children must retain both canonical prerequisite IDs."
+      "resolution": "CHG-063 delivered canonical children US-067, US-068 and US-069 in docs/stories/sprint-3/r1_misc_us_067.md through r1_misc_us_069.md. DEC-SMP-023 in docs/decisions/DECISION_MATRIX.md resolves the invitation-only boundary and exact threshold.auto_withdraw_after_hours key: null disables expiry; a configured integer must be strictly greater than threshold.hours. Each child requires a separate readiness assessment and executes in order after predecessor dev_done. US-019, US-042 and US-046 have terminal done evidence."
     }
   ],
   "dependencies": [],
@@ -81,7 +81,7 @@
   "partitions": [
     {
       "proposal_key": "overdue-invite-alerts",
-      "work_id": null,
+      "work_id": "US-067",
       "title": "Surface overdue invitations with configurable alerts",
       "outcome": "Group Admins see only eligible unaccepted invitations older than the configured threshold, with one actionable invite_unaccepted alert per open breach.",
       "demo": "Evaluate invitations just below, exactly at, and above 168 hours; only the above-threshold invitation alerts, repeated evaluation deduplicates, and disabled or foreign-company rules do not alert.",
@@ -119,7 +119,7 @@
     },
     {
       "proposal_key": "manual-invite-withdrawal",
-      "work_id": null,
+      "work_id": "US-068",
       "title": "Withdraw a pending invitation safely from exceptions",
       "outcome": "An authorized Group Admin withdraws exactly the selected pending invitation with a required note, releases its seat reservation only after provider success, and sees the durable withdrawn action in the request trail.",
       "demo": "Withdraw an overdue invitation from exceptions and verify the provider invitation deletion, invited-to-deprovisioned transition, freed reservation and note in Acciones; race with acceptance and prove no active member or assignment is removed.",
@@ -168,7 +168,7 @@
     },
     {
       "proposal_key": "automatic-invite-expiry",
-      "work_id": null,
+      "work_id": "US-069",
       "title": "Expire stale invitations automatically and notify the requester",
       "outcome": "The scheduled hygiene job withdraws eligible pending invitations after an explicitly enabled configurable expiry window, releases the seat reservation and re-notifies the requester exactly once with a durable action trail.",
       "demo": "Configure expiry, advance an injected clock, run the job twice and verify one invitation-only deletion, one lifecycle transition, one requester notification and one visible action; accepted, foreign-company, disabled and not-yet-due invitations remain untouched.",
@@ -197,9 +197,9 @@
         {
           "id": "U1",
           "statement": "Canonical sources name a configurable auto-withdraw window but do not establish its default or a validated threshold key.",
-          "status": "budgeted",
+          "status": "resolved",
           "estimate_impact_minutes": 15,
-          "resolution": "Propose auto-withdraw disabled until an operator explicitly configures a positive window no shorter than the alert threshold. Store it with existing AlertRule thresholds; Nous must approve and emit the exact key and semantics in the partition CHG before child readiness. The allowance is included in the estimate."
+          "resolution": "DEC-SMP-023 and US-069 AC1 deliver AlertRule(invite_unaccepted).threshold.auto_withdraw_after_hours: null disables expiry, and configured integers must be strictly greater than threshold.hours. US-069 owns the shared validator reused by US-044; no schema change or US-044 editing UI is needed."
         }
       ],
       "estimate_minutes": {
@@ -217,10 +217,10 @@
     }
   ],
   "approval": {
-    "status": "pending",
-    "approved_by": null,
-    "evidence": null,
-    "payload_sha256": "91bc185ea9bc7dd5f5dd459fe02e8fda60dcd2f793c5f16332c3049d3bea327e"
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "US021-PARTITION-CHG063-20261002",
+    "payload_sha256": "1583eb379d2e1454174747ee352822dba8c0d11c04b9f994e594c555839521bd"
   },
   "actuals": null,
   "policy_bootstrap": false,
