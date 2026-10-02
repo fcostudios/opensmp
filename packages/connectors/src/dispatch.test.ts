@@ -25,6 +25,7 @@ import {
   connectorFailureCodes,
   isConnectorFailureCode,
   isMemberPageStream,
+  isInvitationDeletionReceipt,
   memberPageStreams,
 } from "./contracts.js";
 import {
@@ -1333,4 +1334,12 @@ describe("connector source-package build", () => {
 
     expect(await artifactSnapshot()).toEqual(before);
   });
+});
+
+
+it("invitation deletion receipt confirms only the exact pinned identity and invite type",()=>{
+ expect(isInvitationDeletionReceipt({id:"invite-pinned",type:"invite_deleted"},"invite-pinned")).toBe(true);
+ for(const receipt of [null,undefined,false,1,"invite_deleted",[],Object.assign([],{id:"invite-pinned",type:"invite_deleted"}),{}, {id:"invite-pinned"},{type:"invite_deleted"},{id:"foreign",type:"invite_deleted"},{id:"invite-pinned",type:"user_deleted"},{id:"invite-pinned",type:"invite_deleted",extra:true}]){
+  expect(isInvitationDeletionReceipt(receipt,"invite-pinned")).toBe(false);
+ }
 });

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type pg from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { VendorConnector } from "@smp/connectors/contracts";
+import { isInvitationDeletionReceipt } from "@smp/connectors/contracts";
 import { createConnectorCallObservationSession, type ConnectorOperation, type ConnectorCallObservationSession } from "@smp/connectors/connector-call-observation";
 import { decryptCredential, readKekFile } from "./credential-crypto.js";
 import { applyRequestTransitionInTransaction } from "./request-transition.js";
@@ -20,11 +21,6 @@ function valid(command: InvitationWithdrawalCommand): boolean {
   return [command.companyId,command.requestId,command.actionId,command.commandId].every(value=>typeof value === "string" && uuid(value))
     && (command.actorUserId === null || (typeof command.actorUserId === "string" && uuid(command.actorUserId)))
     && typeof command.note === "string" && command.note.trim().length > 0 && command.note.length <= 2000;
-}
-function receiptMatches(value: unknown, reference: string): boolean {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const receipt=value as Record<string,unknown>;
-  return Object.keys(receipt).length === 2 && receipt.id === reference && receipt.type === "invite_deleted";
 }
 async function current(client: pg.PoolClient, command: InvitationWithdrawalCommand): Promise<Omit<Context,"withdrawalActionId"> | null> {
   const result = await client.query<Omit<Context,"withdrawalActionId">>(`
@@ -83,12 +79,12 @@ export function createInvitationWithdrawalService(dependencies: {
           VALUES($1,$2,$3,'withdraw_invite','automated','pending',$4,$5::jsonb,$6)`,[context.withdrawalActionId,command.requestId,context.vendorAccountId,context.vendorRef,JSON.stringify({...normalized,actorLabel:actor}),dependencies.now()]);
       }
       await client.query("COMMIT");transaction=false;
-      if (intent && !receiptMatches(intent.raw_response,context.vendorRef)) return {ok:false,error:"ambiguous"};
+      if (intent && !isInvitationDeletionReceipt(intent.raw_response,context.vendorRef)) return {ok:false,error:"ambiguous"};
       if (!intent) {
         const connector=await dependencies.connectorFor(context,client);
         if (!connector?.withdrawInvitation) return {ok:false,error:"unsupported"};
         const result=await connector.withdrawInvitation({requestId:command.requestId,vendorAccountId:context.vendorAccountId,vendorRef:context.vendorRef});
-        if (!result.ok || result.vendorRef !== context.vendorRef || !receiptMatches(result.receipt,context.vendorRef)) return {ok:false,error:"provider_error"};
+        if (!result.ok || result.vendorRef !== context.vendorRef || !isInvitationDeletionReceipt(result.receipt,context.vendorRef)) return {ok:false,error:"provider_error"};
         // HTTP observations alone cannot prove body identity. Commit validated receipt separately
         // so a failed finalization can recover without repeating the destructive provider call.
         const saved=await client.query(`UPDATE provisioning_action action SET raw_response=$1::jsonb
@@ -105,7 +101,7 @@ export function createInvitationWithdrawalService(dependencies: {
         WHERE action.id=$1::uuid AND request.id=$2::uuid AND request.company_id=$3::uuid
           AND action.vendor_account_id=$4::uuid AND action.kind='withdraw_invite' FOR UPDATE OF action`,[context.withdrawalActionId,command.requestId,command.companyId,context.vendorAccountId]);
       const final=finalIntent.rows[0];
-      if(!revalidated || revalidated.vendorAccountId !== context.vendorAccountId || revalidated.vendorRef !== context.vendorRef || !final || final.status !== "pending" || final.vendor_ref !== context.vendorRef || final.raw_request.commandId !== normalized.commandId || final.raw_request.actionId !== normalized.actionId || final.raw_request.companyId !== normalized.companyId || final.raw_request.actorUserId !== normalized.actorUserId || final.raw_request.note !== normalized.note || !receiptMatches(final.raw_response,context.vendorRef)) {
+      if(!revalidated || revalidated.vendorAccountId !== context.vendorAccountId || revalidated.vendorRef !== context.vendorRef || !final || final.status !== "pending" || final.vendor_ref !== context.vendorRef || final.raw_request.commandId !== normalized.commandId || final.raw_request.actionId !== normalized.actionId || final.raw_request.companyId !== normalized.companyId || final.raw_request.actorUserId !== normalized.actorUserId || final.raw_request.note !== normalized.note || !isInvitationDeletionReceipt(final.raw_response,context.vendorRef)) {
         await client.query("ROLLBACK");transaction=false;return {ok:false,error:"conflict"};
       }
       const occurredAt=dependencies.now();

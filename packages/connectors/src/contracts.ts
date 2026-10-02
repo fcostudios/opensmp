@@ -95,6 +95,13 @@ export type InvitationWithdrawalResult =
   | { readonly ok: true; readonly vendorRef: string; readonly receipt: { readonly id: string; readonly type: "invite_deleted" } }
   | { readonly ok: false; readonly code: "provider_error"; readonly retryable: boolean; readonly raw: null };
 
+/** The invitation-only success receipt is also the durable recovery contract. */
+export function isInvitationDeletionReceipt(value: unknown, reference: string): value is { readonly id: string; readonly type: "invite_deleted" } {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const receipt=value as Record<string,unknown>;
+  return Object.keys(receipt).length === 2 && receipt.id === reference && receipt.type === "invite_deleted";
+}
+
 export interface VendorConnector {
   withdrawInvitation?(input: { requestId: string; vendorAccountId: string; vendorRef: string }): Promise<InvitationWithdrawalResult>;
   capabilities(): ReadonlySet<ConnectorCapability>;

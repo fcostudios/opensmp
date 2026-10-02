@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import type pg from "pg";
-import { z } from "zod";
 // eslint-disable-next-line no-restricted-imports -- Production withdrawal composes the shared database client and audited service.
 import { db } from "@smp/db";
 // eslint-disable-next-line no-restricted-imports -- Production action composes the shared withdrawal transaction service.
@@ -37,14 +36,11 @@ const service=createInvitationWithdrawalService({pool,now,assertLegalTransition,
     })(context);
   },
 });
-const command=z.object({requestId:z.string().uuid(),actionId:z.string().uuid(),commandId:z.string().uuid(),note:z.string().trim().min(1).max(2000)});
 
     let actorUserId:string|null=null,requestId:string|null=null;
     const execute=createAuthorizedInvitationWithdrawal({pool,loadAuthorization:loadCurrentLedgerAuthorization,service,
       recordOutcome:async(actor,request)=>{actorUserId=actor;requestId=request;},
     });
-    const parsed=command.safeParse(Object.fromEntries(form));
-    if(!parsed.success) form.set("note","");
     const result=await execute(form);
   return async()=>{
     if(result.ok){revalidatePath("/excepciones");revalidatePath(`/solicitudes/${result.requestId}`);}

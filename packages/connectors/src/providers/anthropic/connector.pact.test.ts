@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PactV3 } from "@pact-foundation/pact";
 import { expect, test } from "vitest";
-import { createConnectorCallObservationSession } from "../../connector-call-observation";
+import { createConnectorCallObservationSession, type ConnectorCallObservationAppendInput } from "../../connector-call-observation";
 import { createAnthropicConnector } from "./connector";
 import { createAnthropicRateLimiter } from "./rate-limiter";
 
@@ -24,6 +24,7 @@ test.each([
   { name: "expired refusal", pages: [page([invite(pinned,"expired")])], noDelete: true },
   { name: "missing pinned invitation", pages: [page([invite("other")])], noDelete: true },
   { name: "duplicate pinned identity", pages: [page([invite(pinned),invite(pinned)])], noDelete: true },
+  { name: "duplicate nonpinned identity across pages", pages: [page([invite("other")],true),page([invite("other"),invite(pinned)])], noDelete: true },
   { name: "malformed page", pages: [page([{ id: pinned }])], noDelete: true },
   { name: "acceptance race returns 400", pages: [page([invite(pinned)])], body: { error: { type: "invalid_request_error", message: "Invite accepted" } }, status: 400 },
   { name: "expired race returns 400", pages: [page([invite(pinned)])], body: { error: { type: "invalid_request_error", message: "Invite expired" } }, status: 400 },
@@ -43,11 +44,12 @@ test.each([
   try {
     await pact.executeTest(async (server) => {
       const calls: { method: string; path: string }[] = [];
+      const observations:ConnectorCallObservationAppendInput[]=[];
       const clock = { now: () => at.getTime() }, sleep = async () => undefined;
       const connector = createAnthropicConnector({ credentialsFor: async () => [
         { vendorAccountId: account, kind: "admin_scoped", secret: "contract-admin", status: "active", health: "ok" },
         { vendorAccountId: account, kind: "analytics", secret: "contract-analytics", status: "active", health: "ok" },
-      ], observationSessionFor: async (input) => createConnectorCallObservationSession({ vendorAccountId: account, provisioningActionId: null, operation: input.operation, clock: () => at, randomId: () => requestId, append: async () => undefined }),
+      ], observationSessionFor: async (input) => createConnectorCallObservationSession({ vendorAccountId: account, provisioningActionId: null, operation: input.operation, clock: () => at, randomId: () => requestId, append: async (event) => {observations.push(event);} }),
       requestDependencies: { clock, sleep, limiter: createAnthropicRateLimiter({ clock, sleep }), transport: async (input) => {
         const url = new URL(input.url); calls.push({ method: input.method, path: url.pathname });
         const response = await fetch(new Request(new URL(url.pathname + url.search, server.url),input));
@@ -58,6 +60,14 @@ test.each([
       expect(result).toEqual(scenario.success ? { ok: true, vendorRef: pinned, receipt: { id: pinned, type: "invite_deleted" } } : failure);
       expect(calls.filter(call => call.method === "DELETE").map(call => call.path)).toEqual(scenario.noDelete ? [] : [`/v1/organizations/invites/${pinned}`]);
       expect(calls.some(call => call.path.includes("/users"))).toBe(false);
+      if(scenario.status === 429 || scenario.status === 500){
+        const classification=scenario.status === 429?"rate_limited":"provider_error";
+        expect(observations.filter(event=>event.summary.method === "DELETE").map(({phase,classification,summary})=>({phase,classification,summary}))).toEqual([
+          {phase:"requested",classification:null,summary:{endpoint_class:"invitations",method:"DELETE"}},
+          {phase:"failed",classification,summary:{endpoint_class:"invitations",method:"DELETE",http_status:scenario.status,status_class:classification}},
+          {phase:"requested",classification:null,summary:{endpoint_class:"invitations",method:"DELETE"}},
+        ]);
+      }
     });
   } finally { rmSync(dir,{recursive:true,force:true}); }
 });
@@ -75,4 +85,20 @@ test("missing reference and transport ambiguity fail closed", async () => {
   expect(calls).toBe(0);
   const result = await connector.withdrawInvitation!({requestId,vendorAccountId:account,vendorRef:pinned});
   expect(result.ok).toBe(false);
+});
+
+
+test("invitation withdrawal single-DELETE gate preserves legacy deprovision retry policy",async()=>{
+ const dir=mkdtempSync(join(tmpdir(),"us068-legacy-pact-"));const pact=new PactV3({consumer:"ledger-legacy-deprovision",provider:"anthropic-enterprise-api",dir,logLevel:"error"});
+ pact.addInteraction({uponReceiving:"legacy members lookup",withRequest:{method:"GET",path:"/v1/organizations/users",query:{limit:"1000"}},willRespondWith:{status:200,headers:{"Content-Type":"application/json"},body:page([])}});
+ pact.addInteraction({uponReceiving:"legacy invitation lookup",withRequest:{method:"GET",path:"/v1/organizations/invites",query:{limit:"1000"}},willRespondWith:{status:200,headers:{"Content-Type":"application/json"},body:page([invite(pinned)])}});
+ pact.addInteraction({uponReceiving:"legacy invitation removal temporarily unavailable",withRequest:{method:"DELETE",path:"/v1/organizations/invites/"+pinned},willRespondWith:{status:500,headers:{"Content-Type":"application/json"},body:{error:"unavailable"}}});
+ try{await pact.executeTest(async(server)=>{
+  const calls:{method:string;path:string}[]=[],clock={now:()=>at.getTime()},sleep=async()=>undefined;
+  const connector=createAnthropicConnector({credentialsFor:async()=>[{vendorAccountId:account,kind:"admin_scoped",secret:"contract-admin",status:"active",health:"ok"},{vendorAccountId:account,kind:"analytics",secret:"contract-analytics",status:"active",health:"ok"}],observationSessionFor:async(input)=>createConnectorCallObservationSession({vendorAccountId:account,provisioningActionId:null,operation:input.operation,clock:()=>at,randomId:()=>requestId,append:async()=>undefined}),requestDependencies:{clock,sleep,limiter:createAnthropicRateLimiter({clock,sleep}),transport:async(input)=>{
+   const url=new URL(input.url);calls.push({method:input.method,path:url.pathname});return fetch(new Request(new URL(url.pathname+url.search,server.url),input));
+  }}});
+  expect(await connector.deprovision({requestId,vendorAccountId:account,personEmail:"selected@example.test",licenseTypeName:"Claude"})).toEqual({...failure,retryable:true});
+  expect(calls.filter(call=>call.method === "DELETE")).toEqual(Array.from({length:3},()=>({method:"DELETE",path:"/v1/organizations/invites/"+pinned})));
+ });}finally{rmSync(dir,{recursive:true,force:true});}
 });

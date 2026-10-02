@@ -2,7 +2,7 @@ import type {
   ConnectorCallObservationSession,
   ConnectorOperation,
 } from "../../connector-call-observation.js";
-import { isMemberPageStream, isMemberPageToken } from "../../contracts.js";
+import { isInvitationDeletionReceipt, isMemberPageStream, isMemberPageToken } from "../../contracts.js";
 import type {
   ConnectorCapability,
   MemberPageCursor,
@@ -619,8 +619,7 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
         vendorAccountId: input.vendorAccountId, credentials: operation.credentials,
       });
       if (!deleted.ok || deleted.status !== 200) return providerFailure();
-      const receipt = exact(deleted.body, ["id", "type"]);
-      if (!receipt || receipt.id !== input.vendorRef || receipt.type !== "invite_deleted") return providerFailure();
+      if (!isInvitationDeletionReceipt(deleted.body, input.vendorRef)) return providerFailure();
       return Object.freeze({ ok: true, vendorRef: input.vendorRef,
         receipt: Object.freeze({ id: input.vendorRef, type: "invite_deleted" }) });
     },

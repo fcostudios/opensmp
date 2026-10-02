@@ -12,9 +12,10 @@ import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import ts from "typescript";
-import { afterAll, beforeAll, expect, test } from "vitest";
+import { afterAll, beforeAll, expect, test, vi } from "vitest";
 import { createPostgresFixture, type PostgresFixture } from "@smp/db/testing/postgres-container";
 import * as schema from "@smp/db/schema";
+import { listCurrentSeatPoolCounts } from "@smp/db/pool-snapshots";
 import { createAuthorizedInvitationWithdrawal, createInvitationWithdrawalService } from "@smp/db/invitation-withdrawal";
 import type { VendorConnector } from "@smp/connectors/contracts";
 const require=createRequire(import.meta.url);
@@ -29,11 +30,12 @@ import { withAudit } from "../../audit/with-audit";
 
 let fixture:PostgresFixture, owner:pg.Client,pool:pg.Pool;
 let unregisterAuthLoader:()=>Promise<void>;
+let unregisterCompositionLoader:()=>void;
 const productionPool=(productionDatabase as unknown as {$client:pg.Pool}).$client;
 const savedAuthEnvironment={AUTH_SECRET:process.env.AUTH_SECRET,AUTH_URL:process.env.AUTH_URL,AUTH_TRUST_HOST:process.env.AUTH_TRUST_HOST};
 const at=new Date("2026-10-02T15:00:00Z");
-beforeAll(async()=>{unregisterAuthLoader=require("tsx/esm/api").register({tsconfig:false});fixture=await createPostgresFixture();await fixture.migrate();owner=await fixture.connectAsOwner();pool=new pg.Pool({connectionString:fixture.ownerUrl,max:2,connectionTimeoutMillis:1000});productionPool.options.connectionString=fixture.ownerUrl;productionPool.options.max=2;productionPool.options.connectionTimeoutMillis=1000;process.env.AUTH_SECRET="us068-verified-session-fixture-secret";process.env.AUTH_URL="http://localhost:3000";process.env.AUTH_TRUST_HOST="true";},30000);
-afterAll(async()=>{await unregisterAuthLoader?.();await productionPool.end();await pool?.end();await owner?.end();await fixture?.stop();for(const [key,value] of Object.entries(savedAuthEnvironment)){if(value===undefined)delete process.env[key];else process.env[key]=value;}});
+beforeAll(async()=>{unregisterAuthLoader=require("tsx/esm/api").register({tsconfig:false});unregisterCompositionLoader=require("tsx/cjs/api").register();fixture=await createPostgresFixture();await fixture.migrate();owner=await fixture.connectAsOwner();pool=new pg.Pool({connectionString:fixture.ownerUrl,max:2,connectionTimeoutMillis:1000});productionPool.options.connectionString=fixture.ownerUrl;productionPool.options.max=2;productionPool.options.connectionTimeoutMillis=1000;process.env.AUTH_SECRET="us068-verified-session-fixture-secret";process.env.AUTH_URL="http://localhost:3000";process.env.AUTH_TRUST_HOST="true";},30000);
+afterAll(async()=>{await unregisterAuthLoader?.();unregisterCompositionLoader?.();await productionPool.end();await pool?.end();await owner?.end();await fixture?.stop();for(const [key,value] of Object.entries(savedAuthEnvironment)){if(value===undefined)delete process.env[key];else process.env[key]=value;}});
 async function arrange(role:"group_admin"|null) {
  const actor=randomUUID(),company=randomUUID(),vendor=randomUUID(),account=randomUUID(),license=randomUUID(),person=randomUUID(),request=randomUUID(),action=randomUUID();
  await owner.query(`INSERT INTO user_account(id,email,idp_subject,global_role,status,created_at) VALUES($1,$2,$1::uuid::text,$3,'active',$4)`,[actor,actor+"@auth.test",role,at]);
@@ -41,6 +43,7 @@ async function arrange(role:"group_admin"|null) {
  await owner.query(`INSERT INTO vendor(id,name,connector_type,provisioning_protocol,can_provision,can_deprovision,has_usage_data,has_cost_data,identity_matching,status,created_at,created_by) VALUES($1,$1::uuid::text,'api','rest',true,true,false,false,'email','active',$2,$3)`,[vendor,at,actor]);
  await owner.query(`INSERT INTO vendor_account(id,vendor_id,name,mode,low_pool_floor,status,created_at,created_by) VALUES($1,$2,$1::uuid::text,'automated',1,'active',$3,$4)`,[account,vendor,at,actor]);
  await owner.query(`INSERT INTO license_type(id,vendor_id,name,unit,status,created_at,created_by) VALUES($1,$2,$1::uuid::text,'seat','active',$3,$4)`,[license,vendor,at,actor]);
+ await owner.query(`INSERT INTO vendor_account_capacity(vendor_account_id,license_type_id,purchased_qty,effective_from,created_at,created_by) VALUES($1,$2,5,'2026-01-01',$3,$4)`,[account,license,at,actor]);
  await owner.query(`INSERT INTO person(id,email,full_name,company_id,status,created_at,created_by) VALUES($1,$2,'Person',$3,'active',$4,$5)`,[person,person+"@auth.test",company,at,actor]);
  await owner.query(`INSERT INTO license_request(id,request_no,person_id,company_id,vendor_account_id,license_type_id,state,justification,created_at,created_by) VALUES($1,$1::uuid::text,$2,$3,$4,$5,'invited','Need',$6,$7)`,[request,person,company,account,license,at,actor]);
  await owner.query(`INSERT INTO provisioning_action(id,request_id,vendor_account_id,kind,mode,status,vendor_ref,sent_at,created_at) VALUES($1,$2,$3,'invite','automated','sent','invite-pinned',$4,$4)`,[action,request,account,at]);
@@ -55,7 +58,7 @@ async function arrange(role:"group_admin"|null) {
  const entrypoints=createServerAuthorizationEntrypoints({loadSession:async()=>({user:{idpSubject:actor}}),repository:createAuthorizationRepository(database)});
  const execute=createAuthorizedInvitationWithdrawal({pool,loadAuthorization:entrypoints.loadCurrentLedgerAuthorization,service:createInvitationWithdrawalService({pool,now:()=>at,assertLegalTransition,connectorFor:async()=>connector}),recordOutcome:async(userId,requestId,outcome)=>{await withAudit(database,async()=>({value:outcome,audit:{actorUserId:userId,action:"server_action.withdrawInvite",entityType:"LicenseRequest",entityId:requestId??request,companyId:company,note:null,before:null,after:outcome}}),{occurredAt:at});}});
  const form=new FormData();form.set("requestId",request);form.set("actionId",action);form.set("commandId",action);form.set("note","Required withdrawal note");form.set("actorUserId",randomUUID());form.set("companyId",randomUUID());form.set("actorLabel","FORGED ACTOR");
- return {execute,form,actor,company,request,action,database,entrypoints,remoteCalls:()=>remoteCalls};
+ return {execute,form,actor,company,request,action,account,vendor,database,entrypoints,remoteCalls:()=>remoteCalls};
 }
 test("non-admin cannot withdraw and denial is audited without provider calls",async()=>{
  const fixture=await arrange(null);expect(await fixture.execute(fixture.form)).toEqual({ok:false,error:"forbidden"});expect(fixture.remoteCalls()).toBe(0);
@@ -129,17 +132,53 @@ test("actual signed-session server action rejects unauthorized and invalid comma
  const selected=await arrange("group_admin"),denied=await arrange(null);
  selected.form.set("note","");expect(await invokeProduction(selected.actor,selected.form)).toEqual({outcome:{ok:false,error:"invalid"},tags:[]});
  expect(await invokeProduction(denied.actor,denied.form)).toEqual({outcome:{ok:false,error:"forbidden"},tags:[]});
- expect((await owner.query(`SELECT actor_user_id,after FROM audit_log WHERE action='server_action.withdrawInvite' AND entity_id=$1`,[selected.request])).rows).toEqual([{actor_user_id:selected.actor,after:{ok:false,error:"invalid"}}]);
- expect((await owner.query(`SELECT actor_user_id,after FROM audit_log WHERE action='server_action.withdrawInvite' AND entity_id=$1`,[denied.request])).rows).toEqual([{actor_user_id:denied.actor,after:{ok:false,error:"forbidden"}}]);expect(selected.remoteCalls()+denied.remoteCalls()).toBe(0);
+ expect((await owner.query(`SELECT actor_user_id,entity_type,after FROM audit_log WHERE action='server_action.withdrawInvite' AND entity_id=$1`,[selected.request])).rows).toEqual([{actor_user_id:selected.actor,entity_type:"LicenseRequest",after:{ok:false,error:"invalid"}}]);
+ expect((await owner.query(`SELECT actor_user_id,entity_type,after FROM audit_log WHERE action='server_action.withdrawInvite' AND entity_id=$1`,[denied.request])).rows).toEqual([{actor_user_id:denied.actor,entity_type:"LicenseRequest",after:{ok:false,error:"forbidden"}}]);expect(selected.remoteCalls()+denied.remoteCalls()).toBe(0);
 });
 test("actual signed-session action finalizes durable validated receipt and revalidates once without another DELETE",async()=>{
- const selected=await arrange("group_admin"),name="us068_action_"+selected.request.replaceAll("-","");
+ const selected=await arrange("group_admin"),before=await productionSnapshot(selected),name="us068_action_"+selected.request.replaceAll("-","");
  await owner.query(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.request_id='${selected.request}'::uuid AND NEW.kind='withdraw_invite' AND NEW.status='withdrawn' THEN RETURN NULL; END IF; RETURN NEW; END $$; CREATE TRIGGER ${name} BEFORE UPDATE ON provisioning_action FOR EACH ROW EXECUTE FUNCTION ${name}();`);
  try{expect(await selected.execute(selected.form)).toEqual({ok:false,error:"ambiguous"});}finally{await owner.query(`DROP TRIGGER ${name} ON provisioning_action;DROP FUNCTION ${name}();`);}
  expect((await owner.query(`SELECT state FROM license_request WHERE id=$1`,[selected.request])).rows[0].state).toBe("invited");
- const result=await invokeProduction(selected.actor,selected.form);expect(result.outcome).toEqual({ok:true,requestId:selected.request,actionId:expect.any(String)});expect(result.tags).toEqual(["_N_T_/excepciones","_N_T_/solicitudes/"+selected.request]);
+ const result=await invokeProduction(selected.actor,selected.form);expect(result.outcome).toEqual({ok:true,requestId:selected.request,actionId:expect.any(String)});expect(result.tags).toEqual(["_N_T_/excepciones","_N_T_/solicitudes/"+selected.request]);expect((await productionSnapshot(selected)).available-before.available).toBe(1);
  expect((await invokeProduction(selected.actor,selected.form)).outcome).toEqual(result.outcome);expect(selected.remoteCalls()).toBe(2);
  expect((await owner.query(`SELECT count(*)::int AS count FROM request_transition WHERE request_id=$1`,[selected.request])).rows[0].count).toBe(1);
  expect((await owner.query(`SELECT actor_user_id,note FROM audit_log WHERE company_id=$1 AND action='invitation.withdrawn'`,[selected.company])).rows).toEqual([{actor_user_id:selected.actor,note:"Required withdrawal note"}]);
  expect((await owner.query(`SELECT actor_user_id,after FROM audit_log WHERE entity_id=$1 AND action='server_action.withdrawInvite' AND after->>'ok'='true'`,[selected.request])).rows).toEqual([{actor_user_id:selected.actor,after:result.outcome},{actor_user_id:selected.actor,after:result.outcome}]);
+});
+
+
+async function productionSnapshot(selected:Awaited<ReturnType<typeof arrange>>){
+ const [counts]=await listCurrentSeatPoolCounts(owner,{operatingDate:"2026-10-02",asOf:at,vendorAccountId:selected.account});
+ return {available:counts.purchased-counts.assigned-counts.pendingInvites,request:(await owner.query(`SELECT state,license_assignment_id FROM license_request WHERE id=$1 AND company_id=$2`,[selected.request,selected.company])).rows,assignments:(await owner.query(`SELECT id,ended_on FROM license_assignment WHERE company_id=$1 AND source_request_id=$2`,[selected.company,selected.request])).rows};
+}
+test.each(["missing-kek","unsupported"])("actual signed fresh %s failure retains reservation, intent and trusted result audit without network",async(kind)=>{
+ const selected=await arrange("group_admin"),before=await productionSnapshot(selected),savedKek=process.env.LEDGER_CREDENTIAL_KEK_FILE;
+ if(kind === "unsupported")await owner.query(`UPDATE vendor SET provisioning_protocol='none' WHERE id=$1`,[selected.vendor]);
+ delete process.env.LEDGER_CREDENTIAL_KEK_FILE;
+ const network=vi.spyOn(globalThis,"fetch").mockImplementation(async()=>{throw new Error("UNEXPECTED_PROVIDER_NETWORK");});
+ try{
+  expect(await invokeProduction(selected.actor,selected.form)).toEqual({outcome:{ok:false,error:kind === "unsupported"?"unsupported":"ambiguous"},tags:[]});
+  expect(await productionSnapshot(selected)).toEqual(before);expect(network).not.toHaveBeenCalled();
+  expect((await owner.query(`SELECT status,raw_response,raw_request FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[selected.request])).rows).toEqual([{status:"pending",raw_response:null,raw_request:expect.objectContaining({actorUserId:selected.actor,companyId:selected.company,note:"Required withdrawal note"})}]);
+  expect((await invokeProduction(selected.actor,selected.form)).outcome).toEqual({ok:false,error:"ambiguous"});expect(network).not.toHaveBeenCalled();expect(await productionSnapshot(selected)).toEqual(before);
+  expect((await owner.query(`SELECT actor_user_id,entity_type,after FROM audit_log WHERE entity_id=$1 AND action='server_action.withdrawInvite' ORDER BY after->>'error'`,[selected.request])).rows).toEqual([{actor_user_id:selected.actor,entity_type:"LicenseRequest",after:{ok:false,error:"ambiguous"}},{actor_user_id:selected.actor,entity_type:"LicenseRequest",after:{ok:false,error:kind === "unsupported"?"unsupported":"ambiguous"}}]);
+  expect((await owner.query(`SELECT id FROM request_transition WHERE request_id=$1`,[selected.request])).rows).toEqual([]);
+ }finally{network.mockRestore();if(savedKek===undefined)delete process.env.LEDGER_CREDENTIAL_KEK_FILE;else process.env.LEDGER_CREDENTIAL_KEK_FILE=savedKek;}
+});
+
+
+test("actual signed action validates each missing or invalid command field before provider composition",async()=>{
+ const selected=await arrange("group_admin"),before=await productionSnapshot(selected),network=vi.spyOn(globalThis,"fetch").mockImplementation(async()=>{throw new Error("UNEXPECTED_PROVIDER_NETWORK");});let commands=0;
+ try{
+  for(const field of ["requestId","actionId","commandId","note"]){
+   for(const value of [undefined,field==='note'?"   ":"invalid",...(field==='note'?["x".repeat(2001)]:[])]){
+    const form=new FormData();for(const [key,entry] of selected.form)form.set(key,entry);if(value===undefined)form.delete(field);else form.set(field,value);
+    expect(await invokeProduction(selected.actor,form)).toEqual({outcome:{ok:false,error:"invalid"},tags:[]});commands++;
+   }
+  }
+  expect(await productionSnapshot(selected)).toEqual(before);expect(network).not.toHaveBeenCalled();
+  expect((await owner.query(`SELECT actor_user_id,entity_type,after FROM audit_log WHERE actor_user_id=$1 AND action='server_action.withdrawInvite'`,[selected.actor])).rows).toEqual(Array.from({length:commands},()=>({actor_user_id:selected.actor,entity_type:"LicenseRequest",after:{ok:false,error:"invalid"}})));
+  expect((await owner.query(`SELECT id FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[selected.request])).rows).toEqual([]);
+ }finally{network.mockRestore();}
 });

@@ -6,7 +6,7 @@ import { encryptCredential } from "./credential-crypto";
 import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
-import { afterAll, beforeAll, expect, test, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import { createConnectorCallObservationSession } from "@smp/connectors/connector-call-observation";
 const webRequire=createRequire(new URL("../../../apps/web/package.json",import.meta.url));
 const {createAnthropicConnector}=await import(webRequire.resolve("@smp/connectors/providers/anthropic/connector")) as {createAnthropicConnector:import("./invitation-withdrawal").InvitationWithdrawalConnectorFactory};
@@ -21,6 +21,10 @@ const sent = new Date("2026-09-20T15:00:00Z");
 let fixture: PostgresFixture, owner: pg.Client, pool: pg.Pool;
 beforeAll(async () => { fixture = await createPostgresFixture(); await fixture.migrate(); owner = await fixture.connectAsOwner(); pool = new pg.Pool({connectionString:fixture.ownerUrl}); },30000);
 afterAll(async () => { await pool?.end(); await owner?.end(); await fixture?.stop(); });
+afterEach(async()=>{
+ expect((await owner.query(`SELECT pid,state FROM pg_stat_activity WHERE datname=current_database() AND state LIKE 'idle in transaction%'`)).rows).toEqual([]);
+ expect((await owner.query(`SELECT lock.pid FROM pg_locks lock JOIN pg_stat_activity activity ON activity.pid=lock.pid WHERE activity.datname=current_database() AND lock.locktype='advisory'`)).rows).toEqual([]);
+});
 async function seed() {
   const companyId=randomUUID(),foreignCompanyId=randomUUID(), vendor=randomUUID(), vendorAccountId=randomUUID(),license=randomUUID(),person=randomUUID(),requestId=randomUUID(),actionId=randomUUID(),actorUserId=randomUUID();
   await owner.query(`INSERT INTO company(id,name,code,type,status,created_at,created_by) VALUES($1,'Withdraw A',$3,'internal','active',$4,'00000000-0000-0000-0000-000000000001'),($2,'Withdraw B',$5,'internal','active',$4,'00000000-0000-0000-0000-000000000001')`,[companyId,foreignCompanyId,companyId, sent,foreignCompanyId]);
@@ -70,7 +74,7 @@ test("commits observed intent before I/O and releases exactly one reservation af
  expect((await execution.service.withdraw(input)).ok).toBe(true);
  const after=await snapshot(input);expect(after.request.state).toBe("deprovisioned");expect(after.available-before.available).toBe(1);expect(after.assignments).toEqual(before.assignments);
  expect((await owner.query(`SELECT status FROM provisioning_action WHERE id=$1`,[input.actionId])).rows[0].status).toBe("withdrawn");
- expect((await owner.query(`SELECT actor_user_id,note FROM audit_log WHERE company_id=$1 AND entity_type='ProvisioningAction' AND action='invitation.withdrawn'`,[input.companyId])).rows).toEqual([{actor_user_id:input.actorUserId,note:input.note}]);
+ expect((await owner.query(`SELECT actor_user_id,note,after FROM audit_log WHERE company_id=$1 AND entity_type='ProvisioningAction' AND action='invitation.withdrawn'`,[input.companyId])).rows).toEqual([{actor_user_id:input.actorUserId,note:input.note,after:{originalActionId:input.actionId,vendorRef:"invite-pinned"}}]);
  expect((await execution.service.withdraw(input)).ok).toBe(true);
  expect(execution.calls.filter(c=>c.method === "DELETE").map(c=>c.path)).toEqual(["/v1/organizations/invites/invite-pinned"]);
  expect((await owner.query(`SELECT count(*)::int AS count FROM request_transition WHERE request_id=$1`,[input.requestId])).rows[0].count).toBe(1);
@@ -277,3 +281,67 @@ test("anchored UUID and command scalar types reject malformed internal commands 
  for(const command of [{...input,commandId:"prefix"+input.commandId},{...input,commandId:input.commandId+"suffix"},{...input,actorUserId:7},{...input,note:7},{...input,requestId:null}]){expect(await execution.service.withdraw(command as unknown as typeof input)).toEqual({ok:false,error:"invalid"});expect(await snapshot(input)).toEqual(before);}
  expect(execution.calls).toEqual([]);
 });
+
+
+test("missing and overlong trusted actor refuse before intent while exact actor-label bound is durable",async()=>{
+ for(const label of [null,"x".repeat(321)]){
+  const input=await seed(),before=await snapshot(input),execution=service(input);
+  if(label!==null)await owner.query(`UPDATE user_account SET email=$2 WHERE id=$1`,[input.actorUserId,label]);
+  expect(await execution.service.withdraw({...input,actorUserId:label===null?randomUUID():input.actorUserId})).toEqual({ok:false,error:"conflict"});
+  expect(await snapshot(input)).toEqual(before);expect(execution.calls).toEqual([]);expect((await owner.query(`SELECT id FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId])).rows).toEqual([]);
+ }
+ const input=await seed(),execution=service(input),label="x".repeat(320);
+ await owner.query(`UPDATE user_account SET email=$2 WHERE id=$1`,[input.actorUserId,label]);expect((await execution.service.withdraw(input)).ok).toBe(true);
+ expect((await owner.query(`SELECT raw_request->>'actorLabel' AS label FROM provisioning_action WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId])).rows).toEqual([{label}]);
+});
+test("completed intent with foreign company metadata cannot be replayed as success",async()=>{
+ const input=await seed(),execution=service(input);expect((await execution.service.withdraw(input)).ok).toBe(true);const before=await snapshot(input);
+ await owner.query(`UPDATE provisioning_action SET raw_request=jsonb_set(raw_request,'{companyId}',$2::jsonb) WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId,JSON.stringify(input.foreignCompanyId)]);
+ expect(await execution.service.withdraw(input)).toEqual({ok:false,error:"conflict"});expect(await snapshot(input)).toEqual(before);expect(execution.calls.filter(call=>call.method==='DELETE')).toHaveLength(1);
+});
+test.each(["status","vendor_ref","commandId"])("%s changed after durable receipt write cannot finalize and restored receipt recovers without DELETE",async(field)=>{
+ const input=await seed(),before=await snapshot(input),execution=service(input),name="us068_receipt_"+input.requestId.replaceAll("-","");
+ const change=field==='status'?"status='failed'":field==='vendor_ref'?"vendor_ref='invite-foreign'":`raw_request=jsonb_set(raw_request,'{commandId}','"${randomUUID()}"'::jsonb)`;
+ await owner.query(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE provisioning_action SET ${change} WHERE id=NEW.id;RETURN NEW;END $$;CREATE TRIGGER ${name} AFTER UPDATE ON provisioning_action FOR EACH ROW WHEN (NEW.request_id='${input.requestId}'::uuid AND NEW.kind='withdraw_invite' AND NEW.raw_response IS DISTINCT FROM OLD.raw_response) EXECUTE FUNCTION ${name}();`);
+ try{expect(await execution.service.withdraw(input)).toEqual({ok:false,error:"conflict"});expect(await snapshot(input)).toEqual(before);}finally{await owner.query(`DROP TRIGGER ${name} ON provisioning_action;DROP FUNCTION ${name}();`);}
+ await owner.query(`UPDATE provisioning_action SET status='pending',vendor_ref='invite-pinned',raw_request=jsonb_set(raw_request,'{commandId}',$2::jsonb) WHERE request_id=$1 AND kind='withdraw_invite'`,[input.requestId,JSON.stringify(input.commandId)]);
+ expect((await execution.service.withdraw(input)).ok).toBe(true);expect((await snapshot(input)).available-before.available).toBe(1);expect(execution.calls.filter(call=>call.method==='DELETE')).toHaveLength(1);
+});
+
+test("real production connector rejects a different account before network and unsupported protocol returns null",async()=>{
+ const input=await seed(),root=mkdtempSync(join(tmpdir(),"us068-account-")),kekFile=join(root,"kek");writeFileSync(kekFile,Buffer.alloc(32,7).toString("base64"));chmodSync(kekFile,0o400);
+ const {parseCredentialEnvelope}=await import(webRequire.resolve("@smp/domain"));
+ const factory=createProductionInvitationWithdrawalConnector({database:owner,now:()=>at,createConnector:createAnthropicConnector,createLimiter:createAnthropicRateLimiter,parseCredentialEnvelope,kekFile,allowedKekRoot:root});
+ const context={companyId:input.companyId,requestId:input.requestId,actionId:input.actionId,vendorAccountId:input.vendorAccountId,vendorRef:"invite-pinned",withdrawalActionId:randomUUID()};
+ const network=vi.spyOn(globalThis,"fetch").mockImplementation(async()=>{throw new Error("UNEXPECTED_PROVIDER_NETWORK");});
+ try{
+  const connector=await factory(context);expect(connector).not.toBeNull();await expect(connector!.withdrawInvitation!({requestId:input.requestId,vendorAccountId:randomUUID(),vendorRef:"invite-pinned"})).rejects.toThrow("WITHDRAWAL_ACCOUNT_MISMATCH");expect(network).not.toHaveBeenCalled();
+  await owner.query(`UPDATE vendor SET provisioning_protocol='none' WHERE id=(SELECT vendor_id FROM vendor_account WHERE id=$1)`,[input.vendorAccountId]);expect(await factory(context)).toBeNull();
+  expect(await factory({...context,vendorAccountId:randomUUID()})).toBeNull();expect(network).not.toHaveBeenCalled();
+ }finally{network.mockRestore();rmSync(root,{recursive:true,force:true});}
+});
+
+
+test("preparation keeps request rows locked until durable withdrawal intent commits",async()=>{
+ const input=await seed(),before=await snapshot(input),execution=service(input),name="us068_prepare_"+input.requestId.replaceAll("-","");
+ const writer=new pg.Client({connectionString:fixture.ownerUrl});await writer.connect();const writerPid=(await writer.query(`SELECT pg_backend_pid() AS pid`)).rows[0].pid;
+ const ownerPid=(await owner.query(`SELECT pg_backend_pid() AS pid`)).rows[0].pid;
+ await owner.query(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_xact_lock(hashtextextended('${name}',0));RETURN NEW;END $$;CREATE TRIGGER ${name} BEFORE INSERT ON provisioning_action FOR EACH ROW WHEN (NEW.request_id='${input.requestId}'::uuid AND NEW.kind='withdraw_invite') EXECUTE FUNCTION ${name}();`);
+ await owner.query(`SELECT pg_advisory_lock(hashtextextended($1,0))`,[name]);
+ const pending=execution.service.withdraw(input);let writing:Promise<pg.QueryResult>|undefined;
+ async function until<T>(probe:()=>Promise<T|undefined>,unexpected:Promise<unknown>):Promise<T>{
+  for(let attempts=0;attempts<1000;attempts++){const value=await Promise.race([probe(),unexpected]);if(value!==undefined)return value as T;}throw new Error("PREPARATION_LOCK_NOT_OBSERVED");
+ }
+ try{
+  const finishedTooSoon=pending.then(()=>{throw new Error("INTENT_INSERT_DID_NOT_WAIT_FOR_BARRIER");});
+  const holder=await until(async()=>{const result=await owner.query(`SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory' AND $1=ANY(pg_blocking_pids(pid)) AND query LIKE '%INSERT INTO provisioning_action%'`,[ownerPid]);return result.rows[0]?.pid as number|undefined;},finishedTooSoon);
+  writing=writer.query(`UPDATE license_request SET justification='Competing writer' WHERE id=$1 AND company_id=$2`,[input.requestId,input.companyId]);
+  const wroteTooSoon=writing.then(()=>{throw new Error("PREPARATION_REQUEST_ROW_NOT_LOCKED");});
+  const blockers=await until(async()=>{const result=await owner.query(`SELECT pg_blocking_pids($1) AS pids`,[writerPid]);return result.rows[0].pids.includes(holder)?result.rows[0].pids as number[]:undefined;},wroteTooSoon);
+  expect(blockers).toContain(holder);
+  await owner.query(`SELECT pg_advisory_unlock(hashtextextended($1,0))`,[name]);expect((await pending).ok).toBe(true);await writing;
+  expect((await snapshot(input)).available-before.available).toBe(1);expect(execution.calls.filter(call=>call.method==='DELETE')).toHaveLength(1);
+ }finally{
+  await owner.query(`SELECT pg_advisory_unlock(hashtextextended($1,0))`,[name]);await pending;await writing;await owner.query(`DROP TRIGGER ${name} ON provisioning_action;DROP FUNCTION ${name}();`);await writer.end();
+ }
+},10000);
