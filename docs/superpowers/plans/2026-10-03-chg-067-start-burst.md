@@ -1,6 +1,6 @@
 **Work item:** CHG-067
 **Readiness assessment:** docs/readiness/CHG-067.json
-**Approved estimate:** 160 minutes
+**Approved estimate:** 210 minutes
 
 # CHG-067 — full-gate container-start burst and expiry lock-wait oracle — Implementation Plan
 
