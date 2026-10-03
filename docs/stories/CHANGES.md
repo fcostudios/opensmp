@@ -64,6 +64,7 @@
 | **CHG-064** | 📦 delivered | Fix the three unchanged-test flakes that fail the full gate: pg-pool teardown 57P01 race, report-job-failure concurrent-creator oracle, dispatch consecutive type-check deadline | — | — |
 | **CHG-065** | 🟢 accepted | Verification cost: re-preview only touched shards, one-line survivor annotations, one controller session per story without 1 s polling, emit done.cost | — | — |
 | **CHG-066** | 🟢 accepted | Full-gate residue after CHG-064: container-load resets, unpinned health-route container, Ryuk disabled, WITH (FORCE) as non-superuser, readiness check's closed decision shape | — | — |
+| **CHG-067** | 🟢 accepted | Full-gate container-start burst and expiry lock-wait oracle | — | — |
 
 ---
 
@@ -844,6 +845,18 @@ _No stories linked to this change yet._
 ## Why (CHG-064 closure, 2026-10-03)
 
 CHG-064 fixed the five load-dependent causes it named (pg-pool tear...
+
+_No stories linked to this change yet._
+
+### CHG-067: Full-gate container-start burst and expiry lock-wait oracle
+
+**Status:** 🟢 `accepted`
+**Notes:** # Full-gate container-start burst and expiry lock-wait oracle (partition child of CHG-066)
+
+## Why
+
+CHG-066 closed its six items (head 565fb63): `readiness:check:all` exits 0, a killed run leaves no
+containers, `ECONNRESET` 0 in 20 runs, forced default-parallel `pnpm check` at 237–248 s per run. ...
 
 _No stories linked to this change yet._
 

@@ -1,13 +1,13 @@
 {
-  "synced_at": "2026-10-03T14:45:56.027993+00:00",
+  "synced_at": "2026-10-03T16:47:11.500100+00:00",
   "project_id": "fcostudios__smp",
   "files": {
     "docs/stories/SPRINT_PLAN.md": {
-      "hash": "fa75b43b07515cd1",
+      "hash": "a3cdcc671d4fd3e2",
       "source": "generated"
     },
     "docs/stories/CHANGES.md": {
-      "hash": "99c4ff577ab57a91",
+      "hash": "95964447aefba28c",
       "source": "generated"
     },
     "docs/stories/ASSIGNMENTS.md": {
