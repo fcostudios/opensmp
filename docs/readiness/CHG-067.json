@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "37b25424c0b0a892fd94120941949c60a2479b12955d5ea02c9eebd80c7808fc",
+  "readiness_payload_sha256": "0e4af07ac8460ddebf72038fdfdea26cb5cdde41c422e3219efd07d6713cc3b1",
   "work_id": "CHG-067",
   "kind": "CHG",
   "work_type": "technical",
@@ -49,20 +49,20 @@
     "tooling_change": true
   },
   "estimate_minutes": {
-    "readiness": 15,
-    "implementation": 45,
-    "focused_verification": 60,
+    "readiness": 20,
+    "implementation": 40,
+    "focused_verification": 110,
     "review": 20,
     "integration": 20,
-    "total": 160
+    "total": 210
   },
   "uncertainties": [
     {
       "id": "U1",
       "statement": "Shape of the container-start burst fix.",
       "status": "resolved",
-      "estimate_impact_minutes": 20,
-      "resolution": "testcontainers 12.0.4 inspectContainerUntilPortsExposed has a hardcoded 10 s default with no option, and CHG-066 observed it exceeded when up to 13 fixture containers start together. The fix in packages/db/src/testing/postgres-container.ts holds a cross-process file lock only around each container start, released once its ports are bound and before role bootstrap and tests; tests stay file- and package-parallel, so this is not serial scheduling. A RED test starts N fixture containers concurrently and records the start overlap under the lock (never assumed). If the lock does not remove the timeout in the round, stop and return; one container per vitest worker is the larger alternative and needs re-approval."
+      "estimate_impact_minutes": 45,
+      "resolution": "testcontainers 12.0.4 inspectContainerUntilPortsExposed has a hardcoded 10 s default with no option; CHG-066 saw it exceeded when up to 13 fixture containers start together. createPostgresFixture starts its container while holding one of three cross-process start slots (atomic mkdir slot directories in the OS temp dir, holder pid recorded, a dead or stale holder taken over), released when start() returns, before role bootstrap and tests; tests stay file- and package-parallel. Widened after the first round (9/10, deviation on be02991): a single slot held for the whole start(), including the database readiness wait, made one fixture queue past its file-level 30 s beforeAll budget (withdraw-invite) in the opening burst, while the two targeted classes did not recur; three slots cut the worst-case queue to about a third and keep the burst below what tripped the 10 s wait. Per-file hook bounds are not raised. If the round is not ten of ten, stop and return; one container per vitest worker is the larger alternative and needs re-approval."
     },
     {
       "id": "U2",
@@ -85,8 +85,8 @@
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "CHG067-READY",
-    "payload_sha256": "37b25424c0b0a892fd94120941949c60a2479b12955d5ea02c9eebd80c7808fc"
+    "evidence": "CHG067-READY-2",
+    "payload_sha256": "0e4af07ac8460ddebf72038fdfdea26cb5cdde41c422e3219efd07d6713cc3b1"
   },
   "actuals": null,
   "policy_bootstrap": false,
