@@ -18,18 +18,20 @@ Full text: `WORK_READINESS.md` §Per-task mutation previews, §Session shape and
   previous preview. A whole-set re-preview needs a named reason in the closure.
   Record `preview_rounds` and `preview_minutes` in `actuals`.
 - **One line per survivor.** `surviving_annotated` holds
-  `<mutant-id> <file>:<line> @equivalent: <reason>` (or `@accepted: <reason>`).
-  No signed equivalence report and no counterfactual log. A killed survivor is
+  `<mutant-id> <file>:<line> @equivalent: <reason>` (or `@accepted: <reason>`
+  when the reviewer agrees an observable mutant is not worth a test). The
+  reviewer's verdict is the sign-off; no signed equivalence report and no
+  counterfactual log. A killed survivor is
   proven by the test that kills it.
 - **One controller session per work item**, opened at readiness and closed at
-  `done`. The controller briefs a reviewer for adversarial AC verification and
+  `done` (a checkpoint or idle restart resumes the same item). The controller briefs a reviewer for adversarial AC verification and
   scoped review instead of running them in its own context. Wait for
   background gates and campaigns with a blocking wait or a yield of 60 s or
   more, never a 1 s poll.
 - **`cost` on every `done`**: `calls`, `context_tokens`, `output_tokens`,
   `model`, `window`. `done` accepts no other key, so the sentence saying whether
-  the numbers are measured or estimated goes in the `notes` of the
-  `integration` phase marker emitted just before `done`.
+  the numbers are measured or estimated goes in a `feedback` annotation emitted
+  just before `done`.
 
 ## Sprint 1 Execution Contract (DEC-SMP-017 / CHG-001)
 

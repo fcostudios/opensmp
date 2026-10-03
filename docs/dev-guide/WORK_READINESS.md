@@ -249,8 +249,9 @@ the files changed since the previous preview (`git diff --name-only
 `sources` intersect that list. Shards whose sources did not change keep their
 previous result. Re-previewing the whole set needs a named reason — for example
 a changed shared fixture, test helper, or config every shard imports — written
-in the closure's `root_cause`. Record the count of preview runs as
-`actuals.preview_rounds` and their summed wall-clock as
+in the closure's `root_cause`. A preview round is one preflight plus the
+shard previews it selects, after a task or after a fix round. Record the number
+of rounds as `actuals.preview_rounds` and their summed wall-clock minutes as
 `actuals.preview_minutes`.
 
 **A survivor annotation is one line.** Each survivor that is not killed gets
@@ -261,11 +262,13 @@ exactly one line in the `test_report`'s `surviving_annotated`:
 <mutant-id> <file>:<line> @accepted: <reason>
 ```
 
-`@equivalent:` means no test can tell the mutant from the original;
-`@accepted:` means it is observable but not worth a test, and the reason says
-why. Do not write a separate signed equivalence report or a counterfactual log.
-A survivor that gets killed needs no annotation: the test that kills it is the
-proof.
+`@equivalent:` means no test can tell the mutant from the original.
+`@accepted:` is the narrow exception to "repair every genuine survivor": the
+mutant is observable, but the reviewer agreed a test would not be worth it, and
+the reason says why. The reviewer's sign-off that TESTING.md requires is their
+review verdict on those lines. Do not write a separate signed equivalence
+report or a counterfactual log. A survivor that gets killed needs no
+annotation: the test that kills it is the proof.
 
 These previews are non-authoritative: they do not clear the authoritative
 cache, emit no `test_report` or mutation-performance evidence, and never
@@ -305,12 +308,15 @@ measured on US-067..069 and US-021).
 - **One controller session per work item.** Open it at readiness and close it
   at that item's `done`. Do not carry a controller across items: the next item
   starts a fresh session from its readiness artifact, plan, and
-  `.nous-feedback.jsonl`.
-- **The controller plans, briefs, and integrates; it does not verify in its own
-  context.** Brief a reviewer (a subagent or a fresh session) for adversarial AC
-  verification and for each scoped review, giving it the AC list, the diff
-  range, and the commands. The controller records the reviewer's verdicts as
-  `ac_verify` events.
+  `.nous-feedback.jsonl`. The checkpoint and idle restarts in CLAUDE.md's agent
+  session contract still apply: the restarted session resumes the same item
+  from those files and is still that item's controller.
+- **The controller plans, briefs, and reviews the reviewer's findings; it does
+  not run the verification in its own context.** Brief a reviewer (a subagent
+  or a fresh session) for adversarial AC verification and for each scoped
+  review, giving it the AC list, the diff range, and the commands. The
+  controller decides on the findings and records the verdicts as `ac_verify`
+  events.
 - **Never poll at 1 s.** Wait for a background gate, preview, or campaign with
   a blocking wait or a yield of 60 s or more. Each wake re-sends the whole
   context, so a 1 s poll loop is the most expensive way to wait.
@@ -421,7 +427,7 @@ Close every work item with this shape. Like `mutation_minutes`,
 
 ```jsonl
 {"story":"US-123","event":"test_report","mutation_score":92.3,"scope":"diff","killed":12,"survived":1,"surviving_annotated":["mutant41 packages/domain/src/x.ts:88 @equivalent: the caller already clamps the loop bound"],"mutation_wallclock_s":600}
-{"story":"US-123","event":"phase","phase":"integration","ts":"<iso>","notes":"done.cost below is measured from the harness transcript."}
+{"story":"US-123","event":"feedback","title":"done.cost provenance","description":"done.cost below is measured from the harness transcript.","images":[],"ts":"<iso>"}
 {"story":"US-123","event":"done","source_commit":"<sha>","ts":"<iso>","cost":{"calls":120,"context_tokens":240000,"output_tokens":38000,"model":"<model-id>","window":1000000}}
 ```
 
@@ -430,8 +436,9 @@ requires it on every `done`, with `calls`, `context_tokens`, `output_tokens`,
 `model`, and `window`. Neither `cost` nor `done` accepts any other key (the
 gate's `validDone` and the delivered DoD are closed), so the sentence saying
 whether the numbers are measured (read from the harness transcript or usage
-report) or estimated goes in the `notes` of the `integration` phase marker
-emitted just before `done`. Omit `test_report` when the work has zero mutation
+report) or estimated goes in a `feedback` annotation emitted just before
+`done`. The `integration` phase marker stays at the start of integration.
+Omit `test_report` when the work has zero mutation
 shards.
 
 For a reproducible provisional measurement, bind every metric to named Git
