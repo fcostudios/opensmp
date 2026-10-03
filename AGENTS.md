@@ -20,6 +20,11 @@
    `verify-schema.mjs` apply the COMMITTED migrations. `drizzle-kit push` is NOT the gate: it diffs only what `schema.ts` can model, while the committed migrations also carry RLS policies, triggers and composite tenant-scoped foreign keys — so push proposes DROPPING them and can hard-fail. Use `drizzle-kit generate` to AUTHOR a migration and the committed-migration applier (`db:migrate`) to PROVE the committed set applies.
 4. **Conventions** (tenant column `company_id`, per-table soft delete, App Router, design tokens)
    live in [`CLAUDE.md`](CLAUDE.md) and `docs/dev-guide/` — follow them verbatim.
+5. **Project additions:** read [`docs/dev-guide/local/CLAUDE.md`](docs/dev-guide/local/CLAUDE.md)
+   before starting a work item — the readiness gate and the verification-cost rules
+   (touched-shard previews, one-line survivors, one controller session per item, no 1 s
+   polling, `cost` on `done`); full text in
+   [`docs/dev-guide/WORK_READINESS.md`](docs/dev-guide/WORK_READINESS.md) §Session shape.
 
 ## Agent Roles
 
