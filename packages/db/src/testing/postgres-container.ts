@@ -86,6 +86,45 @@ function databaseUrl(baseUrl: string, username: string, password: string, databa
   return url.toString();
 }
 
+// pg-pool's end() resolves once its client list is empty, without awaiting
+// each idle client's end(): a backend can still be reading or acting on that
+// client's Terminate when cleanup runs. Terminating it then sends FATAL 57P01
+// to a client that still carries the pool's idle error listener, which
+// re-emits it on a pool nobody listens to — an uncaught error in whichever
+// suite tears down last. So wait for those backends to exit first. A backend
+// that is exiting has left ClientRead; only one that keeps waiting for a
+// client command, unchanged, is a genuine leak and left to pg_terminate_backend.
+const LEAKED_BACKEND_SETTLE_MS = 1_000;
+
+async function drainClientBackends(client: pg.Client, databaseName: string): Promise<void> {
+  let waitingPids = "";
+  let waitingSince = 0;
+  for (;;) {
+    const { rows } = await client.query<{ pid: number; waiting: boolean }>(
+      // A role without pg_read_all_stats (the mutation-clone owner) sees NULL
+      // state for other roles' backends: treat that as waiting, so it still settles.
+      `SELECT pid, COALESCE(state = 'idle' AND wait_event = 'ClientRead', true) AS waiting
+       FROM pg_stat_activity
+       WHERE datname = $1 AND backend_type = 'client backend' AND pid <> pg_backend_pid()
+       ORDER BY pid`,
+      [databaseName],
+    );
+    if (rows.length === 0) return;
+    if (rows.every((row) => row.waiting)) {
+      const pids = rows.map((row) => row.pid).join(",");
+      if (pids !== waitingPids) {
+        waitingPids = pids;
+        waitingSince = Date.now();
+      } else if (Date.now() - waitingSince >= LEAKED_BACKEND_SETTLE_MS) {
+        return;
+      }
+    } else {
+      waitingPids = "";
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
+
 function parseMutationDatabaseUrl(value: string, prefix: string): URL {
   try {
     const url = new URL(value);
@@ -134,6 +173,7 @@ export async function createPostgresFixture(
       try {
         await client.connect();
         try {
+          await drainClientBackends(client, databaseName);
           if (faultSql) await client.query(faultSql);
         } finally {
           // Even the deterministic cleanup fault must not skip the real drop.
@@ -264,23 +304,21 @@ export async function createPostgresFixture(
         }
 
         if (connected) {
-          const cleanupStatements: Array<
-            | { text: string }
-            | { text: string; values: string[] }
-          > = [
-            ...(beforeCleanupSql ? [{ text: beforeCleanupSql }] : []),
-            {
-              text: "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
-              values: [databaseName],
-            },
-            { text: `DROP DATABASE IF EXISTS "${databaseName}"` },
-            { text: "DROP ROLE IF EXISTS ledger_app" },
-            { text: "DROP ROLE IF EXISTS ledger_owner" },
+          const cleanupSteps: Array<() => Promise<unknown>> = [
+            () => drainClientBackends(cluster, databaseName),
+            ...(beforeCleanupSql ? [() => cluster.query(beforeCleanupSql)] : []),
+            () => cluster.query(
+              "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
+              [databaseName],
+            ),
+            () => cluster.query(`DROP DATABASE IF EXISTS "${databaseName}"`),
+            () => cluster.query("DROP ROLE IF EXISTS ledger_app"),
+            () => cluster.query("DROP ROLE IF EXISTS ledger_owner"),
           ];
 
-          for (const statement of cleanupStatements) {
+          for (const step of cleanupSteps) {
             try {
-              await cluster.query(statement.text, "values" in statement ? statement.values : undefined);
+              await step();
             } catch (error) {
               cleanupErrors.push(error);
             }

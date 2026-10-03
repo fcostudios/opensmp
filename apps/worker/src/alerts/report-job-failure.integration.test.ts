@@ -135,8 +135,12 @@ describe("US-046 operational job failure reporting", () => {
       };
       const results = await Promise.all(Array.from({ length: 12 }, () => reporter.report(input)));
 
-      expect(results.filter((result) => result.status === "created")).toHaveLength(1);
-      expect(results.filter((result) => result.status === "deduplicated")).toHaveLength(11);
+      // `created` needs the enqueuing caller to also win the delivery claim; a
+      // deduplicated caller may win it instead, send, and report `deduplicated`.
+      // The guaranteed invariant is exactly one delivery, by either caller.
+      expect(results.every((result) => ["created", "deduplicated"].includes(result.status))).toBe(true);
+      expect(results.filter((result) => result.status === "created").length).toBeLessThanOrEqual(1);
+      expect(smtp.messages).toHaveLength(1);
       await expect(reporter.report(input)).resolves.toEqual({ status: "deduplicated" });
       expect(await owner.query(
         `SELECT event.alert_rule_id, event.notified, event.subject_ref,

@@ -337,3 +337,67 @@ test("reports an unexpected cleanup failure after attempting to stop the real co
     restoreEnvironment();
   }
 }, 150_000);
+
+// CHG-064: pg-pool's end() resolves before its idle clients' sockets close, so
+// stopping the fixture straight after it must not terminate a backend that is
+// still processing that client's Terminate (FATAL 57P01, re-emitted by the
+// pool's idle listener as an uncaught error in the real suites).
+// Runs on the cluster connection at the terminate point: any client backend
+// still alive there would be terminated mid-Terminate and answer with 57P01.
+const noClientBackendRemainsSql = `DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_stat_activity
+    WHERE datname LIKE 'ledger_integrity_%' AND backend_type = 'client backend'
+  ) THEN
+    RAISE EXCEPTION 'an ending pool client backend is still alive at the terminate point';
+  END IF;
+END $$`;
+
+test("stops right after a pool ends without terminating any of its ending clients", async () => {
+  const restoreEnvironment = isolateMutationDatabaseEnvironment();
+  const poolErrors: unknown[] = [];
+  try {
+    for (let round = 0; round < 5; round += 1) {
+      const fixture = await createPostgresFixture({ beforeCleanupSql: noClientBackendRemainsSql });
+      const pool = new pg.Pool({ connectionString: fixture.appUrl, max: 24 });
+      pool.on("error", (error) => poolErrors.push(error));
+      try {
+        const clients = await Promise.all(Array.from({ length: 24 }, () => pool.connect()));
+        // Temporary relations are dropped while each backend exits, which
+        // stretches the exit the way full-gate CPU contention does.
+        await Promise.all(clients.map((client) => client.query(`DO $$
+          BEGIN
+            FOR i IN 1..200 LOOP
+              EXECUTE format('CREATE TEMP TABLE slow_exit_%s (id int)', i);
+            END LOOP;
+          END $$`)));
+        for (const client of clients) client.release();
+        await pool.end();
+      } finally {
+        await fixture.stop();
+      }
+    }
+
+    expect(poolErrors).toEqual([]);
+  } finally {
+    restoreEnvironment();
+  }
+}, 300_000);
+
+test("still terminates a genuinely leaked connection when it stops", async () => {
+  const restoreEnvironment = isolateMutationDatabaseEnvironment();
+  try {
+    const fixture = await createPostgresFixture();
+    const leaked = await fixture.connectAsApp();
+    const leakedErrors: Array<{ code?: string }> = [];
+    leaked.on("error", (error) => leakedErrors.push(error as { code?: string }));
+
+    await expect(fixture.stop()).resolves.toBeUndefined();
+    await leaked.end().catch(() => undefined);
+
+    expect(leakedErrors.map((error) => error.code)).toContain("57P01");
+  } finally {
+    restoreEnvironment();
+  }
+}, 150_000);

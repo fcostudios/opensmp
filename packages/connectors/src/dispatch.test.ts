@@ -1324,16 +1324,19 @@ describe("connector source-package build", () => {
       cwd: connectorPackageRoot,
       encoding: "utf8",
     });
-    expect(first.status).toBe(0);
+    expect(first.status, first.stderr).toBe(0);
 
     const second = spawnSync("pnpm", ["run", "build"], {
       cwd: connectorPackageRoot,
       encoding: "utf8",
     });
-    expect(second.status).toBe(0);
+    expect(second.status, second.stderr).toBe(0);
 
     expect(await artifactSnapshot()).toEqual(before);
-  });
+    // 0 removes Vitest's implicit 5000 ms default rather than lengthening it:
+    // the oracle is the artefact property above, never how fast two
+    // synchronous tsc runs finish under full-gate load.
+  }, 0);
 });
 
 
