@@ -109,7 +109,7 @@
   "decision": "ready",
   "partitions": [],
   "approval": {
-    "status": "pending",
+    "status": "approved",
     "approved_by": "Francisco Lomas",
     "evidence": "CHG066-READY",
     "payload_sha256": "2509001c41dce7831a320407e5cc2593f61c618f095de7122e1c7e10325f5357"
