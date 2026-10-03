@@ -27,6 +27,10 @@ approval evidence (`validateDecisionRecordShape`) and correction authority
 their real types and a `readiness` object pass; malformed `approved_by`/`readiness` fail. Three
 existing closed-shape cases flip.
 
+Widening (CHG066-RULING-US021): opening the shape unmasked a second `check:all` failure, US-021's
+informational `deviation` after its `done`. A `deviation` after the terminal event is accepted as
+informational and never re-authorizes; every other implementation event after done still fails.
+
 ## Task 2 — health route on the shared fixture (AC4)
 
 `apps/web/src/app/api/health/route.test.ts` uses `createPostgresFixture()` (pinned PG16 digest, 120 s

@@ -1010,6 +1010,26 @@ test("later readiness decision stales selected evidence and explicit fresh reapp
   ]).active, true);
 });
 
+test("a deviation after the terminal event is informational; other evidence after done still fails", () => {
+  const value = normal();
+  const lifecycle = [
+    decisionFor(value),
+    { story: value.work_id, event: "started", agent: "codex" },
+    { story: value.work_id, event: "done" },
+  ];
+  const note = { story: value.work_id, event: "deviation", notes: "Local integration evidence (informational)." };
+  assert.equal(validateApproval(value, [...lifecycle, note]).payloadSha256, value.readiness_payload_sha256);
+  for (const [event, extra] of [["started", { agent: "codex" }], ["ac_pass", { ac: 1 }], ["build_pass", { notes: "after done" }], ["test_report", { mutation_score: 100 }]]) {
+    expectError("WR_APPROVAL_ORDER", "$.approval.evidence",
+      () => validateApproval(value, [...lifecycle, note, { story: value.work_id, event, ...extra }]));
+  }
+  expectError("WR_APPROVAL_INACTIVE", "$.approval.evidence", () => validateApproval(value, [
+    ...lifecycle,
+    { story: value.work_id, event: "blocked", reason: "Reopened after done" },
+    note,
+  ]));
+});
+
 test("normal terminal events close prior authorization", () => {
   const value = normal();
   const priorReady = attestDecision({

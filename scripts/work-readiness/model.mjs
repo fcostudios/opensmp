@@ -826,6 +826,10 @@ function validatePostapprovalHistory(value, feedbackRecords, evidenceIndex, term
       inactiveReason = "terminal";
       continue;
     }
+    // CHG-066: a deviation recorded after the terminal event (e.g. integration
+    // notes, US-021 line 883) is informational. It claims no work and never
+    // re-authorizes any; every other implementation event after done still fails.
+    if (!active && inactiveReason === "terminal" && record.event === "deviation") continue;
     if (!active && IMPLEMENTATION_EVIDENCE_EVENTS.has(record.event)) {
       fail("WR_APPROVAL_ORDER", "$.approval.evidence", "Implementation evidence occurs after readiness authorization became inactive");
     }
