@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "0a0c3388b5769eef78769dd3fec17038f2d643a213898598d251bb81037551fb",
+  "work_id": "CHG-064",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Fix the three unchanged-test flakes that fail the full gate: pg-pool teardown 57P01 race, report-job-failure concurrent-creator oracle, dispatch consecutive type-check deadline",
+  "source": "Nous change ledger CHG-064",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The full gate (pnpm check, turbo forced, default package and file parallelism) passes on an unchanged tree without the three load-dependent failures, so no story re-runs it until green and the US-069 RULING-20 serial scheduling is retired.",
+      "demo": "Run pnpm check with TURBO_FORCE=true ten consecutive times on one committed candidate; all ten exit 0. Record full-gate wall time before (RULING-20 serial shape on unchanged main) and after (default parallelism on the candidate).",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 7,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 20,
+    "implementation": 60,
+    "focused_verification": 120,
+    "review": 20,
+    "integration": 20,
+    "total": 240
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Whether the 57P01 race reproduces deterministically enough for a RED test (US-067 could not force the exact full-suite interleave).",
+      "status": "resolved",
+      "estimate_impact_minutes": 15,
+      "resolution": "The mechanism is confirmed in pg-pool 3.14.0: Pool.end() calls client.end() without awaiting it and resolves once its client list is empty, while each idle client keeps the pool's idle error listener, which re-emits on a pool that has no error listener. The RED test widens the window (many idle clients per pool, end() then stop() immediately, repeated) and records pool errors through an attached listener; the observed RED rate on the unchanged fixture is recorded, never assumed. The fix drains: stop() waits until no client backend remains on the database before pg_terminate_backend, which then reaches only genuine leaks."
+    },
+    {
+      "id": "U2",
+      "statement": "Whether the full gate is meaningful when run ten times on an unchanged tree.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Turbo's shared cache would replay runs 2-10, so every run uses TURBO_FORCE=true; logs, exit codes and wall times go to the session scratchpad and the tree stays committed and unchanged for the whole loop."
+    },
+    {
+      "id": "U3",
+      "statement": "Mutation routing of the fixture source.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "scripts/mutation-scope.mjs EXCLUDED matches (^|/)testing/ and *.test.ts, so postgres-container.ts and the three test files are not mutatable: zero shards, zero previews, no cold campaign, no test_report."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG064-READY",
+    "payload_sha256": "0a0c3388b5769eef78769dd3fec17038f2d643a213898598d251bb81037551fb"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
