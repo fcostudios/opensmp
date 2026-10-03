@@ -61,6 +61,8 @@
 | **CHG-061** | 📦 delivered | Adopt IMP-410: commit-msg accepts a pure Nous sync via scripts/nous-sync-owns.mjs | — | — |
 | **CHG-062** | 📦 delivered | Readiness gate accepts the delivered feedback vocabulary: phase markers and done.cost | — | — |
 | **CHG-063** | 📦 delivered | Partition US-021 (730 min > 320) into three canonical children US-067..069; invite-expiry config contract | US-067, US-068, US-069 | S3 |
+| **CHG-064** | 🟢 accepted | Fix the three unchanged-test flakes that fail the full gate: pg-pool teardown 57P01 race, report-job-failure concurrent-creator oracle, dispatch consecutive type-check deadline | — | — |
+| **CHG-065** | 🔵 analyzed | Verification cost: re-preview only touched shards, one-line survivor annotations, one controller session per story without 1 s polling, emit done.cost | — | — |
 
 ---
 
@@ -804,4 +806,30 @@ _No stories linked to this change yet._
 | **US-067** | Surface overdue invitations with configurable alerts | Sprint 3 | ✅ dev_done | [r1_misc_us_067.md](sprint-3/r1_misc_us_067.md) |
 | **US-068** | Withdraw a pending invitation safely from exceptions | Sprint 3 | ✅ dev_done | [r1_misc_us_068.md](sprint-3/r1_misc_us_068.md) |
 | **US-069** | Expire stale invitations automatically and notify the requester | Sprint 3 | ✅ dev_done | [r1_misc_us_069.md](sprint-3/r1_misc_us_069.md) |
+
+### CHG-064: Fix the three unchanged-test flakes that fail the full gate: pg-pool teardown 57P01 race, report-job-failure concurrent-creator oracle, dispatch consecutive type-check deadline
+
+**Status:** 🟢 `accepted`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** # Fix the three unchanged-test flakes that fail the full gate: pg-pool teardown 57P01 race, report-job-failure concurrent-creator oracle, dispatch consecutive type-check deadline
+
+## Why (measured 2026-10-02 on US-067..069, the first children after IMP-409..412)
+
+The children landed on estimate (...
+
+_No stories linked to this change yet._
+
+### CHG-065: Verification cost: re-preview only touched shards, one-line survivor annotations, one controller session per story without 1 s polling, emit done.cost
+
+**Status:** 🔵 `analyzed`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** # Verification cost: re-preview only touched shards, one-line survivor annotations, one controller session per story that never polls at 1 s, emit `done.cost`
+
+## Why (measured 2026-10-01/02 on US-067..069 + US-021)
+
+After IMP-409..412 and CHG-061/062/063 the three children landed at **0.95× esti...
+
+_No stories linked to this change yet._
 
