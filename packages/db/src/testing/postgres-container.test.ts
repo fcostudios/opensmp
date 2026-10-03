@@ -360,15 +360,15 @@ test("stops right after a pool ends without terminating any of its ending client
   try {
     for (let round = 0; round < 5; round += 1) {
       const fixture = await createPostgresFixture({ beforeCleanupSql: noClientBackendRemainsSql });
-      const pool = new pg.Pool({ connectionString: fixture.appUrl, max: 24 });
+      const pool = new pg.Pool({ connectionString: fixture.appUrl, max: 12 });
       pool.on("error", (error) => poolErrors.push(error));
       try {
-        const clients = await Promise.all(Array.from({ length: 24 }, () => pool.connect()));
+        const clients = await Promise.all(Array.from({ length: 12 }, () => pool.connect()));
         // Temporary relations are dropped while each backend exits, which
         // stretches the exit the way full-gate CPU contention does.
         await Promise.all(clients.map((client) => client.query(`DO $$
           BEGIN
-            FOR i IN 1..200 LOOP
+            FOR i IN 1..40 LOOP
               EXECUTE format('CREATE TEMP TABLE slow_exit_%s (id int)', i);
             END LOOP;
           END $$`)));

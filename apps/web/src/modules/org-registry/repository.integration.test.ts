@@ -613,6 +613,9 @@ describe("people repository", () => {
       expect(waiting.rows).toEqual([{ count: 0 }]);
     } finally {
       await owner.query("ROLLBACK");
+      // The session-level timeout must not ride the pooled connection into
+      // later tests (CHG-064): any statement there would get 100 ms.
+      await probeClient.query("RESET statement_timeout");
       probeClient.release();
     }
 
