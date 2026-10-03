@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "37b25424c0b0a892fd94120941949c60a2479b12955d5ea02c9eebd80c7808fc",
+  "work_id": "CHG-067",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Full-gate container-start burst and expiry lock-wait oracle",
+  "source": "Nous change ledger CHG-067 (partition child of CHG-066)",
+  "outcomes": [
+    {
+      "id": "O1",
+      "primary": true,
+      "statement": "The full gate (pnpm check, turbo forced, default package and file parallelism) passes ten of ten runs on an unchanged tree started from zero stale test containers: the expiry lock-wait oracle asserts only once the updater backend waits on the lock, and fixture container starts no longer exceed testcontainers 12.0.4 hardcoded 10 s port-binding wait under a start burst.",
+      "demo": "Ten consecutive TURBO_FORCE=true pnpm check runs on one committed candidate from zero stale containers, docker ps -q | wc -l recorded before each run and sampled every 5 s; all ten exit 0, wall time recorded per run."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 1,
+    "expected_changed_files": 4,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 15,
+    "implementation": 45,
+    "focused_verification": 60,
+    "review": 20,
+    "integration": 20,
+    "total": 160
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Shape of the container-start burst fix.",
+      "status": "resolved",
+      "estimate_impact_minutes": 20,
+      "resolution": "testcontainers 12.0.4 inspectContainerUntilPortsExposed has a hardcoded 10 s default with no option, and CHG-066 observed it exceeded when up to 13 fixture containers start together. The fix in packages/db/src/testing/postgres-container.ts holds a cross-process file lock only around each container start, released once its ports are bound and before role bootstrap and tests; tests stay file- and package-parallel, so this is not serial scheduling. A RED test starts N fixture containers concurrently and records the start overlap under the lock (never assumed). If the lock does not remove the timeout in the round, stop and return; one container per vitest worker is the larger alternative and needs re-approval."
+    },
+    {
+      "id": "U2",
+      "statement": "Root cause of the expiry lock-wait oracle failure.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "apps/worker automatic-invitation-expiry.integration.test.ts waits for the updater pid to be state=active and then asserts pg_blocking_pids non-empty; a backend is active from query start, before it reaches the row lock, so under load the assertion can run before the wait. The oracle waits for wait_event_type=Lock on that pid instead (the condition the assertion means), keeping the existing 10 s deadline; RED by asserting immediately after the active state under an injected delay."
+    },
+    {
+      "id": "U3",
+      "statement": "Mutation routing.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Both changed sources are excluded by scripts/mutation-scope.mjs (testing/ and *.test.ts): zero shards, no previews, no cold campaign, no test_report."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG067-READY",
+    "payload_sha256": "37b25424c0b0a892fd94120941949c60a2479b12955d5ea02c9eebd80c7808fc"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "2509001c41dce7831a320407e5cc2593f61c618f095de7122e1c7e10325f5357",
+  "readiness_payload_sha256": "3d718131a71246bcf2f0a3997f9b7ed9034f85503d0c5f9c134e3057a0ebe8d8",
   "work_id": "CHG-066",
   "kind": "CHG",
   "work_type": "technical",
@@ -52,7 +52,7 @@
   "signals": {
     "routes_or_screens": 0,
     "acceptance_flows": 3,
-    "expected_changed_files": 14,
+    "expected_changed_files": 17,
     "expected_mutation_shards": 0,
     "lifecycle_or_concurrency_boundaries": 1,
     "external_integrations": 0,
@@ -61,12 +61,12 @@
     "tooling_change": true
   },
   "estimate_minutes": {
-    "readiness": 30,
-    "implementation": 100,
-    "focused_verification": 140,
+    "readiness": 40,
+    "implementation": 105,
+    "focused_verification": 155,
     "review": 20,
     "integration": 25,
-    "total": 315
+    "total": 345
   },
   "uncertainties": [
     {
@@ -103,16 +103,72 @@
       "status": "resolved",
       "estimate_impact_minutes": 0,
       "resolution": "Every changed source is a test (*.test.ts), a testing fixture (testing/), a .mjs script or config, which scripts/mutation-scope.mjs excludes; the stale-container preflight is written as .mjs. One pnpm mutation:preflight on the candidate is expected to report zero intersecting shards; if one intersects, work stops and names the production source."
+    },
+    {
+      "id": "U6",
+      "statement": "The two load-dependent failures the acceptance round surfaced (8/10 on unchanged code from 0 stale containers), outside the six listed items.",
+      "status": "resolved",
+      "estimate_impact_minutes": 100,
+      "resolution": "Observed, not assumed: (1) apps/worker automatic-invitation-expiry \"holds the applicable rule through preparation commit\" asserts pg_blocking_pids right after the updater backend turns active, before it waits on the lock (a test-oracle race); (2) testcontainers 12.0.4 inspectContainerUntilPortsExposed waits a hardcoded, non-configurable 10 s for Docker to publish ports, exceeded when many fixture containers start together (peak 13 per gate). Both also appeared in the 20-seeded leg (3/5). Their fixes plus one more ten-run round re-estimate CHG-066 at 345 minutes, over the 320 hard limit, so the work partitions: the official child CHG-067 (reserved and accepted by Francisco) carries both fixes and the ten-of-ten acceptance; CHG-066 closes after CHG-067 by a verification-only ready reassessment."
     }
   ],
   "dependencies": [],
-  "decision": "ready",
-  "partitions": [],
+  "decision": "partition_required",
+  "partitions": [
+    {
+      "proposal_key": "P1",
+      "work_id": "CHG-067",
+      "title": "Full-gate container-start burst and expiry lock-wait oracle",
+      "outcome": "The forced default-parallel full gate passes ten of ten runs on an unchanged tree from zero stale test containers, with the expiry lock-wait oracle asserting only once the updater actually waits on the lock and fixture container starts no longer bursting past testcontainers 10 s port-binding wait.",
+      "demo": "Ten consecutive TURBO_FORCE=true pnpm check runs on one committed candidate from zero stale containers, container count recorded before each run and sampled every 5 s; all ten exit 0.",
+      "acceptance_criteria": [
+        "AC1",
+        "AC2",
+        "AC3",
+        "AC4",
+        "AC5"
+      ],
+      "work_type": "technical",
+      "scopes": [
+        "tooling"
+      ],
+      "signals": {
+        "routes_or_screens": 0,
+        "acceptance_flows": 1,
+        "expected_changed_files": 4,
+        "expected_mutation_shards": 0,
+        "lifecycle_or_concurrency_boundaries": 1,
+        "external_integrations": 0,
+        "schema_or_migration_changes": 0,
+        "authorization_or_audit_boundaries": 0,
+        "tooling_change": true
+      },
+      "uncertainties": [
+        {
+          "id": "C1",
+          "statement": "Shape of the container-start fix.",
+          "status": "resolved",
+          "estimate_impact_minutes": 20,
+          "resolution": "A cross-process lock held only around each fixture container start until its ports are bound; tests stay file- and package-parallel. Settled in CHG-067 own readiness; the alternative (one container per vitest worker) is larger."
+        }
+      ],
+      "estimate_minutes": {
+        "readiness": 15,
+        "implementation": 45,
+        "focused_verification": 60,
+        "review": 20,
+        "integration": 20,
+        "total": 160
+      },
+      "depends_on": [],
+      "cross_cutting_rationale": "AC2-AC5 are already delivered and verified on CHG-066 (build_pass and ac_verify before this partition); CHG-067 carries AC1 and re-verifies AC2-AC5 inside its ten-of-ten round, so CHG-066 closes by verification only."
+    }
+  ],
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "CHG066-READY",
-    "payload_sha256": "2509001c41dce7831a320407e5cc2593f61c618f095de7122e1c7e10325f5357"
+    "evidence": "CHG066-PARTITION",
+    "payload_sha256": "3d718131a71246bcf2f0a3997f9b7ed9034f85503d0c5f9c134e3057a0ebe8d8"
   },
   "actuals": null,
   "policy_bootstrap": false,
