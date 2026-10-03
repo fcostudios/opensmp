@@ -1,12 +1,13 @@
 **Work item:** CHG-064
 **Readiness assessment:** docs/readiness/CHG-064.json
-**Approved estimate:** 240 minutes
+**Approved estimate:** 310 minutes
 
 # CHG-064 — fix the three unchanged-test flakes that fail the full gate — Implementation Plan
 
 **Goal:** `pnpm check` (turbo forced, default package and file parallelism) passes ten consecutive
-runs on one unchanged candidate, so the US-069 RULING-20 serial scheduling can be retired. Tests and
-the testing fixture only; no production behaviour change.
+runs on one unchanged candidate, so the US-069 RULING-20 serial scheduling can be retired. Tests, the
+testing fixture and (re-approved widening, CHG064-READY-2) the release parity tool's cleanup; no
+application behaviour change.
 
 If, at any task boundary, the remaining work will exceed the approved estimate, stop there and file a
 `blocked` or `deviation` feedback event before continuing.
@@ -58,6 +59,20 @@ oracle stays the artefact property (no `dist` / `.tsbuildinfo` side effects, bot
    and one forced default gate on unchanged main. After: the ten candidate wall times.
 4. A decision event supersedes RULING-20 (it was invocation-only; the pre-existing
    `fileParallelism: false` configs predate it and stay).
+
+## Task 5 — parity cleanup survives autovacuum (AC5, added by CHG064-READY-2)
+
+**Production sources touched:** `packages/db/scripts/check-migration-parity.mjs` (release tooling,
+`.mjs`, not mutatable). Also fixed under AC4 during round 1: the org-registry repository test resets
+its session-level `statement_timeout` before releasing the pooled client.
+
+Root cause (reproduced on the pinned PostgreSQL 16 image): `DROP DATABASE ... WITH (FORCE)` run by the
+non-superuser `ledger_owner` fails 42501 when an autovacuum worker is on the database, because FORCE
+tries to terminate it. RED: a migration-release test lowers `autovacuum_naptime` as cluster admin and,
+from `beforeCompare`, holds an autovacuum worker on the parity database until cleanup; the old cleanup
+fails 42501. GREEN: terminate the client backends of the database (same permission semantics as before
+for client sessions), then plain `DROP DATABASE IF EXISTS`, which cancels autovacuum workers itself.
+Then a fresh ten-run round (Task 4) on the new candidate.
 
 **Out of scope:** CHG-065, `WORK_READINESS.md`, `docs/dev-guide/local/CLAUDE.md`, production sources,
 and the deliberate `pg_terminate_backend` callers in other tests and mutation runner scripts.
