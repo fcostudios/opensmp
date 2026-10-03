@@ -24,7 +24,8 @@
    before starting a work item — the readiness gate and the verification-cost rules
    (touched-shard previews, one-line survivors, one controller session per item, no 1 s
    polling, `cost` on `done`); full text in
-   [`docs/dev-guide/WORK_READINESS.md`](docs/dev-guide/WORK_READINESS.md) §Session shape.
+   [`docs/dev-guide/WORK_READINESS.md`](docs/dev-guide/WORK_READINESS.md) §Per-task mutation
+   previews, §Session shape and §Closure template.
 
 ## Agent Roles
 

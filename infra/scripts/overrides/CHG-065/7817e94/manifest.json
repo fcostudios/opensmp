@@ -4,7 +4,7 @@
     "AGENTS.md": {
       "source_path": "overrides/CHG-049/6466f60/AGENTS.md",
       "source_sha256": "7aea15dc3a0144d7dd28c141d0d6112b96bdd49722de921fe3b358f96d15f899",
-      "desired_sha256": "d66a92136f6eebc2bca061c29f738fe0a0274df8976fb0bad22874d75c4450db"
+      "desired_sha256": "a6c55831abc0d02624de46127c5cd23f1b2e3ac90557f944ece7c10601c9f8bd"
     },
     "CLAUDE.md": {
       "source_path": "overrides/CHG-053/2dee869/CLAUDE.md",

@@ -1021,7 +1021,12 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             agents.count("[`docs/dev-guide/local/CLAUDE.md`](docs/dev-guide/local/CLAUDE.md)"),
             1,
         )
-        self.assertIn("§Session shape", agents)
+        for section in (
+            "§Per-task mutation\n   previews",
+            "§Session shape",
+            "§Closure template",
+        ):
+            self.assertIn(section, agents)
 
     def test_chg053_source_and_desired_tamper_fail_before_writes(self) -> None:
         for artifact_kind, relative_path in (
