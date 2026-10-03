@@ -285,7 +285,9 @@ test('holds the applicable rule through preparation commit',async()=>{
  try{
   await waitFor(`SELECT EXISTS(SELECT 1 FROM pg_locks WHERE locktype='advisory' AND NOT granted) AS waiting`);
   update=updater.query(`UPDATE alert_rule SET enabled=false WHERE id=$1`,[input.rule]).finally(()=>{updateFinished=true;});
-  await waitFor(`SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid=$1 AND state='active') AS waiting`,[updaterPid]);
+  // CHG-067: wait until the updater actually waits on a lock, not merely runs
+  // (state='active' holds from query start, before the lock is reached).
+  await waitFor(`SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid=$1 AND wait_event_type='Lock') AS waiting`,[updaterPid]);
   expect((await owner.query(`SELECT pg_blocking_pids($1)::int[] AS blockers`,[updaterPid])).rows[0].blockers).not.toEqual([]);
   await barrier.query('SELECT pg_advisory_unlock(hashtextextended($1,0))',[key]);
   expect(await pending).toEqual({processed:1});await update;

@@ -9,6 +9,8 @@ import {
 } from "@testcontainers/postgresql";
 import pg from "pg";
 
+import { withContainerStartLock } from "./container-start-lock";
+
 const execFileAsync = promisify(execFile);
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const migrationRunner = resolve(packageRoot, "scripts/apply-migrations.mjs");
@@ -239,9 +241,10 @@ export async function createPostgresFixture(
     };
   }
 
-  const container = await new PostgreSqlContainer(POSTGRES_16_ALPINE_IMAGE)
-    .withStartupTimeout(120_000)
-    .start();
+  const container = await withContainerStartLock(() =>
+    new PostgreSqlContainer(POSTGRES_16_ALPINE_IMAGE)
+      .withStartupTimeout(120_000)
+      .start());
   onContainerStarted?.(container);
   const clusterUrl = container.getConnectionUri();
   const suffix = randomUUID().replaceAll("-", "");
