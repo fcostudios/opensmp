@@ -101,9 +101,12 @@ async function drainClientBackends(client: pg.Client, databaseName: string): Pro
   let waitingSince = 0;
   for (;;) {
     const { rows } = await client.query<{ pid: number; waiting: boolean }>(
-      // A role without pg_read_all_stats (the mutation-clone owner) sees NULL
-      // state for other roles' backends: treat that as waiting, so it still settles.
-      `SELECT pid, COALESCE(state = 'idle' AND wait_event = 'ClientRead', true) AS waiting
+      // A NULL state is a row the viewer may not inspect (the mutation-clone
+      // owner lacks pg_read_all_stats): treat it as waiting so it still
+      // settles. An exiting backend stays 'idle' but has a NULL wait_event,
+      // so it is never mistaken for a leak.
+      `SELECT pid,
+              (state IS NULL OR (state = 'idle' AND wait_event IS NOT DISTINCT FROM 'ClientRead')) AS waiting
        FROM pg_stat_activity
        WHERE datname = $1 AND backend_type = 'client backend' AND pid <> pg_backend_pid()
        ORDER BY pid`,
