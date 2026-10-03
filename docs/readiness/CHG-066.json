@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "2509001c41dce7831a320407e5cc2593f61c618f095de7122e1c7e10325f5357",
+  "work_id": "CHG-066",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Full-gate residue after CHG-064: container-load ECONNRESET, private health-route container, Ryuk disabled and leaked containers, WITH (FORCE) as non-superuser, closed decision shape in the readiness validator",
+  "source": "Nous change ledger CHG-066",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The full gate (pnpm check, turbo forced, default package and file parallelism) passes ten of ten runs on an unchanged tree started from zero stale test containers, failed or killed runs leave no containers behind, pnpm check refuses to start while stale test containers exist, and pnpm readiness:check:all accepts the ledger's decision events including unknown top-level keys.",
+      "demo": "Run TURBO_FORCE=true pnpm check ten consecutive times on one committed candidate from zero stale containers, recording docker ps -q | wc -l before each run plus a 5 s background container-count sample; all ten exit 0. Kill one test run mid-suite and show docker ps has no testcontainers or ledger-us004 leftovers after reaping. pnpm readiness:check:all exits 0.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC5",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 14,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 30,
+    "implementation": 100,
+    "focused_verification": 140,
+    "review": 20,
+    "integration": 25,
+    "total": 315
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Root cause of the ECONNRESET in alerts/offboarding-workflow and pgboss-migration under the full gate (not diagnosed by CHG-064).",
+      "status": "resolved",
+      "estimate_impact_minutes": 50,
+      "resolution": "Bounded diagnosis protocol, not an assumed mechanism. Controlled variable: stale containers before the run, two legs on unchanged main (0 stale; 20 seeded postgres:16-alpine containers on the pinned digest carrying the testcontainers label), five forced runs each, docker ps -q | wc -l recorded before every run and a background sampler writing a timestamped container count every 5 s, correlated with the failing test's timestamp; Docker Desktop allocation recorded (10 CPU, 7.75 GiB). Observed at assessment time: besides three Created/Exited testcontainers leftovers, three ledger-us004-* Keycloak containers (11-34 h old, ~0.5 GiB each, ~1.5 GiB of the 7.75 GiB VM) leaked by apps/web keycloak-admin.integration.test.ts, which starts Keycloak with a raw docker run that carries no testcontainers label and is never reaped when a run is aborted; and the dev stack's ledger-dev-worker in a restart loop (5123 restarts). Both are load on the same Docker VM and are removed or stopped (with Francisco's consent) before the 0-stale leg. The fix targets the cause the legs isolate: leaked containers (Ryuk plus labelled Keycloak plus the stale-container preflight), the fixture's container count or connection reuse, or the private health-route container. Stop rule: if no cause is isolated within the 50 minutes budgeted, or the acceptance round is not ten of ten, work stops and returns to Francisco with the data; no further round is run on this approval."
+    },
+    {
+      "id": "U2",
+      "statement": "Whether CI can host Ryuk, i.e. whether TESTCONTAINERS_RYUK_DISABLED=true must stay in .github/workflows/ci.yml.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "Both CI jobs run on GitHub-hosted ubuntu-latest, which exposes the Docker socket Ryuk needs; git log -S finds no recorded reason for disabling it (abd986d, 6aa0d6c, 8f72de6 add it without rationale). It is removed from CI as well as from the local test script. CI is verified on the first push; if Ryuk cannot start there, the variable is restored in CI only with a comment naming the observed failure."
+    },
+    {
+      "id": "U3",
+      "statement": "Which DROP DATABASE ... WITH (FORCE) sites remain.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "git grep on 2026-10-03 finds exactly one live site: packages/db/src/testing/postgres-container.test.ts:126, run as the non-superuser ledger_owner, so it is a real instance and takes the check-migration-parity.mjs pattern (terminate own client backends, then plain DROP). scripts/apply-migrations.mjs has no DROP DATABASE and no FORCE; the brief was stale there and nothing is changed in it. The mutation-clone limitation (a non-superuser cannot see other roles' backend_type) stays documented and is not worked around with superuser."
+    },
+    {
+      "id": "U4",
+      "statement": "Which existing readiness-validator cases change when unknown top-level decision keys are accepted.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "scripts/test-work-readiness.mjs asserts the closed shape at two sites (an 'extra' key at line 882, an 'unexpected' key at line 1430); both flip to accepted. The run-ruling records carry non-string values (run_ruling_index number, recorded_retrospectively boolean) and agent, so unknown keys skip the non-empty-string check. story, event, id, text, reason stay required and approved_by, subject_work_id, relationship keep their string checks when present; readiness is accepted by name and must be a plain object when present. test:work-readiness is not part of pnpm check and is run explicitly."
+    },
+    {
+      "id": "U5",
+      "statement": "Mutation routing of the changed sources.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Every changed source is a test (*.test.ts), a testing fixture (testing/), a .mjs script or config, which scripts/mutation-scope.mjs excludes; the stale-container preflight is written as .mjs. One pnpm mutation:preflight on the candidate is expected to report zero intersecting shards; if one intersects, work stops and names the production source."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG066-READY",
+    "payload_sha256": "2509001c41dce7831a320407e5cc2593f61c618f095de7122e1c7e10325f5357"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
