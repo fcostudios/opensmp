@@ -110,6 +110,19 @@ CHG059_PATHS = {
         "overrides/CHG-049/6466f60/docs/dev-guide/TESTING.md"
     ),
 }
+CHG065_PATHS = {
+    "AGENTS.md": "overrides/CHG-049/6466f60/AGENTS.md",
+    "CLAUDE.md": "overrides/CHG-053/2dee869/CLAUDE.md",
+    "docs/dev-guide/DEFINITION_OF_DONE.md": (
+        "overrides/CHG-055/e240d85/docs/dev-guide/DEFINITION_OF_DONE.md"
+    ),
+    "docs/dev-guide/TESTING.md": (
+        "overrides/CHG-059/7f42371/docs/dev-guide/TESTING.md"
+    ),
+    "testing/critical-paths.md": (
+        "overrides/CHG-049/6466f60/testing/critical-paths.md"
+    ),
+}
 LAYERED_OVERRIDE_SPECS = (
     ("CHG-004/e4b9a06", CHG004_PATHS),
     ("CHG-022/16f72c9", CHG022_PATHS),
@@ -119,6 +132,7 @@ LAYERED_OVERRIDE_SPECS = (
     ("CHG-053/2dee869", CHG053_PATHS),
     ("CHG-055/e240d85", CHG055_PATHS),
     ("CHG-059/7f42371", CHG059_PATHS),
+    ("CHG-065/7817e94", CHG065_PATHS),
 )
 CHG005_PATHS = {
     "docs/stories/sprint-2/r1_misc_us_014.md",
@@ -161,6 +175,7 @@ FORBIDDEN_GUIDANCE = (
 APPROVED_NEGATIVE_TENANT_ID_PHRASES = (
     "there is no `tenant_id`",
     "do NOT invent `tenant_id`",
+    "the generated tenant column — not `tenant_id`",
 )
 TERMINAL_EMITTED_TRAILER = re.compile(
     r"<!-- nous-emitted: sha256=([0-9a-f]{16}) -->\n?\Z"

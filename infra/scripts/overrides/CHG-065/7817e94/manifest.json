@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "paths": {
+    "AGENTS.md": {
+      "source_path": "overrides/CHG-049/6466f60/AGENTS.md",
+      "source_sha256": "7aea15dc3a0144d7dd28c141d0d6112b96bdd49722de921fe3b358f96d15f899",
+      "desired_sha256": "d66a92136f6eebc2bca061c29f738fe0a0274df8976fb0bad22874d75c4450db"
+    },
+    "CLAUDE.md": {
+      "source_path": "overrides/CHG-053/2dee869/CLAUDE.md",
+      "source_sha256": "32f30b52af12a1591e0ec0507ab7f332b5d092a45b25fb0acdba08e6b6aed94f",
+      "desired_sha256": "ea24b7b9af19f4a050d2dce58d2095a48e0ec96369290455504c50f8f91ce40e"
+    },
+    "docs/dev-guide/DEFINITION_OF_DONE.md": {
+      "source_path": "overrides/CHG-055/e240d85/docs/dev-guide/DEFINITION_OF_DONE.md",
+      "source_sha256": "b12b953006b2c2fe0d7bad74fed0dca8451024e6c66060b1828cae195ade041e",
+      "desired_sha256": "a0b4aff2d0baa8dfad6557ee51d547de4f94e037729b1d9dbc3c70a225725429"
+    },
+    "docs/dev-guide/TESTING.md": {
+      "source_path": "overrides/CHG-059/7f42371/docs/dev-guide/TESTING.md",
+      "source_sha256": "5dc6ebf9336f05c9643755887ee6c5c2757d55ebf215a6e168f6801c97a6df11",
+      "desired_sha256": "61b352aa19d768b7b66a9cd596f776b14563a6c1c42366395fd0c04666eafb5c"
+    },
+    "testing/critical-paths.md": {
+      "source_path": "overrides/CHG-049/6466f60/testing/critical-paths.md",
+      "source_sha256": "804fc2d39679e9b37c03a5ed1a4fa23dc21d3dd75d55688d70369c05ced155da",
+      "desired_sha256": "d366c785ee8f1186f0801be9d0a893ab617e66c08109a08460c5ffc105502673"
+    }
+  }
+}
