@@ -8,6 +8,28 @@ execution-ready; partition it into official, approved vertical children first.
 Run `pnpm readiness:check -- <WORK-ID>`. The complete mandatory contract is in
 [`docs/dev-guide/WORK_READINESS.md`](docs/dev-guide/WORK_READINESS.md).
 
+## Verification cost (CHG-065)
+
+Full text: `WORK_READINESS.md` §Per-task mutation previews, §Session shape and
+§Closure template.
+
+- **Re-preview only touched shards.** After a fix round, preview only the
+  shards whose preflight `sources` intersect the files changed since the
+  previous preview. A whole-set re-preview needs a named reason in the closure.
+  Record `preview_rounds` and `preview_minutes` in `actuals`.
+- **One line per survivor.** `surviving_annotated` holds
+  `<mutant-id> <file>:<line> @equivalent: <reason>` (or `@accepted: <reason>`).
+  No signed equivalence report and no counterfactual log. A killed survivor is
+  proven by the test that kills it.
+- **One controller session per work item**, opened at readiness and closed at
+  `done`. The controller briefs a reviewer for adversarial AC verification and
+  scoped review instead of running them in its own context. Wait for
+  background gates and campaigns with a blocking wait or a yield of 60 s or
+  more, never a 1 s poll.
+- **`cost` on every `done`**: `calls`, `context_tokens`, `output_tokens`,
+  `model`, `window`, plus a top-level `notes` sentence saying whether the
+  numbers are measured or estimated.
+
 ## Sprint 1 Execution Contract (DEC-SMP-017 / CHG-001)
 
 - `Company` is the Ledger application-tenant boundary. Every company-scoped

@@ -243,6 +243,30 @@ Shard IDs are discovered after the task and are never hardcoded in the plan.
 Repair every genuine survivor and rerun its affected preview before task review.
 When no shard intersects, record zero previews for the task and proceed.
 
+**A fix round re-previews only the shards it touched.** After a repair, list
+the files changed since the previous preview (`git diff --name-only
+<previous-preview-commit>`), rerun preflight, and preview only the shards whose
+`sources` intersect that list. Shards whose sources did not change keep their
+previous result. Re-previewing the whole set needs a named reason — for example
+a changed shared fixture, test helper, or config every shard imports — written
+in the closure's `root_cause`. Record the count of preview runs as
+`actuals.preview_rounds` and their summed wall-clock as
+`actuals.preview_minutes`.
+
+**A survivor annotation is one line.** Each survivor that is not killed gets
+exactly one line in the `test_report`'s `surviving_annotated`:
+
+```text
+<mutant-id> <file>:<line> @equivalent: <reason>
+<mutant-id> <file>:<line> @accepted: <reason>
+```
+
+`@equivalent:` means no test can tell the mutant from the original;
+`@accepted:` means it is observable but not worth a test, and the reason says
+why. Do not write a separate signed equivalence report or a counterfactual log.
+A survivor that gets killed needs no annotation: the test that kills it is the
+proof.
+
 These previews are non-authoritative: they do not clear the authoritative
 cache, emit no `test_report` or mutation-performance evidence, and never
 replace adversarial verification, `pnpm check`, or the one final cache-cleared,
@@ -272,6 +296,26 @@ US-019 partition in `docs/readiness/US-019.json`, the canonical child allocation
 in DEC-SMP-021/CHG-054, their generated stories, and the US-019 section of
 `docs/superpowers/plans/2026-08-02-sprint-3-delivery.md`. Each child plan's
 `Spec` field must cite that authority; otherwise it requires a child design.
+
+## Session shape
+
+How a session runs is the largest lever on what a work item costs (CHG-065,
+measured on US-067..069 and US-021).
+
+- **One controller session per work item.** Open it at readiness and close it
+  at that item's `done`. Do not carry a controller across items: the next item
+  starts a fresh session from its readiness artifact, plan, and
+  `.nous-feedback.jsonl`.
+- **The controller plans, briefs, and integrates; it does not verify in its own
+  context.** Brief a reviewer (a subagent or a fresh session) for adversarial AC
+  verification and for each scoped review, giving it the AC list, the diff
+  range, and the commands. The controller records the reviewer's verdicts as
+  `ac_verify` events.
+- **Never poll at 1 s.** Wait for a background gate, preview, or campaign with
+  a blocking wait or a yield of 60 s or more. Each wake re-sends the whole
+  context, so a 1 s poll loop is the most expensive way to wait.
+- **Mark the boundaries.** Emit a `phase` event when entering
+  `implementation`, `focused_verification`, `review`, and `integration`.
 
 ## Actuals and calibration
 
@@ -330,6 +374,8 @@ event, replace it with the closed actuals object and record:
 - optional `mutation_minutes`; and
 - optional `mutation_shards_actual`, the non-negative count calculated by the
   final preflight/campaign; and
+- optional `preview_rounds` and `preview_minutes`: the number of
+  non-authoritative preview runs and their summed wall-clock minutes; and
 - `estimate_variance_minutes` and a `root_cause`.
 
 Actuals calibrate future estimates; they never retroactively legalize an
@@ -355,6 +401,35 @@ campaign is required. Provisional actuals remain mutable before terminal
 completion. The first effective terminal requires complete valid actuals, and
 after it those actuals are immutable—deletion, rewriting, or recalibration is
 rejected even in documentation-only commits.
+
+### Closure template
+
+Close every work item with this shape. Like `mutation_minutes`,
+`preview_minutes` is not added to the phase totals.
+
+```json
+"actuals": {
+  "phase_minutes": {"readiness": 0, "implementation": 0, "focused_verification": 0, "review": 0, "integration": 0},
+  "total": 0, "changed_files": 0, "commits": 0, "review_fix_loops": 0,
+  "cold_mutation_attempts": 0, "mutation_invalidations": 0,
+  "mutation_minutes": 0, "mutation_shards_actual": 0,
+  "preview_rounds": 0, "preview_minutes": 0,
+  "estimate_variance_minutes": 0,
+  "root_cause": "Phase boundaries from the phase markers; name the reason for any whole-set re-preview."
+}
+```
+
+```jsonl
+{"story":"US-123","event":"test_report","mutation_score":92.3,"scope":"diff","killed":12,"survived":1,"surviving_annotated":["mutant41 packages/domain/src/x.ts:88 @equivalent: the caller already clamps the loop bound"],"mutation_wallclock_s":600}
+{"story":"US-123","event":"done","source_commit":"<sha>","cost":{"calls":120,"context_tokens":240000,"output_tokens":38000,"model":"<model-id>","window":1000000},"notes":"cost measured from the harness transcript"}
+```
+
+The substrate contract keeps `cost` optional, but this project's closure
+requires it on every `done`, with `calls`, `context_tokens`, `output_tokens`,
+`model`, and `window`. `cost` accepts no other keys, so say whether the numbers
+are measured (read from the harness transcript or usage report) or estimated in
+the `done` event's top-level `notes` sentence. Omit `test_report` when the work
+has zero mutation shards.
 
 For a reproducible provisional measurement, bind every metric to named Git
 objects and reflog timestamps. Count changed files against the item's approved
