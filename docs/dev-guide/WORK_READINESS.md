@@ -421,15 +421,18 @@ Close every work item with this shape. Like `mutation_minutes`,
 
 ```jsonl
 {"story":"US-123","event":"test_report","mutation_score":92.3,"scope":"diff","killed":12,"survived":1,"surviving_annotated":["mutant41 packages/domain/src/x.ts:88 @equivalent: the caller already clamps the loop bound"],"mutation_wallclock_s":600}
-{"story":"US-123","event":"done","source_commit":"<sha>","cost":{"calls":120,"context_tokens":240000,"output_tokens":38000,"model":"<model-id>","window":1000000},"notes":"cost measured from the harness transcript"}
+{"story":"US-123","event":"phase","phase":"integration","ts":"<iso>","notes":"done.cost below is measured from the harness transcript."}
+{"story":"US-123","event":"done","source_commit":"<sha>","ts":"<iso>","cost":{"calls":120,"context_tokens":240000,"output_tokens":38000,"model":"<model-id>","window":1000000}}
 ```
 
 The substrate contract keeps `cost` optional, but this project's closure
 requires it on every `done`, with `calls`, `context_tokens`, `output_tokens`,
-`model`, and `window`. `cost` accepts no other keys, so say whether the numbers
-are measured (read from the harness transcript or usage report) or estimated in
-the `done` event's top-level `notes` sentence. Omit `test_report` when the work
-has zero mutation shards.
+`model`, and `window`. Neither `cost` nor `done` accepts any other key (the
+gate's `validDone` and the delivered DoD are closed), so the sentence saying
+whether the numbers are measured (read from the harness transcript or usage
+report) or estimated goes in the `notes` of the `integration` phase marker
+emitted just before `done`. Omit `test_report` when the work has zero mutation
+shards.
 
 For a reproducible provisional measurement, bind every metric to named Git
 objects and reflog timestamps. Count changed files against the item's approved

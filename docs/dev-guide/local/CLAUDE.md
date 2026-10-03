@@ -27,8 +27,9 @@ Full text: `WORK_READINESS.md` §Per-task mutation previews, §Session shape and
   background gates and campaigns with a blocking wait or a yield of 60 s or
   more, never a 1 s poll.
 - **`cost` on every `done`**: `calls`, `context_tokens`, `output_tokens`,
-  `model`, `window`, plus a top-level `notes` sentence saying whether the
-  numbers are measured or estimated.
+  `model`, `window`. `done` accepts no other key, so the sentence saying whether
+  the numbers are measured or estimated goes in the `notes` of the
+  `integration` phase marker emitted just before `done`.
 
 ## Sprint 1 Execution Contract (DEC-SMP-017 / CHG-001)
 
