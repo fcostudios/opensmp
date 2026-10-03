@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "0a0c3388b5769eef78769dd3fec17038f2d643a213898598d251bb81037551fb",
+  "readiness_payload_sha256": "64514964438a0c8e644112e81e80a4836d0acda4e115a3d3d5a2cb53c36f272d",
   "work_id": "CHG-064",
   "kind": "CHG",
   "work_type": "technical",
@@ -9,7 +9,7 @@
   "outcomes": [
     {
       "id": "O1",
-      "statement": "The full gate (pnpm check, turbo forced, default package and file parallelism) passes on an unchanged tree without the three load-dependent failures, so no story re-runs it until green and the US-069 RULING-20 serial scheduling is retired.",
+      "statement": "The full gate (pnpm check, turbo forced, default package and file parallelism) passes on an unchanged tree without the load-dependent failures of unchanged tests and gate tooling (the three named flakes, a leaked pooled statement_timeout, and the release parity tool failing to drop its disposable databases while autovacuum works on them), so no story re-runs it until green and the US-069 RULING-20 serial scheduling is retired.",
       "demo": "Run pnpm check with TURBO_FORCE=true ten consecutive times on one committed candidate; all ten exit 0. Record full-gate wall time before (RULING-20 serial shape on unchanged main) and after (default parallelism on the candidate).",
       "primary": true
     }
@@ -38,6 +38,12 @@
       "outcome_ids": [
         "O1"
       ]
+    },
+    {
+      "id": "AC5",
+      "outcome_ids": [
+        "O1"
+      ]
     }
   ],
   "scopes": [
@@ -46,7 +52,7 @@
   "signals": {
     "routes_or_screens": 0,
     "acceptance_flows": 3,
-    "expected_changed_files": 7,
+    "expected_changed_files": 10,
     "expected_mutation_shards": 0,
     "lifecycle_or_concurrency_boundaries": 1,
     "external_integrations": 0,
@@ -55,12 +61,12 @@
     "tooling_change": true
   },
   "estimate_minutes": {
-    "readiness": 20,
-    "implementation": 60,
-    "focused_verification": 120,
+    "readiness": 30,
+    "implementation": 90,
+    "focused_verification": 150,
     "review": 20,
     "integration": 20,
-    "total": 240
+    "total": 310
   },
   "uncertainties": [
     {
@@ -83,6 +89,13 @@
       "status": "resolved",
       "estimate_impact_minutes": 0,
       "resolution": "scripts/mutation-scope.mjs EXCLUDED matches (^|/)testing/ and *.test.ts, so postgres-container.ts and the three test files are not mutatable: zero shards, zero previews, no cold campaign, no test_report."
+    },
+    {
+      "id": "U4",
+      "statement": "Root cause of the parity cleanup failure seen once in the second ten-run round (migration parity and cleanup both failed), outside the original tests-and-fixture scope.",
+      "status": "resolved",
+      "estimate_impact_minutes": 70,
+      "resolution": "Reproduced deterministically against the pinned PostgreSQL 16 image: with an autovacuum worker on a database, DROP DATABASE ... WITH (FORCE) run by the non-superuser ledger_owner fails 42501 (permission denied to terminate process), because FORCE treats the worker like any other session; terminating the client backends the caller may signal and then a plain DROP DATABASE succeeds, since PostgreSQL cancels autovacuum workers itself for a plain drop. Isolated CPU stress did not reproduce it (0/144) because autovacuum must reach the freshly migrated database inside the cleanup window, which full-gate load stretches. Fix in packages/db/scripts/check-migration-parity.mjs (release tooling, .mjs, not mutatable) with a deterministic RED test that holds an autovacuum worker on the parity database during cleanup. Approved by Francisco as a widening of CHG-064."
     }
   ],
   "dependencies": [],
@@ -91,8 +104,8 @@
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "CHG064-READY",
-    "payload_sha256": "0a0c3388b5769eef78769dd3fec17038f2d643a213898598d251bb81037551fb"
+    "evidence": "CHG064-READY-2",
+    "payload_sha256": "64514964438a0c8e644112e81e80a4836d0acda4e115a3d3d5a2cb53c36f272d"
   },
   "actuals": null,
   "policy_bootstrap": false,
