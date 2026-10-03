@@ -491,9 +491,16 @@ export async function compareDatabaseStructures(migrationUrl, pushUrl) {
 }
 
 async function dropDisposableDatabase(admin, databaseName) {
+  // Not WITH (FORCE): for a non-superuser it also tries to terminate any
+  // autovacuum worker on the database and fails 42501 (CHG-064). Terminate the
+  // client sessions instead; a plain DROP cancels autovacuum workers itself.
   await admin.query(
-    `DROP DATABASE IF EXISTS ${quotedIdentifier(databaseName)} WITH (FORCE)`,
+    `SELECT pg_terminate_backend(pid)
+     FROM pg_stat_activity
+     WHERE datname = $1 AND backend_type = 'client backend' AND pid <> pg_backend_pid()`,
+    [databaseName],
   );
+  await admin.query(`DROP DATABASE IF EXISTS ${quotedIdentifier(databaseName)}`);
 }
 
 export async function checkMigrationParity({

@@ -3067,6 +3067,75 @@ describe("migration parity", () => {
     expect(after.rows).toEqual(before.rows);
   }, 120_000);
 
+  // CHG-064: DROP DATABASE ... WITH (FORCE) by the non-superuser owner fails
+  // 42501 when autovacuum is working on the freshly migrated database, which
+  // full-gate load makes likely. Hold a slow autovacuum worker there through
+  // cleanup and require both disposable databases to be dropped anyway.
+  test("drops both disposable databases while autovacuum works on one", async () => {
+    const imported = await import(pathToFileURL(parityPath).href);
+    const clusterAdmin = new pg.Client({ connectionString: clusterAdminUrl });
+    await clusterAdmin.connect();
+    let migrationDatabase = "";
+    let pushDatabase = "";
+    try {
+      await clusterAdmin.query("ALTER SYSTEM SET autovacuum_naptime = '1s'");
+      await clusterAdmin.query("SELECT pg_reload_conf()");
+
+      const outcome = await imported.checkMigrationParity({
+        databaseAdminUrl: ownerAdminUrl,
+        applicationUrl: appAdminUrl,
+        beforeCompare: async ({ migrationUrl, pushUrl }: { migrationUrl: string; pushUrl: string }) => {
+          migrationDatabase = new URL(migrationUrl).pathname.slice(1);
+          pushDatabase = new URL(pushUrl).pathname.slice(1);
+          const owner = new pg.Client({ connectionString: migrationUrl });
+          await owner.connect();
+          try {
+            await owner.query(`CREATE TABLE autovacuum_hold (id int, pad text) WITH (
+              autovacuum_vacuum_threshold = 0, autovacuum_vacuum_scale_factor = 0,
+              autovacuum_analyze_threshold = 0, autovacuum_analyze_scale_factor = 0,
+              autovacuum_vacuum_cost_delay = 100, autovacuum_vacuum_cost_limit = 1)`);
+            await owner.query(
+              "INSERT INTO autovacuum_hold SELECT g, repeat('x', 200) FROM generate_series(1, 300000) g",
+            );
+            await owner.query("DELETE FROM autovacuum_hold WHERE id % 2 = 0");
+          } finally {
+            await owner.end();
+          }
+          for (;;) {
+            const workers = await clusterAdmin.query<{ count: number }>(
+              `SELECT count(*)::int AS count FROM pg_stat_activity
+               WHERE datname = $1 AND backend_type = 'autovacuum worker'`,
+              [migrationDatabase],
+            );
+            if (workers.rows[0].count > 0) return;
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          }
+        },
+      }).then(
+        () => null,
+        (error: unknown) => error,
+      );
+
+      // The held table is extra structure, so parity itself must still fail —
+      // alone, not alongside a cleanup failure.
+      expect(outcome).not.toBeInstanceOf(AggregateError);
+      expect(outcome).toBeInstanceOf(Error);
+      expect((outcome as Error).message).toContain("database schema parity mismatch");
+      const remaining = await clusterAdmin.query<{ datname: string }>(
+        "SELECT datname FROM pg_database WHERE datname = ANY($1::text[])",
+        [[migrationDatabase, pushDatabase]],
+      );
+      expect(remaining.rows).toEqual([]);
+    } finally {
+      await clusterAdmin.query("ALTER SYSTEM RESET autovacuum_naptime");
+      await clusterAdmin.query("SELECT pg_reload_conf()");
+      await clusterAdmin.end();
+      for (const databaseName of [migrationDatabase, pushDatabase]) {
+        if (databaseName) await dropDatabaseAsClusterAdmin(databaseName);
+      }
+    }
+  }, 180_000);
+
   test("surfaces cleanup failures with the primary error and still drops the other database", async () => {
     const imported = await import(pathToFileURL(parityPath).href);
     let migrationDatabase = "";
