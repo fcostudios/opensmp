@@ -123,7 +123,16 @@ test.each(["malformed app", "post-allocation failure"])(
           "SELECT datname FROM pg_database WHERE datname LIKE 'ledger_mutation_%'",
         );
         for (const { datname } of remaining.rows) {
-          await maintenance.query(`DROP DATABASE "${datname.replaceAll('"', '""')}" WITH (FORCE)`);
+          // Not WITH (FORCE): maintenance is the non-superuser ledger_owner, and
+          // FORCE also tries to terminate autovacuum workers, failing 42501
+          // (CHG-064, CHG-066). Terminate client sessions; a plain DROP cancels
+          // autovacuum itself.
+          await maintenance.query(
+            `SELECT pg_terminate_backend(pid) FROM pg_stat_activity
+             WHERE datname = $1 AND backend_type = 'client backend' AND pid <> pg_backend_pid()`,
+            [datname],
+          );
+          await maintenance.query(`DROP DATABASE "${datname.replaceAll('"', '""')}"`);
         }
       }
       await maintenance?.end();

@@ -874,12 +874,52 @@ test("a controlling CHG can approve only an explicitly digest-bound subject", ()
   expectError("WR_APPROVAL_CONTROL_MISMATCH", "$.approval.evidence", () => validateApproval(value, [unrelated]));
 });
 
-test("current approval evidence uses the closed canonical decision shape", () => {
+// CHG-066: the run-ruling keys the ledger already carries (US-021, US-067..069)
+// and the substrate's IMP-417 readiness object, with their real value types.
+const RUN_RULING_KEYS = {
+  agent: "claude/run-ruling",
+  provenance: "operator ruling recorded from the run log",
+  recorded_retrospectively: true,
+  run_id: "INVITE-HYGIENE-20261002",
+  run_ruling_index: 21,
+  source_plan: "docs/superpowers/plans/example.md",
+};
+const IMP417_READINESS = { readiness: { digest: "a".repeat(64), decision: "ready" } };
+
+test("current approval evidence closes only the fields the gate reads", () => {
   const value = normal();
   const current = decisionFor(value);
   const { reason: _reason, ...missingReason } = current;
   expectError("WR_APPROVAL_EVIDENCE_INVALID", "$.approval.evidence", () => validateApproval(value, [missingReason]));
-  expectError("WR_APPROVAL_EVIDENCE_INVALID", "$.approval.evidence", () => validateApproval(value, [{ ...current, extra: "not canonical" }]));
+  for (const key of ["approved_by", "subject_work_id", "relationship"]) {
+    for (const malformed of ["", "  ", 7, null]) {
+      expectError("WR_APPROVAL_EVIDENCE_INVALID", "$.approval.evidence", () => validateApproval(value, [{ ...current, [key]: malformed }]));
+    }
+  }
+  for (const malformed of ["ready", ["ready"], null]) {
+    expectError("WR_APPROVAL_EVIDENCE_INVALID", "$.approval.evidence", () => validateApproval(value, [{ ...current, readiness: malformed }]));
+  }
+  for (const open of [{ extra: "carried" }, RUN_RULING_KEYS, IMP417_READINESS, { ...RUN_RULING_KEYS, ...IMP417_READINESS }]) {
+    assert.equal(validateAssessment(value, { feedbackRecords: [{ ...current, ...open }] }).decision, "ready");
+  }
+});
+
+test("a prior run-ruling decision on the same item does not redden later approval", () => {
+  const value = normal();
+  const ruling = {
+    story: value.work_id,
+    event: "decision",
+    id: `${value.work_id.replace("-", "")}-RULING-21`,
+    text: "Ruling: the run log supersedes the plan for this step.",
+    reason: "Operator ruling recorded from the run log.",
+    ts: "2026-10-02T12:00:00Z",
+    subject_work_id: value.work_id,
+    relationship: "self",
+    ...RUN_RULING_KEYS,
+  };
+  assert.equal(validateAssessment(value, { feedbackRecords: [ruling, decisionFor(value)] }).decision, "ready");
+  expectError("WR_APPROVAL_EVIDENCE_INVALID", "$.approval.evidence",
+    () => validateAssessment(value, { feedbackRecords: [{ ...ruling, approved_by: "" }, decisionFor(value)] }));
 });
 
 test("approval text cannot ambiguously bind multiple decisions or digests", () => {
@@ -1019,7 +1059,8 @@ test("prior approval authorization requires a closed unambiguous decision record
     attestDecision({ ...validPrior, id: "BAD-HASH", text: "Decision ready for readiness payload SHA-256 abc." }),
     attestDecision({ ...validPrior, id: "BAD-TOKEN", text: `Decision Ready for readiness payload SHA-256 ${digest}.` }),
     attestDecision({ ...validPrior, id: "TWO-HASHES", text: `Decision ready for SHA-256 ${digest} and SHA-256 ${"e".repeat(64)}.` }),
-    attestDecision({ ...validPrior, id: "EXTRA-FIELD", extra: "not closed" }),
+    attestDecision({ ...validPrior, id: "BAD-READINESS", readiness: "ready" }),
+    attestDecision({ ...validPrior, id: "BAD-APPROVER", approved_by: "" }),
   ];
   for (const malformed of malformedCases) {
     expectError("WR_APPROVAL_EVIDENCE_INVALID", "$.approval.evidence", () => validateApproval(value, [
@@ -1427,7 +1468,8 @@ test("only a canonical digest-bound ready self-decision authorizes correction", 
     (decision) => { decision.text = `Decision blocked for readiness payload SHA-256 ${"a".repeat(64)}.`; },
     (decision) => { decision.subject_work_id = "CHG-060"; },
     (decision) => { decision.relationship = "controlling_change"; },
-    (decision) => { decision.unexpected = "open shape"; },
+    (decision) => { decision.readiness = "ready"; },
+    (decision) => { decision.approved_by = ""; },
   ];
   for (const mutate of variants) {
     const { value, records, correction } = correctionFixture();
@@ -1436,6 +1478,14 @@ test("only a canonical digest-bound ready self-decision authorizes correction", 
     assert.deepEqual(correctionReasons(result), ["missing_decision"]);
     assert.deepEqual(result.effective, value.actuals);
   }
+});
+
+test("a correction authority decision may carry unknown keys and the IMP-417 readiness object", () => {
+  const { value, records, correction } = correctionFixture();
+  Object.assign(records.find((record) => record.story === "CHG-059"), RUN_RULING_KEYS, IMP417_READINESS);
+  const result = resolveEffectiveActuals(value.actuals, [...records, correction], correctionContext(value));
+  assert.deepEqual(correctionReasons(result), []);
+  assert.equal(result.effective.changed_files, 8);
 });
 
 test("correction authority digest must match trusted readiness", () => {

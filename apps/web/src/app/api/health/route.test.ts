@@ -1,4 +1,4 @@
-import { PostgreSqlContainer } from "@testcontainers/postgresql";
+import { createPostgresFixture } from "@smp/db/testing/postgres-container";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 let stopDatabase: (() => Promise<void>) | undefined;
@@ -19,18 +19,19 @@ async function invokeHealthRoute() {
 describe("GET /api/health", () => {
   beforeAll(async () => {
     for (const key of pgEnvironmentKeys) originalEnvironment.set(key, process.env[key]);
-    const database = await new PostgreSqlContainer("postgres:16-alpine").start();
-    stopDatabase = async () => {
-      await database.stop();
-    };
+    // The shared fixture: the pinned PostgreSQL 16 image and its startup budget
+    // (CHG-066), connected as the runtime ledger_app role.
+    const database = await createPostgresFixture();
+    stopDatabase = () => database.stop();
+    const appUrl = new URL(database.appUrl);
     delete process.env.DATABASE_URL;
     process.env.DB_DRIVER = "pg";
-    process.env.PGHOST = database.getHost();
-    process.env.PGPORT = String(database.getPort());
-    process.env.PGUSER = database.getUsername();
-    process.env.PGPASSWORD = database.getPassword();
-    process.env.PGDATABASE = database.getDatabase();
-  }, 15_000);
+    process.env.PGHOST = appUrl.hostname;
+    process.env.PGPORT = appUrl.port;
+    process.env.PGUSER = decodeURIComponent(appUrl.username);
+    process.env.PGPASSWORD = decodeURIComponent(appUrl.password);
+    process.env.PGDATABASE = appUrl.pathname.slice(1);
+  });
 
   afterAll(async () => {
     if (stopDatabase) await stopDatabase();

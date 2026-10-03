@@ -47,7 +47,6 @@ jobs:
     timeout-minutes: 45
     env:
       CI: "true"
-      TESTCONTAINERS_RYUK_DISABLED: "true"
       POSTGRES_SUPERUSER_PASSWORD: ci-superuser-password
       LEDGER_OWNER_PASSWORD: ci-owner-password
       LEDGER_APP_PASSWORD: ci-app-password
@@ -170,7 +169,6 @@ jobs:
     timeout-minutes: 180
     env:
       CI: "true"
-      TESTCONTAINERS_RYUK_DISABLED: "true"
       POSTGRES_SUPERUSER_PASSWORD: ci-superuser-password
       LEDGER_OWNER_PASSWORD: ci-owner-password
       LEDGER_APP_PASSWORD: ci-app-password

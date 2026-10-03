@@ -554,7 +554,7 @@ function readinessTokens(text) {
 //
 // What stayed, and why it is not a flag flip: the ledger holds 62 decision
 // events in TWO shapes — 20 signed (10 keys) and 42 legacy (5 keys) — and this
-// function enforces an EXACT-LENGTH closed key set. Simply passing
+// function enforced an EXACT-LENGTH closed key set. Simply passing
 // `requireAttestation: false` would have made all 20 signed records fail the
 // 5-key match with WR_APPROVAL_EVIDENCE_INVALID, breaking every one of the 17
 // existing artifacts. So the attestation keys are now OPTIONAL-BUT-ACCEPTED:
@@ -564,14 +564,23 @@ function readinessTokens(text) {
 //
 // The digest binding (readiness_payload_sha256, "What stays" item 2) is
 // untouched and remains the tamper-evidence for every decision, old and new.
+//
+// CHG-066 — the shape is closed only for the fields the gate reads. Unknown
+// top-level keys are accepted: run-ruling decisions carry provenance, run_id,
+// run_ruling_index, source_plan, recorded_retrospectively and agent, and the
+// substrate's IMP-417 adds a `readiness` object. An exact key set made the gate
+// reject a ledger that had outgrown it (CHG-062, then CHG-066), so only the
+// keys below are typed; anything else is carried, not checked.
 const OPTIONAL_ATTESTATION_KEYS = ["approved_by", "subject_work_id", "relationship", "key_id", "signature", "ts"];
+
+function decisionObjectKeysValid(record) {
+  return !Object.hasOwn(record, "readiness") || isPlainObject(record.readiness);
+}
 
 function validateDecisionRecordShape(record) {
   const required = ["story", "event", "id", "text", "reason"];
   const missing = required.filter((key) => !Object.hasOwn(record, key));
-  const unexpected = Object.keys(record)
-    .filter((key) => !required.includes(key) && !OPTIONAL_ATTESTATION_KEYS.includes(key));
-  if (missing.length > 0 || unexpected.length > 0) {
+  if (missing.length > 0 || !decisionObjectKeysValid(record)) {
     fail("WR_APPROVAL_EVIDENCE_INVALID", "$.approval.evidence", "Approval decisions must use the closed feedback decision shape");
   }
   for (const key of ["story", "id", "text", "reason"]) {
@@ -983,9 +992,8 @@ const CORRECTION_DECISION_OPTIONAL = ["key_id", "signature", "ts"];
 
 function validCorrectionDecision(record, feedbackRecords, expectedWorkId, approvedReadinessAuthorities) {
   if (!isPlainObject(record)) return false;
-  const allowed = new Set([...CORRECTION_DECISION_REQUIRED, ...CORRECTION_DECISION_OPTIONAL]);
   if (CORRECTION_DECISION_REQUIRED.some((key) => !Object.hasOwn(record, key))) return false;
-  if (Object.keys(record).some((key) => !allowed.has(key))) return false;
+  if (!decisionObjectKeysValid(record)) return false;
   for (const key of CORRECTION_DECISION_REQUIRED) {
     if (key !== "event" && (typeof record[key] !== "string" || !/\S/u.test(record[key]))) return false;
   }

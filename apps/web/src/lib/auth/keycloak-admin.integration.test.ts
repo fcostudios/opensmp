@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { promisify } from "node:util";
+import { GenericContainer, Wait } from "testcontainers";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
 import {
@@ -108,29 +109,28 @@ beforeAll(async () => {
     import.meta.dirname,
     "../../../../../infra/keycloak/realm-corporativo.json",
   );
-  await docker([
-    "run",
-    "--detach",
-    "--name",
-    containerName,
-    "--publish",
-    "127.0.0.1::8080",
-    "--env",
-    `KC_BOOTSTRAP_ADMIN_USERNAME=${bootstrapUser}`,
-    "--env",
-    `KC_BOOTSTRAP_ADMIN_PASSWORD=${bootstrapPassword}`,
-    "--env",
-    `SMP_WEB_CLIENT_SECRET=${webSecret}`,
-    "--env",
-    `SMP_KEYCLOAK_ADMIN_CLIENT_SECRET=${serviceSecret}`,
-    "--env",
-    "LEDGER_PUBLIC_URL=http://localhost:3000",
-    "--volume",
-    `${realmPath}:/opt/keycloak/data/import/realm-corporativo.json:ro`,
-    image,
-    "start-dev",
-    "--import-realm",
-  ]);
+  // A testcontainers container, not a raw `docker run`: Ryuk removes it when
+  // this process dies, so an aborted gate no longer leaks a ~0.5 GiB Keycloak
+  // (CHG-066). The name keeps `docker port/logs/restart` below working.
+  await new GenericContainer(image)
+    .withName(containerName)
+    .withExposedPorts(8080)
+    .withEnvironment({
+      KC_BOOTSTRAP_ADMIN_USERNAME: bootstrapUser,
+      KC_BOOTSTRAP_ADMIN_PASSWORD: bootstrapPassword,
+      SMP_WEB_CLIENT_SECRET: webSecret,
+      SMP_KEYCLOAK_ADMIN_CLIENT_SECRET: serviceSecret,
+      LEDGER_PUBLIC_URL: "http://localhost:3000",
+    })
+    .withBindMounts([{
+      source: realmPath,
+      target: "/opt/keycloak/data/import/realm-corporativo.json",
+      mode: "ro",
+    }])
+    .withCommand(["start-dev", "--import-realm"])
+    .withWaitStrategy(Wait.forHttp("/realms/corporativo", 8080))
+    .withStartupTimeout(120_000)
+    .start();
   baseUrl = await resolveKeycloakBaseUrl();
   await waitForKeycloak();
 
