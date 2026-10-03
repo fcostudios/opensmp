@@ -107,7 +107,25 @@
     "evidence": "CHG064-READY-2",
     "payload_sha256": "64514964438a0c8e644112e81e80a4836d0acda4e115a3d3d5a2cb53c36f272d"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 35,
+      "implementation": 70,
+      "focused_verification": 207,
+      "review": 15,
+      "integration": 35
+    },
+    "total": 362,
+    "changed_files": 10,
+    "commits": 12,
+    "review_fix_loops": 1,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "estimate_variance_minutes": 52,
+    "root_cause": "Wall-clock UTC on 2026-10-03; the idle approval wait 06:55-12:10 is excluded. Readiness 35 = initial assessment to CHG064-READY (03:35-03:54) + widened assessment to CHG064-READY-2 (06:45-06:55, answered 12:16). Implementation 70 = started 04:01 to first candidate 630882d (04:08) + round-1 repairs to bdb7a06 (05:01-05:05) + round-2 root-cause work, i.e. isolated parity stress loop 0/144 and the deterministic autovacuum A/B on the pinned PG16 image (05:58-06:55) + parity fix f6a59f7 (12:16-12:18). Focused verification 207 = four ten-run forced default-parallel pnpm check rounds: 04:09-05:01 (630882d, 7/10: own RED probe exhausted the PG lock table x2, leaked 100 ms statement_timeout x1), 05:05-05:58 (bdb7a06, 9/10: parity cleanup FORCE vs autovacuum 42501), 12:18-13:17 (f6a59f7, 7/10: health container-start 15 s bound x2, pgboss ECONNRESET x1, with 20 leaked testcontainers running, then removed with Francisco's approval), 13:17-14:00 (03eeedc, 9/10: offboarding file-level ECONNRESET). Review 15 (14:27-14:42) = closing adversarial review, one fix loop: the fixture drain's COALESCE counted an exiting backend (observed on PG16 as idle with NULL wait_event) as a leak, fixed in 6639652 and re-gated once (forced pnpm check exit 0, 247 s). Integration 35 = first closure draft 14:00-14:27 (discarded uncommitted and regenerated after the review) + 14:42-14:50. Phase markers: focused_verification was not marked at its true boundaries and is not appended out of order; review and integration markers are in ledger order. Gate wall time: before, forced RULING-20 serial gate on unchanged 6370b17 = 516 s green, forced default-parallel gate on 6370b17 failed in 28 s (dispatch 5000 ms default); after, default parallelism 247-294 s green (round 4 median ~273 s, final 247 s), versus 315-352 s and 360-454 s in rounds 2-3 under leaked-container load. Variance drivers: two causes outside the named three (statement_timeout leak; parity autovacuum, re-approved as AC5), four 50-minute verification rounds where one was planned, and one review fix loop. AC4 is ruled by CHG064-RULING-AC4, not met 10/10; the Docker-load class (testcontainers start bound, socket ECONNRESET, containers leaked with TESTCONTAINERS_RYUK_DISABLED=true) goes to a separate change. Known limitation: in the mutation-clone path the non-superuser owner sees backend_type NULL for ledger_app sessions, so the drain does not wait for those (behaviour unchanged from before: they are terminated). No mutation campaign: 0 mutatable shards (testing/, *.test.ts and .mjs excluded). done.cost figures are session estimates (tool calls and context tokens counted approximately; output_tokens unmeasured and omitted; model omitted at Francisco's choice)."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
