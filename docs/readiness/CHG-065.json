@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "d7b1e76f78e2e6142dcef049fb2bca28b59918820367c3b17957078ae520c630",
+  "work_id": "CHG-065",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Verification cost: re-preview only touched shards, one-line survivor annotations, one controller session per story without 1 s polling, emit done.cost",
+  "source": "Nous change ledger CHG-065",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The tenant verification-cost contract is delivered and reaches every agent harness: WORK_READINESS.md scopes a fix-round re-preview to the shards whose sources intersect the files changed since the previous preview (a whole-set re-preview needs a named closure reason), defines a survivor annotation as one line (mutant id, file:line, @equivalent or @accepted, reason) with no separate signed report or counterfactual log, adds a Session shape section (one controller session per story opened at readiness and closed at done, reviewer-briefed adversarial AC verification and scoped review, blocking waits or yields of 60 s or more), and adds a closure template that requires done.cost with a measured-or-estimated notes sentence; docs/dev-guide/local/CLAUDE.md carries the short form, and AGENTS.md links it so a Codex session sees it.",
+      "demo": "Read WORK_READINESS.md §Per-task mutation previews, §Session shape and §Closure template, docs/dev-guide/local/CLAUDE.md §Verification cost, and the AGENTS.md link line; run pnpm check:generated-guidance and verify it exits 0.",
+      "primary": true
+    },
+    {
+      "id": "O2",
+      "statement": "Completion actuals may carry optional non-negative integer preview_rounds and preview_minutes next to mutation_minutes, in both work-readiness.schema.json and the gate's validateCompletionActuals; a non-integer or negative value is rejected and artifacts without them stay valid.",
+      "demo": "pnpm test:work-readiness: an actuals object with preview_rounds 2 and preview_minutes 25 validates; one with preview_minutes \"25\" or -1 fails WR_SCHEMA_INVALID-class; CHG-062's actuals (no preview keys) still validate.",
+      "primary": false
+    },
+    {
+      "id": "O3",
+      "statement": "check:generated-guidance is green again: one registered CHG-065 overlay layer binds the five guidance files drifted by the 2026-10-01 Nous sync (AGENTS.md, CLAUDE.md, DEFINITION_OF_DONE.md, TESTING.md, testing/critical-paths.md) from their latest pinned bytes to the delivered bytes, AGENTS.md's negative tenant-column phrase is an approved negative phrase, the reviewed reconciler digest is re-pinned, and the AGENTS.md link commit is owned by the layer registered in its parent tree.",
+      "demo": "pnpm check:generated-guidance exits 0; python3 -m unittest infra/scripts/tests/test_reconcile_sprint1_docs.py passes; node scripts/work-readiness.mjs check-range main HEAD passes.",
+      "primary": false
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1",
+        "O2"
+      ]
+    },
+    {
+      "id": "AC5",
+      "outcome_ids": [
+        "O1",
+        "O3"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 19,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 25,
+    "implementation": 130,
+    "focused_verification": 35,
+    "review": 25,
+    "integration": 35,
+    "total": 250
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "validateCompletionActuals' closed actuals key set lives in scripts/work-readiness/model.mjs (validateActualsShape, lines 181-198), a file the parallel CHG-066 session owns.",
+      "status": "resolved",
+      "estimate_impact_minutes": 15,
+      "resolution": "Francisco ruled (2026-10-03 operator session): every other item lands first; after CHG-066 merges and chg-065 is rebased onto it, one small commit adds preview_rounds and preview_minutes to the optional list with two integer() checks, the schema properties and the gate test. This approval covers that model.mjs edit. Falsifier: CHG-066 does not merge, in which case the commit waits rather than editing model.mjs concurrently."
+    },
+    {
+      "id": "U2",
+      "statement": "check:generated-guidance was already red on main before CHG-065 (five guidance files in states no layer registers since the 2026-10-01 Nous sync, and AGENTS.md's 'not `tenant_id`' phrase tripping the forbidden-token rule), so an AGENTS.md link cannot be registered without re-pinning all five.",
+      "status": "resolved",
+      "estimate_impact_minutes": 90,
+      "resolution": "Francisco chose the full re-pin inside CHG-065 over a follow-up CHG. One CHG-065 layer binds each file from its latest pinned desired bytes (AGENTS.md and critical-paths.md: CHG-049/6466f60; CLAUDE.md: CHG-053/2dee869; DEFINITION_OF_DONE.md: CHG-055/e240d85; TESTING.md: CHG-059/7f42371) to the delivered bytes, with AGENTS.md's desired bytes also carrying the link line. The build_plan layer chain was read: a current hash equal to a layer's desired hash is accepted, and later layers chain by source hash."
+    },
+    {
+      "id": "U3",
+      "statement": "exactOverlayOwns reads the reconciler at the commit's parent, so a single commit that registers the layer and edits AGENTS.md is not owned.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Two commits: the layer registration (reconciler, manifest, desired bytes, REVIEWED_RECONCILER_SHA256 re-pin in git.mjs, reconciler test) first, then the AGENTS.md link. node scripts/work-readiness.mjs check-range main HEAD is run after each."
+    },
+    {
+      "id": "U4",
+      "statement": "Rebasing onto CHG-066 can conflict in .nous-feedback.jsonl and scripts/test-work-readiness.mjs.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "Feedback conflicts keep both sides' lines in ts order and pnpm test:feedback-order must pass; new gate tests sit in one self-contained block at the end of test-work-readiness.mjs. Budgeted in integration."
+    },
+    {
+      "id": "U5",
+      "statement": "The CHG body names 'pnpm lint (check:generated-guidance)', but check:generated-guidance is not part of pnpm lint (root lint is turbo run lint).",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Both are verified separately: pnpm lint and pnpm check:generated-guidance must each exit 0."
+    },
+    {
+      "id": "U6",
+      "statement": "The measured acceptance targets (preview_minutes <= 30, focused_verification <= 35 %, single-line survivors, [Execution Cost] coverage, polling <= 10 %) are observed on the next parent's children, not inside CHG-065.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "CHG-065 closes on the validation it can run now (test:work-readiness, lint, check:generated-guidance, readiness:check CHG-065, one pnpm check) and on practising the contract itself; the measured targets are Nous's to read later with story timeline and actuals."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "d7b1e76f78e2e6142dcef049fb2bca28b59918820367c3b17957078ae520c630"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
