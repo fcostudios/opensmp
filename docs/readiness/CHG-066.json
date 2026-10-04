@@ -100,7 +100,25 @@
     "evidence": "CHG066-VERIFY",
     "payload_sha256": "a12222ab380670c4a53aff712846f04f8cbedf7fd01388e3eda09d1796f474c8"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 4,
+      "implementation": 0,
+      "focused_verification": 2,
+      "review": 1,
+      "integration": 3
+    },
+    "total": 10,
+    "changed_files": 2,
+    "commits": 3,
+    "review_fix_loops": 0,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "estimate_variance_minutes": -35,
+    "root_cause": "Verification-only closure (2026-10-04 UTC): reassessment and dry run 13:00-13:03, approval CHG066-VERIFY, evidence and done 13:04-13:10; implementation 0; two paths (this assessment, the ledger) in three commits. Whole-CHG history, for the record: CHG066-READY 2026-10-03 15:02Z (315 min); implementation 15:03-15:18 (six items: open decision shape and post-done deviation rule, Ryuk on locally and in CI, Ryuk-reaped Keycloak test, stale-container preflight in pnpm check, health route on the pinned fixture, last WITH (FORCE) site); focused verification 15:18-16:43: diagnosis legs 0 stale 5/5 (242-255 s) and 20 seeded 3/5, acceptance 8/10 (237-248 s; expiry lock-wait oracle race, testcontainers 10 s port binding; per-run counts and wall times in the ledger feedback event 'CHG-066 session evidence for closure' and deviation ff8d657); partition into CHG-067 (CHG066-PARTITION, re-estimate 345 min). CHG-067 closed AC1 with ten of ten at 220-228 s, peak 6 test containers (actuals 181 min). Before CHG-066 (CHG-064 rounds): 7/10, 9/10, 7/10, 9/10 with leaked containers present. ECONNRESET recurred 0 times in CHG-066's runs. done.cost covers this CHG-066 session including the CHG-067 work and is estimated, not measured; model omitted by policy."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
