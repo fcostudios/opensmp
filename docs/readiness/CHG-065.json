@@ -10,7 +10,7 @@
     {
       "id": "O1",
       "statement": "The tenant verification-cost contract is delivered and reaches every agent harness: WORK_READINESS.md scopes a fix-round re-preview to the shards whose sources intersect the files changed since the previous preview (a whole-set re-preview needs a named closure reason), defines a survivor annotation as one line (mutant id, file:line, @equivalent or @accepted, reason) with no separate signed report or counterfactual log, adds a Session shape section (one controller session per story opened at readiness and closed at done, reviewer-briefed adversarial AC verification and scoped review, blocking waits or yields of 60 s or more), and adds a closure template that requires done.cost with a measured-or-estimated notes sentence; docs/dev-guide/local/CLAUDE.md carries the short form, and AGENTS.md links it so a Codex session sees it.",
-      "demo": "Read WORK_READINESS.md §Per-task mutation previews, §Session shape and §Closure template, docs/dev-guide/local/CLAUDE.md §Verification cost, and the AGENTS.md link line; run pnpm check:generated-guidance and verify it exits 0.",
+      "demo": "Read WORK_READINESS.md \u00a7Per-task mutation previews, \u00a7Session shape and \u00a7Closure template, docs/dev-guide/local/CLAUDE.md \u00a7Verification cost, and the AGENTS.md link line; run pnpm check:generated-guidance and verify it exits 0.",
       "primary": true
     },
     {
@@ -135,7 +135,27 @@
     "evidence": "CHG065-READY",
     "payload_sha256": "d7b1e76f78e2e6142dcef049fb2bca28b59918820367c3b17957078ae520c630"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 18,
+      "implementation": 13,
+      "focused_verification": 5,
+      "review": 4,
+      "integration": 20
+    },
+    "total": 60,
+    "changed_files": 18,
+    "commits": 13,
+    "review_fix_loops": 1,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": -190,
+    "root_cause": "Wall-clock from the CHG-065 ledger, rounded up per bucket; the ~22 h blocked on CHG-066 (2026-10-03 15:16Z to 2026-10-04 ~13:25Z, per Francisco's ruling to sequence the model.mjs edit after CHG-066) is excluded as idle. readiness = session start 14:46Z to started 15:04Z (18), including the scope rulings on model.mjs and the full guidance re-pin. implementation = started to the focused_verification marker (8) plus Task 4 on 2026-10-04 (5). focused_verification = marker to the first reviewer's verdicts (4) plus the one preflight (1, 0 shards). review = the review marker to closure (4); the first reviewer's six findings were fixed in one loop. integration = the rebase onto CHG-066/067, the ledger-order conflict and Francisco's append ruling, and closure (20). The estimate's 90-minute impact for the guidance re-pin (U2) was mostly not needed: the layer chain took one manifest plus fixture-stamp fixes. pnpm check exit 0 replayed every workspace task from the turbo cache (no workspace inputs changed); the root checks CHG-065 changes (test:work-readiness 282, reconciler unittest 59, check:generated-guidance, readiness:check:all 53) were run directly and passed. No whole-set re-preview: zero shards, no previews, no cold campaign, no test_report."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
