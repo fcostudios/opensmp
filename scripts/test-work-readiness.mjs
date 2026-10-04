@@ -5150,5 +5150,37 @@ test("CHG-062: done accepts an optional well-formed cost and rejects a malformed
   assert.equal(validDone({ story: "US-321", event: "done", notes: "extra key" }), false);
 });
 
+// CHG-065: optional preview actuals next to mutation_minutes.
+test("preview_rounds and preview_minutes are optional non-negative integer actuals", () => {
+  const actualsSchema = readinessSchema.$defs.actuals;
+  for (const key of ["preview_rounds", "preview_minutes"]) {
+    assert.deepEqual(actualsSchema.properties[key], { $ref: "#/$defs/nonnegative_integer" });
+    assert.equal(actualsSchema.required.includes(key), false);
+  }
+
+  const historical = completed();
+  assert.equal(Object.hasOwn(historical.actuals, "preview_rounds"), false);
+  assert.equal(validateAssessment(historical, {
+    feedbackRecords: [decisionFor(historical), { story: historical.work_id, event: "done" }],
+  }).complete, true, "an artifact without preview actuals stays valid");
+
+  const measured = completed();
+  measured.actuals.preview_rounds = 2;
+  measured.actuals.preview_minutes = 25;
+  assert.equal(validateAssessment(measured, {
+    feedbackRecords: [decisionFor(measured), { story: measured.work_id, event: "done" }],
+  }).complete, true);
+
+  for (const key of ["preview_rounds", "preview_minutes"]) {
+    for (const invalid of [-1, 1.5, null, "25"]) {
+      const bad = completed();
+      bad.actuals[key] = invalid;
+      expectError("WR_INVALID_INTEGER", `$.actuals.${key}`, () => validateAssessment(bad, {
+        feedbackRecords: [decisionFor(bad), { story: bad.work_id, event: "done" }],
+      }));
+    }
+  }
+});
+
 assert.ok(assertions >= 30);
 process.stdout.write(`work-readiness model: ${assertions} behavioral tests passed\n`);
