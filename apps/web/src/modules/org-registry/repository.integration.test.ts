@@ -109,9 +109,11 @@ async function waitForLockWaiters(
 ): Promise<void> {
   for (let attempt = 0; attempt < 200; attempt += 1) {
     const result = await client.query(
+      // Only this database's sessions: the test cluster is shared (CHG-067).
       `SELECT count(*)::int AS count
          FROM pg_locks
-        WHERE NOT granted`,
+        WHERE NOT granted
+          AND pid IN (SELECT pid FROM pg_stat_activity WHERE datname = current_database())`,
     );
     if (result.rows[0].count >= minimum) return;
     await new Promise((resolve) => setTimeout(resolve, 10));

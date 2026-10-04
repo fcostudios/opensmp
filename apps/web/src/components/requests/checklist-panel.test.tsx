@@ -283,13 +283,17 @@ describe("SCR-request-detail orchestration checklist", () => {
 
     settle?.({ ok: false, error: "conflict" });
     expect(await screen.findByRole("alert")).not.toBeNull();
-    expect(
-      (screen.getByTestId("btn_confirm_checklist") as HTMLButtonElement)
-        .disabled,
-    ).toBe(false);
-    expect(
-      (screen.getByTestId("btn_checklist_not_done") as HTMLButtonElement)
-        .disabled,
-    ).toBe(false);
+    // The action sets the error before it returns, so the alert can render one
+    // commit before useActionState clears pending (CHG-067): wait for it.
+    await waitFor(() => {
+      expect(
+        (screen.getByTestId("btn_confirm_checklist") as HTMLButtonElement)
+          .disabled,
+      ).toBe(false);
+      expect(
+        (screen.getByTestId("btn_checklist_not_done") as HTMLButtonElement)
+          .disabled,
+      ).toBe(false);
+    });
   });
 });

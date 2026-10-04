@@ -20,8 +20,9 @@ describe("GET /api/health", () => {
   beforeAll(async () => {
     for (const key of pgEnvironmentKeys) originalEnvironment.set(key, process.env[key]);
     // The shared fixture: the pinned PostgreSQL 16 image and its startup budget
-    // (CHG-066), connected as the runtime ledger_app role.
-    const database = await createPostgresFixture();
+    // (CHG-066), connected as the runtime ledger_app role. A private container,
+    // because the 503 case stops the whole server (CHG-067).
+    const database = await createPostgresFixture({ isolatedContainer: true });
     stopDatabase = () => database.stop();
     const appUrl = new URL(database.appUrl);
     delete process.env.DATABASE_URL;

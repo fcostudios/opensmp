@@ -36,3 +36,17 @@ lock is taken over; the lock is released when the body throws.
 `/tmp/smp-full-gate.lock` held; ten forced default-parallel `pnpm check` runs on one committed
 candidate from zero stale containers, per-run container count and wall time recorded. In closure,
 re-verify CHG-066 AC2-AC5 (`readiness:check:all` exit 0; a killed run leaves no containers).
+
+## Task 4 — one shared cluster for the parallel web suite (CHG067-WAIVER-320)
+
+Rounds 1 (one start slot, peak 11 containers, 9/10) and 2 (three slots, peak 13, 8/10) showed that
+limiting concurrent starts does not reduce concurrently running containers. `apps/web` (the only
+file-parallel suite; db and worker are file-serial) now runs `vitest run` through
+`packages/db/src/testing/run-with-shared-postgres.ts`: one pinned PG16 container with
+`max_connections=400` and the owner/app roles bootstrapped once; `createPostgresFixture` creates and
+drops only its own database on it. Bootstrap-hooked or `isolatedContainer` fixtures (the health route,
+whose 503 case stops the server) keep a private container; mutation runs keep their clone pair. The
+wrapper, not `apps/web/vitest.config.ts`, carries the setup, because that config is a scored static
+mutation target. One cluster-wide `pg_locks` read (org-registry) is scoped to its database. Full web
+suite: peak 3 test containers. Also fixed on the way: the checklist-panel oracle asserted re-enabled
+controls in the same commit as the alert (a test-oracle race seen once under load).

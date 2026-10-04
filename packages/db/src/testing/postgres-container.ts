@@ -33,6 +33,142 @@ export interface PostgresFixtureOptions {
   /** Test-only deterministic fault point before fixture cleanup. */
   beforeCleanupSql?: string;
   onContainerStarted?: (container: StartedPostgreSqlContainer) => void;
+  /** Own a private container even when a shared test cluster is available. */
+  isolatedContainer?: boolean;
+}
+
+/**
+ * CHG-067 — set by a package's vitest globalSetup to one shared test cluster
+ * whose ledger_owner/ledger_app roles are already bootstrapped. Fixtures then
+ * create and drop only their own database on it, instead of one container per
+ * test file: thirteen concurrently running containers were the Docker load the
+ * full gate failed under.
+ */
+export const SHARED_POSTGRES_CLUSTER_ENV = "SMP_TEST_POSTGRES_CLUSTER_URL";
+
+const ROLE_BOOTSTRAP_SQL = `
+  CREATE ROLE ledger_owner LOGIN CREATEDB NOSUPERUSER NOCREATEROLE
+    NOREPLICATION NOBYPASSRLS PASSWORD 'owner-secret';
+  CREATE ROLE ledger_app LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB
+    NOREPLICATION NOBYPASSRLS PASSWORD 'app-secret';
+`;
+
+function startPostgres16Container(): Promise<StartedPostgreSqlContainer> {
+  return withContainerStartLock(() =>
+    new PostgreSqlContainer(POSTGRES_16_ALPINE_IMAGE)
+      // A shared cluster serves every parallel test file's pools at once.
+      .withCommand(["postgres", "-c", "max_connections=400"])
+      .withStartupTimeout(120_000)
+      .start());
+}
+
+/** One pinned PostgreSQL 16 cluster with the owner/app roles, for many fixtures. */
+export async function startSharedPostgresCluster(): Promise<{ url: string; stop(): Promise<void> }> {
+  const container = await startPostgres16Container();
+  const url = container.getConnectionUri();
+  const admin = new pg.Client({ connectionString: url });
+  try {
+    await admin.connect();
+    await admin.query(ROLE_BOOTSTRAP_SQL);
+    await admin.end();
+  } catch (error) {
+    await admin.end().catch(() => undefined);
+    await container.stop().catch(() => undefined);
+    throw error;
+  }
+  return { url, stop: async () => { await container.stop(); } };
+}
+
+function connectors(appUrl: string, ownerUrl: string) {
+  return {
+    async connectAsApp() {
+      const client = new pg.Client({ connectionString: appUrl });
+      await client.connect();
+      return client;
+    },
+    async connectAsOwner() {
+      const client = new pg.Client({ connectionString: ownerUrl });
+      await client.connect();
+      return client;
+    },
+    async migrate() {
+      await execFileAsync(process.execPath, [migrationRunner], {
+        cwd: packageRoot,
+        env: {
+          ...process.env,
+          DATABASE_ADMIN_URL: ownerUrl,
+          DATABASE_URL: appUrl,
+        },
+      });
+    },
+  };
+}
+
+function throwCleanupErrors(cleanupErrors: unknown[]): void {
+  if (cleanupErrors.length === 1) throw cleanupErrors[0];
+  if (cleanupErrors.length > 1) {
+    throw new AggregateError(cleanupErrors, "PostgreSQL fixture cleanup failed");
+  }
+}
+
+async function createSharedClusterFixture(
+  clusterUrl: string,
+  beforeCleanupSql: string | undefined,
+): Promise<PostgresFixture> {
+  const databaseName = `ledger_integrity_${randomUUID().replaceAll("-", "")}`;
+  const ownerUrl = databaseUrl(clusterUrl, "ledger_owner", "owner-secret", databaseName);
+  const appUrl = databaseUrl(clusterUrl, "ledger_app", "app-secret", databaseName);
+  const admin = new pg.Client({ connectionString: clusterUrl });
+  try {
+    await admin.connect();
+    await admin.query(`CREATE DATABASE "${databaseName}" OWNER ledger_owner`);
+  } finally {
+    await admin.end().catch(() => undefined);
+  }
+
+  let stopPromise: Promise<void> | undefined;
+  return {
+    appUrl,
+    databaseName,
+    ownerUrl,
+    ...connectors(appUrl, ownerUrl),
+    stop() {
+      stopPromise ??= (async () => {
+        const cluster = new pg.Client({ connectionString: clusterUrl });
+        const cleanupErrors: unknown[] = [];
+        try {
+          await cluster.connect();
+        } catch (error) {
+          throwCleanupErrors([error]);
+        }
+        // The roles and the cluster belong to every fixture: drop only this
+        // fixture's database, after the same drain the private path uses.
+        const cleanupSteps: Array<() => Promise<unknown>> = [
+          () => drainClientBackends(cluster, databaseName),
+          ...(beforeCleanupSql ? [() => cluster.query(beforeCleanupSql)] : []),
+          () => cluster.query(
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
+            [databaseName],
+          ),
+          () => cluster.query(`DROP DATABASE IF EXISTS "${databaseName}"`),
+        ];
+        for (const step of cleanupSteps) {
+          try {
+            await step();
+          } catch (error) {
+            cleanupErrors.push(error);
+          }
+        }
+        try {
+          await cluster.end();
+        } catch (error) {
+          cleanupErrors.push(error);
+        }
+        throwCleanupErrors(cleanupErrors);
+      })();
+      return stopPromise;
+    },
+  };
 }
 
 export interface MutationDatabasePair {
@@ -154,6 +290,7 @@ export async function createPostgresFixture(
     afterBootstrapSql,
     beforeCleanupSql,
     onContainerStarted,
+    isolatedContainer = false,
   }: PostgresFixtureOptions = {},
 ): Promise<PostgresFixture> {
   const mutationPair = selectMutationDatabasePair(process.env);
@@ -241,10 +378,14 @@ export async function createPostgresFixture(
     };
   }
 
-  const container = await withContainerStartLock(() =>
-    new PostgreSqlContainer(POSTGRES_16_ALPINE_IMAGE)
-      .withStartupTimeout(120_000)
-      .start());
+  const sharedClusterUrl = process.env[SHARED_POSTGRES_CLUSTER_ENV];
+  // Bootstrap faults and container hooks act on a whole cluster: those fixtures
+  // keep a private container.
+  if (sharedClusterUrl && !isolatedContainer && !afterBootstrapSql && !onContainerStarted) {
+    return createSharedClusterFixture(sharedClusterUrl, beforeCleanupSql);
+  }
+
+  const container = await startPostgres16Container();
   onContainerStarted?.(container);
   const clusterUrl = container.getConnectionUri();
   const suffix = randomUUID().replaceAll("-", "");
@@ -255,12 +396,7 @@ export async function createPostgresFixture(
   const admin = new pg.Client({ connectionString: clusterUrl });
   try {
     await admin.connect();
-    await admin.query(`
-      CREATE ROLE ledger_owner LOGIN CREATEDB NOSUPERUSER NOCREATEROLE
-        NOREPLICATION NOBYPASSRLS PASSWORD 'owner-secret';
-      CREATE ROLE ledger_app LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB
-        NOREPLICATION NOBYPASSRLS PASSWORD 'app-secret';
-    `);
+    await admin.query(ROLE_BOOTSTRAP_SQL);
     if (afterBootstrapSql) await admin.query(afterBootstrapSql);
     await admin.query(`CREATE DATABASE "${databaseName}" OWNER ledger_owner`);
     await admin.end();
