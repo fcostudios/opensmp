@@ -62,9 +62,9 @@
 | **CHG-062** | 📦 delivered | Readiness gate accepts the delivered feedback vocabulary: phase markers and done.cost | — | — |
 | **CHG-063** | 📦 delivered | Partition US-021 (730 min > 320) into three canonical children US-067..069; invite-expiry config contract | US-067, US-068, US-069 | S3 |
 | **CHG-064** | 📦 delivered | Fix the three unchanged-test flakes that fail the full gate: pg-pool teardown 57P01 race, report-job-failure concurrent-creator oracle, dispatch consecutive type-check deadline | — | — |
-| **CHG-065** | 🟢 accepted | Verification cost: re-preview only touched shards, one-line survivor annotations, one controller session per story without 1 s polling, emit done.cost | — | — |
-| **CHG-066** | 🟢 accepted | Full-gate residue after CHG-064: container-load resets, unpinned health-route container, Ryuk disabled, WITH (FORCE) as non-superuser, readiness check's closed decision shape | — | — |
-| **CHG-067** | 🟢 accepted | Full-gate container-start burst and expiry lock-wait oracle | — | — |
+| **CHG-065** | 📦 delivered | Verification cost: re-preview only touched shards, one-line survivor annotations, one controller session per story without 1 s polling, emit done.cost | — | — |
+| **CHG-066** | 📦 delivered | Full-gate residue after CHG-064: container-load resets, unpinned health-route container, Ryuk disabled, WITH (FORCE) as non-superuser, readiness check's closed decision shape | — | — |
+| **CHG-067** | 📦 delivered | Full-gate container-start burst and expiry lock-wait oracle | — | — |
 
 ---
 
@@ -824,7 +824,7 @@ _No stories linked to this change yet._
 
 ### CHG-065: Verification cost: re-preview only touched shards, one-line survivor annotations, one controller session per story without 1 s polling, emit done.cost
 
-**Status:** 🟢 `accepted`
+**Status:** 📦 `delivered`
 **Source:** developer_feedback
 **Requested by:** Francisco
 **Notes:** # Verification cost: re-preview only touched shards, one-line survivor annotations, one controller session per story that never polls at 1 s, emit `done.cost`
@@ -837,7 +837,7 @@ _No stories linked to this change yet._
 
 ### CHG-066: Full-gate residue after CHG-064: container-load resets, unpinned health-route container, Ryuk disabled, WITH (FORCE) as non-superuser, readiness check's closed decision shape
 
-**Status:** 🟢 `accepted`
+**Status:** 📦 `delivered`
 **Source:** developer_feedback
 **Requested by:** Francisco
 **Notes:** # Full-gate residue after CHG-064: container-load resets, the unpinned health-route container, Ryuk disabled, `WITH (FORCE)` as non-superuser, and the readiness check's closed decision shape
@@ -850,7 +850,7 @@ _No stories linked to this change yet._
 
 ### CHG-067: Full-gate container-start burst and expiry lock-wait oracle
 
-**Status:** 🟢 `accepted`
+**Status:** 📦 `delivered`
 **Notes:** # Full-gate container-start burst and expiry lock-wait oracle (partition child of CHG-066)
 
 ## Why
