@@ -378,7 +378,7 @@
 
 ### US-026 — Analytics sync: activity + cost
 - **As**: Group Admin (persona_01) | **Want to**: ingest per-user daily activity and cost | **So that**: monitoring and usage charges have data (J1 S5)
-- **AC1**: Daily job upserts ActivityRecord (counters jsonb + raw payload + synced_at) per (org, person, date); idempotent re-runs
+- **AC1**: Daily job upserts ActivityRecord (counters jsonb + allowlisted replay payload (DEC-SMP-024) + synced_at) per (org, person, date); idempotent re-runs
 - **AC2**: Cost sync upserts CostRecord within the 30-day revision window
 - **AC3**: Identity matched via Vendor.identity_matching (email); unmatched rows surfaced as warnings
 - **AC4**: The job only auto-syncs orgs with ingestion_mode=api; csv_import/manual orgs reach the SAME upserts through US-055 (source=csv_import/manual) — freshness labels and sync_stale semantics (US-029) are channel-agnostic, keyed on synced_at

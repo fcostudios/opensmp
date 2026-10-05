@@ -65,6 +65,7 @@
 | **CHG-065** | 📦 delivered | Verification cost: re-preview only touched shards, one-line survivor annotations, one controller session per story without 1 s polling, emit done.cost | — | — |
 | **CHG-066** | 📦 delivered | Full-gate residue after CHG-064: container-load resets, unpinned health-route container, Ryuk disabled, WITH (FORCE) as non-superuser, readiness check's closed decision shape | — | — |
 | **CHG-067** | 📦 delivered | Full-gate container-start burst and expiry lock-wait oracle | — | — |
+| **CHG-068** | 📦 delivered | Partition US-026 (510 min > 320) into canonical children US-070, US-071; DEC-SMP-024 allowlisted replay payload; DEC-SMP-025 manual ingestion default | US-070, US-071 | S3 |
 
 ---
 
@@ -859,4 +860,18 @@ CHG-066 closed its six items (head 565fb63): `readiness:check:all` exits 0, a ki
 containers, `ECONNRESET` 0 in 20 runs, forced default-parallel `pnpm check` at 237–248 s per run. ...
 
 _No stories linked to this change yet._
+
+### CHG-068: Partition US-026 (510 min > 320) into canonical children US-070, US-071; DEC-SMP-024 allowlisted replay payload; DEC-SMP-025 manual ingestion default
+
+**Status:** 📦 `delivered`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** Partition US-026 (Analytics sync: activity + cost, 3 SP; tenant assessment 510 min > 320-minute execution budget, `partition_required`, docs/readiness/drafts/US-026.json @ smp b6b651d, policy approvals recorded in the ledger 2026-10-05T13:36Z) into two canonical 1-SP vertical children, following ...
+
+**Stories created by this change:**
+
+| Story | Name | Sprint | Status | File |
+|-------|------|--------|--------|------|
+| **US-070** | Ingest accurate daily person activity from API-enabled accounts | Sprint 3 | ⬜ backlog | [r1_misc_us_070.md](sprint-3/r1_misc_us_070.md) |
+| **US-071** | Synchronize exact person costs within the 30-day revision window | Sprint 3 | ⬜ backlog | [r1_misc_us_071.md](sprint-3/r1_misc_us_071.md) |
 

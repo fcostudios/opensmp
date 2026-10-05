@@ -188,7 +188,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `vendor_id` | `uuid` | FK => Vendor.id, IDX | no |  |  | [SRC:RAW] |
 | `name` | `text` | UNIQUE(vendor_id, name) | no |  | `Central Claude Enterprise org` | [SRC:RAW] |
 | `mode` | `text` (enum) |  | no | `automated / orchestration` | `automated` | [SRC:RAW] §13 |
-| `ingestion_mode` | `text` (enum) |  | no | `api / csv_import / manual` — how member/activity/cost data enters for this org (DEC-SMP-018). Orgs without API access (e.g. a Claude Teams plan) run on Console CSV exports or manual upkeep; independent of provisioning `mode` | `api` | DEC-SMP-018 |
+| `ingestion_mode` | `text` (enum) |  | no | `api / csv_import / manual` — how member/activity/cost data enters for this org (DEC-SMP-018). Orgs without API access (e.g. a Claude Teams plan) run on Console CSV exports or manual upkeep; independent of provisioning `mode`. Default `manual` for unconfigured accounts; `api` is enabled explicitly per account (DEC-SMP-025) | `manual` | DEC-SMP-018, DEC-SMP-025 |
 | `vendor_org_ref` | `text` |  | yes | Vendor-side org identifier | … | [ASSUMPTION] |
 | `contract_renewal_on` | `date` |  | yes | Renewal alerts (🟡) | `2027-01-01` | [SRC:RAW] |
 | `low_pool_floor` | `integer` |  | no | Low-pool alert threshold, default 5 | `5` | [SRC:RAW] Module C |
@@ -385,7 +385,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 ### `ActivityRecord`
 
 - **Domain:** `telemetry_context`
-- **Business purpose.** Person-day activity grain per vendor account (chat messages, Claude Code sessions, Cowork), schema-flexible counters + raw payload — feeds inactivity flags (30/60/90d) and utilization views. ~3-day lag; freshness surfaced in UI. `[SRC:RAW]` Module D, §8.
+- **Business purpose.** Person-day activity grain per vendor account (chat messages, Claude Code sessions, Cowork), schema-flexible counters + an allowlisted replay payload (DEC-SMP-024) — feeds inactivity flags (30/60/90d) and utilization views. ~3-day lag; freshness surfaced in UI. `[SRC:RAW]` Module D, §8.
 - **Lifecycle.** Upserted by the daily analytics sync job, a Console CSV usage import, or manual entry per the org's ingestion_mode (DEC-SMP-018) — all channels idempotent on the (org, person, date) key with `source` provenance.
 - **Flags.** `requires_versioning: no` · `has_soft_delete: no` · `audit_required: sync-job level` · `multi_tenant_scoped: via person`
 
@@ -397,7 +397,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `activity_date` | `date` | UNIQUE(vendor_account_id, person_id, activity_date) | no |  | `2026-08-04` | [SRC:RAW] §14 |
 | `counters` | `jsonb` |  | no | Schema-flexible activity counters | `{"chat":12,"code_sessions":3}` | [SRC:RAW] §14 |
 | `source` | `text` (enum) |  | no | `api / csv_import / manual` — ingestion channel provenance (DEC-SMP-018); default `api` | `api` | DEC-SMP-018 |
-| `raw_payload` | `jsonb` |  | yes | Vendor payload for replay (CSV imports store the parsed row) | … | [SRC:RAW] §13 |
+| `raw_payload` | `jsonb` |  | yes | Allowlisted per-record replay payload: metrics, dates, provenance and the identity fields needed to replay — never request headers, credentials or unrelated user data (DEC-SMP-024); CSV imports store the parsed row | … | [SRC:RAW] §13, DEC-SMP-024 |
 | `synced_at` | `timestamptz` |  | no | Freshness labeling source (import/manual entries stamp it too) | … | [SRC:RAW] Module D |
 
 ### `CostRecord`
@@ -415,7 +415,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `cost_date` | `date` | UNIQUE(vendor_account_id, person_id, cost_date) | no |  | `2026-08-04` | [SRC:RAW] §14 |
 | `amount_usd` | `decimal(12,4)` |  | no | Vendor reports decimal-string cents; stored as USD decimal | `4.2150` | [SRC:RAW] §20 |
 | `source` | `text` (enum) |  | no | `api / csv_import / manual` — ingestion channel provenance (DEC-SMP-018); default `api` | `api` | DEC-SMP-018 |
-| `raw_payload` | `jsonb` |  | yes |  |  | [SRC:RAW] §13 |
+| `raw_payload` | `jsonb` |  | yes | Allowlisted per-record replay payload, same policy as ActivityRecord.raw_payload (DEC-SMP-024) |  | [SRC:RAW] §13, DEC-SMP-024 |
 | `synced_at` | `timestamptz` |  | no | Revisable ~30 days → last sync wins | … | [SRC:RAW] §8 |
 
 ### `RateCard`
