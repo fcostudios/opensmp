@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "d4e4f7b573af3e0eff7c68e791a78b993606f25c105bc3130506cae2651428fb",
+  "work_id": "US-070",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Ingest accurate daily person activity from API-enabled accounts",
+  "source": "docs/stories/sprint-3/r1_misc_us_070.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Group Admins have accurate, replayable person-day activity from API-enabled vendor accounts, using the same identity matching and idempotent persistence boundary available to CSV/manual ingestion.",
+      "demo": "Two people with different provider activity retain different counters; rerunning the same account/date updates the same rows and freshness; missing identities produce visible warnings; CSV/manual accounts cause no automatic provider calls.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "contracts",
+    "db",
+    "server"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 2,
+    "expected_changed_files": 18,
+    "expected_mutation_shards": 5,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 1,
+    "schema_or_migration_changes": 1,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 25,
+    "implementation": 110,
+    "focused_verification": 60,
+    "review": 50,
+    "integration": 25,
+    "total": 270
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Official scope, policy and foundations are delivered.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "CHG-068 sync 1ac81e1 delivers canonical US-070, allocation from parent AC1/activity-side AC3/AC4, DEC-SMP-024 allowlisted replay payloads and DEC-SMP-025 manual default/explicit API opt-in. Parsed .nous-feedback.jsonl has done events for US-056, US-057, US-058 and US-046. The parent partition is docs/readiness/US-026.json; approval remains separately required. Four child ACs form two flows: (1) accurate identity-matched activity persistence including reruns/concurrency/warnings, and (2) ingestion-channel gating/shared writes. AC4 demonstrates AC1..AC3, not another independent feature. No approved parent design exists; US-070 requires its own Superpowers design before a bound plan."
+    },
+    {
+      "id": "U2",
+      "statement": "Correct connector activity grain and preserve identity warnings and replay evidence.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 60,
+      "resolution": "docs/readiness/US-026.json U2/U3 define the checked connector gap and approved allowlisted payload policy. Replace organization-total duplication with documented per-user counters, preserve null/unmatched identities as warning evidence and update contract-backed fixtures. Stop and reassess if current provider schema or beta policy requires additional scope."
+    },
+    {
+      "id": "U3",
+      "statement": "Introduce ingestion-mode gating, activity source/upserts and runtime privileges.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 40,
+      "resolution": "docs/readiness/US-026.json U4/U5 identify missing fields, uniqueness parity and UPDATE grants. Add append-only migration and Drizzle declarations for VendorAccount.ingestion_mode and ActivityRecord.source/unique key, shared source/identity inputs and activity upsert support under ledger_app. Backfill unconfigured accounts to manual. Use Person.company_id for isolation and preserve account boundaries. Prove real-DB rerun/concurrency/freshness and migration parity."
+    },
+    {
+      "id": "U4",
+      "statement": "Deliver scheduled execution and warning evidence without implementing later consumer screens.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 25,
+      "resolution": "docs/readiness/US-026.json U6 identifies existing daily scheduler and deferred handler. Wire the activity delivery into analyticsSync using existing credentials, rate limiting, sanitized observation sessions and injected dates; expose unmatched counts/details through existing job/audit surfaces. CSV/manual callers get the same source-aware persistence entrypoint; actual import/manual UI remains US-055. Confirm lag/replay policy during design; no new route is included."
+    },
+    {
+      "id": "U5",
+      "statement": "Company isolation and runtime observation/credential seams are known.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "packages/db/src/schema.ts person.companyId is the actual tenant column; telemetry and VendorAccount have no direct company_id. Resolve email through company-scoped Person rows, distinguish shared-account vendor identity from company authorization and verify isolation using real database fixtures. apps/worker/src/jobs/membership-poll.ts shows KEK-backed credential loading and observation sessions with provisioningActionId:null for sync operations; connector-call-observation.ts explicitly supports that shape. Reuse these delivered seams without copying feature logic. Global scheduled work may iterate trusted database company/account scope; source-aware caller input must not grant a foreign-company write. A need for a new authorization or locking lifecycle beyond the natural-key upsert boundary triggers reassessment."
+    },
+    {
+      "id": "U6",
+      "statement": "Dates, warning retention, resource lifetime and measurement will be explicit within the approved boundary.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "Budget deterministic UTC at-minus-three-completed-days activity observation, consistent with the committed approximate three-day lag; present exact policy in the child design for approval. Keep null/unmatched identities as allowlisted warning records in existing persisted job/audit evidence, including account/date/counts, with no new screen and no unrelated identity data. Reuse the existing daily scheduler/account keys and failure handling, release DB connections/observations in finally, and prove overlapping runs via real-DB natural-key upserts. Migration slug analytics_activity_ingestion is canonical; use a fresh timestamp and never modify committed migrations. Expected 18 files/5 mutation shards are estimates, re-evaluated at plan/task boundaries; per-task previews intersect only touched production sources. Record phase actuals, preview_rounds/minutes, cold attempts, review loops and cost provenance under CHG-064..067. Runtime tests, migration apply/verify/parity, adversarial AC review and one final cold campaign are included in the 270-minute estimate; do not inherit historical parent timing as child actuals."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "US070-READINESS-20261005",
+    "payload_sha256": "d4e4f7b573af3e0eff7c68e791a78b993606f25c105bc3130506cae2651428fb"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
