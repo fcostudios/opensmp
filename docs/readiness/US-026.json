@@ -123,7 +123,27 @@
     "evidence": "US026-VERIFICATION-20261006-APPROVAL",
     "payload_sha256": "d8e645d383099ee89c1de23442e81d9e6ca667469d82098b4751e9eab4e15f4a"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 9,
+      "implementation": 0,
+      "focused_verification": 4,
+      "review": 1,
+      "integration": 2
+    },
+    "total": 16,
+    "changed_files": 2,
+    "commits": 5,
+    "review_fix_loops": 1,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": -104,
+    "root_cause": "Measured parent-only active envelopes18:59:48.195Z..19:08:07.167Z and19:26:12.058Z..2026-10-06T19:33:34.190134+00:00; excludes18min04.891s completed-turn/user-approval idle gap. First preapproval package/reviewer work is readiness; resumed readiness endsfocusedmarker19:26:41.137269Z, focused endsreviewmarker19:30:30.457Z, reviewendsintegrationmarker2026-10-06T19:31:57.726837+00:00. Nearestinteger eachphase,total=sum; exactphasevalues in feedback. Nochildtimeadded.2netpaths vs authorityfdf6aa3;4existingparentcommits+ONEterminal=5. Oneassessmenttemporalpolicyclarificationreview-fixloop, no sourcefix. Currentcheck ALLTurbo cached; freshownedPG16migration/parity+restrictedledger_app andcleanup.0cold/previews fromapprovedzeroexpectedshards, childhistoricalproof not freshparentcampaign. Cutoff excludes subsequentactualswrite/readinessvalidation/commit/cleanup/finalresponse overhead; notfullendtoend/fullseat minutes."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
