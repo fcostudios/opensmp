@@ -394,6 +394,7 @@ test('revises exact person costs on thirty completed UTC days while preserving e
     expect(url.pathname).toBe('/v1/organizations/analytics/user_cost_report');
     expect(request.headers.get('x-api-key')).toBe('cost-analytics-secret');
     expect(url.searchParams.get('bucket_width')).toBe('1d');
+    expect(url.searchParams.get('starting_at')).toBe(`${costDays[intervals.length % 30]}T00:00:00Z`);
     intervals.push([url.searchParams.get('starting_at')!, url.searchParams.get('ending_at')!]);
     return costResponse([costUser('A@example.test', cents),costUser('unknown@example.test','0.01'),costUser(null,'-0.01')]);
   }, () => syncedAt));
