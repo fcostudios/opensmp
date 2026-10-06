@@ -130,6 +130,10 @@ const expectedAppendOnlyColumnUpdates = [
   { tableName: "activity_record", columnName: "raw_payload" },
   { tableName: "activity_record", columnName: "source" },
   { tableName: "activity_record", columnName: "synced_at" },
+  { tableName: "cost_record", columnName: "amount_usd" },
+  { tableName: "cost_record", columnName: "raw_payload" },
+  { tableName: "cost_record", columnName: "source" },
+  { tableName: "cost_record", columnName: "synced_at" },
   { tableName: "alert_event", columnName: "acknowledged_at" },
   { tableName: "alert_event", columnName: "acknowledged_by" },
   { tableName: "license_assignment", columnName: "end_reason" },
@@ -296,6 +300,32 @@ export async function verifyMigratedSchema({
             .join(", "),
       );
     }
+
+    const costColumns = await owner.query(`
+      SELECT attribute.attname AS name, format_type(attribute.atttypid,attribute.atttypmod) AS type,
+        attribute.attnotnull AS not_null, pg_get_expr(default_value.adbin,default_value.adrelid) AS default_value
+      FROM pg_attribute AS attribute LEFT JOIN pg_attrdef AS default_value
+        ON default_value.adrelid=attribute.attrelid AND default_value.adnum=attribute.attnum
+      WHERE attribute.attrelid='public.cost_record'::regclass AND attribute.attnum>0 AND NOT attribute.attisdropped
+      ORDER BY attribute.attnum
+    `);
+    const expectedCostColumns = [
+      ["id","uuid",true,"gen_random_uuid()"], ["vendor_account_id","uuid",true,null],
+      ["person_id","uuid",true,null], ["cost_date","date",true,null],
+      ["amount_usd","numeric(12,4)",true,null], ["raw_payload","jsonb",false,null],
+      ["synced_at","timestamp with time zone",true,null], ["source","ingestion_source",true,"'api'::ingestion_source"],
+    ];
+    const actualCostColumns = costColumns.rows.map(({name,type,not_null,default_value}) => [name,type,not_null,default_value]);
+    if (JSON.stringify(actualCostColumns)!==JSON.stringify(expectedCostColumns)) throw new Error(`cost_record column contract mismatch: ${JSON.stringify(actualCostColumns)}`);
+    const costKey = await owner.query(`
+      SELECT constraint_row.convalidated AS validated, ARRAY(
+        SELECT attribute.attname::text FROM unnest(constraint_row.conkey) WITH ORDINALITY AS key(attnum,ordinality)
+        JOIN pg_attribute AS attribute ON attribute.attrelid=constraint_row.conrelid AND attribute.attnum=key.attnum ORDER BY key.ordinality
+      ) AS columns FROM pg_constraint AS constraint_row
+      WHERE constraint_row.conrelid='public.cost_record'::regclass AND constraint_row.contype='u'
+        AND constraint_row.conname='uq_cost_record_vendor_account_id_person_id_cost_date'
+    `);
+    if (JSON.stringify(costKey.rows)!==JSON.stringify([{validated:true,columns:["vendor_account_id","person_id","cost_date"]}])) throw new Error(`cost_record natural key mismatch: ${JSON.stringify(costKey.rows)}`);
 
     const capacityRecoveryIdentity = await owner.query(`
       SELECT pg_get_constraintdef(oid) AS definition, convalidated AS validated

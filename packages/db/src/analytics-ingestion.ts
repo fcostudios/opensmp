@@ -1,5 +1,8 @@
 import {
   normalizeActivityCounters,
+  normalizeCostUsd,
+  fractionalCentsToUsd,
+  type CostIngestionRecord,
   type ActivityIdentityWarning,
   type ActivityIngestionRecord,
   type IngestionSource,
@@ -169,6 +172,160 @@ export async function ingestActivityBatch(database: ActivityDatabase, batch: Act
       entityId: batch.vendorAccountId, companyId: batch.companyId, after: { vendorAccountId: batch.vendorAccountId, activityDate: batch.activityDate, source: batch.source, ...item }, occurredAt: batch.syncedAt });
     await tx.insert(schema.auditLog).values({ actorUserId: actorId, action: "analytics_activity_sync", entityType: "VendorAccount", entityId: batch.vendorAccountId,
       companyId: batch.companyId, after: { vendorAccountId: batch.vendorAccountId, activityDate: batch.activityDate, source: batch.source, written, ignored, warningCount: warnings.length }, occurredAt: batch.syncedAt });
+    return { written, ignored, warnings };
+  });
+}
+
+
+export type CostBatch = Readonly<{
+  companyId: string;
+  vendorAccountId: string;
+  costDate: string;
+  source: IngestionSource;
+  syncedAt: Date;
+  windowAt: Date;
+  actorUserAccountId: string | null;
+  records: readonly CostIngestionRecord[];
+}>;
+export type CostBatchResult = Readonly<{
+  written: number;
+  ignored: number;
+  warnings: readonly ActivityIdentityWarning[];
+}>;
+
+// Share primitive validation without leaking the activity boundary's error codes.
+function costValidation<T>(validate: () => T): T {
+  try { return validate(); }
+  catch (error) {
+    if (error instanceof Error) throw new Error(error.message.replace(/^ACTIVITY_/, "COST_"));
+    throw error;
+  }
+}
+type IndexedCostRecord = { record: CostIngestionRecord; recordIndex: number };
+function validateCostRecords(records: readonly CostIngestionRecord[], date?: string): IndexedCostRecord[] {
+  if (!Array.isArray(records)) throw new Error("COST_INVALID_RECORDS");
+  const emails = new Map<string, IndexedCostRecord>();
+  const providerIds = new Map<string, string | null>();
+  const unique: IndexedCostRecord[] = [];
+  records.forEach((input, recordIndex) => {
+    if (!input || typeof input !== "object") throw new Error("COST_INVALID_RECORD");
+    costValidation(() => validateDate(input.costDate));
+    if (date !== undefined && input.costDate !== date) throw new Error("COST_DATE_MISMATCH");
+    const email = costValidation(() => normalizeEmail(input.email));
+    if (input.providerUserId !== null && typeof input.providerUserId !== "string") throw new Error("COST_INVALID_PROVIDER_ID");
+    const amountUsd = normalizeCostUsd(input.amountUsd);
+    if (input.amountCents !== null && fractionalCentsToUsd(input.amountCents) !== amountUsd) throw new Error("COST_CENTS_MISMATCH");
+    const record = { email, providerUserId: input.providerUserId, costDate: input.costDate, amountUsd, amountCents: input.amountCents };
+    if (record.providerUserId !== null) {
+      if (providerIds.has(record.providerUserId) && providerIds.get(record.providerUserId) !== email) throw new Error("COST_IDENTITY_CONFLICT");
+      providerIds.set(record.providerUserId, email);
+    }
+    const identity = email !== null ? `email:${email}` : (record.providerUserId === null ? null : `provider:${record.providerUserId}`);
+    const key = identity === null ? null : `${identity}:${record.costDate}`;
+    const previous = key === null ? undefined : emails.get(key);
+    if (previous) {
+      if (previous.record.providerUserId !== record.providerUserId || previous.record.amountUsd !== record.amountUsd || previous.record.amountCents !== record.amountCents) throw new Error("COST_DUPLICATE_CONFLICT");
+      return;
+    }
+    const indexed = { record, recordIndex };
+    if (key !== null) emails.set(key, indexed);
+    unique.push(indexed);
+  });
+  return unique;
+}
+
+async function matchCostPerson(database: Matcher, companyId: string, email: string, lock = false) {
+  const query = database.select({ id: schema.person.id, companyId: schema.person.companyId })
+    .from(schema.person).where(and(eq(schema.person.companyId, companyId), sql`lower(trim(${schema.person.email}))=${email}`));
+  const matches = await (lock ? query.for("share") : query);
+  if (matches.length > 1) throw new Error("COST_AMBIGUOUS_IDENTITY");
+  return matches[0];
+}
+function costWarning(indexed: IndexedCostRecord, reason: ActivityIdentityWarning["reason"]): ActivityIdentityWarning {
+  return { recordIndex: indexed.recordIndex, reason, email: indexed.record.email, providerUserId: indexed.record.providerUserId };
+}
+
+export async function resolveCostScopes(database: Matcher, companyIds: readonly string[], records: readonly CostIngestionRecord[]) {
+  companyIds.forEach(id => costValidation(() => validateUuid(id)));
+  const validated = validateCostRecords(records);
+  const batches = new Map<string, CostIngestionRecord[]>();
+  const warnings: ActivityIdentityWarning[] = [];
+  for (const indexed of validated) {
+    if (indexed.record.email === null) { warnings.push(costWarning(indexed, "missing_email")); continue; }
+    let scope: string | undefined;
+    for (const companyId of new Set(companyIds)) {
+      if (await matchCostPerson(database, companyId, indexed.record.email)) {
+        if (scope !== undefined) throw new Error("COST_AMBIGUOUS_IDENTITY");
+        scope = companyId;
+      }
+    }
+    if (scope === undefined) warnings.push(costWarning(indexed, "unmatched_email"));
+    else {
+      const group = batches.get(scope) ?? [];
+      group.push(indexed.record);
+      batches.set(scope, group);
+    }
+  }
+  return { batches: [...batches].map(([companyId, records]) => ({ companyId, records })), warnings };
+}
+
+export async function ingestCostBatch(database: ActivityDatabase, batch: CostBatch): Promise<CostBatchResult> {
+  costValidation(() => { validateUuid(batch.companyId); validateUuid(batch.vendorAccountId); });
+  if (batch.actorUserAccountId !== null) costValidation(() => validateUuid(batch.actorUserAccountId));
+  costValidation(() => validateDate(batch.costDate));
+  if (!["api", "csv_import", "manual"].includes(batch.source)) throw new Error("COST_INVALID_SOURCE");
+  if (!(batch.syncedAt instanceof Date) || !Number.isFinite(batch.syncedAt.getTime())) throw new Error("COST_INVALID_SYNC_TIME");
+  if (!(batch.windowAt instanceof Date) || !Number.isFinite(batch.windowAt.getTime())) throw new Error("COST_INVALID_WINDOW_TIME");
+  const records = validateCostRecords(batch.records, batch.costDate);
+  const today = batch.windowAt.toISOString().slice(0, 10);
+  const windowStart = new Date(`${today}T00:00:00Z`);
+  windowStart.setUTCDate(windowStart.getUTCDate() - 30);
+  const eligible = batch.costDate >= windowStart.toISOString().slice(0, 10) && batch.costDate < today;
+  return database.transaction(async (tx) => {
+    // A shared row lock prevents disabling API ingestion while this transaction commits.
+    const [account] = await tx.select({ mode: schema.vendorAccount.ingestionMode, identityMatching: schema.vendor.identityMatching, hasCostData: schema.vendor.hasCostData, connectorType: schema.vendor.connectorType, protocol: schema.vendor.provisioningProtocol })
+      .from(schema.vendorAccount).innerJoin(schema.vendor, eq(schema.vendor.id, schema.vendorAccount.vendorId))
+      .where(and(eq(schema.vendorAccount.id, batch.vendorAccountId), eq(schema.vendorAccount.status, "active"), eq(schema.vendor.status, "active")))
+      .for("share", { of: [schema.vendorAccount, schema.vendor] });
+    if (!account || account.identityMatching !== "email") throw new Error("COST_ACCOUNT_UNSUPPORTED");
+    if (batch.source === "api" && account.mode === "api"
+      && (!account.hasCostData || account.connectorType !== "api" || account.protocol !== "rest")) throw new Error("COST_ACCOUNT_UNSUPPORTED");
+    const [company] = await tx.select({ id: schema.company.id }).from(schema.company).where(eq(schema.company.id, batch.companyId)).for("share");
+    if (!company) throw new Error("COST_COMPANY_NOT_FOUND");
+    const actorId = batch.actorUserAccountId ?? SYSTEM_USER_ID;
+    const [actor] = await tx.select({ id: schema.userAccount.id }).from(schema.userAccount)
+      .where(and(eq(schema.userAccount.id, actorId), actorId === SYSTEM_USER_ID ? eq(schema.userAccount.email, SYSTEM_USER_EMAIL) : eq(schema.userAccount.status, "active"))).for("share");
+    if (!actor) throw new Error("COST_ACTOR_NOT_FOUND");
+    let written = 0, ignored = 0;
+    const warnings: ActivityIdentityWarning[] = [];
+    if (!eligible || (batch.source === "api" && account.mode !== "api")) ignored = records.length;
+    else for (const indexed of records) {
+      const record = indexed.record;
+      if (record.email === null) { warnings.push(costWarning(indexed, "missing_email")); continue; }
+      const holder = await matchCostPerson(tx, batch.companyId, record.email, true);
+      if (!holder) { warnings.push(costWarning(indexed, "unmatched_email")); continue; }
+      const rawPayload = { version: 1, vendorAccountId: batch.vendorAccountId, costDate: batch.costDate, source: batch.source,
+        identity: { email: record.email, providerUserId: record.providerUserId }, amountUsd: record.amountUsd, amountCents: record.amountCents };
+      const inserted = await tx.insert(schema.costRecord).values({ vendorAccountId: batch.vendorAccountId, personId: holder.id,
+        costDate: batch.costDate, amountUsd: record.amountUsd, rawPayload, source: batch.source, syncedAt: batch.syncedAt })
+        .onConflictDoUpdate({ target: [schema.costRecord.vendorAccountId, schema.costRecord.personId, schema.costRecord.costDate],
+          set: { amountUsd: sql`excluded.amount_usd`, rawPayload: sql`excluded.raw_payload`, source: sql`excluded.source`, syncedAt: sql`excluded.synced_at` },
+          setWhere: sql`${schema.costRecord.syncedAt} < excluded.synced_at` }).returning({ id: schema.costRecord.id });
+      if (inserted.length) written++;
+      else {
+        const [current] = await tx.select({ syncedAt: schema.costRecord.syncedAt,
+          equivalent: sql<boolean>`${schema.costRecord.amountUsd}=${record.amountUsd}::numeric AND ${schema.costRecord.rawPayload}=${JSON.stringify(rawPayload)}::jsonb AND ${schema.costRecord.source}=${batch.source}` })
+          .from(schema.costRecord).innerJoin(schema.person, eq(schema.person.id, schema.costRecord.personId))
+          .where(and(eq(schema.person.companyId, batch.companyId), eq(schema.costRecord.vendorAccountId, batch.vendorAccountId), eq(schema.costRecord.personId, holder.id), eq(schema.costRecord.costDate, batch.costDate)));
+        if (!current || current.syncedAt.getTime() < batch.syncedAt.getTime()
+          || (current.syncedAt.getTime() === batch.syncedAt.getTime() && !current.equivalent)) throw new Error("COST_REPLAY_CONFLICT");
+        ignored++;
+      }
+    }
+    for (const item of warnings) await tx.insert(schema.auditLog).values({ actorUserId: actorId, action: "analytics_cost_warning", entityType: "VendorAccount",
+      entityId: batch.vendorAccountId, companyId: batch.companyId, after: { vendorAccountId: batch.vendorAccountId, costDate: batch.costDate, source: batch.source, ...item }, occurredAt: batch.syncedAt });
+    await tx.insert(schema.auditLog).values({ actorUserId: actorId, action: "analytics_cost_sync", entityType: "VendorAccount", entityId: batch.vendorAccountId,
+      companyId: batch.companyId, after: { vendorAccountId: batch.vendorAccountId, costDate: batch.costDate, source: batch.source, written, ignored, warningCount: warnings.length }, occurredAt: batch.syncedAt });
     return { written, ignored, warnings };
   });
 }
