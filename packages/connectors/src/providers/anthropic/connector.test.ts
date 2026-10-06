@@ -1361,3 +1361,39 @@ it("preserves missing and null metric groups and collapses equivalent repeated i
   ]}});
   expect(JSON.stringify([result,journal])).not.toContain("do-not-retain");
 });
+
+
+describe("documented activity identity and page contracts", () => {
+  const failure = { ok: false, code: "provider_error", retryable: false, raw: null };
+  const input = { vendorAccountId: ACCOUNT, observedAt: NOW };
+  it.each([
+    ["null row", null],
+    ["nonobject row", 3],
+    ["wrong nested user type", { user: { type: "invite", id: "u-a", email_address: "a@example.test" } }],
+    ["malformed nested email", { user: { type: "user", id: "u-a", email_address: "not-an-email" } }],
+  ])("sanitizes %s to the exact provider failure", async (_case, row) => {
+    const { connector } = fixture(async () => json({ data: [row], next_page: null }));
+    await expect(connector.syncActivity(input)).resolves.toEqual(failure);
+  });
+  it("accepts an explicit requested day with the documented optional flag omitted", async () => {
+    const { connector } = fixture(async () => json({
+      data: [{ ...analyticsUser("u-a", "A@example.test"), date: "2026-09-06" }], next_page: null,
+    }));
+    await expect(connector.syncActivity(input)).resolves.toEqual({ ok: true, raw: null, value: { records: [{
+      email: "a@example.test", providerUserId: "u-a", activityDate: "2026-09-06",
+      counters: { chat_metrics: { message_count: 2 } },
+    }] } });
+  });
+  it.each([
+    ["claims more without cursor", true, null],
+    ["claims complete with cursor", false, "next"],
+  ])("rejects a boolean page disagreement: %s", async (_case, hasMore, nextPage) => {
+    let calls = 0;
+    const { connector } = fixture(async () => {
+      calls += 1;
+      return json({ data: [analyticsUser("u-a", "a@example.test")], has_more: hasMore, next_page: nextPage });
+    });
+    await expect(connector.syncActivity(input)).resolves.toEqual(failure);
+    expect(calls).toBe(1);
+  });
+});

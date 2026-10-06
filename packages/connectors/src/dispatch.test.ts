@@ -1353,13 +1353,36 @@ it("invitation deletion receipt confirms only the exact pinned identity and invi
 describe("activity dispatch safe replay boundary", () => {
   const row={email:"ALICE@example.test",providerUserId:"u-a",activityDate:"2026-10-03",counters:{chat_metrics:{message_count:2,authorization:"secret"}}};
   const input={vendorAccountId:"vendor-account-1",observedAt:new Date("2026-10-03T00:00:00Z")};
-  function dispatched(records:unknown[]) {
+  function dispatched(records:unknown) {
     return createConnectorDispatcher({rest:{...connectorWith("syncActivity"),syncActivity:async()=>({ok:true,value:{records},raw:{authorization:"secret"}} as never)}}).forProtocol("rest");
   }
   it("reconstructs minimal canonical activity and discards connector raw", async()=>{
     expect(await dispatched([row]).syncActivity(input)).toEqual({ok:true,raw:null,value:{records:[{email:"alice@example.test",providerUserId:"u-a",activityDate:"2026-10-03",counters:{chat_metrics:{message_count:2}}}]}});
   });
+  it("preserves nullable identity in canonical successful records", async () => {
+    expect(await dispatched([{ ...row, email: null, providerUserId: null }]).syncActivity(input))
+      .toEqual({ ok: true, raw: null, value: { records: [{
+        email: null, providerUserId: null, activityDate: "2026-10-03",
+        counters: { chat_metrics: { message_count: 2 } },
+      }] } });
+  });
+  it("collapses equivalent normalized duplicate identities", async () => {
+    const result = await dispatched([row, { ...row, email: "alice@example.test" }]).syncActivity(input);
+    expect(result).toEqual(await dispatched([row]).syncActivity(input));
+    if (!result.ok) throw new Error("expected activity success");
+    expect(result.value.records).toHaveLength(1);
+  });
+  it("rejects cloneable nonarray activity records", async () => {
+    await expect(dispatched(new Uint8Array()).syncActivity(input)).rejects.toThrow();
+  });
   it.each([
+    ["malformed string email", [{ ...row, email: "not-an-email" }]],
+    ["boxed String email", [{ ...row, email: new String("alice@example.test") }]],
+    ["numeric provider ID", [{ ...row, providerUserId: 3 }]],
+    ["blank provider ID", [{ ...row, providerUserId: "" }]],
+    ["control character provider ID", [{ ...row, providerUserId: "u\n-a" }]],
+    ["boxed String provider ID", [{ ...row, providerUserId: new String("u-a") }]],
+    ["same email with distinct IDs", [row, { ...row, email: "alice@example.test", providerUserId: "u-b" }]],
     ["mixed days", [row,{...row,email:"bob@example.test",providerUserId:"u-b",activityDate:"2026-10-02"}]],
     ["conflicting identity", [row,{...row,email:"bob@example.test"}]],
     ["invalid day", [{...row,activityDate:"2026-02-30"}]],
