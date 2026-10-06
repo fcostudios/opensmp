@@ -70,7 +70,7 @@ function validateRecords(records: readonly ActivityIngestionRecord[], date?: str
       if (providerIds.has(record.providerUserId) && providerIds.get(record.providerUserId) !== email) throw new Error("ACTIVITY_IDENTITY_CONFLICT");
       providerIds.set(record.providerUserId, email);
     }
-    const identity = email ?? (record.providerUserId === null ? null : `provider:${record.providerUserId}`);
+    const identity = email !== null ? `email:${email}` : (record.providerUserId === null ? null : `provider:${record.providerUserId}`);
     const key = identity === null ? null : `${identity}:${record.activityDate}`;
     const previous = key === null ? undefined : emails.get(key);
     if (previous) {

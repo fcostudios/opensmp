@@ -254,6 +254,26 @@ test("keeps anonymous records distinct and accepts nullable identity retries", a
   expect(missing.warnings.map(w=>w.recordIndex)).toEqual([0,1,2,3]);
 });
 
+// Fault I1: provider-only identity text collides with an unrelated email key.
+test("separates provider-only and email duplicate identity namespaces", async () => {
+  const email="provider:x@example.test";
+  const missing={...record,email:null,providerUserId:"x@example.test"};
+  const matched={...record,email,providerUserId:null,counters:{chat_metrics:{message_count:7}}};
+  const expectedWarning={recordIndex:0,reason:"missing_email",email:null,providerUserId:"x@example.test"};
+  await owner.query("UPDATE person SET email=$1 WHERE id=$2",[email,ids.personA]);
+  try {
+    const scoped=await resolveActivityScopes(db,[ids.companyA,ids.companyB],[missing,matched]);
+    expect(scoped.warnings).toEqual([expectedWarning]);
+    expect(scoped.batches).toEqual([{companyId:ids.companyA,records:[matched]}]);
+    expect(await ingestActivityBatch(db,{...base,records:[missing,matched]})).toEqual({written:1,ignored:0,warnings:[expectedWarning]});
+    const persisted=await rows();
+    expect(persisted).toHaveLength(1);
+    expect(persisted[0]).toMatchObject({personId:ids.personA,counters:matched.counters});
+    expect((await owner.query("SELECT company_id FROM person WHERE id=$1",[persisted[0].personId])).rows).toEqual([{company_id:ids.companyA}]);
+    expect((await audits()).filter(row=>row.action==="analytics_activity_warning").map(row=>row.after)).toEqual([{vendorAccountId:ids.account,activityDate:record.activityDate,source:"api",...expectedWarning}]);
+  } finally {await owner.query("UPDATE person SET email='a@example.test' WHERE id=$1",[ids.personA]);}
+});
+
 // Faults: unsupported matching silently ingests, missing company/actor permits
 // summary-only writes, human identity confused with intentionally disabled system.
 test("requires supported accounts, existing companies and verified audit actors", async () => {
