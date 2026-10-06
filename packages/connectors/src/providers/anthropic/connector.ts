@@ -215,7 +215,7 @@ function parseCost(value: unknown, observedOn: string): CostIngestionRecord | nu
   const item = record(value);
   if (!item || item.currency !== "USD" || typeof item.amount !== "string") return null;
   const actor = item.actor == null ? null : record(item.actor);
-  if (item.actor != null && (!actor || (actor.type != null && actor.type !== "user_actor"))) return null;
+  if (item.actor != null && (!actor || actor.type !== "user_actor")) return null;
   const email = actor?.email_address == null ? null : usableEmail(actor.email_address);
   const providerUserId = actor?.user_id == null ? null : actor.user_id;
   if (email === undefined || (providerUserId !== null && !opaqueToken(providerUserId))) return null;

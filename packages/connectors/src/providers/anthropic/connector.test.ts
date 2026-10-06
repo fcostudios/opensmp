@@ -990,6 +990,7 @@ describe("Anthropic neutral connector", () => {
     ["overflow", cost("u",null,"10000000000")],
     ["exponent", cost("u",null,"1e3")],
     ["malformed actor", {...cost("u",null),actor:3}],
+    ["missing actor type", {...cost("u",null),actor:{email_address:null,user_id:"u"}}],
     ["wrong actor type", {...cost("u",null),actor:{...cost("u",null).actor,type:"organization"}}],
     ["malformed id", cost("bad\u0000id",null)],
     ["malformed email", cost("u","invalid")],
@@ -1010,6 +1011,7 @@ describe("Anthropic neutral connector", () => {
   });
 
   it.each([
+    ["100","1"], ["0","0"], ["-100","-1"],
     ["123.45","1.2345"], ["-123.45","-1.2345"], ["9999999999.99","99999999.9999"],
     ["-9999999999.99","-99999999.9999"], ["100.000000","1"], ["-0.0000","0"], ["+00123.4500","1.2345"],
   ])("converts exact fractional cents %s", (cents,usd)=>expect(fractionalCentsToUsd(cents)).toBe(usd));
@@ -1017,6 +1019,7 @@ describe("Anthropic neutral connector", () => {
   it.each(["0.001", "-0.001", "9999999999.991", "10000000000", "-10000000000", "1e3", "NaN", "Infinity", "", " 1", "1.", ".1", 1, null])("rejects invalid fractional cents %s", value=>expect(()=>fractionalCentsToUsd(value)).toThrow());
 
   it.each([
+    ["123","123"], ["0","0"], ["-123","-123"],
     ["1.23000","1.23"], ["+001.2300","1.23"], ["-0.000000","0"], ["99999999.9999000","99999999.9999"], ["-99999999.9999","-99999999.9999"],
   ])("normalizes exact USD %s", (input,want)=>expect(normalizeCostUsd(input)).toBe(want));
 
