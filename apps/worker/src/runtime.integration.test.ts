@@ -457,7 +457,7 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
     }
   }, 15_000);
 
-  it("delivers each cron-shaped payload to its deferred handler with a scheduled coordinator key", async () => {
+  it("delivers each cron-shaped payload to its handler with a scheduled coordinator key", async () => {
     const logs: Array<{ id?: string; jobId?: string; jobName?: string; status?: string }> = [];
     const runtime = createWorkerRuntime({
       connectionString: appConnectionString,
@@ -486,11 +486,24 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
         ),
       );
       const jobIds = inserted.map((result) => result.rows[0]?.id).filter((id): id is string => Boolean(id));
+      expect(jobIds).toHaveLength(6);
 
       await waitFor(async () => {
+        const jobs = await queryAsOwner<{ state: string }>(
+          "SELECT state FROM pgboss.job WHERE id = ANY($1::uuid[])",
+          [jobIds],
+        );
+        expect(jobs.rows).toHaveLength(6);
+        expect(jobs.rows.every(({ state }) => state === "completed")).toBe(true);
         for (const jobId of jobIds) {
           expect(logs.filter((entry) => entry.jobId === jobId)).toHaveLength(1);
         }
+        expect(logs).toContainEqual(expect.objectContaining({
+          jobId: jobIds[0],
+          jobName: "analytics-sync",
+          processed: 0,
+          status: "succeeded",
+        }));
         expect(logs).toContainEqual(expect.objectContaining({
           jobId: jobIds[3],
           processed: 0,
@@ -503,9 +516,18 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
         }));
         expect(
           logs.filter(({ jobId, status }) =>
-            ![jobIds[2], jobIds[3], jobIds[5]].includes(jobId) && status === "skipped"),
-        ).toHaveLength(3);
+            [jobIds[1], jobIds[4]].includes(jobId) && status === "skipped"),
+        ).toHaveLength(2);
       });
+      const analyticsExecution = await queryAsOwner(
+        `SELECT job_name, status, result FROM pgboss.worker_job_execution
+         WHERE idempotency_key = 'analytics-sync:scheduled:2026-08-05'`,
+      );
+      expect(analyticsExecution.rows).toEqual([{
+        job_name: "analyticsSync",
+        status: "succeeded",
+        result: { processed: 0, status: "succeeded" },
+      }]);
     } finally {
       await runtime.stop();
     }
@@ -623,15 +645,37 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
 
       expect(first).toMatch(/[0-9a-f-]{36}/);
       expect(duplicate).toBeNull();
+      const idempotencyKey = `analytics-sync:${execution.vendorAccountId}:2026-07-25`;
       await waitFor(async () => {
+        const jobs = await queryAsOwner<{ id: string; state: string; vendor_account_id: string }>(
+          `SELECT id, state, data->>'vendorAccountId' AS vendor_account_id
+           FROM pgboss.job WHERE name = 'analytics-sync' AND singleton_key = $1`,
+          [idempotencyKey],
+        );
+        expect(jobs.rows).toEqual([{
+          id: first,
+          state: "completed",
+          vendor_account_id: execution.vendorAccountId,
+        }]);
         expect(logs).toContainEqual(
           expect.objectContaining({
+            jobId: first,
             jobName: "analytics-sync",
             processed: 0,
-            status: "skipped",
+            status: "succeeded",
           }),
         );
       });
+      const storedExecution = await queryAsOwner(
+        `SELECT job_name, status, result FROM pgboss.worker_job_execution
+         WHERE idempotency_key = $1`,
+        [idempotencyKey],
+      );
+      expect(storedExecution.rows).toEqual([{
+        job_name: "analyticsSync",
+        status: "succeeded",
+        result: { processed: 0, status: "succeeded" },
+      }]);
     } finally {
       await runtime.stop();
     }
