@@ -507,6 +507,7 @@ test("requires held API cost support flags while allowing manual and CSV imports
       expect(await costRows()).toEqual([]);expect(await audits()).toEqual([]);
       await owner.query("UPDATE vendor_account SET ingestion_mode='manual'");
       expect((await ingestCostBatch(db,costBase)).ignored).toBe(1);
+      await owner.query("UPDATE vendor_account SET ingestion_mode='api'");
       for(const source of ["manual","csv_import"] as const){
         await owner.query("TRUNCATE cost_record,audit_log");
         expect((await ingestCostBatch(db,{...costBase,source})).written).toBe(1);
