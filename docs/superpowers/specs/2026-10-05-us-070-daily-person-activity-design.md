@@ -1,6 +1,6 @@
 # US-070 — Daily person activity ingestion
 
-**Status:** proposed design for human review; readiness is approved, implementation has not started.
+**Status:** approved by Francisco Lomas in this conversation ("Approve and continue", 2026-10-05); implementation follows the readiness-bound plan.
 **Readiness:** `docs/readiness/US-070.json` (270 minutes).
 **Authority:** CHG-068, canonical `docs/stories/sprint-3/r1_misc_us_070.md`, DEC-SMP-024 and DEC-SMP-025.
 
