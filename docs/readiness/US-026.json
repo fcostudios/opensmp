@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "cb53e803ab7a3adb8e44dbd90dcf597cac3709e05c8cf45afc5cf60a425faa7f",
+  "readiness_payload_sha256": "fab5ed85158c9a06a5780da963fbc5431667c2b45d620898bb8c667ccc35c40d",
   "work_id": "US-026",
   "kind": "US",
   "work_type": "technical",
@@ -83,7 +83,7 @@
       "statement": "Earlier activity effectiveness evidence cannot alone cover later shared-source edits.",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "US-071 current combined five-shard cold covers changed overlapping diff ranges within each US-070 source: contracts, Anthropic provider, worker analytics-activity, analytics-ingestion and schema. US-070 unchanged ranges retain historical proof; neither campaign renews all unchanged ranges, and the newly identified cached activity prefetch gap predates the cost diff; full071 regressions include activity. Latest score93.24577861163228 (495 Killed,34 Survived,2 Timeout,2 NoCoverage/533),33 equivalent and3 individually accepted observable risks. This docs-only verification changes no source/tests/config/dependencies, expects zero mutation shards and emits no parent test_report. If any scored input changes, reassess authority and evidence before closure."
+      "resolution": "US-071 current combined five-shard cold covers changed overlapping diff ranges within each US-070 source: contracts, Anthropic provider, worker analytics-activity, analytics-ingestion and schema. US-070 unchanged ranges retain historical proof; neither campaign renews all unchanged ranges, and the documented cached activity prefetch temporal residual predates the cost diff; full071 regressions include activity. Latest score93.24577861163228 (495 Killed,34 Survived,2 Timeout,2 NoCoverage/533),33 equivalent and3 individually accepted observable risks. This docs-only verification changes no source/tests/config/dependencies, expects zero mutation shards and emits no parent test_report. If any scored input changes, reassess authority and evidence before closure."
     },
     {
       "id": "U4",
@@ -97,21 +97,21 @@
       "statement": "Fresh independent parent review is required and must cover all four criteria on the combined tree.",
       "status": "resolved",
       "estimate_impact_minutes": 40,
-      "resolution": "Fresh independent bounded read-only parent reviewer completed against fdf6aa3. AC1-3 source and existing strong oracles supported; AC4 unresolved cached-eligibility counterexample. Exact report in the append-only feedback annotation titled US-026 full preapproval evidence report. No fresh tests, formal parent ac_verify/build_pass/test_report/done or approval claims emitted. User instruction authorizes preparing this concrete package, not the new digest approval. The optional standalone evidence path was classified implementation by the readiness commit hook; its attempted preapproval commit was rejected. The same report is retained within permitted append-only feedback, with raw Markdown ignored locally; no enforcement bypass."
+      "resolution": "Fresh independent bounded read-only parent reviewer completed against fdf6aa3. AC1-3 source and existing strong oracles supported; AC4 supported under approved selection/held-commit policy with explicit cached-selection residual; the unconditional blocker was retracted. Exact report in the append-only feedback annotation titled US-026 full preapproval evidence report. No fresh tests, formal parent ac_verify/build_pass/test_report/done or approval claims emitted. User instruction authorizes preparing this concrete package, not the new digest approval. The optional standalone evidence path was classified implementation by the readiness commit hook; its attempted preapproval commit was rejected. The same report is retained within permitted append-only feedback, with raw Markdown ignored locally; no enforcement bypass."
     },
     {
       "id": "U6",
-      "statement": "Parent AC4 may permit an activity provider call after a later selected account switches from API to manual before its first call.",
-      "status": "unresolved",
+      "statement": "Activity eligibility is selected before calls and revalidated at held commit; later-account cached selection remains an explicit temporal residual.",
+      "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Fresh independent source review identifies cached account selection at analytics-activity.ts:48-52 and cached activity call gate96-97, with only postfetch transactional check111-118; cost rechecks before each call152-158. Required negative case: accountA holds activity fetch, accountB was selected API then switched manual, finishA; current cached B branch can call provider before discarding B. Existing test134 covers disable during its own fetch, not before later-account fetch. Independent report confirms an unresolved current-mode zero-call source gap; no policy waiver is inferred from prior mutation survivor signoffs. This material gap blocks green parent closure and requires explicit bounded reproduction/repair readiness reassessment and digest approval before new code/tests; repair time is excluded from this verification-only estimate."
+      "resolution": "Fresh independent reviewer clarified authority and retracted the unconditional AC4 blocker. Approved US-070 design docs/superpowers/specs/2026-10-05-us-070-daily-person-activity-design.md:123-127 selects active API accounts before credentials/provider calls;130-133 explicitly revalidates before commit and permits already inflight calls. It does not require a new eligibility query before each later account starts. Existing activity test134 proves disabling during fetch discards writes;99 proves selection-excluded manual/CSV zero calls. Source-conclusive unexecuted residual: select API A/B, hold A, switch B manual, finish A; cached B can call then discard. This does not establish a binding defect under approved selection/held-commit policy. Cost prefetch152-158 and repaired observed activity-null stop are stronger delivered cost boundaries; accepted cost restart/activation survivors36/40/84 do not adjudicate activity policy. Optional per-account-start refresh would reduce the cached interval but cannot guarantee absolute zero calls across a concurrent toggle; it requires an explicit proposed repair assessment/approval and is not a new parent closure condition. No fresh reproduction or code/tests authored."
     },
     {
       "id": "U7",
       "statement": "Verification-only authorization and measured cost cannot borrow child execution authority or spending.",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "The120-minute estimate is parent verification/readiness/evidence review only, implementation0; two tracked paths are readiness and append-only feedback (embedding the concise evidence report). Children remain delivered; no implementation/closure authority from historical510-minute partition is reused. Parent raw ledger is ignored .tmp/us026-verification. Actuals stay null until a separately approved execution/closure stage; no child219-minute/other spending is added. New exact digest approval remains required before formal parent execution, and unresolved AC4 must be resolved by binding reassessment first."
+      "resolution": "The120-minute estimate is parent verification/readiness/evidence review only, implementation0; two tracked paths are readiness and append-only feedback (embedding the concise evidence report). Children remain delivered; no implementation/closure authority from historical510-minute partition is reused. Parent raw ledger is ignored .tmp/us026-verification. Actuals stay null until a separately approved execution/closure stage; no child219-minute/other spending is added. New exact digest approval remains required before formal parent execution, under the existing approved selection/held-commit policy; optional stronger policy remains follow-up scope."
     }
   ],
   "dependencies": [
@@ -126,13 +126,13 @@
       "reason": "Canonical delivered child must retain effective terminal projection before parent verification."
     }
   ],
-  "decision": "blocked",
+  "decision": "ready",
   "partitions": [],
   "approval": {
     "status": "pending",
     "approved_by": null,
     "evidence": null,
-    "payload_sha256": "cb53e803ab7a3adb8e44dbd90dcf597cac3709e05c8cf45afc5cf60a425faa7f"
+    "payload_sha256": "fab5ed85158c9a06a5780da963fbc5431667c2b45d620898bb8c667ccc35c40d"
   },
   "actuals": null,
   "policy_bootstrap": false,
