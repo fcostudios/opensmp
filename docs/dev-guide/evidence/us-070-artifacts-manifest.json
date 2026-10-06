@@ -1,0 +1,1254 @@
+{
+  "archive": "us-070-artifacts.tar.gz",
+  "archive_sha256": "3d43be6875729b0efef25f5d5787b329337353483a128461f626ce14a4d63386",
+  "source_cutoff": "e03e465e3e8be975bcaf8ca05662f0bf93bfb25a",
+  "authority_base": "ed9ff60d9dda6aaf78fae5e9a61d189b1a8e4108",
+  "files": [
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/baseline-report.md",
+      "sha256": "53dbea9846c6a3ea40da51b6bd7a3d9320e94fd41eda8dde7440ddff1eec964b",
+      "bytes": 1409
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/baseline.log",
+      "sha256": "a85d769d7de3a079ad3420a552c1e7c866f084c9fdafaee1def4118454f185e7",
+      "bytes": 96273
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-campaign-after.json",
+      "sha256": "0b03d5a7a3d456dab1084f05108fac561e04e8b8e1fe3d9c6457f9770d2f5b15",
+      "bytes": 1881
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-campaign-brief.md",
+      "sha256": "5560b8467f6d2422343e74b3dad9c59da499b487a2e4b03328e980d3ab3c71d3",
+      "bytes": 3024
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-campaign-cache-clear.log",
+      "sha256": "02ef3f5df8d9b5048676c9e9e998ac0974a80671ef3a784a168ea72d9c4ca4cd",
+      "bytes": 220
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-campaign-fixture-apply.log",
+      "sha256": "d94547ff57830639c06c9a0acff64c9e23d183af2c55a4f013fb10f0d366fd25",
+      "bytes": 3491
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-campaign-manifest.json",
+      "sha256": "f7c83c8c6cc5ed5ab50ce15405aa1342bb9c10be622f6dcb5bdb4104590b1b7e",
+      "bytes": 17112524
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-campaign-power-window.log",
+      "sha256": "e33bcf230e8a6b10e376801876e44f08f9d5a89939f74d0d9b6f4425146d1a46",
+      "bytes": 99
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-campaign-report.md",
+      "sha256": "08bdab1b14b76469cbe61d387190d2cce30bb3f27fb7af3f6047e489e81ef7c0",
+      "bytes": 6756
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-campaign-residuals.json",
+      "sha256": "ca9dd96c1e0f588e5250c4c3a4b5c9d0f2e8d3adb1428764dbaed23e504df183",
+      "bytes": 82243
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-campaign-residuals.md",
+      "sha256": "c40a1682daee23ef01613d3fa162c1d5ab700f678e937e3a546c04fcbf7dc135",
+      "bytes": 6655
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-campaign-results.json",
+      "sha256": "3ee2f51768c7c67ba868af80e59a1354ff3d3a4438afb4cbf822debe05df783d",
+      "bytes": 18517
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-campaign-run.log",
+      "sha256": "6565900d3ce67be898b5ffd26127a70158a2939de59ab2771ce0fa4133c18ca6",
+      "bytes": 142845
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-schema-static-481df809eb04.json",
+      "sha256": "86585f1cd8fbfe3996f0fd728090c9f19a882589be1c67ba7b08fbaba45dfc82",
+      "bytes": 86046
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-4a99c1dc33c5.json",
+      "sha256": "d81f45d565810fc940b38cd915a2ccaa0a61d5898bc8fcdaf4c3f194a41eb621",
+      "bytes": 216796
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-766ecaa54205.json",
+      "sha256": "75156d058449c18b9fbe9a301e4024409379f94266ac4a68232740000c04393b",
+      "bytes": 191462
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "sha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "bytes": 157599
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-d6a5d66bfe0f.json",
+      "sha256": "058d20aadea72148a03a1285727d2fb5b34271adea9d99b5e363fedcdf980a96",
+      "bytes": 226063
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-e927482a8578.json",
+      "sha256": "4318deee1d8d7ce9402bd07cf8fa2f7e91199cb7bde13584553425ab05f4de97",
+      "bytes": 77858
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-f2d1787d45e2.json",
+      "sha256": "f0dc09328e4797a4bd7f51026e74a88296f99c2b2b25a29ef8871a6ea08cb706",
+      "bytes": 30852
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-residual-signoff.md",
+      "sha256": "f317f594174d6c61c5bd5f4808a5e3c970d4499ae8f5f22c18f12b65a230193e",
+      "bytes": 21602
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/constraints.md",
+      "sha256": "bd956e293bffa83efce76b5bc35b256e790ecb2a655e549fccddec53c4e9ba6d",
+      "bytes": 2090
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/controller-finish-cost-pointer.json",
+      "sha256": "c87c9124131ddff8b1fbfb0c12122d97e586c4bee7aab76441a701479c3f9ea4",
+      "bytes": 467
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/controller-resume-2.md",
+      "sha256": "5438c33d8d4c3fee57fcf8bcf35c3c421d4044e99c8f55f07c5a17618e493933",
+      "bytes": 10836
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/controller-resume-3.md",
+      "sha256": "97cd1f4107074b6963a642efcbcc4292e1242ac8d5f618e93b4579ca4ed81896",
+      "bytes": 13085
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/controller-resume.md",
+      "sha256": "9de3ddde1a17bcb21adb5810bec5b38862609bff1641ce0f756b7c0875ea5ea5",
+      "bytes": 7570
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/cost-metadata-snapshot.json",
+      "sha256": "2d8064654bd4102603e6494143f58900c58568f7215e7ec60ae2fd05c8f66664",
+      "bytes": 2601
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/critical-path-config-patch.log",
+      "sha256": "2e40b2e881e7a15e583294102f62a40bb0fe92d8648524f6707a8b57835e8053",
+      "bytes": 228
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/critical-path-delivery-report.md",
+      "sha256": "7cf4264f58673bb016794af176f2c32869fc88d97cc681316e56da60371b8be5",
+      "bytes": 2865
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/critical-path-generation-final.log",
+      "sha256": "9589ce0e7ec15ca854e7a55f653ef76fa8a38dc6d3f93ab03bc97a5c97d8d585",
+      "bytes": 2680
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/critical-path-generation.log",
+      "sha256": "0e7071658754ded586fe14c716b0783c147e1ca2df3c0cc39c06208bb800423b",
+      "bytes": 3190
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/critical-path-preview.log",
+      "sha256": "22c4714a61866f1adcb5e99818f26b0828680561b01a94dc67a2d81c68abcba2",
+      "bytes": 1861
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/final-doc-config-patch.log",
+      "sha256": "b70bce4ff045b751545a94e992dbeb8ea3ae943239dd20d70835d6741c0d844e",
+      "bytes": 114
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/final-doc-fix-brief.md",
+      "sha256": "455ce8f34a74a954f52d9ea63dd51f7d04d9e6e25a3d15fe122f088f3948e1a3",
+      "bytes": 1882
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/final-doc-fix-report.md",
+      "sha256": "779084cf1683ff531c7183b8a36a40ac98754c3529a84cc7ab048b50a656a6fe",
+      "bytes": 4696
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/final-doc-generation.log",
+      "sha256": "0e89bb837b2381a754abdf59fa2e1ef830c791e8b27d82ba64ffa7c36d5050ed",
+      "bytes": 2916
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/final-doc-preview.log",
+      "sha256": "9f37f4eebccd03c87aee2d5d5a8c557320d6458c8531e20c9dd2c4fdbbc6d00b",
+      "bytes": 2085
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/final-rereview.md",
+      "sha256": "8779b840fc6d1933e2fd91054afd68528bd072c8bd0611526d976ab4b55880de",
+      "bytes": 6540
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/final-review-brief.md",
+      "sha256": "4ef9cbb6a5d16984f1291e9cc341d4d8e5027ecc1a350407ee46ec4b9c735be8",
+      "bytes": 2824
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/final-review.md",
+      "sha256": "7a84639b88b19bb84dd75be1a8196642effbad3a21baa5ae6a70eedfc69b654b",
+      "bytes": 13349
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/final-runtime-oracle-fix-brief.md",
+      "sha256": "f5e830026b7877e1621b4638229caff8da0948821e43ce4bd6f0085ade741195",
+      "bytes": 2245
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/final-runtime-oracle-fix-report.md",
+      "sha256": "6c57eaad10e5e52548aefa7ead4e65b99f3b9652fe2087c951110f440fad8810",
+      "bytes": 5521
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/final-runtime-oracle-green.log",
+      "sha256": "9a99dcf03752f93b8b88823c57c81786f60bb8ed49eaa9cfdf90830a0cde8e9f",
+      "bytes": 1338
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/final-runtime-oracle-typecheck.log",
+      "sha256": "75e2008b8ede426d6ddfda4bf06976c4cb51e2930f2c1f71e28efecca8fbf9ac",
+      "bytes": 113
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-check-db-apply.log",
+      "sha256": "d94547ff57830639c06c9a0acff64c9e23d183af2c55a4f013fb10f0d366fd25",
+      "bytes": 3491
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-controller-diagnosis.md",
+      "sha256": "ee0145ad1ece807c910a20008fa82e56fd68fcff092ef2a6d87777ad225c8f77",
+      "bytes": 2178
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-diagnosis.md",
+      "sha256": "9ea5018fed8934e4bb6a2cd3f156ce5ce88ca8a757e1dd07627f3751b5b1698d",
+      "bytes": 3969
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-final-after.json",
+      "sha256": "f24ebca567b2b2703240c0c0eead1a77d0226669d6a17b93fd2718ec300554cc",
+      "bytes": 1881
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-final-agent-metadata.json",
+      "sha256": "a8e49b5884880c4a1baf64bbb7a22e447167207e2e01f5ff99c53248b95fca3a",
+      "bytes": 315
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-final-before.json",
+      "sha256": "f1bb71f8180bf3cc846053bc66a1a5fedf6aebcd34b8a37feeda82e1baa020d8",
+      "bytes": 1881
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-final-check-db-apply.log",
+      "sha256": "d94547ff57830639c06c9a0acff64c9e23d183af2c55a4f013fb10f0d366fd25",
+      "bytes": 3491
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-final-current-preflight-manifest.json",
+      "sha256": "4375b68d388386f1fa721bc95a1ce69f431b7f7fc29168bc8a354fb5db6255a2",
+      "bytes": 10059
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-final-pnpm-check.log",
+      "sha256": "966904686dd5a04edcbe3003f1b5cffffe59e2647a64fc1013306a96887fba8c",
+      "bytes": 77397
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-final-power-window.log",
+      "sha256": "940ae0c0e1c04c3ee5a51f7c708717e07d9d13c34e551fb7ac2e7bbdc245f6dd",
+      "bytes": 99
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-final-preflight-manifest.json",
+      "sha256": "3b7b6ff8201dff4676d2cc08dc32ef613a719bb23d24a04cf01918c382996fd9",
+      "bytes": 10060
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-final-preflight.log",
+      "sha256": "76a6a03a35d870a32774e6f2e1ca916b6b3295052a71e227ad5de500501732db",
+      "bytes": 556
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-final-report.md",
+      "sha256": "b87fbd718ad6e32a958fb91d7e0c3d89bdbacbc73d21a39239cca85433f1011f",
+      "bytes": 4491
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-final-results.json",
+      "sha256": "fde44ce8da41bf30cd204a2d091839a9237a640aaf94d5b6be8cff0f7b298495",
+      "bytes": 6059
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-fresh-apply.log",
+      "sha256": "d94547ff57830639c06c9a0acff64c9e23d183af2c55a4f013fb10f0d366fd25",
+      "bytes": 3491
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-fresh-parity.log",
+      "sha256": "251c580a8e84dd0817bd1e2283a77288c975b974a71ef85a3772c4fefde99eca",
+      "bytes": 169
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-fresh-verify.log",
+      "sha256": "de00e30859bd253734814bb3fbebdcac428a05b21bde9dadf5a857b86e63e3e9",
+      "bytes": 183
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-gates.ts",
+      "sha256": "1bb32b9d69139e15f42cefc4db6332433581dc0a1e2cfd4d7be0e4d582ee7907",
+      "bytes": 3836
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-pnpm-check.log",
+      "sha256": "27a6033721961e485bef7accf393f2c2d48030d9d635dbdb47ad0a1b6d03043a",
+      "bytes": 69020
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-power-window.log",
+      "sha256": "08924f7617d41ef6e2db072cbe488c31183e3677382ebf508f3cddcabb517233",
+      "bytes": 324
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-process-snapshot.log",
+      "sha256": "f8e6f5afc70eb2ba81f3b0368d52f76ebd2f504ba3336c6764153a436ed353c7",
+      "bytes": 6832
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-report.md",
+      "sha256": "094af69054070503cc139b64ab40908edb435a21c7d8d3afd3c9367e8d7f58fa",
+      "bytes": 2697
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-rerun-after.json",
+      "sha256": "8d8c4ce17fc712b476b4ca56eec30355759aaee53ab175abeb3306ca99ee6024",
+      "bytes": 1881
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-rerun-agent-metadata.json",
+      "sha256": "836a4f1d94aca82655774032d1c5da85195da314825c530e3c0bc201947213f6",
+      "bytes": 338
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-rerun-before.json",
+      "sha256": "16bc48711a87299e1b386c703df268b4fd90840457b9cc0b754c5d8ad17af133",
+      "bytes": 4481
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-rerun-check-db-apply.log",
+      "sha256": "d94547ff57830639c06c9a0acff64c9e23d183af2c55a4f013fb10f0d366fd25",
+      "bytes": 3491
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-rerun-pnpm-check.log",
+      "sha256": "b8580169b4c06bb1130e2b531e5a509e83bbe5938ecdc04ee0d35aa63a15c587",
+      "bytes": 73532
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-rerun-power-window.log",
+      "sha256": "0e6950aca634d9f224e14bebb355f833fe0348ff7ead5d3237d6b29b3ceaded2",
+      "bytes": 100
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-rerun-report.md",
+      "sha256": "4a60c06d944f75e2a1f319d057674b4183582723d92e2745d3543ea5290c16e6",
+      "bytes": 4032
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-rerun-results.json",
+      "sha256": "c966ca34144c8e9ea8a973bd6c43d5b27deb34814638df9b23fd41d93dab798c",
+      "bytes": 4434
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-results.json",
+      "sha256": "7991a5d6758685644fff00440553f72317811fc553c38203c0c1269470dd6253",
+      "bytes": 4924
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-setup.md",
+      "sha256": "bed6252ba92254d9737898d8a945dd59c6158648c8e18545fcba35898ace0429",
+      "bytes": 6081
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/integration-vmstat-snapshot.log",
+      "sha256": "904734ba996442ac2adbcde9ad23bf682b5de9e241e676d05bf1ffbe1a85ed7e",
+      "bytes": 1247
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/interfaces.md",
+      "sha256": "1367d33b1fc8aaa7d0c06e0f80596f0708f7af97565ecb610e0383c807b942df",
+      "bytes": 2831
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/preview-measurement-snapshot.json",
+      "sha256": "eda8e0e4fd2f5ab427dd66f768c043d874295d2b91ae59f323760993d048de7e",
+      "bytes": 4178
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/progress.md",
+      "sha256": "0dd0c8f71651d5c783e24da110b184159214d267a00c589e07e4006041b141fc",
+      "bytes": 21521
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/review-2db44d1..cfcfe8d.diff",
+      "sha256": "3e5b5d679cfff4b6dcd1b3e14467647e57777d6854996b25679dae6e3dbe301b",
+      "bytes": 7506
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/review-4b91e69..2db44d1.diff",
+      "sha256": "8f98c8dbaf0d9ff0634a1dfe6fa93efc156dd9edac69b37551c9dfb0d6796402",
+      "bytes": 38665
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/review-8f3d393..927835e.diff",
+      "sha256": "ec64e0875add818e46b6599447f910fb86224844f1db67fb4814d14a53168764",
+      "bytes": 52704
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/review-927835e..bc76f0c.diff",
+      "sha256": "22aff2663788108a2ae1dbf3684c9150ac9ec82f5812f69ee4054b2888a45637",
+      "bytes": 8196
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/review-927835e..e03e465.diff",
+      "sha256": "4a01ec3d1456d297dc6668cb83c72d46c3d81f85469a173620a7cab61fbddadc",
+      "bytes": 14352
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/review-9dea85c..4b91e69.diff",
+      "sha256": "83ea999e23ce877c102dd2c2971374a4caf583da074043626b8bf5d96ea2f8f9",
+      "bytes": 3526
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/review-cfcfe8d..8f3d393.diff",
+      "sha256": "84ecb3cc46c355696db7f618ae186b95d268940adad8ba023f9bbc230194d0b7",
+      "bytes": 26214
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/review-e4f6280..9dea85c.diff",
+      "sha256": "6e2ca62ba372027a8d8ed31c47dfaa43d03d637e18084888883f1b91d750f258",
+      "bytes": 6320
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/review-ed9ff60..446feb7.diff",
+      "sha256": "52b62eebbca062fbb0dc0a0140975544068c241c998a3992fc00de39a4257722",
+      "bytes": 39739
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/review-ed9ff60..927835e.diff",
+      "sha256": "a92d172be2d9e4db46ba74e97b371929cc503c4aab6f0a22b50643cff3f0e857",
+      "bytes": 150504
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/review-ed9ff60..b13578c.diff",
+      "sha256": "2cc398c4299f273ca0e001eff8e1165d90f3af503c2bc52953017d4e584b651e",
+      "bytes": 70276
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/review-ed9ff60..e4f6280.diff",
+      "sha256": "39de2895a5bcf0bfa3a698e06a54969f9b2790ef89ff7c726cb8f2dc56e2c509",
+      "bytes": 70389
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-brief.md",
+      "sha256": "78597a3d3bb1eec8ca8a71c86e1a53bc036152db99a683a68d6cacde53b28790",
+      "bytes": 8369
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-corrected-preflight-round2.log",
+      "sha256": "e8dbff59f914b26f16a5f3578c0e3db7b0962f35cb5db5ad675496e559fdb7f5",
+      "bytes": 467
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-corrected-preflight-round3.log",
+      "sha256": "676c764a7d98b0d897da1c7cdd41033d76346b89ce925ad599fa141e7de45622",
+      "bytes": 467
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-corrected-preflight-round4.log",
+      "sha256": "676c764a7d98b0d897da1c7cdd41033d76346b89ce925ad599fa141e7de45622",
+      "bytes": 467
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-corrected-preflight-round5.log",
+      "sha256": "676c764a7d98b0d897da1c7cdd41033d76346b89ce925ad599fa141e7de45622",
+      "bytes": 467
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-corrected-preflight-round6.log",
+      "sha256": "676c764a7d98b0d897da1c7cdd41033d76346b89ce925ad599fa141e7de45622",
+      "bytes": 467
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-corrected-preflight.log",
+      "sha256": "88a185588d63694377ee33eccb0e55f1dd9d08404a4fe18337f804d9e0155a7f",
+      "bytes": 466
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-fixture-launcher-round2.log",
+      "sha256": "6fc8235a8399ecba7da754120d1c24b329595805d408317898afb47ad8ed5ee7",
+      "bytes": 17
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-fixture-launcher-round3.log",
+      "sha256": "6fc8235a8399ecba7da754120d1c24b329595805d408317898afb47ad8ed5ee7",
+      "bytes": 17
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-fixture-launcher-round4.log",
+      "sha256": "6fc8235a8399ecba7da754120d1c24b329595805d408317898afb47ad8ed5ee7",
+      "bytes": 17
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-fixture-launcher-round5.log",
+      "sha256": "6fc8235a8399ecba7da754120d1c24b329595805d408317898afb47ad8ed5ee7",
+      "bytes": 17
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-fixture-launcher-round6.log",
+      "sha256": "6fc8235a8399ecba7da754120d1c24b329595805d408317898afb47ad8ed5ee7",
+      "bytes": 17
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-fixture-launcher.log",
+      "sha256": "6560c8df482143bdf96d1b7caa606e188ba26872c848ea69fd29ab4ef297cf21",
+      "bytes": 51
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-fixture-preview.ts",
+      "sha256": "fea6657e78b8e668a69bd8389a4682f698ca37f833cba8cc442378a9e84bae4b",
+      "bytes": 2737
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-focused-db-round4.log",
+      "sha256": "73a91ca4576cb683b8510db85fc6a6a6109cceda81aab384285b6a23bf2732fb",
+      "bytes": 250
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preflight.log",
+      "sha256": "4832d6b663f5a0cc1b62c19864169123c0a6b8b8088f5c70d8a4421811513923",
+      "bytes": 402
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-execution.json",
+      "sha256": "f5bf5cfa93df8d8827bf1e51dd273370a90518922a5a8e0731d5ee73b9391b29",
+      "bytes": 872
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-report.md",
+      "sha256": "70eed994344e674b3233454401e1861b571506f8183440dbf5225131730022c2",
+      "bytes": 66924
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-round2-execution.json",
+      "sha256": "8149abfd0760f7572a51b1b00d11674a9d14ab73f99e3253a998df65f133ad5c",
+      "bytes": 1145
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-round3-execution.json",
+      "sha256": "a351764165a4bad4ccbfde0991ceb93eede6d0d0b05f72ca811da0e68c5f186f",
+      "bytes": 982
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-round4-execution.json",
+      "sha256": "9298defec8910321625354711d3a9c47b24b5ab5e9fbb0c422332aacca4e9892",
+      "bytes": 1096
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-round5-execution.json",
+      "sha256": "51e2fc986db67dbe367fcb6bb3b6ad2702b9a48d701c780f3d1f6e4b2b56200e",
+      "bytes": 826
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-round6-execution.json",
+      "sha256": "726cde4997276a0303e848371ebdfa51ea30abe093ae78e517203ed42f4a4f77",
+      "bytes": 826
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-schema-static-481df809eb04-round2-manifest.json",
+      "sha256": "ef9d2a4d89f4d828ff2393adaaa362ec2dff664188dcb14a92d97176cd76de47",
+      "bytes": 2578031
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-schema-static-481df809eb04-round2.log",
+      "sha256": "a32d4f4fc28db6904e2630474b59876fca0124da27e989d87cc89705afc45e4b",
+      "bytes": 2607
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-schema-static-481df809eb04.log",
+      "sha256": "b02c2ad0a7976b5f44960676a1e5e1376a4f2ef35c67802a8e03fa6e6a234281",
+      "bytes": 5734
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-vitest-79bcc0c40c4f-round2-manifest.json",
+      "sha256": "5de54ebbca2ea332e5cb7e5c4c40676a42a253fc7ec6b928dd846d731cee375e",
+      "bytes": 2148538
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-vitest-79bcc0c40c4f-round2.log",
+      "sha256": "8d1e22c3cecfa3216a79c87a3d59cc2fdd485d5817451be0074c8081c54b862e",
+      "bytes": 55536
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-vitest-7e4dfff580cb-round2-manifest.json",
+      "sha256": "32d733940909907db4dfc783ce5cbba66b9a76ac5b00df20b0b901d91f7edea1",
+      "bytes": 2578167
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-vitest-7e4dfff580cb-round2.log",
+      "sha256": "7a66731a537413ca055698dcf5c94b22af2277f1708151fca71d0de25e42ff50",
+      "bytes": 47563
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-vitest-7e4dfff580cb-round3-manifest.json",
+      "sha256": "ed65e3f179521dab74ed95616ebde206a551d1d153cd990f321f835c49818677",
+      "bytes": 2577963
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-vitest-7e4dfff580cb-round3.log",
+      "sha256": "ad0c1d78047b49820bd70cabc047eeca97bc50d9476f5b8419df032e562e2416",
+      "bytes": 18290
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-vitest-7e4dfff580cb-round5-manifest.json",
+      "sha256": "acc5fe747fcd7995271a04d5cc8c852bc06ede2a3381ab96a7b66e021c4f03af",
+      "bytes": 2577967
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-vitest-7e4dfff580cb-round5.log",
+      "sha256": "0bfa95c733ad6acccd150f375b4660b38a37d5203215f4ea1e1c87859209f808",
+      "bytes": 18241
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-vitest-7e4dfff580cb-round6-manifest.json",
+      "sha256": "2361921b23adc0f290957619c084829cd10c0e79cdc65c157b0c71cf8f8c3a82",
+      "bytes": 2577996
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-vitest-7e4dfff580cb-round6.log",
+      "sha256": "69bb27cae29512be48ee81ac79198cd96eb0b720dbcd087999ae50e0edf70ace",
+      "bytes": 17996
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-vitest-ae209c3d8c87-round3-manifest.json",
+      "sha256": "a30f046a4c3da7d8013bb9e0fa1a32da7f5480e23ca9f5f158189d84ad77687f",
+      "bytes": 2148713
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-vitest-ae209c3d8c87-round3.log",
+      "sha256": "48ec991dd542ce07b51e3e1e107dc5ade79c07bab902c6c6f68cfb68e4d84247",
+      "bytes": 45316
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-vitest-ae209c3d8c87-round4-manifest.json",
+      "sha256": "d932da6ad46070a6a32815faa40917420f3b08aab82c0aff7b948b892627fccb",
+      "bytes": 2148508
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-vitest-ae209c3d8c87-round4.log",
+      "sha256": "d93c32e0f00d601b613fc04bf428045bba01bc0a5585cd83d32cf96f52a4c21f",
+      "bytes": 36740
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-report.md",
+      "sha256": "004f88464e3b5f055c61576b502eab2cef660f9d84fa7d5125fe7d0dc1664f67",
+      "bytes": 28396
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-rereview.md",
+      "sha256": "433d4296dabf43644b1d7b55f50e8283b1916c058ae95bbe38aee9917a43e406",
+      "bytes": 21294
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-review.md",
+      "sha256": "cf4c92e0348173c3ad778c5046e930bb59abaca772e348e39087de7b0d0b8356",
+      "bytes": 12727
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-survivors.md",
+      "sha256": "da41d25aa8de956a6ec439bd406a978f833a3b54f5db753d01719d5e1a1bf004",
+      "bytes": 6807
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-brief.md",
+      "sha256": "ead29cce66ec9806d7f128335e07e23942795aaf6ae1e468f1fa9e45d97b36d5",
+      "bytes": 5391
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-fix1-red-connector-14.log",
+      "sha256": "f9bbc08d09b711f8f94d056bec1caa1b4e467d5a2aa85d574cfab14500f8dc06",
+      "bytes": 1910
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-fix1-red-connector-2.log",
+      "sha256": "348e9057497b706aee47d868942c60c42688aa49635bcf76896dc08d8245ed37",
+      "bytes": 2212
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-fix1-red-connector-32.log",
+      "sha256": "b47e319bf30e1ab1bbc807a547f2a59a9caddc8a4ff2ed7deda880802094f0dc",
+      "bytes": 1903
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-fix1-red-connector-44.log",
+      "sha256": "90751c6ab4bd95e953ef3b66776971f211f95f857be30748b27002407a9e4790",
+      "bytes": 2016
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-fix1-red-connector-67.log",
+      "sha256": "093c99ef5582e6474869558e93d2e31b125bb625ee1cf679dfc9e49ae7051211",
+      "bytes": 2016
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-fix1-red-connector-74.log",
+      "sha256": "d59b9967a4ab2d42de8190255d7677c84002d2e10e2ab316f5dc7e66985b92aa",
+      "bytes": 2558
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-fix1-red-dispatch-2.log",
+      "sha256": "2cdc4e9c95d1ee8300841655b1c34eaa2af83b2e0104adc63ceb7f309f9c9a89",
+      "bytes": 1452
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-fix1-red-dispatch-25.log",
+      "sha256": "11f133a06082224f230fb8f0985080162fc9af52968af046300630707f6ebfb7",
+      "bytes": 2884
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-fix1-red-dispatch-28.log",
+      "sha256": "587c2d1b22ade05feee0d2b08c76f39da245b86ebe18e3c992b84fcc0de512ef",
+      "bytes": 1453
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-fix1-red-dispatch-75.log",
+      "sha256": "5ee2725b04ed1223a604764dd572304202111f1e8af7e7609b93d98507217ff7",
+      "bytes": 2035
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-fix1-red-dispatch-81.log",
+      "sha256": "f65e5f9627a2a6998480b1401181e9f6e3960853fb3d596ca968c6495dd59399",
+      "bytes": 1331
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-fix1-red-evidence.json",
+      "sha256": "51361ac6f4005659e208ff4d5a37376711184479d34303dededcb0d590e3bfc6",
+      "bytes": 3557
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-fixture-preview-round2.ts",
+      "sha256": "a6e7c3d4306c97846fa1fb2c2820f4ea17329986ab2e479f094ed43bddc2dc37",
+      "bytes": 2939
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-fixture-preview.ts",
+      "sha256": "efa091640b8744d84ec0e5faf25676f45a02384e6f8879e185e93b0e109b8120",
+      "bytes": 2971
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preflight-manifest.json",
+      "sha256": "a90d2d8d405a4852c2e07f6dbe29cf517335bb81f20fd25f6e65ad1f87b84245",
+      "bytes": 7555
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preflight-round1.log",
+      "sha256": "f8cc811f9b8a71742ea80445f33774005609d98206084d94ee26325072981c3e",
+      "bytes": 513
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preflight-round2.log",
+      "sha256": "f8cc811f9b8a71742ea80445f33774005609d98206084d94ee26325072981c3e",
+      "bytes": 513
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-report.md",
+      "sha256": "f981d811ad7e7ca1863cb97366d552feaea783a61b58a0ec754afd2d674e962d",
+      "bytes": 30027
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-round1-execution.json",
+      "sha256": "a1d18e5829f171063a65a1848cc249434e6e675659840547aa1df38e9d05cc66",
+      "bytes": 1457
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-round2-execution.json",
+      "sha256": "8ea242d90c2714dad53d257038ebea5e42d8e469eb980746982edfef51ad8559",
+      "bytes": 1276
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-4a99c1dc33c5-round1-manifest.json",
+      "sha256": "0ed8d35b2ddc1d9bece44a81f2a7092df86e6fdf823758ce3bb520c23ac12d5d",
+      "bytes": 2148593
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-4a99c1dc33c5-round1.log",
+      "sha256": "5d3e2dc8907c19e69ff4496293fde43ba4fafc802785a98abc7bee0b377b3908",
+      "bytes": 38274
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-766ecaa54205-round1-manifest.json",
+      "sha256": "cfd6703c1b35120549d9d49dec615bffea808e5fa652d5492acb3a506c593405",
+      "bytes": 2149088
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-766ecaa54205-round1.log",
+      "sha256": "10d21efcfdbd255e3e126281c21bad62ce94d81c2d9bc78d16326dd04b355cdc",
+      "bytes": 30454
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-766ecaa54205-round2-manifest.json",
+      "sha256": "52abddd6e22a1d0d6d381df0be53ce17106415bfb16be72e5c8dae197aa636d1",
+      "bytes": 2149086
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-766ecaa54205-round2.log",
+      "sha256": "024916ba226b6aa12228951abacfada58618b557d53e699cb1d5b810e46c021c",
+      "bytes": 25207
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round1-manifest.json",
+      "sha256": "f2224524eae4a8ce41ca55ba9d8084f99a013b4533d7da3ccd65f4a353a156d6",
+      "bytes": 2148737
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round1.log",
+      "sha256": "fdedd769252df7579fee96a342526946185539efa5c1a79dd749db7a9bbe27fa",
+      "bytes": 61129
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round2-manifest.json",
+      "sha256": "8003a9f55721b3b5ee6665e6e845ee71a1e0b61381052e8b730f52aca87c6e28",
+      "bytes": 2148532
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round2.log",
+      "sha256": "4a52f719de2873e8ba0381943e95bd4732f539fd3a9e16851538a972fb5e2932",
+      "bytes": 45283
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-report.md",
+      "sha256": "423a779f466db3035a67d30d8384cbc263417f7452f71f2ae2592ad2e3d1a52c",
+      "bytes": 7043
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-rereview.md",
+      "sha256": "533b4f19cd8f5ec5bf595b02fa73cc597a6960bd8d202f73422ed0b5fa39867a",
+      "bytes": 12350
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-review.md",
+      "sha256": "91718bcb6dd00a46cfdb05c4cb5c2993ff375ac5669165a355bcaf9136515574",
+      "bytes": 20523
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-round2-preflight-manifest.json",
+      "sha256": "09e90854af696e9819ad3fea82df020ef099636d4e2de6c146dda219019bdcc0",
+      "bytes": 7555
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-brief.md",
+      "sha256": "220b3a1197511d35170f3af15949bc09623454be25e059b7aa16ca94801650f9",
+      "bytes": 9346
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-fixture-launcher-round1.log",
+      "sha256": "46c4a73a90ab9d8151d30d335ca97c2ef2a459a0e7c4fdbbeba8ca2034d6cd86",
+      "bytes": 34
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-fixture-launcher-round2.log",
+      "sha256": "46c4a73a90ab9d8151d30d335ca97c2ef2a459a0e7c4fdbbeba8ca2034d6cd86",
+      "bytes": 34
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-fixture-preview-round2.ts",
+      "sha256": "865c3f504025a3569e65816640c278eb44c0ff8c1b9238951454b449afb36410",
+      "bytes": 3185
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-fixture-preview.ts",
+      "sha256": "4a1ce4b1c8e9fd2420695a5e4a3af9a31aed2398fd111778f49cacd4ab0cf5b8",
+      "bytes": 2963
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preflight-round1.log",
+      "sha256": "f6dadd9de143fc37d42840f7f74880154ab7e193272f8259001b9f48dfaa000e",
+      "bytes": 556
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preflight-round2.log",
+      "sha256": "55a575dcfe7580bcdc960448d1c11de26397b1e92b7f903023dd467f08710225",
+      "bytes": 556
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-report.md",
+      "sha256": "c273cd33db34a5b403397a13849263adf68c7da187a18568eecdb533d09f5fb4",
+      "bytes": 15324
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-round1-execution.json",
+      "sha256": "aa4f7d4306462b0535a683f4ac66dbd1c7df533722fd3c864ed8dbb972a7f37e",
+      "bytes": 1752
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-round2-execution.json",
+      "sha256": "18c8c7eae7ab940970af23b12856a6167050ac0392e1b5c6839abe797cbcb065",
+      "bytes": 2106
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-3ff43baf3f6d-round1-manifest.json",
+      "sha256": "7c2762aa7c571d88ca4819ef672893df6ed9fd0d3197d5da4587164cd3d57797",
+      "bytes": 2756644
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-3ff43baf3f6d-round1.log",
+      "sha256": "559c1ef8fc503c750b27cc3b42c44586935be5023f91075680519ec5abdaec12",
+      "bytes": 17462
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-4795ff5a0847-round1-manifest.json",
+      "sha256": "734f2d4b5ee8957cc2c0402792841413ec4da029912be748d184aefe3f02c3d6",
+      "bytes": 2756641
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-4795ff5a0847-round1.log",
+      "sha256": "a99fed537270b5cbb78a6dacb3953c763c8dd7a3052b42b013a08d81fc080ee8",
+      "bytes": 4907
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json",
+      "sha256": "24c1cf55846452e4ca6479aaab4080a48f0ba97de077671884cbe6314fe16e53",
+      "bytes": 2577996
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1.log",
+      "sha256": "6054277ba4e31da73aa7597070f062e2b4f8d59f1fc6275bed5b3bdac35715c3",
+      "bytes": 17903
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-e927482a8578-round2-manifest.json",
+      "sha256": "28578ea41386221efcb84278e56e2baf774f2fec23c2723f8bfa19d4cc18e098",
+      "bytes": 2756446
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-e927482a8578-round2.log",
+      "sha256": "86155f59b928e73a60bb7f53204dccabf4cce3084b783a3df1c02234787120dd",
+      "bytes": 8660
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-f2d1787d45e2-round2-manifest.json",
+      "sha256": "a9a201c0cf0d43d81f28106bbf6af9eef0ab8e7f2a059dec2960d3999d206aa0",
+      "bytes": 2756438
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-f2d1787d45e2-round2.log",
+      "sha256": "cc6c399f3d8ab98aaf20ff9a409fe5083f2689719d042a673e7b94a7c5edc338",
+      "bytes": 4462
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-report.md",
+      "sha256": "293dca05b5d6ecbfd2292051ff94954d03c93fd4c28dbfec2d2c934e6cd5f8d3",
+      "bytes": 14275
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-rereview.md",
+      "sha256": "4daef242c9e33343b02ff15f73e7481d1a50b7d2948403a4c06140b292a84ea7",
+      "bytes": 14749
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-review.md",
+      "sha256": "a10ddce606e0656b3e5bfa9e37543780bbf8e483c8a3e0ae600899f890deba35",
+      "bytes": 21792
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-round1-preflight-manifest.json",
+      "sha256": "56d084bd656fdfe40e002c3e4aeb041b3d6e006d8564926b9478efcb11e6b73d",
+      "bytes": 10030
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-round2-preflight-manifest.json",
+      "sha256": "f035af38eb991d9dfec925ea648f68144adac01b02574a0a10f2539eca2703c5",
+      "bytes": 10031
+    },
+    {
+      "path": "reports/mutation/schema-static-481df809eb04-49452-1791252034360-479bfd4de0f9f.html",
+      "sha256": "f88f1da640d5c91f0649b6fdd44bc01f488bb81204e5adb2a1e69e4bedd30fb5",
+      "bytes": 277376
+    },
+    {
+      "path": "reports/mutation/schema-static-481df809eb04-49452-1791252034360-479bfd4de0f9f.json",
+      "sha256": "3322d1392407e08cf96bf379168afb79cead4735e3cd19077890cb77a87a63ef",
+      "bytes": 45464
+    },
+    {
+      "path": "reports/mutation/schema-static-481df809eb04-65896-1791252422897-b0bad50397f1f.html",
+      "sha256": "b130b561e44d9e7d37f233b1d1561174cff3f22a4e488b12492012137a142bf4",
+      "bytes": 317944
+    },
+    {
+      "path": "reports/mutation/schema-static-481df809eb04-65896-1791252422897-b0bad50397f1f.json",
+      "sha256": "8c5d03886373500952a0c2578d90c2b6d7867da6622b05d86da3f289586b9e33",
+      "bytes": 86008
+    },
+    {
+      "path": "reports/mutation/schema-static-481df809eb04-86500-1791263531110-ddef43083539c8.html",
+      "sha256": "1414b1973f2dad7ce23750ad013a4bf8aaa7f48a5a471bd51ce3185efd81aac5",
+      "bytes": 317982
+    },
+    {
+      "path": "reports/mutation/schema-static-481df809eb04-86500-1791263531110-ddef43083539c8.json",
+      "sha256": "86585f1cd8fbfe3996f0fd728090c9f19a882589be1c67ba7b08fbaba45dfc82",
+      "bytes": 86046
+    },
+    {
+      "path": "reports/mutation/vitest-3ff43baf3f6d-23093-1791258344528-1ab2290fec8a58.html",
+      "sha256": "1de15cb6de617ca5f21106c132faa47fde4a0ad6456161e79006a86513f67579",
+      "bytes": 295215
+    },
+    {
+      "path": "reports/mutation/vitest-3ff43baf3f6d-23093-1791258344528-1ab2290fec8a58.json",
+      "sha256": "a455266632bda8fcdcedbdd646fb26da4ecca9f504a941c811c34872d8a0f72b",
+      "bytes": 63273
+    },
+    {
+      "path": "reports/mutation/vitest-4795ff5a0847-27108-1791258526217-280e55c97652b8.html",
+      "sha256": "db9a640b2072967997bc37adf473a263b0d549ba42723a798b88df65e900385a",
+      "bytes": 260627
+    },
+    {
+      "path": "reports/mutation/vitest-4795ff5a0847-27108-1791258526217-280e55c97652b8.json",
+      "sha256": "147180a898ed0bf468421037721adbe3a3ec4720081aad644df8fe215f16157f",
+      "bytes": 28706
+    },
+    {
+      "path": "reports/mutation/vitest-4a99c1dc33c5-86500-1791263531110-ddef43083539c8.html",
+      "sha256": "2dcf8c09422996f3c5734c7e78e68b1d6489b92d78a8f8fbe98a86da11bf9f7e",
+      "bytes": 448846
+    },
+    {
+      "path": "reports/mutation/vitest-4a99c1dc33c5-86500-1791263531110-ddef43083539c8.json",
+      "sha256": "d81f45d565810fc940b38cd915a2ccaa0a61d5898bc8fcdaf4c3f194a41eb621",
+      "bytes": 216796
+    },
+    {
+      "path": "reports/mutation/vitest-4a99c1dc33c5-94233-1791256843018-81e3b9cef57b38.html",
+      "sha256": "d18cb6c06183dc8603b78a7197937dc82787c142823d9f1d9fc5c820d2ae688e",
+      "bytes": 441855
+    },
+    {
+      "path": "reports/mutation/vitest-4a99c1dc33c5-94233-1791256843018-81e3b9cef57b38.json",
+      "sha256": "5b4265d555badaca141cd4c7c1d591a90a1498dadff47f3c719bdf122d4f40ec",
+      "bytes": 209805
+    },
+    {
+      "path": "reports/mutation/vitest-766ecaa54205-7380-1791257458725-df87bf5c9e3078.html",
+      "sha256": "7fedc84430d38e7308bd6dcea8f9ad7f6c65a7cbcb125e02cbc39f603f4df802",
+      "bytes": 422894
+    },
+    {
+      "path": "reports/mutation/vitest-766ecaa54205-7380-1791257458725-df87bf5c9e3078.json",
+      "sha256": "584f8a5172845dd5cd5ef607d7b212ad5c8bd4b45d2842d3c9cf298d4070f602",
+      "bytes": 190766
+    },
+    {
+      "path": "reports/mutation/vitest-766ecaa54205-86500-1791263531110-ddef43083539c8.html",
+      "sha256": "5fe24d7faf0256c74e488589275cd1d863a5fbb4731bda9d6c37206fef54eea8",
+      "bytes": 423590
+    },
+    {
+      "path": "reports/mutation/vitest-766ecaa54205-86500-1791263531110-ddef43083539c8.json",
+      "sha256": "75156d058449c18b9fbe9a301e4024409379f94266ac4a68232740000c04393b",
+      "bytes": 191462
+    },
+    {
+      "path": "reports/mutation/vitest-766ecaa54205-96531-1791256888677-b72dcda384ac.html",
+      "sha256": "a3bd3563e711ed53a73a08c943cae6d9f57e14022d9f855cb9720d81079cb625",
+      "bytes": 417211
+    },
+    {
+      "path": "reports/mutation/vitest-766ecaa54205-96531-1791256888677-b72dcda384ac.json",
+      "sha256": "ba705977656d2c098b6f3902f17a07f2e5cd33df13539bf5947c7391b9c9cde1",
+      "bytes": 185083
+    },
+    {
+      "path": "reports/mutation/vitest-79bcc0c40c4f-66320-1791252438185-1996f2af1bd1a8.html",
+      "sha256": "9907c61e99a6c741fb9c62653779593607399ace8dfe6db2b15d6eb3e144903b",
+      "bytes": 419362
+    },
+    {
+      "path": "reports/mutation/vitest-79bcc0c40c4f-66320-1791252438185-1996f2af1bd1a8.json",
+      "sha256": "265f6432c888fa71c27c83f8823a07fcda0e6d1d68bdbd6d0d90ddca2615596a",
+      "bytes": 187312
+    },
+    {
+      "path": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.html",
+      "sha256": "ac8e34399907793e0bbb73cab3da201205689b38d2b28f8e4213853337a5ec42",
+      "bytes": 389570
+    },
+    {
+      "path": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+      "sha256": "828cbaa071464c8cc13c04f7a23e49403edd3389965ec9347ca28b886efab30f",
+      "bytes": 157595
+    },
+    {
+      "path": "reports/mutation/vitest-7e4dfff580cb-37004-1791254054884-9aebed5135fe7.html",
+      "sha256": "9a38b1b788a6cf094f6eab0acf06d87cabe2c64ac03c4aeab5dc234061d44b1f",
+      "bytes": 383529
+    },
+    {
+      "path": "reports/mutation/vitest-7e4dfff580cb-37004-1791254054884-9aebed5135fe7.json",
+      "sha256": "58d696ced0588bbe5d75e68906aa741560d730efef659ade927b874865458457",
+      "bytes": 151554
+    },
+    {
+      "path": "reports/mutation/vitest-7e4dfff580cb-64362-1791255390742-3a81a796526b18.html",
+      "sha256": "16fa55140cdeb7b91cd5f26621a21111344710a14be9cb785f6589770e222562",
+      "bytes": 387301
+    },
+    {
+      "path": "reports/mutation/vitest-7e4dfff580cb-64362-1791255390742-3a81a796526b18.json",
+      "sha256": "2d87d61fadc5f6a7275f51cc7924c32c2ba35c85a7bbf437abf40eb2319e7c01",
+      "bytes": 155326
+    },
+    {
+      "path": "reports/mutation/vitest-7e4dfff580cb-76617-1791255951894-7891b26d808e3.html",
+      "sha256": "e445f8e2f227f42ebcded8aa2dad3dd50b4e4159ab8ececaa5d83b10c981756c",
+      "bytes": 389564
+    },
+    {
+      "path": "reports/mutation/vitest-7e4dfff580cb-76617-1791255951894-7891b26d808e3.json",
+      "sha256": "a5727e9b46ab85a6fb28a4e2a34a8a54810710c8467321053fce83ad902d7e5f",
+      "bytes": 157589
+    },
+    {
+      "path": "reports/mutation/vitest-7e4dfff580cb-79448-1791252647224-95d995ccc2515.html",
+      "sha256": "7dbf947ebd3cc8b94fff2a2601da8d9b059f402ec65827e0b394a19ad09b947d",
+      "bytes": 360924
+    },
+    {
+      "path": "reports/mutation/vitest-7e4dfff580cb-79448-1791252647224-95d995ccc2515.json",
+      "sha256": "26648c708dc80172f5bda9fa71f1ddf519cd9ae2e0d29963563fccb2d1cc48fe",
+      "bytes": 128961
+    },
+    {
+      "path": "reports/mutation/vitest-7e4dfff580cb-86500-1791263531110-ddef43083539c8.html",
+      "sha256": "284c8f826e0fa84c18c637719071abadfee60fd122521a74c778c4d00b35dfc8",
+      "bytes": 389574
+    },
+    {
+      "path": "reports/mutation/vitest-7e4dfff580cb-86500-1791263531110-ddef43083539c8.json",
+      "sha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "bytes": 157599
+    },
+    {
+      "path": "reports/mutation/vitest-ae209c3d8c87-42973-1791254412647-d21b65085a3318.html",
+      "sha256": "4a2e5f0ed7dd1ecccf08eb64f9c362a612d651ab2be00fb4a2ac289f10491741",
+      "bytes": 429530
+    },
+    {
+      "path": "reports/mutation/vitest-ae209c3d8c87-42973-1791254412647-d21b65085a3318.json",
+      "sha256": "b61e4a9460e2a8024dcbbbcf66042fad6d58081852b34edc1499564cecdc46b7",
+      "bytes": 197480
+    },
+    {
+      "path": "reports/mutation/vitest-ae209c3d8c87-57729-1791254936417-7be08c8dfc70f8.html",
+      "sha256": "b21fb5d4c25b06efac11d6dba3f60690210fb6e0bac47847609fe8bc6d4402dd",
+      "bytes": 432338
+    },
+    {
+      "path": "reports/mutation/vitest-ae209c3d8c87-57729-1791254936417-7be08c8dfc70f8.json",
+      "sha256": "d369166bfbe0f439586a1d634fd78b7b8dd56e66298ffda26aae5b59e0cf53f2",
+      "bytes": 200288
+    },
+    {
+      "path": "reports/mutation/vitest-d6a5d66bfe0f-86500-1791263531110-ddef43083539c8.html",
+      "sha256": "a7673345fd1af6903bb62d649bcc78af95a1a99d53d932369e34e2af855924e3",
+      "bytes": 458122
+    },
+    {
+      "path": "reports/mutation/vitest-d6a5d66bfe0f-86500-1791263531110-ddef43083539c8.json",
+      "sha256": "058d20aadea72148a03a1285727d2fb5b34271adea9d99b5e363fedcdf980a96",
+      "bytes": 226063
+    },
+    {
+      "path": "reports/mutation/vitest-d6a5d66bfe0f-9815-1791257523073-969fd0e7e85658.html",
+      "sha256": "1ef8f59fbdc46dabfadc910c7a40bf6b54420c8e62bd5697812b79ffbc36a44d",
+      "bytes": 458118
+    },
+    {
+      "path": "reports/mutation/vitest-d6a5d66bfe0f-9815-1791257523073-969fd0e7e85658.json",
+      "sha256": "c735a48acdb24d3421ef2781a2766e7113b169de52c71505bc4e458776e7a864",
+      "bytes": 226059
+    },
+    {
+      "path": "reports/mutation/vitest-d6a5d66bfe0f-98545-1791256952201-cb894b71aa136.html",
+      "sha256": "ca05413dc755cf60ade012cb2fb119970eabe174267136cabae68eefa9a3d9a0",
+      "bytes": 447362
+    },
+    {
+      "path": "reports/mutation/vitest-d6a5d66bfe0f-98545-1791256952201-cb894b71aa136.json",
+      "sha256": "c6a82f41aa2647a6239f21c4da8a481b79d41a5b4dfab58af9f535d3609b8cc4",
+      "bytes": 215303
+    },
+    {
+      "path": "reports/mutation/vitest-e927482a8578-45612-1791259740184-1506af9b554a88.html",
+      "sha256": "2cf8e1b2a4eb8e9e55fda29b2384ad0ecbccb9b577462a2ca21055cb45affad9",
+      "bytes": 309812
+    },
+    {
+      "path": "reports/mutation/vitest-e927482a8578-45612-1791259740184-1506af9b554a88.json",
+      "sha256": "0dcaa053f20b2fb961fdd216dfb60867ad7c121a1f6206a211be4d6e39147e2b",
+      "bytes": 77858
+    },
+    {
+      "path": "reports/mutation/vitest-e927482a8578-86500-1791263531110-ddef43083539c8.html",
+      "sha256": "a06085f6c804a44c7afc9ebe0d787f178a3ad03c684a5a723288b72807464ada",
+      "bytes": 309812
+    },
+    {
+      "path": "reports/mutation/vitest-e927482a8578-86500-1791263531110-ddef43083539c8.json",
+      "sha256": "4318deee1d8d7ce9402bd07cf8fa2f7e91199cb7bde13584553425ab05f4de97",
+      "bytes": 77858
+    },
+    {
+      "path": "reports/mutation/vitest-f2d1787d45e2-49597-1791259931399-a9fee4af13076.html",
+      "sha256": "883ff69ebf48f66bd8b1da01edeadcc34f218fcba65464893946f59d17bb6937",
+      "bytes": 262769
+    },
+    {
+      "path": "reports/mutation/vitest-f2d1787d45e2-49597-1791259931399-a9fee4af13076.json",
+      "sha256": "1d776a057c7c78a22ec4cbbaa3fb3d978e6ba591909d3cb3635614ce66cbbf8b",
+      "bytes": 30848
+    },
+    {
+      "path": "reports/mutation/vitest-f2d1787d45e2-86500-1791263531110-ddef43083539c8.html",
+      "sha256": "274159d82dc975ff87607a03ab665bec8bae39a500382f7e76682945b9648452",
+      "bytes": 262773
+    },
+    {
+      "path": "reports/mutation/vitest-f2d1787d45e2-86500-1791263531110-ddef43083539c8.json",
+      "sha256": "f0dc09328e4797a4bd7f51026e74a88296f99c2b2b25a29ef8871a6ea08cb706",
+      "bytes": 30852
+    },
+    {
+      "path": "reports/mutation-performance/756055df-3e30-4ccb-a285-6083f2d13cdc.json",
+      "sha256": "d13b495f7c6fa940488b852d6cbda1b0ea3150f2e5f5746e6f50a5541adbc626",
+      "bytes": 3306
+    }
+  ],
+  "ownership": "All 26 mutation JSON filenames are referenced by this plan workspace; matching HTML siblings and the single performance record belong to US070 source/base. All captured bytes verified from archive before owned cleanup."
+}

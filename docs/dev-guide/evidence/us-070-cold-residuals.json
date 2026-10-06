@@ -1,0 +1,2149 @@
+{
+  "sourceCutoff": "e03e465e3e8be975bcaf8ca05662f0bf93bfb25a",
+  "base": "ed9ff60d9dda6aaf78fae5e9a61d189b1a8e4108",
+  "workId": "US-070",
+  "reviewState": "pending independent exact sign-off; no worker approval",
+  "residuals": [
+    {
+      "shardId": "schema-static-481df809eb04",
+      "mutantId": "5",
+      "file": "packages/db/src/schema.ts",
+      "location": {
+        "end": {
+          "column": 36,
+          "line": 479
+        },
+        "start": {
+          "column": 28,
+          "line": 479
+        }
+      },
+      "line": 479,
+      "replacement": "\"\"",
+      "status": "Survived",
+      "mutatorName": "StringLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-schema-static-481df809eb04.json",
+      "nativeSha256": "86585f1cd8fbfe3996f0fd728090c9f19a882589be1c67ba7b08fbaba45dfc82",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "schema-static-481df809eb04",
+          "mutantId": "5",
+          "status": "Survived",
+          "artifact": "reports/mutation/schema-static-481df809eb04-65896-1791252422897-b0bad50397f1f.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-1-preview-schema-static-481df809eb04-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-4a99c1dc33c5",
+      "mutantId": "29",
+      "file": "packages/connectors/src/contracts.ts",
+      "location": {
+        "end": {
+          "column": 23,
+          "line": 202
+        },
+        "start": {
+          "column": 9,
+          "line": 202
+        }
+      },
+      "line": 202,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-4a99c1dc33c5.json",
+      "nativeSha256": "d81f45d565810fc940b38cd915a2ccaa0a61d5898bc8fcdaf4c3f194a41eb621",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-4a99c1dc33c5",
+          "mutantId": "29",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-4a99c1dc33c5-94233-1791256843018-81e3b9cef57b38.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-4a99c1dc33c5-round1-manifest.json"
+        }
+      ],
+      "proposedAnnotation": {
+        "type": "accepted",
+        "reason": "Removing the null precheck still rejects root null via Object.getPrototypeOf(null); only the Error subtype/diagnostic changes, while the normalizer contract specifies rejection without a typed error payload.",
+        "priorReview": "task-1-rereview.md, exact contracts mutant29 disposition; narrower interpretation retained by final-rereview.md",
+        "approvalState": "proposal for independent exact cold sign-off, not worker approval"
+      }
+    },
+    {
+      "shardId": "vitest-4a99c1dc33c5",
+      "mutantId": "37",
+      "file": "packages/connectors/src/contracts.ts",
+      "location": {
+        "end": {
+          "column": 64,
+          "line": 204
+        },
+        "start": {
+          "column": 23,
+          "line": 204
+        }
+      },
+      "line": 204,
+      "replacement": "``",
+      "status": "Survived",
+      "mutatorName": "StringLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-4a99c1dc33c5.json",
+      "nativeSha256": "d81f45d565810fc940b38cd915a2ccaa0a61d5898bc8fcdaf4c3f194a41eb621",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-4a99c1dc33c5",
+          "mutantId": "37",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-4a99c1dc33c5-94233-1791256843018-81e3b9cef57b38.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-4a99c1dc33c5-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-4a99c1dc33c5",
+      "mutantId": "55",
+      "file": "packages/connectors/src/contracts.ts",
+      "location": {
+        "end": {
+          "column": 67,
+          "line": 213
+        },
+        "start": {
+          "column": 13,
+          "line": 213
+        }
+      },
+      "line": 213,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-4a99c1dc33c5.json",
+      "nativeSha256": "d81f45d565810fc940b38cd915a2ccaa0a61d5898bc8fcdaf4c3f194a41eb621",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-4a99c1dc33c5",
+          "mutantId": "55",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-4a99c1dc33c5-94233-1791256843018-81e3b9cef57b38.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-4a99c1dc33c5-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-4a99c1dc33c5",
+      "mutantId": "56",
+      "file": "packages/connectors/src/contracts.ts",
+      "location": {
+        "end": {
+          "column": 67,
+          "line": 213
+        },
+        "start": {
+          "column": 13,
+          "line": 213
+        }
+      },
+      "line": 213,
+      "replacement": "typeof metric !== \"number\" && !Number.isFinite(metric)",
+      "status": "Survived",
+      "mutatorName": "LogicalOperator",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-4a99c1dc33c5.json",
+      "nativeSha256": "d81f45d565810fc940b38cd915a2ccaa0a61d5898bc8fcdaf4c3f194a41eb621",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-4a99c1dc33c5",
+          "mutantId": "56",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-4a99c1dc33c5-94233-1791256843018-81e3b9cef57b38.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-4a99c1dc33c5-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-4a99c1dc33c5",
+      "mutantId": "57",
+      "file": "packages/connectors/src/contracts.ts",
+      "location": {
+        "end": {
+          "column": 39,
+          "line": 213
+        },
+        "start": {
+          "column": 13,
+          "line": 213
+        }
+      },
+      "line": 213,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-4a99c1dc33c5.json",
+      "nativeSha256": "d81f45d565810fc940b38cd915a2ccaa0a61d5898bc8fcdaf4c3f194a41eb621",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-4a99c1dc33c5",
+          "mutantId": "57",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-4a99c1dc33c5-94233-1791256843018-81e3b9cef57b38.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-4a99c1dc33c5-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-4a99c1dc33c5",
+      "mutantId": "66",
+      "file": "packages/connectors/src/contracts.ts",
+      "location": {
+        "end": {
+          "column": 67,
+          "line": 215
+        },
+        "start": {
+          "column": 27,
+          "line": 215
+        }
+      },
+      "line": 215,
+      "replacement": "``",
+      "status": "Survived",
+      "mutatorName": "StringLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-4a99c1dc33c5.json",
+      "nativeSha256": "d81f45d565810fc940b38cd915a2ccaa0a61d5898bc8fcdaf4c3f194a41eb621",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-4a99c1dc33c5",
+          "mutantId": "66",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-4a99c1dc33c5-94233-1791256843018-81e3b9cef57b38.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-4a99c1dc33c5-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-4a99c1dc33c5",
+      "mutantId": "67",
+      "file": "packages/connectors/src/contracts.ts",
+      "location": {
+        "end": {
+          "column": 70,
+          "line": 218
+        },
+        "start": {
+          "column": 54,
+          "line": 218
+        }
+      },
+      "line": 218,
+      "replacement": "``",
+      "status": "Survived",
+      "mutatorName": "StringLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-4a99c1dc33c5.json",
+      "nativeSha256": "d81f45d565810fc940b38cd915a2ccaa0a61d5898bc8fcdaf4c3f194a41eb621",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-4a99c1dc33c5",
+          "mutantId": "67",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-4a99c1dc33c5-94233-1791256843018-81e3b9cef57b38.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-4a99c1dc33c5-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-4a99c1dc33c5",
+      "mutantId": "68",
+      "file": "packages/connectors/src/contracts.ts",
+      "location": {
+        "end": {
+          "column": 59,
+          "line": 222
+        },
+        "start": {
+          "column": 49,
+          "line": 222
+        }
+      },
+      "line": 222,
+      "replacement": "\"\"",
+      "status": "Survived",
+      "mutatorName": "StringLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-4a99c1dc33c5.json",
+      "nativeSha256": "d81f45d565810fc940b38cd915a2ccaa0a61d5898bc8fcdaf4c3f194a41eb621",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-4a99c1dc33c5",
+          "mutantId": "68",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-4a99c1dc33c5-94233-1791256843018-81e3b9cef57b38.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-4a99c1dc33c5-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-766ecaa54205",
+      "mutantId": "4",
+      "file": "packages/connectors/src/providers/anthropic/connector.ts",
+      "location": {
+        "end": {
+          "column": 33,
+          "line": 216
+        },
+        "start": {
+          "column": 16,
+          "line": 216
+        }
+      },
+      "line": 216,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-766ecaa54205.json",
+      "nativeSha256": "75156d058449c18b9fbe9a301e4024409379f94266ac4a68232740000c04393b",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-766ecaa54205",
+          "mutantId": "4",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-766ecaa54205-96531-1791256888677-b72dcda384ac.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-766ecaa54205-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-766ecaa54205",
+          "mutantId": "4",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-766ecaa54205-7380-1791257458725-df87bf5c9e3078.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-766ecaa54205-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-766ecaa54205",
+      "mutantId": "52",
+      "file": "packages/connectors/src/providers/anthropic/connector.ts",
+      "location": {
+        "end": {
+          "column": 50,
+          "line": 565
+        },
+        "start": {
+          "column": 20,
+          "line": 565
+        }
+      },
+      "line": 565,
+      "replacement": "true",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-766ecaa54205.json",
+      "nativeSha256": "75156d058449c18b9fbe9a301e4024409379f94266ac4a68232740000c04393b",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-766ecaa54205",
+          "mutantId": "52",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-766ecaa54205-96531-1791256888677-b72dcda384ac.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-766ecaa54205-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-766ecaa54205",
+          "mutantId": "52",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-766ecaa54205-7380-1791257458725-df87bf5c9e3078.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-766ecaa54205-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-766ecaa54205",
+      "mutantId": "71",
+      "file": "packages/connectors/src/providers/anthropic/connector.ts",
+      "location": {
+        "end": {
+          "column": 122,
+          "line": 566
+        },
+        "start": {
+          "column": 88,
+          "line": 566
+        }
+      },
+      "line": 566,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-766ecaa54205.json",
+      "nativeSha256": "75156d058449c18b9fbe9a301e4024409379f94266ac4a68232740000c04393b",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-766ecaa54205",
+          "mutantId": "71",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-766ecaa54205-96531-1791256888677-b72dcda384ac.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-766ecaa54205-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-766ecaa54205",
+          "mutantId": "71",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-766ecaa54205-7380-1791257458725-df87bf5c9e3078.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-766ecaa54205-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-766ecaa54205",
+      "mutantId": "89",
+      "file": "packages/connectors/src/providers/anthropic/connector.ts",
+      "location": {
+        "end": {
+          "column": 55,
+          "line": 692
+        },
+        "start": {
+          "column": 27,
+          "line": 692
+        }
+      },
+      "line": 692,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-766ecaa54205.json",
+      "nativeSha256": "75156d058449c18b9fbe9a301e4024409379f94266ac4a68232740000c04393b",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-766ecaa54205",
+          "mutantId": "89",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-766ecaa54205-96531-1791256888677-b72dcda384ac.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-766ecaa54205-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-766ecaa54205",
+          "mutantId": "89",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-766ecaa54205-7380-1791257458725-df87bf5c9e3078.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-766ecaa54205-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-766ecaa54205",
+      "mutantId": "92",
+      "file": "packages/connectors/src/providers/anthropic/connector.ts",
+      "location": {
+        "end": {
+          "column": 34,
+          "line": 693
+        },
+        "start": {
+          "column": 15,
+          "line": 693
+        }
+      },
+      "line": 693,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-766ecaa54205.json",
+      "nativeSha256": "75156d058449c18b9fbe9a301e4024409379f94266ac4a68232740000c04393b",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-766ecaa54205",
+          "mutantId": "92",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-766ecaa54205-96531-1791256888677-b72dcda384ac.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-766ecaa54205-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-766ecaa54205",
+          "mutantId": "92",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-766ecaa54205-7380-1791257458725-df87bf5c9e3078.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-766ecaa54205-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-766ecaa54205",
+      "mutantId": "100",
+      "file": "packages/connectors/src/providers/anthropic/connector.ts",
+      "location": {
+        "end": {
+          "column": 41,
+          "line": 698
+        },
+        "start": {
+          "column": 13,
+          "line": 698
+        }
+      },
+      "line": 698,
+      "replacement": "true",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-766ecaa54205.json",
+      "nativeSha256": "75156d058449c18b9fbe9a301e4024409379f94266ac4a68232740000c04393b",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-766ecaa54205",
+          "mutantId": "100",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-766ecaa54205-96531-1791256888677-b72dcda384ac.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-766ecaa54205-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-766ecaa54205",
+          "mutantId": "100",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-766ecaa54205-7380-1791257458725-df87bf5c9e3078.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-766ecaa54205-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-766ecaa54205",
+      "mutantId": "103",
+      "file": "packages/connectors/src/providers/anthropic/connector.ts",
+      "location": {
+        "end": {
+          "column": 32,
+          "line": 699
+        },
+        "start": {
+          "column": 13,
+          "line": 699
+        }
+      },
+      "line": 699,
+      "replacement": "true",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-766ecaa54205.json",
+      "nativeSha256": "75156d058449c18b9fbe9a301e4024409379f94266ac4a68232740000c04393b",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-766ecaa54205",
+          "mutantId": "103",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-766ecaa54205-96531-1791256888677-b72dcda384ac.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-766ecaa54205-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-766ecaa54205",
+          "mutantId": "103",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-766ecaa54205-7380-1791257458725-df87bf5c9e3078.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-766ecaa54205-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "24",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 70,
+          "line": 37
+        },
+        "start": {
+          "column": 7,
+          "line": 37
+        }
+      },
+      "line": 37,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "24",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "25",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 70,
+          "line": 37
+        },
+        "start": {
+          "column": 7,
+          "line": 37
+        }
+      },
+      "line": 37,
+      "replacement": "typeof value !== \"string\" && !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)",
+      "status": "Survived",
+      "mutatorName": "LogicalOperator",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "25",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "26",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 32,
+          "line": 37
+        },
+        "start": {
+          "column": 7,
+          "line": 37
+        }
+      },
+      "line": 37,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "26",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "30",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 58,
+          "line": 37
+        },
+        "start": {
+          "column": 37,
+          "line": 37
+        }
+      },
+      "line": 37,
+      "replacement": "/\\d{4}-\\d{2}-\\d{2}$/",
+      "status": "Survived",
+      "mutatorName": "Regex",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "30",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "31",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 58,
+          "line": 37
+        },
+        "start": {
+          "column": 37,
+          "line": 37
+        }
+      },
+      "line": 37,
+      "replacement": "/^\\d{4}-\\d{2}-\\d{2}/",
+      "status": "Survived",
+      "mutatorName": "Regex",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "31",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "75",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 50,
+          "line": 51
+        },
+        "start": {
+          "column": 7,
+          "line": 51
+        }
+      },
+      "line": 51,
+      "replacement": "true",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "75",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "79",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 21,
+          "line": 51
+        },
+        "start": {
+          "column": 7,
+          "line": 51
+        }
+      },
+      "line": 51,
+      "replacement": "value !== null",
+      "status": "Survived",
+      "mutatorName": "EqualityOperator",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "79",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "81",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 50,
+          "line": 51
+        },
+        "start": {
+          "column": 25,
+          "line": 51
+        }
+      },
+      "line": 51,
+      "replacement": "typeof value === \"object\"",
+      "status": "Survived",
+      "mutatorName": "EqualityOperator",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "81",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "82",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 50,
+          "line": 51
+        },
+        "start": {
+          "column": 42,
+          "line": 51
+        }
+      },
+      "line": 51,
+      "replacement": "\"\"",
+      "status": "Survived",
+      "mutatorName": "StringLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "82",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "84",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 27,
+          "line": 52
+        },
+        "start": {
+          "column": 7,
+          "line": 52
+        }
+      },
+      "line": 52,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "84",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "85",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 73,
+          "line": 52
+        },
+        "start": {
+          "column": 36,
+          "line": 52
+        }
+      },
+      "line": 52,
+      "replacement": "``",
+      "status": "NoCoverage",
+      "mutatorName": "StringLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "85",
+          "status": "NoCoverage",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "86",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 69,
+          "line": 52
+        },
+        "start": {
+          "column": 66,
+          "line": 52
+        }
+      },
+      "line": 52,
+      "replacement": "\"\"",
+      "status": "NoCoverage",
+      "mutatorName": "StringLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "86",
+          "status": "NoCoverage",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "88",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 74,
+          "line": 53
+        },
+        "start": {
+          "column": 14,
+          "line": 53
+        }
+      },
+      "line": 53,
+      "replacement": "Object.entries(value)",
+      "status": "Survived",
+      "mutatorName": "MethodExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "88",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "89",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 73,
+          "line": 53
+        },
+        "start": {
+          "column": 41,
+          "line": 53
+        }
+      },
+      "line": 53,
+      "replacement": "() => undefined",
+      "status": "Survived",
+      "mutatorName": "ArrowFunction",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "89",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "92",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 80,
+          "line": 54
+        },
+        "start": {
+          "column": 77,
+          "line": 54
+        }
+      },
+      "line": 54,
+      "replacement": "\"\"",
+      "status": "Survived",
+      "mutatorName": "StringLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "92",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "149",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 34,
+          "line": 75
+        },
+        "start": {
+          "column": 22,
+          "line": 75
+        }
+      },
+      "line": 75,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "149",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "163",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 21,
+          "line": 81
+        },
+        "start": {
+          "column": 9,
+          "line": 81
+        }
+      },
+      "line": 81,
+      "replacement": "true",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "163",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "166",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 93,
+          "line": 87
+        },
+        "start": {
+          "column": 88,
+          "line": 87
+        }
+      },
+      "line": 87,
+      "replacement": "true",
+      "status": "Survived",
+      "mutatorName": "BooleanLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "166",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "228",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 66,
+          "line": 134
+        },
+        "start": {
+          "column": 21,
+          "line": 134
+        }
+      },
+      "line": 134,
+      "replacement": "{}",
+      "status": "Survived",
+      "mutatorName": "ObjectLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "228",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "238",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 64,
+          "line": 136
+        },
+        "start": {
+          "column": 39,
+          "line": 136
+        }
+      },
+      "line": 136,
+      "replacement": "{}",
+      "status": "Survived",
+      "mutatorName": "ObjectLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "238",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "245",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 66,
+          "line": 139
+        },
+        "start": {
+          "column": 37,
+          "line": 139
+        }
+      },
+      "line": 139,
+      "replacement": "{}",
+      "status": "Survived",
+      "mutatorName": "ObjectLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "245",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "298",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 78,
+          "line": 163
+        },
+        "start": {
+          "column": 13,
+          "line": 163
+        }
+      },
+      "line": 163,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "298",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "299",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 78,
+          "line": 163
+        },
+        "start": {
+          "column": 13,
+          "line": 163
+        }
+      },
+      "line": 163,
+      "replacement": "!current && current.syncedAt.getTime() < batch.syncedAt.getTime()",
+      "status": "Survived",
+      "mutatorName": "LogicalOperator",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "299",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-7e4dfff580cb",
+      "mutantId": "301",
+      "file": "packages/db/src/analytics-ingestion.ts",
+      "location": {
+        "end": {
+          "column": 78,
+          "line": 163
+        },
+        "start": {
+          "column": 25,
+          "line": 163
+        }
+      },
+      "line": 163,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-7e4dfff580cb.json",
+      "nativeSha256": "2b22259539cf872ababdc69edcfdb5c24f86aa25bb6f93ad4b111518c36045c9",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-7e4dfff580cb",
+          "mutantId": "301",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-7e4dfff580cb-27541-1791258541448-ff881367b8e1e.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-7e4dfff580cb-round1-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-d6a5d66bfe0f",
+      "mutantId": "3",
+      "file": "packages/connectors/src/dispatch.ts",
+      "location": {
+        "end": {
+          "column": 106,
+          "line": 403
+        },
+        "start": {
+          "column": 70,
+          "line": 403
+        }
+      },
+      "line": 403,
+      "replacement": "\"\"",
+      "status": "Survived",
+      "mutatorName": "StringLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-d6a5d66bfe0f.json",
+      "nativeSha256": "058d20aadea72148a03a1285727d2fb5b34271adea9d99b5e363fedcdf980a96",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "3",
+          "status": "NoCoverage",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-98545-1791256952201-cb894b71aa136.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "3",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-9815-1791257523073-969fd0e7e85658.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-d6a5d66bfe0f",
+      "mutantId": "18",
+      "file": "packages/connectors/src/dispatch.ts",
+      "location": {
+        "end": {
+          "column": 52,
+          "line": 405
+        },
+        "start": {
+          "column": 15,
+          "line": 405
+        }
+      },
+      "line": 405,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-d6a5d66bfe0f.json",
+      "nativeSha256": "058d20aadea72148a03a1285727d2fb5b34271adea9d99b5e363fedcdf980a96",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "18",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-98545-1791256952201-cb894b71aa136.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "18",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-9815-1791257523073-969fd0e7e85658.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-d6a5d66bfe0f",
+      "mutantId": "19",
+      "file": "packages/connectors/src/dispatch.ts",
+      "location": {
+        "end": {
+          "column": 52,
+          "line": 405
+        },
+        "start": {
+          "column": 15,
+          "line": 405
+        }
+      },
+      "line": 405,
+      "replacement": "!record && typeof record !== \"object\"",
+      "status": "Survived",
+      "mutatorName": "LogicalOperator",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-d6a5d66bfe0f.json",
+      "nativeSha256": "058d20aadea72148a03a1285727d2fb5b34271adea9d99b5e363fedcdf980a96",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "19",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-98545-1791256952201-cb894b71aa136.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "19",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-9815-1791257523073-969fd0e7e85658.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-d6a5d66bfe0f",
+      "mutantId": "21",
+      "file": "packages/connectors/src/dispatch.ts",
+      "location": {
+        "end": {
+          "column": 52,
+          "line": 405
+        },
+        "start": {
+          "column": 26,
+          "line": 405
+        }
+      },
+      "line": 405,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-d6a5d66bfe0f.json",
+      "nativeSha256": "058d20aadea72148a03a1285727d2fb5b34271adea9d99b5e363fedcdf980a96",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "21",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-98545-1791256952201-cb894b71aa136.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "21",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-9815-1791257523073-969fd0e7e85658.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-d6a5d66bfe0f",
+      "mutantId": "41",
+      "file": "packages/connectors/src/dispatch.ts",
+      "location": {
+        "end": {
+          "column": 55,
+          "line": 408
+        },
+        "start": {
+          "column": 16,
+          "line": 408
+        }
+      },
+      "line": 408,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-d6a5d66bfe0f.json",
+      "nativeSha256": "058d20aadea72148a03a1285727d2fb5b34271adea9d99b5e363fedcdf980a96",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "41",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-98545-1791256952201-cb894b71aa136.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "41",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-9815-1791257523073-969fd0e7e85658.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-d6a5d66bfe0f",
+      "mutantId": "45",
+      "file": "packages/connectors/src/dispatch.ts",
+      "location": {
+        "end": {
+          "column": 81,
+          "line": 408
+        },
+        "start": {
+          "column": 60,
+          "line": 408
+        }
+      },
+      "line": 408,
+      "replacement": "/\\d{4}-\\d{2}-\\d{2}$/",
+      "status": "Survived",
+      "mutatorName": "Regex",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-d6a5d66bfe0f.json",
+      "nativeSha256": "058d20aadea72148a03a1285727d2fb5b34271adea9d99b5e363fedcdf980a96",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "45",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-98545-1791256952201-cb894b71aa136.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "45",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-9815-1791257523073-969fd0e7e85658.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-d6a5d66bfe0f",
+      "mutantId": "46",
+      "file": "packages/connectors/src/dispatch.ts",
+      "location": {
+        "end": {
+          "column": 81,
+          "line": 408
+        },
+        "start": {
+          "column": 60,
+          "line": 408
+        }
+      },
+      "line": 408,
+      "replacement": "/^\\d{4}-\\d{2}-\\d{2}/",
+      "status": "Survived",
+      "mutatorName": "Regex",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-d6a5d66bfe0f.json",
+      "nativeSha256": "058d20aadea72148a03a1285727d2fb5b34271adea9d99b5e363fedcdf980a96",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "46",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-98545-1791256952201-cb894b71aa136.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "46",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-9815-1791257523073-969fd0e7e85658.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-d6a5d66bfe0f",
+      "mutantId": "54",
+      "file": "packages/connectors/src/dispatch.ts",
+      "location": {
+        "end": {
+          "column": 76,
+          "line": 409
+        },
+        "start": {
+          "column": 64,
+          "line": 409
+        }
+      },
+      "line": 409,
+      "replacement": "\"\"",
+      "status": "Survived",
+      "mutatorName": "StringLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-d6a5d66bfe0f.json",
+      "nativeSha256": "058d20aadea72148a03a1285727d2fb5b34271adea9d99b5e363fedcdf980a96",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "54",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-98545-1791256952201-cb894b71aa136.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "54",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-9815-1791257523073-969fd0e7e85658.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-d6a5d66bfe0f",
+      "mutantId": "58",
+      "file": "packages/connectors/src/dispatch.ts",
+      "location": {
+        "end": {
+          "column": 59,
+          "line": 410
+        },
+        "start": {
+          "column": 47,
+          "line": 410
+        }
+      },
+      "line": 410,
+      "replacement": "\"\"",
+      "status": "Survived",
+      "mutatorName": "StringLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-d6a5d66bfe0f.json",
+      "nativeSha256": "058d20aadea72148a03a1285727d2fb5b34271adea9d99b5e363fedcdf980a96",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "58",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-98545-1791256952201-cb894b71aa136.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "58",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-9815-1791257523073-969fd0e7e85658.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-d6a5d66bfe0f",
+      "mutantId": "60",
+      "file": "packages/connectors/src/dispatch.ts",
+      "location": {
+        "end": {
+          "column": 64,
+          "line": 411
+        },
+        "start": {
+          "column": 29,
+          "line": 411
+        }
+      },
+      "line": 411,
+      "replacement": "\"\"",
+      "status": "Survived",
+      "mutatorName": "StringLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-d6a5d66bfe0f.json",
+      "nativeSha256": "058d20aadea72148a03a1285727d2fb5b34271adea9d99b5e363fedcdf980a96",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "60",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-98545-1791256952201-cb894b71aa136.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "60",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-9815-1791257523073-969fd0e7e85658.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-d6a5d66bfe0f",
+      "mutantId": "70",
+      "file": "packages/connectors/src/dispatch.ts",
+      "location": {
+        "end": {
+          "column": 115,
+          "line": 420
+        },
+        "start": {
+          "column": 81,
+          "line": 420
+        }
+      },
+      "line": 420,
+      "replacement": "\"\"",
+      "status": "Survived",
+      "mutatorName": "StringLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-d6a5d66bfe0f.json",
+      "nativeSha256": "058d20aadea72148a03a1285727d2fb5b34271adea9d99b5e363fedcdf980a96",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "70",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-98545-1791256952201-cb894b71aa136.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "70",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-9815-1791257523073-969fd0e7e85658.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-d6a5d66bfe0f",
+      "mutantId": "73",
+      "file": "packages/connectors/src/dispatch.ts",
+      "location": {
+        "end": {
+          "column": 59,
+          "line": 421
+        },
+        "start": {
+          "column": 29,
+          "line": 421
+        }
+      },
+      "line": 421,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-d6a5d66bfe0f.json",
+      "nativeSha256": "058d20aadea72148a03a1285727d2fb5b34271adea9d99b5e363fedcdf980a96",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "73",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-98545-1791256952201-cb894b71aa136.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "73",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-9815-1791257523073-969fd0e7e85658.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-d6a5d66bfe0f",
+      "mutantId": "76",
+      "file": "packages/connectors/src/dispatch.ts",
+      "location": {
+        "end": {
+          "column": 38,
+          "line": 422
+        },
+        "start": {
+          "column": 17,
+          "line": 422
+        }
+      },
+      "line": 422,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-d6a5d66bfe0f.json",
+      "nativeSha256": "058d20aadea72148a03a1285727d2fb5b34271adea9d99b5e363fedcdf980a96",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "76",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-98545-1791256952201-cb894b71aa136.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "76",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-9815-1791257523073-969fd0e7e85658.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-d6a5d66bfe0f",
+      "mutantId": "84",
+      "file": "packages/connectors/src/dispatch.ts",
+      "location": {
+        "end": {
+          "column": 123,
+          "line": 424
+        },
+        "start": {
+          "column": 86,
+          "line": 424
+        }
+      },
+      "line": 424,
+      "replacement": "\"\"",
+      "status": "Survived",
+      "mutatorName": "StringLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-d6a5d66bfe0f.json",
+      "nativeSha256": "058d20aadea72148a03a1285727d2fb5b34271adea9d99b5e363fedcdf980a96",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "84",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-98545-1791256952201-cb894b71aa136.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "84",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-9815-1791257523073-969fd0e7e85658.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-d6a5d66bfe0f",
+      "mutantId": "85",
+      "file": "packages/connectors/src/dispatch.ts",
+      "location": {
+        "end": {
+          "column": 45,
+          "line": 427
+        },
+        "start": {
+          "column": 15,
+          "line": 427
+        }
+      },
+      "line": 427,
+      "replacement": "true",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-d6a5d66bfe0f.json",
+      "nativeSha256": "058d20aadea72148a03a1285727d2fb5b34271adea9d99b5e363fedcdf980a96",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "85",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-98545-1791256952201-cb894b71aa136.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "85",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-9815-1791257523073-969fd0e7e85658.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-d6a5d66bfe0f",
+      "mutantId": "88",
+      "file": "packages/connectors/src/dispatch.ts",
+      "location": {
+        "end": {
+          "column": 36,
+          "line": 428
+        },
+        "start": {
+          "column": 15,
+          "line": 428
+        }
+      },
+      "line": 428,
+      "replacement": "true",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-d6a5d66bfe0f.json",
+      "nativeSha256": "058d20aadea72148a03a1285727d2fb5b34271adea9d99b5e363fedcdf980a96",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "88",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-98545-1791256952201-cb894b71aa136.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round1-manifest.json"
+        },
+        {
+          "shardId": "vitest-d6a5d66bfe0f",
+          "mutantId": "88",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-d6a5d66bfe0f-9815-1791257523073-969fd0e7e85658.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-2-preview-vitest-d6a5d66bfe0f-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-e927482a8578",
+      "mutantId": "39",
+      "file": "apps/worker/src/jobs/analytics-activity.ts",
+      "location": {
+        "end": {
+          "column": 32,
+          "line": 51
+        },
+        "start": {
+          "column": 11,
+          "line": 51
+        }
+      },
+      "line": 51,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-e927482a8578.json",
+      "nativeSha256": "4318deee1d8d7ce9402bd07cf8fa2f7e91199cb7bde13584553425ab05f4de97",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-e927482a8578",
+          "mutantId": "39",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-e927482a8578-45612-1791259740184-1506af9b554a88.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-e927482a8578-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-e927482a8578",
+      "mutantId": "61",
+      "file": "apps/worker/src/jobs/analytics-activity.ts",
+      "location": {
+        "end": {
+          "column": 43,
+          "line": 61
+        },
+        "start": {
+          "column": 20,
+          "line": 61
+        }
+      },
+      "line": 61,
+      "replacement": "options.kekFile",
+      "status": "Survived",
+      "mutatorName": "MethodExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-e927482a8578.json",
+      "nativeSha256": "4318deee1d8d7ce9402bd07cf8fa2f7e91199cb7bde13584553425ab05f4de97",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-e927482a8578",
+          "mutantId": "61",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-e927482a8578-45612-1791259740184-1506af9b554a88.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-e927482a8578-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-e927482a8578",
+      "mutantId": "62",
+      "file": "apps/worker/src/jobs/analytics-activity.ts",
+      "location": {
+        "end": {
+          "column": 41,
+          "line": 61
+        },
+        "start": {
+          "column": 20,
+          "line": 61
+        }
+      },
+      "line": 61,
+      "replacement": "options.kekFile.trim",
+      "status": "Survived",
+      "mutatorName": "OptionalChaining",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-e927482a8578.json",
+      "nativeSha256": "4318deee1d8d7ce9402bd07cf8fa2f7e91199cb7bde13584553425ab05f4de97",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-e927482a8578",
+          "mutantId": "62",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-e927482a8578-45612-1791259740184-1506af9b554a88.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-e927482a8578-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-e927482a8578",
+      "mutantId": "65",
+      "file": "apps/worker/src/jobs/analytics-activity.ts",
+      "location": {
+        "end": {
+          "column": 16,
+          "line": 62
+        },
+        "start": {
+          "column": 11,
+          "line": 62
+        }
+      },
+      "line": 62,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-e927482a8578.json",
+      "nativeSha256": "4318deee1d8d7ce9402bd07cf8fa2f7e91199cb7bde13584553425ab05f4de97",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-e927482a8578",
+          "mutantId": "65",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-e927482a8578-45612-1791259740184-1506af9b554a88.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-e927482a8578-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-e927482a8578",
+      "mutantId": "66",
+      "file": "apps/worker/src/jobs/analytics-activity.ts",
+      "location": {
+        "end": {
+          "column": 65,
+          "line": 63
+        },
+        "start": {
+          "column": 25,
+          "line": 63
+        }
+      },
+      "line": 63,
+      "replacement": "\"\"",
+      "status": "NoCoverage",
+      "mutatorName": "StringLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-e927482a8578.json",
+      "nativeSha256": "4318deee1d8d7ce9402bd07cf8fa2f7e91199cb7bde13584553425ab05f4de97",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-e927482a8578",
+          "mutantId": "66",
+          "status": "NoCoverage",
+          "artifact": "reports/mutation/vitest-e927482a8578-45612-1791259740184-1506af9b554a88.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-e927482a8578-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-e927482a8578",
+      "mutantId": "91",
+      "file": "apps/worker/src/jobs/analytics-activity.ts",
+      "location": {
+        "end": {
+          "column": 46,
+          "line": 96
+        },
+        "start": {
+          "column": 15,
+          "line": 96
+        }
+      },
+      "line": 96,
+      "replacement": "false",
+      "status": "Survived",
+      "mutatorName": "ConditionalExpression",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-e927482a8578.json",
+      "nativeSha256": "4318deee1d8d7ce9402bd07cf8fa2f7e91199cb7bde13584553425ab05f4de97",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-e927482a8578",
+          "mutantId": "91",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-e927482a8578-45612-1791259740184-1506af9b554a88.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-e927482a8578-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-e927482a8578",
+      "mutantId": "93",
+      "file": "apps/worker/src/jobs/analytics-activity.ts",
+      "location": {
+        "end": {
+          "column": 46,
+          "line": 96
+        },
+        "start": {
+          "column": 33,
+          "line": 96
+        }
+      },
+      "line": 96,
+      "replacement": "\"\"",
+      "status": "Survived",
+      "mutatorName": "StringLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-e927482a8578.json",
+      "nativeSha256": "4318deee1d8d7ce9402bd07cf8fa2f7e91199cb7bde13584553425ab05f4de97",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-e927482a8578",
+          "mutantId": "93",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-e927482a8578-45612-1791259740184-1506af9b554a88.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-e927482a8578-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-e927482a8578",
+      "mutantId": "94",
+      "file": "apps/worker/src/jobs/analytics-activity.ts",
+      "location": {
+        "end": {
+          "column": 59,
+          "line": 97
+        },
+        "start": {
+          "column": 29,
+          "line": 97
+        }
+      },
+      "line": 97,
+      "replacement": "\"\"",
+      "status": "NoCoverage",
+      "mutatorName": "StringLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-e927482a8578.json",
+      "nativeSha256": "4318deee1d8d7ce9402bd07cf8fa2f7e91199cb7bde13584553425ab05f4de97",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-e927482a8578",
+          "mutantId": "94",
+          "status": "NoCoverage",
+          "artifact": "reports/mutation/vitest-e927482a8578-45612-1791259740184-1506af9b554a88.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-e927482a8578-round2-manifest.json"
+        }
+      ]
+    },
+    {
+      "shardId": "vitest-e927482a8578",
+      "mutantId": "99",
+      "file": "apps/worker/src/jobs/analytics-activity.ts",
+      "location": {
+        "end": {
+          "column": 48,
+          "line": 104
+        },
+        "start": {
+          "column": 38,
+          "line": 104
+        }
+      },
+      "line": 104,
+      "replacement": "{}",
+      "status": "Survived",
+      "mutatorName": "ObjectLiteral",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-e927482a8578.json",
+      "nativeSha256": "4318deee1d8d7ce9402bd07cf8fa2f7e91199cb7bde13584553425ab05f4de97",
+      "exactCurrentSourcePreviewMatches": [
+        {
+          "shardId": "vitest-e927482a8578",
+          "mutantId": "99",
+          "status": "Survived",
+          "artifact": "reports/mutation/vitest-e927482a8578-45612-1791259740184-1506af9b554a88.json",
+          "manifest": ".superpowers/sdd/2026-10-05-us-070-daily-person-activity/task-3-preview-vitest-e927482a8578-round2-manifest.json"
+        }
+      ]
+    }
+  ],
+  "timeouts": [
+    {
+      "shardId": "vitest-e927482a8578",
+      "mutantId": "116",
+      "file": "apps/worker/src/jobs/analytics-activity.ts",
+      "location": {
+        "end": {
+          "column": 10,
+          "line": 138
+        },
+        "start": {
+          "column": 17,
+          "line": 136
+        }
+      },
+      "line": 136,
+      "replacement": "{}",
+      "status": "Timeout",
+      "mutatorName": "BlockStatement",
+      "nativeArtifact": "/Users/fcolomas/.codex/worktrees/us-070-activity/smp/.superpowers/sdd/2026-10-05-us-070-daily-person-activity/cold-native-vitest-e927482a8578.json",
+      "nativeSha256": "4318deee1d8d7ce9402bd07cf8fa2f7e91199cb7bde13584553425ab05f4de97",
+      "exactCurrentSourcePreviewMatches": []
+    }
+  ]
+}

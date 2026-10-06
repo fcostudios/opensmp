@@ -1,0 +1,169 @@
+{
+  "convention": "Scoped child rollout metadata only; function/custom wrappers count once, nested tool calls not added; context=max last input, output=cumulative generated including reasoning once. Original root mixed US026/US070 rollout excluded, unavailable workers not estimated. Rows overlap in wall time and are never added to phase durations. Controller subtotal finalized before done; whole-task aggregate unknown.",
+  "rows": [
+    {
+      "path": "/Users/fcolomas/.codex/sessions/2026/10/05/rollout-2026-10-05T20-37-29-01a10edb-d11d-7561-98f3-1a66f4e82385.jsonl",
+      "calls": 145,
+      "calls_by_type": {
+        "custom_tool_call": 68,
+        "function_call": 77
+      },
+      "context_tokens": 105955,
+      "output_tokens": 20583,
+      "model": "gpt-6.1-sol",
+      "window": 258400,
+      "first": "2026-10-06T01:37:29.488Z",
+      "last": "2026-10-06T03:11:31.507Z"
+    },
+    {
+      "path": "/Users/fcolomas/.codex/sessions/2026/10/05/rollout-2026-10-05T22-01-46-01a10f28-fa30-73d1-aeda-9aa032235911.jsonl",
+      "calls": 204,
+      "calls_by_type": {
+        "custom_tool_call": 45,
+        "function_call": 159
+      },
+      "context_tokens": 148353,
+      "output_tokens": 31372,
+      "model": "gpt-6.1-sol",
+      "window": 258400,
+      "first": "2026-10-06T03:01:46.286Z",
+      "last": "2026-10-06T04:08:11.538Z"
+    },
+    {
+      "path": "/Users/fcolomas/.codex/sessions/2026/10/05/rollout-2026-10-05T22-12-27-01a10f32-c390-76a2-91de-6646b4cbf1ad.jsonl",
+      "calls": 38,
+      "calls_by_type": {
+        "custom_tool_call": 35,
+        "function_call": 3
+      },
+      "context_tokens": 129568,
+      "output_tokens": 15875,
+      "model": "gpt-6.1-sol",
+      "window": 258400,
+      "first": "2026-10-06T03:12:27.697Z",
+      "last": "2026-10-06T03:30:40.278Z"
+    },
+    {
+      "path": "/Users/fcolomas/.codex/sessions/2026/10/05/rollout-2026-10-05T22-35-25-01a10f47-ca1f-7783-9933-4f3aca050898.jsonl",
+      "calls": 47,
+      "calls_by_type": {
+        "custom_tool_call": 42,
+        "function_call": 5
+      },
+      "context_tokens": 152775,
+      "output_tokens": 28914,
+      "model": "gpt-6.1-sol",
+      "window": 258400,
+      "first": "2026-10-06T03:35:25.613Z",
+      "last": "2026-10-06T04:05:34.088Z"
+    },
+    {
+      "path": "/Users/fcolomas/.codex/sessions/2026/10/05/rollout-2026-10-05T22-45-45-01a10f51-41b3-7281-b41e-70a123cd08bd.jsonl",
+      "calls": 64,
+      "calls_by_type": {
+        "custom_tool_call": 45,
+        "function_call": 19
+      },
+      "context_tokens": 133218,
+      "output_tokens": 15100,
+      "model": "gpt-6.1-sol",
+      "window": 258400,
+      "first": "2026-10-06T03:45:46.047Z",
+      "last": "2026-10-06T04:14:57.060Z"
+    },
+    {
+      "path": "/Users/fcolomas/.codex/sessions/2026/10/05/rollout-2026-10-05T23-07-53-01a10f65-81e2-7343-a63c-26fe75fb2da8.jsonl",
+      "calls": 155,
+      "calls_by_type": {
+        "custom_tool_call": 58,
+        "function_call": 97
+      },
+      "context_tokens": 190698,
+      "output_tokens": 59761,
+      "model": "gpt-6.1-sol",
+      "window": 258400,
+      "first": "2026-10-06T04:07:53.212Z",
+      "last": "2026-10-06T05:27:46.783Z"
+    },
+    {
+      "path": "/Users/fcolomas/.codex/sessions/2026/10/05/rollout-2026-10-05T23-38-09-01a10f81-3a4e-74e0-a190-b532e50d7eb6.jsonl",
+      "calls": 37,
+      "calls_by_type": {
+        "custom_tool_call": 33,
+        "function_call": 4
+      },
+      "context_tokens": 184340,
+      "output_tokens": 19421,
+      "model": "gpt-6-astra",
+      "window": 258400,
+      "first": "2026-10-06T04:38:09.912Z",
+      "last": "2026-10-06T05:30:32.738Z"
+    },
+    {
+      "path": "/Users/fcolomas/.codex/sessions/2026/10/05/rollout-2026-10-05T23-47-59-01a10f8a-3a6a-7b00-b35d-789a5c95c49d.jsonl",
+      "calls": 85,
+      "calls_by_type": {
+        "custom_tool_call": 57,
+        "function_call": 28
+      },
+      "context_tokens": 153940,
+      "output_tokens": 31076,
+      "model": "gpt-6.1-sol",
+      "window": 258400,
+      "first": "2026-10-06T04:47:59.760Z",
+      "last": "2026-10-06T05:26:29.013Z"
+    },
+    {
+      "path": "/Users/fcolomas/.codex/sessions/2026/10/05/rollout-2026-10-05T23-56-31-01a10f92-0adb-7313-bb95-9ef83b4b923f.jsonl",
+      "calls": 21,
+      "calls_by_type": {
+        "custom_tool_call": 19,
+        "function_call": 2
+      },
+      "context_tokens": 99861,
+      "output_tokens": 6419,
+      "model": "gpt-6.1-sol",
+      "window": 258400,
+      "first": "2026-10-06T04:56:31.862Z",
+      "last": "2026-10-06T05:00:51.023Z"
+    },
+    {
+      "path": "/Users/fcolomas/.codex/sessions/2026/10/06/rollout-2026-10-06T00-27-54-01a10fae-c3e8-7b71-b504-6ea438c189f7.jsonl",
+      "calls": 20,
+      "calls_by_type": {
+        "custom_tool_call": 15,
+        "function_call": 5
+      },
+      "context_tokens": 95768,
+      "output_tokens": 5802,
+      "model": "gpt-6.1-sol",
+      "window": 258400,
+      "first": "2026-10-06T05:27:54.233Z",
+      "last": "2026-10-06T05:32:14.873Z"
+    }
+  ],
+  "root_execution_turn": {
+    "path": "/Users/fcolomas/.codex/sessions/2026/10/05/rollout-2026-10-05T06-33-21-01a10bd6-fd3a-7463-a9b9-02c7af8114bf.jsonl",
+    "turn_id": "01a10edb-086b-7462-8898-6f93bac2128e",
+    "calls": 325,
+    "calls_by_type": {
+      "custom_tool_call": 35,
+      "function_call": 290
+    },
+    "context_tokens": 183964,
+    "output_tokens": 71430,
+    "model": "gpt-6.1-sol",
+    "window": 258400,
+    "first": "2026-10-06T01:36:38.563Z",
+    "last": "2026-10-06T05:32:02.695Z",
+    "scope": "Only exact US070 execution turn; parent US026 and earlier readiness/design turns excluded."
+  },
+  "done_cost_measured_controller_subtotal": {
+    "calls": 704,
+    "context_tokens": 190698,
+    "output_tokens": 168365,
+    "model": "gpt-6.1-sol",
+    "window": 258400
+  },
+  "limitation": "Subtotal at recorded metadata snapshots only; excludes original root readiness/design, unobservable worker/reviewer aggregate, subsequent closure/report calls and later supervisor activity. Output includes reasoning once. Peak context uses maximum across included sessions, not sum. Whole-task aggregate unknown."
+}
