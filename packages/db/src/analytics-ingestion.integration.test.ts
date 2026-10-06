@@ -254,6 +254,23 @@ test("keeps anonymous records distinct and accepts nullable identity retries", a
   expect(missing.warnings.map(w=>w.recordIndex)).toEqual([0,1,2,3]);
 });
 
+// Fault #137: choosing provider-only keys for matched emails bypasses email
+// duplicate collapse and contradictory same-email rejection.
+test("deduplicates by normalized email even with nullable or distinct provider IDs", async () => {
+  const nullable={...record,providerUserId:null};
+  const collapsed=await resolveActivityScopes(db,[ids.companyA,ids.companyB],[nullable,{...nullable,email:"a@example.test"}]);
+  expect(collapsed).toEqual({batches:[{companyId:ids.companyA,records:[{...nullable,email:"a@example.test"}]}],warnings:[]});
+  for (const records of [
+    [nullable,{...nullable,counters:{chat_metrics:{message_count:2}}}],
+    [record,{...record,providerUserId:"another-provider-id"}],
+  ]) {
+    await expect(resolveActivityScopes(db,[ids.companyA,ids.companyB],records)).rejects.toThrow("ACTIVITY_DUPLICATE_CONFLICT");
+    await expect(ingestActivityBatch(db,{...base,records})).rejects.toThrow("ACTIVITY_DUPLICATE_CONFLICT");
+  }
+  expect(await rows()).toEqual([]);
+  expect(await audits()).toEqual([]);
+});
+
 // Fault I1: provider-only identity text collides with an unrelated email key.
 test("separates provider-only and email duplicate identity namespaces", async () => {
   const email="provider:x@example.test";
