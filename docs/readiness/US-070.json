@@ -117,7 +117,27 @@
     "evidence": "US070-READINESS-20261005",
     "payload_sha256": "d4e4f7b573af3e0eff7c68e791a78b993606f25c105bc3130506cae2651428fb"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 7,
+      "implementation": 46,
+      "focused_verification": 102,
+      "review": 22,
+      "integration": 63
+    },
+    "total": 240,
+    "changed_files": 24,
+    "commits": 13,
+    "review_fix_loops": 5,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 12,
+    "mutation_shards_actual": 7,
+    "preview_rounds": 10,
+    "preview_minutes": 47,
+    "estimate_variance_minutes": -30,
+    "root_cause": "Measured nonoverlapping child envelope 2026-10-06T05:32:16.929492+00:00 cutoff; readiness approval21:34:57Z to design presentation21:37:09Z, exclude human wait21:37:09Z\u201301:34:28Z; resume to first implementation01:39:01Z, then append-only phase markers. Parent US026 excluded. Each phase rounded nearest integer minute, total=sum five rounded buckets. Interleaved unobservable checks remain in enclosing phase. Fullcheck failures1062.456s (thermal sleep997s) and132.075s (two stale runtime oracles) retained. Source measurement git diff --name-only ed9ff60d9dda6aaf78fae5e9a61d189b1a8e4108 e03e465e3e8be975bcaf8ca05662f0bf93bfb25a=24 and git rev-list ed9ff60d9dda6aaf78fae5e9a61d189b1a8e4108..e03e465e3e8be975bcaf8ca05662f0bf93bfb25a=13, excluding one final docs-only evidence commit; final tree count recorded separately. Five formal review-fix loops; pre-review oracle repairs not loops. Ten preview rounds/19shardruns=46.5369167min rounded47; no whole-set re-preview, only affected seams, runtime test absent from final7seams so0postfix previews. Cold1/invalidations0=727.336s rounded12min (not added to phases). Exact objects/reflog/intervals/cost snapshots archived; docs/readiness/feedback cleanup does not invalidate scored bytes."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
