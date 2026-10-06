@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { drizzle } from "drizzle-orm/node-postgres";
+import { sql } from "drizzle-orm";
 import pg from "pg";
 import { afterAll, beforeAll, beforeEach, expect, test } from "vitest";
 import { normalizeActivityCounters } from "@smp/connectors";
@@ -625,4 +626,20 @@ test("preserves seeded exact money and rejects invalid batches before any SQL wr
     await owner.query("DROP FUNCTION us071_cost_write_probe()");
     await owner.query("DROP SEQUENCE us071_cost_write_attempts");
   }
+});
+
+
+// Fault94: routing takes an unnecessary Person share lock and blocks behind
+// an unrelated in-flight UPDATE. MVCC routing must return the committed scope.
+test("resolves cost scope without blocking behind a pinned Person update", async () => {
+  await owner.query("BEGIN");
+  try{
+    await owner.query("UPDATE person SET full_name='in-flight edit' WHERE id=$1",[ids.personA]);
+    const resolved=await db.transaction(async tx=>{
+      await tx.execute(sql`SET LOCAL lock_timeout='250ms'`);
+      return resolveCostScopes(tx,[ids.companyA],[cost]);
+    });
+    expect(resolved).toEqual({batches:[{companyId:ids.companyA,records:[{email:"a@example.test",providerUserId:"cost-a",costDate:"2026-10-05",amountUsd:"-1.2345",amountCents:"-123.45"}]}],warnings:[]});
+    expect(await costRows()).toEqual([]);expect(await audits()).toEqual([]);
+  }finally{await owner.query("ROLLBACK");}
 });
