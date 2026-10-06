@@ -18,6 +18,7 @@ const ids = {
   personA: "00000000-0000-4000-8000-000000000020",
   personB: "00000000-0000-4000-8000-000000000021",
   personC: "00000000-0000-4000-8000-000000000022",
+  actor: "00000000-0000-4000-8000-000000000040",
   vendor: "00000000-0000-4000-8000-000000000030",
   account: "00000000-0000-4000-8000-000000000031",
   accountB: "00000000-0000-4000-8000-000000000032",
@@ -46,6 +47,7 @@ beforeAll(async () => {
   for (const [id, mode] of [[ids.account, "automated"], [ids.accountB, "orchestration"]]) {
     await owner.query(`INSERT INTO vendor_account(id,vendor_id,name,mode,low_pool_floor,status,created_at,created_by) VALUES($1,$2,$3::text,$3::text::vendor_account_mode_enum,0,'active','2026-10-01',$4)`, [id,ids.vendor,mode,SYSTEM_USER_ID]);
   }
+  await owner.query("INSERT INTO user_account(id,email,status,created_at) VALUES($1,'actor@example.test','active','2026-10-01')",[ids.actor]);
   initialModes=(await owner.query("SELECT mode,ingestion_mode FROM vendor_account ORDER BY mode")).rows;
 }, 150_000);
 afterAll(async () => { await pool?.end(); await owner?.end(); await fixture?.stop(); });
@@ -109,6 +111,8 @@ test("retains scoped warnings and groups globally authorized records once", asyn
   expect(log.filter(r=>r.action==="analytics_activity_sync")).toHaveLength(1);
   expect(log.filter(r=>r.action==="analytics_activity_warning")).toHaveLength(2);
   expect(log.every(r=>r.companyId===ids.companyA)).toBe(true);
+  expect(log.every(r=>r.entityType==="VendorAccount" && r.entityId===ids.account)).toBe(true);
+  expect(log.filter(r=>r.action==="analytics_activity_warning").map(r=>r.after)).toEqual(expect.arrayContaining([{vendorAccountId:ids.account,activityDate:"2026-10-03",source:"api",recordIndex:0,reason:"unmatched_email",email:"b@example.test",providerUserId:"user-b"},{vendorAccountId:ids.account,activityDate:"2026-10-03",source:"api",recordIndex:1,reason:"missing_email",email:null,providerUserId:"missing-user"}]));
   const unknown={...record,email:"unknown@example.test",providerUserId:"unknown-user"};
   const scoped=await resolveActivityScopes(db,[ids.companyA,ids.companyB,ids.companyA],[record,foreign,missing,unknown]);
   expect(scoped.batches.map(b=>({companyId:b.companyId,emails:b.records.map(r=>r.email)}))).toEqual([{companyId:ids.companyA,emails:["a@example.test"]},{companyId:ids.companyB,emails:["b@example.test"]}]);
@@ -203,3 +207,112 @@ test("backfills existing automated and orchestration accounts through committed 
     await rm(directory,{recursive:true,force:true});
   }
 },150_000);
+
+
+// Faults: disabled validators fall through to PostgreSQL or silently accept
+// invalid empty/global batches; opaque service codes distinguish the intended
+// rejected contract from incidental SQL/TypeError failures.
+test("rejects malformed global identities and batches at the service boundary", async () => {
+  for(const companyId of ["bad", `prefix${ids.companyA}`, `${ids.companyA}suffix`, 4, [ids.companyA]]) {
+    await expect(resolveActivityScopes(db,[companyId] as string[],[])).rejects.toThrow("ACTIVITY_INVALID_UUID");
+  }
+  const invalidRecords: [unknown,string][] = [
+    [null,"ACTIVITY_INVALID_RECORDS"], [{},"ACTIVITY_INVALID_RECORDS"],
+    [[null],"ACTIVITY_INVALID_RECORD"], [[1],"ACTIVITY_INVALID_RECORD"],
+    [[{...record,email:4}],"ACTIVITY_INVALID_EMAIL"],
+    [[{...record,email:new String("a@example.test")}],"ACTIVITY_INVALID_EMAIL"],
+    [[{...record,email:"@@a@example.test"}],"ACTIVITY_INVALID_EMAIL"],
+    [[{...record,email:"a@example.test@"}],"ACTIVITY_INVALID_EMAIL"],
+    [[{...record,activityDate:"2026-02-30"}],"ACTIVITY_INVALID_DATE"],
+    [[{...record,activityDate:"2026-10-3"}],"ACTIVITY_INVALID_DATE"],
+    [[{...record,providerUserId:4}],"ACTIVITY_INVALID_PROVIDER_ID"],
+    [[record,{...record,email:"b@example.test"}],"ACTIVITY_IDENTITY_CONFLICT"],
+    [[record,{...record,counters:{chat_metrics:{message_count:2}}}],"ACTIVITY_DUPLICATE_CONFLICT"],
+  ];
+  for(const [records,code] of invalidRecords)await expect(resolveActivityScopes(db,[ids.companyA],records as Parameters<typeof resolveActivityScopes>[2])).rejects.toThrow(code);
+  for(const [input,code] of [
+    [{...base,source:"invalid",records:[]},"ACTIVITY_INVALID_SOURCE"],
+    [{...base,syncedAt:new Date(NaN),records:[]},"ACTIVITY_INVALID_SYNC_TIME"],
+    [{...base,syncedAt:"2026-10-06",records:[]},"ACTIVITY_INVALID_SYNC_TIME"],
+    [{...base,actorUserAccountId:"bad"},"ACTIVITY_INVALID_UUID"],
+    [{...base,records:[{...record,activityDate:"2026-10-02"}]},"ACTIVITY_DATE_MISMATCH"],
+  ] as const)await expect(ingestActivityBatch(db,input as ActivityBatch)).rejects.toThrow(code);
+  expect(await rows()).toEqual([]);expect(await audits()).toEqual([]);
+});
+
+// Faults: coercing/tracking null provider identities, dropping provider-ID
+// conflicts, collapsing unrelated missing identities, losing nullable retries.
+test("keeps anonymous records distinct and accepts nullable identity retries", async () => {
+  const nullable={...record,providerUserId:null,counters:{chat_metrics:{message_count:null}}};
+  expect((await ingestActivityBatch(db,{...base,records:[nullable,nullable]})).written).toBe(1);
+  expect((await ingestActivityBatch(db,{...base,records:[nullable]})).ignored).toBe(1);
+  expect((await rows())[0].rawPayload).toEqual({version:1,vendorAccountId:ids.account,activityDate:"2026-10-03",source:"api",identity:{email:"a@example.test",providerUserId:null},counters:{chat_metrics:{message_count:null}}});
+  const scoped=await resolveActivityScopes(db,[ids.companyA,ids.companyB],[nullable,{...nullable,email:"b@example.test"}]);
+  expect(scoped.batches.map(b=>b.companyId)).toEqual([ids.companyA,ids.companyB]);
+  const missing=await resolveActivityScopes(db,[ids.companyA],[{...record,email:null,providerUserId:null},{...record,email:null,providerUserId:null,counters:{chat_metrics:{message_count:2}}},{...record,email:null,providerUserId:"missing-a"},{...record,email:null,providerUserId:"missing-b"}]);
+  expect(missing.batches).toEqual([]);
+  expect(missing.warnings.map(w=>w.recordIndex)).toEqual([0,1,2,3]);
+});
+
+// Faults: unsupported matching silently ingests, missing company/actor permits
+// summary-only writes, human identity confused with intentionally disabled system.
+test("requires supported accounts, existing companies and verified audit actors", async () => {
+  const empty={...base,records:[]};
+  await owner.query("UPDATE vendor SET identity_matching='vendor_user_id'");
+  try {await expect(ingestActivityBatch(db,empty)).rejects.toThrow("ACTIVITY_ACCOUNT_UNSUPPORTED");}
+  finally {await owner.query("UPDATE vendor SET identity_matching='email'");}
+  await expect(ingestActivityBatch(db,{...empty,vendorAccountId:"00000000-0000-4000-8000-000000000099"})).rejects.toThrow("ACTIVITY_ACCOUNT_UNSUPPORTED");
+  await expect(ingestActivityBatch(db,{...empty,companyId:"00000000-0000-4000-8000-000000000099"})).rejects.toThrow("ACTIVITY_COMPANY_NOT_FOUND");
+  await expect(ingestActivityBatch(db,{...empty,actorUserAccountId:"00000000-0000-4000-8000-000000000099"})).rejects.toThrow("ACTIVITY_ACTOR_NOT_FOUND");
+  await owner.query("UPDATE user_account SET status='disabled' WHERE id=$1",[ids.actor]);
+  try {await expect(ingestActivityBatch(db,{...empty,actorUserAccountId:ids.actor})).rejects.toThrow("ACTIVITY_ACTOR_NOT_FOUND");}
+  finally {await owner.query("UPDATE user_account SET status='active' WHERE id=$1",[ids.actor]);}
+  expect(await rows()).toEqual([]);expect(await audits()).toEqual([]);
+  await ingestActivityBatch(db,{...base,actorUserAccountId:ids.actor});
+  expect((await audits())[0].actorUserId).toBe(ids.actor);
+  await expect(ingestActivityBatch(db,{...base,records:[{...record,counters:{chat_metrics:{message_count:7}}}]})).rejects.toThrow("ACTIVITY_REPLAY_CONFLICT");
+});
+
+// Faults: trim-equivalent legacy identities choose row/order instead of
+// rejecting ambiguity. Global lower(email) uniqueness permits these real rows.
+test("rejects ambiguous trimmed identities within and across authorized companies", async () => {
+  await owner.query("UPDATE person SET email=' a@example.test ' WHERE id=$1",[ids.personC]);
+  try {await expect(ingestActivityBatch(db,base)).rejects.toThrow("ACTIVITY_AMBIGUOUS_IDENTITY");}
+  finally {await owner.query("UPDATE person SET email='c@example.test' WHERE id=$1",[ids.personC]);}
+  await owner.query("UPDATE person SET email=' a@example.test ' WHERE id=$1",[ids.personB]);
+  try {await expect(resolveActivityScopes(db,[ids.companyA,ids.companyB],[record])).rejects.toThrow("ACTIVITY_AMBIGUOUS_IDENTITY");}
+  finally {await owner.query("UPDATE person SET email='b@example.test' WHERE id=$1",[ids.personB]);}
+  expect(await rows()).toEqual([]);expect(await audits()).toEqual([]);
+});
+
+// Fault: matched Person can move companies between matching and persistence.
+// A real relation lock holds INSERT after matching. We observe its actual
+// PostgreSQL wait state, then prove Person movement cannot acquire its row lock.
+test("holds the matched Person scope until activity persistence commits", async () => {
+  const updater=await fixture.connectAsOwner();
+  let ingestion: Promise<ActivityBatchResult> | undefined;
+  await owner.query("BEGIN");
+  try {
+    await owner.query("LOCK TABLE activity_record IN SHARE MODE");
+    ingestion=ingestActivityBatch(db,base);
+    // This is a bounded progress observation, not a sleep to guess execution
+    // order. The INSERT wait is the synchronization event establishing matching.
+    let waiting=false;
+    for(let attempt=0;attempt<1000;attempt++) {
+      const lock=await updater.query<{waiting:boolean}>(`SELECT EXISTS(
+        SELECT 1 FROM pg_locks WHERE database=(SELECT oid FROM pg_database WHERE datname=current_database())
+          AND relation='activity_record'::regclass AND mode='RowExclusiveLock' AND NOT granted) AS waiting`);
+      if(lock.rows[0].waiting){waiting=true;break;}
+    }
+    expect(waiting).toBe(true);
+    await updater.query("SET lock_timeout='250ms'");
+    await expect(updater.query("UPDATE person SET company_id=$1 WHERE id=$2",[ids.companyB,ids.personA])).rejects.toMatchObject({code:"55P03"});
+  } finally {
+    await owner.query("ROLLBACK");
+    await updater.end();
+    if(ingestion)await ingestion;
+  }
+  const persisted=await rows();
+  expect(persisted.map(row=>row.personId)).toEqual([ids.personA]);
+  expect((await owner.query("SELECT company_id FROM person WHERE id=$1",[ids.personA])).rows).toEqual([{company_id:ids.companyA}]);
+});
