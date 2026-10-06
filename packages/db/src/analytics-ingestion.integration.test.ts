@@ -389,7 +389,7 @@ test("routes cost identities by trusted companies and durably warns without reta
   expect((await costRows()).map(r=>r.personId)).toEqual([ids.personA]);
   expect(JSON.stringify(await costRows())).not.toContain("never-store");
   const log=await audits();
-  expect(log.every(r=>r.companyId===ids.companyA && r.actorUserId===SYSTEM_USER_ID)).toBe(true);
+  expect(log.every(r=>r.companyId===ids.companyA && r.actorUserId===SYSTEM_USER_ID && r.entityType==="VendorAccount" && r.entityId===ids.account && r.occurredAt.getTime()===costBase.syncedAt.getTime())).toBe(true);
   expect(log.filter(r=>r.action==="analytics_cost_warning").map(r=>r.after)).toEqual(expect.arrayContaining([{vendorAccountId:ids.account,costDate:cost.costDate,source:"api",recordIndex:2,reason:"missing_email",email:null,providerUserId:"missing"}]));
   expect(log.find(r=>r.action==="analytics_cost_sync")!.after).toEqual({vendorAccountId:ids.account,costDate:cost.costDate,source:"api",written:1,ignored:0,warningCount:3});
 });
