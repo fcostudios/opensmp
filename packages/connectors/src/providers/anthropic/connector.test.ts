@@ -1023,7 +1023,7 @@ describe("Anthropic neutral connector", () => {
     ["1.23000","1.23"], ["+001.2300","1.23"], ["-0.000000","0"], ["99999999.9999000","99999999.9999"], ["-99999999.9999","-99999999.9999"],
   ])("normalizes exact USD %s", (input,want)=>expect(normalizeCostUsd(input)).toBe(want));
 
-  it.each(["0.00001", "-0.00001", "100000000", "-100000000", "1e2", "NaN", "Infinity", "", "1.2.3", 1, undefined])("rejects invalid USD %s", value=>expect(()=>normalizeCostUsd(value)).toThrow());
+  it.each(["0.00001", "-0.00001", "100000000", "-100000000", "1e2", "NaN", "Infinity", "", "1.2.3", 1, undefined, Object("1.23")])("rejects invalid USD %s", value=>expect(()=>normalizeCostUsd(value)).toThrow());
 
   it("round-trips signed integer ten-thousandths using an independent seeded money oracle", () => {
     // Kills incorrect scale, sign, precision, normalization and floating-point conversion.
