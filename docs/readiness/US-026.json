@@ -1,22 +1,16 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "878597b52ca8b508f76ea0e224ce027aa12f45536d2cca8b2af0f3ad6ae6f379",
+  "readiness_payload_sha256": "cb53e803ab7a3adb8e44dbd90dcf597cac3709e05c8cf45afc5cf60a425faa7f",
   "work_id": "US-026",
   "kind": "US",
-  "work_type": "functional",
-  "title": "Analytics sync: activity + cost",
+  "work_type": "technical",
+  "title": "Analytics sync: verification of delivered activity and cost children",
   "source": "docs/stories/sprint-3/r1_misc_us_026.md",
   "outcomes": [
     {
-      "id": "O1",
-      "statement": "Group Admins have accurate, replayable person-day activity from API-enabled vendor accounts, using the same identity matching and idempotent persistence boundary available to CSV/manual ingestion.",
-      "demo": "Two people with different provider activity retain different counters; rerunning the same account/date updates the same rows and freshness; missing identities produce visible warnings; CSV/manual accounts cause no automatic provider calls.",
-      "primary": true
-    },
-    {
-      "id": "O2",
-      "statement": "Group Admins have exact person-day costs that incorporate vendor revisions within the 30-day window without overwriting older costs.",
-      "demo": "Resync revised fractional-cent costs at the revision-window boundary; eligible rows change once, older rows stay unchanged, unmatched users warn, and other accounts/companies remain isolated.",
+      "id": "V1",
+      "statement": "Obtain one parent verification verdict for the combined delivered US-070 and US-071 implementation against all four canonical US-026 acceptance criteria.",
+      "demo": "Reconcile immutable child gates and current combined source/test/config identities; independent adversarial review presents a four-criterion matrix, counterexamples and explicit exclusions before any parent closure.",
       "primary": true
     }
   ],
@@ -24,233 +18,121 @@
     {
       "id": "AC1",
       "outcome_ids": [
-        "O1"
+        "V1"
       ]
     },
     {
       "id": "AC2",
       "outcome_ids": [
-        "O2"
+        "V1"
       ]
     },
     {
       "id": "AC3",
       "outcome_ids": [
-        "O1",
-        "O2"
+        "V1"
       ]
     },
     {
       "id": "AC4",
       "outcome_ids": [
-        "O1",
-        "O2"
+        "V1"
       ]
     }
   ],
   "scopes": [
-    "contracts",
-    "db",
-    "server"
+    "docs",
+    "verification"
   ],
   "signals": {
     "routes_or_screens": 0,
-    "acceptance_flows": 4,
-    "expected_changed_files": 28,
-    "expected_mutation_shards": 8,
-    "lifecycle_or_concurrency_boundaries": 1,
-    "external_integrations": 1,
-    "schema_or_migration_changes": 2,
-    "authorization_or_audit_boundaries": 1,
+    "acceptance_flows": 3,
+    "expected_changed_files": 2,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
     "tooling_change": false
   },
   "estimate_minutes": {
-    "readiness": 40,
-    "implementation": 210,
-    "focused_verification": 110,
-    "review": 100,
-    "integration": 50,
-    "total": 510
+    "readiness": 25,
+    "implementation": 0,
+    "focused_verification": 35,
+    "review": 40,
+    "integration": 20,
+    "total": 120
   },
   "uncertainties": [
     {
       "id": "U1",
-      "statement": "Canonical prerequisites are complete; no readiness approval or execution evidence exists for US-026.",
+      "statement": "This assessment supersedes only the historical parent scope assessment; it cannot reuse the prior approval.",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Parsed .nous-feedback.jsonl has terminal done events for US-018, US-046, US-056, US-057 and US-058 and no US-026 execution events at b6b651d. SPRINT_PLAN adds US-018 to the story-file prerequisite set. Neither US-055 nor US-029 is a prerequisite; this delivery supplies shared persistence/freshness semantics and does not implement their UI. Recheck terminal projections if prerequisite evidence is superseded."
+      "resolution": "Historical assessment preserved exactly at Git commit fdf6aa3b7521c7dfe6c10cc181da420f79c824bd:docs/readiness/US-026.json, blob b0e85c0679785c46a8176cb7ea47afaccda4349b, payload SHA-256 878597b52ca8b508f76ea0e224ce027aa12f45536d2cca8b2af0f3ad6ae6f379. Its U7 requires fresh verification-only assessment and new digest-bound human approval. The two historical functional outcomes remain separately delivered by US-070 and US-071; V1 is exclusively one verification verdict, not their reclassification into a single functional delivery."
     },
     {
       "id": "U2",
-      "statement": "Existing activity connector uses organization totals as every user's counters, and silently removes null-email identities.",
-      "status": "budgeted",
-      "estimate_impact_minutes": 60,
-      "resolution": "packages/connectors/src/providers/anthropic/connector.ts syncActivity parses analytics users only as user_id/email, then duplicates one summary's active_users/conversations into every record. Official documentation inspected 2026-10-05 at https://platform.claude.com/docs/en/api/beta/organization/analytics/users/list describes per-user chat_metrics, claude_code_metrics and cowork_metrics. Correct the contract/parser to retain per-user metrics and unmatched identity evidence; update existing Pact fixtures and connector tests. Preserve existing credential separation, paging bounds, rate limiter and observation bridge. The US-054 probe contains documentation/synthetic evidence, not real tenant payloads. A provider schema incompatibility or additional required beta policy discovered during contract work triggers reassessment; fixtures alone do not prove provider compatibility."
+      "statement": "Both official children are terminal and the combined branch preserves their latest scored source.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Feedback lines1000 and1034 retain US-070/US-071 done respectively. Current authority fdf6aa3 differs from latest tested/scored source59dceb569735a735811d7f82f79bc7ba18c7ca7b only in US-071 readiness and feedback; twelve selected source/test SHA-256 identities independently match. Child build/migration/native mutation evidence is retained, not fabricated as a fresh parent run."
     },
     {
       "id": "U3",
-      "statement": "Allowlisted replay payload policy is approved and canonically reconciled.",
+      "statement": "Earlier activity effectiveness evidence cannot alone cover later shared-source edits.",
       "status": "resolved",
-      "estimate_impact_minutes": 35,
-      "resolution": "Francisco approved allowlisted per-record replay payloads in this conversation on 2026-10-05. CHG-068, delivered at smp 1ac81e1 (Nous 10cd1fcd), reconciles DEC-SMP-024 into US-026 AC1, the two child stories and ActivityRecord/CostRecord ER descriptions. Retain metrics, dates, provenance and necessary replay identity fields; exclude headers, credentials and unrelated user data. The estimate excludes encrypted original-response storage."
+      "estimate_impact_minutes": 0,
+      "resolution": "US-071 current combined five-shard cold covers changed overlapping diff ranges within each US-070 source: contracts, Anthropic provider, worker analytics-activity, analytics-ingestion and schema. US-070 unchanged ranges retain historical proof; neither campaign renews all unchanged ranges, and the newly identified cached activity prefetch gap predates the cost diff; full071 regressions include activity. Latest score93.24577861163228 (495 Killed,34 Survived,2 Timeout,2 NoCoverage/533),33 equivalent and3 individually accepted observable risks. This docs-only verification changes no source/tests/config/dependencies, expects zero mutation shards and emits no parent test_report. If any scored input changes, reassess authority and evidence before closure."
     },
     {
       "id": "U4",
-      "statement": "Human approved manual backfill for unconfigured accounts and explicit API opt-in.",
-      "status": "budgeted",
-      "estimate_impact_minutes": 40,
-      "resolution": "Francisco approved in this conversation on 2026-10-05: backfill unconfigured VendorAccounts to manual ingestion and enable api explicitly per account. Implement DEC-SMP-018 ingestion_mode/source fields with append-only migrations and source-aware shared persistence. Provisioning automated/orchestration remains independent. No configuration UI, CSV parsing or manual-entry screen is included; those remain US-055. The activity child establishes mode gating/source primitives and the cost child reuses them. Verification includes no provider calls for csv_import/manual accounts and preserves existing provisioning mode. CHG-068 delivers DEC-SMP-025 and the canonical US-070 migration ownership at 1ac81e1; US-070 owns the manual default/backfill independently of provisioning mode."
+      "statement": "Canonical exclusions and deterministic demo must not become inflated UI/provider claims.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "US-055 owns CSV/manual import and entry UI; US-029 owns freshness UI. Verify only shared backend source-aware upserts/synced_at. Real ledger_app fixtures, queue/service boundaries and Pact fixtures are deterministic evidence; no authenticated live-provider demo or provider compatibility validation is claimed. No new routes, UI, provider secrets, tests, production code, migrations, executable tooling or design/implementation plan is authorized by this verification-only scope."
     },
     {
       "id": "U5",
-      "statement": "Upserts need runtime privileges and schema parity; tenant scope is indirect through Person.",
-      "status": "budgeted",
-      "estimate_impact_minutes": 35,
-      "resolution": "Committed init migration has unique(account,person,date) constraints, while Drizzle activityRecord/costRecord declarations omit them. V20260725180000 grants INSERT and revokes UPDATE/DELETE generally, without regranting telemetry UPDATE; no later telemetry grants were found. Budget append-only least-privilege upsert support and committed-migration verification under ledger_app, plus Drizzle uniqueness parity. Telemetry and VendorAccount lack company_id; person.company_id is the actual tenant column, and lower(person.email) has a unique index. Resolve identity and company through Person, keep account identity distinct from company authorization, and constrain company-facing access through the Person join. Verify shared-account cross-company isolation, foreign-account writes and case-normalized email matching with real DB fixtures. Do not invent direct company_id columns on telemetry or use VendorAccount as the tenant boundary."
+      "statement": "Fresh independent parent review is required and must cover all four criteria on the combined tree.",
+      "status": "resolved",
+      "estimate_impact_minutes": 40,
+      "resolution": "Fresh independent bounded read-only parent reviewer completed against fdf6aa3. AC1-3 source and existing strong oracles supported; AC4 unresolved cached-eligibility counterexample. Exact report in the append-only feedback annotation titled US-026 full preapproval evidence report. No fresh tests, formal parent ac_verify/build_pass/test_report/done or approval claims emitted. User instruction authorizes preparing this concrete package, not the new digest approval. The optional standalone evidence path was classified implementation by the readiness commit hook; its attempted preapproval commit was rejected. The same report is retained within permitted append-only feedback, with raw Markdown ignored locally; no enforcement bypass."
     },
     {
       "id": "U6",
-      "statement": "Daily scheduling exists but execution, lag-aware observation dates, replay window, warnings and exact cost persistence do not.",
-      "status": "budgeted",
-      "estimate_impact_minutes": 55,
-      "resolution": "apps/worker/src/jobs/deferred.ts analyticsSync returns dependencyNotDelivered(US-026). packages/domain/src/jobs/schedule.ts supplies daily scheduling and distinct scheduled/account idempotency keys. Existing connector SyncInput accepts one observedAt date; syncCost fetches one day and discards null-email users. Budget a bounded account/day replay loop for the 30-day revision window, an explicit lag-aware activity observation policy, shared idempotent record writes, account-mode gating, retry/resource cleanup and durable job-level sync audit with unmatched-row warning counts/details available to operators. Proposed activity default is a conservative three-day lag consistent with the committed ER model, with injected UTC dates; proposed cost window is the preceding 30 completed UTC dates, oldest included. These date policies must be presented in the later design and approved. Preserve decimal strings through persistence and verify precision/rounding using property-based tests. Null identity must be counted as unmatched rather than lost or fabricated. Warnings use existing operational job/audit surfaces; a new warning screen would expand scope and requires reassessment."
+      "statement": "Parent AC4 may permit an activity provider call after a later selected account switches from API to manual before its first call.",
+      "status": "unresolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Fresh independent source review identifies cached account selection at analytics-activity.ts:48-52 and cached activity call gate96-97, with only postfetch transactional check111-118; cost rechecks before each call152-158. Required negative case: accountA holds activity fetch, accountB was selected API then switched manual, finishA; current cached B branch can call provider before discarding B. Existing test134 covers disable during its own fetch, not before later-account fetch. Independent report confirms an unresolved current-mode zero-call source gap; no policy waiver is inferred from prior mutation survivor signoffs. This material gap blocks green parent closure and requires explicit bounded reproduction/repair readiness reassessment and digest approval before new code/tests; repair time is excluded from this verification-only estimate."
     },
     {
       "id": "U7",
-      "statement": "The parent exceeds readiness limits and needs canonical vertical children after its open scope decisions are resolved.",
+      "statement": "Verification-only authorization and measured cost cannot borrow child execution authority or spending.",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "CHG-068 delivered official US-070 and US-071 at smp 1ac81e1 (Nous 10cd1fcd). Their canonical stories allocate parent AC1 to activity, AC2 to cost and the respective sides of AC3/AC4 to both. The 510-minute total, two primary outcomes and file/flow limits require partitioning. US-070 precedes US-071. Parent dependencies are represented by this partition graph, rather than blocked_by entries that would obscure the partition decision; canonical US-026 closes only by parent-level verification after both children dev_done. This historical scope assessment authorizes no parent implementation or closure. At parent verification, create a fresh verification-only readiness assessment and collect new digest-bound approval. Each child requires its separately approved assessment, design and plan. Proposal IDs are now official; neither this pending parent payload nor canonical delivery alone is child execution authorization."
+      "resolution": "The120-minute estimate is parent verification/readiness/evidence review only, implementation0; two tracked paths are readiness and append-only feedback (embedding the concise evidence report). Children remain delivered; no implementation/closure authority from historical510-minute partition is reused. Parent raw ledger is ignored .tmp/us026-verification. Actuals stay null until a separately approved execution/closure stage; no child219-minute/other spending is added. New exact digest approval remains required before formal parent execution, and unresolved AC4 must be resolved by binding reassessment first."
     }
   ],
-  "dependencies": [],
-  "decision": "partition_required",
-  "partitions": [
+  "dependencies": [
     {
-      "proposal_key": "daily-person-activity",
       "work_id": "US-070",
-      "title": "Ingest accurate daily person activity from API-enabled accounts",
-      "outcome": "Group Admins have accurate, replayable person-day activity from API-enabled vendor accounts, using the same identity matching and idempotent persistence boundary available to CSV/manual ingestion.",
-      "demo": "Two people with different provider activity retain different counters; rerunning the same account/date updates the same rows and freshness; missing identities produce visible warnings; CSV/manual accounts cause no automatic provider calls.",
-      "acceptance_criteria": [
-        "AC1",
-        "AC3",
-        "AC4"
-      ],
-      "work_type": "functional",
-      "scopes": [
-        "contracts",
-        "db",
-        "server"
-      ],
-      "signals": {
-        "routes_or_screens": 0,
-        "acceptance_flows": 2,
-        "expected_changed_files": 18,
-        "expected_mutation_shards": 5,
-        "lifecycle_or_concurrency_boundaries": 1,
-        "external_integrations": 1,
-        "schema_or_migration_changes": 1,
-        "authorization_or_audit_boundaries": 1,
-        "tooling_change": false
-      },
-      "uncertainties": [
-        {
-          "id": "A1",
-          "statement": "Correct connector activity grain and preserve identity warnings and replay evidence.",
-          "status": "budgeted",
-          "estimate_impact_minutes": 60,
-          "resolution": "Parent U2/U3 define the checked connector gap and approved allowlisted payload policy. Replace organization-total duplication with documented per-user counters, preserve null/unmatched identities as warning evidence and update contract-backed fixtures. Stop and reassess if current provider schema or beta policy requires additional scope."
-        },
-        {
-          "id": "A2",
-          "statement": "Introduce ingestion-mode gating, activity source/upserts and runtime privileges.",
-          "status": "budgeted",
-          "estimate_impact_minutes": 40,
-          "resolution": "Parent U4/U5 identify missing fields, uniqueness parity and UPDATE grants. Add append-only migration and Drizzle declarations for VendorAccount.ingestion_mode and ActivityRecord.source/unique key, shared source/identity inputs and activity upsert support under ledger_app. Backfill unconfigured accounts to manual. Use Person.company_id for isolation and preserve account boundaries. Prove real-DB rerun/concurrency/freshness and migration parity."
-        },
-        {
-          "id": "A3",
-          "statement": "Deliver scheduled execution and warning evidence without implementing later consumer screens.",
-          "status": "budgeted",
-          "estimate_impact_minutes": 25,
-          "resolution": "Parent U6 identifies existing daily scheduler and deferred handler. Wire the activity delivery into analyticsSync using existing credentials, rate limiting, sanitized observation sessions and injected dates; expose unmatched counts/details through existing job/audit surfaces. CSV/manual callers get the same source-aware persistence entrypoint; actual import/manual UI remains US-055. Confirm lag/replay policy during design; no new route is included."
-        }
-      ],
-      "estimate_minutes": {
-        "readiness": 25,
-        "implementation": 110,
-        "focused_verification": 60,
-        "review": 50,
-        "integration": 25,
-        "total": 270
-      },
-      "depends_on": [],
-      "cross_cutting_rationale": "AC3 and AC4 apply separately to activity and cost streams. This child proves email matching, unmatched/null-identity warnings, API-only scheduling, source provenance and synced_at semantics for activity while establishing reusable inputs. It does not satisfy cost-side behavior, which is verified by the cost child."
+      "type": "blocked_by",
+      "reason": "Canonical delivered child must retain effective terminal projection before parent verification."
     },
     {
-      "proposal_key": "revisable-person-cost",
       "work_id": "US-071",
-      "title": "Synchronize exact person costs within the 30-day revision window",
-      "outcome": "Group Admins have exact person-day costs that incorporate vendor revisions within the 30-day window without overwriting older costs.",
-      "demo": "Resync revised fractional-cent costs at the revision-window boundary; eligible rows change once, older rows stay unchanged, unmatched users warn, and other accounts/companies remain isolated.",
-      "acceptance_criteria": [
-        "AC2",
-        "AC3",
-        "AC4"
-      ],
-      "work_type": "functional",
-      "scopes": [
-        "contracts",
-        "db",
-        "server"
-      ],
-      "signals": {
-        "routes_or_screens": 0,
-        "acceptance_flows": 2,
-        "expected_changed_files": 15,
-        "expected_mutation_shards": 4,
-        "lifecycle_or_concurrency_boundaries": 1,
-        "external_integrations": 1,
-        "schema_or_migration_changes": 1,
-        "authorization_or_audit_boundaries": 1,
-        "tooling_change": false
-      },
-      "uncertainties": [
-        {
-          "id": "C1",
-          "statement": "Preserve exact decimal money, null-identity warnings and approved replay payloads.",
-          "status": "budgeted",
-          "estimate_impact_minutes": 35,
-          "resolution": "The existing connector sums fractional-cent amounts as decimal strings but drops users without email and returns raw:null. Reuse the activity child identity/warning/payload contract for costs, retaining exact decimal strings through numeric(12,4) persistence. Define and property-test the explicit storage precision/rounding policy, negative corrections and invalid/overflow rejection during the approved design. No floating-point money arithmetic."
-        },
-        {
-          "id": "C2",
-          "statement": "Add bounded cost revisions with source-aware idempotent persistence.",
-          "status": "budgeted",
-          "estimate_impact_minutes": 35,
-          "resolution": "Parent U5/U6 identify one-day SyncInput, existing DB natural-key uniqueness, absent Drizzle uniqueness/source and missing runtime UPDATE privilege. Add the cost-specific append-only migration, source/unique declarations and narrow ledger_app upsert support. Reuse delivered ingestion-mode selection, company-scoped Person identity and worker orchestration. Design specifies an injected UTC 30-day completed-date window and failure/retry behavior; verify oldest eligible versus excluded dates, repeated/concurrent runs, changed costs and foreign-account/company isolation with real DB fixtures."
-        }
-      ],
-      "estimate_minutes": {
-        "readiness": 15,
-        "implementation": 100,
-        "focused_verification": 50,
-        "review": 50,
-        "integration": 25,
-        "total": 240
-      },
-      "depends_on": [
-        "daily-person-activity"
-      ],
-      "cross_cutting_rationale": "AC3 and AC4 require independent evidence on cost rows and cost provider calls. This child reuses the activity child matching, source and mode boundaries, and verifies unmatched identities, non-API exclusion and synced_at freshness specifically for cost revisions. AC2 is owned only here."
+      "type": "blocked_by",
+      "reason": "Canonical delivered child must retain effective terminal projection before parent verification."
     }
   ],
+  "decision": "blocked",
+  "partitions": [],
   "approval": {
-    "status": "approved",
-    "approved_by": "Francisco Lomas",
-    "evidence": "US026-READINESS-20261005",
-    "payload_sha256": "878597b52ca8b508f76ea0e224ce027aa12f45536d2cca8b2af0f3ad6ae6f379"
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "cb53e803ab7a3adb8e44dbd90dcf597cac3709e05c8cf45afc5cf60a425faa7f"
   },
   "actuals": null,
   "policy_bootstrap": false,
