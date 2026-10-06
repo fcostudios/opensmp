@@ -45,5 +45,5 @@
 ## Operator additions (`testing.critical_paths`)
 
 - **Invitation hygiene (US-067, US-068, US-069; DEC-SMP-023)** — overdue age derives from the durable invitation sent_at, with strict configured boundaries, company-scoped current eligibility and one alert per open breach. Withdrawal targets the pinned invitation only, refuses acceptance races and releases capacity only after confirmed removal; automatic expiry reuses that contract and records its system action.
-- **Daily person activity (US-070; DEC-SMP-024, DEC-SMP-025)** — identity matching is company-scoped; natural-key writes are idempotent, ignore stale or equal-equivalent observations and reject equal-time contradictions; source/API activity ingestion requires explicit opt-in; replay accepts only allowlisted activity events; unmatched or ambiguous identities produce durable warnings.
-<!-- nous-emitted: sha256=30e8200677b99f92 -->
+- **Daily person activity (US-070; DEC-SMP-024, DEC-SMP-025)** — identity matching is company-scoped; natural-key writes are idempotent, ignore stale or equal-equivalent observations and reject equal-time contradictions; source/API activity ingestion requires explicit opt-in; replay accepts only allowlisted activity events; unmatched or null-email identities produce durable warnings; ambiguous identities reject the batch atomically.
+<!-- nous-emitted: sha256=eee94d278f5ded66 -->
