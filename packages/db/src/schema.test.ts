@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { getTableName, sql } from "drizzle-orm";
 import { PgDialect, getTableConfig } from "drizzle-orm/pg-core";
 
-import { activityRecord, capacityRecoveryWork, connectorCallObservation, vendor, vendorAccount } from "./schema.js";
+import { costRecord, activityRecord, capacityRecoveryWork, connectorCallObservation, vendor, vendorAccount } from "./schema.js";
 
 import { createPostgresFixture } from "./testing/postgres-container";
 
@@ -129,7 +129,7 @@ describe("US-025 vendor-account uniqueness Drizzle contract", () => {
 // Fault: application schema drift in ingestion enum/mapping/defaults or replay key
 // disagrees with the independent committed database. The schema-static mutation
 // seam runs this file, while child-process migration parity is excluded there.
-test("US-070 aligns application ingestion mappings and replay key with committed PostgreSQL", async () => {
+test("US-070/US-071 aligns application ingestion mappings and replay key with committed PostgreSQL", async () => {
   const fixture = await createPostgresFixture();
   let app: Awaited<ReturnType<typeof fixture.connectAsApp>> | undefined;
   try {
@@ -157,7 +157,7 @@ test("US-070 aligns application ingestion mappings and replay key with committed
         AND column_default.adnum = attribute.attnum
       WHERE namespace.nspname = 'public'
         AND (relation.relname, attribute.attname) IN
-          (('activity_record', 'source'), ('vendor_account', 'ingestion_mode'))
+          (('activity_record', 'source'), ('cost_record', 'source'), ('vendor_account', 'ingestion_mode'))
       ORDER BY relation.relname, attribute.attname
     `);
     const databaseColumns = [];
@@ -170,6 +170,7 @@ test("US-070 aligns application ingestion mappings and replay key with committed
     const applicationColumns = [];
     for (const { table, column } of [
       { table: activityRecord, column: activityRecord.source },
+      { table: costRecord, column: costRecord.source },
       { table: vendorAccount, column: vendorAccount.ingestionMode },
     ]) {
       const expression = dialect.sqlToQuery(sql`${column.default}`);
@@ -180,22 +181,24 @@ test("US-070 aligns application ingestion mappings and replay key with committed
     }
     expect(applicationColumns).toEqual(databaseColumns);
 
-    const databaseKey = await app.query<{ name: string; columns: string[] }>(`
-      SELECT constraint_row.conname AS name,
-             ARRAY(SELECT attribute.attname::text
-                   FROM unnest(constraint_row.conkey) WITH ORDINALITY key(attnum, position)
-                   JOIN pg_attribute attribute ON attribute.attrelid = constraint_row.conrelid
-                     AND attribute.attnum = key.attnum
-                   ORDER BY key.position) AS columns
-      FROM pg_constraint constraint_row
-      WHERE constraint_row.conrelid = 'public.activity_record'::regclass
-        AND constraint_row.contype = 'u'
-      ORDER BY constraint_row.conname
-    `);
-    const applicationKey = getTableConfig(activityRecord).uniqueConstraints
-      .map(({ name, columns }) => ({ name, columns: columns.map(column => column.name) }))
-      .sort((left, right) => (left.name ?? "").localeCompare(right.name ?? ""));
-    expect(applicationKey).toEqual(databaseKey.rows);
+    for (const table of [activityRecord, costRecord]) {
+      const databaseKey = await app.query<{ name: string; columns: string[] }>(`
+        SELECT constraint_row.conname AS name,
+               ARRAY(SELECT attribute.attname::text
+                     FROM unnest(constraint_row.conkey) WITH ORDINALITY key(attnum, position)
+                     JOIN pg_attribute attribute ON attribute.attrelid = constraint_row.conrelid
+                       AND attribute.attnum = key.attnum
+                     ORDER BY key.position) AS columns
+        FROM pg_constraint constraint_row
+        WHERE constraint_row.conrelid = $1::regclass
+          AND constraint_row.contype = 'u'
+        ORDER BY constraint_row.conname
+      `, [`public.${getTableName(table)}`]);
+      const applicationKey = getTableConfig(table).uniqueConstraints
+        .map(({ name, columns }) => ({ name, columns: columns.map(column => column.name) }))
+        .sort((left, right) => (left.name ?? "").localeCompare(right.name ?? ""));
+      expect(applicationKey).toEqual(databaseKey.rows);
+    }
   } finally {
     await app?.end();
     await fixture.stop();

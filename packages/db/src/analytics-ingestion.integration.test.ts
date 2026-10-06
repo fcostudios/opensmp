@@ -561,3 +561,67 @@ test("rolls nested cost ingestion back with its outer day and verifies declared 
     finally{await owner.query(restore!);}
   }
 });
+
+
+// Faults found by preview: disabled global date validation, erased normalized
+// duplicate keys, nullable provider IDs treated as a shared identity, weak guards.
+test("rejects malformed cost records at the boundary and preserves normalized duplicate identities", async () => {
+  const invalids: [unknown,string][]=[
+    [null,"COST_INVALID_RECORDS"],[{},"COST_INVALID_RECORDS"],[[null],"COST_INVALID_RECORD"],[[1],"COST_INVALID_RECORD"],
+    [[{...cost,costDate:"2026-02-30"}],"COST_INVALID_DATE"],[[{...cost,email:4}],"COST_INVALID_EMAIL"],
+    [[{...cost,providerUserId:4}],"COST_INVALID_PROVIDER_ID"],
+    [[cost,{...cost,email:"b@example.test"}],"COST_IDENTITY_CONFLICT"],
+    [[cost,{...cost,providerUserId:"different"}],"COST_DUPLICATE_CONFLICT"],
+    [[{...cost,amountCents:null},{...cost,amountUsd:"2",amountCents:null}],"COST_DUPLICATE_CONFLICT"],
+    [[cost,{...cost,amountCents:"-123.450"}],"COST_DUPLICATE_CONFLICT"],
+  ];
+  for(const [records,code] of invalids)await expect(resolveCostScopes(db,[ids.companyA,ids.companyB],records as Parameters<typeof resolveCostScopes>[2])).rejects.toThrow(code);
+  for(const [patch,code] of [
+    [{companyId:"bad"},"COST_INVALID_UUID"],[{vendorAccountId:"bad"},"COST_INVALID_UUID"],[{actorUserAccountId:"bad"},"COST_INVALID_UUID"],
+    [{costDate:"2026-02-30"},"COST_INVALID_DATE"],[{source:"invalid",records:[]},"COST_INVALID_SOURCE"],
+    [{syncedAt:new Date(NaN)},"COST_INVALID_SYNC_TIME"],[{syncedAt:"2026-10-06"},"COST_INVALID_SYNC_TIME"],
+    [{windowAt:new Date(NaN)},"COST_INVALID_WINDOW_TIME"],[{windowAt:"2026-10-06"},"COST_INVALID_WINDOW_TIME"],
+  ] as const)await expect(ingestCostBatch(db,{...costBase,...patch} as CostBatch)).rejects.toThrow(code);
+  const normalized={...cost,email:"a@example.test"};
+  expect(await resolveCostScopes(db,[ids.companyA],[cost,normalized])).toEqual({batches:[{companyId:ids.companyA,records:[normalized]}],warnings:[]});
+  expect(await ingestCostBatch(db,{...costBase,records:[cost,normalized]})).toEqual({written:1,ignored:0,warnings:[]});
+  const nullable={...normalized,providerUserId:null};
+  expect((await resolveCostScopes(db,[ids.companyA,ids.companyB],[nullable,{...nullable,email:"b@example.test"}])).batches.map(b=>b.companyId)).toEqual([ids.companyA,ids.companyB]);
+  const missing=[{...cost,email:null,providerUserId:"missing-a"},{...cost,email:null,providerUserId:"missing-b",amountUsd:"2",amountCents:null}];
+  expect((await resolveCostScopes(db,[ids.companyA],missing)).warnings.map(w=>w.providerUserId)).toEqual(["missing-a","missing-b"]);
+  expect((await resolveCostScopes(db,[ids.companyA],[{...cost,email:null,providerUserId:"missing-a"},{...cost,email:null,providerUserId:"missing-a"}])).warnings).toHaveLength(1);
+});
+
+// Fault: money validation happens only as each row is written, permitting a
+// rounded/overflowing later record after the first write attempt. Sequence
+// increments survive rollback, so this oracle also catches rolled-back attempts.
+test("preserves seeded exact money and rejects invalid batches before any SQL write attempt", async () => {
+  await owner.query("CREATE SEQUENCE us071_cost_write_attempts");
+  await owner.query("GRANT USAGE ON SEQUENCE us071_cost_write_attempts TO ledger_app");
+  await owner.query("CREATE FUNCTION us071_cost_write_probe() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('us071_cost_write_attempts'); RETURN NEW; END $$");
+  await owner.query("CREATE TRIGGER us071_cost_write_probe BEFORE INSERT ON cost_record FOR EACH ROW EXECUTE FUNCTION us071_cost_write_probe()");
+  try{
+    let seed=71071;
+    for(let index=0;index<12;index++){
+      seed=(Math.imul(seed,1664525)+1013904223)>>>0;
+      const units=BigInt(seed%100000000+1)*(seed%2?1n:-1n);
+      const sign=units<0n?"-":"",digits=(units<0n?-units:units).toString().padStart(5,"0");
+      const usd=`${sign}${digits.slice(0,-4)}.${digits.slice(-4)}`;
+      const cents=`${sign}${digits.slice(0,-2)}.${digits.slice(-2)}`;
+      const before=(await owner.query("SELECT last_value,is_called FROM us071_cost_write_attempts")).rows;
+      const snapshot=await costRows(),log=await audits();
+      await expect(ingestCostBatch(db,{...costBase,records:[cost,{...cost,email:"c@example.test",providerUserId:"c",amountUsd:`${usd}1`,amountCents:null}]})).rejects.toThrow();
+      await expect(ingestCostBatch(db,{...costBase,records:[cost,{...cost,email:"c@example.test",providerUserId:"c",amountUsd:usd,amountCents:`${cents}1`}]})).rejects.toThrow();
+      expect((await owner.query("SELECT last_value,is_called FROM us071_cost_write_attempts")).rows).toEqual(before);
+      expect(await costRows()).toEqual(snapshot);expect(await audits()).toEqual(log);
+      const input={...costBase,syncedAt:new Date(costBase.syncedAt.getTime()+index*1000),records:[{...cost,amountUsd:usd,amountCents:cents}]};
+      expect((await ingestCostBatch(db,input)).written).toBe(1);
+      expect((await costRows())[0]!.amountUsd).toBe(usd);
+      expect((await costRows())[0]!.rawPayload).toMatchObject({amountCents:cents,amountUsd:usd.replace(/0+$/,"").replace(/\.$/,"")});
+    }
+  }finally{
+    await owner.query("DROP TRIGGER us071_cost_write_probe ON cost_record");
+    await owner.query("DROP FUNCTION us071_cost_write_probe()");
+    await owner.query("DROP SEQUENCE us071_cost_write_attempts");
+  }
+});

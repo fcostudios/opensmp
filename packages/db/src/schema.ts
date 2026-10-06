@@ -489,8 +489,8 @@ export const costRecord = pgTable("cost_record", {
   costDate: date("cost_date").notNull(),
   amountUsd: numeric("amount_usd", { precision: 12, scale: 4 }).notNull(),
   rawPayload: jsonb("raw_payload"),
-  source: ingestion_source("source").notNull().default("api"),
   syncedAt: timestamp("synced_at", { withTimezone: true }).notNull(),
+  source: ingestion_source("source").notNull().default("api"),
 }, (table) => ({
   naturalKey: unique("uq_cost_record_vendor_account_id_person_id_cost_date")
     .on(table.vendorAccountId, table.personId, table.costDate),
