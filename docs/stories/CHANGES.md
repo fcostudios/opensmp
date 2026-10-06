@@ -66,6 +66,8 @@
 | **CHG-066** | 📦 delivered | Full-gate residue after CHG-064: container-load resets, unpinned health-route container, Ryuk disabled, WITH (FORCE) as non-superuser, readiness check's closed decision shape | — | — |
 | **CHG-067** | 📦 delivered | Full-gate container-start burst and expiry lock-wait oracle | — | — |
 | **CHG-068** | 📦 delivered | Partition US-026 (510 min > 320) into canonical children US-070, US-071; DEC-SMP-024 allowlisted replay payload; DEC-SMP-025 manual ingestion default | US-070, US-071 | S3 |
+| **CHG-069** | 🟢 accepted | Preview budget: one round per task plus one final, 30 min per child, slow shards once, schema-shard routing fixed, host kept awake during gates | — | — |
+| **CHG-070** | 🟢 accepted | Session fan-out experiment: one consolidated implementer session per child, measured against US-070/071 before any rule changes | — | — |
 
 ---
 
@@ -872,6 +874,33 @@ _No stories linked to this change yet._
 
 | Story | Name | Sprint | Status | File |
 |-------|------|--------|--------|------|
-| **US-070** | Ingest accurate daily person activity from API-enabled accounts | Sprint 3 | ⬜ backlog | [r1_misc_us_070.md](sprint-3/r1_misc_us_070.md) |
-| **US-071** | Synchronize exact person costs within the 30-day revision window | Sprint 3 | ⬜ backlog | [r1_misc_us_071.md](sprint-3/r1_misc_us_071.md) |
+| **US-070** | Ingest accurate daily person activity from API-enabled accounts | Sprint 3 | ✅ dev_done | [r1_misc_us_070.md](sprint-3/r1_misc_us_070.md) |
+| **US-071** | Synchronize exact person costs within the 30-day revision window | Sprint 3 | ✅ dev_done | [r1_misc_us_071.md](sprint-3/r1_misc_us_071.md) |
+
+### CHG-069: Preview budget: one round per task plus one final, 30 min per child, slow shards once, schema-shard routing fixed, host kept awake during gates
+
+**Status:** 🟢 `accepted`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** # Preview budget: one round per task plus one final, 30 minutes per child, slow shards once, schema-shard routing fixed, host kept awake during gates
+
+## Why (measured on US-070 and US-071, 2026-10-05/06 — the first children under CHG-064..067)
+
+The program's targets held except one. Both childre...
+
+_No stories linked to this change yet._
+
+### CHG-070: Session fan-out experiment: one consolidated implementer session per child, measured against US-070/071 before any rule changes
+
+**Status:** 🟢 `accepted`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** # Session fan-out experiment: one consolidated implementer session per child, measured against US-070/071 before any rule changes
+
+## Why (measured on US-070 and US-071, 2026-10-05/06)
+
+Wall-clock and throughput improved under the full program (459 minutes for two children, 2.4 product
+lines per ...
+
+_No stories linked to this change yet._
 

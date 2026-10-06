@@ -1,5 +1,5 @@
 <!-- nous-sprint-stamp
-generated_at: 2026-10-05T16:59:57Z
+generated_at: 2026-10-06T19:41:25Z
 current_sprint: sprint-3
 sprints_hash: 4532f1de6901fcf0
 -->
@@ -109,12 +109,12 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | 17 | full-stack | **US-069** ✅ | Expire stale invitations automatically and notify the requester | 1SP | `See story file` | CHG-063 | US-019, US-042, US-068 | →1 | — | [r1_misc_us_069.md](sprint-3/r1_misc_us_069.md) |
 | 18 | full-stack | **US-055** ⬜ | API-less ingestion: member/usage CSV import + manual register upkeep | 3SP | `See story file` | — | US-003, US-025, US-026, US-030 | — | — | [r1_misc_us_055.md](sprint-3/r1_misc_us_055.md) |
 | 19 | full-stack | **US-063** ✅ | Deliver approved requests as vendor invitations within 15 minutes | 1SP | `See story file` | CHG-054 | US-014, US-042, US-046, US-056, US-057, US-058 | →4 | — | [r1_misc_us_063.md](sprint-3/r1_misc_us_063.md) |
-| 20 | full-stack | **US-070** ⬜ | Ingest accurate daily person activity from API-enabled accounts | 1SP | `See story file` | CHG-068 | US-046, US-056, US-057, US-058 | →2 | — | [r1_misc_us_070.md](sprint-3/r1_misc_us_070.md) |
+| 20 | full-stack | **US-070** ✅ | Ingest accurate daily person activity from API-enabled accounts | 1SP | `See story file` | CHG-068 | US-046, US-056, US-057, US-058 | →2 | — | [r1_misc_us_070.md](sprint-3/r1_misc_us_070.md) |
 | 21 | full-stack | **US-018** ✅ | Anthropic connector client | 4SP | `See story file` | — | US-003, US-025, US-045, US-056, US-057, US-058 | →3 | — | [r1_misc_us_018.md](sprint-3/r1_misc_us_018.md) |
 | 22 | full-stack | **US-021** ✅ | Invite hygiene | 2SP | `See story file` | — | US-019, US-042, US-067, US-068, US-069 | — | — | [r1_misc_us_021.md](sprint-3/r1_misc_us_021.md) |
 | 23 | full-stack | **US-030** ⬜ | Drift detection + retroactive claim | 3SP | `See story file` | — | US-018, US-042, US-046, US-056, US-057, US-058 | →1 | — | [r1_misc_us_030.md](sprint-3/r1_misc_us_030.md) |
-| 24 | full-stack | **US-071** ⬜ | Synchronize exact person costs within the 30-day revision window | 1SP | `See story file` | CHG-068 | US-046, US-056, US-057, US-058, US-070 | →1 | — | [r1_misc_us_071.md](sprint-3/r1_misc_us_071.md) |
-| 25 | full-stack | **US-026** ⬜ | Analytics sync: activity + cost | 3SP | `See story file` | — | US-018, US-046, US-056, US-057, US-058, US-070, US-071 | →4 | — | [r1_misc_us_026.md](sprint-3/r1_misc_us_026.md) |
+| 24 | full-stack | **US-071** ✅ | Synchronize exact person costs within the 30-day revision window | 1SP | `See story file` | CHG-068 | US-046, US-056, US-057, US-058, US-070 | →1 | — | [r1_misc_us_071.md](sprint-3/r1_misc_us_071.md) |
+| 25 | full-stack | **US-026** ✅ | Analytics sync: activity + cost | 3SP | `See story file` | — | US-018, US-046, US-056, US-057, US-058, US-070, US-071 | →4 | — | [r1_misc_us_026.md](sprint-3/r1_misc_us_026.md) |
 | 26 | full-stack | **US-019** ✅ | Automated provisioning: invite ≤ 15 min → Active | 5SP | `See story file` | — | US-014, US-018, US-042, US-046, US-056, US-057, US-058, US-063, US-064, US-065, US-066 | →5 | — | [r1_misc_us_019.md](sprint-3/r1_misc_us_019.md) |
 
 ### Parallel Tracks
