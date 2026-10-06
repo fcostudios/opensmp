@@ -563,3 +563,28 @@ test('checks current cost eligibility before calling the next completed day', as
     await expectNoOpenJobTransaction();
   } finally {await owner.query(`DROP TRIGGER cost_revoke_after_day ON audit_log; DROP FUNCTION cost_revoke_after_day()`);await job.close();}
 }));
+
+// T3-R1 ruling: usage capability alone is not cost opt-out; discard that activity snapshot and keep eligible costs.
+test('continues currently eligible cost dates when only usage capability is revoked during activity', async () => withCostAccount(async () => {
+  await owner.query(`UPDATE vendor SET has_usage_data=true WHERE id=$1`,[id(9)]);
+  const starts:string[]=[];
+  const job=createAnalyticsActivityJob(options(async request=>{
+    const url=new URL(request.url);
+    if(url.pathname.endsWith('/users')) {
+      await owner.query(`UPDATE vendor SET has_usage_data=false WHERE id=$1`,[id(9)]);
+      return response([user('a@example.test',99)]);
+    }
+    starts.push(url.searchParams.get('starting_at')!);
+    return costResponse([costUser('a@example.test','123.45')]);
+  },()=>new Date('2027-07-06T10:00:00Z')));
+  try {
+    expect(await job.drain({at:new Date('2027-07-06T00:00:00Z'),vendorAccountId:id(10)})).toEqual({processed:30});
+    expect(starts).toHaveLength(30);expect(new Set(starts).size).toBe(30);
+    expect(starts[0]).toBe('2027-06-06T00:00:00Z');expect(starts[29]).toBe('2027-07-05T00:00:00Z');
+    expect((await owner.query(`SELECT count(*)::int AS count FROM activity_record WHERE vendor_account_id=$1 AND activity_date='2027-07-03'`,[id(10)])).rows).toEqual([{count:0}]);
+    const rows=(await owner.query(`SELECT p.company_id,c.person_id,c.amount_usd::text,c.source FROM cost_record c JOIN person p ON p.id=c.person_id WHERE c.vendor_account_id=$1 AND c.cost_date BETWEEN '2027-06-06' AND '2027-07-05'`,[id(10)])).rows;
+    expect(rows).toHaveLength(30);
+    expect(rows.every(row=>row.company_id===id(1)&&row.person_id===id(3)&&row.amount_usd==='1.2345'&&row.source==='api')).toBe(true);
+    await expectNoOpenJobTransaction();
+  } finally {await job.close();}
+}));

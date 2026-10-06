@@ -108,14 +108,17 @@ export function createAnalyticsActivityJob(options: Options) {
             const written = await db.transaction(async (tx) => {
               // Passing this actual Drizzle transaction to the shared batch helper
               // gives it savepoints, retaining opt-in locks through global warnings.
-              const active = await tx.execute(sql`SELECT account.id
+              const active = await tx.execute<{ hasUsageData: boolean }>(sql`SELECT vendor.has_usage_data AS "hasUsageData"
          FROM vendor_account account JOIN vendor ON vendor.id=account.vendor_id
          WHERE account.id=${account.id}::uuid AND account.ingestion_mode='api'
-      AND account.status='active' AND vendor.status='active' AND vendor.has_usage_data
+      AND account.status='active' AND vendor.status='active'
       AND vendor.connector_type='api' AND vendor.provisioning_protocol='rest'
       AND vendor.identity_matching='email' FOR SHARE OF account,vendor`);
               if (active.rowCount === 0)
                 return null;
+              // Usage capability revocation discards this snapshot without
+              // revoking the independently eligible cost channel.
+              if (!active.rows[0]!.hasUsageData) return 0;
               const routed = await resolveActivityScopes(tx, trustedCompanyIds, snapshot.value.records);
               let written = 0;
               for (const batch of routed.batches) {
