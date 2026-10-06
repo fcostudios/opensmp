@@ -144,7 +144,7 @@ test("documented per-user cost uses one day, exact fractional cents and nullable
   const pact = new PactV3({consumer:"ledger-person-cost",provider:"anthropic-enterprise-api",dir,logLevel:"error"});
   const row = (id:string,email:string|null,amount:string) => ({
     actor:{type:"user_actor",deleted:email===null,email,email_address:email,name:email===null?"Deleted User":"Member",user_id:id},
-    amount,list_amount:amount,currency:"USD",starting_at:null,ending_at:null,
+    amount,list_amount:amount,currency:"USD",starting_at:"2026-10-01T00:00:00Z",ending_at:"2026-10-02T00:00:00Z",
     model:null,product:null,requests:1,cost_type:null,context_window:null,inference_geo:null,
     rbac_group_id:null,slack_channel_id:null,speed:null,token_type:null,claude_tag_category:null,claude_tag_user_id:null,
   });
@@ -168,7 +168,12 @@ test("documented per-user cost uses one day, exact fractional cents and nullable
       {email:"alice@example.test",providerUserId:"u-a",costDate:"2026-10-01",amountUsd:"1.2345",amountCents:"123.450000"},
       {email:null,providerUserId:"u-deleted",costDate:"2026-10-01",amountUsd:"-1.2345",amountCents:"-123.45"},
       {email:null,providerUserId:null,costDate:"2026-10-01",amountUsd:"0",amountCents:"0.000000"},
-    ]},raw:null});
+    ]},raw:{version:1,records:[
+      {identity:{email:"alice@example.test",providerUserId:"u-a"},costDate:"2026-10-01",amountUsd:"1.2345",amountCents:"123.450000"},
+      {identity:{email:null,providerUserId:"u-deleted"},costDate:"2026-10-01",amountUsd:"-1.2345",amountCents:"-123.45"},
+      {identity:{email:null,providerUserId:null},costDate:"2026-10-01",amountUsd:"0",amountCents:"0.000000"},
+    ]}});
+    expect(JSON.stringify(result)).not.toMatch(/unknown|organization_id|data_refreshed_at|starting_at|ending_at|currency|list_amount|headers|vendorAccountId|source/);
     expect(calls).toEqual(Array(2).fill("/v1/organizations/analytics/user_cost_report"));
     expect(JSON.stringify([result,observations])).not.toMatch(/must-not-persist|contract-admin|contract-analytics|authorization/);
   }); } finally {rmSync(dir,{recursive:true,force:true});}

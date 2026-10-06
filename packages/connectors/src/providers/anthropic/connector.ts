@@ -632,7 +632,16 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
         item => parseCost(item, observedOn));
       if (!costs.ok) return costs;
       const records: CostIngestionRecord[] = costs.data;
-      return success({ records });
+      return deepFreeze({
+        ok: true as const,
+        value: { records },
+        raw: {
+          version: 1,
+          records: records.map(({ email, providerUserId, costDate, amountUsd, amountCents }) => ({
+            identity: { email, providerUserId }, costDate, amountUsd, amountCents,
+          })),
+        },
+      });
     },
   };
   return Object.freeze(connector);

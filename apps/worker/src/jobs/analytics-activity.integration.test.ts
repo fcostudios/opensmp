@@ -365,11 +365,13 @@ const costDays = [
 ];
 function costUser(email: string | null, amount: string, userId = email === null ? 'deleted' : `u-${email.trim().toLowerCase()}`) {
   return { actor: { type: 'user_actor', deleted: email === null, email_address: email, email, name: 'Member', user_id: userId },
-    amount, list_amount: amount, currency: 'USD', starting_at: null, ending_at: null,
+    amount, list_amount: amount, currency: 'USD',
     model: null, product: null, requests: 1, cost_type: null, context_window: null, inference_geo: null,
     rbac_group_id: null, slack_channel_id: null, speed: null, token_type: null, claude_tag_category: null, claude_tag_user_id: null };
 }
-function costResponse(data: unknown[], next_page: string | null = null) {
+function costResponse(request: Request, rows: ReturnType<typeof costUser>[], next_page: string | null = null) {
+  const bounds = new URL(request.url).searchParams;
+  const data = rows.map(row => ({...row, starting_at: bounds.get('starting_at'), ending_at: bounds.get('ending_at')}));
   return new Response(JSON.stringify({ data, has_more: next_page !== null, next_page, organization_id: 'org-cost', data_refreshed_at: null }), { headers: { 'content-type': 'application/json' } });
 }
 async function withCostAccount(run: () => Promise<void>) {
@@ -396,7 +398,7 @@ test('revises exact person costs on thirty completed UTC days while preserving e
     expect(url.searchParams.get('bucket_width')).toBe('1d');
     expect(url.searchParams.get('starting_at')).toBe(`${costDays[intervals.length % 30]}T00:00:00Z`);
     intervals.push([url.searchParams.get('starting_at')!, url.searchParams.get('ending_at')!]);
-    return costResponse([costUser('A@example.test', cents),costUser('unknown@example.test','0.01'),costUser(null,'-0.01')]);
+    return costResponse(request, [costUser('A@example.test', cents),costUser('unknown@example.test','0.01'),costUser(null,'-0.01')]);
   }, () => syncedAt));
   try {
     expect(await job.drain({ at: costAt, vendorAccountId: id(10) })).toEqual({ processed: 30 });
@@ -431,7 +433,7 @@ test('runs independent activity and cost channels and excludes cost manual or CS
   const paths: string[] = [];
   const job = createAnalyticsActivityJob(options(async request => {
     const path = new URL(request.url).pathname; paths.push(path);
-    return path.endsWith('/users') ? response([user('b@example.test',17)]) : costResponse([]);
+    return path.endsWith('/users') ? response([user('b@example.test',17)]) : costResponse(request, []);
   }, () => new Date('2026-10-07T10:00:00Z')));
   try {
     expect(await job.drain({at:new Date('2026-10-07T00:00:00Z'),vendorAccountId:id(10)})).toEqual({processed:1});
@@ -455,10 +457,10 @@ test('discards all cost pages and warnings when API ingestion is disabled during
     pages++; const url=new URL(request.url);
     expect(url.searchParams.get('starting_at')).toBe('2026-10-08T00:00:00Z');
     expect((await owner.query(`SELECT count(*)::int AS count FROM cost_record WHERE vendor_account_id=$1 AND cost_date='2026-10-08'`,[id(10)])).rows).toEqual([{count:0}]);
-    if(pages===1) return costResponse([costUser('a@example.test','1.23')],'opaque /+=');
+    if(pages===1) return costResponse(request, [costUser('a@example.test','1.23')],'opaque /+=');
     expect(url.searchParams.get('page')).toBe('opaque /+=');
     await owner.query(`UPDATE vendor_account SET ingestion_mode='manual' WHERE id=$1`,[id(10)]);
-    return costResponse([costUser('b@example.test','2.34'),costUser('unmatched-disabled@example.test','3.45')]);
+    return costResponse(request, [costUser('b@example.test','2.34'),costUser('unmatched-disabled@example.test','3.45')]);
   },()=>new Date('2026-11-07T10:00:00Z')));
   try {
     expect(await job.drain({at:new Date('2026-11-07T00:00:00Z'),vendorAccountId:id(10)})).toEqual({processed:0});
@@ -473,8 +475,8 @@ test('pins cost freshness before waits and serializes equal and stale concurrent
   let release!:()=>void, reached!:()=>void;
   const waiting=new Promise<void>(resolve=>{reached=resolve;}); const gate=new Promise<void>(resolve=>{release=resolve;});
   let oldNow=new Date('2026-12-07T10:00:00Z'); let pages=0;
-  const old=createAnalyticsActivityJob(options(async()=>{if(++pages===1){reached();await gate;}return costResponse([costUser('a@example.test','1.23')]);},()=>oldNow));
-  const newer=createAnalyticsActivityJob(options(async()=>costResponse([costUser('a@example.test','-0.01')]),()=>new Date('2026-12-07T11:00:00Z')));
+  const old=createAnalyticsActivityJob(options(async request=>{if(++pages===1){reached();await gate;}return costResponse(request, [costUser('a@example.test','1.23')]);},()=>oldNow));
+  const newer=createAnalyticsActivityJob(options(async request=>costResponse(request, [costUser('a@example.test','-0.01')]),()=>new Date('2026-12-07T11:00:00Z')));
   const input={at:new Date('2026-12-07T00:00:00Z'),vendorAccountId:id(10)};
   let slow:Promise<{processed:number}>|undefined;
   try {
@@ -489,14 +491,14 @@ test('pins cost freshness before waits and serializes equal and stale concurrent
     expect((await owner.query(`SELECT count(*)::int AS count FROM cost_record WHERE vendor_account_id=$1 AND person_id=$2 AND cost_date BETWEEN '2026-11-07' AND '2026-12-06'`,[id(10),id(4)])).rows).toEqual([{count:0}]);
     await expectNoOpenJobTransaction();
   } finally {release();await slow?.catch(()=>{});await Promise.all([old.close(),newer.close()]);}
-  const contradiction=createAnalyticsActivityJob(options(async()=>costResponse([costUser('a@example.test','9.99')]),()=>new Date('2026-12-07T11:00:00Z')));
+  const contradiction=createAnalyticsActivityJob(options(async request=>costResponse(request, [costUser('a@example.test','9.99')]),()=>new Date('2026-12-07T11:00:00Z')));
   try {await expect(contradiction.drain(input)).rejects.toThrow('COST_REPLAY_CONFLICT');}
   finally {await contradiction.close();}
 }));
 // A global warning fails after both real company batches: the day rolls back but earlier committed days survive retry.
 test('rolls back the failing cost day across companies and retries earlier dates without duplication', async () => withCostAccount(async () => {
   const days:string[]=[];
-  const job=createAnalyticsActivityJob(options(async request=>{days.push(new URL(request.url).searchParams.get('starting_at')!.slice(0,10));return costResponse([costUser('a@example.test','123.45'),costUser('b@example.test','-0.01'),costUser(null,'0')]);},()=>new Date('2027-01-06T10:00:00Z')));
+  const job=createAnalyticsActivityJob(options(async request=>{days.push(new URL(request.url).searchParams.get('starting_at')!.slice(0,10));return costResponse(request, [costUser('a@example.test','123.45'),costUser('b@example.test','-0.01'),costUser(null,'0')]);},()=>new Date('2027-01-06T10:00:00Z')));
   await owner.query(`CREATE FUNCTION cost_late_warning_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='analytics_cost_identity_warning' AND NEW.after->>'costDate'='2026-12-09' THEN RAISE EXCEPTION 'cost late warning fault'; END IF; RETURN NEW; END $$`);
   await owner.query(`CREATE TRIGGER cost_late_warning_failure BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION cost_late_warning_failure()`);
   let trigger=true;
@@ -552,7 +554,7 @@ test('checks current cost eligibility before calling the next completed day', as
   const job=createAnalyticsActivityJob(options(async request=>{
     const start=new URL(request.url).searchParams.get('starting_at')!;starts.push(start);
     if(starts.length>1)throw Error('cost call after prior-day capability revocation');
-    return costResponse([costUser('a@example.test','123.45')]);
+    return costResponse(request, [costUser('a@example.test','123.45')]);
   },()=>new Date('2027-05-06T10:00:00Z')));
   try {
     expect(await job.drain({at:new Date('2027-05-06T00:00:00Z'),vendorAccountId:id(10)})).toEqual({processed:1});
@@ -575,7 +577,7 @@ test('continues currently eligible cost dates when only usage capability is revo
       return response([user('a@example.test',99)]);
     }
     starts.push(url.searchParams.get('starting_at')!);
-    return costResponse([costUser('a@example.test','123.45')]);
+    return costResponse(request, [costUser('a@example.test','123.45')]);
   },()=>new Date('2027-07-06T10:00:00Z')));
   try {
     expect(await job.drain({at:new Date('2027-07-06T00:00:00Z'),vendorAccountId:id(10)})).toEqual({processed:30});

@@ -68,7 +68,7 @@ function cost(id: string, email: string | null, amount = "123.45", currency = "U
   return {
     actor: { type: "user_actor", deleted: email === null, email, email_address: email, name: email === null ? "Deleted User" : "Member", user_id: id },
     amount, list_amount: amount, currency,
-    starting_at: null, ending_at: null, model: null, product: null, requests: 1,
+    starting_at: "2026-09-06T00:00:00Z", ending_at: "2026-09-07T00:00:00Z", model: null, product: null, requests: 1,
     cost_type: null, context_window: null, inference_geo: null, rbac_group_id: null,
     slack_channel_id: null, speed: null, token_type: null, claude_tag_category: null, claude_tag_user_id: null,
   };
@@ -119,9 +119,9 @@ function fixture(
   return { connector, journal, sessions, credentialLookups };
 }
 
-async function successValue<T>(operation: Promise<ConnectorResult<T>>): Promise<T> {
+async function successValue<T>(operation: Promise<ConnectorResult<T>>, raw: unknown = null): Promise<T> {
   const result = await operation;
-  expect(result).toMatchObject({ ok: true, raw: null });
+  expect(result).toMatchObject({ ok: true, raw });
   if (!result.ok) throw new Error("expected connector success");
   expect(Object.isFrozen(result)).toBe(true);
   expect(Object.isFrozen(result.value)).toBe(true);
@@ -201,7 +201,9 @@ describe("Anthropic neutral connector", () => {
     expect(await successValue(connector.syncActivity({ vendorAccountId: ACCOUNT, observedAt: NOW }))).toEqual({
       records: [{ email: "member@example.test", providerUserId: "usr-1", activityDate: "2026-09-06", counters: { chat_metrics: {message_count:2} } }],
     });
-    expect(await successValue(connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW }))).toEqual({
+    expect(await successValue(connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW }), {
+      version: 1, records: [{identity:{email:"member@example.test",providerUserId:"usr-1"},costDate:"2026-09-06",amountUsd:"1.2345",amountCents:"123.45"}],
+    })).toEqual({
       records: [{ email: "member@example.test", providerUserId: "usr-1", costDate: "2026-09-06", amountUsd: "1.2345", amountCents: "123.45" }],
     });
 
@@ -975,12 +977,16 @@ describe("Anthropic neutral connector", () => {
       {email:"a@example.test",providerUserId:"u",costDate:"2026-09-06",amountUsd:"1.2345",amountCents:"123.45"},
       {email:null,providerUserId:"deleted",costDate:"2026-09-06",amountUsd:"-1.2345",amountCents:"-123.4500"},
       {email:null,providerUserId:null,costDate:"2026-09-06",amountUsd:"0",amountCents:"0.000000"},
-    ]},raw:null});
+    ]},raw:{version:1,records:[
+      {identity:{email:"a@example.test",providerUserId:"u"},costDate:"2026-09-06",amountUsd:"1.2345",amountCents:"123.45"},
+      {identity:{email:null,providerUserId:"deleted"},costDate:"2026-09-06",amountUsd:"-1.2345",amountCents:"-123.4500"},
+      {identity:{email:null,providerUserId:null},costDate:"2026-09-06",amountUsd:"0",amountCents:"0.000000"},
+    ]}});
     expect(calls).toEqual([
       "/v1/organizations/analytics/user_cost_report?starting_at=2026-09-06T00%3A00%3A00Z&ending_at=2026-09-07T00%3A00%3A00Z&bucket_width=1d&limit=1",
       "/v1/organizations/analytics/user_cost_report?starting_at=2026-09-06T00%3A00%3A00Z&ending_at=2026-09-07T00%3A00%3A00Z&bucket_width=1d&limit=1&page=opaque+%2F%2B%3D",
     ]);
-    expect(JSON.stringify(result)).not.toMatch(/must-not-persist|authorization|secret/);
+    expect(JSON.stringify(result)).not.toMatch(/must-not-persist|authorization|secret|unknown|organization_id|data_refreshed_at|starting_at|ending_at|currency|list_amount|headers|vendorAccountId|source/);
   });
 
   it.each([
