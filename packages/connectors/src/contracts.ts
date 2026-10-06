@@ -176,28 +176,28 @@ export type ActivityIdentityWarning = Readonly<{
 }>;
 
 type CounterShape = { readonly [key: string]: CounterShape | true };
-const chatCounters = "connectors_used_count distinct_artifacts_created_count distinct_connectors_used_count distinct_conversation_count distinct_files_uploaded_count distinct_projects_created_count distinct_projects_used_count distinct_shared_artifacts_viewed_count distinct_skills_used_count message_count shared_conversations_viewed_count thinking_message_count";
-const coworkCounters = "action_count artifacts_created_count connectors_used_count dispatch_turn_count distinct_connectors_used_count distinct_session_count distinct_skills_used_count message_count skills_used_count distinct_plugins_used_count edit_tool_count file_edit_count multi_edit_tool_count notebook_edit_tool_count plugins_used_count sessions_with_file_edits_count write_tool_count";
-function countShape(names: string): CounterShape {
-  return Object.fromEntries(names.split(" ").map(name => [name, true]));
-}
-const activityCounterShape: CounterShape = {
-  chat_metrics: countShape(chatCounters),
-  claude_code_metrics: {
-    core_metrics: {
-      ...countShape("artifacts_created_count commit_count distinct_session_count pull_request_count"),
-      lines_of_code: countShape("added_count removed_count"),
-    },
-    tool_actions: Object.fromEntries(
-      ["edit_tool", "multi_edit_tool", "notebook_edit_tool", "write_tool"]
-        .map(name => [name, countShape("accepted_count rejected_count")]),
-    ),
-  },
-  cowork_metrics: countShape(coworkCounters),
-};
 
 /** Reconstruct only supported metrics; never inspect or retain unknown provider data. */
 export function normalizeActivityCounters(value: unknown): JsonValue {
+  const chatCounters = "connectors_used_count distinct_artifacts_created_count distinct_connectors_used_count distinct_conversation_count distinct_files_uploaded_count distinct_projects_created_count distinct_projects_used_count distinct_shared_artifacts_viewed_count distinct_skills_used_count message_count shared_conversations_viewed_count thinking_message_count";
+  const coworkCounters = "action_count artifacts_created_count connectors_used_count dispatch_turn_count distinct_connectors_used_count distinct_session_count distinct_skills_used_count message_count skills_used_count distinct_plugins_used_count edit_tool_count file_edit_count multi_edit_tool_count notebook_edit_tool_count plugins_used_count sessions_with_file_edits_count write_tool_count";
+  function countShape(names: string): CounterShape {
+    return Object.fromEntries(names.split(" ").map(name => [name, true]));
+  }
+  const activityCounterShape: CounterShape = {
+    chat_metrics: countShape(chatCounters),
+    claude_code_metrics: {
+      core_metrics: {
+        ...countShape("artifacts_created_count commit_count distinct_session_count pull_request_count"),
+        lines_of_code: countShape("added_count removed_count"),
+      },
+      tool_actions: Object.fromEntries(
+        ["edit_tool", "multi_edit_tool", "notebook_edit_tool", "write_tool"]
+          .map(name => [name, countShape("accepted_count rejected_count")]),
+      ),
+    },
+    cowork_metrics: countShape(coworkCounters),
+  };
   function normalize(input: unknown, shape: CounterShape, path: string): JsonValue {
     if (input === null || typeof input !== "object" || Array.isArray(input)
       || ![Object.prototype, null].includes(Object.getPrototypeOf(input))) {
