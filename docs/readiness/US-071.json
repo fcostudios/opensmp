@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "709619270c5c6c2169971696217d57378ddac777bb2e163a32bd2853e5264dfe",
+  "readiness_payload_sha256": "5d445fb27d35c2596f666e92f738fa733e588bf5a34b17d97123cfde0b8a9bdc",
   "work_id": "US-071",
   "kind": "US",
   "work_type": "functional",
@@ -49,7 +49,7 @@
     "routes_or_screens": 0,
     "acceptance_flows": 2,
     "expected_changed_files": 20,
-    "expected_mutation_shards": 6,
+    "expected_mutation_shards": 5,
     "lifecycle_or_concurrency_boundaries": 1,
     "external_integrations": 1,
     "schema_or_migration_changes": 1,
@@ -105,7 +105,7 @@
       "statement": "File and verification costs are bounded against the completed activity child.",
       "status": "budgeted",
       "estimate_impact_minutes": 30,
-      "resolution": "Official parent proposal estimate 240 minutes is revised to 300 (+60): phase split 20 readiness,90 implementation,100 focused verification,30 review,60 integration. US-070 actuals 7/46/102/22/63 with 24 files,7 shards,10 preview rounds and5 review-fix loops show focused checks and release gates dominate; US-071 reuses its foundations and avoids new orchestration tooling. Expected 20 paths: docs/readiness/US-071.json; .nous-feedback.jsonl; child design and bound plan under docs/superpowers; docs/dev-guide/TESTING.md; packages/connectors/src/contracts.ts,dispatch.ts,dispatch.test.ts,providers/anthropic/connector.ts,connector.test.ts,connector.pact.test.ts; packages/db/src/schema.ts,analytics-ingestion.ts,analytics-ingestion.integration.test.ts,new cost migration; packages/db/scripts/verify-schema.mjs; apps/worker/src/jobs/analytics-activity.ts,analytics-activity.integration.test.ts,deferred.ts,deferred.test.ts. Extend existing ingestion/job seams for cost to stay within this honest bound; avoid new source files/package exports. Expected6 diff mutation shards: contracts,dispatcher,provider,ingestion,worker,deferred; computed task preflight is authoritative and mismatch gets deviation, not fabricated routing edits. All per-task touched-shard previews, property/real-DB tests, adversarial review, pnpm check, committed migration apply/verify/parity and one final cold diff campaign are included. No baseline whole suite at assessment. Stop/reassess at task boundaries if remaining cost or required additional files exceed limits; no tooling changes are authorized."
+      "resolution": "Official parent proposal estimate240 minutes is revised to300 (+60): phases20 readiness,90 implementation,100 focused verification,30 review,60 integration. US-070 actuals7/46/102/22/63 and final33 net paths (24 source-measurement paths versus18 estimated),7 shards,10 preview rounds and5 review-fix loops caution against omitting governance/evidence files. Honest expected20 net paths: docs/readiness/US-071.json; .nous-feedback.jsonl; child design and bound plan under docs/superpowers; docs/dev-guide/TESTING.md; testing/critical-paths.md; .nous-project.json; .nous-provenance.json; .nous-sync.json; packages/connectors/src/contracts.ts; packages/connectors/src/providers/anthropic/connector.ts,connector.test.ts,connector.pact.test.ts; packages/db/src/schema.ts,analytics-ingestion.ts,analytics-ingestion.integration.test.ts,new cost migration; packages/db/scripts/verify-schema.mjs; apps/worker/src/jobs/analytics-activity.ts,analytics-activity.integration.test.ts. The five generated critical-path/governance files are fully counted: update Nous testing.critical_paths config and obtain atomic canonical producer delivery, never hand-edit generated TESTING.md or critical-paths.md. External producer mutation requires coordination if busy; inability to obtain canonical delivery blocks closure. No deferred.ts/deferred.test.ts change is needed: existing factory/drain/processed contract and services remain valid. No dispatcher.ts/dispatch.test.ts change is needed: its generic result transport already carries CostSnapshot; cost-specific amount/identity/date validation and payload reconstruction belong in provider/shared persistence, with existing provider/Pact/DB tests accountable. Existing analytics job is the delivered shared worker orchestration seam; cost execution can use its services/resource lifetime without changing its public factory contract, rather than introducing an extra factory solely for costs. If implementation establishes that separation or another source change is necessary, stop and reassess instead of forcing unrelated filename reuse. Terminal evidence is consolidated into existing readiness actuals and append-only feedback including exact Git objects, reviewer verdicts, gate commands/results and campaign metrics; raw logs/reports may stay ignored, with durable essential facts committed in these two already-counted paths. No additional tracked evidence archive is assumed or required. Expected5 diff mutation shards: contracts,provider,ingestion,worker,verify-schema; calculated preflight determines exact routing/count and mismatch gets deviation. All touched-shard previews, property/real-DB tests, adversarial review, pnpm check, committed migration apply/verify/parity and one final cold diff campaign remain included. No baseline suite at assessment. At each task boundary stop/reassess if required additional tracked files exceed20 or remaining cost exceeds estimate; no tooling changes are authorized."
     }
   ],
   "dependencies": [],
@@ -115,7 +115,7 @@
     "status": "pending",
     "approved_by": null,
     "evidence": null,
-    "payload_sha256": "709619270c5c6c2169971696217d57378ddac777bb2e163a32bd2853e5264dfe"
+    "payload_sha256": "5d445fb27d35c2596f666e92f738fa733e588bf5a34b17d97123cfde0b8a9bdc"
   },
   "actuals": null,
   "policy_bootstrap": false,
