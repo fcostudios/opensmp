@@ -15,7 +15,7 @@
       "source": "generated"
     },
     "testing/critical-paths.md": {
-      "hash": "d366c785ee8f1186",
+      "hash": "640c1277de30c2dc",
       "source": "generated"
     },
     ".nous-project.json": {
@@ -607,7 +607,7 @@
       "source": "emitted"
     },
     "docs/dev-guide/TESTING.md": {
-      "hash": "61b352aa19d768b7",
+      "hash": "da7fd0cf7b126980",
       "source": "emitted"
     },
     "docs/dev-guide/STANDARDS.md": {
