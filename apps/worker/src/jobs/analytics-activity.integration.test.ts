@@ -523,3 +523,43 @@ test('propagates cost provider failure through deferred execution and closes its
   expect((await owner.query(`SELECT count(*)::int AS count FROM cost_record WHERE vendor_account_id=$1 AND cost_date>='2027-01-07'`,[id(10)])).rows).toEqual([{count:0}]);
   expect((await owner.query(`SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname=$1 AND usename='ledger_app'`,[fixture.databaseName])).rows).toEqual([{count:0}]);
 }));
+
+// T3-R1: observed API opt-out during activity must end this account before entering cached cost capability.
+test('stops the account before cost calls when activity observes revoked API ingestion', async () => withCostAccount(async () => {
+  await owner.query(`UPDATE vendor SET has_usage_data=true WHERE id=$1`,[id(9)]);
+  const paths:string[]=[];
+  const before=(await owner.query(`SELECT count(*)::int AS count FROM audit_log WHERE entity_id=$1`,[id(10)])).rows;
+  const job=createAnalyticsActivityJob(options(async request=>{
+    const path=new URL(request.url).pathname;paths.push(path);
+    if(!path.endsWith('/users'))throw Error('cost call after observed API opt-out');
+    await owner.query(`UPDATE vendor_account SET ingestion_mode='manual' WHERE id=$1`,[id(10)]);
+    return response([user('a@example.test',3)]);
+  },()=>new Date('2027-03-06T10:00:00Z')));
+  try {
+    expect(await job.drain({at:new Date('2027-03-06T00:00:00Z'),vendorAccountId:id(10)})).toEqual({processed:0});
+    expect(paths).toEqual(['/v1/organizations/analytics/users']);
+    expect((await owner.query(`SELECT count(*)::int AS count FROM activity_record WHERE vendor_account_id=$1 AND activity_date='2027-03-03'`,[id(10)])).rows).toEqual([{count:0}]);
+    expect((await owner.query(`SELECT count(*)::int AS count FROM cost_record WHERE vendor_account_id=$1 AND cost_date BETWEEN '2027-02-04' AND '2027-03-05'`,[id(10)])).rows).toEqual([{count:0}]);
+    expect((await owner.query(`SELECT count(*)::int AS count FROM audit_log WHERE entity_id=$1`,[id(10)])).rows).toEqual(before);
+    await expectNoOpenJobTransaction();
+  } finally {await job.close();}
+}));
+// T3-R1: capability revoked by the first committed day's summary must gate the next provider call.
+test('checks current cost eligibility before calling the next completed day', async () => withCostAccount(async () => {
+  const starts:string[]=[];
+  await owner.query(`CREATE FUNCTION cost_revoke_after_day() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='analytics_cost_sync' AND NEW.after->>'costDate'='2027-04-06' THEN UPDATE vendor SET has_cost_data=false WHERE id='${id(9)}'; END IF; RETURN NEW; END $$`);
+  await owner.query(`CREATE TRIGGER cost_revoke_after_day AFTER INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION cost_revoke_after_day()`);
+  const job=createAnalyticsActivityJob(options(async request=>{
+    const start=new URL(request.url).searchParams.get('starting_at')!;starts.push(start);
+    if(starts.length>1)throw Error('cost call after prior-day capability revocation');
+    return costResponse([costUser('a@example.test','123.45')]);
+  },()=>new Date('2027-05-06T10:00:00Z')));
+  try {
+    expect(await job.drain({at:new Date('2027-05-06T00:00:00Z'),vendorAccountId:id(10)})).toEqual({processed:1});
+    expect(starts).toEqual(['2027-04-06T00:00:00Z']);
+    expect((await owner.query(`SELECT p.company_id,c.person_id,c.cost_date::text,c.amount_usd::text FROM cost_record c JOIN person p ON p.id=c.person_id WHERE c.vendor_account_id=$1 AND c.cost_date BETWEEN '2027-04-06' AND '2027-05-05' ORDER BY c.cost_date,c.person_id`,[id(10)])).rows).toEqual([{company_id:id(1),person_id:id(3),cost_date:'2027-04-06',amount_usd:'1.2345'}]);
+    expect((await owner.query(`SELECT has_cost_data FROM vendor WHERE id=$1`,[id(9)])).rows).toEqual([{has_cost_data:false}]);
+    expect((await owner.query(`SELECT count(*)::int AS count FROM audit_log WHERE entity_id=$1 AND after->>'costDate'>='2027-04-07'`,[id(10)])).rows).toEqual([{count:0}]);
+    await expectNoOpenJobTransaction();
+  } finally {await owner.query(`DROP TRIGGER cost_revoke_after_day ON audit_log; DROP FUNCTION cost_revoke_after_day()`);await job.close();}
+}));

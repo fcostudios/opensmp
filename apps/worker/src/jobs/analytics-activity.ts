@@ -105,7 +105,7 @@ export function createAnalyticsActivityJob(options: Options) {
           const client = await pool.connect();
           try {
             const db = drizzle(client, { schema });
-            processed += await db.transaction(async (tx) => {
+            const written = await db.transaction(async (tx) => {
               // Passing this actual Drizzle transaction to the shared batch helper
               // gives it savepoints, retaining opt-in locks through global warnings.
               const active = await tx.execute(sql`SELECT account.id
@@ -115,7 +115,7 @@ export function createAnalyticsActivityJob(options: Options) {
       AND vendor.connector_type='api' AND vendor.provisioning_protocol='rest'
       AND vendor.identity_matching='email' FOR SHARE OF account,vendor`);
               if (active.rowCount === 0)
-                return 0;
+                return null;
               const routed = await resolveActivityScopes(tx, trustedCompanyIds, snapshot.value.records);
               let written = 0;
               for (const batch of routed.batches) {
@@ -135,12 +135,24 @@ export function createAnalyticsActivityJob(options: Options) {
               }
               return written;
             });
+            if (written === null) continue;
+            processed += written;
           }
           finally {
             client.release();
           }
         }
         if (account.hasCostData) for (let daysAgo = 30; daysAgo >= 1; daysAgo--) {
+          // Completed earlier dates do not authorize the next provider call.
+          // Recheck current opt-in before fetching; the transaction below locks
+          // and checks it again after pagination through every write and warning.
+          const eligible = await pool.query(`SELECT account.id
+            FROM vendor_account account JOIN vendor ON vendor.id=account.vendor_id
+            WHERE account.id=$1::uuid AND account.ingestion_mode='api'
+            AND account.status='active' AND vendor.status='active' AND vendor.has_cost_data
+            AND vendor.connector_type='api' AND vendor.provisioning_protocol='rest'
+            AND vendor.identity_matching='email'`, [account.id]);
+          if (eligible.rowCount === 0) break;
           const costObservedAt = new Date(Date.UTC(input.at.getUTCFullYear(), input.at.getUTCMonth(), input.at.getUTCDate() - daysAgo));
           const costDate = costObservedAt.toISOString().slice(0, 10);
           const snapshot = await connector.syncCost({ vendorAccountId: account.id, observedAt: costObservedAt });
