@@ -117,7 +117,27 @@
     "evidence": "US071-READY-APPROVAL",
     "payload_sha256": "5d445fb27d35c2596f666e92f738fa733e588bf5a34b17d97123cfde0b8a9bdc"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 15,
+      "implementation": 73,
+      "focused_verification": 64,
+      "review": 51,
+      "integration": 16
+    },
+    "total": 219,
+    "changed_files": 20,
+    "commits": 21,
+    "review_fix_loops": 3,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 11,
+    "mutation_shards_actual": 5,
+    "preview_rounds": 14,
+    "preview_minutes": 58,
+    "estimate_variance_minutes": -81,
+    "root_cause": "Measured nonoverlapping US071-only envelope12:10:13.552Z through 2026-10-06T15:49:50.050932+00:00; excludes ONLY41.328s human approval wait12:17:49.591Z..12:18:30.919Z. Approval recording through12:20:43 active readiness. Recorded phase markers partition envelope; unobservable checks/rework remain enclosing phase. Nearest integer each phase,total=sum; preview58.292683min and cold678.292s informational subsets, never double-added. Authorityf4b3c2f16e4816e156b2cef3f2cde7b93b556eec..tested59dceb569735a735811d7f82f79bc7ba18c7ca7b=20netpaths; sourcecommits4ab81395df7c1f722726850775b32ecf64efd3bc..testedhead=20 plus ONEterminal evidence commit=21final. Three formalreviewfixloops(Task2,Task3,finalwave),newfullgate compatibilityrepair separately1. Failedcheck12.610s retained,justified freshgreencheck278.718s. Fourteen touchedpreviewrounds include canceled58.838s; Task1 nativeengine and later launcher duration definitions differ, overhead not invented; no wholeset repreview. Cold1/cacheclear1/invalidations0,fiveactualshards. Cutoff excludes subsequent readinessvalidation,commit,cleanup/finalresponse overhead; no fullendtoend or fullseat cost claim."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
