@@ -240,14 +240,14 @@ function costUnits(value: unknown, fractionalDigits: number): bigint {
   const [whole, fraction = ""] = value.replace(/^[+-]/, "").split(".");
   const significantFraction = fraction.replace(/0+$/, "");
   if (significantFraction.length > fractionalDigits) throw new Error("Cost precision exceeds four USD decimals");
-  const magnitude = BigInt(whole!) * 10n ** BigInt(fractionalDigits)
+  const magnitude = BigInt(whole!) * BigInt("10") ** BigInt(fractionalDigits)
     + BigInt(significantFraction.padEnd(fractionalDigits, "0"));
-  if (magnitude > 999_999_999_999n) throw new Error("Cost amount exceeds USD bound");
+  if (magnitude > BigInt("999999999999")) throw new Error("Cost amount exceeds USD bound");
   return negative ? -magnitude : magnitude;
 }
 
 function costUsdFromUnits(units: bigint): string {
-  const negative = units < 0n;
+  const negative = units < BigInt("0");
   const digits = (negative ? -units : units).toString().padStart(5, "0");
   const whole = digits.slice(0, -4);
   const fraction = digits.slice(-4).replace(/0+$/, "");
