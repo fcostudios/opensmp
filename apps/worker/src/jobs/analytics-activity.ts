@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createConnectorDispatcher } from "@smp/connectors";
 import { createConnectorCallObservationSession } from "@smp/connectors/connector-call-observation";
-import { ingestActivityBatch, resolveActivityScopes } from "@smp/db/analytics-ingestion";
+import { ingestActivityBatch, resolveActivityScopes, ingestCostBatch, resolveCostScopes } from "@smp/db/analytics-ingestion";
 import { decryptCredential, readKekFile } from "@smp/db/credential-crypto";
 import { createConnectorCallObservationAppender } from "@smp/db/connector-call-observations";
 import * as schema from "@smp/db/schema";
@@ -23,6 +23,8 @@ type Account = {
   id: string;
   protocol: string;
   identityMatching: string;
+  hasUsageData: boolean;
+  hasCostData: boolean;
 };
 export function createAnalyticsActivityJob(options: Options) {
   const pool = new pg.Pool({ connectionString: options.connectionString });
@@ -43,10 +45,10 @@ export function createAnalyticsActivityJob(options: Options) {
         throw new Error("ACTIVITY_TIME_INVALID");
       if (input.vendorAccountId !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.vendorAccountId))
         throw new Error("ACTIVITY_VENDOR_INVALID");
-      const accounts = await pool.query<Account>(`SELECT account.id::text, vendor.provisioning_protocol::text AS protocol, vendor.identity_matching::text AS "identityMatching"
+      const accounts = await pool.query<Account>(`SELECT account.id::text, vendor.provisioning_protocol::text AS protocol, vendor.identity_matching::text AS "identityMatching", vendor.has_usage_data AS "hasUsageData", vendor.has_cost_data AS "hasCostData"
   FROM vendor_account account JOIN vendor ON vendor.id=account.vendor_id
   WHERE account.status='active' AND vendor.status='active' AND account.ingestion_mode='api'
-      AND vendor.connector_type='api' AND vendor.has_usage_data
+      AND vendor.connector_type='api' AND (vendor.has_usage_data OR vendor.has_cost_data)
       AND ($1::uuid IS NULL OR account.id=$1::uuid) ORDER BY account.id`, [input.vendorAccountId ?? null]);
       if (!accounts.rows.length)
         return { processed: 0 };
@@ -85,56 +87,104 @@ export function createAnalyticsActivityJob(options: Options) {
         const connector = createConnectorDispatcher({
           rest: createMembershipPollingConnector({
             credentialsFor: async () => credentials,
-            observationSessionFor: async () => createConnectorCallObservationSession({
-              vendorAccountId: account.id, provisioningActionId: null, operation: "sync_activity", clock: options.now, randomId: randomUUID, append: observations.append
+            observationSessionFor: async ({ operation }) => createConnectorCallObservationSession({
+              vendorAccountId: account.id, provisioningActionId: null, operation, clock: options.now, randomId: randomUUID, append: observations.append
             }),
             requestDependencies: { clock, sleep: options.sleep, limiter, transport: options.transport },
           })
         }).forProtocol("rest");
-        const snapshot = await connector.syncActivity({ vendorAccountId: account.id, observedAt });
-        if (!snapshot.ok) {
-          if (snapshot.code === "unsupported")
-            throw new Error("ACTIVITY_ACCOUNT_UNSUPPORTED");
-          throw Object.assign(new Error("ACTIVITY_PROVIDER_ERROR"), {
-            code: "SYNC_STALE", vendorAccountId: account.id, retryable: snapshot.retryable
-          });
+        if (account.hasUsageData) {
+          const snapshot = await connector.syncActivity({ vendorAccountId: account.id, observedAt });
+          if (!snapshot.ok) {
+            if (snapshot.code === "unsupported")
+              throw new Error("ACTIVITY_ACCOUNT_UNSUPPORTED");
+            throw Object.assign(new Error("ACTIVITY_PROVIDER_ERROR"), {
+              code: "SYNC_STALE", vendorAccountId: account.id, retryable: snapshot.retryable
+            });
+          }
+          const client = await pool.connect();
+          try {
+            const db = drizzle(client, { schema });
+            processed += await db.transaction(async (tx) => {
+              // Passing this actual Drizzle transaction to the shared batch helper
+              // gives it savepoints, retaining opt-in locks through global warnings.
+              const active = await tx.execute(sql`SELECT account.id
+         FROM vendor_account account JOIN vendor ON vendor.id=account.vendor_id
+         WHERE account.id=${account.id}::uuid AND account.ingestion_mode='api'
+      AND account.status='active' AND vendor.status='active' AND vendor.has_usage_data
+      AND vendor.connector_type='api' AND vendor.provisioning_protocol='rest'
+      AND vendor.identity_matching='email' FOR SHARE OF account,vendor`);
+              if (active.rowCount === 0)
+                return 0;
+              const routed = await resolveActivityScopes(tx, trustedCompanyIds, snapshot.value.records);
+              let written = 0;
+              for (const batch of routed.batches) {
+                written += (await ingestActivityBatch(tx, {
+                  ...batch, vendorAccountId: account.id, activityDate, source: "api", syncedAt, actorUserAccountId: null,
+                })).written;
+              }
+              for (const warning of routed.warnings) {
+                await tx.insert(schema.auditLog).values({
+                  actorUserId: SYSTEM_USER_ID, action: "analytics_identity_warning", entityType: "VendorAccount",
+                  entityId: account.id, companyId: null, occurredAt: syncedAt,
+                  after: {
+                    vendorAccountId: account.id, activityDate, reason: warning.reason,
+                    identity: { email: warning.email, providerUserId: warning.providerUserId }
+                  },
+                });
+              }
+              return written;
+            });
+          }
+          finally {
+            client.release();
+          }
         }
-        const client = await pool.connect();
-        try {
-          const db = drizzle(client, { schema });
-          processed += await db.transaction(async (tx) => {
-            // Passing this actual Drizzle transaction to the shared batch helper
-            // gives it savepoints, retaining opt-in locks through global warnings.
-            const active = await tx.execute(sql`SELECT account.id
-       FROM vendor_account account JOIN vendor ON vendor.id=account.vendor_id
-       WHERE account.id=${account.id}::uuid AND account.ingestion_mode='api'
-    AND account.status='active' AND vendor.status='active' AND vendor.has_usage_data
-    AND vendor.connector_type='api' AND vendor.provisioning_protocol='rest'
-    AND vendor.identity_matching='email' FOR SHARE OF account,vendor`);
-            if (active.rowCount === 0)
-              return 0;
-            const routed = await resolveActivityScopes(tx, trustedCompanyIds, snapshot.value.records);
-            let written = 0;
-            for (const batch of routed.batches) {
-              written += (await ingestActivityBatch(tx, {
-                ...batch, vendorAccountId: account.id, activityDate, source: "api", syncedAt, actorUserAccountId: null,
-              })).written;
-            }
-            for (const warning of routed.warnings) {
-              await tx.insert(schema.auditLog).values({
-                actorUserId: SYSTEM_USER_ID, action: "analytics_identity_warning", entityType: "VendorAccount",
-                entityId: account.id, companyId: null, occurredAt: syncedAt,
-                after: {
-                  vendorAccountId: account.id, activityDate, reason: warning.reason,
-                  identity: { email: warning.email, providerUserId: warning.providerUserId }
-                },
-              });
-            }
-            return written;
-          });
-        }
-        finally {
-          client.release();
+        if (account.hasCostData) for (let daysAgo = 30; daysAgo >= 1; daysAgo--) {
+          const costObservedAt = new Date(Date.UTC(input.at.getUTCFullYear(), input.at.getUTCMonth(), input.at.getUTCDate() - daysAgo));
+          const costDate = costObservedAt.toISOString().slice(0, 10);
+          const snapshot = await connector.syncCost({ vendorAccountId: account.id, observedAt: costObservedAt });
+          if (!snapshot.ok) {
+            if (snapshot.code === "unsupported") throw new Error("COST_ACCOUNT_UNSUPPORTED");
+            throw Object.assign(new Error("COST_PROVIDER_ERROR"), {
+              code: "SYNC_STALE", vendorAccountId: account.id, retryable: snapshot.retryable
+            });
+          }
+          const client = await pool.connect();
+          try {
+            const db = drizzle(client, { schema });
+            const written = await db.transaction(async (tx) => {
+              // One account/day transaction includes every company and global warning.
+              const active = await tx.execute(sql`SELECT account.id
+                FROM vendor_account account JOIN vendor ON vendor.id=account.vendor_id
+                WHERE account.id=${account.id}::uuid AND account.ingestion_mode='api'
+                AND account.status='active' AND vendor.status='active' AND vendor.has_cost_data
+                AND vendor.connector_type='api' AND vendor.provisioning_protocol='rest'
+                AND vendor.identity_matching='email' FOR SHARE OF account,vendor`);
+              if (active.rowCount === 0) return null;
+              const routed = await resolveCostScopes(tx, trustedCompanyIds, snapshot.value.records);
+              let written = 0;
+              for (const batch of routed.batches) {
+                written += (await ingestCostBatch(tx, {
+                  ...batch, vendorAccountId: account.id, costDate, source: "api", syncedAt,
+                  windowAt: input.at, actorUserAccountId: null,
+                })).written;
+              }
+              for (const warning of routed.warnings) {
+                await tx.insert(schema.auditLog).values({
+                  actorUserId: SYSTEM_USER_ID, action: "analytics_cost_identity_warning", entityType: "VendorAccount",
+                  entityId: account.id, companyId: null, occurredAt: syncedAt,
+                  after: {
+                    vendorAccountId: account.id, costDate, reason: warning.reason,
+                    identity: { email: warning.email, providerUserId: warning.providerUserId }
+                  },
+                });
+              }
+              return written;
+            });
+            if (written === null) break;
+            processed += written;
+          } finally { client.release(); }
         }
       }
       return { processed };
