@@ -159,3 +159,65 @@ export function assertJsonValue(
   }
   return result;
 }
+
+
+export type IngestionSource = "api" | "csv_import" | "manual";
+export type ActivityIngestionRecord = Readonly<{
+  email: string | null;
+  providerUserId: string | null;
+  activityDate: string;
+  counters: JsonValue;
+}>;
+export type ActivityIdentityWarning = Readonly<{
+  recordIndex: number;
+  reason: "missing_email" | "unmatched_email";
+  email: string | null;
+  providerUserId: string | null;
+}>;
+
+type CounterShape = { readonly [key: string]: CounterShape | true };
+const chatCounters = "connectors_used_count distinct_artifacts_created_count distinct_connectors_used_count distinct_conversation_count distinct_files_uploaded_count distinct_projects_created_count distinct_projects_used_count distinct_shared_artifacts_viewed_count distinct_skills_used_count message_count shared_conversations_viewed_count thinking_message_count";
+const coworkCounters = "action_count artifacts_created_count connectors_used_count dispatch_turn_count distinct_connectors_used_count distinct_session_count distinct_skills_used_count message_count skills_used_count distinct_plugins_used_count edit_tool_count file_edit_count multi_edit_tool_count notebook_edit_tool_count plugins_used_count sessions_with_file_edits_count write_tool_count";
+function countShape(names: string): CounterShape {
+  return Object.fromEntries(names.split(" ").map(name => [name, true]));
+}
+const activityCounterShape: CounterShape = {
+  chat_metrics: countShape(chatCounters),
+  claude_code_metrics: {
+    core_metrics: {
+      ...countShape("artifacts_created_count commit_count distinct_session_count pull_request_count"),
+      lines_of_code: countShape("added_count removed_count"),
+    },
+    tool_actions: Object.fromEntries(
+      ["edit_tool", "multi_edit_tool", "notebook_edit_tool", "write_tool"]
+        .map(name => [name, countShape("accepted_count rejected_count")]),
+    ),
+  },
+  cowork_metrics: countShape(coworkCounters),
+};
+
+/** Reconstruct only supported metrics; never inspect or retain unknown provider data. */
+export function normalizeActivityCounters(value: unknown): JsonValue {
+  function normalize(input: unknown, shape: CounterShape, path: string): JsonValue {
+    if (input === null || typeof input !== "object" || Array.isArray(input)
+      || ![Object.prototype, null].includes(Object.getPrototypeOf(input))) {
+      throw new Error(`Invalid activity metric object: ${path}`);
+    }
+    const object = input as Record<string, unknown>;
+    const result: Record<string, JsonValue> = {};
+    for (const [key, nested] of Object.entries(shape)) {
+      if (!Object.hasOwn(object, key)) continue;
+      const metric = object[key];
+      if (metric === null) result[key] = null;
+      else if (nested === true) {
+        if (typeof metric !== "number" || !Number.isFinite(metric)
+          || !Number.isInteger(metric) || metric < 0) {
+          throw new Error(`Invalid activity count: ${path}.${key}`);
+        }
+        result[key] = metric;
+      } else result[key] = normalize(metric, nested, `${path}.${key}`);
+    }
+    return result;
+  }
+  return normalize(value, activityCounterShape, "counters");
+}

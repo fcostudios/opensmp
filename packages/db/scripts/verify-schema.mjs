@@ -126,6 +126,10 @@ const expectedRuntimeTableGrants = [
 );
 
 const expectedAppendOnlyColumnUpdates = [
+  { tableName: "activity_record", columnName: "counters" },
+  { tableName: "activity_record", columnName: "raw_payload" },
+  { tableName: "activity_record", columnName: "source" },
+  { tableName: "activity_record", columnName: "synced_at" },
   { tableName: "alert_event", columnName: "acknowledged_at" },
   { tableName: "alert_event", columnName: "acknowledged_by" },
   { tableName: "license_assignment", columnName: "end_reason" },

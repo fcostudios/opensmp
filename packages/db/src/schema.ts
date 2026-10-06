@@ -466,6 +466,8 @@ export const requestTransition = pgTable("request_transition", {
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
 });
 
+export const ingestion_source = pgEnum("ingestion_source", ["api", "csv_import", "manual"]);
+
 export const activityRecord = pgTable("activity_record", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),
   vendorAccountId: uuid("vendor_account_id").references((): AnyPgColumn => vendorAccount.id).notNull(),
@@ -474,7 +476,11 @@ export const activityRecord = pgTable("activity_record", {
   counters: jsonb("counters").notNull(),
   rawPayload: jsonb("raw_payload"),
   syncedAt: timestamp("synced_at", { withTimezone: true }).notNull(),
-});
+  source: ingestion_source("source").default("api").notNull(),
+}, (table) => ({
+  naturalKey: unique("uq_activity_record_vendor_account_id_person_id_activity_date")
+    .on(table.vendorAccountId, table.personId, table.activityDate),
+}));
 
 export const costRecord = pgTable("cost_record", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),
@@ -517,6 +523,7 @@ export const vendorAccount = pgTable("vendor_account", {
   createdBy: uuid("created_by").references((): AnyPgColumn => userAccount.id).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }),
   updatedBy: uuid("updated_by").references((): AnyPgColumn => userAccount.id),
+  ingestionMode: ingestion_source("ingestion_mode").default("manual").notNull(),
 }, (table) => ({
   lowPoolFloorNonnegative: check(
     "vendor_account_low_pool_floor_nonnegative",
