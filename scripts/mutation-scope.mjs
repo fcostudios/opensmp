@@ -41,6 +41,11 @@ const BASE_CONFIG = "stryker.conf.json";
 const GENERATED_SHARD_DIR = join(".tmp", "stryker-shards");
 const GENERATED_MANIFEST = join(GENERATED_SHARD_DIR, "manifest.json");
 const SCHEMA_STATIC_SOURCE = "packages/db/src/schema.ts";
+const SCHEMA_STATIC_TEST = "packages/db/src/schema.test.ts";
+// CHG-069: a committed migration in the diff declares a schema change that
+// schema.test.ts alone cannot observe; the real-DB integration oracle must run.
+const SCHEMA_MIGRATION_PATH = /^packages\/db\/src\/migrations\/[^/]+\.sql$/;
+const SCHEMA_INTEGRATION_ORACLE = /^packages\/db\/.+\.integration\.test\.ts$/;
 const VITEST_CONFIG_STATIC_SPECS = {
   "apps/web/vitest.config.ts": {
     range: "apps/web/vitest.config.ts:21-21",
@@ -1743,6 +1748,30 @@ export function mutationCompatibleTestFiles(testFiles) {
   return testFiles.filter((file) => !MUTATION_INCOMPATIBLE_TESTS.has(file));
 }
 
+/** CHG-069: schema-static routing. A declared migration adds the changed,
+ * mutation-compatible packages/db integration tests; none is a routing gap,
+ * reported (never rejected) so a 0-of-N preview is not read as clean. */
+function schemaStaticRouting(changed, fileExists, compatibleTestFiles) {
+  if (!changed.some((path) => SCHEMA_MIGRATION_PATH.test(path))) {
+    return { testFiles: [SCHEMA_STATIC_TEST], gaps: [] };
+  }
+  const oracles = compatibleTestFiles(changed.filter((path) =>
+    SCHEMA_INTEGRATION_ORACLE.test(path) && fileExists(path))).sort();
+  return {
+    testFiles: [SCHEMA_STATIC_TEST, ...oracles],
+    gaps: oracles.length > 0 ? [] : [
+      "schema-static: the diff declares a migration but carries no mutation-compatible " +
+        "packages/db integration test, so a schema-static preview cannot measure the schema " +
+        "change; add or touch its real-DB integration oracle",
+    ],
+  };
+}
+
+export function schemaStaticCommand(testFiles) {
+  const files = testFiles.map((file) => file.replace(/^packages\/db\//, ""));
+  return `./apps/web/node_modules/.bin/vitest run --root packages/db --config vitest.config.ts ${files.join(" ")}`;
+}
+
 function testsForSource(source, fileExists, directRoutes) {
   const responsible = new Set();
   const stem = source.replace(/\.(ts|tsx)$/, "");
@@ -1811,6 +1840,7 @@ function discoverMutationShardSpecs(changed, targetProvider, dependencies = {}) 
   }
   const routedGroups = groupRoutedMutationTargets(routedMutate, routeTests);
   const shardSpecs = routedGroups.map((group) => ({ kind: "vitest", ...group }));
+  const routingGaps = [];
 
   if (adapterMutate.length > 0) {
     const testFiles = [...new Set(adapterSources.flatMap(routeTests))].sort();
@@ -1823,11 +1853,13 @@ function discoverMutationShardSpecs(changed, targetProvider, dependencies = {}) 
   }
   if (schemaStaticMutate.length > 0) {
     requireRoutedTestFiles(changed, mutationSourceFiles(schemaStaticMutate), fileExists, directRoutes);
+    const schemaRouting = schemaStaticRouting(changed, fileExists, compatibleTestFiles);
+    routingGaps.push(...schemaRouting.gaps);
     shardSpecs.push({
       kind: "schema-static",
       mutate: schemaStaticMutate,
       sources: [SCHEMA_STATIC_SOURCE],
-      testFiles: ["packages/db/src/schema.test.ts"],
+      testFiles: schemaRouting.testFiles,
     });
   }
   for (const [source, spec] of Object.entries(VITEST_CONFIG_STATIC_SPECS)) {
@@ -1844,11 +1876,17 @@ function discoverMutationShardSpecs(changed, targetProvider, dependencies = {}) 
   }
   return {
     allMutate,
+    routingGaps,
     schemaStaticMutate,
     shardSpecs: shardSpecs.sort((left, right) =>
       JSON.stringify(left.sources).localeCompare(JSON.stringify(right.sources)) ||
       JSON.stringify(left.testFiles).localeCompare(JSON.stringify(right.testFiles))),
   };
+}
+
+/** Routing gaps discovery reports for a changed-path set (CHG-069). */
+export function discoverMutationRoutingGaps(changed, targetProvider, dependencies = {}) {
+  return Object.freeze([...discoverMutationShardSpecs(changed, targetProvider, dependencies).routingGaps]);
 }
 
 /** The smallest reusable observation of discovery: closed shard membership,
@@ -2212,7 +2250,8 @@ export async function runMutationScope(options = {}) {
   } catch (error) {
     fail(error.message, "add a conventional adjacent test or an explicit accountable route");
   }
-  const { allMutate, schemaStaticMutate, shardSpecs } = discovered;
+  const { allMutate, routingGaps, schemaStaticMutate, shardSpecs } = discovered;
+  for (const gap of routingGaps) console.error(`mutation-scope: routing gap — ${gap}`);
   const worktreeHash = contentHash(changed.map((path) =>
     `${path}\0${existsSync(path) ? readFileSync(path, "utf8") : "<deleted>"}`).join("\0"));
   const toolVersions = options.toolVersions ?? defaultToolVersions();
@@ -2300,7 +2339,7 @@ export async function runMutationScope(options = {}) {
           testRunner: "command",
           commandRunner: {
             command: spec.kind === "schema-static"
-              ? "./apps/web/node_modules/.bin/vitest run --root packages/db --config vitest.config.ts src/schema.test.ts"
+              ? schemaStaticCommand(spec.testFiles)
               : VITEST_CONFIG_STATIC_SPECS[spec.sources[0]].command,
           },
         }
@@ -2390,6 +2429,7 @@ export async function runMutationScope(options = {}) {
       mismatch: expected !== null && expected !== mutationShardsActual,
       mutation_shards_actual: mutationShardsActual,
       shards: shards.map(({ id }) => id),
+      ...(routingGaps.length > 0 ? { routing_gaps: routingGaps } : {}),
     };
     console.log(JSON.stringify(preflight));
     return { authoritative: false, manifest: manifestFor(), performance: null, preflight };

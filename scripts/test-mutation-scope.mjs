@@ -56,6 +56,71 @@ import mutationVitestConfig from "../vitest.mutation.config.mjs";
 
 const realpathIn = (root, path) => realpathSync(path.startsWith("/") ? path : join(root, path));
 
+// CHG-069 item 4 — break caught: US-071 Task 2 changed schema.ts with a
+// committed migration and the real-DB integration oracle, yet the schema-static
+// shard ran only schema.test.ts and its preview scored 0 killed of 5 as if clean.
+{
+  const scope = await import("./mutation-scope.mjs");
+  const schemaTest = "packages/db/src/schema.test.ts";
+  const integrationOracle = "packages/db/src/analytics-ingestion.integration.test.ts";
+  const migration = "packages/db/src/migrations/V20261006131500__analytics_cost_revisions.sql";
+  const us071Task2 = [
+    "packages/db/scripts/verify-schema.mjs",
+    integrationOracle,
+    "packages/db/src/analytics-ingestion.ts",
+    migration,
+    "packages/db/src/schema.ts",
+  ];
+  const schemaShard = (changed) => {
+    // Every US-071 path is committed, so the real tree answers existence;
+    // only the changed set differs between cases.
+    const dependencies = {};
+    const provider = (sources) => sources.map((source) => `${source}:1-10`);
+    const shards = discoverMutationShardSummaries(changed, provider, dependencies);
+    const schemaStatic = shards.filter((shard) => shard.kind === "schema-static");
+    assert.equal(schemaStatic.length, 1, "schema.ts mutants form exactly one schema-static shard");
+    const gaps = typeof scope.discoverMutationRoutingGaps === "function"
+      ? scope.discoverMutationRoutingGaps(changed, provider, dependencies)
+      : null;
+    return { shard: schemaStatic[0], gaps };
+  };
+
+  const declared = schemaShard(us071Task2);
+  assert.deepEqual(
+    declared.shard.testFiles,
+    [schemaTest, integrationOracle],
+    "a declared migration must route the schema-static shard to the real-DB integration oracle in the diff",
+  );
+  assert.deepEqual(declared.gaps, [], "a selected oracle is not a routing gap");
+  assert.equal(
+    scope.schemaStaticCommand(declared.shard.testFiles),
+    "./apps/web/node_modules/.bin/vitest run --root packages/db --config vitest.config.ts " +
+      "src/schema.test.ts src/analytics-ingestion.integration.test.ts",
+    "the Stryker command runs exactly the shard's testFiles, so the selected oracle actually executes",
+  );
+  assert.equal(
+    scope.schemaStaticCommand([schemaTest]),
+    "./apps/web/node_modules/.bin/vitest run --root packages/db --config vitest.config.ts src/schema.test.ts",
+    "an undeclared schema change keeps the historical command byte-for-byte",
+  );
+
+  const withoutOracle = schemaShard(us071Task2.filter((path) => path !== integrationOracle));
+  assert.deepEqual(withoutOracle.shard.testFiles, [schemaTest]);
+  assert.equal(withoutOracle.gaps.length, 1, "a declared migration without an oracle is reported");
+  assert.match(withoutOracle.gaps[0], /^schema-static: .*migration.*integration/);
+
+  const incompatibleOnly = schemaShard([
+    ...us071Task2.filter((path) => path !== integrationOracle),
+    "packages/db/src/migration-release.integration.test.ts",
+  ]);
+  assert.deepEqual(incompatibleOnly.shard.testFiles, [schemaTest], "mutation-incompatible scanners are never selected");
+  assert.equal(incompatibleOnly.gaps.length, 1);
+
+  const undeclared = schemaShard(us071Task2.filter((path) => path !== migration));
+  assert.deepEqual(undeclared.shard.testFiles, [schemaTest], "no migration in the diff keeps the static shard unchanged");
+  assert.deepEqual(undeclared.gaps, []);
+}
+
 // Break caught: a readiness estimate silently omits or merges a planned
 // mutation boundary instead of preserving every routed source as its own shard.
 const plannedScopeFixtureRoot = mkdtempSync(join(tmpdir(), "smp-planned-mutation-scope-"));
