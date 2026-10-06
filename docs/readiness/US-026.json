@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "fab5ed85158c9a06a5780da963fbc5431667c2b45d620898bb8c667ccc35c40d",
+  "readiness_payload_sha256": "d8e645d383099ee89c1de23442e81d9e6ca667469d82098b4751e9eab4e15f4a",
   "work_id": "US-026",
   "kind": "US",
   "work_type": "technical",
@@ -76,7 +76,7 @@
       "statement": "Both official children are terminal and the combined branch preserves their latest scored source.",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Feedback lines1000 and1034 retain US-070/US-071 done respectively. Current authority fdf6aa3 differs from latest tested/scored source59dceb569735a735811d7f82f79bc7ba18c7ca7b only in US-071 readiness and feedback; twelve selected source/test SHA-256 identities independently match. Child build/migration/native mutation evidence is retained, not fabricated as a fresh parent run."
+      "resolution": "Feedback lines1000 and1034 retain US-070/US-071 done respectively. Current authority fdf6aa3 differs from latest tested/scored source59dceb569735a735811d7f82f79bc7ba18c7ca7b only in US-071 readiness and feedback; twelve selected source/test SHA-256 identities independently match. Child build/migration/native mutation evidence is retained, not fabricated as a fresh parent run. Children are resolved prerequisites cited here, not active blocked_by entries: the validator treats every blocked_by as an unsatisfied blocker even after terminal evidence. No prerequisite is dropped."
     },
     {
       "id": "U3",
@@ -114,25 +114,14 @@
       "resolution": "The120-minute estimate is parent verification/readiness/evidence review only, implementation0; two tracked paths are readiness and append-only feedback (embedding the concise evidence report). Children remain delivered; no implementation/closure authority from historical510-minute partition is reused. Parent raw ledger is ignored .tmp/us026-verification. Actuals stay null until a separately approved execution/closure stage; no child219-minute/other spending is added. New exact digest approval remains required before formal parent execution, under the existing approved selection/held-commit policy; optional stronger policy remains follow-up scope."
     }
   ],
-  "dependencies": [
-    {
-      "work_id": "US-070",
-      "type": "blocked_by",
-      "reason": "Canonical delivered child must retain effective terminal projection before parent verification."
-    },
-    {
-      "work_id": "US-071",
-      "type": "blocked_by",
-      "reason": "Canonical delivered child must retain effective terminal projection before parent verification."
-    }
-  ],
+  "dependencies": [],
   "decision": "ready",
   "partitions": [],
   "approval": {
     "status": "pending",
     "approved_by": null,
     "evidence": null,
-    "payload_sha256": "fab5ed85158c9a06a5780da963fbc5431667c2b45d620898bb8c667ccc35c40d"
+    "payload_sha256": "d8e645d383099ee89c1de23442e81d9e6ca667469d82098b4751e9eab4e15f4a"
   },
   "actuals": null,
   "policy_bootstrap": false,
