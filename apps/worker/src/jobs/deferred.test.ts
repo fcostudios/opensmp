@@ -11,6 +11,9 @@ import { serializeCredentialEnvelope } from "@smp/domain";
 import { describe, expect, it } from "vitest";
 
 import { createDeferredJobHandlers } from "./deferred.js";
+// Keep services-backed analytics scenarios in this deferred mutation seam as
+// well as the worker seam; both exercise real jobs, storage and cleanup.
+import "./analytics-activity.integration.test.js";
 
 describe("US-046 deferred job handlers", () => {
   it("reports each unavailable later-sprint dependency as skipped work", async () => {

@@ -41,9 +41,19 @@ export function createDeferredJobHandlers(
   return {
     analyticsSync: async ({ at, vendorAccountId }) => {
       if (!services) return dependencyNotDelivered("US-070");
-      const job = createAnalyticsActivityJob({ connectionString: services.connectionString, allowedKekRoot: services.credentialKekAllowedRoot, kekFile: services.credentialKekFile, now: services.now, sleep: services.sleep, transport: services.transport });
-      try { return successfulJob((await job.drain({ at, vendorAccountId })).processed); }
-      finally { await job.close(); }
+      const job = createAnalyticsActivityJob({
+        connectionString: services.connectionString,
+        allowedKekRoot: services.credentialKekAllowedRoot,
+        kekFile: services.credentialKekFile,
+        now: services.now,
+        sleep: services.sleep,
+        transport: services.transport,
+      });
+      try {
+        return successfulJob((await job.drain({ at, vendorAccountId })).processed);
+      } finally {
+        await job.close();
+      }
     },
     memberSync: async () => dependencyNotDelivered("US-018"),
     invitePoll: async ({ at, vendorAccountId }) => {
