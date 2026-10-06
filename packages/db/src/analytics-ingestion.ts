@@ -7,8 +7,8 @@ import {
 } from "@smp/connectors";
 import { and, eq, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
-import * as schema from "./schema";
-import { SYSTEM_USER_ID, SYSTEM_USER_EMAIL } from "./system-ids";
+import * as schema from "./schema.js";
+import { SYSTEM_USER_ID, SYSTEM_USER_EMAIL } from "./system-ids.js";
 
 // Shared query builders work with the application driver and PostgreSQL transactions.
 type ActivityDatabase = Pick<PgDatabase<PgQueryResultHKT, typeof schema>, "select" | "insert" | "transaction">;

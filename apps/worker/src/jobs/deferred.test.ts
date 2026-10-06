@@ -24,7 +24,7 @@ describe("US-046 deferred job handlers", () => {
     await expect(handlers.analyticsSync({ ...context, jobName: "analyticsSync" })).resolves.toMatchObject({
       reason: "dependency_not_delivered",
       status: "skipped",
-      story: "US-026",
+      story: "US-070",
     });
     await expect(handlers.memberSync({ ...context, jobName: "memberSync" })).resolves.toMatchObject({
       reason: "dependency_not_delivered",
