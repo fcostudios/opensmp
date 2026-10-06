@@ -17,6 +17,12 @@ Full text: `WORK_READINESS.md` §Per-task mutation previews, §Session shape and
   shards whose preflight `sources` intersect the files changed since the
   previous preview. A whole-set re-preview needs a named reason in the closure.
   Record `preview_rounds` and `preview_minutes` in `actuals`.
+- **Preview budget (CHG-069).** One round per implementation task plus one
+  after the final fix wave, at most 30 `preview_minutes` per child; more rounds
+  or minutes need a named `root_cause` reason. A shard whose last run exceeded
+  5 minutes is previewed once, in the final round, unless a fix touched its
+  sources. A survivor found by a preview joins the next fix round. A
+  `routing_gaps` entry from preflight means that shard's score is not evidence.
 - **One line per survivor.** `surviving_annotated` holds
   `<mutant-id> <file>:<line> @equivalent: <reason>` (or `@accepted: <reason>`
   when the reviewer agrees an observable mutant is not worth a test). The
@@ -27,7 +33,11 @@ Full text: `WORK_READINESS.md` §Per-task mutation previews, §Session shape and
   `done` (a checkpoint or idle restart resumes the same item). The controller briefs a reviewer for adversarial AC verification and
   scoped review instead of running them in its own context. Wait for
   background gates and campaigns with a blocking wait or a yield of 60 s or
-  more, never a 1 s poll.
+  more, never a 1 s poll. Launch a preview round in the background, start the
+  next task, and collect it at that task's review boundary.
+- **Host awake during gates.** Run local gates as `caffeinate -i pnpm check`
+  (Linux: `systemd-inhibit --what=idle:sleep pnpm check`); record any gate run
+  above 2x the median wall time with its cause in `root_cause`.
 - **`cost` on every `done`**: `calls`, `context_tokens`, `output_tokens`,
   `model`, `window`. `done` accepts no other key, so the sentence saying whether
   the numbers are measured or estimated goes in a `feedback` annotation emitted

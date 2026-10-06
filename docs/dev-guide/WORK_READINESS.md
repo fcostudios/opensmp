@@ -240,8 +240,27 @@ MUTATION_SHARD=<post-task-shard-id> pnpm test:mutation
 ```
 
 Shard IDs are discovered after the task and are never hardcoded in the plan.
-Repair every genuine survivor and rerun its affected preview before task review.
-When no shard intersects, record zero previews for the task and proceed.
+Repair every genuine survivor, but a survivor found by a preview joins the next
+fix round rather than opening one; that round re-previews it. When no shard
+intersects, record zero previews for the task and proceed.
+
+**Budget: one round per task plus one final (CHG-069).** A child gets one
+preview round per implementation task, after that task's focused tests are
+green, plus one round after the final fix wave: `tasks + 1` rounds, targeting at
+most 30 `preview_minutes`. A round beyond `tasks + 1`, or minutes beyond 30,
+needs a named reason in the closure's `root_cause`, the same convention as a
+whole-set re-preview below.
+
+**Slow shards once.** A shard whose last run exceeded 5 minutes (the
+database-backed and static-schema shards) is previewed once per child, in the
+final round, unless a fix touched its `sources`. This is the one exception to
+previewing every intersecting shard after its task.
+
+**A routing gap is not a clean result.** When preflight prints a
+`routing_gaps` entry (for example a migration in the diff with no real-DB
+integration oracle for the schema-static shard), that shard's preview cannot
+measure the declared change: a 0-of-N score from it is not evidence. Add or
+touch the oracle, or name the gap in `root_cause`.
 
 **A fix round re-previews only the shards it touched.** After a repair, list
 the files changed since the previous preview (`git diff --name-only
@@ -320,6 +339,10 @@ measured on US-067..069 and US-021).
 - **Never poll at 1 s.** Wait for a background gate, preview, or campaign with
   a blocking wait or a yield of 60 s or more. Each wake re-sends the whole
   context, so a 1 s poll loop is the most expensive way to wait.
+- **Previews do not block the critical path (CHG-069).** Launch a task's
+  preview round in the background, start the next task's RED/GREEN, and
+  collect the round at that next task's review boundary. The final round is
+  collected before adversarial verification.
 - **Mark the boundaries.** Emit a `phase` event when entering
   `implementation`, `focused_verification`, `review`, and `integration`.
 
@@ -421,9 +444,14 @@ Close every work item with this shape. Like `mutation_minutes`,
   "mutation_minutes": 0, "mutation_shards_actual": 0,
   "preview_rounds": 0, "preview_minutes": 0,
   "estimate_variance_minutes": 0,
-  "root_cause": "Phase boundaries from the phase markers; name the reason for any whole-set re-preview."
+  "root_cause": "Phase boundaries from the phase markers; name the reason for any whole-set re-preview, any preview round beyond tasks + 1, preview_minutes above 30, and any gate run above 2x the median wall time."
 }
 ```
+
+A gate run (`pnpm check`, a preview, or a campaign) whose wall time exceeds
+twice the median of that gate's recent runs is recorded in `root_cause` with
+its cause (host sleep, a cold cache, an image pull), so lost time is not read as
+verification cost.
 
 ```jsonl
 {"story":"US-123","event":"test_report","mutation_score":92.3,"scope":"diff","killed":12,"survived":1,"surviving_annotated":["mutant41 packages/domain/src/x.ts:88 @equivalent: the caller already clamps the loop bound"],"mutation_wallclock_s":600}
@@ -538,6 +566,17 @@ The range check fails closed for missing or malformed artifacts, unknown schema
 versions, unavailable or ambiguous base refs, missing approval evidence, and
 unready referenced IDs. `--no-verify` is not an exemption; `pnpm check` and CI
 enforce the same contract.
+
+Run a local gate with the host kept awake, so a sleep cannot stretch it (US-070
+lost 997 s of one `pnpm check` to a host thermal sleep):
+
+```bash
+caffeinate -i pnpm check                        # macOS
+systemd-inhibit --what=idle:sleep pnpm check    # Linux
+```
+
+Wrap previews and campaigns the same way (`caffeinate -i pnpm test:mutation`).
+CI runners need no wrapper, and `scripts.check` stays wrapper-free.
 
 ## Decision examples
 
