@@ -88,7 +88,7 @@ export type ActivitySnapshot = {
   records: readonly ActivityIngestionRecord[];
 };
 export type CostSnapshot = {
-  records: readonly { email: string; costDate: string; amountUsd: string }[];
+  records: readonly CostIngestionRecord[];
 };
 
 export type InvitationWithdrawalResult =
@@ -220,4 +220,44 @@ export function normalizeActivityCounters(value: unknown): JsonValue {
     return result;
   }
   return normalize(value, activityCounterShape, "counters");
+}
+
+
+export type CostIngestionRecord = Readonly<{
+  email: string | null;
+  providerUserId: string | null;
+  costDate: string;
+  amountUsd: string;
+  amountCents: string | null;
+}>;
+
+/** Exact NUMERIC(12,4) USD: no floating point, rounding or precision loss. */
+function costUnits(value: unknown, fractionalDigits: number): bigint {
+  if (typeof value !== "string" || !/^[+-]?\d+(?:\.\d+)?$/.test(value)) {
+    throw new Error("Invalid cost decimal");
+  }
+  const negative = value.startsWith("-");
+  const [whole, fraction = ""] = value.replace(/^[+-]/, "").split(".");
+  const significantFraction = fraction.replace(/0+$/, "");
+  if (significantFraction.length > fractionalDigits) throw new Error("Cost precision exceeds four USD decimals");
+  const magnitude = BigInt(whole!) * 10n ** BigInt(fractionalDigits)
+    + BigInt(significantFraction.padEnd(fractionalDigits, "0"));
+  if (magnitude > 999_999_999_999n) throw new Error("Cost amount exceeds USD bound");
+  return negative ? -magnitude : magnitude;
+}
+
+function costUsdFromUnits(units: bigint): string {
+  const negative = units < 0n;
+  const digits = (negative ? -units : units).toString().padStart(5, "0");
+  const whole = digits.slice(0, -4);
+  const fraction = digits.slice(-4).replace(/0+$/, "");
+  return `${negative ? "-" : ""}${whole}${fraction ? `.${fraction}` : ""}`;
+}
+
+export function normalizeCostUsd(value: unknown): string {
+  return costUsdFromUnits(costUnits(value, 4));
+}
+
+export function fractionalCentsToUsd(value: unknown): string {
+  return costUsdFromUnits(costUnits(value, 2));
 }

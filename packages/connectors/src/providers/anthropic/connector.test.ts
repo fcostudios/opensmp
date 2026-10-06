@@ -6,6 +6,7 @@ import {
   type ConnectorCallObservationAppendInput,
   type ConnectorOperation,
 } from "../../connector-call-observation.js";
+import { fractionalCentsToUsd, normalizeCostUsd } from "../../contracts.js";
 import type { ConnectorResult, VendorConnector } from "../../contracts.js";
 import { createConnectorDispatcher } from "../../dispatch.js";
 import type { AnthropicCredentialCandidate } from "./credentials.js";
@@ -62,21 +63,19 @@ function summary(date = "2026-09-06", activeUsers = 1, conversations = 2) {
   return { date, active_users: activeUsers, conversations };
 }
 
-function usage(id: string, email: string | null) {
+// Documented per-user cost report: https://platform.claude.com/docs/en/api/http/beta/organization/analytics/user_cost_report/list
+function cost(id: string, email: string | null, amount = "123.45", currency = "USD") {
   return {
-    user_id: id,
-    email,
-    input_tokens: "10",
-    output_tokens: "2",
+    actor: { type: "user_actor", deleted: email === null, email, email_address: email, name: email === null ? "Deleted User" : "Member", user_id: id },
+    amount, list_amount: amount, currency,
+    starting_at: null, ending_at: null, model: null, product: null, requests: 1,
+    cost_type: null, context_window: null, inference_geo: null, rbac_group_id: null,
+    slack_channel_id: null, speed: null, token_type: null, claude_tag_category: null, claude_tag_user_id: null,
   };
 }
 
-function cost(id: string, email: string | null, amount = "123.4567", currency = "USD") {
-  return {
-    user_id: id,
-    email,
-    results: [{ amount, list_amount: amount, currency }],
-  };
+function costPage(data: readonly unknown[], nextPage: string | null = null) {
+  return {data, has_more: nextPage !== null, next_page: nextPage, organization_id: "org-contract", data_refreshed_at: "2026-09-06T12:00:00Z"};
 }
 
 function fixture(
@@ -178,8 +177,7 @@ describe("Anthropic neutral connector", () => {
       if (url.pathname.endsWith("/invites")) return json(idPage([invite("inv-1", "pending@example.test")]));
       if (url.pathname.endsWith("/analytics/users")) return json(opaquePage([analyticsUser("usr-1", "member@example.test")]));
       if (url.pathname.endsWith("/summaries")) return json({ summaries: [summary()] });
-      if (url.pathname.endsWith("/user_usage_report")) return json(opaquePage([usage("usr-1", "member@example.test")]));
-      if (url.pathname.endsWith("/user_cost_report")) return json(opaquePage([cost("usr-1", null)]));
+      if (url.pathname.endsWith("/user_cost_report")) return json(costPage([cost("usr-1", "member@example.test")]));
       throw new Error(`unexpected transport request ${request.method} ${url.pathname}`);
     });
     const connector = createConnectorDispatcher({ rest: implementation }).forProtocol("rest");
@@ -204,7 +202,7 @@ describe("Anthropic neutral connector", () => {
       records: [{ email: "member@example.test", providerUserId: "usr-1", activityDate: "2026-09-06", counters: { chat_metrics: {message_count:2} } }],
     });
     expect(await successValue(connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW }))).toEqual({
-      records: [{ email: "member@example.test", costDate: "2026-09-06", amountUsd: "1.234567" }],
+      records: [{ email: "member@example.test", providerUserId: "usr-1", costDate: "2026-09-06", amountUsd: "1.2345", amountCents: "123.45" }],
     });
 
     expect(credentialLookups).toEqual(Array(5).fill(ACCOUNT));
@@ -854,46 +852,11 @@ describe("Anthropic neutral connector", () => {
       expectedPaths: ["/v1/organizations/users"],
     },
     {
-      name: "null cost result",
-      operation: "cost",
-      stage: "cost",
-      body: opaquePage([{ ...cost("u", null), results: [null] }]),
-      expectedPaths: ["/v1/organizations/analytics/user_usage_report", "/v1/organizations/analytics/user_cost_report"],
-    },
-    {
-      name: "numeric cost amount",
-      operation: "cost",
-      stage: "cost",
-      body: opaquePage([{ ...cost("u", null), results: [{ amount: 100, list_amount: "100", currency: "USD" }] }]),
-      expectedPaths: ["/v1/organizations/analytics/user_usage_report", "/v1/organizations/analytics/user_cost_report"],
-    },
-    {
       name: "whitespace-only member name",
       operation: "members",
       stage: "members",
       body: idPage([{ ...member("u", "a@example.test"), name: "  " }]),
       expectedPaths: ["/v1/organizations/users"],
-    },
-    {
-      name: "invalid second cost result for a null-email actor",
-      operation: "cost",
-      stage: "cost",
-      usageBody: opaquePage([usage("u", null)]),
-      body: opaquePage([{
-        ...cost("u", null),
-        results: [
-          { amount: "100", list_amount: "100", currency: "USD" },
-          { amount: "100", list_amount: "100", currency: "EUR" },
-        ],
-      }]),
-      expectedPaths: ["/v1/organizations/analytics/user_usage_report", "/v1/organizations/analytics/user_cost_report"],
-    },
-    {
-      name: "malformed usage ID",
-      operation: "cost",
-      stage: "usage",
-      body: opaquePage([usage("", "a@example.test")]),
-      expectedPaths: ["/v1/organizations/analytics/user_usage_report"],
     },
     {
       name: "null user envelope",
@@ -917,45 +880,15 @@ describe("Anthropic neutral connector", () => {
       expectedPaths: ["/v1/organizations/users"],
     },
     {
-      name: "numeric usage input tokens",
-      operation: "cost",
-      stage: "usage",
-      body: opaquePage([{ ...usage("u", "a@example.test"), input_tokens: 10 }]),
-      expectedPaths: ["/v1/organizations/analytics/user_usage_report"],
-    },
-    {
-      name: "numeric usage output tokens",
-      operation: "cost",
-      stage: "usage",
-      body: opaquePage([{ ...usage("u", "a@example.test"), output_tokens: 2 }]),
-      expectedPaths: ["/v1/organizations/analytics/user_usage_report"],
-    },
-    {
-      name: "numeric cost list amount",
-      operation: "cost",
-      stage: "cost",
-      body: opaquePage([{ ...cost("u", null), results: [{ amount: "100", list_amount: 100, currency: "USD" }] }]),
-      expectedPaths: ["/v1/organizations/analytics/user_usage_report", "/v1/organizations/analytics/user_cost_report"],
-    },
-    {
       name: "numeric member name",
       operation: "members",
       stage: "members",
       body: idPage([{ ...member("u", "a@example.test"), name: 7 }]),
       expectedPaths: ["/v1/organizations/users"],
     },
-    {
-      name: "empty cost results for a null-email actor",
-      operation: "cost",
-      stage: "cost",
-      usageBody: opaquePage([usage("u", null)]),
-      body: opaquePage([{ ...cost("u", null), results: [] }]),
-      expectedPaths: ["/v1/organizations/analytics/user_usage_report", "/v1/organizations/analytics/user_cost_report"],
-    },
-  ] as const)("contains malformed provider success: $name", async ({ operation, stage, body, expectedPaths, ...row }) => {
+  ] as const)("contains malformed provider success: $name", async ({ operation, stage, body, expectedPaths }) => {
     // Mutations killed: weakening closed-shape/type guards exposes partial provider data or reaches a later endpoint.
     const seen: string[] = [];
-    const usageBody = "usageBody" in row ? row.usageBody : opaquePage([usage("u", "a@example.test")]);
     const { connector } = fixture(async (request) => {
       const path = new URL(request.url).pathname;
       seen.push(path);
@@ -966,15 +899,11 @@ describe("Anthropic neutral connector", () => {
       if (path.endsWith("/analytics/users")) {
         return json(stage === "analytics" ? body : opaquePage([analyticsUser("u", "a@example.test")]));
       }
-      if (path.endsWith("/user_usage_report")) return json(stage === "usage" ? body : usageBody);
-      if (path.endsWith("/user_cost_report")) return json(stage === "cost" ? body : opaquePage([cost("u", null)]));
       throw new Error(`unexpected transport request ${request.method} ${path}`);
     });
     const result = operation === "members"
       ? connector.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW })
-      : operation === "activity"
-        ? connector.syncActivity({ vendorAccountId: ACCOUNT, observedAt: NOW })
-        : connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW });
+      : connector.syncActivity({ vendorAccountId: ACCOUNT, observedAt: NOW });
 
     await expect(result).resolves.toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
     expect(seen).toEqual(expectedPaths);
@@ -1031,180 +960,83 @@ describe("Anthropic neutral connector", () => {
       .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
   });
 
-  it("rejects a malformed usage identity before requesting cost", async () => {
-    // Mutations killed: skipping the usage parser allows an ungrounded cost identity to pass.
-    let costCalls = 0;
-    const { connector } = fixture(async (request) => {
-      if (new URL(request.url).pathname.endsWith("/user_cost_report")) costCalls += 1;
-      return json(opaquePage([{ ...usage("u", "a@example.test"), input_tokens: "1e3" }]));
+  it("reads only per-user cost across one exact UTC day and preserves nullable identities", async () => {
+    // Kills usage joins, lost nullable actors, wrong date bounds and leaking unknown fields.
+    const calls: string[] = [];
+    const {connector} = fixture(async request => {
+      const url = new URL(request.url); calls.push(url.pathname + "?" + url.searchParams.toString());
+      expect(request.headers.get("X-Api-Key")).toBe("analytics-secret");
+      return json(costPage(url.searchParams.has("page")
+        ? [cost("deleted", null, "-123.4500"), {...cost("none", null, "0.000000"), actor: null}]
+        : [{...cost("u", "A@example.test"), unknown: {authorization:"must-not-persist"}}], url.searchParams.has("page") ? null : "opaque /+="));
     });
-    expect(await connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW }))
-      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
-    expect(costCalls).toBe(0);
+    const result = await connector.syncCost({vendorAccountId:ACCOUNT,observedAt:NOW});
+    expect(result).toEqual({ok:true,value:{records:[
+      {email:"a@example.test",providerUserId:"u",costDate:"2026-09-06",amountUsd:"1.2345",amountCents:"123.45"},
+      {email:null,providerUserId:"deleted",costDate:"2026-09-06",amountUsd:"-1.2345",amountCents:"-123.4500"},
+      {email:null,providerUserId:null,costDate:"2026-09-06",amountUsd:"0",amountCents:"0.000000"},
+    ]},raw:null});
+    expect(calls).toEqual([
+      "/v1/organizations/analytics/user_cost_report?starting_at=2026-09-06T00%3A00%3A00Z&ending_at=2026-09-07T00%3A00%3A00Z&bucket_width=1d&limit=1",
+      "/v1/organizations/analytics/user_cost_report?starting_at=2026-09-06T00%3A00%3A00Z&ending_at=2026-09-07T00%3A00%3A00Z&bucket_width=1d&limit=1&page=opaque+%2F%2B%3D",
+    ]);
+    expect(JSON.stringify(result)).not.toMatch(/must-not-persist|authorization|secret/);
   });
 
   it.each([
-    ["duplicate usage IDs", [usage("u", "a@example.test"), usage("u", "a@example.test")], [cost("u", null)]],
-    ["duplicate usage emails", [usage("u1", "Same@Example.test"), usage("u2", "same@example.test")], [cost("u1", null)]],
-    ["duplicate cost IDs", [usage("u", "a@example.test")], [cost("u", null), cost("u", null)]],
-    ["duplicate cost emails", [usage("u1", "a@example.test"), usage("u2", "b@example.test")], [cost("u1", "same@example.test"), cost("u2", "same@example.test")]],
-    ["cost actor absent from usage", [usage("u1", "a@example.test")], [cost("u2", "b@example.test")]],
-    ["non-null email disagreement", [usage("u", "a@example.test")], [cost("u", "b@example.test")]],
-    ["standalone cost email", [usage("u", null)], [cost("u", "a@example.test")]],
-  ] as const)("rejects %s in the strict usage/cost identity join", async (_case, usages, costs) => {
-    // Mutations killed: order-based or preferential email joins misattribute financial records.
-    const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/user_usage_report")
-      ? json(opaquePage(usages))
-      : json(opaquePage(costs)));
-    expect(await connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW }))
-      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+    ["non USD", {...cost("u",null),currency:"EUR"}],
+    ["numeric amount", {...cost("u",null),amount:123}],
+    ["unrepresentable fraction", cost("u",null,"0.001")],
+    ["overflow", cost("u",null,"10000000000")],
+    ["exponent", cost("u",null,"1e3")],
+    ["malformed actor", {...cost("u",null),actor:3}],
+    ["wrong actor type", {...cost("u",null),actor:{...cost("u",null).actor,type:"organization"}}],
+    ["malformed id", cost("bad\u0000id",null)],
+    ["malformed email", cost("u","invalid")],
+  ])("rejects malformed cost atomically: %s", async (_name,row) => {
+    const {connector} = fixture(async()=>json(costPage([cost("valid","a@example.test"),row])));
+    expect(await connector.syncCost({vendorAccountId:ACCOUNT,observedAt:NOW})).toEqual({ok:false,code:"provider_error",retryable:false,raw:null});
   });
 
-  it("rejects a duplicate usage ID with conflicting emails before requesting cost", async () => {
-    // Mutations killed: overwriting a duplicate usage ID silently selects one of two financial identities.
-    let costCalls = 0;
-    const { connector } = fixture(async (request) => {
-      if (new URL(request.url).pathname.endsWith("/user_usage_report")) {
-        return json(opaquePage([
-          usage("duplicate", "a@example.test"),
-          usage("duplicate", "b@example.test"),
-        ]));
-      }
-      costCalls += 1;
-      return json(opaquePage([cost("duplicate", null)]));
+  it.each(["repeat", "bound", "has_more mismatch"])("contains cost paging failure: %s", async mode => {
+    let calls = 0;
+    const {connector} = fixture(async()=>{
+      calls++;
+      const body = costPage([], mode === "repeat" ? "repeat" : String(calls));
+      return json(mode === "has_more mismatch" ? {...body,has_more:false} : body);
     });
-    expect(await connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW }))
-      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
-    expect(costCalls).toBe(0);
-  });
-
-  it("resolves a nullable cost email only from the matching usage actor", async () => {
-    // Mutations killed: dropping the ID join loses a valid nullable-email cost actor.
-    const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/user_usage_report")
-      ? json(opaquePage([usage("u", "a@example.test")]))
-      : json(opaquePage([cost("u", null, "100")])));
-    expect(await successValue(connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW }))).toEqual({
-      records: [{ email: "a@example.test", costDate: "2026-09-06", amountUsd: "1.00" }],
-    });
-  });
-
-  it("rejects malformed matching IDs across usage and cost", async () => {
-    // Mutations killed: treating opaque IDs as merely nonblank allows control-bearing actors to join.
-    const malformed = "user\u0000id";
-    let costCalls = 0;
-    const { connector } = fixture(async (request) => {
-      const path = new URL(request.url).pathname;
-      if (path.endsWith("/user_usage_report")) {
-        return json(opaquePage([usage(malformed, "a@example.test")]));
-      }
-      costCalls += 1;
-      return json(opaquePage([cost(malformed, null)]));
-    });
-    expect(await connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW }))
-      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
-    expect(costCalls).toBe(0);
-  });
-
-  it("maps aggregate money overflow to a private non-retryable failure", async () => {
-    // Mutations killed: allowing BigInt aggregation to throw escapes the stable connector failure contract.
-    const amount = "9".repeat(80);
-    const aggregated = { ...cost("u", null, amount), results: [
-      { amount, list_amount: amount, currency: "USD" },
-      { amount, list_amount: amount, currency: "USD" },
-    ] };
-    const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/user_usage_report")
-      ? json(opaquePage([usage("u", "a@example.test")]))
-      : json(opaquePage([aggregated])));
-    await expect(connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW })).resolves.toEqual({
-      ok: false, code: "provider_error", retryable: false, raw: null,
-    });
+    expect(await connector.syncCost({vendorAccountId:ACCOUNT,observedAt:NOW})).toEqual({ok:false,code:"provider_error",retryable:false,raw:null});
+    expect(calls).toBe(mode === "repeat" ? 2 : mode === "bound" ? 100 : 1);
   });
 
   it.each([
-    [["1.2", "3.45"], "0.0465"],
-    [["99.9", "0.1"], "1.000"],
-    [["10.25", "-0.25"], "0.1000"],
-    [["1.00", "-1.00"], "0.0000"],
-    [["999.99", "0.01", "-500.00"], "5.0000"],
-  ] as const)("aggregates differing-scale signed fractional cents %j exactly", async (amounts, amountUsd) => {
-    // Mutations killed: first/last-only, wrong scale, missing carry, or lost sign changes the literal total.
-    const row = {
-      ...cost("u", null, amounts[0]),
-      results: amounts.map((amount) => ({ amount, list_amount: amount, currency: "USD" })),
-    };
-    const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/user_usage_report")
-      ? json(opaquePage([usage("u", "a@example.test")]))
-      : json(opaquePage([row])));
-    expect(await successValue(connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW }))).toEqual({
-      records: [{ email: "a@example.test", costDate: "2026-09-06", amountUsd }],
-    });
-  });
+    ["123.45","1.2345"], ["-123.45","-1.2345"], ["9999999999.99","99999999.9999"],
+    ["-9999999999.99","-99999999.9999"], ["100.000000","1"], ["-0.0000","0"], ["+00123.4500","1.2345"],
+  ])("converts exact fractional cents %s", (cents,usd)=>expect(fractionalCentsToUsd(cents)).toBe(usd));
+
+  it.each(["0.001", "-0.001", "9999999999.991", "10000000000", "-10000000000", "1e3", "NaN", "Infinity", "", " 1", "1.", ".1", 1, null])("rejects invalid fractional cents %s", value=>expect(()=>fractionalCentsToUsd(value)).toThrow());
 
   it.each([
-    ["1e3", "USD"], ["+1", "USD"], ["01", "USD"], ["-0.00", "USD"],
-    ["1", "EUR"], [`1${"0".repeat(100)}`, "USD"],
-  ] as const)("rejects unsafe cost amount %s %s without a partial result", async (amount, currency) => {
-    // Mutations killed: Number conversion, permissive decimal syntax, or ignored currency returns an incorrect amount.
-    const { connector } = fixture(async (request) => {
-      const path = new URL(request.url).pathname;
-      return path.endsWith("/user_usage_report")
-        ? json(opaquePage([usage("u", "a@example.test")]))
-        : json(opaquePage([cost("u", null, amount, currency)]));
-    });
-    expect(await connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW }))
-      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
-  });
+    ["1.23000","1.23"], ["+001.2300","1.23"], ["-0.000000","0"], ["99999999.9999000","99999999.9999"], ["-99999999.9999","-99999999.9999"],
+  ])("normalizes exact USD %s", (input,want)=>expect(normalizeCostUsd(input)).toBe(want));
 
-  it("aggregates bounded mixed-scale signed arrays with a fixed-seed money property", async () => {
-    // Mutations killed: changing sign/scale, skipping a result, or using binary floating point breaks the exact sum.
-    await fc.assert(fc.asyncProperty(
-      fc.bigInt({ min: 1n, max: 999_999_999_999n }),
-      fc.integer({ min: 0, max: 8 }),
-      fc.integer({ min: 1, max: 8 }),
-      fc.array(fc.tuple(
-        fc.bigInt({ min: -999_999_999_999n, max: 999_999_999_999n }),
-        fc.integer({ min: 0, max: 8 }),
-      ), { maxLength: 4 }),
-      async (cancelMagnitude, cancelScale, scaleOffset, extras) => {
-        const differentScale = (cancelScale + scaleOffset) % 9;
-        const terms = [
-          [cancelMagnitude, cancelScale],
-          [-cancelMagnitude, cancelScale],
-          [7n, differentScale],
-          ...extras,
-        ] as readonly (readonly [bigint, number])[];
-        const decimal = (unscaled: bigint, scale: number): string => {
-          const negative = unscaled < 0n;
-          const digits = (negative ? -unscaled : unscaled).toString().padStart(scale + 1, "0");
-          return scale === 0
-            ? `${negative ? "-" : ""}${digits}`
-            : `${negative ? "-" : ""}${digits.slice(0, -scale)}.${digits.slice(-scale)}`;
-        };
-        const commonScale = Math.max(...terms.map(([, scale]) => scale));
-        const expectedUnscaled = terms.reduce(
-          (sum, [unscaled, scale]) => sum + unscaled * 10n ** BigInt(commonScale - scale),
-          0n,
-        );
-        const expectedUsd = decimal(expectedUnscaled, commonScale + 2);
-        const amounts = terms.map(([unscaled, scale]) => decimal(unscaled, scale));
-        const row = {
-          ...cost("u", null, amounts[0]),
-          results: amounts.map((amount) => ({ amount, list_amount: amount, currency: "USD" })),
-        };
-        const { connector } = fixture(async (request) => {
-          const path = new URL(request.url).pathname;
-          return path.endsWith("/user_usage_report")
-            ? json(opaquePage([usage("u", "a@example.test")]))
-            : json(opaquePage([row]));
-        });
-        const result = await connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW });
-        expect(result.ok).toBe(true);
-        if (!result.ok) return;
-        expect(result.value.records).toEqual([
-          { email: "a@example.test", costDate: "2026-09-06", amountUsd: expectedUsd },
-        ]);
-      },
-    ), { seed: 58_058, numRuns: 40 });
+  it.each(["0.00001", "-0.00001", "100000000", "-100000000", "1e2", "NaN", "Infinity", "", "1.2.3", 1, undefined])("rejects invalid USD %s", value=>expect(()=>normalizeCostUsd(value)).toThrow());
+
+  it("round-trips signed integer ten-thousandths using an independent seeded money oracle", () => {
+    // Kills incorrect scale, sign, precision, normalization and floating-point conversion.
+    fc.assert(fc.property(fc.bigInt({min:-999_999_999_999n,max:999_999_999_999n}), units => {
+      const negative = units < 0n;
+      const absolute = negative ? -units : units;
+      const centsDigits = absolute.toString().padStart(3,"0");
+      const cents = `${negative ? "-" : ""}${centsDigits.slice(0,-2)}.${centsDigits.slice(-2)}0000`;
+      const usd = fractionalCentsToUsd(cents);
+      const [whole,fraction=""] = usd.replace("-","").split(".");
+      const decoded = (BigInt(whole!) * 10_000n + BigInt(fraction.padEnd(4,"0"))) * (usd.startsWith("-") ? -1n : 1n);
+      expect(decoded).toBe(units);
+      expect(normalizeCostUsd(usd)).toBe(usd);
+      expect(usd).toMatch(/^-?(?:0|[1-9]\d*)(?:\.\d{0,3}[1-9])?$/);
+      expect(usd).not.toBe("-0");
+    }),{seed:71_071,numRuns:200});
   });
 
   it.each([

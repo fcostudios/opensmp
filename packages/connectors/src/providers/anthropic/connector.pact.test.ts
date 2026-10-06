@@ -136,3 +136,40 @@ test("documented per-person activity uses analytics credentials and opaque pages
     expect(JSON.stringify([result,observations])).not.toMatch(/must-not-persist|contract-admin|contract-analytics|authorization/);
   }); } finally {rmSync(dir,{recursive:true,force:true});}
 });
+
+// Provider schema: https://platform.claude.com/docs/en/api/http/beta/organization/analytics/user_cost_report/list
+// Amount is fractional cents; actor.email_address is nullable; pages retain identical date bounds.
+test("documented per-user cost uses one day, exact fractional cents and nullable actors", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "us071-cost-pact-"));
+  const pact = new PactV3({consumer:"ledger-person-cost",provider:"anthropic-enterprise-api",dir,logLevel:"error"});
+  const row = (id:string,email:string|null,amount:string) => ({
+    actor:{type:"user_actor",deleted:email===null,email,email_address:email,name:email===null?"Deleted User":"Member",user_id:id},
+    amount,list_amount:amount,currency:"USD",starting_at:null,ending_at:null,
+    model:null,product:null,requests:1,cost_type:null,context_window:null,inference_geo:null,
+    rbac_group_id:null,slack_channel_id:null,speed:null,token_type:null,claude_tag_category:null,claude_tag_user_id:null,
+  });
+  const bodies = [
+    {data:[{...row("u-a","ALICE@example.test","123.450000"),unknown:{authorization:"must-not-persist"}}],has_more:true,next_page:"opaque /+=",organization_id:"org-contract",data_refreshed_at:"2026-10-02T15:00:00Z"},
+    {data:[row("u-deleted",null,"-123.45"),{...row("unused",null,"0.000000"),actor:null}],has_more:false,next_page:null,organization_id:"org-contract",data_refreshed_at:"2026-10-02T15:00:00Z"},
+  ];
+  bodies.forEach((body,index)=>pact.addInteraction({uponReceiving:`person cost page ${index}`,withRequest:{method:"GET",path:"/v1/organizations/analytics/user_cost_report",query:{starting_at:"2026-10-01T00:00:00Z",ending_at:"2026-10-02T00:00:00Z",bucket_width:"1d",limit:"1",...(index?{page:"opaque /+="}:{})},headers:{"X-Api-Key":"contract-analytics","anthropic-version":"2023-06-01"}},willRespondWith:{status:200,headers:{"Content-Type":"application/json"},body}}));
+  try { await pact.executeTest(async server => {
+    const calls:string[] = [], observations:ConnectorCallObservationAppendInput[]=[];
+    const clock={now:()=>at.getTime()},sleep=async()=>undefined;
+    const connector=createAnthropicConnector({credentialsFor:async()=>[
+      {vendorAccountId:account,kind:"admin_scoped",secret:"contract-admin",status:"active",health:"ok"},
+      {vendorAccountId:account,kind:"analytics",secret:"contract-analytics",status:"active",health:"ok"},
+    ],observationSessionFor:async input=>createConnectorCallObservationSession({vendorAccountId:account,provisioningActionId:null,operation:input.operation,clock:()=>at,randomId:()=>requestId,append:async event=>{observations.push(event);}}),requestDependencies:{clock,sleep,limiter:createAnthropicRateLimiter({clock,sleep}),transport:async input=>{
+      const url=new URL(input.url);calls.push(url.pathname);
+      return fetch(new Request(new URL(url.pathname+url.search,server.url),input));
+    }}});
+    const result=await connector.syncCost({vendorAccountId:account,observedAt:new Date("2026-10-01T17:45:00Z")});
+    expect(result).toEqual({ok:true,value:{records:[
+      {email:"alice@example.test",providerUserId:"u-a",costDate:"2026-10-01",amountUsd:"1.2345",amountCents:"123.450000"},
+      {email:null,providerUserId:"u-deleted",costDate:"2026-10-01",amountUsd:"-1.2345",amountCents:"-123.45"},
+      {email:null,providerUserId:null,costDate:"2026-10-01",amountUsd:"0",amountCents:"0.000000"},
+    ]},raw:null});
+    expect(calls).toEqual(Array(2).fill("/v1/organizations/analytics/user_cost_report"));
+    expect(JSON.stringify([result,observations])).not.toMatch(/must-not-persist|contract-admin|contract-analytics|authorization/);
+  }); } finally {rmSync(dir,{recursive:true,force:true});}
+});

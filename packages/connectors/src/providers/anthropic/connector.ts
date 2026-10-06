@@ -2,9 +2,10 @@ import type {
   ConnectorCallObservationSession,
   ConnectorOperation,
 } from "../../connector-call-observation.js";
-import { isInvitationDeletionReceipt, isMemberPageStream, isMemberPageToken, normalizeActivityCounters } from "../../contracts.js";
+import { fractionalCentsToUsd, isInvitationDeletionReceipt, isMemberPageStream, isMemberPageToken, normalizeActivityCounters } from "../../contracts.js";
 import type {
   ActivityIngestionRecord,
+  CostIngestionRecord,
   ConnectorCapability,
   MemberPageCursor,
   MemberPageResume,
@@ -68,24 +69,10 @@ type OpaquePage<T> = Readonly<{
 type Member = Readonly<{ type: "user"; id: string; name: string; email: string | null }>;
 type Invitation = Readonly<{ type: "invite"; id: string; email: string | null; status: string }>;
 type AnalyticsUser = ActivityIngestionRecord;
-type UserUsage = Readonly<{
-  user_id: string;
-  email: string | null;
-  input_tokens: string;
-  output_tokens: string;
-}>;
-type CostResult = Readonly<{ amount: string; list_amount: string; currency: "USD" }>;
-type UserCost = Readonly<{
-  user_id: string;
-  email: string | null;
-  results: readonly CostResult[];
-}>;
 
 const capabilities = Object.freeze([
   "provision", "deprovision", "syncMembers", "syncActivity", "syncCost",
 ] as const) satisfies readonly ConnectorCapability[];
-const plainDecimal = /^(?:0|[1-9]\d*)(?:\.\d+)?$|^-(?:(?:[1-9]\d*)(?:\.\d+)?|0\.\d*[1-9]\d*)$/;
-const plainUnsignedDecimal = /^(?:0|[1-9]\d*)(?:\.\d+)?$/;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -224,40 +211,17 @@ function parseAnalyticsUser(value: unknown, observedOn: string): AnalyticsUser |
   } catch { return null; }
 }
 
-function parseUsage(value: unknown): UserUsage | null {
-  const item = exact(value, ["user_id", "email", "input_tokens", "output_tokens"]);
-  if (
-    !item || !opaqueToken(item.user_id) || typeof item.input_tokens !== "string"
-    || !plainUnsignedDecimal.test(item.input_tokens) || typeof item.output_tokens !== "string"
-    || !plainUnsignedDecimal.test(item.output_tokens)
-  ) return null;
-  const email = usableEmail(item.email);
-  return email === undefined ? null : {
-    user_id: item.user_id, email, input_tokens: item.input_tokens, output_tokens: item.output_tokens,
-  };
-}
-
-function parseCostResult(value: unknown): CostResult | null {
-  const item = exact(value, ["amount", "list_amount", "currency"]);
-  if (
-    !item || typeof item.amount !== "string" || typeof item.list_amount !== "string"
-    || item.currency !== "USD" || !canonicalDecimal(item.amount) || !canonicalDecimal(item.list_amount)
-  ) return null;
-  return { amount: item.amount, list_amount: item.list_amount, currency: "USD" };
-}
-
-function parseCost(value: unknown): UserCost | null {
-  const item = exact(value, ["user_id", "email", "results"]);
-  if (
-    !item || !opaqueToken(item.user_id) || !Array.isArray(item.results) || item.results.length === 0
-  ) return null;
-  const email = usableEmail(item.email);
-  const results = item.results.map(parseCostResult);
-  return email === undefined || results.some((result) => result === null) ? null : {
-    user_id: item.user_id,
-    email,
-    results: results as CostResult[],
-  };
+function parseCost(value: unknown, observedOn: string): CostIngestionRecord | null {
+  const item = record(value);
+  if (!item || item.currency !== "USD" || typeof item.amount !== "string") return null;
+  const actor = item.actor == null ? null : record(item.actor);
+  if (item.actor != null && (!actor || (actor.type != null && actor.type !== "user_actor"))) return null;
+  const email = actor?.email_address == null ? null : usableEmail(actor.email_address);
+  const providerUserId = actor?.user_id == null ? null : actor.user_id;
+  if (email === undefined || (providerUserId !== null && !opaqueToken(providerUserId))) return null;
+  try {
+    return {email, providerUserId, costDate: observedOn, amountUsd: fractionalCentsToUsd(item.amount), amountCents: item.amount};
+  } catch { return null; }
 }
 
 function parseIdPage<T>(value: unknown, parser: (item: unknown) => T | null): IdPage<T> | null {
@@ -278,45 +242,6 @@ function parseOpaquePage<T>(value: unknown, parser: (item: unknown) => T | null)
   if (!page || !Array.isArray(page.data) || !(page.next_page === null || providerToken(page.next_page))) return null;
   const data = page.data.map(parser);
   return data.some((item) => item === null) ? null : { data: data as T[], next_page: page.next_page };
-}
-
-function canonicalDecimal(value: string): boolean {
-  if (!plainDecimal.test(value) || value.length > 80) return false;
-  if (value.startsWith("-")) {
-    return /[1-9]/.test(value);
-  }
-  return true;
-}
-
-function decimalParts(value: string): { negative: boolean; digits: string; scale: number } {
-  const negative = value.startsWith("-");
-  const unsigned = negative ? value.slice(1) : value;
-  const [whole, fraction = ""] = unsigned.split(".");
-  return { negative, digits: `${whole}${fraction}`, scale: fraction.length };
-}
-
-function centsToUsd(value: string): string {
-  if (!canonicalDecimal(value)) throw new Error("Invalid Anthropic cost decimal");
-  const { negative, digits, scale } = decimalParts(value);
-  const absolute = BigInt(digits);
-  const usdScale = scale + 2;
-  const padded = absolute.toString().padStart(usdScale + 1, "0");
-  return `${negative ? "-" : ""}${padded.slice(0, -usdScale)}.${padded.slice(-usdScale)}`;
-}
-
-function addDecimals(values: readonly string[]): string {
-  const parsed = values.map(decimalParts);
-  const scale = Math.max(...parsed.map((item) => item.scale));
-  const total = parsed.reduce((sum, item) => {
-    const signed = BigInt(item.digits) * 10n ** BigInt(scale - item.scale);
-    return sum + (item.negative ? -signed : signed);
-  }, 0n);
-  const negative = total < 0n;
-  const digits = (negative ? -total : total).toString().padStart(scale + 1, "0");
-  const cents = scale === 0
-    ? `${negative ? "-" : ""}${digits}`
-    : `${negative ? "-" : ""}${digits.slice(0, -scale)}.${digits.slice(-scale)}`;
-  return centsToUsd(cents);
 }
 
 function hasUniqueProviderIds(
@@ -562,11 +487,10 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
         },
       });
       if (!pageResult.ok) return pageResult;
-      const body = endpoint === "analytics_users" ? record(pageResult.body) : null;
-      if (endpoint === "analytics_users" && (!body || (body.has_more !== undefined && (typeof body.has_more !== "boolean"
-        || body.has_more !== (body.next_page !== null))))) return providerFailure();
-      const page = parseOpaquePage(endpoint === "analytics_users"
-        ? { data: body!.data, next_page: body!.next_page } : pageResult.body, parser);
+      const body = record(pageResult.body);
+      if (!body || (body.has_more !== undefined && (typeof body.has_more !== "boolean"
+        || body.has_more !== (body.next_page !== null)))) return providerFailure();
+      const page = parseOpaquePage({ data: body.data, next_page: body.next_page }, parser);
       if (!page) return providerFailure();
       data.push(...page.data);
       if (page.next_page === null) return { ok: true, data };
@@ -704,41 +628,10 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
     async syncCost(input) {
       const observedOn = syncDate(input);
       const operation = await context(input.vendorAccountId, null, "sync_cost");
-      const usages = await opaquePages(operation, "user_usage_report", input.vendorAccountId, observedOn, parseUsage);
-      if (!usages.ok) return usages;
-      const byId = new Map<string, string | null>();
-      const usageEmails = new Set<string>();
-      for (const usageItem of usages.data) {
-        if (byId.has(usageItem.user_id)) return providerFailure();
-        if (usageItem.email !== null && usageEmails.has(usageItem.email)) return providerFailure();
-        byId.set(usageItem.user_id, usageItem.email);
-        if (usageItem.email !== null) usageEmails.add(usageItem.email);
-      }
-      const costs = await opaquePages(operation, "user_cost_report", input.vendorAccountId, observedOn, parseCost);
+      const costs = await opaquePages(operation, "user_cost_report", input.vendorAccountId, observedOn,
+        item => parseCost(item, observedOn));
       if (!costs.ok) return costs;
-      const costIds = new Set<string>();
-      const costEmails = new Set<string>();
-      const records = [];
-      for (const costItem of costs.data) {
-        if (costIds.has(costItem.user_id) || !byId.has(costItem.user_id)) return providerFailure();
-        costIds.add(costItem.user_id);
-        if (costItem.email !== null && costEmails.has(costItem.email)) return providerFailure();
-        if (costItem.email !== null) costEmails.add(costItem.email);
-        const usageEmail = byId.get(costItem.user_id)!;
-        if (costItem.email !== null && (usageEmail === null || costItem.email !== usageEmail)) {
-          return providerFailure();
-        }
-        const email = usageEmail;
-        if (email) {
-          let amountUsd: string;
-          try {
-            amountUsd = addDecimals(costItem.results.map(({ amount }) => amount));
-          } catch {
-            return providerFailure();
-          }
-          records.push({ email, costDate: observedOn, amountUsd });
-        }
-      }
+      const records: CostIngestionRecord[] = costs.data;
       return success({ records });
     },
   };
