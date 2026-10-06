@@ -42,7 +42,8 @@ function idPage(data: readonly unknown[], hasMore = false, lastId: string | null
 }
 
 function opaquePage(data: readonly unknown[], nextPage: string | null = null) {
-  return { data, next_page: nextPage };
+  return data.length === 0 || data.some(item => item !== null && typeof item === "object" && "user" in item)
+    ? {data,has_more:nextPage !== null,next_page:nextPage} : {data,next_page:nextPage};
 }
 
 function member(id: string, email: string | null) {
@@ -54,7 +55,7 @@ function invite(id: string, email: string | null, status = "pending") {
 }
 
 function analyticsUser(id: string, email: string | null) {
-  return { user_id: id, email };
+  return { user: {type: "user", id, email_address: email}, chat_metrics: {message_count:2} };
 }
 
 function summary(date = "2026-09-06", activeUsers = 1, conversations = 2) {
@@ -128,6 +129,22 @@ async function successValue<T>(operation: Promise<ConnectorResult<T>>): Promise<
   return result.value;
 }
 
+it("keeps distinct documented person counters without summaries", async () => {
+  const requests: Request[] = [];
+  const { connector } = fixture(async request => { requests.push(request); return json({data:[
+    {user:{type:"user",id:"u-a",email_address:"ALICE@example.test"},chat_metrics:{message_count:2,thinking_message_count:null},unrelated:{authorization:"must-not-persist"}},
+    {user:{type:"user",id:"u-b",email_address:"bob@example.test"},chat_metrics:{message_count:7}},
+    {user:null,chat_metrics:{message_count:3}},
+  ],has_more:false,next_page:null}); });
+  const result = await connector.syncActivity({vendorAccountId:ACCOUNT,observedAt:new Date("2026-10-03T00:00:00Z")});
+  expect(result.ok).toBe(true);
+  if(!result.ok) throw new Error("expected activity success");
+  expect(result.value.records.map(row=>row.counters)).toEqual([{chat_metrics:{message_count:2,thinking_message_count:null}},{chat_metrics:{message_count:7}},{chat_metrics:{message_count:3}}]);
+  expect(result.value.records[2]!.email).toBeNull();
+  expect(result.value.records.every(row=>row.activityDate === "2026-10-03")).toBe(true);
+  expect(requests.map(request=>new URL(request.url).pathname)).toEqual(["/v1/organizations/analytics/users"]);
+});
+
 describe("Anthropic neutral connector", () => {
   it("advertises exactly five immutable implemented capabilities", () => {
     // Mutations killed: omitting/adding a capability or returning a mutable set changes observable dispatch behavior.
@@ -184,7 +201,7 @@ describe("Anthropic neutral connector", () => {
       ],
     });
     expect(await successValue(connector.syncActivity({ vendorAccountId: ACCOUNT, observedAt: NOW }))).toEqual({
-      records: [{ email: "member@example.test", activityDate: "2026-09-06", counters: { activeUsers: 1, conversations: 2 } }],
+      records: [{ email: "member@example.test", providerUserId: "usr-1", activityDate: "2026-09-06", counters: { chat_metrics: {message_count:2} } }],
     });
     expect(await successValue(connector.syncCost({ vendorAccountId: ACCOUNT, observedAt: NOW }))).toEqual({
       records: [{ email: "member@example.test", costDate: "2026-09-06", amountUsd: "1.234567" }],
@@ -422,9 +439,8 @@ describe("Anthropic neutral connector", () => {
     expect(seen).toEqual([
       "/v1/organizations/analytics/users?date=2026-09-06",
       "/v1/organizations/analytics/users?date=2026-09-06&page=opaque-2",
-      "/v1/organizations/analytics/summaries?date=2026-09-06",
     ]);
-    expect(journal.filter(({ phase }) => phase === "requested").map(({ attempt }) => attempt)).toEqual([1, 2, 3]);
+    expect(journal.filter(({ phase }) => phase === "requested").map(({ attempt }) => attempt)).toEqual([1, 2]);
   });
 
   it.each([
@@ -880,11 +896,11 @@ describe("Anthropic neutral connector", () => {
       expectedPaths: ["/v1/organizations/analytics/user_usage_report"],
     },
     {
-      name: "null summaries envelope",
+      name: "null user envelope",
       operation: "activity",
-      stage: "summaries",
+      stage: "analytics",
       body: null,
-      expectedPaths: ["/v1/organizations/analytics/users", "/v1/organizations/analytics/summaries"],
+      expectedPaths: ["/v1/organizations/analytics/users"],
     },
     {
       name: "null opaque-page envelope",
@@ -950,7 +966,6 @@ describe("Anthropic neutral connector", () => {
       if (path.endsWith("/analytics/users")) {
         return json(stage === "analytics" ? body : opaquePage([analyticsUser("u", "a@example.test")]));
       }
-      if (path.endsWith("/summaries")) return json(stage === "summaries" ? body : { summaries: [summary()] });
       if (path.endsWith("/user_usage_report")) return json(stage === "usage" ? body : usageBody);
       if (path.endsWith("/user_cost_report")) return json(stage === "cost" ? body : opaquePage([cost("u", null)]));
       throw new Error(`unexpected transport request ${request.method} ${path}`);
@@ -966,46 +981,14 @@ describe("Anthropic neutral connector", () => {
   });
 
   it.each([
-    ["invalid date", summary("2026-02-30")],
-    ["negative counter", summary("2026-09-06", -1)],
-    ["extra field", { ...summary(), provider_total: 3 }],
-  ] as const)("rejects an activity summary with %s", async (_case, invalidSummary) => {
-    // Mutations killed: weakening the closed date/counter/field checks exposes malformed analytics.
-    const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/analytics/users")
-      ? json(opaquePage([analyticsUser("u", "a@example.test")]))
-      : json({ summaries: [invalidSummary] }));
-    expect(await connector.syncActivity({ vendorAccountId: ACCOUNT, observedAt: NOW }))
-      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
-  });
-
-  it("applies one organization summary to every uniquely identified analytics user", async () => {
-    // Mutations killed: treating the organization summary as user-shaped drops or misattributes activity.
-    const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/analytics/users")
-      ? json(opaquePage([
-        analyticsUser("u1", "a@example.test"),
-        analyticsUser("u2", "b@example.test"),
-        analyticsUser("deleted", null),
-      ]))
-      : json({ summaries: [summary("2026-09-06", 7, 11)] }));
-    expect(await successValue(connector.syncActivity({ vendorAccountId: ACCOUNT, observedAt: NOW }))).toEqual({
-      records: [
-        { email: "a@example.test", activityDate: "2026-09-06", counters: { activeUsers: 7, conversations: 11 } },
-        { email: "b@example.test", activityDate: "2026-09-06", counters: { activeUsers: 7, conversations: 11 } },
-      ],
-    });
-  });
-
-  it.each([
-    ["wrong date", [summary("2026-09-05")]],
-    ["duplicate requested date", [summary(), summary()]],
-    ["missing requested date", []],
-  ] as const)("rejects an activity envelope with %s", async (_case, summaries) => {
-    // Mutations killed: selecting by order or accepting no exact-date summary makes activity ambiguous.
-    const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/analytics/users")
-      ? json(opaquePage([analyticsUser("u", "a@example.test")]))
-      : json({ summaries }));
-    expect(await connector.syncActivity({ vendorAccountId: ACCOUNT, observedAt: NOW }))
-      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+    ["wrong date", {date:"2026-09-05"}],
+    ["invalid date", {date:"2026-02-30"}],
+    ["negative count", {chat_metrics:{message_count:-1}}],
+    ["wrong count type", {chat_metrics:{message_count:"2"}}],
+    ["wrong user type", {user:3}],
+  ])("rejects malformed person activity: %s", async (_case, fields) => {
+    const {connector} = fixture(async()=>json(opaquePage([{...analyticsUser("u","a@example.test"),...fields}])));
+    expect(await connector.syncActivity({vendorAccountId:ACCOUNT,observedAt:NOW})).toEqual({ok:false,code:"provider_error",retryable:false,raw:null});
   });
 
   it("rejects duplicate normalized analytics emails across distinct provider IDs", async () => {
@@ -1352,4 +1335,29 @@ describe("Anthropic neutral connector", () => {
     await expect(terminalFailure.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW })).rejects.toBe(persistenceFailure);
     expect(phases).toEqual(["requested", "succeeded"]);
   });
+});
+
+
+it.each([
+  ["email conflict", {user:{type:"user",id:"u-a",email_address:"other@example.test"},chat_metrics:{message_count:2}}],
+  ["metric conflict", {user:{type:"user",id:"u-a",email_address:"a@example.test"},chat_metrics:{message_count:7}}],
+])("rejects a cross-page %s without partial records",async(_case,second)=>{
+  let calls=0;
+  const {connector}=fixture(async()=>json(opaquePage([calls++ ? second : analyticsUser("u-a","a@example.test")],calls === 1 ? "next" : null)));
+  expect(await connector.syncActivity({vendorAccountId:ACCOUNT,observedAt:NOW})).toEqual({ok:false,code:"provider_error",retryable:false,raw:null});
+  expect(calls).toBe(2);
+});
+
+it("preserves missing and null metric groups and collapses equivalent repeated identities",async()=>{
+  const {connector,journal}=fixture(async()=>json(opaquePage([
+    {user:{id:null,email_address:null},chat_metrics:null},
+    {user:{id:"u-a",email_address:"A@example.test"}},
+    {user:{id:"u-a",email_address:"a@example.test"},unknown:{secret:"do-not-retain"}},
+  ])));
+  const result=await connector.syncActivity({vendorAccountId:ACCOUNT,observedAt:NOW});
+  expect(result).toEqual({ok:true,raw:null,value:{records:[
+    {email:null,providerUserId:null,activityDate:"2026-09-06",counters:{chat_metrics:null}},
+    {email:"a@example.test",providerUserId:"u-a",activityDate:"2026-09-06",counters:{}},
+  ]}});
+  expect(JSON.stringify([result,journal])).not.toContain("do-not-retain");
 });

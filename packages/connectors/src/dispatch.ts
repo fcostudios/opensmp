@@ -1,5 +1,6 @@
 import {
   assertJsonValue,
+  normalizeActivityCounters,
   isConnectorFailureCode,
   isMemberPageStream,
   isMemberPageToken,
@@ -399,9 +400,35 @@ function validatedConnector(connector: LegacyVendorConnector): VendorConnector {
       const result = await syncActivity(input);
       const validated = validateResult(result, "sync");
       if (validated.ok) {
-        validated.value.records.forEach((record, index) =>
-          assertJsonValue(record.counters, `value.records[${index}].counters`),
-        );
+        if (!Array.isArray(validated.value.records)) throw new Error("Invalid connector activity records");
+        const records = validated.value.records.map(record => {
+          if (!record || typeof record !== "object"
+            || !(record.email === null || (typeof record.email === "string" && email.test(record.email)))
+            || !(record.providerUserId === null || isMemberPageToken(record.providerUserId))
+            || typeof record.activityDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(record.activityDate)
+            || !Number.isFinite(new Date(record.activityDate + "T00:00:00Z").getTime())
+            || new Date(record.activityDate + "T00:00:00Z").toISOString().slice(0,10) !== record.activityDate) {
+            throw new Error("Invalid connector activity record");
+          }
+          return {email:record.email?.toLowerCase() ?? null,providerUserId:record.providerUserId,
+            activityDate:record.activityDate,counters:normalizeActivityCounters(record.counters)};
+        });
+        const byId = new Map<string, typeof records[number]>();
+        const byEmail = new Map<string, typeof records[number]>();
+        const unique: typeof records = [];
+        for (const record of records) {
+          if (record.activityDate !== records[0]!.activityDate) throw new Error("Invalid connector activity dates");
+          const previous = (record.providerUserId === null ? undefined : byId.get(record.providerUserId))
+            ?? (record.email === null ? undefined : byEmail.get(record.email));
+          if (previous) {
+            if (JSON.stringify(previous) !== JSON.stringify(record)) throw new Error("Invalid connector activity identity");
+            continue;
+          }
+          if (record.providerUserId !== null) byId.set(record.providerUserId, record);
+          if (record.email !== null) byEmail.set(record.email, record);
+          unique.push(record);
+        }
+        return Object.freeze({ok:true as const,value:cloneAndFreeze({records:unique}),raw:null});
       }
       return validated;
     },

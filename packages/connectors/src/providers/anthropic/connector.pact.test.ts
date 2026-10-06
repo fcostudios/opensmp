@@ -103,3 +103,36 @@ test("invitation withdrawal single-DELETE gate preserves legacy deprovision retr
   expect(observations.filter(event=>event.summary.method === "DELETE").map(({phase,classification,summary})=>({phase,classification,summary}))).toEqual(Array.from({length:3},()=>[{phase:"requested",classification:null,summary:{endpoint_class:"invitations",method:"DELETE"}},{phase:"failed",classification:"provider_error",summary:{endpoint_class:"invitations",method:"DELETE",http_status:500,status_class:"provider_error"}}]).flat());
  });}finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+
+test("documented per-person activity uses analytics credentials and opaque pages", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "us070-activity-pact-"));
+  const pact = new PactV3({consumer:"ledger-person-activity",provider:"anthropic-enterprise-api",dir,logLevel:"error"});
+  const day = "2026-10-03";
+  const bodies = [
+    {data:[{user:{type:"user",id:"u-a",email_address:"ALICE@example.test"},chat_metrics:{message_count:2,thinking_message_count:null},unrelated:{authorization:"must-not-persist"}}],has_more:true,next_page:"opaque /+="},
+    {data:[{user:{type:"user",id:"u-b",email_address:"bob@example.test"},chat_metrics:{message_count:7}},{user:null,chat_metrics:{message_count:3}}],has_more:false,next_page:null},
+  ];
+  bodies.forEach((body,index)=>pact.addInteraction({uponReceiving:`person activity page ${index}`,withRequest:{method:"GET",path:"/v1/organizations/analytics/users",query:index ? {date:day,page:"opaque /+="}:{date:day},headers:{"X-Api-Key":"contract-analytics","anthropic-version":"2023-06-01"}},willRespondWith:{status:200,headers:{"Content-Type":"application/json"},body}}));
+  try { await pact.executeTest(async server => {
+    const calls:string[] = [], observations:ConnectorCallObservationAppendInput[]=[];
+    const clock={now:()=>at.getTime()},sleep=async()=>undefined;
+    const connector=createAnthropicConnector({credentialsFor:async()=>[
+      {vendorAccountId:account,kind:"admin_scoped",secret:"contract-admin",status:"active",health:"ok"},
+      {vendorAccountId:account,kind:"analytics",secret:"contract-analytics",status:"active",health:"ok"},
+    ],observationSessionFor:async input=>createConnectorCallObservationSession({vendorAccountId:account,provisioningActionId:null,operation:input.operation,clock:()=>at,randomId:()=>requestId,append:async event=>{observations.push(event);}}),requestDependencies:{clock,sleep,limiter:createAnthropicRateLimiter({clock,sleep}),transport:async input=>{
+      const url=new URL(input.url);calls.push(url.pathname);
+      return fetch(new Request(new URL(url.pathname+url.search,server.url),input));
+    }}});
+    const result=await connector.syncActivity({vendorAccountId:account,observedAt:new Date(day+"T00:00:00Z")});
+    expect(result.ok).toBe(true);if(!result.ok) throw new Error("expected activity");
+    expect(result.raw).toBeNull();
+    expect(result.value.records).toEqual([
+      {email:"alice@example.test",providerUserId:"u-a",activityDate:day,counters:{chat_metrics:{message_count:2,thinking_message_count:null}}},
+      {email:"bob@example.test",providerUserId:"u-b",activityDate:day,counters:{chat_metrics:{message_count:7}}},
+      {email:null,providerUserId:null,activityDate:day,counters:{chat_metrics:{message_count:3}}},
+    ]);
+    expect(calls).toEqual(Array(2).fill("/v1/organizations/analytics/users"));
+    expect(JSON.stringify([result,observations])).not.toMatch(/must-not-persist|contract-admin|contract-analytics|authorization/);
+  }); } finally {rmSync(dir,{recursive:true,force:true});}
+});

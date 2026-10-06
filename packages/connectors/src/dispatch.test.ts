@@ -738,8 +738,9 @@ describe("JSON-safe connector results", () => {
         value: {
           records: [{
             email: "person@example.com",
+            providerUserId: null,
             activityDate: "2026-07-27",
-            counters: undefined,
+            counters: undefined as never,
           }],
         },
         raw: new Date("2026-07-27T00:00:00Z"),
@@ -1346,4 +1347,26 @@ it("invitation deletion receipt confirms only the exact pinned identity and invi
  for(const receipt of [null,undefined,false,1,"invite_deleted",Object.assign(()=>undefined,{id:"invite-pinned",type:"invite_deleted"}),Object.assign(Object.create({id:"invite-pinned",type:"invite_deleted"}),{unrelated:true,another:true}),Object.assign(Object.create({id:"invite-pinned"}),{type:"invite_deleted",foo:true}),Object.assign(Object.create({type:"invite_deleted"}),{id:"invite-pinned",zzz:true}),[],Object.assign([],{id:"invite-pinned",type:"invite_deleted"}),{}, {id:"invite-pinned"},{type:"invite_deleted"},{id:"foreign",type:"invite_deleted"},{id:"invite-pinned",type:"user_deleted"},{id:"invite-pinned",type:"invite_deleted",extra:true},{id:"invite-pinned",type:"invite_deleted",zzz:true}]){
   expect(isInvitationDeletionReceipt(receipt,"invite-pinned")).toBe(false);
  }
+});
+
+
+describe("activity dispatch safe replay boundary", () => {
+  const row={email:"ALICE@example.test",providerUserId:"u-a",activityDate:"2026-10-03",counters:{chat_metrics:{message_count:2,authorization:"secret"}}};
+  const input={vendorAccountId:"vendor-account-1",observedAt:new Date("2026-10-03T00:00:00Z")};
+  function dispatched(records:unknown[]) {
+    return createConnectorDispatcher({rest:{...connectorWith("syncActivity"),syncActivity:async()=>({ok:true,value:{records},raw:{authorization:"secret"}} as never)}}).forProtocol("rest");
+  }
+  it("reconstructs minimal canonical activity and discards connector raw", async()=>{
+    expect(await dispatched([row]).syncActivity(input)).toEqual({ok:true,raw:null,value:{records:[{email:"alice@example.test",providerUserId:"u-a",activityDate:"2026-10-03",counters:{chat_metrics:{message_count:2}}}]}});
+  });
+  it.each([
+    ["mixed days", [row,{...row,email:"bob@example.test",providerUserId:"u-b",activityDate:"2026-10-02"}]],
+    ["conflicting identity", [row,{...row,email:"bob@example.test"}]],
+    ["invalid day", [{...row,activityDate:"2026-02-30"}]],
+    ["wrong email type", [{...row,email:3}]],
+    ["negative nested count", [{...row,counters:{claude_code_metrics:{core_metrics:{lines_of_code:{added_count:-1}}}}}]],
+    ["nonfinite nested count", [{...row,counters:{chat_metrics:{message_count:Infinity}}}]],
+  ])("rejects %s before safe replay",async(_case,records)=>{
+    await expect(dispatched(records).syncActivity(input)).rejects.toThrow();
+  });
 });

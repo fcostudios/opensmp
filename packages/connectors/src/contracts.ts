@@ -85,7 +85,7 @@ export type MemberPageSnapshot = {
   complete: boolean;
 };
 export type ActivitySnapshot = {
-  records: readonly { email: string; activityDate: string; counters: unknown }[];
+  records: readonly ActivityIngestionRecord[];
 };
 export type CostSnapshot = {
   records: readonly { email: string; costDate: string; amountUsd: string }[];

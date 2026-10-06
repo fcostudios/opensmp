@@ -2,8 +2,9 @@ import type {
   ConnectorCallObservationSession,
   ConnectorOperation,
 } from "../../connector-call-observation.js";
-import { isInvitationDeletionReceipt, isMemberPageStream, isMemberPageToken } from "../../contracts.js";
+import { isInvitationDeletionReceipt, isMemberPageStream, isMemberPageToken, normalizeActivityCounters } from "../../contracts.js";
 import type {
+  ActivityIngestionRecord,
   ConnectorCapability,
   MemberPageCursor,
   MemberPageResume,
@@ -66,12 +67,7 @@ type OpaquePage<T> = Readonly<{
 
 type Member = Readonly<{ type: "user"; id: string; name: string; email: string | null }>;
 type Invitation = Readonly<{ type: "invite"; id: string; email: string | null; status: string }>;
-type AnalyticsUser = Readonly<{ user_id: string; email: string | null }>;
-type ActivitySummary = Readonly<{
-  date: string;
-  active_users: number;
-  conversations: number;
-}>;
+type AnalyticsUser = ActivityIngestionRecord;
 type UserUsage = Readonly<{
   user_id: string;
   email: string | null;
@@ -214,25 +210,18 @@ function parseInvitation(value: unknown): Invitation | null {
   return email === undefined ? null : { type: "invite", id: item.id, email, status: item.status };
 }
 
-function parseAnalyticsUser(value: unknown): AnalyticsUser | null {
-  const item = exact(value, ["user_id", "email"]);
-  if (!item || !opaqueToken(item.user_id)) return null;
-  const email = usableEmail(item.email);
-  return email === undefined ? null : { user_id: item.user_id, email };
-}
-
-function parseSummary(value: unknown): ActivitySummary | null {
-  const item = exact(value, ["date", "active_users", "conversations"]);
-  if (
-    !item || !validDate(item.date)
-    || !Number.isSafeInteger(item.active_users) || (item.active_users as number) < 0
-    || !Number.isSafeInteger(item.conversations) || (item.conversations as number) < 0
-  ) return null;
-  return {
-    date: item.date,
-    active_users: item.active_users as number,
-    conversations: item.conversations as number,
-  };
+function parseAnalyticsUser(value: unknown, observedOn: string): AnalyticsUser | null {
+  const item = record(value);
+  if (!item) return null;
+  const user = item.user == null ? null : record(item.user);
+  if (item.user != null && (!user || (user.type != null && user.type !== "user"))) return null;
+  const email = user?.email_address == null ? null : usableEmail(user.email_address);
+  const providerUserId = user?.id == null ? null : user.id;
+  if (email === undefined || (providerUserId !== null && !opaqueToken(providerUserId))) return null;
+  if (item.date !== undefined && (!validDate(item.date) || item.date !== observedOn)) return null;
+  try {
+    return { email, providerUserId, activityDate: observedOn, counters: normalizeActivityCounters(item) };
+  } catch { return null; }
 }
 
 function parseUsage(value: unknown): UserUsage | null {
@@ -573,7 +562,11 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
         },
       });
       if (!pageResult.ok) return pageResult;
-      const page = parseOpaquePage(pageResult.body, parser);
+      const body = endpoint === "analytics_users" ? record(pageResult.body) : null;
+      if (endpoint === "analytics_users" && (!body || (body.has_more !== undefined && (typeof body.has_more !== "boolean"
+        || body.has_more !== (body.next_page !== null))))) return providerFailure();
+      const page = parseOpaquePage(endpoint === "analytics_users"
+        ? { data: body!.data, next_page: body!.next_page } : pageResult.body, parser);
       if (!page) return providerFailure();
       data.push(...page.data);
       if (page.next_page === null) return { ok: true, data };
@@ -689,33 +682,23 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
     async syncActivity(input) {
       const observedOn = syncDate(input);
       const operation = await context(input.vendorAccountId, null, "sync_activity");
-      const users = await opaquePages(operation, "analytics_users", input.vendorAccountId, observedOn, parseAnalyticsUser);
+      const users = await opaquePages(operation, "analytics_users", input.vendorAccountId, observedOn,
+        item => parseAnalyticsUser(item, observedOn));
       if (!users.ok) return users;
-      const byId = new Map<string, string | null>();
-      const userEmails = new Set<string>();
+      const records: ActivityIngestionRecord[] = [];
+      const byId = new Map<string, ActivityIngestionRecord>();
+      const byEmail = new Map<string, ActivityIngestionRecord>();
       for (const user of users.data) {
-        if (byId.has(user.user_id)) return providerFailure();
-        if (user.email !== null && userEmails.has(user.email)) return providerFailure();
-        byId.set(user.user_id, user.email);
-        if (user.email !== null) userEmails.add(user.email);
+        const previous = (user.providerUserId === null ? undefined : byId.get(user.providerUserId))
+          ?? (user.email === null ? undefined : byEmail.get(user.email));
+        if (previous) {
+          if (JSON.stringify(previous) !== JSON.stringify(user)) return providerFailure();
+          continue;
+        }
+        if (user.providerUserId !== null) byId.set(user.providerUserId, user);
+        if (user.email !== null) byEmail.set(user.email, user);
+        records.push(user);
       }
-      const summariesResult = await request(operation, {
-        endpoint: "analytics_summaries", vendorAccountId: input.vendorAccountId,
-        credentials: operation.credentials, query: { observedOn },
-      });
-      if (!summariesResult.ok) return summariesResult;
-      const envelope = exact(summariesResult.body, ["summaries"]);
-      if (!envelope || !Array.isArray(envelope.summaries)) return providerFailure();
-      const summaries = envelope.summaries.map(parseSummary);
-      if (summaries.some((item) => item === null)) return providerFailure();
-      if (summaries.length !== 1 || summaries[0]!.date !== observedOn) return providerFailure();
-      const summary = summaries[0]!;
-      const records = [...byId.values()].filter((email): email is string => email !== null)
-        .map((email) => ({
-          email,
-          activityDate: observedOn,
-          counters: { activeUsers: summary.active_users, conversations: summary.conversations },
-        }));
       return success({ records });
     },
     async syncCost(input) {
