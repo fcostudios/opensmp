@@ -70,6 +70,7 @@ The **aggregate + projection layers should be the widest part of the suite**, no
 - **VendorAccountCapacity** — auth-sensitive entity (name heuristic).
 - **Invitation hygiene (US-067, US-068, US-069; DEC-SMP-023)** — overdue age derives from the durable invitation sent_at, with strict configured boundaries, company-scoped current eligibility and one alert per open breach. Withdrawal targets the pinned invitation only, refuses acceptance races and releases capacity only after confirmed removal; automatic expiry reuses that contract and records its system action.
 - **Daily person activity (US-070; DEC-SMP-024, DEC-SMP-025)** — identity matching is company-scoped; natural-key writes are idempotent, ignore stale or equal-equivalent observations and reject equal-time contradictions; source/API activity ingestion requires explicit opt-in; replay accepts only allowlisted activity events; unmatched or null-email identities produce durable warnings; ambiguous identities reject the batch atomically.
+- **Exact revisable person costs (US-071; DEC-SMP-024, DEC-SMP-025)** — signed USD amounts use exact decimal strings and integer arithmetic; nonrepresentable precision and overflow reject before writes. The injected UTC completed-date window [D-30,D) guards every source. Company-scoped identities, account/person/day freshness, opt-in locks and atomic warning audits preserve isolation and replay; null/unmatched identities warn and conflicting equal-time payloads reject.
 - *(Derived from this project's business rules + graph — `testing/critical-paths.md`. Keep current.)*
 
 ## 4. CI gates
@@ -138,4 +139,4 @@ pnpm test:mutation  # ONE diff-scoped mutation campaign  ← the gate
 ## 8. Reference
 
 Full rationale + evidence base: `docs/TEST_EFFECTIVENESS_STANDARD.md`.
-<!-- nous-emitted: sha256=fbed082a88e9216f -->
+<!-- nous-emitted: sha256=dc31b2f59469b1d4 -->

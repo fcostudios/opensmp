@@ -1,5 +1,5 @@
 {
-  "synced_at": "2026-10-05T16:59:57.710262+00:00",
+  "synced_at": "2026-10-06T12:25:07.366139+00:00",
   "project_id": "fcostudios__smp",
   "files": {
     "docs/stories/SPRINT_PLAN.md": {
@@ -15,11 +15,11 @@
       "source": "generated"
     },
     "testing/critical-paths.md": {
-      "hash": "486e9d536fb1b016",
+      "hash": "50834168a28994a3",
       "source": "generated"
     },
     ".nous-project.json": {
-      "hash": "d219dfe593b7e926",
+      "hash": "b56d50d236f171c6",
       "source": "generated"
     },
     "docs/stories/INDEX.md": {
@@ -607,7 +607,7 @@
       "source": "emitted"
     },
     "docs/dev-guide/TESTING.md": {
-      "hash": "44fb3e16f68abeda",
+      "hash": "50415d7ed774990b",
       "source": "emitted"
     },
     "docs/dev-guide/STANDARDS.md": {
