@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "d234c1b031d0e02e57de77e31e7c01301bdab15781dc6b6f663f36c87554f838",
+  "readiness_payload_sha256": "501f27f3e718737292d086763aba0d0f5e9647051e0dd719cd01d85a519b3b25",
   "work_id": "CHG-069",
   "kind": "CHG",
   "work_type": "technical",
@@ -17,6 +17,12 @@
       "id": "O2",
       "statement": "Schema-shard routing no longer reports a preview that measures nothing as clean: when the diff contains a committed migration under packages/db/src/migrations/ and schema.ts carries mutants, the schema-static shard selects the mutation-compatible packages/db real-DB integration tests in the diff, and its Stryker command runs exactly the shard's testFiles instead of a hardcoded schema.test.ts; when no such integration test exists, preflight emits a named, non-fatal routing gap in its JSON and on stderr. Diffs without a migration keep byte-identical shard output.",
       "demo": "pnpm test:mutation-scope: the US-071 Task 2 fixture (bd0397b paths: schema.ts, V20261006131500__analytics_cost_revisions.sql, analytics-ingestion.ts, analytics-ingestion.integration.test.ts, verify-schema.mjs) fails against the unmodified routing (testFiles == [schema.test.ts]) and passes with the new routing (integration test selected and present in the command); the same diff without the integration test reports the gap.",
+      "primary": false
+    },
+    {
+      "id": "O3",
+      "statement": "check:generated-guidance is green again: one registered CHG-069/84ab8ea overlay layer binds the two pinned guidance files drifted by US-070/071 (docs/dev-guide/TESTING.md and testing/critical-paths.md, edited in bd151bd, bc76f0c and ee321ff without a layer) from their latest pinned CHG-065/7817e94 bytes to the delivered bytes on main 84ab8ea; the reviewed reconciler digest is re-pinned in scripts/work-readiness/git.mjs; the pinned files themselves are not edited.",
+      "demo": "pnpm check:generated-guidance exits 0; python3 -m unittest infra/scripts/tests/test_reconcile_sprint1_docs.py passes with a CHG-069 manifest test; pnpm test:work-readiness passes the reconciler-digest assertion; node scripts/work-readiness.mjs check-range main HEAD passes.",
       "primary": false
     }
   ],
@@ -50,6 +56,12 @@
       "outcome_ids": [
         "O1"
       ]
+    },
+    {
+      "id": "AC6",
+      "outcome_ids": [
+        "O3"
+      ]
     }
   ],
   "scopes": [
@@ -57,8 +69,8 @@
   ],
   "signals": {
     "routes_or_screens": 0,
-    "acceptance_flows": 2,
-    "expected_changed_files": 8,
+    "acceptance_flows": 3,
+    "expected_changed_files": 14,
     "expected_mutation_shards": 0,
     "lifecycle_or_concurrency_boundaries": 0,
     "external_integrations": 0,
@@ -67,12 +79,12 @@
     "tooling_change": true
   },
   "estimate_minutes": {
-    "readiness": 25,
-    "implementation": 55,
-    "focused_verification": 15,
-    "review": 20,
+    "readiness": 35,
+    "implementation": 80,
+    "focused_verification": 20,
+    "review": 25,
     "integration": 20,
-    "total": 135
+    "total": 180
   },
   "uncertainties": [
     {
@@ -116,16 +128,23 @@
       "status": "resolved",
       "estimate_impact_minutes": 0,
       "resolution": "CHG-069 closes on the validation it can run now (test:work-readiness, test:mutation-scope, lint, check:generated-guidance, readiness:check CHG-069, one mutation:preflight, one pnpm check under caffeinate -i); the measured targets are Nous's to read on the next child."
+    },
+    {
+      "id": "U7",
+      "statement": "check:generated-guidance was already red on main 84ab8ea: US-070/071 edited the pinned TESTING.md and testing/critical-paths.md without registering an overlay layer, so CHG-069's acceptance check cannot pass without a re-pin.",
+      "status": "resolved",
+      "estimate_impact_minutes": 45,
+      "resolution": "Francisco ruled (2026-10-06 operator session) to re-pin inside CHG-069 rather than defer: one CHG-069/84ab8ea layer (reconciler spec, manifest, two desired files, reconciler test, REVIEWED_RECONCILER_SHA256 re-pin) in one commit; no pinned file is edited, so exactOverlayOwns parent-tree ownership is not exercised. The stale page-wiring fixture that keeps pnpm test:mutation-scope red on main (test-mutation-scope.mjs:1075) stays out of scope and is recorded as a deviation for a follow-up CHG; the item 4 block runs before it."
     }
   ],
   "dependencies": [],
   "decision": "ready",
   "partitions": [],
   "approval": {
-    "status": "approved",
-    "approved_by": "Francisco Lomas",
-    "evidence": "CHG069-READY",
-    "payload_sha256": "d234c1b031d0e02e57de77e31e7c01301bdab15781dc6b6f663f36c87554f838"
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "501f27f3e718737292d086763aba0d0f5e9647051e0dd719cd01d85a519b3b25"
   },
   "actuals": null,
   "policy_bootstrap": false,
