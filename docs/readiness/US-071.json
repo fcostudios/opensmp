@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "709619270c5c6c2169971696217d57378ddac777bb2e163a32bd2853e5264dfe",
+  "work_id": "US-071",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Synchronize exact person costs within the 30-day revision window",
+  "source": "docs/stories/sprint-3/r1_misc_us_071.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Group Admins have exact person-day costs that incorporate vendor revisions within the 30-day window without overwriting older costs.",
+      "demo": "Resync revised fractional-cent costs at oldest eligible UTC date; eligible rows change once, excluded dates remain unchanged, unmatched identities warn, and repeated/concurrent runs isolate other accounts and companies.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "contracts",
+    "db",
+    "server"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 2,
+    "expected_changed_files": 20,
+    "expected_mutation_shards": 6,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 1,
+    "schema_or_migration_changes": 1,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 20,
+    "implementation": 90,
+    "focused_verification": 100,
+    "review": 30,
+    "integration": 60,
+    "total": 300
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Canonical child allocation and prerequisites are delivered.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "US-071 is official CHG-068 child of US-026, proposal revisable-person-cost. Parent approved artifact docs/readiness/US-026.json maps parent AC2 and cost sides AC3/AC4. Base 4ab81395df7c1f722726850775b32ecf64efd3bc includes completed US-070 and terminal done evidence for US-056/057/058/046. Dependencies are satisfied, so no blocked_by entries remain. Two flows cover cost revision/identity/isolation (AC1/2/4) and channel gating/shared writes (AC3/4). No approved parent cost design exists; author a child design only after separate readiness approval."
+    },
+    {
+      "id": "U2",
+      "statement": "Provider cost contract and amount units need a bounded correction.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 30,
+      "resolution": "Official reference opened 2026-10-06: https://platform.claude.com/docs/en/api/http/beta/organization/analytics/user_cost_report/list, lines 161-170/221-223/393-424/474-483/532-533. Per-user rows provide amount as fractional cents, currency USD and actor.email_address nullable with actor.user_id. One-day inclusive starting_at/exclusive ending_at requests avoid grouping/double counting; next_page remains opaque. Current connector.ts requires results[] and joins user_usage_report, then drops null-email records: replace only cost parsing with documented per-user contract and Pact fixtures, converting cents to USD using integer/decimal strings. No change to activity endpoint. Provider docs/fixtures establish contract compatibility, not live tenant verification. Budget excludes a live credential probe; new beta permission or incompatible policy triggers reassessment."
+    },
+    {
+      "id": "U3",
+      "statement": "Storage precision, rounding, signed corrections and replay payload policy require explicit design approval.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 20,
+      "resolution": "Proposed policy for later child design: exact signed decimal USD strings, BigInt/string arithmetic, trailing-zero normalization and zero canonicalization; numeric(12,4) accepts only exactly representable values in [-99999999.9999,99999999.9999]. Reject nonzero precision beyond four decimal places rather than silently round; reject malformed/exponent/NaN/infinite/overflow values before any batch write. Negative corrections are allowed. Preserve allowlisted original fractional-cent amount, exact USD amount, identity, account/date/source and version in replay payload under DEC-SMP-024, excluding credentials/headers/unrelated data. Property tests prove representability, scale conversion, overflow and signed boundaries. If human selects rounding instead of exact rejection, reassess the digest before implementation; no rounding choice is claimed approved here."
+    },
+    {
+      "id": "U4",
+      "statement": "The injected revision window and retry boundary must be explicit.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 20,
+      "resolution": "Proposed design policy: for injected instant at, UTC today D defines eligible completed dates [D-30,D), oldest date inclusive and yesterday inclusive; never today or D-31. Reuse one-day SyncInput for a bounded 30-date worker loop with exact one-day provider intervals, rather than changing every connector interface. Guard eligibility at shared persistence entrypoint for all sources using injected window authority. Per-account/day atomic commits; on provider/validation failure abort failing day and propagate retryable classification through existing worker boundary. Earlier completed days may remain committed and retry safely. Missing provider rows do not fabricate zero charges or delete existing costs. No second durable cursor/lease lifecycle. Present policy for human approval in cost design."
+    },
+    {
+      "id": "U5",
+      "statement": "Shared identity, gating, writes and concurrent freshness semantics are known.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 20,
+      "resolution": "Reuse US-070 company-scoped normalized email matching and trusted active-company worker routing; preserve null/unmatched warnings in existing job/audit surfaces. Ambiguous company identity, conflicting duplicate identity/date records or equal synced_at with differing payload fail closed; exact duplicates coalesce. Reuse account/vendor/company/person share locks and API opt-in checks, pin synced_at before provider wait, and natural-key atomic upsert: newer observations may replace values, older attempts cannot overwrite newer rows, equal-time exact replay is ignored. API writes only for active API-mode supported accounts; manual/CSV use same source-aware cost entrypoint and never call providers automatically. Account is not company authority; tenant scope remains Person.company_id, verified with shared-account/foreign-company fixtures. Add CostRecord source/default and natural-key Drizzle parity plus narrow ledger_app UPDATE grant in fresh append-only analytics_cost_revisions migration. No new authorization surface, user screen or lock lifecycle."
+    },
+    {
+      "id": "U6",
+      "statement": "File and verification costs are bounded against the completed activity child.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 30,
+      "resolution": "Official parent proposal estimate 240 minutes is revised to 300 (+60): phase split 20 readiness,90 implementation,100 focused verification,30 review,60 integration. US-070 actuals 7/46/102/22/63 with 24 files,7 shards,10 preview rounds and5 review-fix loops show focused checks and release gates dominate; US-071 reuses its foundations and avoids new orchestration tooling. Expected 20 paths: docs/readiness/US-071.json; .nous-feedback.jsonl; child design and bound plan under docs/superpowers; docs/dev-guide/TESTING.md; packages/connectors/src/contracts.ts,dispatch.ts,dispatch.test.ts,providers/anthropic/connector.ts,connector.test.ts,connector.pact.test.ts; packages/db/src/schema.ts,analytics-ingestion.ts,analytics-ingestion.integration.test.ts,new cost migration; packages/db/scripts/verify-schema.mjs; apps/worker/src/jobs/analytics-activity.ts,analytics-activity.integration.test.ts,deferred.ts,deferred.test.ts. Extend existing ingestion/job seams for cost to stay within this honest bound; avoid new source files/package exports. Expected6 diff mutation shards: contracts,dispatcher,provider,ingestion,worker,deferred; computed task preflight is authoritative and mismatch gets deviation, not fabricated routing edits. All per-task touched-shard previews, property/real-DB tests, adversarial review, pnpm check, committed migration apply/verify/parity and one final cold diff campaign are included. No baseline whole suite at assessment. Stop/reassess at task boundaries if remaining cost or required additional files exceed limits; no tooling changes are authorized."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "709619270c5c6c2169971696217d57378ddac777bb2e163a32bd2853e5264dfe"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
