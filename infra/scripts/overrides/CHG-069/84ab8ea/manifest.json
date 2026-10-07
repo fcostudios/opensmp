@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "paths": {
+    "docs/dev-guide/TESTING.md": {
+      "source_path": "overrides/CHG-065/7817e94/docs/dev-guide/TESTING.md",
+      "source_sha256": "61b352aa19d768b7b66a9cd596f776b14563a6c1c42366395fd0c04666eafb5c",
+      "desired_sha256": "50415d7ed774990b1de236fafe69ba39018d7cd4928ab71858b3a6733ff796e8"
+    },
+    "testing/critical-paths.md": {
+      "source_path": "overrides/CHG-065/7817e94/testing/critical-paths.md",
+      "source_sha256": "d366c785ee8f1186f0801be9d0a893ab617e66c08109a08460c5ffc105502673",
+      "desired_sha256": "50834168a28994a3acf9dedb68952d00ebe10b3d695037869822c9400bcb85a8"
+    }
+  }
+}

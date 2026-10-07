@@ -123,6 +123,14 @@ CHG065_PATHS = {
         "overrides/CHG-049/6466f60/testing/critical-paths.md"
     ),
 }
+CHG069_PATHS = {
+    "docs/dev-guide/TESTING.md": (
+        "overrides/CHG-065/7817e94/docs/dev-guide/TESTING.md"
+    ),
+    "testing/critical-paths.md": (
+        "overrides/CHG-065/7817e94/testing/critical-paths.md"
+    ),
+}
 LAYERED_OVERRIDE_SPECS = (
     ("CHG-004/e4b9a06", CHG004_PATHS),
     ("CHG-022/16f72c9", CHG022_PATHS),
@@ -133,6 +141,7 @@ LAYERED_OVERRIDE_SPECS = (
     ("CHG-055/e240d85", CHG055_PATHS),
     ("CHG-059/7f42371", CHG059_PATHS),
     ("CHG-065/7817e94", CHG065_PATHS),
+    ("CHG-069/84ab8ea", CHG069_PATHS),
 )
 CHG005_PATHS = {
     "docs/stories/sprint-2/r1_misc_us_014.md",

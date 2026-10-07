@@ -47,13 +47,11 @@ const CHG022_EXECUTABLE_BOUNDARY = "72f5e8545ea5d98795e2a5f19e62f6ba5e7ae7cb";
 // Reviewed fail-closed raw-byte binding for the complete reconciler. Any
 // whitespace, definition rebinding, helper, build-plan, or runtime edit
 // requires an explicit review and a new digest before ownership is accepted.
-// Re-pinned by CHG-065. In addition to the reviewed CHG-059 behavior, the
-// delta appends the closed five-path CHG-065/7817e94 transition for the
-// 2026-10-01 guidance delivery plus the AGENTS.md project-additions link, and
-// approves AGENTS.md's delivered "the generated tenant column — not
-// `tenant_id`" negation.
+// Re-pinned by CHG-069. In addition to the reviewed CHG-065 behavior, the
+// delta appends the closed two-path CHG-069/84ab8ea transition binding the
+// US-070/071 deliveries of TESTING.md and testing/critical-paths.md.
 // test-work-readiness.mjs asserts this constant against the file on disk.
-const REVIEWED_RECONCILER_SHA256 = "b9b0b4641c10cdf7aaee4af3687c1f9dee08f2242732c64fe46eb8d9cfae092c";
+const REVIEWED_RECONCILER_SHA256 = "bc936714f5998a88c3dea23e3a129d9d7b89707a48e4f063fa9a6bfc9ed5e307";
 
 function isTerminalEvent(event) {
   return event === "done" || event === "verified"

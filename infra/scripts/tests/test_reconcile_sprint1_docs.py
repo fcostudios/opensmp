@@ -34,6 +34,7 @@ CHG053_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-053/2dee869"
 CHG055_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-055/e240d85"
 CHG059_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-059/7f42371"
 CHG065_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-065/7817e94"
+CHG069_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-069/84ab8ea"
 CHG053_DELIVERED_ROOT = Path(__file__).parents[3]
 CHG053_GUIDES = (
     "CLAUDE.md",
@@ -101,6 +102,9 @@ def desired_guide(relative_path: str) -> bytes:
 
 
 def latest_desired_guide(relative_path: str) -> bytes:
+    chg069 = CHG069_OVERRIDE_ROOT / relative_path
+    if chg069.is_file():
+        return chg069.read_bytes()
     chg065 = CHG065_OVERRIDE_ROOT / relative_path
     if chg065.is_file():
         return chg065.read_bytes()
@@ -214,6 +218,11 @@ def copy_reconciler_data(root: Path) -> Path:
         shutil.copytree(
             CHG065_OVERRIDE_ROOT,
             data_root / "overrides/CHG-065/7817e94",
+        )
+    if CHG069_OVERRIDE_ROOT.is_dir():
+        shutil.copytree(
+            CHG069_OVERRIDE_ROOT,
+            data_root / "overrides/CHG-069/84ab8ea",
         )
     return data_root
 
@@ -1011,6 +1020,50 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 )
                 self.assertEqual(
                     hashlib.sha256((CHG065_OVERRIDE_ROOT / path).read_bytes()).hexdigest(),
+                    entry["desired_sha256"],
+                )
+
+    def test_chg069_manifest_binds_the_us070_us071_guidance_deliveries(self) -> None:
+        manifest = json.loads(
+            (CHG069_OVERRIDE_ROOT / "manifest.json").read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(set(manifest), {"version", "paths"})
+        self.assertEqual(manifest["version"], 1)
+        self.assertEqual(
+            {path: entry["source_path"] for path, entry in manifest["paths"].items()},
+            {
+                "docs/dev-guide/TESTING.md": (
+                    "overrides/CHG-065/7817e94/docs/dev-guide/TESTING.md"
+                ),
+                "testing/critical-paths.md": (
+                    "overrides/CHG-065/7817e94/testing/critical-paths.md"
+                ),
+            },
+        )
+        # The bytes US-070/071 delivered on main 84ab8ea; these digests are the
+        # "unknown state" values check mode reported before the layer existed.
+        self.assertEqual(
+            {path: entry["desired_sha256"] for path, entry in manifest["paths"].items()},
+            {
+                "docs/dev-guide/TESTING.md": (
+                    "50415d7ed774990b1de236fafe69ba39018d7cd4928ab71858b3a6733ff796e8"
+                ),
+                "testing/critical-paths.md": (
+                    "50834168a28994a3acf9dedb68952d00ebe10b3d695037869822c9400bcb85a8"
+                ),
+            },
+        )
+        for path, entry in manifest["paths"].items():
+            with self.subTest(path=path):
+                self.assertEqual(
+                    hashlib.sha256(
+                        (SCRIPT_DATA_ROOT / entry["source_path"]).read_bytes()
+                    ).hexdigest(),
+                    entry["source_sha256"],
+                )
+                self.assertEqual(
+                    hashlib.sha256((CHG069_OVERRIDE_ROOT / path).read_bytes()).hexdigest(),
                     entry["desired_sha256"],
                 )
 
