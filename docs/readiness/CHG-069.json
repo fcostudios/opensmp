@@ -146,7 +146,27 @@
     "evidence": "CHG069-READY-2",
     "payload_sha256": "501f27f3e718737292d086763aba0d0f5e9647051e0dd719cd01d85a519b3b25"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 17,
+      "implementation": 9,
+      "focused_verification": 2,
+      "review": 5,
+      "integration": 4
+    },
+    "total": 37,
+    "changed_files": 13,
+    "commits": 10,
+    "review_fix_loops": 1,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": -143,
+    "root_cause": "Wall-clock from commit times and the CHG-069 phase markers, rounded up per bucket; the ~4.4 h wait for Francisco's reassessment approval (20:20Z to 00:45Z) is excluded as idle. readiness = orientation from ~19:58Z to the started event 20:13Z (15) plus the reassessment for the guidance re-pin ruling (2). implementation = 20:14Z to 20:20Z (routing with RED/GREEN, contract text) plus the overlay layer 00:45Z to 00:48Z. focused_verification = preflight against main (0 shards) and caffeinate -i pnpm check (~2 s wall, turbo cache replay). review = reviewer verdicts and one fix loop (4086295). integration = rechecks and closure. Below estimate because the routing fix was one helper plus a command derived from testFiles and the re-pin followed the CHG-065 layer shape exactly. Pre-existing on main and recorded: test:mutation-scope red at a stale page-wiring fixture (follow-up CHG), and test:feedback-order red on older US-026/US-071 lines. No previews: zero shards, no whole-set re-preview, no cold campaign, no test_report; no gate run exceeded 2x the median."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
