@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "c751d626a6c13e72ae722938a2569af8643f6453a45e7acc2227ed74dcd1272b",
+  "readiness_payload_sha256": "5590fc225a254b040de8f4e6138b9818b3077b6e9a928e49aca3b55bcb9bf4b5",
   "work_id": "CHG-070",
   "kind": "CHG",
   "work_type": "technical",
@@ -34,7 +34,7 @@
   "signals": {
     "routes_or_screens": 0,
     "acceptance_flows": 2,
-    "expected_changed_files": 4,
+    "expected_changed_files": 6,
     "expected_mutation_shards": 0,
     "lifecycle_or_concurrency_boundaries": 0,
     "external_integrations": 0,
@@ -92,6 +92,13 @@
       "status": "resolved",
       "estimate_impact_minutes": 0,
       "resolution": "Input-token baseline 143M = mean of US-070 (155M) and US-071 (132M), rounded; minutes baseline 230 = mean of the two children's actuals.total (459 / 2, rounded). The thresholds 110M (25 % below 143M, rounded) and 265 min (15 % above 230, rounded) are fixed as stated in the CHG body."
+    },
+    {
+      "id": "U7",
+      "statement": "The CHG's decision rule leaves one outcome without a verdict: tokens <= 110M and minutes <= 265 while the mutation clause fails (score < 80, more than one campaign, or > 5 review_fix_loops) matches neither adopt, keep nor mixed.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Proposed for Francisco's ruling with this approval: that outcome is treated as keep-fan-out, unless the closure names a cause for the mutation miss that is unrelated to session shape (for example a pre-existing red on main or a routing gap reported by preflight), in which case the verdict is adopt with the cause recorded in §Session shape."
     }
   ],
   "dependencies": [],
@@ -101,7 +108,7 @@
     "status": "pending",
     "approved_by": null,
     "evidence": null,
-    "payload_sha256": "c751d626a6c13e72ae722938a2569af8643f6453a45e7acc2227ed74dcd1272b"
+    "payload_sha256": "5590fc225a254b040de8f4e6138b9818b3077b6e9a928e49aca3b55bcb9bf4b5"
   },
   "actuals": null,
   "policy_bootstrap": false,
