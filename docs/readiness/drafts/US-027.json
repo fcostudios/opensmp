@@ -1,0 +1,280 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "374eaec6e26cb78fae6e0918d0a05879f4a7118fb96b4b2936208ad83a56abb3",
+  "work_id": "US-027",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Inactivity flags + usage surface",
+  "source": "docs/stories/sprint-3/r1_misc_us_027.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Group Admins see, on SCR-usage (/uso), per-person last activity and days inactive for their companies against a lag-aware data-through date, with company and 30/60/90 window filters, active/flagged/no-data metric cards, window and state badges, and the ~3-day freshness banner.",
+      "demo": "Seed two companies with activity at varied ages and a vendor account synced three days ago: /uso as group_admin lists only own-company people, days inactive counts from the data-through date (a person last active on the last synced day shows 0, not 3), the 30/60/90 filter changes the badge set and metric cards, people with no activity count as no data; a non-group_admin role is refused.",
+      "primary": true
+    },
+    {
+      "id": "O2",
+      "statement": "Group Admins select inactive people on SCR-usage and propose reclamation in one audited batch with an optional note, creating at most one pending ReclamationProposal per open assignment.",
+      "demo": "Select three flagged people and submit a note: three pending proposals with the note and proposed_by = the admin exist, one audit entry per proposal; resubmitting the same selection creates none; a person from another company in the payload is rejected; a non-group_admin role is refused.",
+      "primary": true
+    },
+    {
+      "id": "O3",
+      "statement": "An audited daily inactivity job sets flagged_inactive on the anchor LicenseRequest of every open assignment whose person trips the selected window against the lag-aware data-through date, without flagging people whose apparent inactivity is only the analytics lag.",
+      "demo": "Given activity ending 31 days before data-through for one person and 29 days for another, the job flags only the first person's anchor request active->flagged_inactive with a RequestTransition and audit entry; a rerun changes nothing; a person inactive only because of the 3-day lag is not flagged; another company's rows are untouched.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1",
+        "O2"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1",
+        "O3"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O3"
+      ]
+    }
+  ],
+  "scopes": [
+    "contracts",
+    "db",
+    "server",
+    "ui",
+    "worker"
+  ],
+  "signals": {
+    "routes_or_screens": 1,
+    "acceptance_flows": 5,
+    "expected_changed_files": 24,
+    "expected_mutation_shards": 8,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 75,
+    "implementation": 300,
+    "focused_verification": 145,
+    "review": 160,
+    "integration": 70,
+    "total": 750
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Prerequisite US-026 is complete.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "US-026 (with children US-070/US-071) has a terminal done event and is dev_done; activity_record carries activity_date and synced_at. Recorded as a resolved prerequisite, not a blocked_by dependency."
+    },
+    {
+      "id": "U2",
+      "statement": "BR-16 has no text in the repo; window, lag and flag ownership are inferred from 03_cx_journeys.md:162 and 04_er_model.md:366-388.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 60,
+      "resolution": "Policy rulings P1 (lag-aware data-through date), P2 (idempotency via the existing partial unique, no migration) and P3 (daily job flags at 30 days, no auto-proposals, un-flag on renewed activity) are requested from Francisco with the partition; nous reconciles BR-16 text in the canonical specs. The child uncertainties carry the budget."
+    },
+    {
+      "id": "U3",
+      "statement": "The parent exceeds execution limits (750 min > 320, five scopes, five acceptance flows, 24 files, three primary outcomes).",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Partitioned into three vertical children of 260, 230 and 260 minutes; every parent AC is assigned and duplicated coverage carries a rationale. US-028 keeps approve/dismiss, suppression after dismissal, offboarding and /reclamaciones."
+    }
+  ],
+  "dependencies": [],
+  "decision": "partition_required",
+  "partitions": [
+    {
+      "proposal_key": "usage-surface",
+      "work_id": null,
+      "title": "Usage surface: lag-aware inactivity per person on SCR-usage",
+      "outcome": "Group Admins see, on SCR-usage (/uso), per-person last activity and days inactive for their companies against a lag-aware data-through date, with company and 30/60/90 window filters, active/flagged/no-data metric cards, window and state badges, and the ~3-day freshness banner.",
+      "demo": "Seed two companies with activity at varied ages and a vendor account synced three days ago: /uso as group_admin lists only own-company people, days inactive counts from the data-through date (a person last active on the last synced day shows 0, not 3), the 30/60/90 filter changes the badge set and metric cards, people with no activity count as no data; a non-group_admin role is refused.",
+      "acceptance_criteria": [
+        "AC1",
+        "AC2"
+      ],
+      "work_type": "functional",
+      "scopes": [
+        "contracts",
+        "server",
+        "ui"
+      ],
+      "signals": {
+        "routes_or_screens": 1,
+        "acceptance_flows": 2,
+        "expected_changed_files": 10,
+        "expected_mutation_shards": 3,
+        "lifecycle_or_concurrency_boundaries": 0,
+        "external_integrations": 0,
+        "schema_or_migration_changes": 0,
+        "authorization_or_audit_boundaries": 1,
+        "tooling_change": false
+      },
+      "uncertainties": [
+        {
+          "id": "A1",
+          "statement": "No spec defines the data-through date used to absorb the ~3-day analytics lag (BR-16 has no text in the repo).",
+          "status": "budgeted",
+          "estimate_impact_minutes": 20,
+          "resolution": "Pending Francisco's policy ruling P1: days inactive = data_through - last activity_date, where data_through is the latest activity_date synced for the person's vendor account (fallback: evaluation date - 3 days when the account has no sync). One pure domain function owns window and lag math and is shared with the flagging job; it carries property-based tests (monotone in last activity, window thresholds exact at 30/60/90)."
+        },
+        {
+          "id": "A2",
+          "statement": "Existing inactive-candidate queries (pool-repository.ts:97, read-repository.ts:401) use wall-clock evaluation dates without lag.",
+          "status": "budgeted",
+          "estimate_impact_minutes": 15,
+          "resolution": "The usage repository is new and uses the shared lag function; the two existing queries are left unchanged (their consumers are other stories) and the divergence is recorded as a deviation for a follow-up."
+        }
+      ],
+      "estimate_minutes": {
+        "readiness": 25,
+        "implementation": 105,
+        "focused_verification": 50,
+        "review": 55,
+        "integration": 25,
+        "total": 260
+      },
+      "depends_on": [],
+      "cross_cutting_rationale": "AC1 is split: this child delivers the screen's filters, metric cards, last-active and badges; the batch proposal is the propose child. AC2 is split: this child applies the lag to displayed windows; the flagging child applies the same function to the state flag."
+    },
+    {
+      "proposal_key": "propose-reclamations",
+      "work_id": null,
+      "title": "Batch reclamation proposals from SCR-usage",
+      "outcome": "Group Admins select inactive people on SCR-usage and propose reclamation in one audited batch with an optional note, creating at most one pending ReclamationProposal per open assignment.",
+      "demo": "Select three flagged people and submit a note: three pending proposals with the note and proposed_by = the admin exist, one audit entry per proposal; resubmitting the same selection creates none; a person from another company in the payload is rejected; a non-group_admin role is refused.",
+      "acceptance_criteria": [
+        "AC1"
+      ],
+      "work_type": "functional",
+      "scopes": [
+        "contracts",
+        "server",
+        "ui"
+      ],
+      "signals": {
+        "routes_or_screens": 1,
+        "acceptance_flows": 1,
+        "expected_changed_files": 8,
+        "expected_mutation_shards": 2,
+        "lifecycle_or_concurrency_boundaries": 0,
+        "external_integrations": 0,
+        "schema_or_migration_changes": 0,
+        "authorization_or_audit_boundaries": 1,
+        "tooling_change": false
+      },
+      "uncertainties": [
+        {
+          "id": "B1",
+          "statement": "The screen spec submits client_request_id but reclamation_proposal has no such column.",
+          "status": "budgeted",
+          "estimate_impact_minutes": 15,
+          "resolution": "Pending Francisco's policy ruling P2: idempotency comes from the existing partial UNIQUE on pending proposals per assignment (V20260725180000:17) via insert-on-conflict-do-nothing; client_request_id is accepted and logged in the audit entry but not persisted; no migration."
+        },
+        {
+          "id": "B2",
+          "statement": "No reclamation-specific capability exists.",
+          "status": "budgeted",
+          "estimate_impact_minutes": 10,
+          "resolution": "Gate on group_admin with company:write and companyScope; wrap in withAudit and register the action in audited-actions-enforcement. Deciding proposals, dismissal suppression and /reclamaciones stay with US-028."
+        }
+      ],
+      "estimate_minutes": {
+        "readiness": 25,
+        "implementation": 90,
+        "focused_verification": 45,
+        "review": 50,
+        "integration": 20,
+        "total": 230
+      },
+      "depends_on": [
+        "usage-surface"
+      ],
+      "cross_cutting_rationale": "AC1 is split: this child delivers the batch 'Proponer reclamación' action and modal on the surface the usage-surface child built."
+    },
+    {
+      "proposal_key": "inactivity-flagging",
+      "work_id": null,
+      "title": "Daily inactivity flagging of anchor license requests",
+      "outcome": "An audited daily inactivity job sets flagged_inactive on the anchor LicenseRequest of every open assignment whose person trips the selected window against the lag-aware data-through date, without flagging people whose apparent inactivity is only the analytics lag.",
+      "demo": "Given activity ending 31 days before data-through for one person and 29 days for another, the job flags only the first person's anchor request active->flagged_inactive with a RequestTransition and audit entry; a rerun changes nothing; a person inactive only because of the 3-day lag is not flagged; another company's rows are untouched.",
+      "acceptance_criteria": [
+        "AC2",
+        "AC3"
+      ],
+      "work_type": "functional",
+      "scopes": [
+        "db",
+        "server",
+        "worker"
+      ],
+      "signals": {
+        "routes_or_screens": 0,
+        "acceptance_flows": 2,
+        "expected_changed_files": 8,
+        "expected_mutation_shards": 3,
+        "lifecycle_or_concurrency_boundaries": 1,
+        "external_integrations": 0,
+        "schema_or_migration_changes": 0,
+        "authorization_or_audit_boundaries": 1,
+        "tooling_change": false
+      },
+      "uncertainties": [
+        {
+          "id": "C1",
+          "statement": "No spec states who sets flagged_inactive or against which window; 04_er_model.md:366 implies a job (proposed_by is null when the inactivity job proposes).",
+          "status": "budgeted",
+          "estimate_impact_minutes": 25,
+          "resolution": "Pending Francisco's policy ruling P3: a daily inactivityFlagging schedule entry after analyticsSync (pg-boss runtime) flags at the 30-day window; the 60/90 windows are display filters only; the job does not create proposals (proposals stay admin-initiated in this story); un-flagging on renewed activity (flagged_inactive->active) is included because the lifecycle allows it."
+        },
+        {
+          "id": "C2",
+          "statement": "Concurrent job runs or a manual transition racing the job.",
+          "status": "budgeted",
+          "estimate_impact_minutes": 15,
+          "resolution": "Transition with a conditional UPDATE on the current state (state = 'active') inside one transaction with the RequestTransition insert; real-DB integration test proves rerun and race idempotence."
+        }
+      ],
+      "estimate_minutes": {
+        "readiness": 25,
+        "implementation": 105,
+        "focused_verification": 50,
+        "review": 55,
+        "integration": 25,
+        "total": 260
+      },
+      "depends_on": [
+        "usage-surface"
+      ],
+      "cross_cutting_rationale": "AC2 is split: this child applies the shared lag function delivered by usage-surface to the state flag. AC3 is wholly here."
+    }
+  ],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "374eaec6e26cb78fae6e0918d0a05879f4a7118fb96b4b2936208ad83a56abb3"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}

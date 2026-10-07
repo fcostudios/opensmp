@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "c751d626a6c13e72ae722938a2569af8643f6453a45e7acc2227ed74dcd1272b",
+  "work_id": "CHG-070",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Session fan-out experiment: one consolidated implementer session per child, measured against US-070/071 before any rule changes",
+  "source": "Nous change ledger CHG-070",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The consolidated session shape is measured on one functional child (the first canonical child of the US-027 partition) and WORK_READINESS.md §Session shape records the measured result and the decision taken under the CHG-070 rule: adopt the consolidated shape when the child's input tokens are <= 110M AND actuals.total <= 265 min AND mutation score >= 80 with one campaign and <= 5 review_fix_loops; keep the fan-out when tokens do not fall 25 % below 143M or minutes rise more than 15 % above 230; mixed (tokens fall, minutes rise > 15 %) keeps per-task implementers and adopts only the reused reviewer. Protocol for the child: one implementer session for all tasks with a checkpoint commit per task (a contract restart is recorded, not a new shape); one reviewer session reused for the scoped reviews, briefed per review with the AC list, diff range and commands, while adversarial AC verification keeps its own fresh reviewer; previews launched from the implementer in the background under the CHG-069 budget, with no dedicated preview sessions; at most three controller sessions, none above ~200K context. No rule changes before the numbers are in, and no heading is added or renamed.",
+      "demo": "The child's done event carries the controller cost; its closure root_cause carries one cost line each for the implementer and the reviewer with the session count; the CHG-070 closure states the rule outcome with the numbers; WORK_READINESS.md §Session shape carries the measured result and decision; nous's independent transcript measurement agrees within 20 %; pnpm lint, pnpm check:generated-guidance and pnpm readiness:check -- CHG-070 exit 0.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 2,
+    "expected_changed_files": 4,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 40,
+    "implementation": 30,
+    "focused_verification": 15,
+    "review": 20,
+    "integration": 15,
+    "total": 120
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "'Input tokens' is undefined: a hand-estimated done.cost (as on CHG-069) cannot be held to the 20 % agreement with nous's transcript measurement, and the 143M baseline must be compared like for like.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "Input tokens for one API call = usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens, counted once per message.id (streamed entries for the same message are deduplicated). A session's figure is the sum over its transcript JSONL under ~/.claude/projects/-Users-fcolomas-Projects-smp/, including its subagents/agent-*.jsonl transcripts; calls = distinct message.id; output_tokens likewise. The child's figure is the sum over every session that worked on the child (controller, implementer, reviewer, adversarial reviewer, their subagents), from the child's started event to its done event; partition and readiness work for the US-027 parent done in the CHG-070 session is excluded and reported separately. Every reported cost is computed from the transcripts this way and marked measured; only a figure that cannot be read from a transcript is marked estimated. The baseline 143M is assumed to use the same definition (US-070 155M over 1,631 calls is ~95K per call, consistent with cache reads included); nous confirms when it reports its measurement."
+    },
+    {
+      "id": "U2",
+      "statement": "The experiment child is not like-for-like with the baseline: US-070 and US-071 were backend-only with zero routes, while US-027 carries SCR-usage and the proposeReclamations server action.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "The decision rule is applied exactly as written; the experiment is not redesigned around the difference. The closure also reports tokens per product line and per estimated minute for the child next to the baseline (261K and 251K per product line) and states the routes, screens and shards it touched, so the verdict is read with the difference in view."
+    },
+    {
+      "id": "U3",
+      "statement": "The experiment child has no official ID yet: the US-027 partition must be approved and nous must mint the functional CHG and canonical child IDs (the CHG-068 shape).",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "This payload names the child only as the first canonical child of the US-027 partition, so minting does not change this digest. CHG-070 implements nothing in that child; the child carries its own readiness, approval, design, plan and evidence. The child ID is recorded in the CHG-070 closure."
+    },
+    {
+      "id": "U4",
+      "statement": "The comparison is unfair unless CHG-069's preview budget is delivered and the full gate is green on a cold run before the child starts; a cached 'pnpm check' replay hid a red type-check on main (testcontainers unresolved after a stale local install).",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "CHG-069 is a prerequisite, not a blocked_by dependency (a blocked_by dependency blocks unconditionally): the experiment child starts only after nous runs change deliver CHG-069 and a cold TURBO_FORCE=true caffeinate -i pnpm check is green on the child's base; the stale install is repaired with pnpm install --frozen-lockfile (no lockfile change). Each full gate during the child creates /tmp/smp-full-gate.lock for its duration and removes it after. Pre-existing reds outside pnpm check (test:mutation-scope page-wiring fixture, test:feedback-order older lines) are recorded, not charged to the child."
+    },
+    {
+      "id": "U5",
+      "statement": "CHG-070's own work spans the child's run, which may take more than one day, while the CHG asks for one session for CHG-070's own work closed at done.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "This session owns CHG-070 readiness, the US-027 partition draft and the closure. Idle gaps while the child runs are excluded from CHG-070 actuals; a resume after an idle gap > 1 h is a restart of the same session under the agent session contract and is recorded in the closure root_cause with its cost. CHG-070's own done.cost is measured by the U1 rule and kept separate from the child's."
+    },
+    {
+      "id": "U6",
+      "statement": "The baselines need to be fixed numbers before the child runs.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Input-token baseline 143M = mean of US-070 (155M) and US-071 (132M), rounded; minutes baseline 230 = mean of the two children's actuals.total (459 / 2, rounded). The thresholds 110M (25 % below 143M, rounded) and 265 min (15 % above 230, rounded) are fixed as stated in the CHG body."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "c751d626a6c13e72ae722938a2569af8643f6453a45e7acc2227ed74dcd1272b"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
