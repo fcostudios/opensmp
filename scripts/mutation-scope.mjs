@@ -45,7 +45,9 @@ const SCHEMA_STATIC_TEST = "packages/db/src/schema.test.ts";
 // CHG-069: a committed migration in the diff declares a schema change that
 // schema.test.ts alone cannot observe; the real-DB integration oracle must run.
 const SCHEMA_MIGRATION_PATH = /^packages\/db\/src\/migrations\/[^/]+\.sql$/;
-const SCHEMA_INTEGRATION_ORACLE = /^packages\/db\/.+\.integration\.test\.ts$/;
+// Only src/ tests: packages/db/vitest.config.ts includes src/**/*.test.ts, so
+// a test elsewhere would be filtered out of the command and measure nothing.
+const SCHEMA_INTEGRATION_ORACLE = /^packages\/db\/src\/.+\.integration\.test\.ts$/;
 const VITEST_CONFIG_STATIC_SPECS = {
   "apps/web/vitest.config.ts": {
     range: "apps/web/vitest.config.ts:21-21",

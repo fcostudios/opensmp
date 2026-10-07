@@ -116,6 +116,15 @@ const realpathIn = (root, path) => realpathSync(path.startsWith("/") ? path : jo
   assert.deepEqual(incompatibleOnly.shard.testFiles, [schemaTest], "mutation-incompatible scanners are never selected");
   assert.equal(incompatibleOnly.gaps.length, 1);
 
+  // A packages/db test outside src/ is excluded by the package Vitest include,
+  // so selecting it would run nothing; it must surface as a gap instead.
+  const outsideSrc = scope.discoverMutationRoutingGaps(
+    [...us071Task2.filter((path) => path !== integrationOracle), "packages/db/scripts/apply.integration.test.ts"],
+    (sources) => sources.map((source) => `${source}:1-10`),
+    { fileExists: (path) => path === "packages/db/scripts/apply.integration.test.ts" || existsSync(path) },
+  );
+  assert.equal(outsideSrc.length, 1, "an oracle outside packages/db/src is not runnable by the schema-static command");
+
   const undeclared = schemaShard(us071Task2.filter((path) => path !== migration));
   assert.deepEqual(undeclared.shard.testFiles, [schemaTest], "no migration in the diff keeps the static shard unchanged");
   assert.deepEqual(undeclared.gaps, []);

@@ -247,13 +247,17 @@ intersects, record zero previews for the task and proceed.
 **Budget: one round per task plus one final (CHG-069).** A child gets one
 preview round per implementation task, after that task's focused tests are
 green, plus one round after the final fix wave: `tasks + 1` rounds, targeting at
-most 30 `preview_minutes`. A round beyond `tasks + 1`, or minutes beyond 30,
+most 30 `preview_minutes`. Survivor repairs fold into the next task's round or
+the final round; a separate fix round between them counts toward `tasks + 1`.
+The last task's round may merge into the final round when no fix wave follows. A round beyond `tasks + 1`, or minutes beyond 30,
 needs a named reason in the closure's `root_cause`, the same convention as a
 whole-set re-preview below.
 
-**Slow shards once.** A shard whose last run exceeded 5 minutes (the
-database-backed and static-schema shards) is previewed once per child, in the
-final round, unless a fix touched its `sources`. This is the one exception to
+**Slow shards once.** A shard whose last run exceeded 5 minutes (or, with no
+prior run, the database-backed and schema-static shards) is previewed once per
+child, in the final round, unless a fix touched its `sources`. For the
+schema-static shard, a changed migration or routed integration oracle counts as
+touching its sources. This is the one exception to
 previewing every intersecting shard after its task.
 
 **A routing gap is not a clean result.** When preflight prints a
@@ -404,7 +408,7 @@ event, replace it with the closed actuals object and record:
 - optional `mutation_shards_actual`, the non-negative count calculated by the
   final preflight/campaign; and
 - optional `preview_rounds` and `preview_minutes`: the number of
-  non-authoritative preview runs and their summed wall-clock minutes; and
+  non-authoritative preview rounds and their summed wall-clock minutes; and
 - `estimate_variance_minutes` and a `root_cause`.
 
 Actuals calibrate future estimates; they never retroactively legalize an
@@ -449,7 +453,7 @@ Close every work item with this shape. Like `mutation_minutes`,
 ```
 
 A gate run (`pnpm check`, a preview, or a campaign) whose wall time exceeds
-twice the median of that gate's recent runs is recorded in `root_cause` with
+twice the median of that gate's last five runs is recorded in `root_cause` with
 its cause (host sleep, a cold cache, an image pull), so lost time is not read as
 verification cost.
 
