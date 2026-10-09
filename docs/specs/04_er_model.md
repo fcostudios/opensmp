@@ -278,7 +278,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 
 - **Domain:** `request_workflow_context`
 - **Business purpose.** The J1 workflow object: one request for one person to hold one license type on one vendor account, moving through the §10 state machine with a recorded approver decision. `[SRC:RAW]` §14, Module B.
-- **Lifecycle.** Created at S1 (creates `Person` if absent); validated → Pending Approval; decided at S2; provisioned S3/S4; provisioning API error → `failed` (fires `provisioning_failure` AlertRule; retry returns to `provisioning`) per §10 "→ Failed with alert on API error"; terminal states Deprovisioned/Rejected. Transitions in `RequestTransition`. **System-materialized rows:** the go-live import backfill (SEC5) and each reconciliation drift-claim (J4 claim task) create one LicenseRequest per seat directly in `state='active'` — `justification` = `'importación inicial'` / `'reclamo por deriva'`, `requested_by`/`decided_by`/`created_by` NULL (system), with one `RequestTransition` (`from_state` NULL → `active`, `actor_user_id` NULL). Every register row therefore has a request anchor, so J2 (`flagged_inactive`→`offboarding`→`deprovisioned`) and `ProvisioningAction.request_id` work identically for request-, import- and reconciliation-sourced seats. `[SRC:CJ]`
+- **Lifecycle.** Created at S1 (creates `Person` if absent); validated → Pending Approval; decided at S2; provisioned S3/S4; provisioning API error → `failed` (fires `provisioning_failure` AlertRule; retry returns to `provisioning`) per §10 "→ Failed with alert on API error"; terminal states Deprovisioned/Rejected; the daily inactivity job moves `active → flagged_inactive` at the 30-day lag-aware window and back `flagged_inactive → active` when activity resumes (DEC-SMP-028, US-074); `flagged_inactive → offboarding` only through an approved reclamation (US-028). Transitions in `RequestTransition`. **System-materialized rows:** the go-live import backfill (SEC5) and each reconciliation drift-claim (J4 claim task) create one LicenseRequest per seat directly in `state='active'` — `justification` = `'importación inicial'` / `'reclamo por deriva'`, `requested_by`/`decided_by`/`created_by` NULL (system), with one `RequestTransition` (`from_state` NULL → `active`, `actor_user_id` NULL). Every register row therefore has a request anchor, so J2 (`flagged_inactive`→`offboarding`→`deprovisioned`) and `ProvisioningAction.request_id` work identically for request-, import- and reconciliation-sourced seats. `[SRC:CJ]`
 - **Flags.** `requires_versioning: transitions table` · `has_soft_delete: no (terminal states)` · `audit_required: yes` · `multi_tenant_scoped: yes`
 
 | Attribute | Type | PK/FK/IDX | Nullable | Description | Example | Source(s) |
@@ -366,7 +366,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 ### `ReclamationProposal`
 
 - **Domain:** `register_context` **[DERIVED_ENTITY]**
-- **Business purpose.** A persisted reclamation proposal (J2): the Group Admin (or the inactivity job) proposes freeing a specific assignment; the company approver approves ("Liberar") or dismisses ("Mantener", mandatory note). Powers SCR-reclamation-proposals' pending queue; a dismissal suppresses re-proposal for that assignment until a new inactivity window elapses. `[SRC:CJ]` J2 ("Reclamation proposal, never silent removal").
+- **Business purpose.** A persisted reclamation proposal (J2): the Group Admin proposes freeing a specific assignment (the inactivity job flags requests and never proposes — DEC-SMP-028); the company approver approves ("Liberar") or dismisses ("Mantener", mandatory note). Powers SCR-reclamation-proposals' pending queue; a dismissal suppresses re-proposal for that assignment until a new inactivity window elapses. `[SRC:CJ]` J2 ("Reclamation proposal, never silent removal").
 - **Lifecycle.** Created `pending` from SCR-usage/SCR-pools; approved → drives the offboarding flow (ProvisioningAction removal + LicenseRequest transition via the assignment's anchor request); dismissed → recorded with `decision_note`. One open proposal per assignment (partial UNIQUE).
 - **Flags.** `requires_versioning: no` · `has_soft_delete: no (terminal statuses)` · `audit_required: yes` · `multi_tenant_scoped: yes (via assignment)`
 
@@ -374,7 +374,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 |---|---|---|---|---|---|---|
 | `id` | `uuid` (v7) | PK | no |  |  | A-ER-1 |
 | `assignment_id` | `uuid` | FK => LicenseAssignment.id, IDX | no | UNIQUE among status=pending (partial index; raw SQL migration) | … | [SRC:CJ] J2 |
-| `proposed_by` | `uuid` | FK => UserAccount.id | yes | Null when the inactivity job proposes | … | [SRC:CJ] J2 |
+| `proposed_by` | `uuid` | FK => UserAccount.id | yes | The proposing Group Admin (`proposeReclamations`, US-073); nullable is reserved for a future system proposer — the inactivity job flags requests and creates NO proposals (DEC-SMP-028) | … | [SRC:CJ] J2, DEC-SMP-028 |
 | `proposal_note` | `text` |  | yes | Admin's note to the approver | … | [SRC:CJ] J2 |
 | `status` | `text` (enum) |  | no | `pending / approved / dismissed` | `pending` | [SRC:CJ] J2 |
 | `decided_by` | `uuid` | FK => UserAccount.id | yes |  |  | [SRC:CJ] J2 |

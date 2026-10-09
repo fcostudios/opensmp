@@ -34,3 +34,4 @@ As a Company Approver (persona_02), I want to consent before any seat is freed s
 
 - ACs are copied verbatim from `08_scope.md` (generated 10b pass, 2026-07-22) — the scope is the single source; edit there and regenerate.
 - Sprint 3 milestone: Automation + monitoring: connector live (interface from Sprint 2, capability semantics via US-025), invite≤15min, hygiene, reclamation, drift. Beta-API risk retired here (surprise-detection already pulled to the Sprint-1 probe). Connector jobs run on Compose-secret keys (ADR-13) until US-031 lands the managed credential store in Sprint 4.
+- **CHG-071 / DEC-SMP-028:** proposals arrive only from `proposeReclamations` (US-073); the daily inactivity job (US-074) flags requests and never proposes, and returns `flagged_inactive` to `active` when activity resumes. This story keeps approve/dismiss, suppression after a dismissal, `flagged_inactive → offboarding` and `/reclamaciones` unchanged.

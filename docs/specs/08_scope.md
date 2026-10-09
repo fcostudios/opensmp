@@ -390,8 +390,8 @@
 ### US-027 — Inactivity flags + usage surface
 - **As**: Group Admin (persona_01) | **Want to**: see 30/60/90-day inactivity per company | **So that**: reclamation candidates are visible (J2)
 - **AC1**: SCR-usage: filters, metric cards, last-active + badge per person; batch 'Proponer reclamación' creates pending ReclamationProposals with note
-- **AC2**: Flags respect the ~3-day analytics lag (windows unaffected)
-- **AC3**: State flagged_inactive set on the anchor request when window trips
+- **AC2**: Flags respect the ~3-day analytics lag (windows unaffected): inactivity is counted against the lag-aware `data_through` date (DEC-SMP-026)
+- **AC3**: State flagged_inactive set on the anchor request when the 30-day window trips, by the daily inactivity job; back to active when activity resumes (DEC-SMP-028)
 - **Prerequisites**: US-026
 - **Feature**: FEAT-021 | **Journey**: J2 | **Release**: R1
 - **Screens**: SCR-usage
