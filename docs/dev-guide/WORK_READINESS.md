@@ -365,6 +365,13 @@ measured on US-067..069 and US-021).
   `.nous-feedback.jsonl`. The checkpoint and idle restarts in CLAUDE.md's agent
   session contract still apply: the restarted session resumes the same item
   from those files and is still that item's controller.
+- **Use one consolidated implementer and one reused scoped reviewer per
+  functional child (CHG-070).** Keep checkpoint commits per task. A forced or
+  idle restart resumes the same role and is recorded as a restart. Give each
+  scoped review the AC list, diff range and commands; adversarial AC verification
+  uses a fresh reviewer. The implementer launches background touched-shard
+  previews under CHG-069: one round per task plus one final fix round, at most
+  30 preview minutes, with slow shards once at the final round unless touched.
 - **The controller plans, briefs, and reviews the reviewer's findings; it does
   not run the verification in its own context.** Brief a reviewer (a subagent
   or a fresh session) for adversarial AC verification and for each scoped
@@ -380,6 +387,29 @@ measured on US-067..069 and US-021).
   collected before adversarial verification.
 - **Mark the boundaries.** Emit a `phase` event when entering
   `implementation`, `focused_verification`, `review`, and `integration`.
+
+CHG-070 measured US-072 on `25c37cd..3ae2d18` (closure `cc351f4`):
+92 active minutes, 65,719,234 measured input tokens plus 535,000 estimated
+closing-tail tokens (66,254,234 total estimate), and 93.643% mutation score
+(383 killed / 26 survived), with one cold campaign and four repair loops.
+Four preview rounds used 14.0161 minutes. The fixed baselines are 143M input
+tokens and 230 minutes; the result reduces tokens about 53.7% and time 60%.
+Both costs pass the 110M / 265-minute adoption thresholds and the score /
+campaign / loop gates. **Adopt the consolidated shape for US-073 and US-074.**
+US-072 used two bounded controller transcripts (peak 180,351 context tokens),
+one implementer without restart, a reused reviewer with one idle restart,
+and one fresh adversarial reviewer. Its 317 product lines cost about 209K
+input tokens per line and 255K per estimated minute (260-minute estimate),
+versus US-070/071 at 261K/251K per line and 574K/440K per estimated minute.
+It touched one route/screen and eight mutation shards; the backend baselines
+had no routes. Codex input includes cached tokens already; cumulative usage
+advances proxy for calls. Historical Claude parent costs are separately counted
+by message ID with cache creation/read input added once. The accepted nullguard
+survivor is an explicit classifier-shard test-selection gap covered by the
+existing public-export oracle; it is not called equivalent or killed.
+Nous independently measures the transcripts and delivers CHG-070 and US-072
+after this local closure, as Francisco explicitly instructed; the earlier
+20% agreement check remains that handoff audit and is not claimed complete.
 
 ## Actuals and calibration
 
