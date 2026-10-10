@@ -104,7 +104,27 @@
     "evidence": "CHG073-READINESS-20261010",
     "payload_sha256": "25e58287f072d56e42300f4b3bcad9afad8b4d5275580e9e64e7e9daed2f9a9e"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 26,
+      "implementation": 37,
+      "focused_verification": 10,
+      "review": 5,
+      "integration": 1
+    },
+    "total": 79,
+    "changed_files": 15,
+    "commits": 12,
+    "review_fix_loops": 1,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": -191,
+    "root_cause": "CHG-073 only; excludes US-072 and CHG-070 experiment costs. Conservative nonoverlapping wall envelope, rounded each phase up to whole minutes; boundaries 2026-10-10T14:22:56Z, 2026-10-10T14:48:27.539274Z, 2026-10-10T15:25:08.053586Z, 2026-10-10T15:34:45.612Z, 2026-10-10T15:39:22.542034Z, 2026-10-10T15:40:16.835677Z. First boundary is worktree reflog creation at baseline 4780ae1; later boundaries are phase markers and closure cutoff. Interleaved task review/focused work is folded into these contiguous buckets. Includes environment approval waits: config 752s, dependency 180s, restore 639s; three interrupt/resumes of the SAME implementer, no worker replacement. 12 reachable commits including this closure and one transferred scope-sync; 11 CHG-073-owned. One review fix for absent-notes deviation compatibility, completed in planned checker task. Authority 70a5aff..a9a7b1d has 9 changed paths, zero mutatable ranges/shards, no campaigns or previews. Fresh final suite 286 behavioral tests and 61 artifacts GREEN. Full awake exclusive-lock gate 3.291s used valid Turbo cache; fresh migration/schema/runtime/parity 6.175s (32 tables,342 columns,84 FKs). Last-five gate median unavailable, no comparison invented. Exactly one correction; original 629068-byte ledger prefix SHA256 0a2ec8d0ea54c43114957050f8c4b0d8168c04bc77f40ddbbe06a553c176ce5f unchanged. Deferred hardening: upstream guidance adoption and diagnostics for intermittent unchanged Python overlay analyzer failures (isolated pinned-parent probe 0.030s, exit0,10 layers; retained final suite green). Last tooling item before US-072; these are neither new work items nor readiness blockers. No application implementation, delivery, push or merge."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
