@@ -110,7 +110,27 @@
     "evidence": "US072-READINESS-20261010",
     "payload_sha256": "9b4c47527004b73f6b2c9cef78a4bf1bb635b32150a245b18b3a9bf49a1f85bb"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 14,
+      "implementation": 22,
+      "focused_verification": 16,
+      "review": 26,
+      "integration": 14
+    },
+    "total": 92,
+    "changed_files": 22,
+    "commits": 8,
+    "review_fix_loops": 4,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 7,
+    "mutation_shards_actual": 8,
+    "preview_rounds": 4,
+    "preview_minutes": 15,
+    "estimate_variance_minutes": -168,
+    "root_cause": "Frozen mutation base25c37cd721dd021b81f0bec2e573a34b3bd1c8be after entry approvals; scored source3ae2d185607e87c0b65c1fcf3d963d42026ad129. Active phase envelopes use UTC markers, each rounded up; terminal cutoff2026-10-10T23:14:07.618664Z. Morning13:56:57..14:11:42 excludes design/plan approval waits; idle14:11:42..21:57:11 and all CHG073 execution excluded. Overlapping background previews/reviews/gates counted once in phase totals.\nOne implementer with checkpoint commits per task; one reused scoped reviewer, fresh adversarial AC reviewer. Four conservative fix loops: filter Zod-static routing, principal repository/page/view oracles, RLS transaction/MAX-date hardening, tie-order/runtime pair-key calibration. No fifth preview: late scoped repairs proved with real negative controls and final campaign. Four previews measured14.0161min/schema rounded15; one cold campaign377.042039s/6.284034min/schema rounded7, score93.6430318%,383killed26survived409total,8shards; no accepted cache. Three cold full gates326.260/289.138/284.028s (14.9904min) overlap phases; retained9/9uncached,2906tests passed12skipped; committed migrations/parity green. Intermediate gate repeated after late repair. No gate exceeded twice the median of these three; last-five history unavailable. Earlier preview fixture cleanup error cause unconfirmed; final wrapper exited0 and cleaned2 owned clones.\nChangedfiles22 versus approved16 and actual8shards versus4 are named scope deviations: public-barrel oracle, shared realDB fixture, three adjacent route boundary tests, actual EN/ES locale catalogs. Vitest config restored; test-local locale runtime bridge leaves scored sources in Vitest. Final43 owned artifacts archived with hashes; no scored edits after campaign. 26 reviewed survivor lines:21equivalent/5accepted. ID63 is a real nullguard mutant caught by existing publicbarrel oracle but excluded from classifier shard; explicit test-selection assurance gap retained, not equivalent or killed. Presentation styles/freshness-order residuals accepted with browser review.\nDeferred hardening: year0000 fallback can format a negative year; modern date ACs pass. Unchanged wall-clock inactive-candidate queries in pool-repository.ts/read-repository.ts remain canonical deferred divergence. No extra work item/readiness blocker created; generated testing/critical-paths.md untouched.\nImplementer cost: sessions1,restarts0; measured input31,992,608 including cached subset once, output101831,315 cumulative-advance call proxies, active70.7167min, gpt-6.1-sol/window258400; bounded transcript cutoff23:09Z/latest23:08:24. Parent investigation after23:09 allocated CHG070, not child.\nReviewer cost: logical reused reviewer1 with idle restart, transcript sessions2; measured input9,346,356, output38651,82 cumulative-advance call proxies including historical14; fresh adversarial sessions1,input811600,output3260,11proxies. Reviewer reporting tail estimated35000input/400output; gpt-6.1-sol/window258400.\nController cost: child sessions2, peak180351 context; measured input23,568,670,output76679,calls proxy214, snapshot2026-10-10T23:13:33.310Z; gpt-6.1-sol/window258400. Terminal/commit/check tail estimated500000input/2000output/10calls. Codex input already includes cached subset; output includes reasoning subset. Calls use distinct cumulative advances because message/call identity unavailable. Total measured input65,719,234; estimated closure-inclusive upper figure66,254,234, not all-zero/unavailable. Local Nous independent transcript agreement pending posthandoff under latest user closing sequence; no independent agreement claimed.\nNormalization:317 product lines,1route/screen,8shards. Closure-inclusive estimated input/product line209004 vs US070261K/US071251K; input/estimated-minute254824 vs US070574074/US071440000. Raw143Minput/230min decision baselines retained. Cost provenance files under /tmp/us072-*-cost*.json and accessible Codex transcripts; historical child window13:56:57..14:11:42."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
