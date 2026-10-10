@@ -12,6 +12,7 @@ const read = (window: 30 | 60 | 90 = 30, companyId: string | null = i.companyA, 
 test("only open company A licenses and scoped anchors are returned with account-specific evidence", async () => {
   const model = await read();
   expect(model.rows.map(r => r.assignmentId).sort()).toEqual(Array.from({ length: 9 }, (_, n) => usageId(30 + n)));
+  expect(model.rows.map(r => r.assignmentId)).toEqual([30,31,32,33,37,38,34,35,36].map(usageId));
   expect(model.rows.every(r => r.companyId === i.companyA)).toBe(true);
   expect(JSON.stringify(model)).not.toContain("Foreign Bea");
   expect(model.rows.find(r => r.assignmentId === usageId(30))).toMatchObject({ lastActivityDate: "2026-09-06", dataThrough: "2026-10-07", daysInactive: 31, classification: "inactive", anchorState: "flagged_inactive" });
@@ -60,6 +61,36 @@ test("a foreign anchor is unavailable and other-company observations may advance
     await f.ownerDb.update(licenseAssignment).set({ sourceRequestId: null }).where(eq(licenseAssignment.id, usageId(36)));
   }
 });
+test("last known positive date is the maximum even with later unknown observations", async () => {
+  await f.ownerDb.insert(activityRecord).values([
+    { personId: i.old, vendorAccountId: i.accountX, activityDate: "2026-09-07", counters: { chat_metrics: { message_count: 2 } }, syncedAt: new Date("2026-10-10T00:00:00Z"), source: "manual" },
+    { personId: i.old, vendorAccountId: i.accountX, activityDate: "2026-09-05", counters: { chat_metrics: { message_count: 1 } }, syncedAt: new Date("2026-10-10T00:00:00Z"), source: "manual" },
+  ]);
+  try {
+    const model = await read();
+    expect(model.rows.filter(r => r.personId === i.old && r.vendorAccountId === i.accountX).map(r => [r.lastActivityDate, r.daysInactive])).toEqual([["2026-09-07", 30], ["2026-09-07", 30]]);
+  } finally { await f.owner.query("DELETE FROM activity_record WHERE person_id=$1 AND activity_date IN ('2026-09-05','2026-09-07')", [i.old]); }
+});
+
+test("cursor payload rejects missing binding fields, unknown fields and noncanonical encoding", async () => {
+  const valid = { companyId: i.companyA, window: 30, sort: "age_desc_id_asc", daysInactive: 0, assignmentId: usageId(33) };
+  const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  for (const field of Object.keys(valid)) {
+    const missing = { ...valid } as Record<string, unknown>; delete missing[field];
+    await expect(read(30, i.companyA, encode(missing))).rejects.toMatchObject({ code: "invalid_cursor" });
+  }
+  for (const payload of [{ ...valid, sort: "wrong" }, { ...valid, extra: true }, { ...valid, assignmentId: "wrong" }, { ...valid, daysInactive: 0.5 }]) await expect(read(30, i.companyA, encode(payload))).rejects.toMatchObject({ code: "invalid_cursor" });
+  const canonical = encode(valid);
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  // The final character's unused padding bits change no decoded payload bytes.
+  const paddedPayload = JSON.stringify(valid) + " ";
+  const padded = Buffer.from(paddedPayload).toString("base64url");
+  const noncanonical = padded.slice(0, -1) + alphabet[alphabet.indexOf(padded.at(-1)!) ^ 1];
+  expect(Buffer.from(noncanonical, "base64url").toString()).toBe(paddedPayload);
+  await expect(read(30, i.companyA, noncanonical)).rejects.toMatchObject({ code: "invalid_cursor" });
+  expect((await read(30, i.companyA, canonical)).rows.map(r => r.assignmentId)).toEqual([usageId(37), usageId(38), usageId(34), usageId(35), usageId(36)]);
+});
+
 test("an unsynced account uses estimated fallback without inventing activity", async () => {
   const records = await f.ownerDb.select().from(activityRecord).where(eq(activityRecord.vendorAccountId, i.accountY));
   await f.ownerDb.delete(activityRecord).where(eq(activityRecord.vendorAccountId, i.accountY));

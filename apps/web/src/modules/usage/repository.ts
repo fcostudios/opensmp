@@ -21,7 +21,6 @@ export type UsageReadModel = Readonly<{
   freshness: readonly { accountId: string; accountName: string; dataThrough: string; fallback: boolean }[];
   nextCursor: string | null;
 }>;
-const cursorSchema = z.object({ companyId: z.string().uuid().nullable(), window: z.union([z.literal(30), z.literal(60), z.literal(90)]), sort: z.literal("age_desc_id_asc"), daysInactive: z.number().int().nonnegative().nullable(), assignmentId: z.string().uuid() }).strict();
 type SortKey = { daysInactive: number | null; assignmentId: string };
 function compareRows(a: SortKey, b: SortKey): number {
   if (a.daysInactive !== b.daysInactive) {
@@ -33,6 +32,7 @@ function compareRows(a: SortKey, b: SortKey): number {
 }
 function decodeCursor(filters: UsageFilters): SortKey | null {
   if (!filters.cursor) return null;
+  const cursorSchema = z.object({ companyId: z.string().uuid().nullable(), window: z.union([z.literal(30), z.literal(60), z.literal(90)]), sort: z.literal("age_desc_id_asc"), daysInactive: z.number().int().nonnegative().nullable(), assignmentId: z.string().uuid() }).strict();
   try {
     if (!/^[A-Za-z0-9_-]+$/.test(filters.cursor)) throw new Error();
     const text = Buffer.from(filters.cursor, "base64url").toString("utf8");

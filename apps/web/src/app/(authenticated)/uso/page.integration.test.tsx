@@ -79,7 +79,7 @@ async function page(subject: string | null, query: Record<string, string | strin
   return workAsyncStorage.run(work, () => workUnitAsyncStorage.run(store, () => UsagePage({ searchParams: Promise.resolve(query) })));
 }
 test.each([null, "usage-viewer"])("actual %s session redirects before protected page data", async subject => {
-  await expect(page(subject)).rejects.toMatchObject({ digest: expect.stringContaining(";/acceso-denegado;") });
+  for (const query of [{}, { window: "31" }]) await expect(page(subject, query)).rejects.toMatchObject({ digest: expect.stringContaining(";/acceso-denegado;") });
 });
 test("actual signed admin receives localized scoped data and invalid filters are recoverable", async () => {
   await data.owner.query("UPDATE user_account SET ui_language='en' WHERE id=$1", [usageIds.admin]);
@@ -91,6 +91,8 @@ test("actual signed admin receives localized scoped data and invalid filters are
   await data.owner.query("UPDATE user_account SET ui_language='es' WHERE id=$1", [usageIds.admin]);
   const invalid = renderToStaticMarkup(await page("usage-admin", { window: "31" }));
   expect(invalid).toContain(es.usage.invalidFilter);
+  expect(invalid).toContain(es.usage.title);
+  expect(invalid).toContain(`>${es.usage.apply}</a>`);
   expect(invalid).toContain('href="/uso"');
   expect(invalid).not.toContain("Last known Ana");
 });

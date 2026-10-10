@@ -12,5 +12,6 @@ test("localized loading announces a polite busy status", () => {
   expect(status.textContent).toBe(messages.usage.loading);
   expect(status.getAttribute("aria-live")).toBe("polite");
   expect(status.getAttribute("aria-busy")).toBe("true");
+  expect(status.querySelectorAll(".grid > div").length).toBe(3);
   expect(status.querySelectorAll('[aria-hidden="true"]').length).toBe(2);
 });
