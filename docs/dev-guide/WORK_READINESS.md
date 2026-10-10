@@ -145,6 +145,37 @@ Assessment/design/feedback-only commits may be made while approval is pending.
 Implementation-class changes require every referenced work ID to be approved
 and `ready`.
 
+Delivered vocabulary entries classified as `annotation`, including registered
+tenant-local names, may record bookkeeping before approval. Explicit evidence
+(`build_pass`, `ac_verify`, `test_report`) still requires authorization regardless
+of its vocabulary class. Decisions retain their shape and digest checks;
+`blocked` and `blocker` retain revocation behavior. Postapproval evidence,
+terminal and stale-approval rules are unchanged.
+
+A historical controller start that recorded readiness bookkeeping can be
+corrected with this closed append-only annotation:
+
+```json
+{"story":"CHG-070","event":"lifecycle_corrected","target_event":"started","target_ts":"2026-10-07T03:44:39Z","disposition":"not_execution","reason":"Historical controller readiness bookkeeping; no evidence preceded approval.","approved_by":"Francisco Lomas","ts":"<actual append time in UTC>"}
+```
+
+Every field is required, no other field is accepted, and reason/approver must be
+nonempty. The literal story, event and original timestamp must identify exactly
+one earlier raw start; missing, duplicate, foreign-story or already-corrected
+targets fail with `WR_CORRECTION_INVALID`. The target precedes that story's
+first valid digest-bound ready approval, and the correction follows it in
+ledger order and time. Target, approval and correction timestamps must be valid
+explicit UTC stamps with strictly increasing times. No raw `build_pass`,
+`ac_verify` or `test_report` may occur between target and first approval, even
+when later superseded or projected.
+
+The correction exempts only that validated start from the preapproval scan. It
+does not authorize work, create a replacement start, change an approval, or
+alter lifecycle projection or the bootstrap exception. Preserve all original
+ledger bytes and append the correction at its actual time. Readiness check
+summaries report `; 1 corrected start` (pluralized for larger counts), including
+the existing JSON `summary` field; uncorrected summaries stay unchanged.
+
 ## Generated Nous ownership
 
 Generated Nous paths have exactly two authorization routes:

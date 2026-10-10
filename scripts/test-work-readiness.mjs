@@ -17,6 +17,7 @@ import {
   classifyAssessment,
   computeReadinessPayloadSha256,
   validateApproval,
+  validateLifecycleCorrections,
   validateAssessment,
   validateCompletionActuals,
   validatePartitionGraph,
@@ -466,7 +467,7 @@ test("CLI calibration requires exactly one official work ID", () => {
 test("accepts an approved ready US", () => {
   const value = normal();
   assert.deepEqual(validateAssessment(value, { feedbackRecords: [decisionFor(value)] }), {
-    decision: "ready", active: true, complete: false, inactiveReason: null,
+    decision: "ready", active: true, complete: false, inactiveReason: null, correctedStarts: 0,
   });
   assert.equal(classifyAssessment(value), "ready");
 });
@@ -972,7 +973,7 @@ test("reapproval permits only execution covered by a prior digest-bound ready de
 
 test("annotation bookkeeping may precede approval while explicit evidence may not", () => {
   const value = normal();
-  for (const event of ["phase", "ac_pass", "deviation", "lifecycle_corrected"]) {
+  for (const event of ["phase", "ac_pass", "deviation"]) {
     assert.equal(validateApproval(value, [
       { story: value.work_id, event, phase: "readiness" },
       decisionFor(value),
@@ -986,6 +987,71 @@ test("annotation bookkeeping may precede approval while explicit evidence may no
   }
 });
 
+function correctedLifecycle(value = normal()) {
+  const start = { story: value.work_id, event: "started", agent: "controller", ts: "2026-10-07T03:44:39Z" };
+  const approval = decisionFor(value, { ts: "2026-10-07T04:00:00Z" });
+  const correction = {
+    story: value.work_id, event: "lifecycle_corrected", target_event: "started",
+    target_ts: "2026-10-07T03:44:39Z", disposition: "not_execution",
+    reason: "Controller readiness bookkeeping", approved_by: "user", ts: "2026-10-10T15:00:00Z",
+  };
+  return [start, approval, correction];
+}
+
+test("a later constrained correction exempts exactly one historical bookkeeping start", () => {
+  const value = normal();
+  const records = correctedLifecycle(value);
+  const original = clone(records);
+  assert.deepEqual([...validateLifecycleCorrections(records, value.work_id).correctedStartIndices], [0]);
+  assert.equal(validateLifecycleCorrections(records, "US-999").correctedStarts, 0);
+  assert.equal(validateApproval(value, records).active, true);
+  assert.equal(validateApproval(value, records).correctedStarts, 1);
+  assert.equal(validateAssessment(value, { feedbackRecords: records }).correctedStarts, 1);
+  assert.deepEqual(records, original);
+});
+
+test("correction rejects raw evidence, malformed binding, missing approver and foreign story", () => {
+  const value = normal();
+  const [start, approval, correction] = correctedLifecycle(value);
+  const reject = (records) => expectError("WR_CORRECTION_INVALID", "$.approval.evidence", () => validateApproval(value, records));
+  for (const event of ["build_pass", "ac_verify", "test_report"]) {
+    reject([start, { story: value.work_id, event }, approval, correction]);
+  }
+  for (const mutate of [
+    (record) => { delete record.approved_by; },
+    (record) => { record.reason = " "; },
+    (record) => { record.target_event = "done"; },
+    (record) => { record.disposition = "execution"; },
+    (record) => { record.target_ts = "2026-10-07T03:44:40Z"; },
+    (record) => { record.target_ts = "2026-02-30T03:44:39Z"; },
+    (record) => { record.ts = "2026-10-10T15:00:00"; },
+    (record) => { record.ts = approval.ts; },
+    (record) => { record.extra = true; },
+  ]) {
+    const changed = clone(correction);
+    mutate(changed);
+    reject([start, approval, changed]);
+  }
+  reject([approval, correction]);
+  reject([start, { ...start }, approval, correction]);
+  reject([start, approval, correction, { ...correction }]);
+  reject([start, { story: value.work_id, event: "build_pass" }, approval, {
+    story: value.work_id, event: "evidence_superseded", ref: "US123-RAW-BUILD",
+    target: { story: value.work_id, event: "build_pass" }, reason: "Later projection cannot erase raw evidence",
+  }, correction]);
+  const firstApproval = decisionFor(value, { id: "US123-FIRST", ts: "2026-10-07T03:40:00Z" });
+  reject([firstApproval, start, approval, correction]);
+  reject([start, { ...approval, text: "Decision ready without digest" }, correction]);
+  reject([start, approval, { ...approval }, correction]);
+  reject([start, correction, approval]);
+  reject([approval, start, correction]);
+  reject([start, { ...approval, ts: "invalid" }, correction]);
+  reject([start, { ...approval, approved_by: " " }, correction]);
+  reject([start, { ...approval, subject_work_id: "US-999" }, correction]);
+  const foreign = normal({ work_id: "US-999" });
+  reject([start, decisionFor(foreign, { ts: approval.ts }), { ...correction, story: foreign.work_id }]);
+});
+
 test("selected approval becomes inactive after raw, deferred, and projected terminals", () => {
   const value = normal();
   for (const terminal of ["done", "done_with_deferral", "done_with_external_deferral"]) {
@@ -997,6 +1063,7 @@ test("selected approval becomes inactive after raw, deferred, and projected term
       payloadSha256: value.readiness_payload_sha256,
       active: false,
       inactiveReason: "terminal",
+      correctedStarts: 0,
     });
   }
   const changeDecision = { story: "CHG-099", event: "decision", id: "CHG099-TERMINAL", text: "Repair terminal", reason: "Review" };
@@ -1772,7 +1839,7 @@ test("completed normal assessment remains valid but cannot authorize more implem
   const value = completed();
   const records = [decisionFor(value), { story: value.work_id, event: "done" }];
   assert.deepEqual(validateAssessment(value, { feedbackRecords: records }), {
-    decision: "ready", active: false, complete: true, inactiveReason: "terminal",
+    decision: "ready", active: false, complete: true, inactiveReason: "terminal", correctedStarts: 0,
   });
   const missing = normal();
   expectError("WR_ACTUALS_REQUIRED", "$.actuals", () => validateAssessment(missing, {
@@ -2329,6 +2396,27 @@ function parseCliJson(result) {
   assert.deepEqual(Object.keys(output), ["ok", "command", "work_ids", "errors", "summary"]);
   return output;
 }
+
+test("readiness CLI reports corrections in plain and JSON summaries and leaves ordinary output unchanged", () => {
+  const { root } = makeGitRepo();
+  try {
+    const value = normal();
+    writeRepoFile(root, "docs/readiness/US-123.json", JSON.stringify(value));
+    writeRepoFile(root, ".nous-feedback.jsonl", correctedLifecycle(value).map((record) => JSON.stringify(record)).join("\n") + "\n");
+    const plain = runCli(root, ["check", "US-123"]);
+    assert.equal(plain.status, 0, plain.stderr);
+    assert.equal(plain.stdout, "US-123 readiness is valid; 1 corrected start\n");
+    const json = runCli(root, ["check", "US-123", "--json"]);
+    assert.equal(json.status, 0, json.stderr);
+    assert.equal(parseCliJson(json).summary, "US-123 readiness is valid; 1 corrected start");
+    writeRepoFile(root, ".nous-feedback.jsonl", JSON.stringify(decisionFor(value)) + "\n");
+    const ordinary = runCli(root, ["check", "US-123", "--json"]);
+    assert.equal(ordinary.status, 0, ordinary.stderr);
+    assert.equal(parseCliJson(ordinary).summary, "US-123 readiness is valid");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test("a forged approval commit cannot authorize a later plan and implementation range", () => {
   const { root } = makeGitRepo();
@@ -5141,7 +5229,7 @@ test("delivered canonical and local names are recognized; invented names fail cl
   try {
     writeRepoFile(accepted.root, ".nous-feedback.jsonl", [
       { story: "US-321", event: "phase", phase: "focused_verification", ts: "2026-10-01T16:00:00Z" },
-      { story: "US-321", event: "lifecycle_corrected", ts: "2026-10-01T16:01:00Z" },
+      ...correctedLifecycle(normal({ work_id: "US-321" })),
     ].map((record) => JSON.stringify(record)).join("\n") + "\n");
     const head = commitRepo(accepted.root, "docs(US-321): record a phase marker", [".nous-feedback.jsonl"]);
     validateRangeOwnership({ root: accepted.root, base: accepted.base, head });

@@ -752,13 +752,77 @@ function isPreapprovalAnnotation(event) {
     && !["build_pass", "ac_verify", "test_report"].includes(event);
 }
 
-function validatePreapprovalHistory(value, feedbackRecords, evidenceIndex, terminalProjection) {
+export function validateLifecycleCorrections(records, workId) {
+  feedbackArray(records);
+  const correctedStartIndices = new Set();
+  const corrections = records.map((record, index) => ({ record, index }))
+    .filter(({ record }) => record.story === workId && record.event === "lifecycle_corrected");
+  for (const { record, index } of corrections) {
+    const invalid = (message) => fail("WR_CORRECTION_INVALID", "$.approval.evidence", message);
+    try {
+      object(record, "$.correction", [
+        "story", "event", "target_event", "target_ts", "disposition", "reason", "approved_by", "ts",
+      ]);
+      validateWorkId(record.story, "$.correction.story");
+      string(record.reason, "$.correction.reason");
+      string(record.approved_by, "$.correction.approved_by");
+      if (record.target_event !== "started" || record.disposition !== "not_execution") {
+        invalid("Correction must classify a raw started event as not_execution");
+      }
+      const targetTime = parseExplicitUtcTimestamp(record.target_ts);
+      const correctionTime = parseExplicitUtcTimestamp(record.ts);
+      if (targetTime === null || correctionTime === null) invalid("Correction timestamps must be valid explicit UTC timestamps");
+      const targets = records.map((candidate, candidateIndex) => ({ candidate, candidateIndex }))
+        .filter(({ candidate }) => candidate.story === record.story
+          && candidate.event === "started" && candidate.ts === record.target_ts);
+      if (targets.length !== 1 || targets[0].candidateIndex >= index) {
+        invalid("Correction must identify exactly one earlier raw start for its own story");
+      }
+      const targetIndex = targets[0].candidateIndex;
+      if (correctedStartIndices.has(targetIndex)) invalid("A raw start may be corrected only once");
+      let approvalIndex = -1;
+      for (let candidateIndex = 0; candidateIndex < records.length; candidateIndex += 1) {
+        const candidate = records[candidateIndex];
+        if (candidate.story !== record.story || candidate.event !== "decision") continue;
+        let tokens;
+        try {
+          tokens = validatePriorDecisionRecord(candidate, new Set());
+        } catch (error) {
+          if (error instanceof WorkReadinessError) continue;
+          throw error;
+        }
+        if (tokens.decisions.length !== 1 || tokens.decisions[0] !== "ready" || tokens.digests.length !== 1
+          || typeof candidate.approved_by !== "string" || !/\S/u.test(candidate.approved_by)
+          || candidate.subject_work_id !== record.story || candidate.relationship !== "self"
+          || records.filter((entry) => entry.event === "decision" && entry.id === candidate.id).length !== 1) continue;
+        approvalIndex = candidateIndex;
+        break;
+      }
+      if (approvalIndex <= targetIndex || approvalIndex >= index) invalid("Correction must follow the first valid ready approval, and its target must precede it");
+      const approvalTime = parseExplicitUtcTimestamp(records[approvalIndex].ts);
+      if (approvalTime === null || targetTime >= approvalTime || correctionTime <= approvalTime) {
+        invalid("Correction chronology must strictly follow target, ready approval and append time");
+      }
+      if (records.slice(targetIndex + 1, approvalIndex).some((candidate) => candidate.story === record.story
+        && ["build_pass", "ac_verify", "test_report"].includes(candidate.event))) {
+        invalid("Raw implementation evidence between the start and first approval cannot be corrected");
+      }
+      correctedStartIndices.add(targetIndex);
+    } catch (error) {
+      if (error instanceof WorkReadinessError && error.code !== "WR_CORRECTION_INVALID") invalid(error.message);
+      throw error;
+    }
+  }
+  return { correctedStartIndices, correctedStarts: correctedStartIndices.size };
+}
+
+function validatePreapprovalHistory(value, feedbackRecords, evidenceIndex, terminalProjection, correctedStartIndices) {
   let authorized = false;
   let everAuthorized = false;
   let bootstrapStarts = 0;
   const seenDecisionIds = new Set();
   for (let index = 0; index < evidenceIndex; index += 1) {
-    if (terminalProjection.omittedIndices.has(index)) continue;
+    if (terminalProjection.omittedIndices.has(index) || correctedStartIndices.has(index)) continue;
     const record = feedbackRecords[index];
     if (record.story !== value.work_id) continue;
     if (record.event === "decision") {
@@ -856,6 +920,13 @@ function validatePostapprovalHistory(value, feedbackRecords, evidenceIndex, term
 
 export function validateApproval(value, feedbackRecords) {
   feedbackArray(feedbackRecords);
+  const correctedStories = new Set(feedbackRecords.filter((record) => record.event === "lifecycle_corrected").map((record) => record.story));
+  correctedStories.add(value.work_id);
+  let corrections;
+  for (const workId of correctedStories) {
+    const result = validateLifecycleCorrections(feedbackRecords, workId);
+    if (workId === value.work_id) corrections = result;
+  }
   const terminalProjection = buildTerminalProjection(feedbackRecords, value.work_id);
   const unknownEvent = feedbackRecords.find((record) => record.story === value.work_id && !isKnownFeedbackEvent(record.event));
   if (unknownEvent) fail("WR_APPROVAL_EVENT_UNKNOWN", "$.approval.evidence", `Unknown feedback event ${String(unknownEvent.event)}`);
@@ -886,7 +957,7 @@ export function validateApproval(value, feedbackRecords) {
   } else if (evidence.story !== value.work_id) {
     fail("WR_APPROVAL_STORY_MISMATCH", "$.approval.evidence", "Decision evidence belongs to another work item");
   }
-  validatePreapprovalHistory(value, feedbackRecords, evidenceIndex, terminalProjection);
+  validatePreapprovalHistory(value, feedbackRecords, evidenceIndex, terminalProjection, corrections.correctedStartIndices);
   const { decisions, digests } = readinessTokens(evidence.text);
   if (decisions.length !== 1 || decisions[0] !== value.decision || digests.length !== 1 || digests[0] !== value.readiness_payload_sha256) {
     fail("WR_APPROVAL_DECISION_MISMATCH", "$.approval.evidence", "Decision evidence must bind the declared decision and exact digest");
@@ -914,7 +985,7 @@ export function validateApproval(value, feedbackRecords) {
     }
   }
   const authorization = validatePostapprovalHistory(value, feedbackRecords, evidenceIndex, terminalProjection);
-  return { evidence: value.approval.evidence, payloadSha256: recomputed, ...authorization };
+  return { evidence: value.approval.evidence, payloadSha256: recomputed, ...authorization, correctedStarts: corrections.correctedStarts };
 }
 
 function approvalIndex(records, value) {
@@ -1241,5 +1312,6 @@ export function validateAssessment(value, { feedbackRecords = [], approvedReadin
     active: authorization.active,
     complete: completion.complete,
     inactiveReason: authorization.inactiveReason,
+    correctedStarts: authorization.correctedStarts,
   };
 }

@@ -180,8 +180,8 @@ function loadAssessment(root, workId) {
 
 function validateOne(root, workId, feedbackRecords) {
   const value = loadAssessment(root, workId);
-  validateAssessment(value, { feedbackRecords, approvedReadinessAuthorities: loadApprovedReadinessAuthorities(root) });
-  return value;
+  const assessment = validateAssessment(value, { feedbackRecords, approvedReadinessAuthorities: loadApprovedReadinessAuthorities(root) });
+  return { artifact: value, assessment };
 }
 
 function loadApprovedReadinessAuthorities(root) {
@@ -440,8 +440,10 @@ function calibrateCommand({ root, positionals, feedbackRecords }) {
 function checkAssessment({ root, positionals, feedbackRecords }) {
   if (positionals.length !== 1) cliError("WR_INVOCATION_INVALID", "Usage: check <WORK-ID>", "$.arguments");
   const workId = normalizeWorkId(positionals[0]);
-  validateOne(root, workId, feedbackRecords);
-  return { workIds: [workId], summary: `${workId} readiness is valid` };
+  const { assessment } = validateOne(root, workId, feedbackRecords);
+  const correctionSummary = assessment.correctedStarts > 0
+    ? `; ${assessment.correctedStarts} corrected start${assessment.correctedStarts === 1 ? "" : "s"}` : "";
+  return { workIds: [workId], summary: `${workId} readiness is valid${correctionSummary}` };
 }
 
 function readinessFiles(root) {
