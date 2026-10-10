@@ -9,7 +9,8 @@
 > reviewer. The controller plans, briefs and decides; it does not implement or
 > run child verification. This explicit user protocol overrides the generic
 > writing-plans fresh-worker-per-task recommendation. Repository readiness
-> metadata above overrides the generic skill header. Plan approval is pending.
+> metadata above overrides the generic skill header. Francisco approved the plan
+> committed in `2493838` with "Approved, continue"; execution prerequisites remain.
 
 **Goal:** Group Admins can read company-filtered, lag-aware 30/60/90-day activity
 on `/uso`, with correct license metrics, last-known activity and request state.
@@ -423,7 +424,7 @@ US-073/074 use the winning shape. This plan does not begin those children.
 
 ## Approval and handoff
 
-Approve this plan before Task 1 dispatch. Execution stays pending until the
+Francisco approved this plan before Task 1 dispatch. Execution stays pending until the
 CHG-070 chronology blocker is corrected under an approved work item and its
 readiness check passes. The implementation brief contains this plan, approved
 design, AC list, frozen base, files, exact commands, cost/session obligations
