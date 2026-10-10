@@ -1,5 +1,5 @@
 {
-  "_nous_emitted": "0918bd2afeceee3b",
+  "_nous_emitted": "35018f58d81b3290",
   "canonical": {
     "ac_fail": "annotation",
     "ac_pass": "annotation",
@@ -109,8 +109,97 @@
         "heading": "Completion Actuals Corrections",
         "summary": "Use `actuals_corrected` when primary evidence proves immutable completion actuals are factually wrong. Append a complete replacement; never edit the raw actuals or emit a partial patch. Each later correction targets the SHA-256 of the currently effective object, forming one linear audit chain."
       }
+    },
+    "decision": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "dependencies": {
+        "readiness": [
+          "id",
+          "ts"
+        ]
+      },
+      "description": "IMP-417 L1. A human ruling. PERMISSIVE by design: only `story` and `event` are required \u2014 every one of the 161 real `decision` events on smp carries both \u2014 and every other key (`id`, `text`, `reason`, `approved_by`, `subject_work_id`, `relationship`, `ts`, `key_id`, `signature`, \u2026) passes through untouched, so a `decision` without `readiness` is accepted exactly as before this schema existed: an annotation. `readiness` is OPTIONAL and typed-if-present: the machine-readable readiness decision the prose `text` used to carry. When present it is CLOSED (`decision` + `approved_by` required; `partitions` REQUIRED and non-empty iff `decision` is `partition_required`, refused otherwise; `work_id` optional \u2014 the work id falls back to `subject_work_id`, then `story`; `tenant_payload_sha256` optional, recorded nowhere but the event because the substrate cannot recompute a tenant digest), the event's `id` is required (it becomes the row's `evidence`, the replay-dedup key) and the event's `ts` is required (it becomes the row's `decided_at` \u2014 never the pull's clock). A malformed `readiness` rejects the whole `decision` at pull, naming the field. Persisted append-only to nous.db `readiness_decisions` UNBOUND (`subject='none'`, no digest), so an ingested `ready` records the approval but never makes work claimable on its own.",
+      "properties": {
+        "event": {
+          "enum": [
+            "decision"
+          ],
+          "type": "string"
+        },
+        "readiness": {
+          "additionalProperties": false,
+          "else": {
+            "not": {
+              "required": [
+                "partitions"
+              ]
+            }
+          },
+          "if": {
+            "properties": {
+              "decision": {
+                "const": "partition_required"
+              }
+            },
+            "required": [
+              "decision"
+            ]
+          },
+          "properties": {
+            "approved_by": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "decision": {
+              "enum": [
+                "ready",
+                "partition_required",
+                "blocked"
+              ],
+              "type": "string"
+            },
+            "partitions": {
+              "items": {
+                "pattern": "^(US|CHG)-[0-9]{3,}$",
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "tenant_payload_sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "work_id": {
+              "pattern": "^(US|CHG)-[0-9]{3,}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "decision",
+            "approved_by"
+          ],
+          "then": {
+            "required": [
+              "partitions"
+            ]
+          },
+          "type": "object"
+        },
+        "story": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "event",
+        "story"
+      ],
+      "title": "Decision \u2014 `decision`",
+      "type": "object"
     }
   },
-  "local": [],
+  "local": [
+    "lifecycle_corrected"
+  ],
   "terminal_alias_prefix": "done_with_"
 }

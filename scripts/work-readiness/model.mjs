@@ -42,6 +42,12 @@ const ACTUALS_CORRECTED_SCHEMA = DELIVERED_VOCABULARY.event_schemas.actuals_corr
 // marker). The gate treats any of them it has no specific rule for as a known,
 // non-execution annotation; an event in neither set stays unknown.
 export const DELIVERED_CANONICAL_EVENTS = new Set(Object.keys(DELIVERED_VOCABULARY.canonical ?? {}));
+export const DELIVERED_LOCAL_EVENTS = new Set(DELIVERED_VOCABULARY.local ?? []);
+export const DELIVERED_ANNOTATION_EVENTS = new Set([
+  ...Object.entries(DELIVERED_VOCABULARY.canonical ?? {})
+    .filter(([, category]) => category === "annotation").map(([event]) => event),
+  ...DELIVERED_LOCAL_EVENTS,
+]);
 const EXPLICIT_UTC_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(?:Z|\+00:00)$/u;
 const BOOTSTRAP_DIGEST = "c9526d8070e749820d83edfba136cd2ec129ea239bb9e94d710d0a2120a16d32";
 const BOOTSTRAP_TITLE = "Enforce work readiness and outcome-based partitioning";
@@ -611,7 +617,7 @@ function validatePriorDecisionRecord(record, seenIds) {
   return tokens;
 }
 
-const NON_EXECUTION_EVENTS = new Set(["feedback", "actuals_corrected"]);
+const POSTAPPROVAL_NON_EXECUTION_EVENTS = new Set(["feedback", "actuals_corrected"]);
 const REVOCATION_EVENTS = new Set(["blocked", "blocker"]);
 const IMPLEMENTATION_EVIDENCE_EVENTS = new Set([
   "started", "ac_pass", "ac_verify", "verified", "deviation", "ac_fail", "ac_unverifiable", "test_report",
@@ -736,9 +742,14 @@ function buildTerminalProjection(records, workId) {
 }
 
 function isKnownFeedbackEvent(event) {
-  return event === "decision" || NON_EXECUTION_EVENTS.has(event)
+  return event === "decision" || POSTAPPROVAL_NON_EXECUTION_EVENTS.has(event)
     || REVOCATION_EVENTS.has(event) || isExecutionEvidenceEvent(event)
-    || DELIVERED_CANONICAL_EVENTS.has(event);
+    || DELIVERED_CANONICAL_EVENTS.has(event) || DELIVERED_LOCAL_EVENTS.has(event);
+}
+
+function isPreapprovalAnnotation(event) {
+  return DELIVERED_ANNOTATION_EVENTS.has(event)
+    && !["build_pass", "ac_verify", "test_report"].includes(event);
 }
 
 function validatePreapprovalHistory(value, feedbackRecords, evidenceIndex, terminalProjection) {
@@ -761,7 +772,7 @@ function validatePreapprovalHistory(value, feedbackRecords, evidenceIndex, termi
       }
       continue;
     }
-    if (NON_EXECUTION_EVENTS.has(record.event)) continue;
+    if (isPreapprovalAnnotation(record.event) && !REVOCATION_EVENTS.has(record.event)) continue;
     if (REVOCATION_EVENTS.has(record.event)) {
       if (typeof record.reason !== "string" || !/\S/u.test(record.reason)) {
         fail("WR_APPROVAL_EVENT_INVALID", "$.approval.evidence", `${record.event} requires a non-empty reason`);
@@ -805,7 +816,7 @@ function validatePostapprovalHistory(value, feedbackRecords, evidenceIndex, term
       }
       continue;
     }
-    if (NON_EXECUTION_EVENTS.has(record.event)) continue;
+    if (POSTAPPROVAL_NON_EXECUTION_EVENTS.has(record.event)) continue;
     if (REVOCATION_EVENTS.has(record.event)) {
       if (typeof record.reason !== "string" || !/\S/u.test(record.reason)) {
         fail("WR_APPROVAL_EVENT_INVALID", "$.approval.evidence", `${record.event} requires a non-empty reason`);

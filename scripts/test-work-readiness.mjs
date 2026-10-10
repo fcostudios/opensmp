@@ -22,6 +22,7 @@ import {
   validatePartitionGraph,
   resolveEffectiveActuals,
   DELIVERED_CANONICAL_EVENTS,
+  DELIVERED_LOCAL_EVENTS,
 } from "./work-readiness/model.mjs";
 import {
   validDone,
@@ -957,7 +958,7 @@ test("reapproval permits only execution covered by a prior digest-bound ready de
   expectError("WR_APPROVAL_ORDER", "$.approval.evidence", () => validateApproval(value, [
     priorReady,
     reopening,
-    { story: value.work_id, event: "ac_pass", ac: 1, notes: "executed after revocation" },
+    { story: value.work_id, event: "build_pass", notes: "executed after revocation" },
     decisionFor(value),
   ]));
   expectError("WR_APPROVAL_ORDER", "$.approval.evidence", () => validateApproval(value, [
@@ -968,6 +969,22 @@ test("reapproval permits only execution covered by a prior digest-bound ready de
   ]));
 });
 
+
+test("annotation bookkeeping may precede approval while explicit evidence may not", () => {
+  const value = normal();
+  for (const event of ["phase", "ac_pass", "deviation", "lifecycle_corrected"]) {
+    assert.equal(validateApproval(value, [
+      { story: value.work_id, event, phase: "readiness" },
+      decisionFor(value),
+    ]).active, true);
+  }
+  for (const event of ["build_pass", "ac_verify", "test_report"]) {
+    expectError("WR_APPROVAL_ORDER", "$.approval.evidence", () => validateApproval(value, [
+      { story: value.work_id, event, notes: "premature" },
+      decisionFor(value),
+    ]));
+  }
+});
 
 test("selected approval becomes inactive after raw, deferred, and projected terminals", () => {
   const value = normal();
@@ -1290,7 +1307,7 @@ test("bootstrap prior ready decisions never authorize pre-V2 execution evidence"
     reason: "Must not authorize bootstrap execution",
   };
   const executionRecords = [
-    { story: "CHG-022", event: "ac_pass", ac: 1, notes: "unauthorized" },
+    { story: "CHG-022", event: "build_pass", notes: "unauthorized" },
     { story: "CHG-022", event: "done" },
     { story: "CHG-022", event: "started", agent: "not-the-historical-agent" },
   ];
@@ -5117,11 +5134,15 @@ test("mutation invalidation evidence after done cannot satisfy completion", () =
   expectError("WR_MUTATION_INVALIDATION_EVIDENCE", "$.actuals.mutation_invalidations", () => validateCompletionActuals(value, records));
 });
 
-test("CHG-062: a delivered canonical event (phase) is known; an invented event is still rejected", () => {
+test("delivered canonical and local names are recognized; invented names fail closed", () => {
   assert.ok(DELIVERED_CANONICAL_EVENTS.has("phase"));
+  assert.ok(DELIVERED_LOCAL_EVENTS.has("lifecycle_corrected"));
   const accepted = makeGitRepo();
   try {
-    writeRepoFile(accepted.root, ".nous-feedback.jsonl", `${JSON.stringify({ story: "US-321", event: "phase", phase: "focused_verification", ts: "2026-10-01T16:00:00Z" })}\n`);
+    writeRepoFile(accepted.root, ".nous-feedback.jsonl", [
+      { story: "US-321", event: "phase", phase: "focused_verification", ts: "2026-10-01T16:00:00Z" },
+      { story: "US-321", event: "lifecycle_corrected", ts: "2026-10-01T16:01:00Z" },
+    ].map((record) => JSON.stringify(record)).join("\n") + "\n");
     const head = commitRepo(accepted.root, "docs(US-321): record a phase marker", [".nous-feedback.jsonl"]);
     validateRangeOwnership({ root: accepted.root, base: accepted.base, head });
   } finally {

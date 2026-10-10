@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 
 import {
   DELIVERED_CANONICAL_EVENTS,
+  DELIVERED_LOCAL_EVENTS,
   WorkReadinessError,
   actualsCorrectionSchemaErrors,
   classifyAssessment,
@@ -276,6 +277,7 @@ const KNOWN_FEEDBACK_EVENTS = new Set([
   "checkpoint", "actuals_corrected",
   // CHG-062: plus every canonical name in the delivered feedback vocabulary.
   ...DELIVERED_CANONICAL_EVENTS,
+  ...DELIVERED_LOCAL_EVENTS,
 ]);
 
 function validateFeedbackStructure(records) {
