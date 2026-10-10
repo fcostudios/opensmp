@@ -7,6 +7,7 @@ import {
   actualsCorrectionSchemaErrors,
   computeReadinessPayloadSha256,
   validateCompletionActuals,
+  validateLifecycleCorrections,
 } from "./work-readiness/model.mjs";
 
 const root = resolve(process.argv[2] || ".");
@@ -21,11 +22,15 @@ function loadFeedbackSchema() {
     .filter(([event, category]) => event !== "started" && ["lifecycle", "terminal_alias"].includes(category))
     .map(([event]) => event);
   return {
-    events: new Set([...Object.keys(emitted.canonical), ...(emitted.deprecated ?? [])]),
+    events: new Set([...Object.keys(emitted.canonical), ...(emitted.deprecated ?? []), ...(emitted.local ?? [])]),
     terminalEvents: new Set(terminal),
+    annotationEvents: new Set([
+      ...Object.entries(emitted.canonical).filter(([, category]) => category === "annotation").map(([event]) => event),
+      ...(emitted.local ?? []),
+    ]),
   };
 }
-const { events, terminalEvents } = loadFeedbackSchema();
+const { events, terminalEvents, annotationEvents } = loadFeedbackSchema();
 const records = [];
 let failed = false;
 
@@ -45,7 +50,13 @@ for (const [index, line] of readFileSync(path, "utf8").trimEnd().split("\n").ent
     if (record.event === "ac_pass" && (!Number.isInteger(record.ac) || typeof record.notes !== "string")) throw new Error("ac_pass requires ac and notes");
     if (record.event === "ac_verify" && (!Number.isInteger(record.ac) || typeof record.method !== "string" || typeof record.pass !== "boolean" || typeof record.notes !== "string")) throw new Error("ac_verify requires ac, method, pass, and notes");
     if (record.event === "build_pass" && typeof record.notes !== "string") throw new Error("build_pass requires notes");
-    if (["deviation", "ac_fail", "ac_unverifiable"].includes(record.event) && typeof record.notes !== "string") throw new Error(`${record.event} requires notes`);
+    if (record.event === "deviation") {
+      const validDescription = Object.hasOwn(record, "notes")
+        ? typeof record.notes === "string"
+        : typeof record.reason === "string" && /\S/u.test(record.reason);
+      if (!validDescription) throw new Error("deviation requires notes or a non-empty reason when notes is absent");
+    }
+    if (["ac_fail", "ac_unverifiable"].includes(record.event) && typeof record.notes !== "string") throw new Error(`${record.event} requires notes`);
     if (["blocked", "blocker"].includes(record.event) && typeof record.reason !== "string") throw new Error(`${record.event} requires reason`);
     if (record.event === "checkpoint" && (!Number.isInteger(record.elapsed_minutes) || typeof record.status !== "string" || typeof record.implementation_complete !== "boolean" || typeof record.evidence !== "string")) throw new Error("checkpoint requires elapsed_minutes, status, implementation_complete, and evidence");
     if (record.event === "decision" && (typeof record.id !== "string" || typeof record.text !== "string" || typeof record.reason !== "string")) throw new Error("decision requires id, text, and reason");
@@ -58,6 +69,19 @@ for (const [index, line] of readFileSync(path, "utf8").trimEnd().split("\n").ent
     records.push({ record, line: index + 1 });
   } catch (error) {
     fail(index + 1, error instanceof Error ? error.message : String(error));
+  }
+}
+
+const lifecycleCorrections = records.filter(({ record }) => record.event === "lifecycle_corrected");
+for (const story of new Set(lifecycleCorrections.map(({ record }) => record.story))) {
+  const firstLine = lifecycleCorrections.find(({ record }) => record.story === story).line;
+  try {
+    validateLifecycleCorrections(records.map(({ record }) => record), story);
+  } catch (error) {
+    const message = error instanceof WorkReadinessError
+      ? `${error.code}: ${error.message}`
+      : error instanceof Error ? error.message : String(error);
+    fail(firstLine, `lifecycle correction rejected: ${message}`);
   }
 }
 
@@ -288,24 +312,26 @@ for (const entry of records) {
 }
 
 const stories = new Map();
-let previousTimestamp = -Infinity;
 for (const { record, line } of canonicalRecords) {
-  if (record.ts !== undefined) {
-    const timestamp = Date.parse(record.ts);
-    if (timestamp < previousTimestamp) fail(line, "timestamp is earlier than a prior record");
-    previousTimestamp = Math.max(previousTimestamp, timestamp);
-  }
-  const state = stories.get(record.story) || { started: false, buildPassed: false };
-  if (record.event === "started") {
-    if (state.started) fail(line, `story ${record.story} started more than once`);
-    state.started = true;
-  } else if (record.event === "decision") {
+  if (record.event === "decision") {
     // FEEDBACK.md's canonical vocabulary lists "Decision (registered)" as its
     // own category, separate from "Lifecycle (flip story status)". A signed
     // approval is required BEFORE work begins (WORK_READINESS.md:112-114), so
     // it necessarily precedes `started` -- and a partition record like
     // CHG-023 is never started at all. Ordering it after `started` would make
     // the readiness gate and this checker mutually unsatisfiable.
+    continue;
+  }
+  if (annotationEvents.has(record.event)) continue;
+  const state = stories.get(record.story) || { started: false, buildPassed: false, previousTimestamp: -Infinity };
+  if (record.ts !== undefined) {
+    const timestamp = Date.parse(record.ts);
+    if (timestamp < state.previousTimestamp) fail(line, "timestamp is earlier than a prior execution record for this story");
+    state.previousTimestamp = Math.max(state.previousTimestamp, timestamp);
+  }
+  if (record.event === "started") {
+    if (state.started) fail(line, `story ${record.story} started more than once`);
+    state.started = true;
   } else if (!state.started) {
     fail(line, `story ${record.story} event ${record.event} occurs before started`);
   } else if (record.event === "build_pass") {

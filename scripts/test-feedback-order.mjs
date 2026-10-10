@@ -8,7 +8,7 @@ const repo = process.cwd();
 const node = process.execPath;
 const failures = [];
 
-function run(name, records, expectedExit, files = {}) {
+function run(name, records, expectedExit, files = {}, expectedError = null) {
   const root = mkdtempSync(join(tmpdir(), "smp-feedback-order-"));
   try {
     writeFileSync(join(root, ".nous-feedback.jsonl"), `${records.map((record) => JSON.stringify(record)).join("\n")}\n`);
@@ -19,6 +19,7 @@ function run(name, records, expectedExit, files = {}) {
     }
     const result = spawnSync(node, [join(repo, "scripts", "check-nous-feedback-order.mjs"), root], { encoding: "utf8" });
     if (result.status !== expectedExit) failures.push(`${name}: expected exit ${expectedExit}, got ${result.status}: ${result.stderr}`);
+    if (expectedError !== null && !result.stderr.includes(expectedError)) failures.push(`${name}: missing expected error ${expectedError}: ${result.stderr}`);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -44,14 +45,72 @@ run("decision with no started at all is allowed (partition record)", [
 ], 0);
 // RED fixture: the exemption must stay narrow. A real progress event before
 // `started` must still fail; if this ever exits 0 the guard has been lost.
-run("non-decision event before started still fails", [
-  { story: "US-900", event: "ac_pass", ac: 1, notes: "ok", ts: "2026-07-24T08:00:00.000Z" },
+run("build before started fails", [
+  { story: "US-900", event: "build_pass", notes: "premature", ts: "2026-07-24T08:00:00.000Z" },
   { story: "US-900", event: "started", agent: "test", ts: "2026-07-24T08:01:00.000Z" },
 ], 1);
-run("out of order timestamps", [
+run("same-story execution timestamp regression fails", [
   { story: "US-001", event: "started", agent: "test", ts: "2026-07-24T08:01:00.000Z" },
-  { story: "US-001", event: "ac_verify", ac: 1, method: "test", pass: true, notes: "ok", ts: "2026-07-24T08:00:00.000Z" },
+  { story: "US-001", event: "build_pass", notes: "ok", ts: "2026-07-24T08:00:00.000Z" },
 ], 1);
+run("feedback before started passes", [
+  { story: "US-900", event: "feedback", title: "Assessment", description: "Bookkeeping", images: [] },
+  { story: "US-900", event: "started", agent: "test" },
+], 0);
+run("done before build fails", [
+  { story: "US-900", event: "started", agent: "test" },
+  { story: "US-900", event: "done" },
+], 1);
+run("duplicate starts still fail", [
+  { story: "US-900", event: "started", agent: "test" },
+  { story: "US-900", event: "started", agent: "test" },
+], 1);
+run("parallel-story append order preserves each execution clock", [
+  { story: "US-001", event: "started", agent: "test", ts: "2026-07-24T08:00:00Z" },
+  { story: "US-002", event: "started", agent: "test", ts: "2026-07-24T09:00:00Z" },
+  { story: "US-001", event: "build_pass", notes: "ok", ts: "2026-07-24T08:01:00Z" },
+  { story: "US-002", event: "build_pass", notes: "ok", ts: "2026-07-24T09:01:00Z" },
+], 0);
+run("bookkeeping does not advance or regress an execution clock", [
+  { story: "US-001", event: "started", agent: "test", ts: "2026-07-24T08:00:00Z" },
+  { story: "US-001", event: "phase", phase: "review", ts: "2026-07-24T10:00:00Z" },
+  { story: "US-001", event: "ac_verify", ac: 1, method: "test", pass: true, notes: "bookkeeping", ts: "2026-07-24T07:00:00Z" },
+  { story: "US-001", event: "decision", id: "NOTE", text: "Informational ruling", reason: "Bookkeeping", ts: "2026-07-24T11:00:00Z" },
+  { story: "US-001", event: "build_pass", notes: "ok", ts: "2026-07-24T08:01:00Z" },
+], 0);
+run("reason-only deviation preserves append-only descriptive compatibility", [
+  { story: "CHG-100", event: "deviation", reason: "Supported emitter registration" },
+], 0);
+for (const reason of [undefined, "", "   ", 17, null]) {
+  run("reason-only deviation rejects absent, blank or non-string reason", [
+    { story: "CHG-100", event: "deviation", reason },
+  ], 1);
+}
+run("present malformed deviation notes cannot be rescued by reason", [
+  { story: "CHG-100", event: "deviation", notes: null, reason: "Valid fallback text" },
+], 1);
+for (const event of ["ac_fail", "ac_unverifiable"]) {
+  run(`${event} still requires notes`, [{ story: "CHG-100", event, reason: "No fallback for this event" }], 1);
+}
+
+const lifecycleStart = { story: "CHG-100", event: "started", agent: "controller", ts: "2026-07-24T08:00:00Z" };
+const lifecycleApproval = {
+  story: "CHG-100", event: "decision", id: "CHG100-CORRECTION-READY",
+  text: `Decision ready for readiness payload SHA-256 ${"a".repeat(64)}.`, reason: "Approved assessment",
+  approved_by: "human", subject_work_id: "CHG-100", relationship: "self", ts: "2026-07-24T09:00:00Z",
+};
+const lifecycleCorrection = {
+  story: "CHG-100", event: "lifecycle_corrected", target_event: "started", target_ts: lifecycleStart.ts,
+  disposition: "not_execution", reason: "Readiness bookkeeping", approved_by: "human", ts: "2026-07-24T10:00:00Z",
+};
+run("registered lifecycle correction validates its own constrained contract", [lifecycleStart, lifecycleApproval, lifecycleCorrection], 0);
+run("lifecycle correction rejects execution evidence before approval", [
+  lifecycleStart, { story: "CHG-100", event: "build_pass", notes: "real execution", ts: "2026-07-24T08:01:00Z" },
+  lifecycleApproval, lifecycleCorrection,
+], 1, {}, "WR_CORRECTION_INVALID");
+run("lifecycle correction rejects a foreign target", [
+  lifecycleStart, lifecycleApproval, { ...lifecycleCorrection, story: "CHG-101" },
+], 1, {}, "WR_CORRECTION_INVALID");
 run("invalid lifecycle", [
   { story: "US-001", event: "done", ts: "2026-07-24T08:00:00.000Z" },
 ], 1);
