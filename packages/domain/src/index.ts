@@ -15,3 +15,4 @@ export type {
   AuditedMutationResult,
   AuditRecordInput,
 } from "./audit/port.js";
+export * from "./usage/inactivity.js";
