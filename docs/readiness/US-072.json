@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "9b4c47527004b73f6b2c9cef78a4bf1bb635b32150a245b18b3a9bf49a1f85bb",
+  "work_id": "US-072",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Usage surface: lag-aware inactivity per person on SCR-usage",
+  "source": "docs/stories/sprint-3/r1_misc_us_072.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Group Admins see, on SCR-usage (/uso), per-person last activity and days inactive for their companies against a lag-aware data-through date, with company and 30/60/90 window filters, active/flagged/no-data metric cards, window and state badges, and the ~3-day freshness banner.",
+      "demo": "Seed two companies with activity at varied ages and a vendor account synced three days ago: /uso as group_admin lists only own-company people, days inactive counts from the data-through date (a person last active on the last synced day shows 0, not 3), the 30/60/90 filter changes the badge set and metric cards, people with no activity count as no data; a non-group_admin role is refused.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "domain",
+    "server",
+    "ui"
+  ],
+  "signals": {
+    "routes_or_screens": 1,
+    "acceptance_flows": 2,
+    "expected_changed_files": 16,
+    "expected_mutation_shards": 4,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 25,
+    "implementation": 105,
+    "focused_verification": 50,
+    "review": 55,
+    "integration": 25,
+    "total": 260
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Parent allocation, prerequisites and canonical policy are delivered.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "US-027 readiness payload 2d32ab167ef76cb5b3f20561a89077d5251d16140870a6d9889bcd2e8c07fbaf is approved by Francisco and assigns this official child; US-026 has terminal done evidence. CHG-071 delivered DEC-SMP-026/027/028, BR-16 and US-072. AC1/AC4 describe the authorized usage surface; AC2/AC3 describe lag-aware classification, totaling two acceptance flows. No approved parent design exists; this child requires its own approved readiness, design and bound plan before implementation."
+    },
+    {
+      "id": "U2",
+      "statement": "Shared lag/window math must distinguish activity observation from positive activity without introducing another package scope.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 20,
+      "resolution": "Use packages/domain for the pure function and its exported read-model types; server validates query filters with existing zod, without changes to packages/contracts. Thus the three major scopes are domain, server and ui. data_through uses the latest synced activity_date for the vendor account, fallback evaluation date minus three days. Inspect normalized counters to distinguish known-zero days from positive activity and absent data; make supported counter interpretation, strict >30/>60/>90 boundaries, UTC dates and null handling explicit in the design before approval. Stop and request policy reconciliation if provider active-user semantics cannot be established from delivered contracts/specs. Property-based tests constrain monotonicity and boundary math; US-074 reuses this function."
+    },
+    {
+      "id": "U3",
+      "statement": "Usage is currently a scaffold; tenant and account grains need explicit design.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "Read open assignments joined to Person, Company, VendorAccount, LicenseType and anchor LicenseRequest through the shared drizzle client. Filter every company-owned relation by the actor company scope; ActivityRecord has no company_id and must join through scoped Person/account identities. Explicitly refuse a foreign-company filter and non-group_admin. Design assignment/person-account grain and metric denominator before implementation, preserving separate vendor-account evidence for multi-license people. No schema migration, state mutation, proposal action or new route; /uso already exists. Record unchanged wall-clock inactive-candidate queries in pool-repository.ts and read-repository.ts as the canonical deferred divergence."
+    },
+    {
+      "id": "U4",
+      "statement": "The screen must show correct filtered metrics, state badges and account-specific freshness.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "Reuse existing authenticated Server Component, authorization, locale and design-token patterns. Company and window query filters drive server-derived cards and rows; keep persisted request state distinct from calculated window qualification. Name data_through per account/row and avoid treating the freshest account as freshness for all accounts. Include no-data, empty, refused, loading and error behavior, deterministic two-company/multi-account real-DB fixtures and rendered behavior checks. Batch selection/proposal modal is US-073; daily flagging/un-flagging is US-074. An extra interface or independently valuable outcome triggers reassessment."
+    },
+    {
+      "id": "U5",
+      "statement": "CHG-070 measurement and verification must follow the consolidated-session experiment.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "One implementer session for all tasks with per-task commits; one reused scoped-review session, plus a fresh adversarial AC reviewer. Controller plans, briefs and decides without running child verification; at most three controller sessions and none above about 200K context. Implementer launches background touched-shard previews after focused-green, one round per task plus final fix wave, <=30 preview minutes, slow shards once in final unless touched. Hold /tmp/smp-full-gate.lock during every caffeinate -i pnpm check, remove in finally, and establish cold TURBO_FORCE=true base-green before execution. Phase markers carry UTC ts; actuals record preview rounds/minutes, one authoritative campaign, loops and phase time. Measure costs from available transcript usage including cache input, deduplicated by message/call identity; mark inaccessible metrics estimated and require nous independent agreement within 20% before CHG-070 closes. Include implementer/reviewer cost and session-count lines in root_cause, controller cost on done, and normalized tokens/product-line and estimate-minute comparisons. CHG-070 readiness currently fails WR_APPROVAL_ORDER on its historical preapproval started/phase records; preserve history, report the issue, and require a valid governing assessment before experiment execution. The separate CHG-072 feedback-order diagnostic is nonblocking."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "9b4c47527004b73f6b2c9cef78a4bf1bb635b32150a245b18b3a9bf49a1f85bb"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
