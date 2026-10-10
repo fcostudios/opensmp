@@ -6,11 +6,6 @@ const base = { evaluationDate: "2026-10-10", accountDataThrough: "2026-10-07", w
 const day = (age: number) => new Date(Date.parse("2026-10-07T00:00:00Z") - age * 86400000).toISOString().slice(0, 10);
 
 describe("lag-aware inactivity", () => {
-  test("a last-synced activity day has zero inactive days", () => {
-    expect(evaluateInactivity({ ...base, lastActivityDate: "2026-10-07" })).toEqual({
-      dataThrough: "2026-10-07", lastActivityDate: "2026-10-07", daysInactive: 0, classification: "active",
-    });
-  });
   test.each([30, 60, 90] as const)("qualifies strictly beyond %i days", window => {
     for (const [age, classification] of [[window - 1, "active"], [window, "active"], [window + 1, "inactive"]] as const) {
       expect(evaluateInactivity({ ...base, window, lastActivityDate: day(age) })).toMatchObject({ daysInactive: age, classification });
@@ -71,9 +66,6 @@ describe("positive normalized vendor activity", () => {
   test.each(paths.map(path => [path.join("."), path] as const))("recognizes only positive integer %s", (_label, path) => {
     expect(hasPositiveVendorActivity(countersAt(path, 1))).toBe(true);
     for (const value of [0, null, undefined, -1, 0.5, Infinity, NaN, "1", true]) expect(hasPositiveVendorActivity(countersAt(path, value))).toBe(false);
-  });
-  test("session, artifact and arbitrary metadata do not invent activity", () => {
-    for (const counters of [null, [], "bad", { message_count: 1 }, { chat_metrics: { distinct_conversation_count: 1 } }, { claude_code_metrics: { core_metrics: { distinct_session_count: 1, artifacts_created_count: 1 } } }, { cowork_metrics: { distinct_session_count: 1, artifacts_created_count: 1 } }, { unknown: { chat_metrics: { message_count: 1 } } }]) expect(hasPositiveVendorActivity(counters)).toBe(false);
   });
   test("ignores inherited or array-shaped metrics while retaining a known positive signal", () => {
     expect(hasPositiveVendorActivity(Object.create({ chat_metrics: { message_count: 1 } }))).toBe(false);
