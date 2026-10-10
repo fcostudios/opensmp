@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "8d5a8311e9fe079090f9b16f80215b6002f7aa80abf1ec6aceb0f31dbdf6966a",
+  "work_id": "CHG-073",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Preserve readiness authorization while correcting a mistaken historical start",
+  "source": "Nous changes.description for fcostudios__smp / CHG-073, accepted 2026-10-10; full 4518-character body read through NousDB on 2026-10-10. Delivered docs/stories/CHANGES.md at 4780ae1 truncates that body.",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "CHG-070's historical bookkeeping start can be corrected append-only without authorizing historical execution: readiness uses delivered annotation classes, preserves explicit execution-evidence treatment, validates one story/event/original-ts-bound lifecycle_corrected record, and keeps bootstrap, projection and digest binding unchanged. Implement only scripts/work-readiness/model.mjs, the readiness CLI reporting seam, focused readiness fixtures, WORK_READINESS.md Approval evidence, tenant-local event registration through Nous config and generated delivery, readiness/design/plan/evidence artifacts. No application code, US-072 implementation, CHG-070 experiment, or CHG-072 checker changes.",
+      "demo": "After exactly one lifecycle_corrected record targeting CHG-070 started at 2026-10-07T03:44:39Z, pnpm readiness:check -- CHG-070 and -- US-072 both exit 0, the former reports 1 corrected start, and every byte of the original 4780ae1 feedback-ledger prefix is identical. All five canonical RED fixtures and pnpm test:work-readiness, pnpm readiness:check:all, pnpm test:feedback-order pass; full pnpm check runs awake under an exclusive /tmp/smp-full-gate.lock with cleanup. Costs and authority diff remain exclusively CHG-073-owned.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling",
+    "readiness-policy",
+    "tenant-feedback-registration"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 15,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 30,
+    "implementation": 80,
+    "focused_verification": 40,
+    "review": 50,
+    "integration": 40,
+    "total": 240
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "The generated entry omits the canonical acceptance and RED fixture contract.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "Read the complete canonical changes.description (4518 characters) from the accepted fcostudios__smp CHG-073 row. AC1 is the two real readiness checks plus exact single correction and byte-identical history; AC2 is phase-before-approval accepted, build_pass-before-approval rejected, correction across preapproval build_pass rejected, missing approved_by rejected, and cross-story correction rejected; AC3 is the three named suite/check gates. Preserve scope guards and document both rules under Approval evidence. No fixture contract invented."
+    },
+    {
+      "id": "U2",
+      "statement": "Delivered vocabulary classifies ac_verify and test_report as annotation, and decision as decision, while CHG-073 explicitly preserves evidence and approval treatment.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "Apply the canonical body's specific scope guards before its general annotation rule: build_pass, ac_verify, test_report remain evidence and decision continues existing digest-bound validation. Other delivered annotation-class records are non-execution before approval. Preserve postapproval revocation and lifecycle rules; do not turn annotation-class blocked/blocker into authorization. Approval of this payload explicitly binds this interpretation of CHG-073 Items 1 and 3."
+    },
+    {
+      "id": "U3",
+      "statement": "lifecycle_corrected has no canonical emitted event; editing feedback-vocabulary.json manually would violate generated ownership and would not make Nous pull accept it.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "After separate readiness/design/plan approval, preserve existing tenant config entries and register lifecycle_corrected via feedback.local_events in Nous. Emit through the supported generated delivery/ownership seam, then verify vocabulary recognition and pull acceptance. Nous _project_local_events is the shared config reader for pull and vocabulary checks. No hand edit of generated documentation or vocabulary; no substrate canonical-event expansion. Budget 15 changed files including generated ownership envelope and docs. Stop for rescope if delivery needs unrelated generated or substrate changes."
+    },
+    {
+      "id": "U4",
+      "statement": "At 4780ae1 pnpm test:feedback-order exits 1 on 18 historical records: timestamps on lines 945-954, and annotation-before-start on lines 964-965, 1001-1002 and 1035-1038. The required green acceptance gate cannot be delivered by the permitted CHG-073 validator scope, and original records must remain byte-identical.",
+      "status": "unresolved",
+      "estimate_impact_minutes": null,
+      "resolution": null
+    },
+    {
+      "id": "U5",
+      "statement": "This assigned worktree has no node_modules and the mutation router targets TypeScript application sources rather than this mjs readiness repair.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "After approvals install frozen dependencies without changing the lockfile; verify the diff-scoped preflight against the repair authority base. Expect zero mutation shards for mjs tooling, JSON and documentation; focused fixtures assert acceptance/rejection contracts using the real validator and exact ledger-prefix comparison. Record observed routing and measured versus estimated costs separately. If a required gate or generated reconciliation introduces mutatable sources, stop for updated assessment approval."
+    }
+  ],
+  "dependencies": [],
+  "decision": "blocked",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "8d5a8311e9fe079090f9b16f80215b6002f7aa80abf1ec6aceb0f31dbdf6966a"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
