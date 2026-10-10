@@ -9,8 +9,8 @@
   "outcomes": [
     {
       "id": "O1",
-      "statement": "The consolidated session shape is measured on one functional child (the first canonical child of the US-027 partition) and WORK_READINESS.md §Session shape records the measured result and the decision taken under the CHG-070 rule: adopt the consolidated shape when the child's input tokens are <= 110M AND actuals.total <= 265 min AND mutation score >= 80 with one campaign and <= 5 review_fix_loops; keep the fan-out when tokens do not fall 25 % below 143M or minutes rise more than 15 % above 230; mixed (tokens fall, minutes rise > 15 %) keeps per-task implementers and adopts only the reused reviewer. Protocol for the child: one implementer session for all tasks with a checkpoint commit per task (a contract restart is recorded, not a new shape); one reviewer session reused for the scoped reviews, briefed per review with the AC list, diff range and commands, while adversarial AC verification keeps its own fresh reviewer; previews launched from the implementer in the background under the CHG-069 budget, with no dedicated preview sessions; at most three controller sessions, none above ~200K context. No rule changes before the numbers are in, and no heading is added or renamed.",
-      "demo": "The child's done event carries the controller cost; its closure root_cause carries one cost line each for the implementer and the reviewer with the session count; the CHG-070 closure states the rule outcome with the numbers; WORK_READINESS.md §Session shape carries the measured result and decision; nous's independent transcript measurement agrees within 20 %; pnpm lint, pnpm check:generated-guidance and pnpm readiness:check -- CHG-070 exit 0.",
+      "statement": "The consolidated session shape is measured on one functional child (the first canonical child of the US-027 partition) and WORK_READINESS.md \u00a7Session shape records the measured result and the decision taken under the CHG-070 rule: adopt the consolidated shape when the child's input tokens are <= 110M AND actuals.total <= 265 min AND mutation score >= 80 with one campaign and <= 5 review_fix_loops; keep the fan-out when tokens do not fall 25 % below 143M or minutes rise more than 15 % above 230; mixed (tokens fall, minutes rise > 15 %) keeps per-task implementers and adopts only the reused reviewer. Protocol for the child: one implementer session for all tasks with a checkpoint commit per task (a contract restart is recorded, not a new shape); one reviewer session reused for the scoped reviews, briefed per review with the AC list, diff range and commands, while adversarial AC verification keeps its own fresh reviewer; previews launched from the implementer in the background under the CHG-069 budget, with no dedicated preview sessions; at most three controller sessions, none above ~200K context. No rule changes before the numbers are in, and no heading is added or renamed.",
+      "demo": "The child's done event carries the controller cost; its closure root_cause carries one cost line each for the implementer and the reviewer with the session count; the CHG-070 closure states the rule outcome with the numbers; WORK_READINESS.md \u00a7Session shape carries the measured result and decision; nous's independent transcript measurement agrees within 20 %; pnpm lint, pnpm check:generated-guidance and pnpm readiness:check -- CHG-070 exit 0.",
       "primary": true
     }
   ],
@@ -98,7 +98,7 @@
       "statement": "The CHG's decision rule leaves one outcome without a verdict: tokens <= 110M and minutes <= 265 while the mutation clause fails (score < 80, more than one campaign, or > 5 review_fix_loops) matches neither adopt, keep nor mixed.",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Proposed for Francisco's ruling with this approval: that outcome is treated as keep-fan-out, unless the closure names a cause for the mutation miss that is unrelated to session shape (for example a pre-existing red on main or a routing gap reported by preflight), in which case the verdict is adopt with the cause recorded in §Session shape."
+      "resolution": "Proposed for Francisco's ruling with this approval: that outcome is treated as keep-fan-out, unless the closure names a cause for the mutation miss that is unrelated to session shape (for example a pre-existing red on main or a routing gap reported by preflight), in which case the verdict is adopt with the cause recorded in \u00a7Session shape."
     }
   ],
   "dependencies": [],
@@ -110,7 +110,27 @@
     "evidence": "CHG070-READINESS-20261010",
     "payload_sha256": "5590fc225a254b040de8f4e6138b9818b3077b6e9a928e49aca3b55bcb9bf4b5"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 14,
+      "implementation": 1,
+      "focused_verification": 2,
+      "review": 5,
+      "integration": 1
+    },
+    "total": 23,
+    "changed_files": 8,
+    "commits": 7,
+    "review_fix_loops": 0,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": -97,
+    "root_cause": "Local experiment verdict ADOPT consolidated implementer/reusedreviewer: US07265,719,234 measured input+535,000 estimatedclosingtail=66,254,234input (~53.668percent below143M), actuals92min (60percent below230), score93.6430318percent383/409, onecampaign, fourloops. Thresholds110M/265min/score80/onecampaign/loops5 allpass. WORK_READINESS existingSessionshapeheading recordsdecision/defaultUS073+US074, noheadingsadded/renamed. Childoneimplementer/reusedscopedreviewer withidlerecord/freshAC,2boundedcontrollerspeak180351,4previews14.0161min. Childsource3ae2d18 andclosurecc351f4 frozen; extra nullguard selectiongap explicitlyaccepted with existingpublicbarreloracle, notkilled/equivalent. Independent Nous20percent agreement pendingposthandoff per latestexplicituser closingsequence; no agreement falselyclaimed.\nParent actuals measured/estimated active intervals: Oct7initialreadiness/partition03:37:11..03:45:49=8.621min; Oct10morning13:52:12..13:56:57~4.77min;09:59sameitemresume5.247s; readinessrounded14. Currentimplementation23:15:16..23:16:02 rounded1; focused23:16:02..23:17:15 rounded2; review addsworkerhistoricalaccounting23:09..23:12:19=3.328min pluscurrent23:17:15..2026-10-10T23:18:20.437061Z, rounded5; integrationterminalrecord/commit/check estimated1min. Idle gaps, US072run and CHG073execution excluded. Six named historicalparentcommits bda03e9/aca2412/4f18e99/c254b4e/27a3d18/daf624a plusoneclosurecommit;8uniqueparentpaths independentlyverified. No code/tests/migrations/toolingchanged inclosure; zeroapproved/actualshards,zero campaign/previews, no test_report. Childgates/campaign not charged parent.\nController cost: sameparentlogicalitem,3transcripts (initialClaude,morningCodex,currentCodexclosure) andidle resumes documented; measured input6,690,047,output38584,calls60 messageID/cumulative-advance proxies. InitialClaude34dedupmessageIDs4,435,389input inclcachecreation110829/read4324484+base76once/output27204; one09:59resume151675input/output8. MorningCodexprefix1,471,448input/output6667/18proxies. Currentclosure delta631,535input/4705output/7proxies from2026-10-10T23:15:16.053160Z to2026-10-10T23:17:29.931Z. Terminal/commit/check tailestimated300000input/2500output/10calls. HistoricalClaude measuredpeak291195context beforechildprotocol; parent-only, notUS072boundedcontroller. Currentclosurepeak93242context/Codexwindow258400 measured; historicalClaudemodelwindowunexposed. done.cost usesmaxmeasuredcontextand currentknownwindow; mixedmodelprovenance explicitlygpt-6.1-sol/claude-opus-5-5, noall-zero/unavailable sentinel.\nImplementer cost: parent metadata accounting only,1segmentedworker session sharedwithchild; after23:09 boundary measured1,955,364input inclcachedsubsetonce/output6413/19callproxies/3.328active min, gpt-6.1-sol/window258400. Childimplementationcosts beforeboundary excluded fromparent.\nReviewer cost: freshparentreview session1 measured784,629input inclcached744064subsetonce/output2767/13callproxies/peak72145context/window258400/gpt-6.1-sol at23:17:19.823Z; finalreport/terminalfollowup estimated200000input/1000output. Parenttotal measuredinput9,430,040; estimatedclosingfigure9,930,040. Codexinputs already include cachedsubset; reasoningoutputsubset notadded. AccessibleJSONLprovenance /tmp/chg070-historical-transcript-summary.json,/tmp/chg070-worker-parent-investigation-cost.json,/tmp/chg070-closure-start.json and named reviewer transcript. Callsproxy usedwhereharnessmessageIDabsent; noindependentNousmeasurementclaimed.\nFresh adversarial parentAC1/AC2PASS; pnpm lint8/8cached, check:generated-guidance, readinessCHG070/US072 and test:feedback-order all0. Docs-only closure needs no fullgate repetition; retainedchildcoldgate9/9uncachedalreadyGREEN. No unowned testing/critical-paths.md changes and noNoussync performed. Earliergovernanceblocker repaired/deliveredbyCHG073; CHG072cancelled, costs excluded. Noextra workitems or readinessblockers. Normalizedchildcost209Kinput/productline and255K/estimatedminute versus261K/251K and574K/440K;1route/screen8shards vsbackendbaseline0routes."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
