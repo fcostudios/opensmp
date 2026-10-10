@@ -42,7 +42,7 @@ function decodeCursor(filters: UsageFilters): SortKey | null {
     return cursor;
   } catch { throw new UsageReadError("invalid_cursor"); }
 }
-const pairKey = (personId: string, accountId: string) => `${personId}:${accountId}`;
+function pairKey(personId: string, accountId: string) { return `${personId}:${accountId}`; }
 
 export function createUsageRepository(database: NodePgDatabase<typeof schema>) {
   return {

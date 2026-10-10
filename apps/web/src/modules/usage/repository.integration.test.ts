@@ -100,6 +100,25 @@ test("last known positive date is the maximum even with later unknown observatio
   }
 });
 
+test("equal-age licenses sort ascending independently of reverse physical insertion", async () => {
+  const reverse = [103, 102, 101];
+  for (const n of reverse) {
+    await f.owner.query("INSERT INTO person(id,email,full_name,company_id,status,created_at,created_by) VALUES($1,$2,$3,$4,'active','2026-01-01',$5)", [usageId(n), `tie${n}@example.com`, `Tie ${n}`, i.emptyCompany, i.admin]);
+    await f.owner.query("INSERT INTO license_assignment(id,person_id,company_id,vendor_account_id,license_type_id,started_on,source_kind,created_at,created_by) VALUES($1,$2,$3,$4,$5,'2026-08-01','import','2026-01-01',$6)", [usageId(n + 100), usageId(n), i.emptyCompany, i.accountX, i.typeA, i.admin]);
+  }
+  const client = await f.appPool.connect();
+  try {
+    await client.query("SET enable_hashjoin=off; SET enable_mergejoin=off; SET enable_indexscan=off; SET enable_indexonlyscan=off; SET enable_bitmapscan=off");
+    const model = await createUsageRepository(drizzle(client, { schema })).read(f.admin, { window: 30, companyId: i.emptyCompany }, today);
+    expect(model.rows.map(row => [row.assignmentId, row.daysInactive])).toEqual([101, 102, 103].map(n => [usageId(n + 100), null]));
+    expect(model.metrics).toMatchObject({ total: 3, active: 0, inactive: 0, noData: 3 });
+  } finally {
+    await client.query("RESET enable_hashjoin; RESET enable_mergejoin; RESET enable_indexscan; RESET enable_indexonlyscan; RESET enable_bitmapscan"); client.release();
+    await f.owner.query("DELETE FROM license_assignment WHERE company_id=$1", [i.emptyCompany]);
+    await f.owner.query("DELETE FROM person WHERE company_id=$1", [i.emptyCompany]);
+  }
+});
+
 test("cursor payload rejects missing binding fields, unknown fields and noncanonical encoding", async () => {
   const valid = { companyId: i.companyA, window: 30, sort: "age_desc_id_asc", daysInactive: 0, assignmentId: usageId(33) };
   const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
