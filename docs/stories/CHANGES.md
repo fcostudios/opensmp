@@ -66,7 +66,7 @@
 | **CHG-066** | 📦 delivered | Full-gate residue after CHG-064: container-load resets, unpinned health-route container, Ryuk disabled, WITH (FORCE) as non-superuser, readiness check's closed decision shape | — | — |
 | **CHG-067** | 📦 delivered | Full-gate container-start burst and expiry lock-wait oracle | — | — |
 | **CHG-068** | 📦 delivered | Partition US-026 (510 min > 320) into canonical children US-070, US-071; DEC-SMP-024 allowlisted replay payload; DEC-SMP-025 manual ingestion default | US-070, US-071 | S3 |
-| **CHG-069** | 🟢 accepted | Preview budget: one round per task plus one final, 30 min per child, slow shards once, schema-shard routing fixed, host kept awake during gates | — | — |
+| **CHG-069** | 📦 delivered | Preview budget: one round per task plus one final, 30 min per child, slow shards once, schema-shard routing fixed, host kept awake during gates | — | — |
 | **CHG-070** | 🟢 accepted | Session fan-out experiment: one consolidated implementer session per child, measured against US-070/071 before any rule changes | — | — |
 | **CHG-071** | 📦 delivered | Partition US-027 (750 min > 320) into canonical children US-072, US-073, US-074; DEC-SMP-026 lag-aware data_through; DEC-SMP-027 batch idempotency; DEC-SMP-028 flag ownership | US-072, US-073, US-074 | S3 |
 | **CHG-072** | 🟢 accepted | Feedback-order checker exempts annotation-class events from the started ordering (reads the class from the emitted vocabulary) | — | — |
@@ -881,7 +881,7 @@ _No stories linked to this change yet._
 
 ### CHG-069: Preview budget: one round per task plus one final, 30 min per child, slow shards once, schema-shard routing fixed, host kept awake during gates
 
-**Status:** 🟢 `accepted`
+**Status:** 📦 `delivered`
 **Source:** developer_feedback
 **Requested by:** Francisco
 **Notes:** # Preview budget: one round per task plus one final, 30 minutes per child, slow shards once, schema-shard routing fixed, host kept awake during gates
