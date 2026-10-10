@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
-import { activityRecord, licenseAssignment } from "@smp/db/schema";
+import { drizzle } from "drizzle-orm/node-postgres";
+import * as schema from "@smp/db/schema";
+import { activityRecord, company, licenseAssignment } from "@smp/db/schema";
 import { createUsageRepository, UsageReadError } from "./repository";
 import { createUsageFixture, usageIds as i, usageId, USAGE_EVALUATION_DATE as today } from "./testing/fixture-transaction";
 
@@ -61,15 +63,41 @@ test("a foreign anchor is unavailable and other-company observations may advance
     await f.ownerDb.update(licenseAssignment).set({ sourceRequestId: null }).where(eq(licenseAssignment.id, usageId(36)));
   }
 });
+test("real app-role reads require repeatable-read and read-only transaction settings", async () => {
+  const original = (await f.owner.query("SELECT relrowsecurity FROM pg_class WHERE oid='company'::regclass")).rows[0].relrowsecurity;
+  await f.owner.query(`ALTER TABLE company ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY usage_fixture_allow ON company FOR SELECT TO ledger_app USING (true);
+    CREATE POLICY usage_snapshot_probe ON company AS RESTRICTIVE FOR SELECT TO ledger_app
+      USING (current_setting('transaction_isolation')='repeatable read' AND current_setting('transaction_read_only')='on');`);
+  try {
+    expect((await f.database.transaction(tx => tx.select({ id: company.id }).from(company), { isolationLevel: "read committed", accessMode: "read only" }))).toEqual([]);
+    expect((await f.database.transaction(tx => tx.select({ id: company.id }).from(company), { isolationLevel: "repeatable read", accessMode: "read write" }))).toEqual([]);
+    const result = await read();
+    expect(result.rows).toHaveLength(9);
+    expect(result.companies.map(c => c.id)).toContain(i.companyA);
+    expect(result.rows.every(row => row.companyId === i.companyA)).toBe(true);
+  } finally {
+    await f.owner.query("DROP POLICY usage_snapshot_probe ON company; DROP POLICY usage_fixture_allow ON company");
+    if (!original) await f.owner.query("ALTER TABLE company DISABLE ROW LEVEL SECURITY");
+  }
+});
+
 test("last known positive date is the maximum even with later unknown observations", async () => {
   await f.ownerDb.insert(activityRecord).values([
+    ...Array.from({ length: 20 }, (_, index) => ({ personId: i.old, vendorAccountId: i.accountX, activityDate: `2026-08-${String(index + 1).padStart(2, "0")}`, counters: { chat_metrics: { message_count: index + 1 } }, syncedAt: new Date("2026-10-10T00:00:00Z"), source: "manual" as const })),
     { personId: i.old, vendorAccountId: i.accountX, activityDate: "2026-09-07", counters: { chat_metrics: { message_count: 2 } }, syncedAt: new Date("2026-10-10T00:00:00Z"), source: "manual" },
     { personId: i.old, vendorAccountId: i.accountX, activityDate: "2026-09-05", counters: { chat_metrics: { message_count: 1 } }, syncedAt: new Date("2026-10-10T00:00:00Z"), source: "manual" },
   ]);
+  const client = await f.appPool.connect();
   try {
-    const model = await read();
+    // Exercise a real hash DISTINCT plan, whose observation order is not chronological.
+    await client.query("SET enable_sort=off; SET enable_hashagg=on; SET enable_indexscan=off; SET enable_indexonlyscan=off; SET enable_bitmapscan=off");
+    const model = await createUsageRepository(drizzle(client, { schema })).read(f.admin, { window: 30, companyId: i.companyA }, today);
     expect(model.rows.filter(r => r.personId === i.old && r.vendorAccountId === i.accountX).map(r => [r.lastActivityDate, r.daysInactive])).toEqual([["2026-09-07", 30], ["2026-09-07", 30]]);
-  } finally { await f.owner.query("DELETE FROM activity_record WHERE person_id=$1 AND activity_date IN ('2026-09-05','2026-09-07')", [i.old]); }
+  } finally {
+    await client.query("RESET enable_sort; RESET enable_hashagg; RESET enable_indexscan; RESET enable_indexonlyscan; RESET enable_bitmapscan"); client.release();
+    await f.owner.query("DELETE FROM activity_record WHERE person_id=$1 AND (activity_date BETWEEN '2026-08-01' AND '2026-08-20' OR activity_date IN ('2026-09-05','2026-09-07'))", [i.old]);
+  }
 });
 
 test("cursor payload rejects missing binding fields, unknown fields and noncanonical encoding", async () => {
