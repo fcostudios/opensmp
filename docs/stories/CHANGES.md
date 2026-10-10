@@ -70,7 +70,7 @@
 | **CHG-070** | 🟢 accepted | Session fan-out experiment: one consolidated implementer session per child, measured against US-070/071 before any rule changes | — | — |
 | **CHG-071** | 🔨 dev_in_progress | Partition US-027 (750 min > 320) into canonical children US-072, US-073, US-074; DEC-SMP-026 lag-aware data_through; DEC-SMP-027 batch idempotency; DEC-SMP-028 flag ownership | US-072, US-073, US-074 | S3 |
 | **CHG-072** | 🟡 cancelled | Feedback-order checker exempts annotation-class events from the started ordering (reads the class from the emitted vocabulary) | — | — |
-| **CHG-073** | 🟢 accepted | Readiness validator: annotation-class events are not pre-approval violations; append-only correction path for a mistakenly recorded historical lifecycle start (unblocks CHG-070) | — | — |
+| **CHG-073** | 📦 delivered | Readiness validator: annotation-class events are not pre-approval violations; append-only correction path for a mistakenly recorded historical lifecycle start (unblocks CHG-070) | — | — |
 
 ---
 
@@ -937,7 +937,7 @@ _No stories linked to this change yet._
 
 ### CHG-073: Readiness validator: annotation-class events are not pre-approval violations; append-only correction path for a mistakenly recorded historical lifecycle start (unblocks CHG-070)
 
-**Status:** 🟢 `accepted`
+**Status:** 📦 `delivered`
 **Source:** developer_feedback
 **Requested by:** Francisco
 **Notes:** # Readiness validator: delivered annotation-class events are not pre-approval violations, and a mistakenly recorded historical lifecycle `started` has an append-only correction path
