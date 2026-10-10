@@ -69,7 +69,7 @@
 | **CHG-069** | 📦 delivered | Preview budget: one round per task plus one final, 30 min per child, slow shards once, schema-shard routing fixed, host kept awake during gates | — | — |
 | **CHG-070** | 🟢 accepted | Session fan-out experiment: one consolidated implementer session per child, measured against US-070/071 before any rule changes | — | — |
 | **CHG-071** | 🔨 dev_in_progress | Partition US-027 (750 min > 320) into canonical children US-072, US-073, US-074; DEC-SMP-026 lag-aware data_through; DEC-SMP-027 batch idempotency; DEC-SMP-028 flag ownership | US-072, US-073, US-074 | S3 |
-| **CHG-072** | 🟢 accepted | Feedback-order checker exempts annotation-class events from the started ordering (reads the class from the emitted vocabulary) | — | — |
+| **CHG-072** | 🟡 cancelled | Feedback-order checker exempts annotation-class events from the started ordering (reads the class from the emitted vocabulary) | — | — |
 | **CHG-073** | 🟢 accepted | Readiness validator: annotation-class events are not pre-approval violations; append-only correction path for a mistakenly recorded historical lifecycle start (unblocks CHG-070) | — | — |
 
 ---
@@ -924,14 +924,14 @@ _No stories linked to this change yet._
 
 ### CHG-072: Feedback-order checker exempts annotation-class events from the started ordering (reads the class from the emitted vocabulary)
 
-**Status:** 🟢 `accepted`
+**Status:** 🟡 `cancelled`
 **Source:** developer_feedback
 **Requested by:** Francisco
-**Notes:** # Feedback-order checker exempts annotation-class events from the `started` ordering, reading the class from the emitted vocabulary
+**Notes:** # CANCELLED 2026-10-10 — folded into CHG-073 item 4
 
-## Why (observed on the chg-070 checkout, 2026-10-07)
-
-`pnpm test:feedback-order` reports eight `event feedback occurs before started` lines (US-026 ×6, US-071 ×2)....
+CHG-073's acceptance needs `test:feedback-order` green, this CHG owned that checker, and both fixes are the same
+rule (annotation-class events, read from the emitted vocabulary, are never execution or ordering violations).
+Two items for one ide...
 
 _No stories linked to this change yet._
 
