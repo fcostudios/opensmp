@@ -1,6 +1,7 @@
 # US-072 — Lag-aware usage surface
 
-**Status:** proposed; awaiting Francisco design approval before the bound plan.
+**Status:** approved by Francisco Lomas in this conversation ("Approved, continue").
+Approval binds the proposed design committed in `ab416b2`; the bound plan follows.
 **Readiness:** `docs/readiness/US-072.json`, approved payload
 `9b4c47527004b73f6b2c9cef78a4bf1bb635b32150a245b18b3a9bf49a1f85bb`, 260 minutes.
 **Authority:** US-027 approved partition; CHG-071; canonical US-072;
