@@ -4,12 +4,12 @@ export type UsageFilters = Readonly<{ companyId?: string; window: InactivityWind
 export class UsageReadError extends Error {
   constructor(readonly code: "access_denied" | "invalid_filter" | "invalid_cursor") { super(code); }
 }
-const query = z.object({
-  companyId: z.string().uuid().optional(),
-  window: z.enum(["30", "60", "90"]).default("30"),
-  cursor: z.string().min(1).max(2048).optional(),
-});
 export function parseUsageFilters(parameters: Record<string, string | string[] | undefined>): UsageFilters {
+  const query = z.object({
+    companyId: z.string().uuid().optional(),
+    window: z.enum(["30", "60", "90"]).default("30"),
+    cursor: z.string().min(1).max(2048).optional(),
+  });
   const parsed = query.safeParse({ companyId: parameters.companyId === "" ? undefined : parameters.companyId, window: parameters.window, cursor: parameters.cursor });
   if (!parsed.success) throw new UsageReadError("invalid_filter");
   const value = parsed.data;

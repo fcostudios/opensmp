@@ -12,6 +12,11 @@ test("preserves company and selected window while omitting absent filters", () =
 });
 test("rejects malformed or duplicated filters instead of broadening selection", () => {
   for (const input of [{ window: "31" }, { window: "" }, { window: "030" }, { window: ["30", "60"] }, { window: ["30"] }, { companyId: "not-a-uuid" }, { companyId: [companyId] }, { cursor: ["a", "b"] }, { cursor: "" }]) {
-    expect(() => parseUsageFilters(input)).toThrow();
+    expect(() => parseUsageFilters(input)).toThrowError(expect.objectContaining({ code: "invalid_filter" }));
   }
+});
+
+test("limits opaque cursor size without rejecting a complete bounded cursor", () => {
+  expect(parseUsageFilters({ cursor: "a".repeat(2048) }).cursor).toHaveLength(2048);
+  expect(() => parseUsageFilters({ cursor: "a".repeat(2049) })).toThrowError(expect.objectContaining({ code: "invalid_filter" }));
 });

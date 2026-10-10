@@ -1,16 +1,24 @@
-// SCAFFOLD (SCR-usage) — generated page stub. Build the real screen per its spec: docs/screens/SCR-usage.json
-import messages from "@/lib/i18n/en-US.json";
+import { getLocale, getMessages, getTranslations } from "next-intl/server";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { UsageView, type UsageLabels } from "@/components/usage/usage-view";
+import { ROUTE_SCR_ACCESS_DENIED, ROUTE_SCR_USAGE } from "@/lib/routes";
+import { loadCurrentLedgerAuthorization } from "@/modules/identity-access/server-authorization";
+import { parseUsageFilters } from "@/modules/usage/filters";
+import { usageRepository, UsageReadError, type UsageReadModel } from "@/modules/usage/repository";
 
-const pages = (messages as { pages?: Record<string, { title?: string }> }).pages ?? {};
-
-export default function ScrUsagePage() {
-  const title = pages["uso"]?.title ?? "Actividad y uso";
-  return (
-    <div className="p-6" data-scaffold={"SCR-usage"}>
-      <h1 className="text-2xl font-bold">{title}</h1>
-      <p className="mt-2 text-text-secondary">
-        {"SCR-usage"}
-      </p>
-    </div>
-  );
+export default async function UsagePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const authorization = await loadCurrentLedgerAuthorization();
+  if (!authorization || authorization.globalRole !== "group_admin") redirect(ROUTE_SCR_ACCESS_DENIED);
+  const [locale, messages, t] = await Promise.all([getLocale(), getMessages(), getTranslations("usage")]);
+  let model: UsageReadModel;
+  try {
+    const filters = parseUsageFilters(await searchParams);
+    model = await usageRepository.read(authorization, filters, new Date().toISOString().slice(0, 10));
+  } catch (error) {
+    if (!(error instanceof UsageReadError)) throw error;
+    if (error.code === "access_denied") redirect(ROUTE_SCR_ACCESS_DENIED);
+    return <main className="space-y-4 p-6"><h1 className="font-display text-3xl font-semibold text-text-primary">{t("title")}</h1><p className="rounded border border-error-dot bg-error-bg p-4 text-error-text" role="alert" data-testid="usage_filter_error">{t("invalidFilter")}</p><Link className="text-primary underline" href={ROUTE_SCR_USAGE}>{t("apply")}</Link></main>;
+  }
+  return <UsageView model={model} locale={locale} labels={messages.usage as unknown as UsageLabels} />;
 }
