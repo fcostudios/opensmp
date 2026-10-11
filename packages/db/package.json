@@ -11,6 +11,7 @@
     "./connector-call-observations": "./src/connector-call-observations.ts",
     "./provisioning-routing": "./src/provisioning-routing.ts",
     "./request-transition": "./src/request-transition.ts",
+    "./reclamation-proposals": "./src/reclamation-proposals.ts",
     "./lifecycle-notifications": "./src/lifecycle-notifications.ts",
     "./analytics-ingestion": "./src/analytics-ingestion.ts",
     "./schema": "./src/schema.ts",

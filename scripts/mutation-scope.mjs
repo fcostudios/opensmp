@@ -1573,6 +1573,18 @@ const ADJACENT_TEST_SUFFIXES = [
 // exceptional routes explicit prevents a changed source from silently riding
 // along merely because some unrelated story test also changed.
 export const DIRECT_TEST_ROUTES = {
+  "apps/web/src/modules/usage/reclamation-command.ts": [
+    "apps/web/src/modules/usage/reclamation-service.integration.test.ts",
+  ],
+  "apps/web/src/modules/usage/reclamation-operations.ts": [
+    "apps/web/src/modules/usage/reclamation-service.integration.test.ts",
+  ],
+  "apps/web/src/modules/usage/reclamation-server-actions-factory.ts": [
+    "apps/web/src/modules/usage/reclamation-service.integration.test.ts",
+  ],
+  "packages/db/src/reclamation-proposals.ts": [
+    "apps/web/src/modules/usage/reclamation-service.integration.test.ts",
+  ],
   "apps/web/src/modules/request-workflow/repository.ts": [
     "apps/web/src/modules/request-workflow/read-repository.integration.test.ts",
   ],
