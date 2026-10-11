@@ -309,6 +309,50 @@ describe("real database lock-order races", () => {
     }
   });
 
+  it("skips a discovered holder transferred away even when it returns before the assignment lock releases", async () => {
+    await seedRace(false);
+    const transfer = await fixture.connectAsApp();
+    const assignmentLocker = await fixture.connectAsApp();
+    const worker = await namedApp("flag-two-transfer-wait");
+    let work: Promise<number | Error> | undefined;
+    try {
+      await transfer.query("BEGIN");
+      await transfer.query("SELECT id FROM person WHERE id=$1 AND company_id=$2 FOR UPDATE", [personId(1),ids.companyA]);
+      await assignmentLocker.query("BEGIN");
+      await assignmentLocker.query("SELECT id FROM license_assignment WHERE id=$1 AND company_id=$2 FOR UPDATE", [assignmentId(1),ids.companyA]);
+      const assignmentPid = await pid(assignmentLocker);
+      work = runOn(worker).catch(error => error as Error);
+      await waitBlocked("flag-two-transfer-wait", await pid(transfer));
+      await transfer.query("UPDATE person SET company_id=$1 WHERE id=$2", [ids.companyB,personId(1)]);
+      await transfer.query("COMMIT");
+      // Wait on an observed outcome, not a delay. The original returns now;
+      // removing the person guard instead waits for the independently held
+      // stale assignment and can reach evidence after the holder returns.
+      let done = false;
+      work.then(() => { done = true; });
+      const deadline = Date.now() + 5_000;
+      let assignmentWait = false;
+      while (!done && !assignmentWait && Date.now() < deadline) {
+        const waits = await owner.query("SELECT pg_blocking_pids(pid) AS blockers FROM pg_stat_activity WHERE application_name='flag-two-transfer-wait'");
+        assignmentWait = waits.rows.some(row => row.blockers.includes(assignmentPid));
+      }
+      expect(done || assignmentWait).toBe(true);
+      await transfer.query("BEGIN; SET LOCAL statement_timeout='3s'");
+      await transfer.query("UPDATE person SET company_id=$1 WHERE id=$2", [ids.companyA,personId(1)]);
+      await transfer.query("COMMIT");
+      await assignmentLocker.query("COMMIT");
+      expect(await work).toBe(0);
+      expect(assignmentWait).toBe(false);
+      expect(await state(1)).toBe("active");
+      expect(await evidence(1)).toEqual({ transitions: [], audits: [] });
+      expect((await owner.query("SELECT company_id::text FROM person WHERE id=$1", [personId(1)])).rows).toEqual([{ company_id: ids.companyA }]);
+      await assertForeignSentinel();
+    } finally {
+      await assignmentLocker.query("ROLLBACK"); await transfer.query("ROLLBACK"); await work;
+      await assignmentLocker.end(); await transfer.end(); await worker.end();
+    }
+  });
+
   it("recomputes newly committed activity after the request lock releases", async () => {
     await seedRace(false);
     const blocker = await fixture.connectAsApp();
