@@ -326,9 +326,9 @@
     }
   ],
   "approval": {
-    "status": "pending",
-    "approved_by": null,
-    "evidence": null,
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "US024-PARTITION-20261011-APPROVAL",
     "payload_sha256": "a1a0686a122db64484b804716546979a167afeced4d300fb8d2ac9a10c759978"
   },
   "actuals": null,
