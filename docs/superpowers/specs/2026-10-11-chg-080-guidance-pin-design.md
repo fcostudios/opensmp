@@ -1,0 +1,11 @@
+# CHG-080 canonical guidance pin
+
+The published capacity-refresh guidance at d9d5d48 must pass generated-guidance reconciliation without editing the generated files. Francisco approved all stages of readiness digest `55c7fbb2c8f4db46d48fcaa41968d6eb94d4f4808a4bcaf1cb70b51139a8d1f9`, including the actual resolving CHG-069 TESTING ancestry, within 30 minutes and nine inclusive paths.
+
+Use one immutable `infra/scripts/overrides/CHG-080/d9d5d48` layer, with exact copies of both published files and a version-1 manifest. Critical source is CHG-079/c8f3317 (`9aa63e45047cfa887a40d08d484d5e4b1cb5eb8f0eef492d1252728ddfd65467`); TESTING source is CHG-069/84ab8ea (`50415d7ed774990b1de236fafe69ba39018d7cd4928ab71858b3a6733ff796e8`). Desired hashes are critical `41a9566719dc6088393a6514035d653ca13f975b90a2eb707455cd936d3474f7` and TESTING `71c65e1cb6b8e77ff883b33a3bb05947d17dd3c9794bed40dbe2d91cee0853d0`.
+
+Register it after CHG-079 using the existing path maps and layer tuple. Existing fixture helpers must copy and resolve this latest layer, and exact-manifest assertions must constrain both source and desired hashes. Corrupt/unknown bytes continue to reject without writes. No loader behavior, exemptions, generated live bytes, prior overlays, application behavior, BR, story partitions or mutation routing changes.
+
+AC1 is exact immutable pinning; AC2 is registered acceptance plus fail-closed rejection; AC3 is focused and regular gate evidence, independent review and adversarial checks, range validity and cost closure. The existing Python fixture suite is the strongest available real-file oracle for this registration-only change. Ordinary TypeScript mutation eligibility is expected zero and must be observed, not converted to an invented mutation score.
+
+The nine paths are the readiness and feedback records, this design and its plan, three new immutable artifacts, reconciler registration and the existing fixture test. Coordinate one awake full gate with CHG-079 using its frozen technical base and the shared exclusive owner/inode lock. Baseline failures outside this item become named deviations, never local repairs or new work IDs. Stop and reassess at a boundary if scope or remaining forecast exceeds approval.
