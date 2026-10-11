@@ -1290,3 +1290,5 @@
 {"story":"CHG-080","event":"feedback","title":"Scoped design and plan review passed","description":"Reused scoped reviewer PASS design and plan; exact published/source hashes and nine-path scope coherent. Final review will verify latest-layer missing/corrupt and unknown-byte tests exercise both paths. Reviewer telemetry 5 orchestration/13 shell calls; token figures estimated, not measured.","images":[],"ts":"2026-10-11T19:10:48.212019Z"}
 {"story":"CHG-080","event":"started","agent":"codex-chg080-controller","ts":"2026-10-11T19:10:48.212094Z"}
 {"story":"CHG-080","event":"phase","phase":"implementation","notes":"Bound plan af3541e; design/plan PASS. Freeze technical scope base before Task1; one implementer owns five implementation paths.","ts":"2026-10-11T19:10:48.212095Z"}
+{"story":"CHG-080","event":"phase","phase":"review","ts":"2026-10-11T19:13:56.788894Z"}
+{"story":"CHG-080","event":"phase","phase":"focused_verification","ts":"2026-10-11T19:13:56.788991Z"}
