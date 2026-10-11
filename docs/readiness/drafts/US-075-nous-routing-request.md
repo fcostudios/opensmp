@@ -1,53 +1,32 @@
-# US-075 — canonical routing-derived repartition request
+# US-075 routing assessment — allocation request on hold
 
-Francisco / Nous: amend delivered CHG-076 through a new append-only functional CHG. Do not stretch US-075's approved estimate or waive the readiness hard limits.
+**Audit correction after Francisco's challenge: do not act on the previous functional repartition proposal yet.** The 335-minute total and the claim that 24 delivery paths is a global minimum are withdrawn. Those figures described one plan plus speculative allowances; they did not establish unavoidable time/file limits for every valid design.
 
-## Evidence and current state
+## What is established
 
-Branch `us-024`, worktree `/Users/fcolomas/Projects/smp-us024`; canonical sync `0e56c7f`. Original approved readiness digest `f5aebfbc0dca0fa6496d625083e78b6fec1eefd4d4ccf662de9847259ab7d5d7`, 280 minutes / 18 paths. Francisco's standing authorization at `70826e1` covers design, planning and implementation within an approved digest, and requires renewed approval on a changed digest or material scope.
+- Canonical authority remains CHG-076/078 at 0e56c7f. Standing authorization70826e1 covers only an approved readiness digest/scope/budget.
+- Valid partial Task1 checkpoints5a3f7e4/4b924d7 remain:13real-DB tests, web/domain type checks and accountability preflight pass. No preview/coldcampaign/dev_done claimed.
+- Actual mutation shards select conventional adjacent tests or explicit DIRECT_TEST_ROUTES. Importing another suite does not establish a source's responsible route.
+- The chosen original plan requires six additional changed oracle paths: people-action-service.test.ts; domain lifecycle.test.ts; web service.integration.test.ts; checklist-action-transaction.test.ts; person page.test.tsx; request page.test.ts. That plan is24deliverypaths/25includingthisrequest. This is a plan-specific count, not a mathematical lower bound.
+- Changing the protected request page triggers its exact-source classifier. A design preserving page bytes avoids that policy boundary; no local hash replacement, exemption or tooling patch is authorized.
 
-Task1 checkpoint `5a3f7e4`, fixes `4b924d7`: targeted left_company/inactive start, unchanged Person.status/register/capacity, pending remove action, authoritative persisted US-025 execution descriptor, concurrent-start audit dedupe and null/unrelated assignment-pointer refusal. Thirteen real-DB tests, web/domain type checks and accountability preflight pass. These are valid partial work, not US-075 dev_done. No previews or campaign scores claimed (0 rounds / 0 minutes); Task2 has not started.
+## Corrected estimation
 
-Actual shard routing is conventional adjacent tests plus explicit `DIRECT_TEST_ROUTES` (`scripts/mutation-scope.mjs`, testsForSource and shard construction). It does not infer cross-suite imports. The original manifest therefore omits six required changed oracle paths:
+The original280-minute forecast already included55focused-verification and55review minutes. Routing the same obligations differently does not justify automatically adding55more minutes. The original forecast is restored only as an unvalidated baseline; remaining work must be re-estimated after a concrete smaller design is selected.
 
-| Source | Required responsible oracle absent from the changed manifest |
-|---|---|
-| people-action-service.ts | org-registry/people-action-service.test.ts |
-| domain request-workflow/lifecycle.ts | domain request-workflow/lifecycle.test.ts |
-| web request-workflow/transition-core.ts | request-workflow/service.integration.test.ts |
-| actions/checklist-action-transaction.ts | actions/checklist-action-transaction.test.ts |
-| personas/[personId]/page.tsx | personas/[personId]/page.test.tsx |
-| solicitudes/[requestId]/page.tsx | solicitudes/[requestId]/page.test.ts |
+Observed execution start16:21:39UTC through fix checkpoint16:33:55 is approximately12m15elapsed. It is not total active labor, terminal actuals, or measured remaining cost. No time-based partition requirement is presently proven.
 
-The request page's framework exemption is bound to the old source hash; new action-binding edits invalidate it. Its exact-framework classifier rejects changed source before responsible tests can help. Nous must resolve the canonical policy/composition boundary before the entry child is assessed; adding a routed oracle alone does not authorize that change. The335-minute estimate excludes unknown external policy repair. Existing domain transition, checklist-export and page-string tests do not prove the new behavior. Web imports cannot exercise the domain-only mutation project. No test relay files, fabricated adapters, owned mocks, blanket test unions or tooling changes are proposed.
+## Smaller design candidates
 
-Full delivery now forecasts **335 minutes / 24 delivery paths**, or **25 including this request**, with three scopes, two screens and one lifecycle boundary. Even moving orchestration cases into the routed service suite yields 23 delivery paths. File and time hard limits fail. `docs/readiness/US-075.json` is reassessed blocked with pending digest `9e87245de621357a7e539237b17a23afcf2494642958386b2e1feb103a953fd9`; further implementation is stopped pending canonical allocation.
+1. Put the caller-owned SQL finalization adapter in existing orchestration.ts and its responsible integration suite, rather than transition-core.ts plus its separately routed service suite: two fewer changed paths.
+2. Compose request-detail removal inside existing RequestRecord and its adjacent behavioral test. Its existing props include person/request identity, admin status and locale; preserve request-page bytes. Server authorization and actual binding oracles remain mandatory.
 
-## Proposed vertical allocation (proposal keys, not minted IDs)
+Together these yield a22-delivery-path candidate. A valid20-or-fewer-path design has not yet been demonstrated, nor proved impossible. These are assessment candidates, not approved implementation changes. Do not drop independent oracles, add import-only test relays, group scopes deceptively, or patch routing to force a pass.
 
-| Proposal key | Full delivered outcome | Parent AC slices | Forecast | Ordering |
-|---|---|---|---|---|
-| anchored-entry | Admin starts one anchored removal from either detail screen, sees offboarding and durable pending removal execution, with transfer refusal, authorization, parser and both binding oracles | AC1 entrypoint/active→offboarding/action selection; no register closure claim | ~270 min / 16 delivery paths, plus inherited amendment paperwork if owned here / 3 scopes / 2 screens | First; US-019, US-020 only. Prefer retaining US-075 for this amended definition if Nous agrees. |
-| checklist-completion | Admin confirms the existing removal checklist; portable finalizeOffboarding atomically confirms action, closes exact register rows and transitions to deprovisioned, with replay/rollback/attempt audit oracles | AC1 checklist completion; AC2 confirmed register closure | ~270 min / 12–14 delivery paths / domain+server / existing request-detail checklist flow | After anchored-entry. Nous mints the canonical ID. |
+## Next
 
-Each child includes its full contracts, production execution, verification, design/plan/readiness/feedback and migration/grant assessment. No migration/grant change is currently required; discovering one triggers reassessment. Exact route-by-route manifests and estimates are independently assessed after canonical delivery. Both proposal estimates include reviewer and integration work, not just coding. They are targets, not pre-approved readiness results.
+Hold the prior anchored-entry/checklist-completion allocation proposal while the controller validates minimal production composition, exact responsible routes and a bottom-up remaining estimate. If a hard limit still fails after that assessment, submit the evidenced canonical repartition request; Nous alone mints IDs and reconciles dependencies. No new IDs or allocation are requested by this corrected note.
 
-AC1 is split at the durable pending-removal boundary: starting a removal is one user outcome; confirming its completion is another. AC2 closure has exactly one owner, checklist-completion; capacity freshness remains US-081/US-085. Provider execution remains US-082. Nothing is dropped or deferred without this named owner. No sibling parallelism is claimed between these two because completion consumes the entrypoint's immutable action context.
+Pending blocked readiness digest:6cfa0fcbbf036036efee3595408def3298d7f400bb22a6b6f0e0f0b0e1f44a8c. Further implementation remains stopped. Parent approval and historical child approvals are preserved, not replayed as authority for a changed digest.
 
-## Dependency and ownership updates requested
-
-- Resolve request-detail exact-framework-adapter policy/composition canonically. Do not replace a hash, add an exemption or patch mutation tooling inside the functional child. This is the same policy boundary independently found for US-081 vendor-account detail.
-
-- Reconcile amended US-075/story scope ACs and parent US-024 children with the canonical completion ID. Preserve all DEC-SMP-029..033/040..046 rulings.
-- US-082 must depend on checklist-completion, which owns the shared finalizeOffboarding primitive; its worker dispatch/claim/failure/retry scope is unchanged.
-- US-076 consumes the anchored entrypoint and must retain any completion dependency required by its canonical atomic departure ACs. US-077 retains entry/removal-worker dependencies; Nous decides whether to reference the completion child directly or transitively.
-- US-028 retains approval authority and consumes the shared entrypoint. US-068/069 retain invitation-only removal; US-025/063..066/020 retain shipped connector/checklist foundations. No transfer entrypoint, member sync or provider compatibility repair is allocated here.
-- US-081/US-085 retain capacity refresh ownership; API producer is US-084 via US-083, CSV producer US-055. US-081 is independently reviewing its own routing envelope.
-
-The persisted US-025 descriptor is the approved in-scope execution-selection seam (Vendor booleans + provisioning_protocol, R1 Anthropic). Provider source's ReadonlySet compatibility with the web ESNext compilation target is named deferred hardening, not a new locally minted work item and not a reason to fake provider metadata.
-
-## Requested response
-
-Deliver an append-only canonical amendment with revised definition(s), canonical child ID(s), explicit dependencies and reconciled AC slices onto the branch. Return its commit and IDs. Preserve the existing partial commits; state how they are attributed to the amended entry child. Do not claim the pending removal completion/provider dispatch/capacity refresh as shipped.
-
-After sync the controller checks testing/critical-paths.md (IMP-434), independently reassesses each revised child and obtains its new digest-bound readiness approval. Francisco's standing authorization then covers design, plan and implementation without separate prompts. Integration remains sequential with recorded rebase SHA maps; gates retain the shared lock and shipped PostgreSQL fixture.
+All existing ownership remains:US-082providerexecution;US-081/085capacityfreshness;US-076departure;US-077overdue;US-028approvalconsumer;US-068/069invitation-onlyremoval. The persisted US-025 descriptor remains the in-scope execution-selection seam. Provider ReadonlySet/ESNext compatibility remains named deferred hardening, not a new local work item.

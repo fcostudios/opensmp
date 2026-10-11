@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "9e87245de621357a7e539237b17a23afcf2494642958386b2e1feb103a953fd9",
+  "readiness_payload_sha256": "6cfa0fcbbf036036efee3595408def3298d7f400bb22a6b6f0e0f0b0e1f44a8c",
   "work_id": "US-075",
   "kind": "US",
   "work_type": "functional",
@@ -59,10 +59,10 @@
   "estimate_minutes": {
     "readiness": 30,
     "implementation": 115,
-    "focused_verification": 100,
-    "review": 65,
+    "focused_verification": 55,
+    "review": 55,
     "integration": 25,
-    "total": 335
+    "total": 280
   },
   "uncertainties": [
     {
@@ -112,7 +112,7 @@
       "statement": "What exact file surface and effectiveness oracles fit the hard limits?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Expected25 changed paths including implementation, strong tests and all execution paperwork: packages/domain/src/request-workflow/lifecycle.ts; apps/web/src/modules/request-workflow/transition-core.ts; apps/web/src/modules/org-registry/repository.ts; apps/web/src/modules/org-registry/people-action-service.ts; apps/web/src/components/people/person-offboarding.tsx; apps/web/src/app/(authenticated)/personas/[personId]/page.tsx; apps/web/src/app/(authenticated)/solicitudes/[requestId]/page.tsx; apps/web/src/modules/request-workflow/orchestration.ts; apps/web/src/modules/request-workflow/actions/checklist-action-transaction.ts; apps/web/messages/es-EC.json; apps/web/messages/en-US.json; apps/web/src/modules/org-registry/repository.integration.test.ts; apps/web/src/modules/request-workflow/orchestration.integration.test.ts; apps/web/src/components/people/person-offboarding.test.tsx; docs/readiness/US-075.json; docs/superpowers/specs/2026-10-11-us-075-anchored-removal-design.md; docs/superpowers/plans/2026-10-11-us-075-anchored-removal.md; .nous-feedback.jsonl. No package barrel/exports/dependencies changes. Real-DB orchestration suite directly imports domain primitive and server adapter and asserts persisted atomic outcomes, rollback, committed replay and controlled concurrency; repository suite constrains start/anchors/roles and existing UI suite constrains targeting/reason/confirmation. No shallow mirrored tests or mocks of owned code. Reassessed estimate335min and three explicit scopes domain/server/ui; one boundary entrypoint->confirmation->finalization, two detail screens. Any new required path must be counted;20 is hard maximum, not license to omit necessary behavior. TESTING.md and critical-paths.md are generated/read-only; inspected existing BR-14/tenant/auth critical coverage applies, and any required §3 registry addition is requested via canonical config/Nous rather than hand editing. Preflight confirms actual domain/server/UI shard routing before previews; routing gaps invalidate score claims. Routing inspection after Task1 requires these additional paths: apps/web/src/modules/org-registry/people-action-service.test.ts; packages/domain/src/request-workflow/lifecycle.test.ts; apps/web/src/modules/request-workflow/service.integration.test.ts; apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts; apps/web/src/app/(authenticated)/personas/[personId]/page.test.tsx; apps/web/src/app/(authenticated)/solicitudes/[requestId]/page.test.ts; docs/readiness/drafts/US-075-nous-routing-request.md. Domain/web mutation projects and per-source shards do not follow cross-suite imports. The full delivery exceeds the20-file limit (24 delivery paths plus this canonical request) and335-minute estimate exceeds320. No import-only relay, tooling patch or silent oracle removal is permitted."
+      "resolution": "Expected25 changed paths including implementation, strong tests and all execution paperwork: packages/domain/src/request-workflow/lifecycle.ts; apps/web/src/modules/request-workflow/transition-core.ts; apps/web/src/modules/org-registry/repository.ts; apps/web/src/modules/org-registry/people-action-service.ts; apps/web/src/components/people/person-offboarding.tsx; apps/web/src/app/(authenticated)/personas/[personId]/page.tsx; apps/web/src/app/(authenticated)/solicitudes/[requestId]/page.tsx; apps/web/src/modules/request-workflow/orchestration.ts; apps/web/src/modules/request-workflow/actions/checklist-action-transaction.ts; apps/web/messages/es-EC.json; apps/web/messages/en-US.json; apps/web/src/modules/org-registry/repository.integration.test.ts; apps/web/src/modules/request-workflow/orchestration.integration.test.ts; apps/web/src/components/people/person-offboarding.test.tsx; docs/readiness/US-075.json; docs/superpowers/specs/2026-10-11-us-075-anchored-removal-design.md; docs/superpowers/plans/2026-10-11-us-075-anchored-removal.md; .nous-feedback.jsonl. No package barrel/exports/dependencies changes. Real-DB orchestration suite directly imports domain primitive and server adapter and asserts persisted atomic outcomes, rollback, committed replay and controlled concurrency; repository suite constrains start/anchors/roles and existing UI suite constrains targeting/reason/confirmation. No shallow mirrored tests or mocks of owned code. Original provisional forecast280min and three explicit scopes domain/server/ui; one boundary entrypoint->confirmation->finalization, two detail screens. Any new required path must be counted;20 is hard maximum, not license to omit necessary behavior. TESTING.md and critical-paths.md are generated/read-only; inspected existing BR-14/tenant/auth critical coverage applies, and any required §3 registry addition is requested via canonical config/Nous rather than hand editing. Preflight confirms actual domain/server/UI shard routing before previews; routing gaps invalidate score claims. Routing inspection after Task1 requires these additional paths: apps/web/src/modules/org-registry/people-action-service.test.ts; packages/domain/src/request-workflow/lifecycle.test.ts; apps/web/src/modules/request-workflow/service.integration.test.ts; apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts; apps/web/src/app/(authenticated)/personas/[personId]/page.test.tsx; apps/web/src/app/(authenticated)/solicitudes/[requestId]/page.test.ts; docs/readiness/drafts/US-075-nous-routing-request.md. Domain/web mutation projects and per-source shards do not follow cross-suite imports. The full delivery exceeds the20-file limit (24 delivery paths plus this canonical request) ; the previously claimed335-minute total is withdrawn as unsubstantiated. No import-only relay, tooling patch or silent oracle removal is permitted. Audit correction: 25 paths includes this request and describes the chosen plan, not a proven global minimum. Moving the web SQL adapter into existing orchestration removes two paths; alternate request-detail composition can preserve the page bytes. A22-delivery-path candidate exists but no executable20-path design is yet validated. Original verification55/review55 already include correctness obligations; additional routed oracles cannot automatically be costed twice. The280-minute total remains an unvalidated original forecast, not renewed execution authority."
     },
     {
       "id": "U8",
@@ -123,10 +123,10 @@
     },
     {
       "id": "U9",
-      "statement": "Actual mutation routing invalidates the approved delivery envelope; which canonical vertical allocation will Nous deliver?",
+      "statement": "Does a smaller valid composition satisfy actual routing and the20-path envelope, and what is its independently estimated remaining cost?",
       "status": "unresolved",
-      "estimate_impact_minutes": 55,
-      "resolution": "Task1 fixes at4b924d7 pass13 real-DB tests, web type check and accountability preflight. Shard routing remains blocking for people-action-service; remaining domain finalizer, transition adapter, checklist audit wrapper and both pages require responsible routed oracles. Full assessment335min/25changedpaths violates hard limits; proposed split is anchored entrypoint/screens first and portable atomic checklist completion second, with explicit AC slices/dependencies in docs/readiness/drafts/US-075-nous-routing-request.md. Nous must reconcile canonical allocation and dependencies before further implementation. Prior approval and valid partial commits remain historical, not authority for expanded work. Proposed new boundaries preserve all behavior; cost-if-wrong is another readiness/review round and no implementation under guessed child IDs. The request-detail page is also an exact-framework-adapter source whose classifier rejects a changed hash before responsible tests can help. Canonical Nous policy/composition resolution is required before its binding changes; no locally replaced hash, exemption or tooling patch. The335-minute functional estimate excludes unknown external policy work."
+      "estimate_impact_minutes": 0,
+      "resolution": "Prior335-minute estimate was280+55 forecast allowances, not measured lower-bound evidence; withdraw that claim and the claim that24 delivery paths is globally minimal. Observed execution start16:21:39UTC through fix checkpoint16:33:55 is about12m15 elapsed, not total active labor/actuals. Known routing obligations remain. A bounded design moving SQL adapter into orchestration removes two paths; putting request composition in existing RequestRecord can preserve protected-page bytes. No≤20-path plan is proven yet. Reassess a concrete smaller design using already-budgeted verification/review and actual work before requesting canonical allocation or approval. Existing partial commits and stop remain valid; do not rewrite prior history, fake routes, drop oracles or implement an unapproved changed digest."
     }
   ],
   "dependencies": [],
@@ -136,7 +136,7 @@
     "status": "pending",
     "approved_by": null,
     "evidence": null,
-    "payload_sha256": "9e87245de621357a7e539237b17a23afcf2494642958386b2e1feb103a953fd9"
+    "payload_sha256": "6cfa0fcbbf036036efee3595408def3298d7f400bb22a6b6f0e0f0b0e1f44a8c"
   },
   "actuals": null,
   "policy_bootstrap": false,
