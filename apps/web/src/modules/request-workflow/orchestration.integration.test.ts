@@ -8,7 +8,7 @@ import {
 } from "@smp/db/testing/postgres-container";
 import * as schema from "@smp/db/schema";
 
-import { finalizeOffboarding } from "@smp/domain/request-workflow";
+import { finalizeOffboarding } from "../../../../../packages/domain/src/request-workflow/lifecycle";
 import { createPeopleRepository } from "../org-registry/repository";
 import type { LedgerAuthorization } from "../identity-access/authorization";
 import {

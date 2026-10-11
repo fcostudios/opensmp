@@ -1335,6 +1335,9 @@ describe("people repository", () => {
         VALUES($1,$2,$3,$4,$5,'2026-07-27',$6,'request',$7,$8)`, [assignments[index],holder,companyA,vendorAccountId,license,requests[index],occurredAt,adminId]);
       await owner.query(`UPDATE license_request SET license_assignment_id=$1 WHERE id=$2`,[assignments[index],requests[index]]);
     }
+    for(const invalid of [null,undefined,42,"read_targets",[]]){
+      expect(await executeOffboardingIntent(repository,admin,invalid,occurredAt)).toEqual({state:{ok:false,globalError:"person_validation_failed"},invalidationPaths:[]});
+    }
     for (const intent of ["typo", null, "read_targets"]) {
       const refused=await executeOffboardingIntent(repository,admin,{intent,personId:holder,requestId:requests[0],endReason:"inactive",note:"Otherwise valid mutation"},occurredAt);
       expect(refused.state).toEqual({ok:false,globalError:"person_validation_failed"});
@@ -1411,6 +1414,9 @@ describe("people repository", () => {
       {actor_user_id:adminId,action:"request.offboarding",entity_type:"LicenseRequest",entity_id:requests[0],company_id:companyA,note:input.note,before:{state:"active"},after:{state:"offboarding"},occurred_at:occurredAt},
     ]);
     expect((await owner.query("SELECT from_state,to_state,actor_user_id::text,note,occurred_at FROM request_transition WHERE request_id=$1",[requests[0]])).rows).toEqual([{from_state:"active",to_state:"offboarding",actor_user_id:adminId,note:input.note,occurred_at:occurredAt}]);
+    expect((await executeOffboardingIntent(repository,admin,{intent:"read_targets",personId:holder},occurredAt)).state.targets?.map(target=>target.requestId)).toEqual([requests[1]]);
+    await owner.query("UPDATE license_assignment SET ended_on='2026-07-28',end_reason='inactive' WHERE id=$1",[assignments[1]]);
+    expect((await executeOffboardingIntent(repository,admin,{intent:"read_targets",personId:holder},occurredAt)).state.targets).toEqual([]);
     const actionId=started.provisioningActionIds[0]!;
     const originalAction=(await owner.query("SELECT kind,mode,status,raw_request FROM provisioning_action WHERE id=$1",[actionId])).rows[0]!;
     for(const context of [null,{...originalAction.raw_request.context,endReason:"left_company"},{...originalAction.raw_request.context,personId:personB},{...originalAction.raw_request.context,requestId:requests[1]},{...originalAction.raw_request.context,vendorAccountId:vendorAccountId2},{...originalAction.raw_request.context,assignmentIds:[assignments[1]]}]) {
@@ -1418,6 +1424,11 @@ describe("people repository", () => {
       await expect(repository.startOffboarding(admin,input,occurredAt)).rejects.toMatchObject({code:"person_offboarding_unavailable"});
     }
     await owner.query("UPDATE provisioning_action SET raw_request=$2 WHERE id=$1",[actionId,originalAction.raw_request]);
+    const duplicateAction=randomUUID();
+    await owner.query("INSERT INTO provisioning_action(id,request_id,vendor_account_id,kind,mode,status,raw_request,created_at) SELECT $2,request_id,vendor_account_id,'checklist',mode,status,raw_request,created_at FROM provisioning_action WHERE id=$1",[actionId,duplicateAction]);
+    await expect(repository.startOffboarding(admin,input,occurredAt)).rejects.toMatchObject({code:"person_offboarding_unavailable"});
+    await owner.query("DELETE FROM provisioning_action WHERE id=$1",[duplicateAction]);
+
     for(const change of [{kind:"remove",mode:"orchestration",status:"failed"},{kind:"invite",mode:"orchestration",status:"pending"},{kind:"checklist",mode:"automated",status:"pending"},{kind:"remove",mode:"automated",status:"pending"}]){
       await owner.query("UPDATE provisioning_action SET kind=$2,mode=$3,status=$4 WHERE id=$1",[actionId,change.kind,change.mode,change.status]);
       await expect(repository.startOffboarding(admin,input,occurredAt)).rejects.toMatchObject({code:"person_offboarding_unavailable"});
@@ -1430,10 +1441,20 @@ describe("people repository", () => {
 
   });
 
-  test("creates automated pending removal from the shipped REST capability without provider execution", async () => {
+  test.each([
+    {accountMode:"automated",canDeprovision:true,protocol:"rest",expectedMode:"automated"},
+    {accountMode:"automated",canDeprovision:false,protocol:"rest",expectedMode:"orchestration"},
+    {accountMode:"orchestration",canDeprovision:true,protocol:"rest",expectedMode:"orchestration"},
+    {accountMode:"automated",canDeprovision:true,protocol:"scim",expectedMode:"orchestration"},
+  ])("selects $expectedMode pending removal for $accountMode/$canDeprovision/$protocol without provider execution", async ({accountMode,canDeprovision,protocol,expectedMode}) => {
     const repository=createPeopleRepository(drizzle(appPool,{schema}));
-    await owner.query("UPDATE vendor SET connector_type='api',provisioning_protocol='rest',can_deprovision=true WHERE id=$1",[vendorId]);
-    await owner.query("UPDATE vendor_account SET mode='automated' WHERE id=$1",[vendorAccountId]);
+    const reallocatedPersonId=randomUUID(),reallocatedRequestId=randomUUID(),freshAssignment=randomUUID();
+    await owner.query("INSERT INTO person(id,email,full_name,company_id,status,created_at,created_by) VALUES($1,$2,'Descriptor oracle',$3,'active',$4,$5)",[reallocatedPersonId,`${reallocatedPersonId}@example.test`,companyA,occurredAt,adminId]);
+    await owner.query("INSERT INTO license_request(id,request_no,person_id,company_id,vendor_account_id,license_type_id,state,justification,created_at,created_by) VALUES($1::uuid,$1::text,$2,$3,$4,$5,'active','Descriptor oracle',$6,$7)",[reallocatedRequestId,reallocatedPersonId,companyA,vendorAccountId,licenseTypeId,occurredAt,adminId]);
+    await owner.query("INSERT INTO license_assignment(id,person_id,company_id,vendor_account_id,license_type_id,started_on,source_request_id,source_kind,created_at,created_by) VALUES($1,$2,$3,$4,$5,'2026-07-27',$6,'request',$7,$8)",[freshAssignment,reallocatedPersonId,companyA,vendorAccountId,licenseTypeId,reallocatedRequestId,occurredAt,adminId]);
+    await owner.query("UPDATE license_request SET license_assignment_id=$1 WHERE id=$2",[freshAssignment,reallocatedRequestId]);
+    await owner.query("UPDATE vendor SET connector_type='api',provisioning_protocol=$2,can_deprovision=$3 WHERE id=$1",[vendorId,protocol,canDeprovision]);
+    await owner.query("UPDATE vendor_account SET mode=$2 WHERE id=$1",[vendorAccountId,accountMode]);
     const saved=await repository.startOffboarding(admin,{personId:reallocatedPersonId,requestId:reallocatedRequestId,endReason:"left_company",note:"Await worker"},occurredAt);
     expect(saved.person.status).toBe("active");
     const result=await owner.query(`SELECT request.state,action.kind,action.mode,action.status,
@@ -1441,7 +1462,8 @@ describe("people repository", () => {
       assignment.ended_on::text FROM license_request request
       JOIN provisioning_action action ON action.request_id=request.id
       JOIN license_assignment assignment ON assignment.source_request_id=request.id WHERE request.id=$1`,[reallocatedRequestId]);
-    expect(result.rows).toEqual([{state:"offboarding",kind:"remove",mode:"automated",status:"pending",protocol:"rest",steps:[],ended_on:null}]);
+    expect(result.rows).toEqual([{state:"offboarding",kind:"remove",mode:expectedMode,status:"pending",protocol,steps:expectedMode==="automated"?[]:expect.any(Array),ended_on:null}]);
+    if(expectedMode!=="automated")expect(result.rows[0].steps.length).toBeGreaterThan(0);
     const observed=await owner.query(`SELECT count(*)::int AS count FROM connector_call_observation WHERE provisioning_action_id=ANY($1::uuid[])`,[saved.provisioningActionIds]);
     expect(observed.rows).toEqual([{count:0}]);
     expect(await repository.startOffboarding(admin,{personId:reallocatedPersonId,requestId:reallocatedRequestId,endReason:"left_company",note:"Replay worker wait"},occurredAt)).toEqual(saved);
