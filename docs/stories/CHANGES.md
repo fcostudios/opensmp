@@ -71,6 +71,15 @@
 | **CHG-071** | ✅ dev_done | Partition US-027 (750 min > 320) into canonical children US-072, US-073, US-074; DEC-SMP-026 lag-aware data_through; DEC-SMP-027 batch idempotency; DEC-SMP-028 flag ownership | US-072, US-073, US-074 | S3 |
 | **CHG-072** | 🟡 cancelled | Feedback-order checker exempts annotation-class events from the started ordering (reads the class from the emitted vocabulary) | — | — |
 | **CHG-073** | 📦 delivered | Readiness validator: annotation-class events are not pre-approval violations; append-only correction path for a mistakenly recorded historical lifecycle start (unblocks CHG-070) | — | — |
+| **CHG-074** | 🔨 dev_in_progress | Partition US-024 (780 min > 320) into canonical children US-075, US-076, US-077; DEC-SMP-029..033 (BR-14 calendar, reasons, capacity refresh, departure confirmation, register closure) | US-075, US-076, US-077 | S3 |
+| **CHG-075** | 📦 delivered | Partition US-030 (drift detection + retroactive claim) into US-078/US-079/US-080; DriftEpisode entity; DEC-SMP-034..039 | US-078, US-079, US-080 | S3 |
+| **CHG-076** | 🔨 dev_in_progress | Amend CHG-074: repartition US-075 into US-075/US-081/US-082; reallocated = transfer (BR-02); capacity-refresh contract; DEC-SMP-040..042 | US-081, US-082 | S3 |
+| **CHG-077** | 📦 delivered | Amend CHG-075: repartition US-078 into US-083/US-084/US-078; member observation contract + MemberObservation ledger; DEC-SMP-043..046 | US-083, US-084 | S3 |
+| **CHG-078** | 📦 delivered | Refine CHG-076: US-081 split by screen limit — US-081 (vendor-account foundation) + US-085 (pools/dashboard overview) | US-085 | S3 |
+| **CHG-079** | 🟢 accepted | Technical prerequisite for US-075: register people-action-service → repository.integration.test route; canonical critical-set registration (BR-14 governed-by US-075/077/082) | — | — |
+| **CHG-080** | 🟢 accepted | Technical prerequisite for US-081: publish the capacity-refresh critical path (config v44) and reconcile critical-paths.md + TESTING.md §3; sequenced after CHG-079's pin | — | — |
+| **CHG-081** | 🟢 accepted | Technical successor to CHG-079: route packages/domain request-workflow lifecycle.ts → orchestration.integration.test.ts for US-075 | — | — |
+| **CHG-082** | 🟢 accepted | smp readiness-gate policy: bookkeeping excluded from the 20-file limit; functional items may add responsible test routes (data-file superset only) | — | — |
 
 ---
 
@@ -945,6 +954,115 @@ _No stories linked to this change yet._
 ## Why (reproduced 2026-10-10 on chg-070, handoff commit daf624a)
 
 `pnpm readiness:check -- CHG-070` exits 1 with ...
+
+_No stories linked to this change yet._
+
+### CHG-074: Partition US-024 (780 min > 320) into canonical children US-075, US-076, US-077; DEC-SMP-029..033 (BR-14 calendar, reasons, capacity refresh, departure confirmation, register closure)
+
+**Status:** 🔨 `dev_in_progress`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** Partition US-024 (Offboarding + deprovisioning, 3 SP; tenant assessment 780 min bottom-up / 1,152 at 384 min/SP against the 320-minute execution budget, `partition_required`, docs/readiness/drafts/US-024.json @ smp adb533d on `us-024`, payload 409f38f0…ed6a) into three canonical 1-SP vertical chi...
+
+**Stories created by this change:**
+
+| Story | Name | Sprint | Status | File |
+|-------|------|--------|--------|------|
+| **US-075** | Start anchored seat removal from both detail screens and finalize the register atomically | Sprint 3 | 🔨 in_development | [r1_misc_us_075.md](sprint-3/r1_misc_us_075.md) |
+| **US-076** | Confirm person departure through the offboarding flow | Sprint 3 | ⬜ backlog | [r1_misc_us_076.md](sprint-3/r1_misc_us_076.md) |
+| **US-077** | Raise same-business-day departure deprovisioning alerts | Sprint 3 | ⬜ backlog | [r1_misc_us_077.md](sprint-3/r1_misc_us_077.md) |
+
+### CHG-075: Partition US-030 (drift detection + retroactive claim) into US-078/US-079/US-080; DriftEpisode entity; DEC-SMP-034..039
+
+**Status:** 📦 `delivered`
+**Source:** client_review
+**Requested by:** Francisco
+**Notes:** Partition US-030 (Drift detection + retroactive claim, 3 SP; tenant assessment 780 min bottom-up / 1,152 at 384 min/SP against the 320-minute execution budget, `partition_required`, docs/readiness/drafts/US-030.json @ smp d7fa0df on `us-030`, base fd73ee3, payload a2a7a993…9811) into three canoni...
+
+**Stories created by this change:**
+
+| Story | Name | Sprint | Status | File |
+|-------|------|--------|--------|------|
+| **US-078** | Open, resolve and list drift episodes from accepted member observations | Sprint 3 | ⬜ backlog | [r1_misc_us_078.md](sprint-3/r1_misc_us_078.md) |
+| **US-079** | Claim a drift member retroactively with audit | Sprint 3 | ⬜ backlog | [r1_misc_us_079.md](sprint-3/r1_misc_us_079.md) |
+| **US-080** | Show the drift-to-zero metric on the dashboard | Sprint 3 | ⬜ backlog | [r1_misc_us_080.md](sprint-3/r1_misc_us_080.md) |
+
+### CHG-076: Amend CHG-074: repartition US-075 into US-075/US-081/US-082; reallocated = transfer (BR-02); capacity-refresh contract; DEC-SMP-040..042
+
+**Status:** 🔨 `dev_in_progress`
+**Source:** client_review
+**Requested by:** Francisco
+**Notes:** Amend CHG-074's US-075 allocation before implementation, on the tenant's blocked readiness (`docs/readiness/US-075.json` @ smp 7b26d51 on `us-024`, digest f1ee50bc…60fe; 440 min / 5 scopes / 25–32 files / 2 boundaries against the 320-minute, 3-scope, 20-file, 1-boundary gate; parent approval 019a...
+
+**Stories created by this change:**
+
+| Story | Name | Sprint | Status | File |
+|-------|------|--------|--------|------|
+| **US-081** | Refresh free capacity only after an accepted member observation | Sprint 3 | 🔨 in_development | [r1_misc_us_081.md](sprint-3/r1_misc_us_081.md) |
+| **US-082** | Execute connector seat removal in the production worker | Sprint 3 | ⬜ backlog | [r1_misc_us_082.md](sprint-3/r1_misc_us_082.md) |
+
+### CHG-077: Amend CHG-075: repartition US-078 into US-083/US-084/US-078; member observation contract + MemberObservation ledger; DEC-SMP-043..046
+
+**Status:** 📦 `delivered`
+**Source:** client_review
+**Requested by:** Francisco
+**Notes:** Amend CHG-075's US-078 allocation before design or implementation, on the tenant's blocked readiness (`docs/readiness/US-078.json` @ smp 864742a on `us-030`, payload 7b78918c…c722; 540 min / 38 files / 2 boundaries against the 270-minute / 20-file ceiling). CHG-075 is `delivered` and the ledger i...
+
+**Stories created by this change:**
+
+| Story | Name | Sprint | Status | File |
+|-------|------|--------|--------|------|
+| **US-083** | Accept complete member observations with authoritative identity and license evidence | Sprint 3 | ⬜ backlog | [r1_misc_us_083.md](sprint-3/r1_misc_us_083.md) |
+| **US-084** | Run the hourly API member observation and verify confirmed provisions | Sprint 3 | ⬜ backlog | [r1_misc_us_084.md](sprint-3/r1_misc_us_084.md) |
+
+### CHG-078: Refine CHG-076: US-081 split by screen limit — US-081 (vendor-account foundation) + US-085 (pools/dashboard overview)
+
+**Status:** 📦 `delivered`
+**Source:** client_review
+**Requested by:** Francisco
+**Notes:** Refine CHG-076's US-081 allocation before execution, on the tenant's screen-limit finding (us-024 @ 00f2b15: the canonical US-081 changed three screens — SCR-pools, SCR-vendor-account-detail, SCR-admin-dashboard — against WORK_READINESS.md hard limit 4, ≤ 2 routes/screens per executable item; the...
+
+**Stories created by this change:**
+
+| Story | Name | Sprint | Status | File |
+|-------|------|--------|--------|------|
+| **US-085** | Show pending-refresh capacity on the pools and dashboard overview | Sprint 3 | ⬜ backlog | [r1_misc_us_085.md](sprint-3/r1_misc_us_085.md) |
+
+### CHG-079: Technical prerequisite for US-075: register people-action-service → repository.integration.test route; canonical critical-set registration (BR-14 governed-by US-075/077/082)
+
+**Status:** 🟢 `accepted`
+**Source:** client_review
+**Requested by:** Francisco
+**Notes:** Technical prerequisite for US-075 (CHG-076/078 allocation unchanged; no functional repartition): register one responsible source-to-suite route in the tenant's mutation harness and deliver the canonical critical-set registration that follows from the amended stories. Requested by the US-075 contr...
+
+_No stories linked to this change yet._
+
+### CHG-080: Technical prerequisite for US-081: publish the capacity-refresh critical path (config v44) and reconcile critical-paths.md + TESTING.md §3; sequenced after CHG-079's pin
+
+**Status:** 🟢 `accepted`
+**Source:** client_review
+**Requested by:** Francisco
+**Notes:** Technical prerequisite for US-081 readiness: publish the capacity-refresh critical path and reconcile the two pinned guidance files. Requested by the US-024 controller ("does existing TESTING §3 registration fulfil US-081's capacity-refresh logic?"). Ruling: it does not. §3 carries BR-11 (low-poo...
+
+_No stories linked to this change yet._
+
+### CHG-081: Technical successor to CHG-079: route packages/domain request-workflow lifecycle.ts → orchestration.integration.test.ts for US-075
+
+**Status:** 🟢 `accepted`
+**Source:** client_review
+**Requested by:** Francisco
+**Notes:** Technical successor to CHG-079 (not an amendment: CHG-079 carries an approved readiness digest and its route + pin are committed; changing its scope would void that approval). Requested by the US-075 controller at smp c04b812 on us-024.
+
+Scope (tenant harness `scripts/mutation-scope.mjs`, a tenan...
+
+_No stories linked to this change yet._
+
+### CHG-082: smp readiness-gate policy: bookkeeping excluded from the 20-file limit; functional items may add responsible test routes (data-file superset only)
+
+**Status:** 🟢 `accepted`
+**Source:** client_review
+**Requested by:** Francisco
+**Notes:** Tenant readiness-gate policy (technical). It reduces the round trips that turned US-024's chain into six CHGs in one day. Two of those were route-only technical CHGs (CHG-079, CHG-081) whose sole purpose was to keep US-075 at ≤ 20 inclusive paths. Drafted by Nous at Francisco's request; **propose...
 
 _No stories linked to this change yet._
 
