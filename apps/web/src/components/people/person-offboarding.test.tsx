@@ -62,7 +62,7 @@ describe("PersonOffboarding authorized targets",()=>{
  });
 });
 
-test("rendered discovery and first submission execute the real authorized transaction for only the selected seat",async()=>{
+test.each([{flow:"person discovery",fixed:false,endReason:"inactive"},{flow:"request fixed target",fixed:true,endReason:"left_company"}])("rendered $flow first submission executes the real authorized transaction for only the selected seat",async({fixed,endReason})=>{
  const fixture=await createPostgresFixture();
  let pool:pg.Pool|undefined;
  let owner:pg.Client|undefined;
@@ -91,12 +91,15 @@ test("rendered discovery and first submission execute the real authorized transa
    return (await executeOffboardingIntent(repository,authorization,input,at)).state;
   };
   const user=userEvent.setup();
-  render(<NextIntlClientProvider locale="es-EC" messages={esMessages}><PersonOffboarding action={action} labels={labels} personId={person}/></NextIntlClientProvider>);
+  render(<NextIntlClientProvider locale="es-EC" messages={esMessages}><PersonOffboarding action={action} labels={labels} personId={person} fixedRequestId={fixed?requests[1]:undefined}/></NextIntlClientProvider>);
   await user.click(screen.getByTestId("btn_start_offboarding"));
-  await screen.findByRole("option",{name:"UI account · UI seat 2"});
+  if(fixed){
+   expect(screen.queryByTestId("offboarding_target")).toBeNull();
+   expect((screen.getByTestId("offboarding_request_id") as HTMLInputElement).value).toBe(requests[1]);
+  }else{await screen.findByRole("option",{name:"UI account · UI seat 2"});}
   expect((await owner.query("SELECT count(*)::int AS count FROM provisioning_action WHERE request_id=ANY($1::uuid[])",[requests])).rows).toEqual([{count:0}]);
-  await user.selectOptions(screen.getByTestId("offboarding_target"),requests[1]!);
-  await user.selectOptions(screen.getByTestId("end_reason"),"inactive");
+  if(!fixed) await user.selectOptions(screen.getByTestId("offboarding_target"),requests[1]!);
+  await user.selectOptions(screen.getByTestId("end_reason"),endReason);
   await user.type(screen.getByLabelText(labels.offboardingNote),"Remove only UI seat 2");
   await user.click(screen.getByTestId("btn_confirm_offboarding"));
   await screen.findByText(labels.offboardingSuccess);
@@ -104,7 +107,7 @@ test("rendered discovery and first submission execute the real authorized transa
   await waitFor(()=>expect((screen.getByTestId("modal_offboarding") as HTMLDetailsElement).open).toBe(false));
   const persisted=await owner.query("SELECT request.id::text,request.state,assignment.ended_on,assignment.end_reason,(SELECT count(*)::int FROM provisioning_action WHERE request_id=request.id) AS actions,(SELECT count(*)::int FROM request_transition WHERE request_id=request.id) AS transitions FROM license_request request JOIN license_assignment assignment ON assignment.id=request.license_assignment_id WHERE request.id=ANY($1::uuid[]) ORDER BY request.id",[requests]);
   expect(persisted.rows).toEqual([{id:requests[0],state:"active",ended_on:null,end_reason:null,actions:0,transitions:0},{id:requests[1],state:"offboarding",ended_on:null,end_reason:null,actions:1,transitions:1}]);
-  expect((await owner.query("SELECT kind,mode,status,raw_request->'context' AS context FROM provisioning_action WHERE request_id=$1",[requests[1]])).rows).toEqual([{kind:"remove",mode:"orchestration",status:"pending",context:{assignmentIds:[assignments[1]],endReason:"inactive",note:"Remove only UI seat 2",personId:person,requestId:requests[1],vendorAccountId:account}}]);
+  expect((await owner.query("SELECT kind,mode,status,raw_request->'context' AS context FROM provisioning_action WHERE request_id=$1",[requests[1]])).rows).toEqual([{kind:"remove",mode:"orchestration",status:"pending",context:{assignmentIds:[assignments[1]],endReason,note:"Remove only UI seat 2",personId:person,requestId:requests[1],vendorAccountId:account}}]);
   expect((await owner.query("SELECT status FROM person WHERE id=$1",[person])).rows).toEqual([{status:"active"}]);
   expect((await owner.query("SELECT purchased_qty FROM vendor_account_capacity WHERE vendor_account_id=$1 ORDER BY license_type_id",[account])).rows).toEqual([{purchased_qty:5},{purchased_qty:5}]);
   expect((await owner.query("SELECT count(*)::int AS count FROM audit_log WHERE entity_id=$1 AND action='person.offboarding_started'",[person])).rows).toEqual([{count:1}]);
