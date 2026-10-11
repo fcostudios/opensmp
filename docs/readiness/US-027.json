@@ -89,7 +89,27 @@
     "evidence": "US027-VERIFY-20261011",
     "payload_sha256": "704cccf2d532105e0e863546417a8491abe34cb257ad6c2b95dc1573b7434356"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 3,
+      "implementation": 0,
+      "focused_verification": 1,
+      "review": 1,
+      "integration": 1
+    },
+    "total": 6,
+    "changed_files": 2,
+    "commits": 2,
+    "review_fix_loops": 0,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": -54,
+    "root_cause": "Verification-only aggregate; implementation0. Phase minutes estimated from controller session start13:01:50Z, focused boundary13:04:27Z, review boundary and closing integration, rounded to whole minutes with closing-tail estimate. Includes readiness before approval, read-only child trace/review and closure orchestration; no cost excluded. One cached full gate2.081s under caffeinate and exclusive lock; all workspace inputs unchanged, zero parent shards. No campaign/test_report; retain child authoritative evidence. Two commits/two documentation paths, no Nous sync or critical-paths.md drift. Main fast-forward is included in integration estimate."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
