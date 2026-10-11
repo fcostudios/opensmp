@@ -31,6 +31,28 @@ function rejectedError(error: unknown): "invalid" | "conflict" {
     : "invalid";
 }
 
+function auditChecklistDenial(
+  database: ChecklistDatabase,
+  authorization: LedgerAuthorization | null,
+  actionId: string,
+  capability: "orchestration:confirm" | "orchestration:fail",
+  occurredAt: Date,
+): Promise<ChecklistActionResult> {
+  return withAudit<ChecklistActionResult>(database, async () => ({
+    value: { ok: false, error: "forbidden" } as const,
+    audit: {
+      actorUserId: authorization?.userAccountId ?? null,
+      action: "authorization.denied",
+      entityType: "ProvisioningAction",
+      entityId: actionId,
+      companyId: null,
+      note: null,
+      before: null,
+      after: { capability, errorCode: "capability_forbidden" },
+    },
+  }), { occurredAt });
+}
+
 export function createChecklistActionService(
   database: ChecklistDatabase,
   {
@@ -50,7 +72,7 @@ export function createChecklistActionService(
       const removalInput=safeParseConfirmChecklist(input);
       if(removalInput.success && await isRemovalChecklistAction(database,removalInput.data.actionId)) {
         const authorization=await loadAuthorization();
-        if(!authorization || authorization.globalRole!=="group_admin")return {ok:false,error:"forbidden"};
+        if(!authorization || authorization.globalRole!=="group_admin")return auditChecklistDenial(database,authorization,removalInput.data.actionId,"orchestration:confirm",now());
         try {
           const operations=createOrchestrationOperations(database,{now});
           const result=await operations.confirmChecklistDone(authorization,input);
@@ -177,7 +199,7 @@ export function createChecklistActionService(
       const removalInput=safeParseFailChecklist(input);
       if(removalInput.success && await isRemovalChecklistAction(database,removalInput.data.actionId)) {
         const authorization=await loadAuthorization();
-        if(!authorization || authorization.globalRole!=="group_admin")return {ok:false,error:"forbidden"};
+        if(!authorization || authorization.globalRole!=="group_admin")return auditChecklistDenial(database,authorization,removalInput.data.actionId,"orchestration:fail",now());
         try {
           const operations=createOrchestrationOperations(database,{now});
           const result=await operations.markChecklistNotDone(authorization,input);

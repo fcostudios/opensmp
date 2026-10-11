@@ -33,8 +33,17 @@ it("the production removal wrapper preserves register on refusal/unconfirmed rep
   if(!authorization)throw new Error("Seeded administrator unavailable");
   const removal=await createPeopleRepository(database).startOffboarding(authorization,{personId:person,requestId:request,endReason:"left_company",note:"Actual wrapper removal"},at);
   const actionId=removal.provisioningActionIds[0]!;
+  await owner.query("INSERT INTO user_account(id,email,idp_subject,global_role,ui_language,status,created_at) VALUES($1,'wrapper-finance@example.test','us075-wrapper-finance','central_finance','es','active',$2)",[id("9"),at]);
   const unavailable=createChecklistActionService(database,{loadAuthorization:()=>authorizationRepository.load({subject:null}),now:()=>at});
   expect(await unavailable.confirmChecklistDone({actionId,confirmationId:"unauthorized"})).toEqual({ok:false,error:"forbidden"});
+  const deniedFailure={actionId,failureId:"unauthorized-attempt",reason:"Unauthorized removal attempt"};
+  expect(await unavailable.markChecklistNotDone(deniedFailure)).toEqual({ok:false,error:"forbidden"});
+  const finance=createChecklistActionService(database,{loadAuthorization:()=>authorizationRepository.load({subject:"us075-wrapper-finance"}),now:()=>at});
+  expect(await finance.confirmChecklistDone({actionId,confirmationId:"finance-denied"})).toEqual({ok:false,error:"forbidden"});
+  expect(await finance.markChecklistNotDone(deniedFailure)).toEqual({ok:false,error:"forbidden"});
+  expect((await owner.query("SELECT actor_user_id::text,action,entity_type,entity_id::text,company_id,note,before,after,occurred_at FROM audit_log WHERE action='authorization.denied' ORDER BY actor_user_id NULLS FIRST,after->>'capability'",[])).rows).toEqual([null,null,id("9"),id("9")].map((actor,index)=>({actor_user_id:actor,action:"authorization.denied",entity_type:"ProvisioningAction",entity_id:actionId,company_id:null,note:null,before:null,after:{capability:index%2===0?"orchestration:confirm":"orchestration:fail",errorCode:"capability_forbidden"},occurred_at:at})));
+  expect((await owner.query("SELECT request.state,action.status,action.failure_reason,assignment.ended_on,assignment.end_reason FROM license_request request JOIN provisioning_action action ON action.request_id=request.id JOIN license_assignment assignment ON assignment.id=request.license_assignment_id WHERE request.id=$1",[request])).rows).toEqual([{state:"offboarding",status:"pending",failure_reason:null,ended_on:null,end_reason:null}]);
+  expect((await owner.query("SELECT count(*)::int AS count FROM request_transition WHERE request_id=$1",[request])).rows).toEqual([{count:1}]);
   const service=createChecklistActionService(database,{loadAuthorization:()=>authorizationRepository.load({subject:"us075-wrapper-admin"}),now:()=>at});
   const failure={actionId,failureId:"attempt-1",reason:"Vendor removal not yet complete"};
   expect(await service.markChecklistNotDone(failure)).toEqual({ok:true,requestId:request});
