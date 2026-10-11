@@ -1,4 +1,40 @@
-# US-075 routing assessment — allocation request on hold
+# US-075 — canonical responsible-route amendment request
+
+## Current request after CHG-079/080 verification (2026-10-11)
+
+The historical request below is superseded by this section. CHG-079's service route and pin are implemented (`cce85d4`, `2be5283`); CHG-080's publication and pin are implemented (`d9d5d48`, `5fe2ee7`). Their full-gate closure is pending, not claimed delivered/dev_done. The shared gate failed on the older offboarding alert fixture: US-075's required assignment-pointer guard rejects a seed without `license_assignment_id`; the same fixture still expects `kind = checklist` instead of canonical `remove`.
+
+Please canonically amend the accepted technical routing prerequisite CHG-079, or allocate its technical successor if required by ledger policy, to register this responsible suite:
+
+```js
+"packages/domain/src/request-workflow/lifecycle.ts": [
+  "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+],
+```
+
+Tenant work is the same bounded registration shape: the direct-route entry in `scripts/mutation-scope.mjs`, exact direct-route assertion and real-file `routedTestFiles` assertion in `scripts/test-mutation-scope.mjs`, and verification that the domain source's shard selects and executes the actual real-DB suite. No threshold, instrumentation, routing-gap rejection, template, owned-service mock or exemption change. Existing adjacent domain tests remain routed as usual. US-075 will add direct `finalizeOffboarding` behavioral oracles and real transaction-adapter oracles to the existing orchestration integration suite; registration alone does not claim feature delivery. If the stock runner cannot execute the cross-package suite, stop and return that evidence rather than change harness behavior.
+
+The current valid composition has **21 inclusive US-075 paths**, including all already changed paperwork and the newly necessary alert fixture. With this route, keep `lifecycle.test.ts` unchanged and move its proposed new finalizer oracles into the existing real-DB orchestration suite: **20 paths**. The exact conditional inventory is:
+
+| Surface | Paths |
+|---|---:|
+| Domain `lifecycle.ts` | 1 |
+| Org registry `repository.ts`, `repository.integration.test.ts`, `people-action-service.ts` | 3 |
+| Request workflow `orchestration.ts`, `orchestration.integration.test.ts`, `actions/checklist-action-transaction.ts`, `actions/checklist-action-transaction.test.ts` | 4 |
+| Alerts `offboarding-workflow.integration.test.ts` | 1 |
+| Person offboarding component and its behavioral test | 2 |
+| Request record component and its behavioral test | 2 |
+| Both locale files | 2 |
+| Existing readiness, design, plan, routing request and feedback ledger | 5 |
+| **Total** | **20** |
+
+The fixture correction keeps the same-business-day alert oracle intact: bind the request to its real assignment and expect `remove`. It does not implement US-077. The checklist transaction wrapper and its oracle remain necessary because its unconditional `withAudit` currently duplicates successful replay audits; orchestration facts alone cannot fix this. The portable finalizer remains in the domain package for US-082. Both detail pages remain unchanged. No parent AC, child scope or oracle is dropped. This is a concrete composition, not proof that all alternatives require 21 paths, and **no functional repartition is requested**.
+
+Independent whole-item forecasts are 310 and 315 minutes. Use the conservative **315-minute** forecast: readiness/design/planning 40; production and all test authoring 150 (including completed Task 1 and fixture correction); focused verification/previews 45; all scoped/adversarial review and bounded repairs 45; shared-fixture setup, full gate, one cold campaign and integration 35. These disjoint forecasts count Task 1 once and do not add duplicate review or gate allowances. Confidence is moderate-low; only five minutes of headroom remain, with a plausible 295–335 range. Any new path, boundary or forecast above 320 requires reassessment; the upper range is not authorized. Technical registration cost is separately assessed under its canonical item.
+
+The stock `createPostgresFixture()` under CHG-067's shared cluster returns `ownerUrl`, `appUrl` and `migrate()`. Use an untracked scratch launcher to supply that migrated pair privately to the existing preflight and clean up only its owned fixture. No user credentials, private container, new harness or repository path is needed. Do not repeat the prior claim that a user-supplied profile is the only solution. Schema/runtime verification must actually pass before reporting runtime evidence.
+
+Please state the bounded integration order: focused responsible-route and runtime evidence → US-075's revised digest approval → fixture repair and functional execution → one coordinated green full gate and each item's own closure evidence. CHG-079/080 remain pending until their required evidence passes; do not waive the failed gate or falsely mark them done merely to unlock this sequence. After sync, inspect both generated testing files, validate ownership, reassess US-075 and obtain its new digest-bound approval before implementation resumes.
 
 **Audit correction after Francisco's challenge: do not act on the previous functional repartition proposal yet.** The 335-minute total and the claim that 24 delivery paths is a global minimum are withdrawn. Those figures described one plan plus speculative allowances; they did not establish unavoidable time/file limits for every valid design.
 

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "931b876c299251d8b033b0216327c7ef59c8eb83c93db62cfacc9546868cd372",
+  "readiness_payload_sha256": "7f9c7f4a73da50868273d106737106cd682f2d8d82116aedf9ef4695360e61fd",
   "work_id": "US-075",
   "kind": "US",
   "work_type": "functional",
@@ -58,11 +58,11 @@
   },
   "estimate_minutes": {
     "readiness": 40,
-    "implementation": 145,
+    "implementation": 150,
     "focused_verification": 45,
     "review": 45,
     "integration": 35,
-    "total": 310
+    "total": 315
   },
   "uncertainties": [
     {
@@ -112,7 +112,7 @@
       "statement": "What exact file surface and effectiveness oracles fit the hard limits?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Reused scoped reviewer and implementer independently validate a concrete 20-delivery-path composition, plus the already changed routing-request document =21 counted paths. Exact manifest is in docs/readiness/drafts/US-075-nous-routing-request.md. Preserve both page files: existing action accepts explicit authorized read_targets intent in people-action-service, PersonOffboarding loads/selects the anchor, RequestRecord supplies its own fixed request target; orchestration owns the SQL adapter. All domain/service/checklist/component sources retain responsible behavioral oracles. No import relay or owned mock. A separately delivered canonical source-to-suite registration could replace the new people-action-service.test.ts with the existing repository.integration.test.ts executing the real production intent executor, yielding19delivery+request=20. No local routing/tooling/hash exemption is allowed. This candidate does not prove all alternative compositions exceed20. Five shards remains provisional; actual shard discovery and scoring required after approved implementation. TESTING and critical-path registrations are canonical only. No package dependency/barrel or grant changes planned."
+      "resolution": "Independent reused implementer and reviewer confirm the current concrete composition is21 inclusive paths, including all already changed paperwork and the required alerts/offboarding-workflow.integration.test.ts fixture correction. Exact conditional20-path manifest is in docs/readiness/drafts/US-075-nous-routing-request.md. CHG-079 implemented people-action-service.ts -> repository.integration.test.ts; no feature/runtime/full-gate closure is claimed. A canonical domain lifecycle.ts -> existing orchestration.integration.test.ts responsible route could keep lifecycle.test.ts unchanged and place direct primitive plus realSQL adapter oracles together, yielding20 inclusive paths. Both detail pages remain unchanged; portable domain primitive and replay-safe checklist wrapper/test remain necessary. No dropped oracle, import relay, owned mock, tooling exemption or global-minimum claim. New route is requested, not locally implemented; actual runtime/shard evidence and changed-digest approval remain mandatory."
     },
     {
       "id": "U8",
@@ -126,14 +126,21 @@
       "statement": "Does a smaller valid composition satisfy actual routing and the20-path envelope, and what is its independently estimated remaining cost?",
       "status": "budgeted",
       "estimate_impact_minutes": 30,
-      "resolution": "Independent consolidated implementer reconciled whole-item forecast310min: readiness/reassessment/design/planning40; production AND test authoring145 including completedTask1; focused RED/GREEN/type/preflight/result inspection and previews≤30 within45; ALL scoped/fresh adversarial reviews and bounded repairs45; fullgate/ONEcold/integration35. No guessed elapsed-to-active conversion or addition of completedTask1. Former remaining215–355 and precise335 claims are withdrawn because authoring/repair allowances overlapped. Reuses green targeted-start, existing checklist UI and real repository fixtures; no provider/refresh delivery, pagefiles unchanged. Confidence moderate with10minmargin; extra boundary,requiredpath,expandedretryUI or significantcoldsurvivors triggers reassessment rather than budgetstretch. Technical prerequisite tooling cost belongs only to its separately approved canonical item.310is a forecast, not measured actuals; readiness remainsblocked untilcanonical responsible route delivery and changeddigestapproval."
+      "resolution": "Read-only independent forecasts310 and315; adopt conservative whole-item315: readiness/design/planning/reassessment40; production and ALL test authoring150 including completedTask1 and pointer+remove-kind alert fixture correction; focused checks/result inspection/previews45; ALL scoped/fresh adversarial reviews and bounded repairs45; sharedfixture setup/fullgate/ONEcold/integration35. Task1 counted once, authoring only implementation, repairs only review, previews only focused, cold only integration. Forecast is moderate-low confidence with5min headroom, plausible295–335; upper range is not authorized. Completed technical prerequisite costs remain their own items. Any additionalpath/boundary/materialrepair or forecast above320 requires reassessment rather than stretch. No measured total or guaranteed remaining capacity is claimed."
     },
     {
       "id": "U10",
-      "statement": "Will Nous deliver a canonical responsible service-suite registration independently of functional delivery?",
+      "statement": "Can the canonical responsible route cover the portable domain finalizer without a second changed oracle file?",
       "status": "unresolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Requested canonical technical prerequisite: people-action-service.ts -> repository.integration.test.ts. Existing real suite must execute production read/mutation intent, authorization/rejection, targeted persistence, replay and real revalidation contract; no parser-only/import relay. Reviewer accepts this independent tooling outcome without threshold or instrumentation exemption. Nous alone allocates official id, scope and approval. External prerequisite cost is unknown and not silently charged as0 to its own future work item. Until delivery current functional candidate remains21paths; if unavailable, retain stop and re-assess vertical allocation. Technical prerequisite does not waive unresolved total estimate."
+      "resolution": "CHG-079 service registration and pin implemented atcce85d4/2be5283; CHG-080 publication/pin implemented atd9d5d48/5fe2ee7. Both technical closures remain pending after sharedgateRED; no delivered/dev_done claim. Request canonical technical amendment/successor registering packages/domain/src/request-workflow/lifecycle.ts -> apps/web/src/modules/request-workflow/orchestration.integration.test.ts, with exactdirect/real-file route assertions and actual sharedDB runtime preflight. Existing adjacent tests remain routed. No instrumentation/threshold/template/routing-gap exemption. Without this conditional prerequisite current21-pathcandidate is non-executable. Nous alone allocates canonical amendment/successor and integration order; no functional repartition is requested on current evidence."
+    },
+    {
+      "id": "U11",
+      "statement": "What fixes the observed full-gate failure and supplies an ordinary realDB runtime profile?",
+      "status": "budgeted",
+      "estimate_impact_minutes": 5,
+      "resolution": "Shared gate fe509ee failed alerts/offboarding-workflow.integration.test.ts:146 with person_offboarding_unavailable422; type/lint passed, build not reached. US0754b924d7 requires the assignment pointer while older CHG010fixture lacks it and still expects checklist actionkind. Correct fixture pointer after realassignment insertion and expectation to canonical remove, preserving deadline/openregisteroracles; do not implement US077 or relax productionguard. Relevantbytes unchanged during079/080; no executedbaselinegreen claimed. Existing exported createPostgresFixture under CHG067sharedcluster provides ownerUrl/appUrl/migrate; an untracked scratchlauncher must require SMP_TEST_POSTGRES_CLUSTER_URL, avoid isolatedContainer/containerhooks, migrate, pass pair privately to existing verifier/preflight and clean only its own database. No usercredentials/newprivatecontainer/harnesssourcechange needed; runtime evidence still must actually pass. Repair authoring is inside150 implementation, runtimefixture inside35 integration, not extra duplicatecost. Request bounded integration order: canonicalroutefocused/runtimeevidence, renewed075digestapproval, fixture+functionalexecution, coordinatedgreenfullgate and separateitemclosureevidence."
     }
   ],
   "dependencies": [],
@@ -143,7 +150,7 @@
     "status": "pending",
     "approved_by": null,
     "evidence": null,
-    "payload_sha256": "931b876c299251d8b033b0216327c7ef59c8eb83c93db62cfacc9546868cd372"
+    "payload_sha256": "7f9c7f4a73da50868273d106737106cd682f2d8d82116aedf9ef4695360e61fd"
   },
   "actuals": null,
   "policy_bootstrap": false,
