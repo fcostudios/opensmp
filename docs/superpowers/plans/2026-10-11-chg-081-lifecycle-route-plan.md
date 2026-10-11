@@ -1,21 +1,21 @@
 **Work item:** CHG-081
 **Readiness assessment:** docs/readiness/CHG-081.json
-**Approved estimate:** 50 minutes
+**Approved estimate:** 90 minutes
 
-# Three responsible mutation routes implementation plan
+# Accountable runtime and atomic audited-action verification plan
 
 > Use executing-plans fallback: the same CHG-081 session is sole inline implementer because worker/reviewer dispatch returned agent thread limit. Root independently reviews design/plan and implementation; fresh adversarial AC review stays pending until an actual fresh context is available. No fabricated delegation or review.
 
-**Goal:** Select and execute adjacent plus accountable real-DB oracles for lifecycle, checklist wrapper and offboarding component without altering harness semantics.
+**Goal:** Verification gates select genuine runtime oracles and prove actual atomic audited removal/replay while rejecting structurally unsafe variants.
 **Architecture:** Preserve implemented lifecycle route; add two responsible integration routes with exact assertions. Stock native whole-US-075 preflight resolves real PostgreSQL runtime profiles; shared fixture/schema plus actual selected suites proves wrapper and UI journey.
 **Tech Stack:** Node ESM, TypeScript/tsx, Vitest, PostgreSQL 16.
 **Spec:** docs/superpowers/specs/2026-10-11-chg-081-lifecycle-route-design.md
 
 ## Global Constraints
 
-- 50 whole active minutes, same six inclusive paths; two harness implementation paths only. Prior lifecycle-only35 counted once plus15 new scope/verification/paperwork.
+- 90 whole active minutes, eight inclusive paths: previous six plus scripts/check-audited-actions.mjs and existing apps/web/src/modules/audit/audited-actions-enforcement.test.ts. Prior50 forecast is not actualspent; completed route/runtime counted once plus40forecast for audit prerequisite.
 - Preserve lifecycle -> orchestration integration plus adjacent lifecycle.test.ts. ADD checklist-action-transaction.ts -> orchestration.integration.test.ts and person-offboarding.tsx -> repository.integration.test.ts, retaining each adjacent test. Exact full paths are in Spec table.
-- No instrumentation, threshold, routing-gap, harness behavior, schema/model/template, generated/source/application-test or prior technical artifact changes.
+- No instrumentation, threshold, routing-gap/classifier/env-dummy, schema/model/template, generated/application behavior or prior technical artifact changes. Only added checker recognition/test within exact eight owned paths; no source exemption/name allowlist/mock audit marker.
 - Native default-provider preflight uses actual whole-US-075 base37666528d03a50e2529cad4382f2a5ae146dca63 including working changes; true isDatabaseBacked/real resolved profile/no gaps. Actual selected suites use stock shared cluster owned DB, migrations/schema, supported private pair and existing root Vitest config.
 - No private container hooks, user credentials, synthetic runtime provider, historical campaign, fabricated score/count/cold attempt or parser-only runtime GREEN.
 - Genuine route evidence uses existing ac_pass/ac_verify/phase/feedback under the delegated event-name exception; own expected TS mutation shards zero; no done before shared green gate.
@@ -70,3 +70,20 @@ Ruling: forced inline role continuation preserves one CHG-081 session because bo
 - [ ] Run own technical eligibility separately (zero TS/previews); self-review and commit only two owned harness files. Give root exact continuation diff/report/native+suite proof for independent scoped review; fresh AC and one coordinated green gate remain required. Append operational evidence/actual cost to existing feedback path, not fake mutation report. Task 2 then closes after actual prerequisites green.
 
 Ruling: this is disclosed local scope deviation beyond canonical lifecycle-only allocation, independently bound to fresh e6645789 readiness under Francisco delegated technical decision/work authority. Same6paths/50wholeminutes, no new canonical ID/amendment/oldapproval reuse. Repository integration is backend/tenant only; adjacent actual component journey supplies UI causality. Wrong responsibility pairing costs runtime assurance rework; no classifier/env/template change.
+
+### Task 4: Recognize the actual atomic audited action contract without exemptions
+
+**Files:** Modify only `scripts/check-audited-actions.mjs` and existing `apps/web/src/modules/audit/audited-actions-enforcement.test.ts`. Retain three routes/adjacent tests unchanged. No other production path, helper file or fixture file is added.
+**Interfaces:** Existing AST `importedBindings`, actual source/package export resolution, `namedTarget`, `returnedFactoryMember`, shadow detection and whole-body audit traversal. New internal structural proof consumes actual wrapper/factory/operation/finalizer/port/transitive source nodes and recognizes only bounded stable binding/transaction/control-flow shapes. Its boolean result fails closed on unresolved/unknown/substituted shapes; no hardcoded factory-name/source whitelist.
+**Production source touched:** verification script only; no application behavior. Existing actual graph includes thin actions/checklist.ts, wrapper, orchestration, domain lifecycle/exports, transition-core and db request-transition, read-only/copy fixtures only.
+
+- [ ] Require fresh8-path/90-minute delegated ready assessment and ROOT scoped readiness/design/plan PASS + explicit release. Preserve shared foreign075 feedback rows and all history. Freeze new continuation base; keep whole075base37666528d03a50e2529cad4382f2a5ae146dca63. Same081soleinline implementer; root independent reviewer, no fabricated freshcontext.
+- [ ] Before editing test, use already-read TESTING.md/strongest exact oracle. Extend existing enforcement test fixture with COPIED ACTUAL stable dependency graph. Execute REAL checker; positive intended graph and actual production-tree test must be RED before recognizer. Fixture helper remains in existing test file; actual frontend/backend/domain source files remain unchanged.
+- [ ] Add independent negative fixtures at exact verified sites: remove each confirmed/unconfirmed audit; detach complete/audit await; outside-transaction audit/foreign receiver; substitute factory database/transaction; fresh early success before complete/audit; replay write; preboundary write. Each perturbation asserts it changed exactly one intended site and REAL checker exits failure naming the action. Retain all existing negative cases. Do not synthesize/mock a withAudit provenance marker or judge by SQL substring.
+- [ ] Implement narrow structural proof of wrapper parsing + actual readonly lookup + trusted authorization load; denial uses actual auditChecklistDenial->withAudit; authorized delegation is actual factory member on same database with awaited result/pure error catch; original provisioning withAudit fallback preserved. Resolve actual imports/bindings/exports and reject shadowing/ambiguity/substitution. Unknown shapes reject, no factory name alone acceptance.
+- [ ] Prove actual operation database.transaction ownership and awaited transitive write/audit order. Confirmation resolves actual finalizer/port: fresh awaitscomplete before return; port close/action/request-state writes and removal_confirmed evidence on same callback; validated original replay doesnotcomplete/write. Follow actual transition helper/db binding, not an assumed opaque name. Notdone facts/read locks/attempt matching no-write replay, fresh actionupdate then awaitedremoval_unconfirmed before success. Reject hidden/nonbound receivers, detached work/audit, preboundary writes or success escapes.
+- [ ] Run focused full existing audited-actions enforcement suite and actual application checker; positive+all negative oracles GREEN, command stdout is diagnostic but tests assert exit/contract. No test volume/coverage goal. If correct bounded proof needs generalengine/new sourcepath or over90, stop/reassess rather than broaden or weaken.
+- [ ] Commit only the two new approved implementation paths; root receives exact diff/actual test evidence for independent scoped review. Bounded fix wave stays here; preserve originalroutes. After final075denial bytes settle, revalidate affected wrapper/orchestration real runtime proof with new hashes and stock supported serialized sharedPG/migrate/schema/native whole075profiles; no changed classifier/template/privatefixture or repeated whole campaign.
+- [ ] Fresh adversarial AC checks runtime responsibility and independent negative audit proof; one coordinated awake regular gate follows all repairs/review, before075actualfinalcold. Then separate081 actuals/cost/evidence closure within exact8paths. Whole technical TSmutatable production stays0 (mjs script/test only), so no fake mutation score/test_report/cold. Shared global gate failures/costs and foreigncommit attribution remain explicit.
+
+Ruling: new atomic-audit prerequisite is an explicit local delegated8-path/whole90-minute deviation beyond canonical lifecycle-only allocation and prior50scope. Astra concrete FINAL PROCEED supplies fail-closed actualbinding/transaction/audit/replay obligations; controller/root decision under Francisco exactinstruction, not newcanonicalNousamendment/ID or oldapprovalreuse. Wrong recognizer could admit unaudited paths, so unknowns reject and actual copied negative oracles are mandatory; if proof is too costly, reassess rather than weaken it.
