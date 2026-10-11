@@ -12,11 +12,14 @@ export function deliveryFileSignals(paths) {
 }
 export const MUTATION_ROUTES_PATH = "scripts/mutation-routes.json";
 export function isToolingPath(path) {
-  return /^(?:scripts\/|infra\/scripts\/|\.githooks\/|testing\/)/u.test(path)
+  return /(?:^|\/)(?:scripts|bin)\//u.test(path)
+    || /^(?:\.githooks\/|testing\/|\.github\/workflows\/|packages\/config\/)/u.test(path)
+    || /\.(?:mjs|cjs|sh|bash|zsh|py|ps1|bat|cmd|rb|pl|lua)$/u.test(path)
+    || /(?:^|\/)(?:Taskfile\.ya?ml|Makefile|Dockerfile(?:\.[^/]+)?|(?:docker-)?compose[^/]*\.ya?ml)$/u.test(path)
     || /(?:^|\/)(?:package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|turbo\.json|(?:stryker|tsconfig|eslint|vitest)[^/]*|[^/]+\.config\.[^/]+)$/u.test(path);
 }
 export function canonicalRoutePath(path) {
-  return typeof path === "string" && path.length > 0 && !path.includes("\0")
+  return typeof path === "string" && path.length > 0 && !/[\u0000-\u001f\u007f\ufffd:]/u.test(path)
     && !path.includes("\\") && !path.startsWith("/")
     && path.split("/").every((part) => part.length > 0 && part !== "." && part !== "..");
 }

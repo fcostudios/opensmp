@@ -1228,7 +1228,17 @@ function payloadAuthority(root, revision, artifact) {
 export function validateFunctionalDelivery({ root, base, head, workId, authority }) {
   const reject = (message) => fail("WR_MIXED_FUNCTIONAL_TOOLING", MUTATION_ROUTES_PATH, message);
   const changed = listChangedPaths({ root, base, head });
-  const forbidden = changed.find((path) => path !== MUTATION_ROUTES_PATH && isToolingPath(path));
+  const forbidden = changed.find((path) => {
+    if (path === MUTATION_ROUTES_PATH) return false;
+    if (isToolingPath(path)) return true;
+    // Executable JS/TS scripts can live outside a scripts directory. Inspect
+    // both immutable sides so deleting a shebang cannot disguise the edit.
+    if (!/\.(?:js|jsx|ts|tsx)$/u.test(path)) return false;
+    return [base, head].some((revision) => {
+      if (!["100644", "100755"].includes(revisionMode(root, revision, path))) return false;
+      return /^(?:\uFEFF)?#!/u.test(readRevisionFile(root, revision, path));
+    });
+  });
   if (forbidden) reject(`Functional delivery cannot edit tooling: ${forbidden}`);
   if (!changed.includes(MUTATION_ROUTES_PATH)) return true;
   if (revisionMode(root, base, MUTATION_ROUTES_PATH) !== "100644"

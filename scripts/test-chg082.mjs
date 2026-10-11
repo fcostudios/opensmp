@@ -165,3 +165,26 @@ for (const mode of ["preapproval", "revoked"]) {
     mixed(() => ownership.validateFunctionalDelivery({ root, base, head, authority, workId: "US-901" }));
   }, { approved: mode !== "preapproval" }));
 }
+
+for (const script of ["packages/db/scripts/apply-migrations.mjs", "docs/scripts/nous_api_ast_scan.mjs", "infra/postgres/run-guarded-restore.sh", "tools/restore.py", "tools/restore.ps1", "apps/worker/src/cli.ts", "Taskfile.yml", ".github/workflows/ci.yml"]) {
+  test(`CHG-082 actual ownership gate rejects route plus tooling ${script}`, () => fixture(({ root }) => {
+    activate(root);
+    const value = artifact(); value.approval.evidence = "US901-FUTURE";
+    write(root, "docs/readiness/US-901.json", JSON.stringify(value));
+    write(root, ".nous-feedback.jsonl", readFileSync(join(root, ".nous-feedback.jsonl"), "utf8") + JSON.stringify(decision(value)) + "\n");
+    const base = commit(root, "US-901 approve future assessment");
+    write(root, "apps/web/src/owned.ts", "export const owned = 11;\n");
+    write(root, "scripts/mutation-routes.json", JSON.stringify({ "apps/web/src/foreign.ts": ["apps/web/src/oracle.test.ts"], "apps/web/src/owned.ts": ["apps/web/src/extra.test.ts"] }));
+    write(root, script, "#!/usr/bin/env node\n// changed executable tooling\n");
+    const head = commit(root, "US-901 additive route and tooling");
+    mixed(() => ownership.validateRangeOwnership({ root, base, head }));
+  }));
+}
+
+test("CHG-082 rejects colon in route path even for an existing test", () => fixture(({ root, authority }) => {
+  write(root, "apps/web/src/colon:oracle.test.ts", "export {};\n");
+  const base = commit(root, "US-902 unrelated historical test");
+  write(root, "scripts/mutation-routes.json", JSON.stringify({ "apps/web/src/foreign.ts": ["apps/web/src/oracle.test.ts", "apps/web/src/colon:oracle.test.ts"] }));
+  const head = commit(root, "US-901 append malformed path");
+  mixed(() => ownership.validateFunctionalDelivery({ root, base, head, authority, workId: "US-901" }));
+}));
