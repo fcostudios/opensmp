@@ -186,5 +186,8 @@
   ],
   "apps/web/src/modules/org-registry/people-action-service.ts": [
     "apps/web/src/modules/org-registry/repository.integration.test.ts"
+  ],
+  "packages/domain/src/request-workflow/lifecycle.ts": [
+    "apps/web/src/modules/request-workflow/orchestration.integration.test.ts"
   ]
 }

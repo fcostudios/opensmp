@@ -1204,6 +1204,23 @@ assert.throws(
 );
 
 assert.deepEqual(
+  DIRECT_TEST_ROUTES["packages/domain/src/request-workflow/lifecycle.ts"],
+  ["apps/web/src/modules/request-workflow/orchestration.integration.test.ts"],
+  "lifecycle mutations must retain exactly their accountable real-PostgreSQL orchestration suite",
+);
+assert.deepEqual(
+  routedTestFiles(
+    ["packages/domain/src/request-workflow/lifecycle.ts"],
+    ["packages/domain/src/request-workflow/lifecycle.ts"],
+    existsSync,
+  ),
+  [
+    "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+    "packages/domain/src/request-workflow/lifecycle.test.ts",
+  ],
+  "the real repository tree must retain both the lifecycle and orchestration suites",
+);
+assert.deepEqual(
   DIRECT_TEST_ROUTES["apps/web/src/modules/org-registry/people-action-service.ts"],
   ["apps/web/src/modules/org-registry/repository.integration.test.ts"],
   "people actions must retain exactly their accountable real-PostgreSQL repository suite",
