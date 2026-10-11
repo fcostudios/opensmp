@@ -1573,6 +1573,9 @@ const ADJACENT_TEST_SUFFIXES = [
 // exceptional routes explicit prevents a changed source from silently riding
 // along merely because some unrelated story test also changed.
 export const DIRECT_TEST_ROUTES = {
+  "apps/web/src/components/usage/usage-batch-table.tsx": [
+    "apps/web/src/components/usage/usage-view.integration.test.tsx",
+  ],
   "apps/web/src/components/usage/usage-view.tsx": [
     "apps/web/src/components/usage/usage-batch-table.integration.test.tsx",
   ],
