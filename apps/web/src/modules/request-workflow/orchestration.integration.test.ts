@@ -1845,6 +1845,7 @@ describe("US-075 shared offboarding finalization",()=>{
     expect(await actionService.confirmChecklistDone({actionId:removal.actionId,confirmationId:"manual-done"})).toEqual({ok:true,requestId:ids.request});
     expect(await actionService.confirmChecklistDone({actionId:removal.actionId,confirmationId:"manual-done-again"})).toEqual({ok:true,requestId:ids.request});
     expect((await removalFacts(removal.actionId))[0]).toMatchObject({state:"deprovisioned",status:"confirmed",failure_reason:null,transitions:1,completions:1});
-    expect((await owner.query("SELECT count(*)::int AS count FROM audit_log WHERE entity_id=$1 AND action IN ('server_action.confirmChecklistDone','server_action.markChecklistNotDone')",[removal.actionId])).rows).toEqual([{count:0}]);
+    expect((await owner.query("SELECT count(*)::int AS count FROM audit_log WHERE entity_id=$1 AND action IN ('server_action.confirmChecklistDone','server_action.markChecklistNotDone') AND after->>'accepted'='true'",[removal.actionId])).rows).toEqual([{count:0}]);
+    expect((await owner.query("SELECT action,after FROM audit_log WHERE entity_id=$1 AND action LIKE 'server_action.%' AND after->>'accepted'='false'",[removal.actionId])).rows).toEqual([{action:"server_action.markChecklistNotDone",after:{accepted:false,errorCode:"conflict"}}]);
   });
 });

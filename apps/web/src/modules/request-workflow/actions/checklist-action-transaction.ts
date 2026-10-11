@@ -4,7 +4,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@smp/db";
 import * as schema from "@smp/db/schema";
 
-import { withAudit } from "../../audit/with-audit";
+import { withAudit, verifyRecordedAuditReceipt } from "../../audit/with-audit";
 import { AUTHORIZATION_SYSTEM_ENTITY_ID } from "../../identity-access/authorization";
 import type { LedgerAuthorization } from "../../identity-access/authorization";
 import {
@@ -31,28 +31,6 @@ function rejectedError(error: unknown): "invalid" | "conflict" {
     : "invalid";
 }
 
-function auditChecklistDenial(
-  database: ChecklistDatabase,
-  authorization: LedgerAuthorization | null,
-  actionId: string,
-  capability: "orchestration:confirm" | "orchestration:fail",
-  occurredAt: Date,
-): Promise<ChecklistActionResult> {
-  return withAudit<ChecklistActionResult>(database, async () => ({
-    value: { ok: false, error: "forbidden" } as const,
-    audit: {
-      actorUserId: authorization?.userAccountId ?? null,
-      action: "authorization.denied",
-      entityType: "ProvisioningAction",
-      entityId: actionId,
-      companyId: null,
-      note: null,
-      before: null,
-      after: { capability, errorCode: "capability_forbidden" },
-    },
-  }), { occurredAt });
-}
-
 export function createChecklistActionService(
   database: ChecklistDatabase,
   {
@@ -69,16 +47,6 @@ export function createChecklistActionService(
 ) {
   return {
     async confirmChecklistDone(input: unknown): Promise<ChecklistActionResult> {
-      const removalInput=safeParseConfirmChecklist(input);
-      if(removalInput.success && await isRemovalChecklistAction(database,removalInput.data.actionId)) {
-        const authorization=await loadAuthorization();
-        if(!authorization || authorization.globalRole!=="group_admin")return auditChecklistDenial(database,authorization,removalInput.data.actionId,"orchestration:confirm",now());
-        try {
-          const operations=createOrchestrationOperations(database,{now});
-          const result=await operations.confirmChecklistDone(authorization,input);
-          return {ok:true,requestId:result.requestId};
-        }catch(error){return {ok:false,error:rejectedError(error)};}
-      }
       return withAudit<ChecklistActionResult>(database, async (transaction) => {
         const occurredAt = now();
         const parsed = safeParseConfirmChecklist(input);
@@ -103,6 +71,39 @@ export function createChecklistActionService(
               },
             },
           };
+        }
+        if (parsed.success && await isRemovalChecklistAction(transaction, parsed.data.actionId)) {
+          const operations = createOrchestrationOperations(transaction, { now: () => occurredAt });
+          let result;
+          try {
+            result = await operations.confirmChecklistDone(authorization, input);
+          } catch (error) {
+            const errorCode = rejectedError(error);
+            return {
+              value: { ok: false, error: errorCode } as const,
+              audit: {
+                actorUserId: authorization.userAccountId,
+                action: "server_action.confirmChecklistDone", entityType: "ProvisioningAction",
+                entityId, companyId: null, note: null, before: null,
+                after: { accepted: false, errorCode },
+              },
+            };
+          }
+          const identity = await transaction.execute<{companyId:string}>(sql`SELECT request.company_id::text AS "companyId" FROM license_request request JOIN provisioning_action action ON action.request_id=request.id AND action.vendor_account_id=request.vendor_account_id WHERE request.id=${result.requestId}::uuid AND action.id=${parsed.data.actionId}::uuid`);
+          const companyId = identity.rows[0]?.companyId;
+          if (!companyId) throw new Error("OFFBOARDING_AUDIT_IDENTITY_MISSING");
+          if (!("assignmentIds" in result)) throw new Error("OFFBOARDING_COMPLETION_MISSING");
+          const after = {
+            requestId: result.requestId, assignmentIds: result.assignmentIds,
+            endedOn: result.endedOn, endReason: result.endReason,
+            confirmedAt: result.confirmedAt, confirmationId: result.confirmationId,
+            replayed: false,
+          };
+          const receipt = await verifyRecordedAuditReceipt(transaction, {
+            action: "offboarding.removal_confirmed", entityType: "ProvisioningAction",
+            entityId, companyId, after,
+          });
+          return { value: { ok: true, requestId: result.requestId } as const, audit: receipt };
         }
         try {
           const operations = createOrchestrationOperations(transaction, {
@@ -196,16 +197,6 @@ export function createChecklistActionService(
     },
 
     async markChecklistNotDone(input: unknown): Promise<ChecklistActionResult> {
-      const removalInput=safeParseFailChecklist(input);
-      if(removalInput.success && await isRemovalChecklistAction(database,removalInput.data.actionId)) {
-        const authorization=await loadAuthorization();
-        if(!authorization || authorization.globalRole!=="group_admin")return auditChecklistDenial(database,authorization,removalInput.data.actionId,"orchestration:fail",now());
-        try {
-          const operations=createOrchestrationOperations(database,{now});
-          const result=await operations.markChecklistNotDone(authorization,input);
-          return {ok:true,requestId:result.requestId};
-        }catch(error){return {ok:false,error:rejectedError(error)};}
-      }
       return withAudit<ChecklistActionResult>(database, async (transaction) => {
         const occurredAt = now();
         const parsed = safeParseFailChecklist(input);
@@ -230,6 +221,33 @@ export function createChecklistActionService(
               },
             },
           };
+        }
+        if (parsed.success && await isRemovalChecklistAction(transaction, parsed.data.actionId)) {
+          const operations = createOrchestrationOperations(transaction, { now: () => occurredAt });
+          let result;
+          try {
+            result = await operations.markChecklistNotDone(authorization, input);
+          } catch (error) {
+            const errorCode = rejectedError(error);
+            return {
+              value: { ok: false, error: errorCode } as const,
+              audit: {
+                actorUserId: authorization.userAccountId,
+                action: "server_action.markChecklistNotDone", entityType: "ProvisioningAction",
+                entityId, companyId: null, note: null, before: null,
+                after: { accepted: false, errorCode },
+              },
+            };
+          }
+          const identity = await transaction.execute<{companyId:string}>(sql`SELECT request.company_id::text AS "companyId" FROM license_request request JOIN provisioning_action action ON action.request_id=request.id AND action.vendor_account_id=request.vendor_account_id WHERE request.id=${result.requestId}::uuid AND action.id=${parsed.data.actionId}::uuid`);
+          const companyId = identity.rows[0]?.companyId;
+          if (!companyId) throw new Error("OFFBOARDING_AUDIT_IDENTITY_MISSING");
+          const after = { failureId: parsed.data.failureId, reason: parsed.data.reason.trim() };
+          const receipt = await verifyRecordedAuditReceipt(transaction, {
+            action: "offboarding.removal_unconfirmed", entityType: "ProvisioningAction",
+            entityId, companyId, after,
+          });
+          return { value: { ok: true, requestId: result.requestId } as const, audit: receipt };
         }
         try {
           const operations = createOrchestrationOperations(transaction, {
