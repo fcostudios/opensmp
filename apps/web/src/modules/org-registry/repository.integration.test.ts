@@ -1340,6 +1340,10 @@ describe("people repository", () => {
       expect(refused.state).toEqual({ok:false,globalError:"person_validation_failed"});
       expect(refused.invalidationPaths).toEqual([]);
     }
+    expect(await executeOffboardingIntent(repository,null,{intent:"read_targets",personId:holder},occurredAt)).toEqual({state:{ok:false,globalError:"person_unauthorized"},invalidationPaths:[]});
+    await owner.query("REVOKE SELECT ON person FROM ledger_app");
+    try{expect(await executeOffboardingIntent(repository,admin,{intent:"read_targets",personId:holder},occurredAt)).toEqual({state:{ok:false,globalError:"person_offboarding_failed"},invalidationPaths:[]});}
+    finally{await owner.query("GRANT SELECT ON person TO ledger_app");}
     const choices = await executeOffboardingIntent(repository, admin, {intent:"read_targets",personId:holder}, occurredAt);
     expect(choices.state.ok).toBe(true);
     expect(choices.state.targets?.map(target=>target.requestId).sort()).toEqual([...requests].sort());
@@ -1350,7 +1354,7 @@ describe("people repository", () => {
       expect(refused.state.ok).toBe(false);
       expect(refused.invalidationPaths).toEqual([]);
     }
-    expect((await executeOffboardingIntent(repository,viewer,{intent:"read_targets",personId:holder},occurredAt)).state).toEqual({ok:false,globalError:"person_forbidden"});
+    expect(await executeOffboardingIntent(repository,viewer,{intent:"read_targets",personId:holder},occurredAt)).toEqual({state:{ok:false,globalError:"person_forbidden"},invalidationPaths:[]});
     expect((await executeOffboardingIntent(repository,admin,{intent:"read_targets",personId:randomUUID()},occurredAt)).state.ok).toBe(false);
     const readFacts=await owner.query(`SELECT (SELECT count(*)::int FROM provisioning_action WHERE request_id=ANY($1::uuid[])) AS actions,(SELECT count(*)::int FROM request_transition WHERE request_id=ANY($1::uuid[])) AS transitions,(SELECT count(*)::int FROM audit_log WHERE entity_id=ANY($2::uuid[])) AS audits`,[requests,[holder,...requests]]);
     expect(readFacts.rows).toEqual([{actions:0,transitions:0,audits:0}]);
@@ -1401,6 +1405,29 @@ describe("people repository", () => {
     expect(actions.rows).toEqual([{kind:"remove",mode:"orchestration",status:"pending",context:{assignmentIds:[assignments[0]],endReason:"inactive",note:input.note,personId:holder,requestId:requests[0],vendorAccountId}}]);
     const audits = await owner.query(`SELECT count(*)::int AS count FROM audit_log WHERE entity_id=$1 AND action='person.offboarding_started'`,[holder]);
     expect(audits.rows).toEqual([{count:1}]);
+    const durableAudit=await owner.query(`SELECT actor_user_id::text,action,entity_type,entity_id::text,company_id::text,note,before,after,occurred_at FROM audit_log WHERE entity_id=ANY($1::uuid[]) ORDER BY action`,[[holder,requests[0]]]);
+    expect(durableAudit.rows).toEqual([
+      {actor_user_id:adminId,action:"person.offboarding_started",entity_type:"Person",entity_id:holder,company_id:companyA,note:input.note,before:{status:"active",requestStates:{[requests[0]!]:"active"}},after:{status:"active",requestStates:{[requests[0]!]:"offboarding"},provisioningActionIds:started.provisioningActionIds},occurred_at:occurredAt},
+      {actor_user_id:adminId,action:"request.offboarding",entity_type:"LicenseRequest",entity_id:requests[0],company_id:companyA,note:input.note,before:{state:"active"},after:{state:"offboarding"},occurred_at:occurredAt},
+    ]);
+    expect((await owner.query("SELECT from_state,to_state,actor_user_id::text,note,occurred_at FROM request_transition WHERE request_id=$1",[requests[0]])).rows).toEqual([{from_state:"active",to_state:"offboarding",actor_user_id:adminId,note:input.note,occurred_at:occurredAt}]);
+    const actionId=started.provisioningActionIds[0]!;
+    const originalAction=(await owner.query("SELECT kind,mode,status,raw_request FROM provisioning_action WHERE id=$1",[actionId])).rows[0]!;
+    for(const context of [null,{...originalAction.raw_request.context,endReason:"left_company"},{...originalAction.raw_request.context,personId:personB},{...originalAction.raw_request.context,requestId:requests[1]},{...originalAction.raw_request.context,vendorAccountId:vendorAccountId2},{...originalAction.raw_request.context,assignmentIds:[assignments[1]]}]) {
+      await owner.query("UPDATE provisioning_action SET raw_request=$2 WHERE id=$1",[actionId,{...originalAction.raw_request,context}]);
+      await expect(repository.startOffboarding(admin,input,occurredAt)).rejects.toMatchObject({code:"person_offboarding_unavailable"});
+    }
+    await owner.query("UPDATE provisioning_action SET raw_request=$2 WHERE id=$1",[actionId,originalAction.raw_request]);
+    for(const change of [{kind:"remove",mode:"orchestration",status:"failed"},{kind:"invite",mode:"orchestration",status:"pending"},{kind:"checklist",mode:"automated",status:"pending"},{kind:"remove",mode:"automated",status:"pending"}]){
+      await owner.query("UPDATE provisioning_action SET kind=$2,mode=$3,status=$4 WHERE id=$1",[actionId,change.kind,change.mode,change.status]);
+      await expect(repository.startOffboarding(admin,input,occurredAt)).rejects.toMatchObject({code:"person_offboarding_unavailable"});
+    }
+    await owner.query("UPDATE provisioning_action SET kind='checklist',mode='orchestration',status='pending' WHERE id=$1",[actionId]);
+    expect(await repository.startOffboarding(admin,input,occurredAt)).toEqual(started);
+    await owner.query("UPDATE provisioning_action SET kind='remove' WHERE id=$1",[actionId]);
+    expect(await repository.startOffboarding(admin,input,occurredAt)).toEqual(started);
+    expect((await owner.query("SELECT count(*)::int AS count FROM audit_log WHERE entity_id=ANY($1::uuid[])",[[holder,requests[0]]])).rows).toEqual([{count:2}]);
+
   });
 
   test("creates automated pending removal from the shipped REST capability without provider execution", async () => {
@@ -1417,6 +1444,8 @@ describe("people repository", () => {
     expect(result.rows).toEqual([{state:"offboarding",kind:"remove",mode:"automated",status:"pending",protocol:"rest",steps:[],ended_on:null}]);
     const observed=await owner.query(`SELECT count(*)::int AS count FROM connector_call_observation WHERE provisioning_action_id=ANY($1::uuid[])`,[saved.provisioningActionIds]);
     expect(observed.rows).toEqual([{count:0}]);
+    expect(await repository.startOffboarding(admin,{personId:reallocatedPersonId,requestId:reallocatedRequestId,endReason:"left_company",note:"Replay worker wait"},occurredAt)).toEqual(saved);
+
   });
 
 });

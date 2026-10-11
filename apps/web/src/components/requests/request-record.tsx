@@ -9,6 +9,8 @@ import {
 } from "@smp/ui";
 
 import type { RequestRecordProjection } from "@/modules/request-workflow/read-repository";
+import { PersonOffboarding } from "../people/person-offboarding";
+import { startOffboarding } from "@/modules/org-registry/actions/people";
 import { PayloadDialog } from "./payload-dialog";
 import { ProvisioningRetrySubmit } from "./provisioning-retry-submit";
 
@@ -188,6 +190,9 @@ export function RequestRecord({
 
   return (
     <div className="space-y-5">
+      {isGroupAdmin && record.state === "active" && record.assignment && record.assignment.endedOn===null ? (
+        <PersonOffboarding action={startOffboarding} personId={record.person.id} fixedRequestId={record.id}/>
+      ) : null}
       <header className="border-b border-border pb-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

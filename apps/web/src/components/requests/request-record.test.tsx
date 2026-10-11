@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
 
+import { NextIntlClientProvider } from "next-intl";
+import type { ComponentProps } from "react";
+import esMessages from "../../../messages/es-EC.json";
 import { renderToStaticMarkup } from "react-dom/server";
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, test } from "vitest";
@@ -8,9 +11,13 @@ import type { RequestRecordProjection } from "@/modules/request-workflow/read-re
 import { normalizeIntlWhitespace } from "@/test-support/intl";
 import {
   formatTimelineDateTime,
-  RequestRecord,
+  RequestRecord as ActualRequestRecord,
   type RequestRecordLabels,
 } from "./request-record";
+
+function RequestRecord(props: ComponentProps<typeof ActualRequestRecord>) {
+ return <NextIntlClientProvider locale="es-EC" messages={esMessages}><ActualRequestRecord {...props}/></NextIntlClientProvider>;
+}
 
 const labels: RequestRecordLabels = {
   actionKind: {
@@ -421,4 +428,15 @@ test("withdrawal evidence requires action kind and renders nullable system actor
  const evidence=system.container.querySelector('[data-testid="withdrawal_evidence"]')!;
  expect(evidence.textContent).toContain(labels.systemActor);
  expect(evidence.textContent).toContain("Automatically withdrew the unaccepted invitation after its configured expiry window.");
+});
+
+test("active group-admin request detail embeds its exact person/request removal target",()=>{
+ const active={...blockedRecord,state:"active" as const};
+ const props={activeTab:"actions" as const,isGroupAdmin:true,labels,locale:"es-EC" as const,record:active,statusLabels};
+ const markup=renderToStaticMarkup(<RequestRecord {...props}/>);
+ expect(markup).toContain('data-testid="offboarding_request_id"');
+ expect(markup).toContain(`value="${active.id}"`);
+ expect(markup).toContain(`value="${active.person.id}"`);
+ expect(renderToStaticMarkup(<RequestRecord {...props} isGroupAdmin={false}/>)).not.toContain('data-testid="modal_offboarding"');
+ expect(renderToStaticMarkup(<RequestRecord {...props} record={{...active,state:"deprovisioned"}}/>)).not.toContain('data-testid="modal_offboarding"');
 });

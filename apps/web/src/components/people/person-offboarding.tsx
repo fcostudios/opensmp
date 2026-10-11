@@ -7,11 +7,13 @@ import {
   type FormEvent,
 } from "react";
 
+import Link from "next/link";
+import { useTranslations } from "next-intl";
+import type { OffboardingActionResponse } from "@/modules/org-registry/people-action-service";
 import type { StartOffboardingInput } from "@smp/contracts";
 
 import type {
   StartOffboardingAction,
-  StartOffboardingActionState,
 } from "@/modules/org-registry/actions/people";
 
 export interface PersonOffboardingLabels {
@@ -34,22 +36,45 @@ export interface PersonOffboardingLabels {
 
 export function PersonOffboarding({
   action,
-  labels,
+  labels: suppliedLabels,
   personId,
+  fixedRequestId,
+  targets: suppliedTargets,
 }: {
   readonly action: StartOffboardingAction;
-  readonly labels: PersonOffboardingLabels;
+  readonly labels?: PersonOffboardingLabels;
   readonly personId: string;
+  readonly fixedRequestId?: string;
+  readonly targets?: readonly {readonly requestId:string;readonly label:string}[];
 }) {
+  const t=useTranslations("people");
+  const labelKeys=["cancel","confirmOffboarding","inactive","leftCompany","offboardingDescription","offboardingError","offboardingNote","offboardingNotePlaceholder","offboardingReason","offboardingSubmitting","offboardingSuccess","offboardingTitle","offboardingUnavailable","reallocated","startOffboarding"] as const;
+  const labels=suppliedLabels??Object.fromEntries(labelKeys.map(key=>[key,t(key)])) as unknown as PersonOffboardingLabels;
+  const [targets,setTargets]=useState(suppliedTargets??[]);
+  const [requestId,setRequestId]=useState("");
+  const [loaded,setLoaded]=useState(suppliedTargets!==undefined || fixedRequestId!==undefined);
+  const [loadingTargets,setLoadingTargets]=useState(false);
+  const target=fixedRequestId??requestId;
   const openerRef = useRef<HTMLElement>(null);
   const [open, setOpen] = useState(false);
   const [endReason, setEndReason] =
     useState<StartOffboardingInput["endReason"]>("left_company");
   const [note, setNote] = useState("");
   const [result, setResult] = useState<
-    StartOffboardingActionState | undefined
+    OffboardingActionResponse | undefined
   >();
   const [pending, startTransition] = useTransition();
+
+  async function loadTargets() {
+    if(loaded || loadingTargets)return;
+    setLoadingTargets(true);
+    try {
+      const response=await action({intent:"read_targets",personId});
+      if(response.ok){setTargets(response.targets??[]);setLoaded(true);}
+      else{setTargets([]);setResult(response);}
+    }catch{setResult({ok:false,globalError:"person_offboarding_failed"});}
+    finally{setLoadingTargets(false);}
+  }
 
   function close() {
     setOpen(false);
@@ -60,8 +85,9 @@ export function PersonOffboarding({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if(!target || pending || loadingTargets || !note.trim())return;
     startTransition(async () => {
-      const next = await action({ personId, endReason, note });
+      const next = await action({ personId, requestId:target, endReason, note });
       setResult(next);
       if (next.ok) {
         setOpen(false);
@@ -76,7 +102,10 @@ export function PersonOffboarding({
       <details
         className="rounded border border-border bg-surface p-3"
         data-testid="modal_offboarding"
-        onToggle={(event) => setOpen(event.currentTarget.open)}
+        onToggle={(event) => {
+          setOpen(event.currentTarget.open);
+          if(event.currentTarget.open && !fixedRequestId)void loadTargets();
+        }}
         open={open}
       >
         <summary
@@ -94,6 +123,17 @@ export function PersonOffboarding({
             {labels.offboardingDescription}
           </p>
           <form className="space-y-3" onSubmit={submit}>
+            <input type="hidden" name="personId" value={personId} data-testid="offboarding_person_id"/>
+            {fixedRequestId ? <input type="hidden" name="requestId" value={fixedRequestId} data-testid="offboarding_request_id"/> : (
+              <label className="block space-y-1 text-sm font-medium">
+                <span>{t("offboardingTarget")}</span>
+                <select name="requestId" data-testid="offboarding_target" className="min-h-11 w-full rounded border border-border px-3" value={requestId} onChange={event=>setRequestId(event.target.value)} required disabled={loadingTargets}>
+                  <option value="">{t("offboardingSelectTarget")}</option>
+                  {targets.map(choice=><option key={choice.requestId} value={choice.requestId}>{choice.label}</option>)}
+                </select>
+              </label>
+            )}
+            {loadingTargets ? <p role="status">{t("offboardingLoadingTargets")}</p> : loaded && !fixedRequestId && targets.length===0 ? <p>{labels.offboardingUnavailable}</p> : null}
             <label className="block space-y-1 text-sm font-medium">
               <span>{labels.offboardingReason}</span>
               <select
@@ -112,9 +152,6 @@ export function PersonOffboarding({
                   {labels.leftCompany}
                 </option>
                 <option value="inactive">{labels.inactive}</option>
-                <option value="reallocated">
-                  {labels.reallocated}
-                </option>
               </select>
             </label>
             <label className="block space-y-1 text-sm font-medium">
@@ -141,7 +178,7 @@ export function PersonOffboarding({
               <button
                 className="min-h-11 rounded bg-primary px-4 text-text-on-primary disabled:cursor-not-allowed disabled:opacity-50"
                 data-testid="btn_confirm_offboarding"
-                disabled={pending || note.trim().length === 0}
+                disabled={pending || loadingTargets || !target || note.trim().length === 0}
                 type="submit"
               >
                 {pending
@@ -154,15 +191,17 @@ export function PersonOffboarding({
       </details>
       <div aria-live="polite" role="status">
         {result?.ok ? (
-          <p className="mt-2 text-success">
-            {labels.offboardingSuccess}
-          </p>
+          <div className="mt-2 text-success">
+            <p>{labels.offboardingSuccess}</p>
+            <p>{t("offboardingPending")}</p>
+            {result.affectedRequestIds?.[0] ? <Link href={`/solicitudes/${result.affectedRequestIds[0]}`} className="font-semibold underline">{t("offboardingViewRequest")}</Link> : null}
+          </div>
         ) : result?.globalError ? (
           <p className="mt-2 text-error-text">
             {result.globalError ===
             "person_offboarding_unavailable"
               ? labels.offboardingUnavailable
-              : labels.offboardingError}
+              : result.globalError === "person_offboarding_transfer_required" ? t("offboardingTransferRequired") : labels.offboardingError}
           </p>
         ) : null}
       </div>

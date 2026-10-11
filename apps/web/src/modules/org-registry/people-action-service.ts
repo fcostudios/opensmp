@@ -127,10 +127,11 @@ export function safeParseOffboardingTarget(input: unknown) {
 /** The production intent executor; reads and rejections never invalidate mutation views. */
 export async function executeOffboardingIntent(
   repository: PeopleRepository,
-  authorization: LedgerAuthorization,
+  authorization: LedgerAuthorization | null,
   input: unknown,
   occurredAt?: Date,
 ): Promise<{ readonly state: OffboardingActionResponse; readonly invalidationPaths: readonly string[] }> {
+  if (!authorization) return {state:{ok:false,globalError:"person_unauthorized"},invalidationPaths:[]};
   if (authorization.globalRole !== "group_admin") {
     return { state: { ok: false, globalError: "person_forbidden" }, invalidationPaths: [] };
   }
@@ -161,7 +162,6 @@ export async function executeOffboardingIntent(
 
 export async function startOffboardingService(input: unknown): Promise<OffboardingActionResponse> {
   const authorization = await loadCurrentLedgerAuthorization();
-  if (!authorization) return { ok: false, globalError: "person_unauthorized" };
   const result = await executeOffboardingIntent(peopleRepository, authorization, input);
   for (const path of result.invalidationPaths) revalidatePath(path);
   return result.state;
