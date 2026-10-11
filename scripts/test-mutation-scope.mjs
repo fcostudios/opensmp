@@ -1204,6 +1204,20 @@ assert.throws(
 );
 
 assert.deepEqual(
+  DIRECT_TEST_ROUTES["apps/web/src/modules/org-registry/people-action-service.ts"],
+  ["apps/web/src/modules/org-registry/repository.integration.test.ts"],
+  "people actions must retain exactly their accountable real-PostgreSQL repository suite",
+);
+assert.deepEqual(
+  routedTestFiles(
+    ["apps/web/src/modules/org-registry/people-action-service.ts"],
+    ["apps/web/src/modules/org-registry/people-action-service.ts"],
+    existsSync,
+  ),
+  ["apps/web/src/modules/org-registry/repository.integration.test.ts"],
+  "the real repository tree must route people actions to the existing repository suite",
+);
+assert.deepEqual(
   DIRECT_TEST_ROUTES["apps/web/src/modules/vendor-catalog/capacity-recovery-outbox.ts"],
   ["apps/web/src/modules/vendor-catalog/capacity-service.integration.test.ts"],
 );
