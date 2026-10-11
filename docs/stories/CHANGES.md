@@ -67,7 +67,7 @@
 | **CHG-067** | 📦 delivered | Full-gate container-start burst and expiry lock-wait oracle | — | — |
 | **CHG-068** | 📦 delivered | Partition US-026 (510 min > 320) into canonical children US-070, US-071; DEC-SMP-024 allowlisted replay payload; DEC-SMP-025 manual ingestion default | US-070, US-071 | S3 |
 | **CHG-069** | 📦 delivered | Preview budget: one round per task plus one final, 30 min per child, slow shards once, schema-shard routing fixed, host kept awake during gates | — | — |
-| **CHG-070** | 🟢 accepted | Session fan-out experiment: one consolidated implementer session per child, measured against US-070/071 before any rule changes | — | — |
+| **CHG-070** | 📦 delivered | Session fan-out experiment: one consolidated implementer session per child, measured against US-070/071 before any rule changes | — | — |
 | **CHG-071** | 🔨 dev_in_progress | Partition US-027 (750 min > 320) into canonical children US-072, US-073, US-074; DEC-SMP-026 lag-aware data_through; DEC-SMP-027 batch idempotency; DEC-SMP-028 flag ownership | US-072, US-073, US-074 | S3 |
 | **CHG-072** | 🟡 cancelled | Feedback-order checker exempts annotation-class events from the started ordering (reads the class from the emitted vocabulary) | — | — |
 | **CHG-073** | 📦 delivered | Readiness validator: annotation-class events are not pre-approval violations; append-only correction path for a mistakenly recorded historical lifecycle start (unblocks CHG-070) | — | — |
@@ -895,7 +895,7 @@ _No stories linked to this change yet._
 
 ### CHG-070: Session fan-out experiment: one consolidated implementer session per child, measured against US-070/071 before any rule changes
 
-**Status:** 🟢 `accepted`
+**Status:** 📦 `delivered`
 **Source:** developer_feedback
 **Requested by:** Francisco
 **Notes:** # Session fan-out experiment: one consolidated implementer session per child, measured against US-070/071 before any rule changes
@@ -918,7 +918,7 @@ _No stories linked to this change yet._
 
 | Story | Name | Sprint | Status | File |
 |-------|------|--------|--------|------|
-| **US-072** | Usage surface: lag-aware inactivity per person on SCR-usage | Sprint 3 | 🔨 in_development | [r1_misc_us_072.md](sprint-3/r1_misc_us_072.md) |
+| **US-072** | Usage surface: lag-aware inactivity per person on SCR-usage | Sprint 3 | ✅ dev_done | [r1_misc_us_072.md](sprint-3/r1_misc_us_072.md) |
 | **US-073** | Batch reclamation proposals from SCR-usage | Sprint 3 | ⬜ backlog | [r1_misc_us_073.md](sprint-3/r1_misc_us_073.md) |
 | **US-074** | Daily inactivity flagging of anchor license requests | Sprint 3 | ⬜ backlog | [r1_misc_us_074.md](sprint-3/r1_misc_us_074.md) |
 
