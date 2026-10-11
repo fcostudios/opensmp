@@ -1,0 +1,339 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "a1a0686a122db64484b804716546979a167afeced4d300fb8d2ac9a10c759978",
+  "work_id": "US-024",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Offboarding + deprovisioning",
+  "source": "docs/stories/sprint-3/r1_misc_us_024.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "An authorized admin starts offboarding from either existing detail screen; the shared entrypoint executes removal via the shipped connector capability or checklist fallback, reaches deprovisioned, closes exactly the anchored register rows with ended_on/end_reason and refreshes capacity through the approved source-aware next-sync rule.",
+      "demo": "On person and request detail, remove API and checklist-backed active seats; each transitions offboarding->deprovisioned only after removal success/confirmation, closes the correct register row for each of the three reasons and exposes updated pool capacity at the next authoritative refresh. Failure keeps the register open; retry/concurrent confirmation cannot duplicate closure/audit; another company or wrong role is refused.",
+      "primary": true
+    },
+    {
+      "id": "O2",
+      "statement": "An admin explicitly confirms person-wide departure while starting seat removal, sees Salió del grupo, and can remove a seat for inactivity/reallocation without marking the person departed; reuse the first child entrypoint and both existing detail screens.",
+      "demo": "A person with two anchored seats across accounts in one company is marked departed only when the admin confirms departure, and both removals start atomically. Without confirmation, status remains unchanged; inactive/reallocated do not mark departure. A foreign-company seat or concurrent status/start failure rolls back the departure update and audit.",
+      "primary": true
+    },
+    {
+      "id": "O3",
+      "statement": "The existing quarter-hour alert-eval job raises request-subject deprovision_overdue and delivers its configured email when a left_company removal remains offboarding past the approved business-day deadline, across connector/checklist failures, with repeat-safe alerts and completion suppression.",
+      "demo": "Simulated Ecuador holiday/weekend calendars prove no alert before the deadline and a request-linked breach at the first tick after it; pending and failed connector/checklist removals alert, inactive/reallocated and completed requests do not. Repeated ticks deduplicate, email uses the existing outbox, and company/account scope is enforced.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O2"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O3"
+      ]
+    }
+  ],
+  "scopes": [
+    "contracts",
+    "server",
+    "ui",
+    "domain",
+    "infra"
+  ],
+  "signals": {
+    "routes_or_screens": 2,
+    "acceptance_flows": 8,
+    "expected_changed_files": 40,
+    "expected_mutation_shards": 12,
+    "lifecycle_or_concurrency_boundaries": 3,
+    "external_integrations": 1,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 75,
+    "implementation": 315,
+    "focused_verification": 155,
+    "review": 165,
+    "integration": 70,
+    "total": 780
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Are prerequisites and integration authority available?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Verified at 11b03ad: US-019 terminal done e81b379 and US-020 revalidated done under CHG-010 8594311 resolve the original blockers. US-025/063..066 and US-068/069 have terminal evidence; US-026/027 and their children are dev_done in the refreshed sprint plan and ledger. US-075/076/077 are canonical backlog children, not completed prerequisites. Their allocation and ordering are represented in partitions; parent remains non-executable partition_required until a new verification-only assessment after all three close."
+    },
+    {
+      "id": "P1",
+      "statement": "Which business-day calendar, cutoff, offboarding-start timestamp and non-business-day rule govern BR-14?",
+      "status": "resolved",
+      "estimate_impact_minutes": 45,
+      "resolution": "Canonical ruling DEC-SMP-029, delivered by CHG-074 in 11b03ad: BR-14 deadline = local midnight (America/Guayaquil) ending the business day of the `active → offboarding` transition, anchored on that transition timestamp (never a retry); weekend/`ECUADOR_HOLIDAYS` starts roll to the next business day; the alert fires at the first existing alert-eval tick after the deadline, including on non-business days; the calendar is the operator-maintained one already injected into the worker. The original estimate impact remains reserved inside the phase estimate; a future policy change requires reassessment and a new digest."
+    },
+    {
+      "id": "P2",
+      "statement": "Do inactive/reallocated removals also raise deprovision_overdue?",
+      "status": "resolved",
+      "estimate_impact_minutes": 15,
+      "resolution": "Canonical ruling DEC-SMP-030, delivered by CHG-074 in 11b03ad: Only `end_reason = left_company` raises `deprovision_overdue`; `inactive` and `reallocated` removals are outside BR-14; any further SLA is a new explicit rule. The original estimate impact remains reserved inside the phase estimate; a future policy change requires reassessment and a new digest."
+    },
+    {
+      "id": "P3",
+      "statement": "What does pool increments next sync mean for API, csv_import and manual accounts?",
+      "status": "resolved",
+      "estimate_impact_minutes": 35,
+      "resolution": "Canonical ruling DEC-SMP-031, delivered by CHG-074 in 11b03ad: \"Pool increments next sync\": the register closes on confirmed removal and capacity is never increased optimistically at offboarding start; API accounts refresh at the next successful member sync, csv_import/manual accounts at the next accepted member snapshot/import or an explicit manual pool refresh, shown as stale until then. US-055 keeps the ingestion UI. The original estimate impact remains reserved inside the phase estimate; a future policy change requires reassessment and a new digest."
+    },
+    {
+      "id": "P4",
+      "statement": "Is Person departed automatic, optional, or separately confirmed, and does departure remove all seats?",
+      "status": "resolved",
+      "estimate_impact_minutes": 30,
+      "resolution": "Canonical ruling DEC-SMP-032, delivered by CHG-074 in 11b03ad: Person departure is an explicit admin confirmation, unchecked by default, in the `left_company` flow: it sets persisted `Person.status = departed` (display \"Salió del grupo\" via the existing catalog; no new enum) in the same audited transaction that starts removal of all the person's open anchored seats in the authorized company; `inactive`/`reallocated` preserve status; request-detail removal targets its own assignment unless person-wide departure is chosen. The existing automatic marking of left_company departures as departed is RETIRED. The original estimate impact remains reserved inside the phase estimate; a future policy change requires reassessment and a new digest."
+    },
+    {
+      "id": "P5",
+      "statement": "When does the register close, and how are failed/confirmed-but-incomplete removals treated by the SLA?",
+      "status": "resolved",
+      "estimate_impact_minutes": 30,
+      "resolution": "Canonical ruling DEC-SMP-033, delivered by CHG-074 in 11b03ad: `ended_on` = the Ecuador date of the successful connector removal or admin checklist confirmation; `end_reason` immutable; assignment close, ProvisioningAction completion and `offboarding → deprovisioned` are ONE transaction; failure leaves the register open and the request in `offboarding`; every overdue left_company request still `offboarding` stays alert-eligible, including failed or partially finalized actions (eligibility is the request state, not a pending action). The original estimate impact remains reserved inside the phase estimate; a future policy change requires reassessment and a new digest."
+    },
+    {
+      "id": "U2",
+      "statement": "Is the parent executable within the 320-minute and cohesion limits?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Resolved: 3 SP at the supplied 384 min/SP calibration forecasts 1152 minutes. Bottom-up reuse-aware delivery estimate is 780 minutes (270+240+270), still above 320, with three primary outcomes, five scopes, eight acceptance flows and 40 expected files. Phase sums include readiness, production wiring, focused verification, review and integration. Twelve shards is a conservative upper sum; actual overlap is identified in each child preflight. No blanket waiver from the smaller child estimates; if the bounded design exceeds a child limit, repartition before implementation."
+    },
+    {
+      "id": "U3",
+      "statement": "Are child identities, product decisions and authorization available?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "CHG-074 is functional/delivered in 11b03ad; official proposal mappings are offboarding-completion=US-075, departure-confirmation=US-076 and departure-overdue-alert=US-077. DEC-SMP-029..033 resolve P1-P5. US-075 runs first; US-076/077 are parallel-safe after it integrates, with sequential integration and sibling SHA-map rebase. This parent artifact requests partition approval, not implementation authority; child readiness/design/plan approvals remain separate. US-024 closes by verification only after children dev_done, using a freshly approved parent verification assessment. No started or implementation is authorized by the pending parent approval."
+    }
+  ],
+  "dependencies": [],
+  "decision": "partition_required",
+  "partitions": [
+    {
+      "proposal_key": "offboarding-completion",
+      "work_id": "US-075",
+      "title": "Complete anchored seat removal and close the license register",
+      "outcome": "An authorized admin starts offboarding from either existing detail screen; the shared entrypoint executes removal via the shipped connector capability or checklist fallback, reaches deprovisioned, closes exactly the anchored register rows with ended_on/end_reason and refreshes capacity through the approved source-aware next-sync rule.",
+      "demo": "On person and request detail, remove API and checklist-backed active seats; each transitions offboarding->deprovisioned only after removal success/confirmation, closes the correct register row for each of the three reasons and exposes updated pool capacity at the next authoritative refresh. Failure keeps the register open; retry/concurrent confirmation cannot duplicate closure/audit; another company or wrong role is refused.",
+      "acceptance_criteria": [
+        "AC1",
+        "AC2"
+      ],
+      "work_type": "functional",
+      "scopes": [
+        "contracts",
+        "server",
+        "ui"
+      ],
+      "signals": {
+        "routes_or_screens": 2,
+        "acceptance_flows": 3,
+        "expected_changed_files": 18,
+        "expected_mutation_shards": 5,
+        "lifecycle_or_concurrency_boundaries": 1,
+        "external_integrations": 1,
+        "schema_or_migration_changes": 0,
+        "authorization_or_audit_boundaries": 1,
+        "tooling_change": false
+      },
+      "uncertainties": [
+        {
+          "id": "P3",
+          "statement": "What does pool increments next sync mean for API, csv_import and manual accounts?",
+          "status": "resolved",
+          "estimate_impact_minutes": 35,
+          "resolution": "Canonical ruling DEC-SMP-031, delivered by CHG-074 in 11b03ad: \"Pool increments next sync\": the register closes on confirmed removal and capacity is never increased optimistically at offboarding start; API accounts refresh at the next successful member sync, csv_import/manual accounts at the next accepted member snapshot/import or an explicit manual pool refresh, shown as stale until then. US-055 keeps the ingestion UI. The original estimate impact remains reserved inside the phase estimate; a future policy change requires reassessment and a new digest."
+        },
+        {
+          "id": "P5",
+          "statement": "When does the register close, and how are failed/confirmed-but-incomplete removals treated by the SLA?",
+          "status": "resolved",
+          "estimate_impact_minutes": 30,
+          "resolution": "Canonical ruling DEC-SMP-033, delivered by CHG-074 in 11b03ad: `ended_on` = the Ecuador date of the successful connector removal or admin checklist confirmation; `end_reason` immutable; assignment close, ProvisioningAction completion and `offboarding → deprovisioned` are ONE transaction; failure leaves the register open and the request in `offboarding`; every overdue left_company request still `offboarding` stays alert-eligible, including failed or partially finalized actions (eligibility is the request state, not a pending action). The original estimate impact remains reserved inside the phase estimate; a future policy change requires reassessment and a new digest."
+        },
+        {
+          "id": "A1",
+          "statement": "How much of the shipped removal scaffolding is already a complete delivery?",
+          "status": "budgeted",
+          "estimate_impact_minutes": 25,
+          "resolution": "Inspect/reuse people startOffboarding, connector dispatch/plan and US-020 checklist primitives; automated-invite-delivery currently selects kind=invite and checklist observation currently expects active/open assignment. This child owns production removal dispatch/finalization and removal-specific checklist completion, not new provider capabilities or invitation delivery. Existing enums/columns appear sufficient; if ledger_app grants or integrity require changes, include append-only grant/schema migration and applier/verifier/parity/runtime grant proof in this same child and reassess scopes/estimate before design approval."
+        }
+      ],
+      "estimate_minutes": {
+        "readiness": 25,
+        "implementation": 115,
+        "focused_verification": 50,
+        "review": 55,
+        "integration": 25,
+        "total": 270
+      },
+      "depends_on": [],
+      "cross_cutting_rationale": null
+    },
+    {
+      "proposal_key": "departure-confirmation",
+      "work_id": "US-076",
+      "title": "Confirm person departure through the offboarding flow",
+      "outcome": "An admin explicitly confirms person-wide departure while starting seat removal, sees Salió del grupo, and can remove a seat for inactivity/reallocation without marking the person departed; reuse the first child entrypoint and both existing detail screens.",
+      "demo": "A person with two anchored seats across accounts in one company is marked departed only when the admin confirms departure, and both removals start atomically. Without confirmation, status remains unchanged; inactive/reallocated do not mark departure. A foreign-company seat or concurrent status/start failure rolls back the departure update and audit.",
+      "acceptance_criteria": [
+        "AC3"
+      ],
+      "work_type": "functional",
+      "scopes": [
+        "contracts",
+        "server",
+        "ui"
+      ],
+      "signals": {
+        "routes_or_screens": 2,
+        "acceptance_flows": 2,
+        "expected_changed_files": 10,
+        "expected_mutation_shards": 3,
+        "lifecycle_or_concurrency_boundaries": 1,
+        "external_integrations": 0,
+        "schema_or_migration_changes": 0,
+        "authorization_or_audit_boundaries": 1,
+        "tooling_change": false
+      },
+      "uncertainties": [
+        {
+          "id": "P4",
+          "statement": "Is Person departed automatic, optional, or separately confirmed, and does departure remove all seats?",
+          "status": "resolved",
+          "estimate_impact_minutes": 30,
+          "resolution": "Canonical ruling DEC-SMP-032, delivered by CHG-074 in 11b03ad: Person departure is an explicit admin confirmation, unchecked by default, in the `left_company` flow: it sets persisted `Person.status = departed` (display \"Salió del grupo\" via the existing catalog; no new enum) in the same audited transaction that starts removal of all the person's open anchored seats in the authorized company; `inactive`/`reallocated` preserve status; request-detail removal targets its own assignment unless person-wide departure is chosen. The existing automatic marking of left_company departures as departed is RETIRED. The original estimate impact remains reserved inside the phase estimate; a future policy change requires reassessment and a new digest."
+        },
+        {
+          "id": "B1",
+          "statement": "Can the existing Person enum and translated display represent departure?",
+          "status": "resolved",
+          "estimate_impact_minutes": 0,
+          "resolution": "Resolved: packages/contracts/src/people.ts already uses active/departed; do not persist the translated display string as a new enum. Use existing locale catalog and people status projection. No migration expected; any needed grant/integrity migration belongs in this vertical child with full verification and reassessment."
+        }
+      ],
+      "estimate_minutes": {
+        "readiness": 25,
+        "implementation": 90,
+        "focused_verification": 45,
+        "review": 55,
+        "integration": 25,
+        "total": 240
+      },
+      "depends_on": [
+        "offboarding-completion"
+      ],
+      "cross_cutting_rationale": null
+    },
+    {
+      "proposal_key": "departure-overdue-alert",
+      "work_id": "US-077",
+      "title": "Raise same-business-day departure deprovisioning alerts",
+      "outcome": "The existing quarter-hour alert-eval job raises request-subject deprovision_overdue and delivers its configured email when a left_company removal remains offboarding past the approved business-day deadline, across connector/checklist failures, with repeat-safe alerts and completion suppression.",
+      "demo": "Simulated Ecuador holiday/weekend calendars prove no alert before the deadline and a request-linked breach at the first tick after it; pending and failed connector/checklist removals alert, inactive/reallocated and completed requests do not. Repeated ticks deduplicate, email uses the existing outbox, and company/account scope is enforced.",
+      "acceptance_criteria": [
+        "AC4"
+      ],
+      "work_type": "functional",
+      "scopes": [
+        "server",
+        "domain",
+        "infra"
+      ],
+      "signals": {
+        "routes_or_screens": 0,
+        "acceptance_flows": 3,
+        "expected_changed_files": 12,
+        "expected_mutation_shards": 4,
+        "lifecycle_or_concurrency_boundaries": 1,
+        "external_integrations": 0,
+        "schema_or_migration_changes": 0,
+        "authorization_or_audit_boundaries": 1,
+        "tooling_change": false
+      },
+      "uncertainties": [
+        {
+          "id": "P1",
+          "statement": "Which business-day calendar, cutoff, offboarding-start timestamp and non-business-day rule govern BR-14?",
+          "status": "resolved",
+          "estimate_impact_minutes": 45,
+          "resolution": "Canonical ruling DEC-SMP-029, delivered by CHG-074 in 11b03ad: BR-14 deadline = local midnight (America/Guayaquil) ending the business day of the `active → offboarding` transition, anchored on that transition timestamp (never a retry); weekend/`ECUADOR_HOLIDAYS` starts roll to the next business day; the alert fires at the first existing alert-eval tick after the deadline, including on non-business days; the calendar is the operator-maintained one already injected into the worker. The original estimate impact remains reserved inside the phase estimate; a future policy change requires reassessment and a new digest."
+        },
+        {
+          "id": "P2",
+          "statement": "Do inactive/reallocated removals also raise deprovision_overdue?",
+          "status": "resolved",
+          "estimate_impact_minutes": 15,
+          "resolution": "Canonical ruling DEC-SMP-030, delivered by CHG-074 in 11b03ad: Only `end_reason = left_company` raises `deprovision_overdue`; `inactive` and `reallocated` removals are outside BR-14; any further SLA is a new explicit rule. The original estimate impact remains reserved inside the phase estimate; a future policy change requires reassessment and a new digest."
+        },
+        {
+          "id": "C1",
+          "statement": "When does the register close, and how are failed/confirmed-but-incomplete removals treated by the SLA?",
+          "status": "resolved",
+          "estimate_impact_minutes": 30,
+          "resolution": "Canonical ruling DEC-SMP-033, delivered by CHG-074 in 11b03ad: `ended_on` = the Ecuador date of the successful connector removal or admin checklist confirmation; `end_reason` immutable; assignment close, ProvisioningAction completion and `offboarding → deprovisioned` are ONE transaction; failure leaves the register open and the request in `offboarding`; every overdue left_company request still `offboarding` stays alert-eligible, including failed or partially finalized actions (eligibility is the request state, not a pending action). The original estimate impact remains reserved inside the phase estimate; a future policy change requires reassessment and a new digest."
+        },
+        {
+          "id": "C2",
+          "statement": "Does this need a new scheduler or alert framework?",
+          "status": "resolved",
+          "estimate_impact_minutes": 0,
+          "resolution": "Resolved: reuse US-042 alert-eval at 7,22,37,52 minutes, current Ecuador calendar injection, domain evaluator, request subject routing and notification outbox. This child delivers missing removal-specific facts/race safety and calendar/SLA verification, not a second job or framework. No migration expected; rule seed/grant changes if necessary are included here as append-only migrations and full DB verification, with scope reassessment before approval."
+        }
+      ],
+      "estimate_minutes": {
+        "readiness": 25,
+        "implementation": 110,
+        "focused_verification": 60,
+        "review": 55,
+        "integration": 20,
+        "total": 270
+      },
+      "depends_on": [
+        "offboarding-completion"
+      ],
+      "cross_cutting_rationale": null
+    }
+  ],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "a1a0686a122db64484b804716546979a167afeced4d300fb8d2ac9a10c759978"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
