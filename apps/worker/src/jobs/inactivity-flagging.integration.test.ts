@@ -1,5 +1,6 @@
 import { evaluateInactivity, hasPositiveVendorActivity } from "@smp/domain/usage/inactivity";
 import { createInactivityFlaggingRepository } from "@smp/db/inactivity-flagging";
+import { applyRequestTransitionInTransaction } from "@smp/db/request-transition";
 import * as schema from "@smp/db/schema";
 import { createPostgresFixture, type PostgresFixture } from "@smp/db/testing/postgres-container";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -74,6 +75,36 @@ async function evidence(n: number) {
   return { transitions: transitions.rows, audits: audits.rows };
 }
 
+async function namedApp(name: string) {
+  const client = await fixture.connectAsApp();
+  await client.query("SELECT set_config('application_name',$1,false)", [name]);
+  return client;
+}
+async function waitBlocked(name: string, blocker: number) {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const result = await owner.query("SELECT pg_blocking_pids(pid) AS blockers FROM pg_stat_activity WHERE application_name=$1", [name]);
+    if (result.rows.some(row => row.blockers.includes(blocker))) return;
+  }
+  throw new Error(`Expected database lock wait: ${name} blocked by ${blocker}`);
+}
+async function pid(client: pg.Client): Promise<number> {
+  return (await client.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+}
+function runOn(client: pg.Client) {
+  return createInactivityFlaggingRepository(drizzle(client, { schema }), { evaluateInactivity, hasPositiveVendorActivity }).runForCompany({ companyId: ids.companyA, evaluationDate: "2026-10-10", occurredAt: at });
+}
+async function seedRace(unflag: boolean) {
+  await seed(1, { state: unflag ? "flagged_inactive" : "active" });
+  await seed(2, { companyId: ids.companyB });
+  await activity(1, unflag ? "2026-10-06" : "2026-09-06");
+  await activity(1, "2026-10-07", {});
+}
+async function assertForeignSentinel() {
+  expect(await state(2)).toBe("active");
+  expect(await evidence(2)).toEqual({ transitions: [], audits: [] });
+}
+
 describe("atomic lag-aware inactivity flagging", () => {
   it("flags only age31 against account data-through, preserves boundary/lag/no-data/other-state/tenant rows", async () => {
     for (let n = 1; n <= 9; n++) await seed(n, n === 6 ? { state: "offboarding" } : n === 7 ? { ended: true } : n === 8 ? { anchor: false } : n === 9 ? { companyId: ids.companyB } : {});
@@ -108,6 +139,8 @@ describe("atomic lag-aware inactivity flagging", () => {
       expect(await state(1)).toBe("active");
       expect(await state(2)).toBe("flagged_inactive");
       const before = await evidence(1);
+      expect(before.transitions).toHaveLength(2);
+      expect(before.transitions.find(row => row.to_state === "active")).toMatchObject({ from_state: "flagged_inactive", to_state: "active", actor_user_id: null, occurred_at: at });
       expect(before.audits.map(row => row.action).sort()).toEqual(["request.active", "request.flagged_inactive"]);
       expect(await job.drain(at)).toEqual({ processed: 0 });
       expect(await evidence(1)).toEqual(before);
@@ -150,5 +183,136 @@ describe("atomic lag-aware inactivity flagging", () => {
       expect((await owner.query("SELECT count(*)::int AS count FROM reclamation_proposal")).rows[0].count).toBe(0);
     } finally { await owner.query("DROP TRIGGER flag_audit_failure ON audit_log; DROP FUNCTION flag_audit_failure()"); }
     expect(await run()).toBe(1);
+  });
+});
+
+
+describe("real database lock-order races", () => {
+  for (const unflag of [false, true]) {
+    const initial = unflag ? "flagged_inactive" : "active";
+    const target = unflag ? "active" : "flagged_inactive";
+    it(`preserves manual offboarding when it wins against ${initial}->${target}`, async () => {
+      await seedRace(unflag);
+      const manual = await namedApp("flag-manual-wins");
+      const worker = await namedApp("flag-manual-loser");
+      let work: Promise<number | Error> | undefined;
+      try {
+        await manual.query("BEGIN");
+        await manual.query("SELECT id FROM license_request WHERE id=$1 AND company_id=$2 FOR UPDATE", [requestId(1),ids.companyA]);
+        work = runOn(worker).catch(error => error as Error);
+        await waitBlocked("flag-manual-loser", await pid(manual));
+        await applyRequestTransitionInTransaction(drizzle(manual, { schema }), { requestId: requestId(1), from: initial, to: "offboarding", actorUserId: ids.admin, note: "Manual winner", occurredAt: at }, { expectedCompanyId: ids.companyA });
+        await manual.query("COMMIT");
+        expect(await work).toBe(0);
+        expect(await state(1)).toBe("offboarding");
+        const actual = await evidence(1);
+        expect(actual.transitions).toEqual([{ from_state: initial, to_state: "offboarding", actor_user_id: ids.admin, note: "Manual winner", occurred_at: at }]);
+        expect(actual.audits).toEqual([{ action: "request.offboarding", actor_user_id: ids.admin, before: { state: initial }, after: { state: "offboarding" }, note: "Manual winner", occurred_at: at }]);
+        await assertForeignSentinel();
+      } finally {
+        await manual.query("ROLLBACK"); await work; await manual.end(); await worker.end();
+      }
+    });
+
+    it(`rejects the manual expected-${initial} transition after ${initial}->${target} wins`, async () => {
+      await seedRace(unflag);
+      const blocker = await fixture.connectAsOwner();
+      const worker = await namedApp("flag-job-winner");
+      const manual = await namedApp("flag-job-loser");
+      const workerPid = await pid(worker);
+      let work: Promise<number | Error> | undefined;
+      let change: Promise<unknown> | undefined;
+      try {
+        await blocker.query("BEGIN; LOCK TABLE audit_log IN SHARE MODE");
+        work = runOn(worker).catch(error => error as Error);
+        await waitBlocked("flag-job-winner", await pid(blocker));
+        change = drizzle(manual, { schema }).transaction(tx => applyRequestTransitionInTransaction(tx, { requestId: requestId(1), from: initial, to: "offboarding", actorUserId: ids.admin, note: "Manual loser", occurredAt: at }, { expectedCompanyId: ids.companyA })).catch(error => error);
+        await waitBlocked("flag-job-loser", workerPid);
+        await blocker.query("COMMIT");
+        expect(await work).toBe(1);
+        expect(await change).toBeInstanceOf(Error);
+        expect((await change as Error).message).toBe(`REQUEST_STATE_CONFLICT:${requestId(1)}:${initial}:${target}`);
+        expect(await state(1)).toBe(target);
+        const actual = await evidence(1);
+        expect(actual.transitions).toHaveLength(1);
+        expect(actual.transitions[0]).toMatchObject({ from_state: initial, to_state: target, actor_user_id: null, occurred_at: at });
+        expect(actual.audits).toHaveLength(1);
+        expect(actual.audits[0]).toMatchObject({ action: `request.${target}`, actor_user_id: null, before: { state: initial }, after: { state: target }, occurred_at: at });
+        await assertForeignSentinel();
+      } finally {
+        await blocker.query("ROLLBACK"); await work; await change;
+        await blocker.end(); await worker.end(); await manual.end();
+      }
+    });
+  }
+
+  it("rechecks a closed assignment after waiting and permits the concurrent foreign-key KEY SHARE insert", async () => {
+    await seedRace(false);
+    const closer = await fixture.connectAsApp();
+    const worker = await namedApp("flag-assignment-wait");
+    let work: Promise<number | Error> | undefined;
+    try {
+      await closer.query("BEGIN");
+      await closer.query("SELECT id FROM license_assignment WHERE id=$1 AND company_id=$2 FOR UPDATE", [assignmentId(1),ids.companyA]);
+      work = runOn(worker).catch(error => error as Error);
+      await waitBlocked("flag-assignment-wait", await pid(closer));
+      // This real insert acquires FK KEY SHARE on the person while the worker
+      // holds NO KEY UPDATE and waits for our assignment. FOR UPDATE deadlocks.
+      await closer.query("SET LOCAL statement_timeout='3s'");
+      const inserted = await closer.query("INSERT INTO license_request(id,request_no,person_id,company_id,vendor_account_id,license_type_id,state,justification,created_at,created_by) VALUES($1,'FLAG-FK',$2,$3,$4,$5,'offboarding','FK compatibility',$6,$7) RETURNING id", [id(900),personId(1),ids.companyA,ids.otherAccount,ids.license,at,ids.admin]);
+      expect(inserted.rows).toHaveLength(1);
+      await closer.query("UPDATE license_assignment SET ended_on='2026-10-09',end_reason='inactive' WHERE id=$1 AND company_id=$2", [assignmentId(1),ids.companyA]);
+      await closer.query("COMMIT");
+      expect(await work).toBe(0);
+      expect(await state(1)).toBe("active");
+      expect(await evidence(1)).toEqual({ transitions: [], audits: [] });
+      expect((await owner.query("SELECT ended_on::text FROM license_assignment WHERE id=$1", [assignmentId(1)])).rows).toEqual([{ ended_on: "2026-10-09" }]);
+      await assertForeignSentinel();
+    } finally {
+      await closer.query("ROLLBACK"); await work; await closer.end(); await worker.end();
+    }
+  });
+
+  it("rechecks company membership after a concurrent transfer releases the person lock", async () => {
+    await seedRace(false);
+    const transfer = await fixture.connectAsApp();
+    const worker = await namedApp("flag-person-wait");
+    let work: Promise<number | Error> | undefined;
+    try {
+      await transfer.query("BEGIN");
+      await transfer.query("SELECT id FROM person WHERE id=$1 AND company_id=$2 FOR UPDATE", [personId(1),ids.companyA]);
+      work = runOn(worker).catch(error => error as Error);
+      await waitBlocked("flag-person-wait", await pid(transfer));
+      await transfer.query("UPDATE person SET company_id=$1 WHERE id=$2 AND company_id=$3", [ids.companyB,personId(1),ids.companyA]);
+      await transfer.query("COMMIT");
+      expect(await work).toBe(0);
+      expect(await state(1)).toBe("active");
+      expect(await evidence(1)).toEqual({ transitions: [], audits: [] });
+      expect((await owner.query("SELECT company_id::text FROM person WHERE id=$1", [personId(1)])).rows).toEqual([{ company_id: ids.companyB }]);
+      await assertForeignSentinel();
+    } finally {
+      await transfer.query("ROLLBACK"); await work; await transfer.end(); await worker.end();
+    }
+  });
+
+  it("recomputes newly committed activity after the request lock releases", async () => {
+    await seedRace(false);
+    const blocker = await fixture.connectAsApp();
+    const worker = await namedApp("flag-activity-wait");
+    let work: Promise<number | Error> | undefined;
+    try {
+      await blocker.query("BEGIN");
+      await blocker.query("SELECT id FROM license_request WHERE id=$1 AND company_id=$2 FOR UPDATE", [requestId(1),ids.companyA]);
+      work = runOn(worker).catch(error => error as Error);
+      await waitBlocked("flag-activity-wait", await pid(blocker));
+      await activity(1, "2026-10-08");
+      await blocker.query("COMMIT");
+      expect(await work).toBe(0);
+      expect(await state(1)).toBe("active");
+      expect(await evidence(1)).toEqual({ transitions: [], audits: [] });
+      await assertForeignSentinel();
+    } finally {
+      await blocker.query("ROLLBACK"); await work; await blocker.end(); await worker.end();
+    }
   });
 });
