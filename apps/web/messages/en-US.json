@@ -420,6 +420,29 @@
     "loadError": "License usage could not be loaded. Try again.",
     "retry": "Try again",
     "next": "Next page",
+    "proposal": {
+      "select": "Select",
+      "selectPerson": "Select {person}",
+      "trigger": "Propose reclamation",
+      "title": "Propose reclamation",
+      "description": "Review the selected people and optionally add a note.",
+      "selectedPeople": "{count} selected people",
+      "displayedLicenses": "{count} displayed open licenses",
+      "allOpenWarning": "All currently open licenses for the selected people will be proposed, including licenses on other pages.",
+      "note": "Note (optional)",
+      "placeholder": "Explain the proposal",
+      "cancel": "Cancel",
+      "send": "Send proposals",
+      "submitting": "Sending proposals…",
+      "close": "Close",
+      "success": "{created} proposals created; {existing} already pending.",
+      "errors": {
+        "invalid_input": "Check the selection and note (maximum 2,000 characters).",
+        "access_denied": "You cannot propose this selection. Check the company filter.",
+        "selection_changed": "The open licenses changed. Refresh the usage screen.",
+        "unexpected": "Could not complete the request. Try again."
+      }
+    },
     "states": {
       "submitted": "Submitted",
       "pending_approval": "Pending approval",

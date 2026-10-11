@@ -3,10 +3,14 @@ import Link from "next/link";
 import type messages from "../../../messages/en-US.json";
 import type { UsageReadModel } from "../../modules/usage/repository";
 import { serializeUsageFilters } from "../../modules/usage/filters";
-import { ROUTE_SCR_PERSON_DETAIL, ROUTE_SCR_USAGE } from "../../lib/routes";
+import { ROUTE_SCR_USAGE } from "../../lib/routes";
+
+import { UsageBatchTable } from "./usage-batch-table";
+import type { ReclamationAction } from "../../modules/usage/reclamation-command";
 
 export type UsageLabels = typeof messages.usage;
-export function UsageView({ model, locale, labels }: { model: UsageReadModel; locale: string; labels: UsageLabels }) {
+export type UsageViewProps = { model: UsageReadModel; locale: string; labels: UsageLabels; propose?: ReclamationAction; requestId?: () => string };
+export function UsageView({ model, locale, labels, propose, requestId }: UsageViewProps) {
   const numbers = new Intl.NumberFormat(locale);
   const percentage = new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 1 });
   const dates = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" });
@@ -14,7 +18,6 @@ export function UsageView({ model, locale, labels }: { model: UsageReadModel; lo
   const windowLabel = (text: string) => text.replace("{window}", numbers.format(model.filters.window));
   const nextHref = model.nextCursor ? `${ROUTE_SCR_USAGE}?${new URLSearchParams(serializeUsageFilters({ ...model.filters, cursor: model.nextCursor }))}` : null;
   const selectClass = "min-h-11 rounded border border-border bg-surface px-3 text-text-primary";
-  const badgeClass = "inline-flex rounded border border-border bg-surface-alt px-2 py-1 text-xs text-text-secondary";
   return (
     <main className="space-y-5 p-4 sm:p-6">
       <header className="border-b border-border pb-4">
@@ -64,27 +67,7 @@ export function UsageView({ model, locale, labels }: { model: UsageReadModel; lo
           {model.freshness.map(account => <li key={account.accountId}>{`${account.accountName}: ${account.fallback ? labels.fallback : labels.confirmed} `}{date(account.dataThrough)}</li>)}
         </ul>
       </aside>
-      <section className="overflow-x-auto rounded border border-border" data-testid="usage_table">
-        <table className="w-full border-collapse text-sm">
-          <caption className="p-4 text-left font-semibold text-text-primary">{labels.tableCaption}</caption>
-          <thead className="bg-surface-alt text-left text-text-secondary"><tr>
-            {[labels.person, labels.company, labels.lastKnownActivity, labels.daysInactive, labels.qualification, labels.license, labels.state, labels.dataThrough].map(header => <th className="p-3" key={header} scope="col">{header}</th>)}
-          </tr></thead>
-          <tbody className="text-text-primary">
-            {model.rows.map(row => <tr className="border-t border-border" key={row.assignmentId} data-assignment-id={row.assignmentId}>
-              <td className="p-3"><Link className="font-semibold text-primary underline" href={ROUTE_SCR_PERSON_DETAIL.replace(":personId", row.personId)}>{row.personName}</Link></td>
-              <td className="p-3">{row.companyName}</td>
-              <td className="p-3">{row.lastActivityDate === null ? labels.unknown : date(row.lastActivityDate)}</td>
-              <td className="p-3 text-right font-mono">{row.daysInactive === null ? labels.unknown : numbers.format(row.daysInactive)}</td>
-              <td className="p-3"><span className={badgeClass}>{row.classification === "no_data" ? labels.noData : row.classification === "inactive" ? labels.inactive : labels.active}</span><span className="ml-2 text-text-muted">{numbers.format(model.filters.window)}</span></td>
-              <td className="p-3">{`${row.licenseTypeName} · ${row.vendorAccountName}`}</td>
-              <td className="p-3"><span className={badgeClass}>{row.anchorState === null ? labels.anchorUnavailable : labels.states[row.anchorState]}</span></td>
-              <td className="p-3">{date(row.dataThrough)}</td>
-            </tr>)}
-            {model.rows.length === 0 ? <tr><td className="p-6 text-center text-text-secondary" colSpan={8}>{labels.empty}</td></tr> : null}
-          </tbody>
-        </table>
-      </section>
+      <UsageBatchTable model={model} locale={locale} labels={labels} propose={propose} requestId={requestId} />
       {nextHref ? <nav aria-label={labels.next}><Link className="inline-flex min-h-11 items-center rounded border border-border px-4 text-primary underline" href={nextHref}>{labels.next}</Link></nav> : null}
     </main>
   );

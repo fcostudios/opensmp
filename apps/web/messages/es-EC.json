@@ -420,6 +420,29 @@
     "loadError": "No se pudo cargar el uso de licencias. Inténtalo de nuevo.",
     "retry": "Reintentar",
     "next": "Página siguiente",
+    "proposal": {
+      "select": "Seleccionar",
+      "selectPerson": "Seleccionar a {person}",
+      "trigger": "Proponer reclamación",
+      "title": "Proponer reclamación",
+      "description": "Revisa las personas seleccionadas y agrega una nota opcional.",
+      "selectedPeople": "{count} personas seleccionadas",
+      "displayedLicenses": "{count} licencias abiertas mostradas",
+      "allOpenWarning": "Se propondrán todas las licencias abiertas de las personas seleccionadas, incluidas las de otras páginas.",
+      "note": "Nota (opcional)",
+      "placeholder": "Explica la propuesta",
+      "cancel": "Cancelar",
+      "send": "Enviar propuestas",
+      "submitting": "Enviando propuestas…",
+      "close": "Cerrar",
+      "success": "{created} propuestas creadas; {existing} ya pendientes.",
+      "errors": {
+        "invalid_input": "Revisa la selección y la nota (máximo 2.000 caracteres).",
+        "access_denied": "No puedes proponer esta selección. Revisa el filtro de compañía.",
+        "selection_changed": "Las licencias abiertas cambiaron. Actualiza la pantalla de uso.",
+        "unexpected": "No se pudo completar la solicitud. Inténtalo de nuevo."
+      }
+    },
     "states": {
       "submitted": "Enviada",
       "pending_approval": "Pendiente de aprobación",
