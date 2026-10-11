@@ -52,6 +52,7 @@ const QUEUE_OPTIONS = {
 const IDEMPOTENCY_WINDOW_SECONDS: Record<JobName, number> = {
   alertEvaluation: 30 * 60,
   analyticsSync: 2 * 24 * 60 * 60,
+  inactivityFlagging: 2 * 24 * 60 * 60,
   closePrecheck: 35 * 24 * 60 * 60,
   invitePoll: 30 * 60,
   memberSync: 2 * 60 * 60,

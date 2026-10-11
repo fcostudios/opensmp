@@ -13,6 +13,7 @@ import { createAutomatedInviteDeliveryJob } from "./automated-invite-delivery.js
 import { createCapacityRecoveryJob } from "./capacity-recovery.js";
 import { createAutomaticInvitationExpiryJob } from "./automatic-invitation-expiry.js";
 import { createAnalyticsActivityJob } from "./analytics-activity.js";
+import { createInactivityFlaggingJob } from "./inactivity-flagging.js";
 import { createMembershipPollJob } from "./membership-poll.js";
 
 export type WorkerJobContext = {
@@ -54,6 +55,12 @@ export function createDeferredJobHandlers(
       } finally {
         await job.close();
       }
+    },
+    inactivityFlagging: async ({ at }) => {
+      if (!services) return dependencyNotDelivered("US-074");
+      const job = createInactivityFlaggingJob({ connectionString: services.connectionString });
+      try { return successfulJob((await job.drain(at)).processed); }
+      finally { await job.close(); }
     },
     memberSync: async () => dependencyNotDelivered("US-018"),
     invitePoll: async ({ at, vendorAccountId }) => {

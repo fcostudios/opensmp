@@ -29,6 +29,9 @@ describe("US-046 deferred job handlers", () => {
       status: "skipped",
       story: "US-070",
     });
+    await expect(handlers.inactivityFlagging({ ...context, jobName: "inactivityFlagging" })).resolves.toEqual({
+      processed: 0, reason: "dependency_not_delivered", status: "skipped", story: "US-074",
+    });
     await expect(handlers.memberSync({ ...context, jobName: "memberSync" })).resolves.toMatchObject({
       reason: "dependency_not_delivered",
       status: "skipped",
@@ -112,6 +115,13 @@ describe("US-046 deferred job handlers", () => {
         idempotencyKey: "invite-poll:scheduled:2026-08-05T10:30",
         jobId: "invite-poll-test-job",
         jobName: "invitePoll",
+      })).resolves.toEqual({ processed: 0, status: "succeeded" });
+
+      await expect(handlers.inactivityFlagging({
+        at: new Date("2026-08-05T10:45:00Z"),
+        idempotencyKey: "inactivity-flagging:2026-08-05",
+        jobId: "inactivity-flagging-pool-cleanup",
+        jobName: "inactivityFlagging",
       })).resolves.toEqual({ processed: 0, status: "succeeded" });
 
       const owner = await fixture.connectAsOwner();

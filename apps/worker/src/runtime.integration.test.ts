@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import pg from "pg";
+import * as schema from "@smp/db/schema";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -191,13 +193,14 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
 
       const queues = await queryAsOwner<{ name: string; partition: boolean }>(
         "SELECT name, partition FROM pgboss.queue WHERE name = ANY($1) ORDER BY name",
-        [["analytics-sync", "member-sync", "invite-poll", "alert-evaluation", "close-precheck", "capacity-recovery"]],
+        [["analytics-sync", "inactivity-flagging", "member-sync", "invite-poll", "alert-evaluation", "close-precheck", "capacity-recovery"]],
       );
       expect(queues.rows).toEqual([
         { name: "alert-evaluation", partition: false },
         { name: "analytics-sync", partition: false },
         { name: "capacity-recovery", partition: false },
         { name: "close-precheck", partition: false },
+        { name: "inactivity-flagging", partition: false },
         { name: "invite-poll", partition: false },
         { name: "member-sync", partition: false },
       ]);
@@ -210,6 +213,7 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
         { cron: "15 10 * * *", name: "analytics-sync", timezone: "UTC" },
         { cron: "* * * * *", name: "capacity-recovery", timezone: "UTC" },
         { cron: "30 10 * * 1-5", name: "close-precheck", timezone: "UTC" },
+        { cron: "45 10 * * *", name: "inactivity-flagging", timezone: "UTC" },
         { cron: "*/15 * * * *", name: "invite-poll", timezone: "UTC" },
         { cron: "5 * * * *", name: "member-sync", timezone: "UTC" },
       ]);
@@ -228,6 +232,63 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
       await runtime.stop();
     }
   });
+
+  it("dispatches daily inactivity flagging through pg-boss and replays the same key without duplicate evidence", async () => {
+    const dailyFixture = await createPostgresFixture();
+    let runtime: WorkerRuntime | undefined;
+    let owner: pg.Client | undefined;
+    const at = new Date("2026-10-10T10:45:00Z");
+    const flagId = (n: number) => `00000000-0000-4000-8000-${String(741000 + n).padStart(12, "0")}`;
+    const logs: Array<{ jobId?: string; processed?: number; status?: string }> = [];
+    try {
+      await dailyFixture.migrate();
+      owner = await dailyFixture.connectAsOwner();
+      const db = drizzle(owner, { schema });
+      const authored = { createdAt: at, createdBy: flagId(1) };
+      await db.insert(schema.userAccount).values({ id: flagId(1), email: "daily@test.invalid", idpSubject: "daily", status: "active", createdAt: at });
+      await db.insert(schema.company).values([2,3].map(n => ({ id: flagId(n), name: `Daily${n}`, code: `D${n}`, type: "internal" as const, status: "active" as const, ...authored })));
+      await db.insert(schema.vendor).values({ id: flagId(4), name: "Daily Vendor", connectorType: "orchestration", provisioningProtocol: "none", canProvision: false, canDeprovision: false, hasUsageData: true, hasCostData: false, identityMatching: "email", status: "active", ...authored });
+      await db.insert(schema.vendorAccount).values({ id: flagId(5), vendorId: flagId(4), name: "Daily Account", mode: "orchestration", lowPoolFloor: 1, status: "active", ...authored });
+      await db.insert(schema.licenseType).values({ id: flagId(6), vendorId: flagId(4), name: "Seat", unit: "seat", status: "active", ...authored });
+      for (const n of [1,2,3]) {
+        const companyId = flagId(n === 3 ? 3 : 2);
+        await db.insert(schema.person).values({ id: flagId(10+n), companyId, email: `daily${n}@test.invalid`, fullName: `Daily${n}`, status: "active", ...authored });
+        await db.insert(schema.licenseRequest).values({ id: flagId(20+n), requestNo: `DAILY${n}`, personId: flagId(10+n), companyId, vendorAccountId: flagId(5), licenseTypeId: flagId(6), state: "active", justification: "fixture", ...authored });
+        await db.insert(schema.licenseAssignment).values({ id: flagId(30+n), personId: flagId(10+n), companyId, vendorAccountId: flagId(5), licenseTypeId: flagId(6), sourceRequestId: flagId(20+n), startedOn: "2026-08-01", sourceKind: "import", ...authored });
+      }
+      await db.insert(schema.activityRecord).values([
+        { personId: flagId(11), vendorAccountId: flagId(5), activityDate: "2026-09-06", counters: { chat_metrics: { message_count: 1 } }, syncedAt: at, source: "manual" },
+        { personId: flagId(12), vendorAccountId: flagId(5), activityDate: "2026-09-08", counters: { chat_metrics: { message_count: 1 } }, syncedAt: at, source: "manual" },
+        { personId: flagId(12), vendorAccountId: flagId(5), activityDate: "2026-10-07", counters: {}, syncedAt: at, source: "manual" },
+      ]);
+      runtime = createWorkerRuntime({ connectionString: dailyFixture.appUrl, logger: { write: entry => logs.push(entry) } });
+      await runtime.start();
+      expect((await owner.query("SELECT cron,timezone FROM pgboss.schedule WHERE name='inactivity-flagging'")).rows).toEqual([{ cron: "45 10 * * *", timezone: "UTC" }]);
+      const first = (await owner.query("INSERT INTO pgboss.job(name,data) VALUES('inactivity-flagging',jsonb_build_object('at',$1::text,'source','schedule')) RETURNING id", [at.toISOString()])).rows[0].id;
+      const assertComplete = async (jobId: string, processed: number) => {
+        await waitFor(async () => {
+          expect((await owner!.query("SELECT state FROM pgboss.job WHERE id=$1", [jobId])).rows).toEqual([{ state: "completed" }]);
+          expect(logs).toContainEqual(expect.objectContaining({ jobId, processed, status: "succeeded" }));
+        });
+      };
+      await assertComplete(first, 1);
+      expect((await owner.query("SELECT state FROM license_request WHERE company_id=$1 ORDER BY id", [flagId(2)])).rows).toEqual([{ state: "flagged_inactive" }, { state: "active" }]);
+      expect((await owner.query("SELECT state FROM license_request WHERE company_id=$1", [flagId(3)])).rows).toEqual([{ state: "active" }]);
+      expect((await owner.query("SELECT from_state,to_state,actor_user_id,occurred_at FROM request_transition WHERE request_id=$1", [flagId(21)])).rows).toEqual([{ from_state: "active", to_state: "flagged_inactive", actor_user_id: null, occurred_at: at }]);
+      const audit = (await owner.query("SELECT action,actor_user_id,before,after,occurred_at FROM audit_log WHERE company_id=$1 AND entity_id=$2", [flagId(2),flagId(21)])).rows;
+      expect(audit).toEqual([{ action: "request.flagged_inactive", actor_user_id: null, before: { state: "active" }, after: { state: "flagged_inactive" }, occurred_at: at }]);
+      const replay = await runtime.enqueue("inactivityFlagging", new Date("2026-10-10T23:00:00Z"));
+      expect(replay).toEqual(expect.any(String));
+      await assertComplete(replay!, 0);
+      expect((await owner.query("SELECT count(*)::int AS count FROM request_transition WHERE request_id=$1", [flagId(21)])).rows[0].count).toBe(1);
+      expect((await owner.query("SELECT action,actor_user_id,before,after,occurred_at FROM audit_log WHERE company_id=$1 AND entity_id=$2", [flagId(2),flagId(21)])).rows).toEqual(audit);
+      expect((await owner.query("SELECT job_name,status,result FROM pgboss.worker_job_execution WHERE idempotency_key='inactivity-flagging:2026-10-10'")).rows).toEqual([{ job_name: "inactivityFlagging", status: "succeeded", result: { processed: 1, status: "succeeded" } }]);
+      expect((await owner.query("SELECT (SELECT count(*)::int FROM reclamation_proposal) AS proposals,(SELECT count(*)::int FROM provisioning_action) AS actions")).rows[0]).toEqual({ proposals: 0, actions: 0 });
+      expect((await owner.query("SELECT count(*)::int AS count FROM audit_log WHERE company_id=$1", [flagId(3)])).rows[0].count).toBe(0);
+    } finally {
+      await runtime?.stop(); await owner?.end(); await dailyFixture.stop();
+    }
+  }, 120_000);
 
   it("runs exactly one implemented alert job for a repeated idempotency key", async () => {
     const logs: object[] = [];
@@ -476,6 +537,7 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
           "alert-evaluation",
           "close-precheck",
           "capacity-recovery",
+          "inactivity-flagging",
         ].map(async (queue) =>
           await queryAsOwner<{ id: string }>(
             `INSERT INTO pgboss.job (name, data)
@@ -486,14 +548,14 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
         ),
       );
       const jobIds = inserted.map((result) => result.rows[0]?.id).filter((id): id is string => Boolean(id));
-      expect(jobIds).toHaveLength(6);
+      expect(jobIds).toHaveLength(7);
 
       await waitFor(async () => {
         const jobs = await queryAsOwner<{ state: string }>(
           "SELECT state FROM pgboss.job WHERE id = ANY($1::uuid[])",
           [jobIds],
         );
-        expect(jobs.rows).toHaveLength(6);
+        expect(jobs.rows).toHaveLength(7);
         expect(jobs.rows.every(({ state }) => state === "completed")).toBe(true);
         for (const jobId of jobIds) {
           expect(logs.filter((entry) => entry.jobId === jobId)).toHaveLength(1);

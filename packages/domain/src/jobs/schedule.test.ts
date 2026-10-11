@@ -73,6 +73,7 @@ describe("US-046 job schedules", () => {
 
   it("defines every operational queue with its approved UTC cron schedule", () => {
     expect(JOB_SCHEDULES).toEqual({
+      inactivityFlagging: { cron: "45 10 * * *", queue: "inactivity-flagging", timeZone: "UTC" },
       analyticsSync: { cron: "15 10 * * *", queue: "analytics-sync", timeZone: "UTC" },
       memberSync: { cron: "5 * * * *", queue: "member-sync", timeZone: "UTC" },
       invitePoll: { cron: "*/15 * * * *", queue: "invite-poll", timeZone: "UTC" },
@@ -87,6 +88,7 @@ describe("US-046 job schedules", () => {
   });
 
   it("keeps the America/Guayaquil operator-time equivalents alongside the UTC schedules", () => {
+    expect(SCHEDULE_TIME_DOCUMENTATION.inactivityFlagging.americaGuayaquilCron).toBe("45 5 * * *");
     expect(SCHEDULE_TIME_DOCUMENTATION.analyticsSync.americaGuayaquilCron).toBe("15 5 * * *");
     expect(SCHEDULE_TIME_DOCUMENTATION.memberSync.americaGuayaquilCron).toBe("5 * * * *");
     expect(SCHEDULE_TIME_DOCUMENTATION.invitePoll.americaGuayaquilCron).toBe("*/15 * * * *");
@@ -114,6 +116,13 @@ describe("US-046 job schedules", () => {
       "capacity-recovery:2026-07-25T14:29",
     );
     expect(createJobIdempotencyKey("closePrecheck", { at })).toBe("close-precheck:2026-07");
+  });
+
+  it("deduplicates daily flagging across scheduled/manual launches and separates UTC dates", () => {
+    const at = new Date("2026-10-10T10:45:00Z");
+    expect(createJobIdempotencyKey("inactivityFlagging", { at })).toBe("inactivity-flagging:2026-10-10");
+    expect(createScheduledJobIdempotencyKey("inactivityFlagging", { at })).toBe("inactivity-flagging:2026-10-10");
+    expect(createJobIdempotencyKey("inactivityFlagging", { at: new Date("2026-10-11T00:00:00Z") })).toBe("inactivity-flagging:2026-10-11");
   });
 
   it("rejects a vendor-scoped key without its vendor account", () => {

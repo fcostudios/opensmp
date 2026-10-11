@@ -1,4 +1,5 @@
 export const JOB_SCHEDULES = {
+  inactivityFlagging: { cron: "45 10 * * *", queue: "inactivity-flagging", timeZone: "UTC" },
   analyticsSync: { cron: "15 10 * * *", queue: "analytics-sync", timeZone: "UTC" },
   memberSync: { cron: "5 * * * *", queue: "member-sync", timeZone: "UTC" },
   invitePoll: { cron: "*/15 * * * *", queue: "invite-poll", timeZone: "UTC" },
@@ -16,6 +17,7 @@ export const JOB_SCHEDULES = {
  * equivalents of the UTC schedules above. Galápagos is intentionally out of scope.
  */
 export const SCHEDULE_TIME_DOCUMENTATION = {
+  inactivityFlagging: { americaGuayaquilCron: "45 5 * * *" },
   analyticsSync: { americaGuayaquilCron: "15 5 * * *" },
   memberSync: { americaGuayaquilCron: "5 * * * *" },
   invitePoll: { americaGuayaquilCron: "*/15 * * * *" },
@@ -51,6 +53,7 @@ export function createJobIdempotencyKey(job: JobName, input: JobKeyInput): strin
     return `invite-poll:${vendorAccountId}:${utcQuarterHour(date)}`;
   }
 
+  if (job === "inactivityFlagging") return `inactivity-flagging:${day}`;
   if (job === "alertEvaluation") return `alert-evaluation:${utcQuarterHour(date)}`;
   if (job === "capacityRecovery") return `capacity-recovery:${date.toISOString().slice(0, 16)}`;
   return `close-precheck:${day.slice(0, 7)}`;
