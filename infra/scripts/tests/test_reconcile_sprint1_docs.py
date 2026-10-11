@@ -36,6 +36,7 @@ CHG059_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-059/7f42371"
 CHG065_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-065/7817e94"
 CHG069_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-069/84ab8ea"
 CHG079_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-079/c8f3317"
+CHG080_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-080/d9d5d48"
 CHG053_DELIVERED_ROOT = Path(__file__).parents[3]
 CHG053_GUIDES = (
     "CLAUDE.md",
@@ -103,6 +104,9 @@ def desired_guide(relative_path: str) -> bytes:
 
 
 def latest_desired_guide(relative_path: str) -> bytes:
+    chg080 = CHG080_OVERRIDE_ROOT / relative_path
+    if chg080.is_file():
+        return chg080.read_bytes()
     chg079 = CHG079_OVERRIDE_ROOT / relative_path
     if chg079.is_file():
         return chg079.read_bytes()
@@ -233,6 +237,11 @@ def copy_reconciler_data(root: Path) -> Path:
             CHG079_OVERRIDE_ROOT,
             data_root / "overrides/CHG-079/c8f3317",
         )
+    if CHG080_OVERRIDE_ROOT.is_dir():
+        shutil.copytree(
+            CHG080_OVERRIDE_ROOT,
+            data_root / "overrides/CHG-080/d9d5d48",
+        )
     return data_root
 
 
@@ -341,6 +350,103 @@ def transaction_artifacts(root: Path) -> list[Path]:
 
 
 class ReconciliationBehaviorTests(unittest.TestCase):
+    def test_chg080_manifest_binds_both_guides_and_rejects_unreviewed_bytes(self) -> None:
+        manifest_path = CHG080_OVERRIDE_ROOT / "manifest.json"
+        self.assertTrue(manifest_path.is_file(), "CHG-080 immutable layer is missing")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual(manifest, {
+            "version": 1,
+            "paths": {
+                "testing/critical-paths.md": {
+                    "source_path": "overrides/CHG-079/c8f3317/testing/critical-paths.md",
+                    "source_sha256": "9aa63e45047cfa887a40d08d484d5e4b1cb5eb8f0eef492d1252728ddfd65467",
+                    "desired_sha256": "41a9566719dc6088393a6514035d653ca13f975b90a2eb707455cd936d3474f7",
+                },
+                "docs/dev-guide/TESTING.md": {
+                    "source_path": "overrides/CHG-069/84ab8ea/docs/dev-guide/TESTING.md",
+                    "source_sha256": "50415d7ed774990b1de236fafe69ba39018d7cd4928ab71858b3a6733ff796e8",
+                    "desired_sha256": "71c65e1cb6b8e77ff883b33a3bb05947d17dd3c9794bed40dbe2d91cee0853d0",
+                },
+            },
+        })
+        for relative_path, entry in manifest["paths"].items():
+            self.assertEqual(
+                hashlib.sha256((SCRIPT_DATA_ROOT / entry["source_path"]).read_bytes()).hexdigest(),
+                entry["source_sha256"],
+            )
+            self.assertEqual(
+                hashlib.sha256((CHG080_OVERRIDE_ROOT / relative_path).read_bytes()).hexdigest(),
+                entry["desired_sha256"],
+            )
+
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "project"
+            create_project(root)
+            data_root = copy_reconciler_data(base)
+            for relative_path, entry in manifest["paths"].items():
+                (root / relative_path).write_bytes(
+                    (SCRIPT_DATA_ROOT / entry["source_path"]).read_bytes()
+                )
+            reconciled = run_reconciler(root, data_root=data_root)
+            self.assertEqual(reconciled.returncode, 0, reconciled.stderr)
+            for relative_path in manifest["paths"]:
+                self.assertEqual(
+                    (root / relative_path).read_bytes(),
+                    (CHG080_OVERRIDE_ROOT / relative_path).read_bytes(),
+                )
+            before = snapshot(root)
+            accepted = run_reconciler(root, "--check", data_root=data_root)
+            self.assertEqual(accepted.returncode, 0, accepted.stderr)
+            self.assertEqual(snapshot(root), before)
+
+        for relative_path in manifest["paths"]:
+            for fault in ("unknown_live", "missing_artifact", "corrupt_artifact"):
+                with (
+                    self.subTest(path=relative_path, fault=fault),
+                    tempfile.TemporaryDirectory() as directory,
+                ):
+                    base = Path(directory)
+                    root = base / "project"
+                    create_project(root)
+                    data_root = copy_reconciler_data(base)
+                    if fault == "unknown_live":
+                        target = root / relative_path
+                        expected_error = f"{relative_path}: unknown generated guidance state"
+                    else:
+                        target = data_root / "overrides/CHG-080/d9d5d48" / relative_path
+                        expected_error = f"{relative_path}: CHG-080"
+                    if fault == "missing_artifact":
+                        target.unlink()
+                    else:
+                        target.write_bytes(target.read_bytes() + b"unreviewed bytes\n")
+                    before = snapshot(root)
+                    data_before = snapshot(data_root)
+                    rejected = run_reconciler(root, data_root=data_root)
+                    self.assertNotEqual(rejected.returncode, 0)
+                    self.assertIn(expected_error, rejected.stderr)
+                    self.assertEqual(snapshot(root), before)
+                    self.assertEqual(snapshot(data_root), data_before)
+
+        for fault in ("missing", "corrupt"):
+            with self.subTest(manifest=fault), tempfile.TemporaryDirectory() as directory:
+                base = Path(directory)
+                root = base / "project"
+                create_project(root)
+                data_root = copy_reconciler_data(base)
+                target = data_root / "overrides/CHG-080/d9d5d48/manifest.json"
+                if fault == "missing":
+                    target.unlink()
+                else:
+                    target.write_bytes(b"{invalid JSON\n")
+                before = snapshot(root)
+                data_before = snapshot(data_root)
+                rejected = run_reconciler(root, data_root=data_root)
+                self.assertNotEqual(rejected.returncode, 0)
+                self.assertIn("CHG-080 override manifest", rejected.stderr)
+                self.assertEqual(snapshot(root), before)
+                self.assertEqual(snapshot(data_root), data_before)
+
     def test_chg079_manifest_binds_canonical_critical_set_and_rejects_unknown_bytes(self) -> None:
         relative_path = "testing/critical-paths.md"
         manifest = json.loads(
