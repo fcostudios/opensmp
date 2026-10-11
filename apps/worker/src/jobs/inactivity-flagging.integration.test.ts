@@ -1,5 +1,5 @@
 import { evaluateInactivity, hasPositiveVendorActivity } from "@smp/domain/usage/inactivity";
-import { createInactivityFlaggingRepository } from "@smp/db/inactivity-flagging";
+import { createInactivityFlaggingRepository } from "../../../../packages/db/src/inactivity-flagging.js";
 import { applyRequestTransitionInTransaction } from "@smp/db/request-transition";
 import * as schema from "@smp/db/schema";
 import { createPostgresFixture, type PostgresFixture } from "@smp/db/testing/postgres-container";
@@ -133,9 +133,14 @@ describe("atomic lag-aware inactivity flagging", () => {
     await activity(1, "2026-09-06"); await activity(1, "2026-10-07", { chat_metrics: null });
     expect(await run()).toBe(1);
     await activity(1, "2026-10-08", { cowork_metrics: { sessions_with_file_edits_count: 1 } });
-    const job = createInactivityFlaggingJob({ connectionString: fixture.appUrl });
+    const poolCount = async () => (await owner.query("SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname=$1 AND usename='ledger_app' AND application_name='flag-resource-close'", [fixture.databaseName])).rows[0].count;
+    const connectionsBefore = await poolCount();
+    const resourceUrl = new URL(fixture.appUrl);
+    resourceUrl.searchParams.set("application_name", "flag-resource-close");
+    const job = createInactivityFlaggingJob({ connectionString: resourceUrl.toString() });
     try {
       expect(await job.drain(at)).toEqual({ processed: 1 });
+      expect(await poolCount()).toBe(1);
       expect(await state(1)).toBe("active");
       expect(await state(2)).toBe("flagged_inactive");
       const before = await evidence(1);
@@ -147,6 +152,7 @@ describe("atomic lag-aware inactivity flagging", () => {
       expect(await evidence(2)).toEqual({ transitions: [], audits: [] });
       await expect(job.drain(new Date("invalid"))).rejects.toThrow("Invalid inactivity flagging timestamp");
     } finally { await job.close(); }
+    expect(await poolCount()).toBe(connectionsBefore);
   });
 
   it("never borrows activity from another account and enumerates inactive companies", async () => {
@@ -171,6 +177,14 @@ describe("atomic lag-aware inactivity flagging", () => {
     expect(await states([1,2,3])).toEqual(["active","active","active"]);
     for (const n of [1,2,3]) expect(await evidence(n)).toEqual({ transitions: [], audits: [] });
     expect((await owner.query("SELECT count(*)::int AS count FROM license_assignment WHERE ended_on IS NOT NULL")).rows[0].count).toBe(0);
+  });
+
+  it("rejects an invalid injected repository timestamp before writing an eligible request", async () => {
+    await seedRace(false);
+    await expect(repository.runForCompany({ companyId: ids.companyA, evaluationDate: "2026-10-10", occurredAt: new Date("invalid") })).rejects.toThrow("Invalid inactivity flagging timestamp");
+    expect(await state(1)).toBe("active");
+    expect(await evidence(1)).toEqual({ transitions: [], audits: [] });
+    await assertForeignSentinel();
   });
 
   it("rolls state and transition back when the audit insert fails", async () => {

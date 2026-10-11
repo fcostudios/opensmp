@@ -279,6 +279,10 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
       expect(audit).toEqual([{ action: "request.flagged_inactive", actor_user_id: null, before: { state: "active" }, after: { state: "flagged_inactive" }, occurred_at: at }]);
       const replay = await runtime.enqueue("inactivityFlagging", new Date("2026-10-10T23:00:00Z"));
       expect(replay).toEqual(expect.any(String));
+      // Assert the persisted queue throttling period independently of our
+      // runtime's constant, against the timestamp of this actual DB insertion.
+      const bucket = (await owner.query("SELECT extract(epoch FROM singleton_on)::bigint AS singleton_epoch,extract(epoch FROM created_on)::bigint AS created_epoch FROM pgboss.job WHERE id=$1", [replay])).rows[0];
+      expect(Number(bucket.singleton_epoch)).toBe(Math.floor(Number(bucket.created_epoch) / 172800) * 172800);
       await assertComplete(replay!, 0);
       expect((await owner.query("SELECT count(*)::int AS count FROM request_transition WHERE request_id=$1", [flagId(21)])).rows[0].count).toBe(1);
       expect((await owner.query("SELECT action,actor_user_id,before,after,occurred_at FROM audit_log WHERE company_id=$1 AND entity_id=$2", [flagId(2),flagId(21)])).rows).toEqual(audit);
