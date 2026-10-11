@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { finalizeOffboarding, validateOffboardingFacts, type OffboardingConfirmation, type OffboardingCompletion, type OffboardingFacts, type OffboardingTransactionPort } from "@smp/domain/request-workflow";
 
 import {
   createConnectorDispatcher,
@@ -36,6 +37,48 @@ import {
   applyLockedRequestTransition,
   type LedgerTransaction,
 } from "./transition-core";
+
+/** Uses the caller's existing transaction; no worker or DB-package dependency is introduced. */
+export function createOffboardingTransactionPort(transaction: LedgerTransaction, authorization: LedgerAuthorization): OffboardingTransactionPort {
+  assertGroupAdmin(authorization);
+  return { runAtomic: async work => work({
+    async loadFacts(actionId) {
+      const hint=await transaction.execute<{requestId:string}>(sql`SELECT request_id::text AS "requestId" FROM provisioning_action WHERE id=${actionId}::uuid`);
+      const requestId=hint.rows[0]?.requestId;
+      if(!requestId)throw new Error("OFFBOARDING_CONFLICT");
+      const requests=await transaction.execute<OffboardingFacts["request"]>(sql`SELECT id::text,company_id::text AS "companyId",person_id::text AS "personId",vendor_account_id::text AS "vendorAccountId",license_type_id::text AS "licenseTypeId",license_assignment_id::text AS "assignmentId",state::text FROM license_request WHERE id=${requestId}::uuid FOR UPDATE`);
+      const request=requests.rows[0];
+      if(!request)throw new Error("OFFBOARDING_CONFLICT");
+      const actions=await transaction.execute<{id:string;requestId:string;vendorAccountId:string;kind:string;mode:string;status:string;rawRequest:{operation?:unknown;context?:unknown}}>(sql`SELECT id::text,request_id::text AS "requestId",vendor_account_id::text AS "vendorAccountId",kind::text,mode::text,status::text,raw_request AS "rawRequest" FROM provisioning_action WHERE id=${actionId}::uuid FOR UPDATE`);
+      const action=actions.rows[0];
+      if(!action)throw new Error("OFFBOARDING_CONFLICT");
+      if(action.mode==="orchestration")validatedChecklistSteps(action.rawRequest);
+      const holder=await transaction.execute<{id:string}>(sql`SELECT id::text FROM person WHERE id=${request.personId}::uuid AND company_id=${request.companyId}::uuid`);
+      if(!holder.rows[0])throw new Error("OFFBOARDING_CONFLICT");
+      const assignments=await transaction.execute<OffboardingFacts["assignments"][number]>(sql`SELECT id::text,source_request_id::text AS "requestId",company_id::text AS "companyId",person_id::text AS "personId",vendor_account_id::text AS "vendorAccountId",license_type_id::text AS "licenseTypeId",started_on::text AS "startedOn",ended_on::text AS "endedOn",end_reason::text AS "endReason" FROM license_assignment WHERE source_request_id=${request.id}::uuid ORDER BY id FOR UPDATE`);
+      const original=await transaction.execute<{completion:OffboardingCompletion}>(sql`SELECT after AS completion FROM audit_log WHERE entity_type='ProvisioningAction' AND entity_id=${actionId}::uuid AND company_id=${request.companyId}::uuid AND action='offboarding.removal_confirmed'`);
+      return {action:{...action,operation:action.rawRequest?.operation,context:action.rawRequest?.context},request,assignments:assignments.rows,original:original.rows[0]?.completion??null};
+    },
+    async complete(result,command) {
+      if(command.actorUserId!==authorization.userAccountId)throw new Error("OFFBOARDING_CONFLICT");
+      const closed=await transaction.execute(sql`UPDATE license_assignment SET ended_on=${result.endedOn}::date,end_reason=${result.endReason} WHERE id IN (${sql.join(result.assignmentIds.map(id=>sql`${id}::uuid`),sql`, `)}) AND source_request_id=${result.requestId}::uuid AND company_id=${command.companyId}::uuid AND ended_on IS NULL`);
+      if(closed.rowCount!==result.assignmentIds.length)throw new Error("OFFBOARDING_CONFLICT");
+      const confirmed=await transaction.execute(sql`UPDATE provisioning_action SET status='confirmed',resolved_at=${command.confirmedAt},failure_reason=NULL WHERE id=${command.actionId}::uuid AND request_id=${result.requestId}::uuid AND status IN ('pending','sent','failed')`);
+      if(confirmed.rowCount!==1)throw new Error("OFFBOARDING_CONFLICT");
+      await applyLockedRequestTransition(transaction,authorization,{actorUserId:command.actorUserId,from:"offboarding",to:"deprovisioned",requestId:result.requestId,occurredAt:command.confirmedAt,note:"Anchored removal confirmed"});
+      await transaction.execute(sql`INSERT INTO audit_log(actor_user_id,action,entity_type,entity_id,company_id,before,after,occurred_at) VALUES(${command.actorUserId}::uuid,'offboarding.removal_confirmed','ProvisioningAction',${command.actionId}::uuid,${command.companyId}::uuid,NULL,${JSON.stringify(result)}::jsonb,${command.confirmedAt})`);
+    },
+  }) };
+}
+
+export async function finalizeOffboardingInTransaction(transaction:LedgerTransaction,authorization:LedgerAuthorization,command:OffboardingConfirmation) {
+  return finalizeOffboarding(command,createOffboardingTransactionPort(transaction,authorization));
+}
+
+export async function isRemovalChecklistAction(database: Pick<LedgerTransaction,"execute">, actionId:string):Promise<boolean> {
+  const result=await database.execute(sql`SELECT 1 FROM provisioning_action WHERE id=${actionId}::uuid AND mode='orchestration' AND (kind='remove' OR (kind='checklist' AND raw_request->>'operation'='deprovision'))`);
+  return result.rows.length>0;
+}
 
 type RouteWire = {
   accountMode: "automated" | "orchestration";
@@ -277,7 +320,7 @@ export function createOrchestrationOperations(
               ON holder.id = request.person_id
              AND holder.company_id = request.company_id
             WHERE request.id = ${requestId}::uuid
-              AND action.kind = 'checklist'
+              AND (action.kind = 'checklist' OR (action.kind='remove' AND request.state='offboarding' AND action.raw_request->>'operation'='deprovision'))
               AND action.mode = 'orchestration'
               AND action.status IN ('pending','sent')
             LIMIT 1`,
@@ -424,6 +467,15 @@ export function createOrchestrationOperations(
       assertGroupAdmin(authorization);
       const input = parseConfirmChecklist(untrustedInput);
       const occurredAt = now();
+      if(await isRemovalChecklistAction(database,input.actionId)) {
+        return database.transaction(async transaction=>{
+          const identity=await transaction.execute<{requestId:string;companyId:string}>(sql`SELECT request.id::text AS "requestId",request.company_id::text AS "companyId" FROM provisioning_action action JOIN license_request request ON request.id=action.request_id WHERE action.id=${input.actionId}::uuid`);
+          const target=identity.rows[0];
+          if(!target)throw new Error("OFFBOARDING_CONFLICT");
+          const completion=await finalizeOffboardingInTransaction(transaction,authorization,{...target,actionId:input.actionId,actorUserId:authorization.userAccountId,confirmationId:input.confirmationId,confirmedAt:occurredAt});
+          return {...completion,assignmentId:completion.assignmentIds[0]!,status:"deprovisioned" as const};
+        });
+      }
       const attestedOn = ecuadorOperatingDate(occurredAt);
       return database.transaction(async (transaction) => {
         const pool = await transaction.execute<{
@@ -621,6 +673,24 @@ export function createOrchestrationOperations(
       const reason = parsed.reason.trim();
       if (!reason) throw new TypeError("FAILURE_REASON_REQUIRED");
       const occurredAt = now();
+      if(await isRemovalChecklistAction(database,parsed.actionId)) {
+        return database.transaction(async transaction=>{
+          const port=createOffboardingTransactionPort(transaction,authorization);
+          return port.runAtomic(async persistence=>{
+            const facts=await persistence.loadFacts(parsed.actionId);
+            validateOffboardingFacts({actionId:parsed.actionId,requestId:facts.request.id,companyId:facts.request.companyId,actorUserId:authorization.userAccountId,confirmationId:parsed.failureId,confirmedAt:occurredAt},facts);
+            if(facts.original || facts.request.state!=="offboarding" || !["pending","sent"].includes(facts.action.status) || facts.assignments.some(row=>row.endedOn!==null))throw new Error("OFFBOARDING_CONFLICT");
+            const previous=await transaction.execute<{reason:string}>(sql`SELECT after->>'reason' AS reason FROM audit_log WHERE entity_id=${parsed.actionId}::uuid AND entity_type='ProvisioningAction' AND company_id=${facts.request.companyId}::uuid AND action='offboarding.removal_unconfirmed' AND after->>'failureId'=${parsed.failureId}`);
+            if(previous.rows[0]) {
+              if(previous.rows[0].reason!==reason)throw new Error("IDEMPOTENCY_CONFLICT");
+              return {requestId:facts.request.id,status:"offboarding" as const};
+            }
+            await transaction.execute(sql`UPDATE provisioning_action SET failure_reason=${reason} WHERE id=${parsed.actionId}::uuid AND request_id=${facts.request.id}::uuid`);
+            await transaction.execute(sql`INSERT INTO audit_log(actor_user_id,action,entity_type,entity_id,company_id,before,after,occurred_at) VALUES(${authorization.userAccountId}::uuid,'offboarding.removal_unconfirmed','ProvisioningAction',${parsed.actionId}::uuid,${facts.request.companyId}::uuid,NULL,${JSON.stringify({failureId:parsed.failureId,reason})}::jsonb,${occurredAt})`);
+            return {requestId:facts.request.id,status:"offboarding" as const};
+          });
+        });
+      }
       return database.transaction(async (transaction) => {
         await transaction.execute(
           // Stryker disable next-line StringLiteral: @equivalent Changing the

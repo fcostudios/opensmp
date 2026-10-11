@@ -8,6 +8,8 @@ import {
 } from "@smp/db/testing/postgres-container";
 import * as schema from "@smp/db/schema";
 
+import { finalizeOffboarding } from "@smp/domain/request-workflow";
+import { createPeopleRepository } from "../org-registry/repository";
 import type { LedgerAuthorization } from "../identity-access/authorization";
 import {
   createChecklistActionService,
@@ -16,6 +18,7 @@ import {
 import { createMemberSyncChecklistObservationPort } from "./member-sync-checklist-observation";
 import {
   createOrchestrationService,
+  createOffboardingTransactionPort,
   type OrchestrationService,
 } from "./orchestration";
 
@@ -1772,5 +1775,76 @@ describe("US-020 orchestration checklist", () => {
     await expect(
       disposable.pendingChecklist(authorization, ids.request),
     ).rejects.toThrow();
+  });
+});
+
+async function startRemoval(endReason: "left_company" | "inactive" = "left_company") {
+  const routed = await service.routeApprovedRequest(authorization, ids.request);
+  const provisioned = await service.confirmChecklistDone(authorization, {actionId:routed.id,confirmationId:"initial-seat"});
+  const repository=createPeopleRepository(drizzle(actionPool,{schema}));
+  const removal=await repository.startOffboarding(authorization,{personId:ids.person,requestId:ids.request,endReason,note:"Confirmed seat removal"},occurredAt);
+  return {actionId:removal.provisioningActionIds[0]!,assignmentId:provisioned.assignmentId};
+}
+
+async function removalFacts(actionId:string) {
+  return (await owner.query(`SELECT request.state,action.status,action.failure_reason,
+    assignment.ended_on::text,assignment.end_reason,
+    (SELECT count(*)::int FROM request_transition WHERE request_id=request.id AND to_state='deprovisioned') AS transitions,
+    (SELECT count(*)::int FROM audit_log WHERE entity_id=action.id AND action='offboarding.removal_confirmed') AS completions
+    FROM provisioning_action action JOIN license_request request ON request.id=action.request_id
+    JOIN license_assignment assignment ON assignment.id=request.license_assignment_id WHERE action.id=$1`,[actionId])).rows;
+}
+
+describe("US-075 shared offboarding finalization",()=>{
+  it.each(["left_company","inactive"] as const)("closes %s only on confirmed Ecuador date and preserves original evidence on concurrent replay",async reason=>{
+    const removal=await startRemoval(reason);
+    const database=drizzle(actionPool,{schema});
+    const command={actionId:removal.actionId,requestId:ids.request,companyId:ids.company,actorUserId:ids.admin,confirmationId:"first-confirmation",confirmedAt:new Date("2026-07-29T04:59:59.999Z")};
+    const invoke=(value=command)=>database.transaction(tx=>finalizeOffboarding(value,createOffboardingTransactionPort(tx,authorization)));
+    const attempts=await Promise.allSettled([invoke(),invoke()]);
+    const completions=attempts.map(value=>{if(value.status!=="fulfilled")throw value.reason;return value.value;});
+    expect(completions.map(value=>value.replayed).sort()).toEqual([false,true]);
+    const first=completions.find(value=>!value.replayed)!;
+    const concurrent=completions.find(value=>value.replayed)!;
+    expect(first).toMatchObject({requestId:ids.request,assignmentIds:[removal.assignmentId],endedOn:"2026-07-28",endReason:reason,confirmedAt:command.confirmedAt.toISOString()});
+    expect(concurrent).toMatchObject({endedOn:first.endedOn,confirmedAt:first.confirmedAt,replayed:true});
+    expect(await invoke({...command,confirmationId:"different-confirmation",confirmedAt:new Date("2026-07-30T05:00:00Z")})).toMatchObject({...first,replayed:true});
+    expect(await removalFacts(removal.actionId)).toEqual([{state:"deprovisioned",status:"confirmed",failure_reason:null,ended_on:"2026-07-28",end_reason:reason,transitions:1,completions:1}]);
+    expect((await owner.query("SELECT status FROM person WHERE id=$1",[ids.person])).rows).toEqual([{status:"active"}]);
+    await owner.query("UPDATE provisioning_action SET raw_request=jsonb_set(raw_request,'{context,endReason}', '\"inactive\"') WHERE id=$1",[removal.actionId]);
+    if(reason==="left_company")await expect(invoke()).rejects.toThrow("OFFBOARDING_CONFLICT");
+  });
+
+  it("rejects wrong tenant and close-before-start, and rolls every write back on completion audit failure",async()=>{
+    const removal=await startRemoval();
+    const database=drizzle(actionPool,{schema});
+    const command={actionId:removal.actionId,requestId:ids.request,companyId:ids.company,actorUserId:ids.admin,confirmationId:"rollback-confirm",confirmedAt:new Date("2026-07-29T05:00:00Z")};
+    const invoke=(value=command)=>database.transaction(tx=>finalizeOffboarding(value,createOffboardingTransactionPort(tx,authorization)));
+    await expect(invoke({...command,companyId:ids.otherCompany})).rejects.toThrow("OFFBOARDING_CONFLICT");
+    await owner.query("UPDATE provisioning_action SET raw_request=jsonb_set(raw_request,'{context,assignmentIds}',$2::jsonb) WHERE id=$1",[removal.actionId,JSON.stringify([ids.failureAction])]);
+    await expect(invoke()).rejects.toThrow("OFFBOARDING_CONFLICT");
+    await owner.query("UPDATE provisioning_action SET raw_request=jsonb_set(raw_request,'{context,assignmentIds}',$2::jsonb) WHERE id=$1",[removal.actionId,JSON.stringify([removal.assignmentId])]);
+
+    await expect(invoke({...command,confirmedAt:new Date("2026-07-27T04:59:59Z")})).rejects.toThrow("OFFBOARDING_CONFLICT");
+    await owner.query(`CREATE FUNCTION reject_us075_completion() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='offboarding.removal_confirmed' THEN RAISE EXCEPTION 'forced completion audit failure'; END IF; RETURN NEW; END $$`);
+    await owner.query("CREATE TRIGGER reject_us075_completion BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION reject_us075_completion()");
+    try{await expect(invoke()).rejects.toThrow("forced completion audit failure");}finally{await owner.query("DROP TRIGGER reject_us075_completion ON audit_log");await owner.query("DROP FUNCTION reject_us075_completion()");}
+    expect(await removalFacts(removal.actionId)).toEqual([{state:"offboarding",status:"pending",failure_reason:null,ended_on:null,end_reason:null,transitions:0,completions:0}]);
+    expect(await invoke()).toMatchObject({endedOn:"2026-07-29",replayed:false});
+  });
+
+  it("confirms and records unconfirmed attempts through the real wrappers without duplicate replay audits",async()=>{
+    const removal=await startRemoval("inactive");
+    const input={actionId:removal.actionId,failureId:"manual-attempt",reason:"Vendor console unavailable"};
+    expect(await actionService.markChecklistNotDone(input)).toEqual({ok:true,requestId:ids.request});
+    expect(await actionService.markChecklistNotDone(input)).toEqual({ok:true,requestId:ids.request});
+    expect(await actionService.markChecklistNotDone({...input,reason:"Changed reason"})).toEqual({ok:false,error:"conflict"});
+    expect(await removalFacts(removal.actionId)).toEqual([{state:"offboarding",status:"pending",failure_reason:input.reason,ended_on:null,end_reason:null,transitions:0,completions:0}]);
+    expect((await owner.query("SELECT count(*)::int AS count FROM audit_log WHERE entity_id=$1 AND action='offboarding.removal_unconfirmed'",[removal.actionId])).rows).toEqual([{count:1}]);
+    expect(await service.pendingChecklist(authorization,ids.request)).toMatchObject({id:removal.actionId});
+    expect(await actionService.confirmChecklistDone({actionId:removal.actionId,confirmationId:"manual-done"})).toEqual({ok:true,requestId:ids.request});
+    expect(await actionService.confirmChecklistDone({actionId:removal.actionId,confirmationId:"manual-done-again"})).toEqual({ok:true,requestId:ids.request});
+    expect((await removalFacts(removal.actionId))[0]).toMatchObject({state:"deprovisioned",status:"confirmed",failure_reason:null,transitions:1,completions:1});
+    expect((await owner.query("SELECT count(*)::int AS count FROM audit_log WHERE entity_id=$1 AND action IN ('server_action.confirmChecklistDone','server_action.markChecklistNotDone')",[removal.actionId])).rows).toEqual([{count:0}]);
   });
 });

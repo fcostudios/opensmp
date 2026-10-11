@@ -12,7 +12,7 @@ import {
   safeParseFailChecklist,
 } from "../orchestration-contract";
 import { createLifecycleNotificationDispatcher } from "../lifecycle-notifications";
-import { createOrchestrationOperations } from "../orchestration";
+import { createOrchestrationOperations, isRemovalChecklistAction } from "../orchestration";
 import {
   loadProductionChecklistAuthorization,
   productionChecklistClock,
@@ -47,6 +47,16 @@ export function createChecklistActionService(
 ) {
   return {
     async confirmChecklistDone(input: unknown): Promise<ChecklistActionResult> {
+      const removalInput=safeParseConfirmChecklist(input);
+      if(removalInput.success && await isRemovalChecklistAction(database,removalInput.data.actionId)) {
+        const authorization=await loadAuthorization();
+        if(!authorization || authorization.globalRole!=="group_admin")return {ok:false,error:"forbidden"};
+        try {
+          const operations=createOrchestrationOperations(database,{now});
+          const result=await operations.confirmChecklistDone(authorization,input);
+          return {ok:true,requestId:result.requestId};
+        }catch(error){return {ok:false,error:rejectedError(error)};}
+      }
       return withAudit<ChecklistActionResult>(database, async (transaction) => {
         const occurredAt = now();
         const parsed = safeParseConfirmChecklist(input);
@@ -164,6 +174,16 @@ export function createChecklistActionService(
     },
 
     async markChecklistNotDone(input: unknown): Promise<ChecklistActionResult> {
+      const removalInput=safeParseFailChecklist(input);
+      if(removalInput.success && await isRemovalChecklistAction(database,removalInput.data.actionId)) {
+        const authorization=await loadAuthorization();
+        if(!authorization || authorization.globalRole!=="group_admin")return {ok:false,error:"forbidden"};
+        try {
+          const operations=createOrchestrationOperations(database,{now});
+          const result=await operations.markChecklistNotDone(authorization,input);
+          return {ok:true,requestId:result.requestId};
+        }catch(error){return {ok:false,error:rejectedError(error)};}
+      }
       return withAudit<ChecklistActionResult>(database, async (transaction) => {
         const occurredAt = now();
         const parsed = safeParseFailChecklist(input);

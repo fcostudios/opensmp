@@ -109,6 +109,7 @@ beforeAll(async () => {
         ids.admin,
       ],
     );
+    await owner.query("UPDATE license_request SET license_assignment_id=$1 WHERE id=$2",[ids.assignment,ids.request]);
   } finally {
     await owner.end();
   }
@@ -169,7 +170,7 @@ describe("US-024 real offboarding workflow alert integration", () => {
       expect(persisted.rows).toMatchObject([{
         end_reason: null,
         ended_on: null,
-        kind: "checklist",
+        kind: "remove",
         mode: "orchestration",
         raw_request: {
           context: {
