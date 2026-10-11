@@ -1,28 +1,16 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "2d32ab167ef76cb5b3f20561a89077d5251d16140870a6d9889bcd2e8c07fbaf",
+  "readiness_payload_sha256": "704cccf2d532105e0e863546417a8491abe34cb257ad6c2b95dc1573b7434356",
   "work_id": "US-027",
   "kind": "US",
   "work_type": "functional",
-  "title": "Inactivity flags + usage surface",
+  "title": "Verify the delivered inactivity flags and usage aggregate",
   "source": "docs/stories/sprint-3/r1_misc_us_027.md",
   "outcomes": [
     {
       "id": "O1",
-      "statement": "Group Admins see, on SCR-usage (/uso), per-person last activity and days inactive for their companies against a lag-aware data-through date, with company and 30/60/90 window filters, active/flagged/no-data metric cards, window and state badges, and the ~3-day freshness banner.",
-      "demo": "Seed two companies with activity at varied ages and a vendor account synced three days ago: /uso as group_admin lists only own-company people, days inactive counts from the data-through date (a person last active on the last synced day shows 0, not 3), the 30/60/90 filter changes the badge set and metric cards, people with no activity count as no data; a non-group_admin role is refused.",
-      "primary": true
-    },
-    {
-      "id": "O2",
-      "statement": "Group Admins select inactive people on SCR-usage and propose reclamation in one audited batch with an optional note, creating at most one pending ReclamationProposal per open assignment.",
-      "demo": "Select three flagged people and submit a note: three pending proposals with the note and proposed_by = the admin exist, one audit entry per proposal; resubmitting the same selection creates none; a person from another company in the payload is rejected; a non-group_admin role is refused.",
-      "primary": true
-    },
-    {
-      "id": "O3",
-      "statement": "An audited daily inactivityFlagging job after analyticsSync sets flagged_inactive on the anchor LicenseRequest of each open assignment whose person has more than 30 days of inactivity against lag-aware data_through, returns flagged_inactive to active when activity resumes, leaves other states untouched and creates no proposals; 60/90 days are display filters only.",
-      "demo": "Activity ending 31 and 29 days before data_through flags only the first anchor request with a RequestTransition and audit entry; renewed activity returns a flagged request to active with its own transition and audit; reruns change nothing, concurrent manual transitions resolve cleanly, other states and companies are untouched, analytics lag alone never flags.",
+      "statement": "Close the US-027 aggregate by traceable parent-level verification of canonical completed children US-072, US-073 and US-074 without reimplementation.",
+      "demo": "Three parent AC verifications cite child adversarial AC, build and authoritative mutation evidence; run the current full gate once on source 102dd982493a491d926c7c5bc9f479cbaf540906; change only docs/readiness/US-027.json and .nous-feedback.jsonl.",
       "primary": true
     }
   ],
@@ -30,247 +18,76 @@
     {
       "id": "AC1",
       "outcome_ids": [
-        "O1",
-        "O2"
+        "O1"
       ]
     },
     {
       "id": "AC2",
       "outcome_ids": [
-        "O1",
-        "O3"
+        "O1"
       ]
     },
     {
       "id": "AC3",
       "outcome_ids": [
-        "O3"
+        "O1"
       ]
     }
   ],
   "scopes": [
     "contracts",
-    "db",
-    "server",
-    "ui",
-    "worker"
+    "docs"
   ],
   "signals": {
-    "routes_or_screens": 1,
-    "acceptance_flows": 5,
-    "expected_changed_files": 24,
-    "expected_mutation_shards": 8,
-    "lifecycle_or_concurrency_boundaries": 1,
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 2,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
     "external_integrations": 0,
     "schema_or_migration_changes": 0,
-    "authorization_or_audit_boundaries": 1,
+    "authorization_or_audit_boundaries": 0,
     "tooling_change": false
   },
   "estimate_minutes": {
-    "readiness": 75,
-    "implementation": 300,
-    "focused_verification": 145,
-    "review": 160,
-    "integration": 70,
-    "total": 750
+    "readiness": 10,
+    "implementation": 0,
+    "focused_verification": 25,
+    "review": 10,
+    "integration": 15,
+    "total": 60
   },
   "uncertainties": [
     {
       "id": "U1",
-      "statement": "Prerequisite US-026 is complete.",
+      "statement": "Whether this parent requires reimplementation.",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "US-026 (with children US-070/US-071) has a terminal done event and is dev_done; activity_record carries activity_date and synced_at. Recorded as a resolved prerequisite, not a blocked_by dependency."
+      "resolution": "Canonical parent Notes under CHG-071 require parent-level verification after children dev_done. US-072/073/074 and CHG-071 are dev_done in the delivered sprint plan and CHANGES.md at 102dd98. Historical 750-minute partition_required assessment with official child allocations remains at 102dd982493a491d926c7c5bc9f479cbaf540906:docs/readiness/US-027.json. No production, test, migration or executable tooling changes are authorized."
     },
     {
       "id": "U2",
-      "statement": "Inactivity policy, proposal idempotency and flag ownership are now canonical.",
+      "statement": "Whether all parent acceptance criteria have child evidence.",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "CHG-071 delivered DEC-SMP-026/027/028 and docs/specs/09b_business_rules.md BR-16: lag-aware data_through; existing pending-proposal partial UNIQUE, client_request_id audited only, no migration; daily flagging after analyticsSync at the 30-day window, 60/90 display-only, no auto-proposals, flagged_inactive -> active when activity resumes."
+      "resolution": "AC1 maps to US-072 read surface and US-073 batch action; AC2 maps to US-072 lag-aware display and US-074 state; AC3 maps to US-074 daily anchor flagging and renewed-activity return. Scoped reviewer verifies each child test_report, build_pass and adversarial ac_verify event before parent closure."
     },
     {
       "id": "U3",
-      "statement": "The parent exceeds execution limits (750 min > 320, five scopes, five acceptance flows, 24 files, three primary outcomes).",
+      "statement": "Whether parent verification requires a mutation campaign.",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Partitioned into three vertical children of 260, 230 and 260 minutes; every parent AC is assigned and duplicated coverage carries a rationale. US-028 keeps approve/dismiss, suppression after dismissal, offboarding and /reclamaciones."
+      "resolution": "Only readiness JSON and append-only feedback change; no mutatable source changes. Retain child authoritative campaigns, run one current full gate with caffeinate -i and /tmp/smp-full-gate.lock held using MUTATION_BASE=102dd982493a491d926c7c5bc9f479cbaf540906 for the parent documentation-only diff. No parent campaign or test_report."
     }
   ],
   "dependencies": [],
-  "decision": "partition_required",
-  "partitions": [
-    {
-      "proposal_key": "usage-surface",
-      "work_id": "US-072",
-      "title": "Usage surface: lag-aware inactivity per person on SCR-usage",
-      "outcome": "Group Admins see, on SCR-usage (/uso), per-person last activity and days inactive for their companies against a lag-aware data-through date, with company and 30/60/90 window filters, active/flagged/no-data metric cards, window and state badges, and the ~3-day freshness banner.",
-      "demo": "Seed two companies with activity at varied ages and a vendor account synced three days ago: /uso as group_admin lists only own-company people, days inactive counts from the data-through date (a person last active on the last synced day shows 0, not 3), the 30/60/90 filter changes the badge set and metric cards, people with no activity count as no data; a non-group_admin role is refused.",
-      "acceptance_criteria": [
-        "AC1",
-        "AC2"
-      ],
-      "work_type": "functional",
-      "scopes": [
-        "contracts",
-        "server",
-        "ui"
-      ],
-      "signals": {
-        "routes_or_screens": 1,
-        "acceptance_flows": 2,
-        "expected_changed_files": 10,
-        "expected_mutation_shards": 3,
-        "lifecycle_or_concurrency_boundaries": 0,
-        "external_integrations": 0,
-        "schema_or_migration_changes": 0,
-        "authorization_or_audit_boundaries": 1,
-        "tooling_change": false
-      },
-      "uncertainties": [
-        {
-          "id": "A1",
-          "statement": "The lag-aware policy is canonical and shared with US-074.",
-          "status": "resolved",
-          "estimate_impact_minutes": 0,
-          "resolution": "DEC-SMP-026 and BR-16 define days inactive = data_through - last activity_date, using the latest synced activity_date for the person vendor account, or evaluation date - 3 days when never synced. US-072 owns one pure domain function for lag and 30/60/90 window math; US-074 reuses it. No activity means no data, never inactive. Property tests constrain monotonicity and exact window boundaries."
-        },
-        {
-          "id": "A2",
-          "statement": "Existing inactive-candidate queries (pool-repository.ts:97, read-repository.ts:401) use wall-clock evaluation dates without lag.",
-          "status": "budgeted",
-          "estimate_impact_minutes": 15,
-          "resolution": "The usage repository is new and uses the shared lag function; the two existing queries are left unchanged (their consumers are other stories) and the divergence is recorded as a deviation for a follow-up."
-        }
-      ],
-      "estimate_minutes": {
-        "readiness": 25,
-        "implementation": 105,
-        "focused_verification": 50,
-        "review": 55,
-        "integration": 25,
-        "total": 260
-      },
-      "depends_on": [],
-      "cross_cutting_rationale": "AC1 is split: this child delivers the screen's filters, metric cards, last-active and badges; the batch proposal is the propose child. AC2 is split: this child applies the lag to displayed windows; the flagging child applies the same function to the state flag."
-    },
-    {
-      "proposal_key": "propose-reclamations",
-      "work_id": "US-073",
-      "title": "Batch reclamation proposals from SCR-usage",
-      "outcome": "Group Admins select inactive people on SCR-usage and propose reclamation in one audited batch with an optional note, creating at most one pending ReclamationProposal per open assignment.",
-      "demo": "Select three flagged people and submit a note: three pending proposals with the note and proposed_by = the admin exist, one audit entry per proposal; resubmitting the same selection creates none; a person from another company in the payload is rejected; a non-group_admin role is refused.",
-      "acceptance_criteria": [
-        "AC1"
-      ],
-      "work_type": "functional",
-      "scopes": [
-        "contracts",
-        "server",
-        "ui"
-      ],
-      "signals": {
-        "routes_or_screens": 1,
-        "acceptance_flows": 1,
-        "expected_changed_files": 8,
-        "expected_mutation_shards": 2,
-        "lifecycle_or_concurrency_boundaries": 0,
-        "external_integrations": 0,
-        "schema_or_migration_changes": 0,
-        "authorization_or_audit_boundaries": 1,
-        "tooling_change": false
-      },
-      "uncertainties": [
-        {
-          "id": "B1",
-          "statement": "Proposal idempotency is defined without a schema change.",
-          "status": "resolved",
-          "estimate_impact_minutes": 0,
-          "resolution": "DEC-SMP-027 uses the existing partial UNIQUE on pending proposals per assignment (V20260725180000) with insert-on-conflict-do-nothing. client_request_id is accepted and recorded in audit, not persisted on the proposal. No migration."
-        },
-        {
-          "id": "B2",
-          "statement": "No reclamation-specific capability exists.",
-          "status": "budgeted",
-          "estimate_impact_minutes": 10,
-          "resolution": "Gate on group_admin with company:write and companyScope; wrap in withAudit and register the action in audited-actions-enforcement. Deciding proposals, dismissal suppression and /reclamaciones stay with US-028."
-        }
-      ],
-      "estimate_minutes": {
-        "readiness": 25,
-        "implementation": 90,
-        "focused_verification": 45,
-        "review": 50,
-        "integration": 20,
-        "total": 230
-      },
-      "depends_on": [
-        "usage-surface"
-      ],
-      "cross_cutting_rationale": "AC1 is split: this child delivers the batch 'Proponer reclamación' action and modal on the surface the usage-surface child built."
-    },
-    {
-      "proposal_key": "inactivity-flagging",
-      "work_id": "US-074",
-      "title": "Daily inactivity flagging of anchor license requests",
-      "outcome": "An audited daily inactivityFlagging job after analyticsSync sets flagged_inactive on the anchor LicenseRequest of each open assignment whose person has more than 30 days of inactivity against lag-aware data_through, returns flagged_inactive to active when activity resumes, leaves other states untouched and creates no proposals; 60/90 days are display filters only.",
-      "demo": "Activity ending 31 and 29 days before data_through flags only the first anchor request with a RequestTransition and audit entry; renewed activity returns a flagged request to active with its own transition and audit; reruns change nothing, concurrent manual transitions resolve cleanly, other states and companies are untouched, analytics lag alone never flags.",
-      "acceptance_criteria": [
-        "AC2",
-        "AC3"
-      ],
-      "work_type": "functional",
-      "scopes": [
-        "db",
-        "server",
-        "worker"
-      ],
-      "signals": {
-        "routes_or_screens": 0,
-        "acceptance_flows": 2,
-        "expected_changed_files": 8,
-        "expected_mutation_shards": 3,
-        "lifecycle_or_concurrency_boundaries": 1,
-        "external_integrations": 0,
-        "schema_or_migration_changes": 0,
-        "authorization_or_audit_boundaries": 1,
-        "tooling_change": false
-      },
-      "uncertainties": [
-        {
-          "id": "C1",
-          "statement": "Daily flagging and un-flagging ownership is canonical.",
-          "status": "resolved",
-          "estimate_impact_minutes": 0,
-          "resolution": "DEC-SMP-028, BR-16 and US-074 AC1-AC3 require inactivityFlagging after analyticsSync: active -> flagged_inactive for more than 30 days; flagged_inactive -> active on renewed activity; all other states left alone. 60/90 are display-only. No proposals are created."
-        },
-        {
-          "id": "C2",
-          "statement": "Concurrent job runs or a manual transition racing the job.",
-          "status": "budgeted",
-          "estimate_impact_minutes": 15,
-          "resolution": "Conditional UPDATE on the expected current state (active for flagging, flagged_inactive for renewed-activity return) in one transaction with RequestTransition and audit. Real-DB fixtures prove rerun and manual-transition race safety for both directions."
-        }
-      ],
-      "estimate_minutes": {
-        "readiness": 25,
-        "implementation": 105,
-        "focused_verification": 50,
-        "review": 55,
-        "integration": 25,
-        "total": 260
-      },
-      "depends_on": [
-        "usage-surface"
-      ],
-      "cross_cutting_rationale": "AC2 is split: this child applies the shared lag function delivered by usage-surface to the state flag. AC3 is wholly here."
-    }
-  ],
+  "decision": "ready",
+  "partitions": [],
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "US027-READINESS-20261010",
-    "payload_sha256": "2d32ab167ef76cb5b3f20561a89077d5251d16140870a6d9889bcd2e8c07fbaf"
+    "evidence": "US027-VERIFY-20261011",
+    "payload_sha256": "704cccf2d532105e0e863546417a8491abe34cb257ad6c2b95dc1573b7434356"
   },
   "actuals": null,
   "policy_bootstrap": false,
