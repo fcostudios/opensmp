@@ -1,94 +1,98 @@
 **Work item:** US-075
 **Readiness assessment:** docs/readiness/US-075.json
-**Approved estimate:** 280 minutes
+**Approved estimate:** 315 minutes
 
 # Anchored removal implementation plan
 
-**Goal:** Start one authorized anchored removal from either detail screen and finalize its confirmed checklist removal atomically, preserving Person.status.
+**Goal:** Start one authorized anchored removal from either detail screen and finalize confirmed checklist removal atomically, preserving Person.status.
 
-**Architecture:** Existing web entrypoint selects a target and persists a pending remove action. The existing domain workflow module exports finalizeOffboarding; the existing web transition module supplies its caller-owned atomic transaction port. No provider dispatch or capacity refresh is delivered here.
+**Architecture:** The existing web action handles explicit target discovery and targeted start. The domain lifecycle module exports finalizeOffboarding; existing web orchestration supplies its transaction adapter. PersonOffboarding discovers authorized targets; RequestRecord supplies its fixed target. Both detail pages remain unchanged.
 
-**Tech stack:** Next.js App Router, TypeScript, Zod, Drizzle/PostgreSQL, Vitest, existing design tokens and locales.
+**Tech stack:** Next.js, TypeScript, Zod, Drizzle/PostgreSQL, Vitest, existing design tokens/locales.
 
-**Spec:** docs/superpowers/specs/2026-10-11-us-075-anchored-removal-design.md (9ef6da2); reviewed in dd7fd70, approved with standing execution authorization in70826e1. Readiness digest f5aebfbc0dca0fa6496d625083e78b6fec1eefd4d4ccf662de9847259ab7d5d7. The user supplied the execution method: one consolidated implementer, one reused scoped reviewer, fresh adversarial verifier last. No additional human plan approval is required within this approved scope/budget. Root reviews this plan and freezes/records the mutation base before implementation starts.
+**Spec:** docs/superpowers/specs/2026-10-11-us-075-anchored-removal-design.md. Readiness approval e14f813 binds f22f1c08dc0f47572ad346432cb4556b5571fdc1d151b80360ad6f5253a5952a. Francisco delegated all stages within this scope/budget; root reviews these revised documents before code continuation. One consolidated implementer, one reused scoped reviewer, a fresh adversarial verifier last. Preserve the same implementer session; no fabricated restart or repeated started event.
 
 ## Global constraints
 
-- Three scopes: domain/server/UI, two existing screens, one removal lifecycle boundary, approved18path manifest, hard20file maximum. No db/contracts/worker/connectors/package exports/dependency/generated guidance changes.
-- Accepted reasons left_company/inactive; reallocated is refused with explicit BR-02 transfer message. US-028 alone owns flagged_inactive approval; ordinary starts accept active.
-- Person.status unchanged. Request detail targets its own request; person detail explicitly selects an open anchored seat. Missing target inferred only for exactly one open anchored request.
-- Checklist actions persist kind=remove/mode=orchestration; connector-backed actions kind=remove/mode=automated; statuspending. No transport, credentials, provider dispatch or capacity/watermark mutation.
-- Shared CHG-067 Postgres fixture via SMP_TEST_POSTGRES_CLUSTER_URL or the shipped apps/web test wrapper (run-with-shared-postgres.ts), never direct vitest that falls back to per-fixture containers. Execution ruling: package test owns one shared PG16 cluster per focused invocation when the env is absent; direct exec vitest is replaced by package test, same scope and oracles. Read TESTING.md before edits; real owned implementations, deterministic injected dates, tenant/role assertions, no print/log oracle.
-- Canonical generated TESTING.md/critical-paths stay read-only. Any required registration is requested through Nous; do not quietly omit it.
-- Each task gets a checkpoint commit carrying US-075 and a bounded reused review. Root owns lifecycle feedback. Stop at a task boundary and report blocked/deviation if remaining work exceeds the approved estimate.
+- Three scopes: domain/server/UI; two screens; one removal boundary; exactly20 inclusive paths below. No db/contracts/worker/connector/barrel/dependency/tooling/generated-guide changes.
+- Accept left_company/inactive; reallocated receives explicit BR-02 transfer refusal before mutation. US-028 retains flagged_inactive approval; ordinary start accepts active only. Preserve Person.status, stored capacity and watermarks.
+- Persist kind=remove/status=pending in both execution modes. US-025 persisted automated+canDeprovision+rest descriptor selects automated; others use shipped manual payload. No provider call or fake connector facade.
+- Domain source has canonical CHG-081 real-DB routing atb6e67ea, runtime proof95fac1f. Existing adjacent domain tests remain routed but unchanged. Stock seven production paths select six shards; recalculate actual IDs after changes.
+- Whole-item MUTATION_BASE remains37666528d03a50e2529cad4382f2a5ae146dca63, including completedTask1. Root freezes a separate continuation entry head after document review; do not replace whole-item base with it.
+- Read TESTING.md before any test edit. Use real owned implementations and deterministic dates/locks. Focused package command: rtk pnpm --dir apps/web test -- <files>; its shipped wrapper supplies one shared PG16 cluster when absent. Never direct vitest with per-fixture container fallback.
+- Runtime preflight uses an untracked scratch launcher under the shipped shared wrapper: createPostgresFixture(), migrate(), privately pass exactly one paired mutation environment to the stock runner, finally stop only owned fixture. No credentials in output or source changes. Do not borrow Nous DB.
+- Root owns readiness and feedback. Checkpoint commits carry US-075. Background touched previews stay within30 minutes; one final cold campaign last. New path/boundary or forecast above320 requires reassessment.
 
-## Review focus
+## Exact file responsibilities — 20 inclusive
 
-1. Same request replays with a different confirmation ID: original committed date/reason/result, no extra success audit.
-2. Manual not-done failureId replay: same ID+reason does not duplicate attempt; conflicting reuse rejects; later confirmed success clears failure_reason.
-3. Mixed person/account/company/license anchors and non-admin identities reject without mutating a foreign row; global group-admin permission is not silently redefined.
-4. Midnight Ecuador close and close-before-start rejection: ended_on derives from confirmedAt; rollback covers closure/action/transition/audit.
-5. Legacy checklist/deprovision context and existing provisioning checklist: legacy removal validates original anchor; provisioning behavior is unchanged, no accidental failure transition or alert from removal.
+1. packages/domain/src/request-workflow/lifecycle.ts: portable primitive/types.
+2. apps/web/src/modules/org-registry/repository.ts: targeted audited start and authorized detail projection reuse.
+3. apps/web/src/modules/org-registry/repository.integration.test.ts: actual intent/repository real-DB oracles.
+4. apps/web/src/modules/org-registry/people-action-service.ts: composed parser, read_targets executor, web-owned optional response and exact mutation invalidation paths.
+5. apps/web/src/modules/request-workflow/orchestration.ts: atomic SQL adapter, manual selection/confirmation/attempt integration.
+6. apps/web/src/modules/request-workflow/orchestration.integration.test.ts: direct primitive/adapter real-DB oracles.
+7. apps/web/src/modules/request-workflow/actions/checklist-action-transaction.ts: removal branch and replay-safe wrapper audit ownership.
+8. apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts: real wrapper oracles.
+9. apps/web/src/modules/alerts/offboarding-workflow.integration.test.ts: coherent assignment pointer and canonical remove expectation, retained alert oracle.
+10. apps/web/src/components/people/person-offboarding.tsx: authorized choice discovery and fixed-target presentation.
+11. apps/web/src/components/people/person-offboarding.test.tsx: selectable/fixed target and reason behavior.
+12. apps/web/src/components/requests/request-record.tsx: fixed request/person embedding.
+13. apps/web/src/components/requests/request-record.test.tsx: actual embedding/role/state behavior.
+14. apps/web/messages/es-EC.json.
+15. apps/web/messages/en-US.json.
+16. docs/readiness/US-075.json (root-owned).
+17. docs/superpowers/specs/2026-10-11-us-075-anchored-removal-design.md.
+18. This plan.
+19. docs/readiness/drafts/US-075-nous-routing-request.md (already changed).
+20. .nous-feedback.jsonl (root-owned shared ledger).
 
-## File responsibilities
+No detail-page, transition-core, lifecycle.test, helper-file or export changes.
 
-Modify packages/domain/src/request-workflow/lifecycle.ts (portable primitive and types); apps/web/src/modules/request-workflow/transition-core.ts (atomic removal SQL port); org-registry/repository.ts (targeted start/selection/replay); org-registry/people-action-service.ts (composed target parser/revalidation); request-workflow/orchestration.ts (manual confirmation/attempt integration); request-workflow/actions/checklist-action-transaction.ts (removal branch/replay audit ownership).
-
-Modify components/people/person-offboarding.tsx; app/(authenticated)/personas/[personId]/page.tsx; app/(authenticated)/solicitudes/[requestId]/page.tsx; messages/es-EC.json; messages/en-US.json (both screen bindings, target/reason/control presentation).
-
-Modify org-registry/repository.integration.test.ts; request-workflow/orchestration.integration.test.ts; components/people/person-offboarding.test.tsx (strong existing-suite oracles). Readiness, design, this plan and .nous-feedback.jsonl comprise the remaining four approved paths. No new helper files or barrels are assumed.
-
-## Task1 — Targeted audited start and pending execution selection
+## Checkpoint1 — Preserve targeted start and deliver authorized discovery
 
 **Files:** repository.ts, people-action-service.ts, repository.integration.test.ts.
 
-**Produces:** server-owned `OffboardingTargetInput = StartOffboardingInput & { readonly requestId?: string }`; repository.startOffboarding(authorization, input:OffboardingTargetInput, occurredAt?:Date) keeps its existing result. Parser composes existing startOffboardingInputSchema with optional UUIDrequestId; packages/contracts unchanged. No mutation occurs on reallocated input.
+**Contract:** existing startOffboarding(input:unknown) accepts explicit `{intent:"read_targets",personId}` without weakening its existing mutation parser. Export a web-owned optional response extension with targets `{requestId,label}` and a production-used intent executor using real repository/authorization/clock inputs. Existing wrapper/core and base contracts stay unchanged. Reads derive choices from authorized repository.detail and open sourceRequestId-backed assignments, exclude missing/mismatched anchors, and never invoke mutation or success invalidation. Mutation returns existing action state and exact invalidation paths for the Next cache adapter. No owned callback mock substitutes for this executor.
 
-- [ ] Add real-DB cases named `targets_one_anchor_and_preserves_other_seat`, `plans_pending_remove_for_shipped_rest_capability`, `reallocated_requires_transfer`, `start_replay_has_one_transition_and_audit`, `mismatched_anchor_and_nonadmin_leave_rows_unchanged`. Assert exact action kind/mode/status/rawcontext, request state, unchanged Person.status/register/capacity and audit counts for left_company/inactive. Include two competing starts with controlled database locks and persisted-count oracle.
-- [ ] Run `rtk pnpm --dir apps/web test -- src/modules/org-registry/repository.integration.test.ts`; establish missing-behavior failures before production edits, shared fixture env supplied. Save output to /tmp task log when large.
-- [ ] Compose target parsing in service, pass the server-owned type to repository and revalidate target request after successful start. Lock authoritative request before assignments; select only its anchored rows. Missing target may resolve only one open anchored request. Preserve Person.status. Reject incompatible reason/target replay.
-- [ ] Plan execution from US-025 persisted account.mode/Vendor.canDeprovision/provisioning_protocol: automated+true+rest selects shipped REST removal; others manual. Reuse valid planner payload, normalize kindremove for both modes and clear checklistSteps for automated. Do not import provider factory, introduce fake connectors or call transport. Use request lock to serialize action creation, because checklist unique index does not cover remove. Replace this start method's unconditional withAudit replay with one caller-owned transaction and success audit only for a newly committed start; do not modify shared audit utility.
-- [ ] Run focused suite and web/domain type checks. Commit `feat(US-075): start targeted removal with pending execution selection`. Request reused scoped review with task ACs/range/commands; implementer launches touched preview in background after focusedgreen/preflight and continues Task2. Routing gaps are review findings, not scores.
+- [ ] Retain green Task1 checkpoints5a3f7e4/4b924d7: exact assignment-pointer guard, target parsing, one pending action/transition/audit, descriptor execution selection, Person/register/capacity preservation and concurrent/replayed starts. Do not reauthor already-green cases.
+- [ ] Add real-DB executor oracles for authorized choices with two seats, absent/unanchored choices, nonadmin/foreign person, malformed read/mutation UUIDs and no writes/invalidation on reads/rejections. Execute the mutation intent through this same executor; assert one selected anchor, untouched other seat and exact successful invalidation paths.
+- [ ] Run repository integration suite via package wrapper; capture missing-behavior RED. Implement minimal service intent/response composition using existing repository detail and mutation core, keeping wrapper/core unchanged.
+- [ ] Run focused suite and rtk pnpm --dir apps/web type-check plus rtk pnpm --dir packages/domain type-check. Checkpoint feat(US-075): expose authorized offboarding targets. Brief reused reviewer with ACs/range/commands; launch touched preview only after both preflights route green. Slow DB previews once finally unless touched; no whole-set rerun.
 
-## Task2 — Portable finalization and atomic manual checklist path
+## Checkpoint2 — Portable atomic finalization and replay-safe checklist
 
-**Files:** domain lifecycle.ts; web transition-core.ts, orchestration.ts, checklist-action-transaction.ts; orchestration.integration.test.ts.
+**Files:** lifecycle.ts; orchestration.ts/integration suite; checklist-action-transaction.ts/test; alert workflow integration fixture.
 
-**Interfaces:**
+**Interfaces:** `finalizeOffboarding(command:OffboardingConfirmation,port:OffboardingTransactionPort):Promise<OffboardingCompletion>`. Command carries action/request/company/actor/confirmation identity and confirmedAt. Locked stored facts supply reason and exact assignment IDs. Completion returns original requestId/assignmentIds/endedOn/endReason/confirmedAt/replayed. Port.runAtomic executes one callback; locked persistence methods read evidence, close exact anchors, confirm action, transition request and audit. Existing orchestration exports finalizeOffboardingInTransaction(transaction:LedgerTransaction,authorization,command); use existing applyRequestTransitionInTransaction without changing transition-core/db. US-082 supplies its own adapter later and imports the same portable primitive.
 
-- Domain exports `finalizeOffboarding(command:OffboardingConfirmation, port:OffboardingTransactionPort): Promise<OffboardingCompletion>`. Command fields actionId/requestId/companyId/actorUserId/confirmationId/confirmedAt; authoritative stored reason/assignment IDs come from locked facts, never the confirmation caller. Completion fields requestId/assignmentIds/endedOn/endReason/confirmedAt/replayed.
-- `OffboardingTransactionPort.runAtomic<T>(work:(tx:OffboardingPersistencePort)=>Promise<T>):Promise<T>` owns exactly one transaction. Persistence methods lock authoritative facts, read original completion, close exact open anchors, confirm action, transition request and write action completion audit. Domain controls decision/order. Completion facts validate kindremove or explicit legacy checklist+deprovision, request/account/company/person/license consistency and immutable anchor set.
-- Existing web transition-core exports `finalizeOffboardingInTransaction(transaction:LedgerTransaction, authorization:LedgerAuthorization, command:OffboardingConfirmation):Promise<OffboardingCompletion>`. Its port executes within the existing caller transaction; SQL failure propagates to rollback. US-082 later supplies its own transaction port to the same domain primitive; no web dependency or direct workflow bypass required.
+- [ ] Add direct primitive plus realSQL adapter tests in existing orchestration suite: both reasons; exact anchor closure with unrelated seat untouched; Ecuador05:00Z boundary; close-before-start and malformed/cross-company/account/license anchor rejection; committed same/different-ID replay preserves original date/reason; changed context conflicts; controlled concurrent confirmations yield one completion; forced completion-audit database failure rolls back every write. Snapshot action/register/request/transition/audit evidence; no timing-only oracles.
+- [ ] Run focused orchestration suite to establish RED. Implement request→action→sortedassignment locking and validated canonical remove or explicit legacy checklist/deprovision facts. Validate original anchor/context before replay return; guarded row-count closure; action confirmed/resolved_at/failure_reasonNULL; offboarding→deprovisioned transition and exactly one action completion audit in the same transaction. No capacity write.
+- [ ] Extend pendingChecklist and confirmation predicates for remove/orchestration/offboarding, preserving provision branch. Branch removal before unconditional confirm wrapper audit; translate errors outside failed atomic callback. Test actual wrapper with real DB authorization, not mocked operations.
+- [ ] Add actual not-done wrapper tests: pending/offboarding/open-register result, one failureId+reason attempt audit, sameID+reason no duplication, conflicting reason rejects, differentID distinct attempt, confirmed success clears failure_reason. Bypass unconditional markChecklistNotDone success audit for removal too. Preserve legacy removal and existing provisioning behavior; no offboarding→failed/provisioning_failure.
+- [ ] Repair older alert fixture by binding license_request.license_assignment_id after its assignment insert and expecting kind=remove. Keep same-business-day persisted-context/deadline assertions intact; no alert production edits or US-077 expansion.
+- [ ] Run focused orchestration/wrapper/alert suites and web/domain type checks. Checkpoint feat(US-075): finalize checklist removal atomically. Brief reused reviewer; collect prior preview and launch only newly touched routed preview within budget.
 
-- [ ] Directly import primitive and adapter in real-DB orchestration suite. Add `confirmation_closes_exact_anchor_atomically`, `ecuador_date_is_confirmation_date`, `replay_returns_original_evidence_without_audit`, `concurrent_confirmation_has_one_completion`, `invalid_anchor_and_close_before_start_roll_back`, `audit_failure_rolls_back_every_write`. Use deterministic explicit instants either side of 05:00Z and row/audit snapshots. Different confirmationId replay returns original evidence; mutated context/reason conflicts.
-- [ ] Run focused orchestration suite and inspect expected new failures. Implement domain decision and web SQL adapter in existing modules. Request→action→sortedassignment locks; validate before replay return. Row-count guarded close, actionconfirmed with resolved_at and failure_reasonNULL, existing transition helper for offboarding→deprovisioned, exactly one action completion audit. No optimistic capacity or watermark write.
-- [ ] Extend pendingChecklist/confirm selection for remove+orchestration+offboarding and validated legacy checklist/deprovision. Keep provision branch separate. Caller confirmation transaction invokes adapter. Removal success bypasses unconditional server_action.confirmChecklistDone withAudit so committed replay cannot create another success audit; errors are translated outside failed atomic mutation.
-- [ ] Add `not_done_is_unconfirmed_and_retryable`, `failure_id_replay_is_not_a_second_attempt`, `failure_id_conflict_rejects`, `success_clears_prior_manual_reason`, `provisioning_checklist_still_works`. Not-done removal remains pending/offboarding/registeropen, records reason and one failureId+reason audit. Same ID+reason replays; changed reason for same ID rejects; different failure ID is a distinct attempt. No provisioning_failure or offboarding→failed transition. Removal not-done branches before the existing unconditional markChecklistNotDone withAudit wrapper, just as start/confirm do: the removal attempt transaction owns its single audit and replay returns without another accepted wrapper audit. Confirmation clears prior manual reason.
-- [ ] Run both focused real-DB suites and web/domain type checks. Commit `feat(US-075): finalize checklist removal atomically through shared domain primitive`. Collect Task1 preview at review boundary, brief reused reviewer for Task2, then launch Task2 touched preview in background after focusedgreen and continue Task3. No whole-set rerun.
+## Checkpoint3 — Both detail screens without page edits
 
-## Task3 — Both detail-screen bindings and removal presentation
+**Files:** PersonOffboarding component/test; RequestRecord component/test; both locales.
 
-**Files:** PersonOffboarding component/test, both detailpages, es-EC/en-US catalogs; service only if target revalidation correction is required.
+**Contract:** preserve existing person-page props. PersonOffboarding calls explicit read_targets and displays authorized choices; request detail embeds it inside RequestRecord with fixedrequestId/personId. Optional web-owned response type is consumed without changing action wrapper/core. Additional labels come from the component locale context, not new page props.
 
-**Produces:** PersonOffboarding retains existing action/labels/personId props plus optional fixedrequestId or anchored choices `{requestId,label}`. Person detail passes open sourceRequestId-backed choices; requestdetail binds its record request/person IDs. New labels stay in existing catalogs. The component submits requestId alongside the existing baseinput; no shared contract edit.
+- [ ] Add meaningful DOM/input/role/state oracles in both existing suites: fixed request/person target, selectable target choices, unavailable unanchored state, only left_company/inactive, disabled submission until selected, pending execution rather than deprovisioned claim. Use real localized component composition; do not mock owned action services to manufacture success. Actual command persistence remains proven through the production-used executor real-DB suite.
+- [ ] Run both UI suites via package wrapper to establish RED. Implement target discovery/selection and fixed-target embedding with existing tokens/accessibility; reallocated receives localized canonical transfer refusal from server. Remove automatic departure wording. Manual pending links to existing request checklist; automated pending explains execution wait.
+- [ ] Run both UI suites and targeted server suite if touched, plus web/domain type checks. Inspect unchanged person-page binding and RequestRecord embedding. Checkpoint feat(US-075): expose anchored removal on both detail screens. Reused scoped review and one touched preview follow focusedgreen.
 
-- [ ] Update existing UI suite for visible anchored target choices and fixed target, two allowed reasons, unavailable/disabled unanchored state, accessibility and no deprovisioned claim after start. Assert DOM/input behavior that kills targeting/reason mutants. Do not add fake implementations of owned services to produce success; submit-path persistence is proven in the real-DB suites. Retire or adapt existing mocked-owned action assertions according to TESTING.md.
-- [ ] Run `rtk pnpm --dir apps/web test -- src/components/people/person-offboarding.test.tsx` and verify missing targeting/reason behavior fails. Update component, pages and locale text. Manual actions link to target request for existing checklistconfirmation; automated actions explain pendingexecution without checklist. Preserve tokens, focus/error behavior and role gating. Remove automatic-departure wording and reallocated selectable option; server remains explicit refusal authority.
-- [ ] Run three focused suites and web/domain type checks. Inspect both screen action bindings in scoped review; assert mismatched hidden target still rejects in server suite. Commit `feat(US-075): expose anchored removal on person and request detail`. Collect Task2 preview; brief reusedreviewer, launch Task3 touched preview after focusedgreen. Preview slow DB shards once at finalround unless touched; totalpreviewminutes≤30.
+## Review focus and final handoff
 
-## Final review, fix wave and closure handoff
-
-- [ ] Fix scopedreview findings within approvedmanifest/budget. Check final failureId handling, clears, replay-audit bypass and original reason/date immutability. Commit each meaningful fixwave with US-075; one touched-shard finalpreview permitted. Record rounds/minutes and one-line survivor disposition with reviewer verdict. Exceeding previews requires named reason.
-- [ ] Run both preflight checks: `MUTATION_BASE=<frozen-sha> rtk pnpm test:mutation:preflight` (scripts/mutation-preflight.mjs checks accountability/oracles/DB seams, not shard IDs), then `MUTATION_BASE=<frozen-sha> rtk pnpm test:mutation --preflight` (scripts/mutation-scope.mjs produces shard IDs and routing_gaps). Inspect every routing gap and actual shard count from the second command. Preview launches use its exact shard IDs with `MUTATION_SHARD=<id> pnpm test:mutation`, in background, rooted in this worktree. Never fabricate domain coverage from imports alone; kill meaningful domain mutants with persisted oracles.
-- [ ] Root dispatches fresh adversarial AC1–4 review after reused scopedreview closes. AC1 targets+auth+pendingselection; AC2 atomicclose/date/reason/rollback/replay; AC3 manualconfirmation vs providerpending; AC4 bothscreens/reasons/refusals/unconfirmed/unchangedcapacity. Capacity claim is no write/refresh at start; pending-refresh projection belongs US-081.
-- [ ] Fullgate uses shared CHG-067 fixture. Acquire the shared regular file /tmp/smp-full-gate.lock atomically using fs.openSync(path, 'wx') (O_EXCL), record a unique owner token and the acquired file inode, wait≥60s on EEXIST while another session owns it, and release in finally only when both the current owner token and inode still match this acquisition. Never use mkdir for this regular-file protocol or delete a foreign/replaced lock. While held run `caffeinate -i pnpm check`; committed migration freshapply/verify evidence comes from sharedfixture/applier/verifier, no dbpush. Gate output stays in /tmp summary logs.
-- [ ] After final review/source/tests settle, run exactly one cache-cleared diffscopedcold mutation campaign with frozen MUTATION_BASE. No edits to scored source/tests/config/dependencies afterwards without invalidation. Report score/killed/survived and one-line reviewed survivor dispositions to root.
-- [ ] Root emits buildpass/acverify/testreport/actuals/done in protocol order, phase ts markers and real measured or clearly estimated cost. Implementer gives one-line cost/sessioncount and previewrounds/minutes. Actuals/final paperwork stay in readiness/feedback paths. Root integrates sequentially and reports any non-fast-forward rather than forcing it.
+- [ ] Check same/different confirmation-ID replay, failure-ID conflict, immutable context, tenant/role rejection, Ecuador close date, forced atomic rollback and preserved provisioning. Fix only within manifest/budget; one final touched preview round after final fixes.
+- [ ] Run both checks with original MUTATION_BASE: rtk pnpm test:mutation:preflight (accountability/oracles/seams), then rtk pnpm test:mutation --preflight (actual shard IDs/routing_gaps). Inspect all gaps and runtime metadata; no fake mutation score from registration. Launch previews with exact returned IDs in background and collect output/minutes.
+- [ ] Root dispatches fresh adversarial AC1–4 verification after scoped review closes. Neighbor provider/capacity/person/departure/approval/invitation authority stays unchanged.
+- [ ] Full gate: acquire /tmp/smp-full-gate.lock with fs.openSync(path,"wx"), record owner token/inode; on EEXIST wait≥60s. Hold for caffeinate -i pnpm check; finally release only matching token+inode. Never delete another session's lock. Use committed migration apply/verify via shared fixture; never dbpush.
+- [ ] After final source/tests/review settle, run ONE cache-cleared diff-scoped cold campaign last with original MUTATION_BASE. No scored edits afterwards without invalidation. Report measured scores and reviewed one-line survivors.
+- [ ] Root records phase timestamps, test_report/actuals/done and integration. Implementer reports real available cost metrics or clearly estimated nonzero cost, one session, preview_rounds/minutes. No additional implementation starts before root continuation release.
 
 ## Self-review and budget
 
-AC1 maps Task1+3; AC2 Task2; AC3 Task2+3; AC4 allthree+freshadversarial review. Each ReviewFocus case is pinned to Task1 or2 test steps. Interfaces preserve unchanged basecontracts and existing moduleexports. Domain persistenceport and caller transaction share one lifecycle boundary; no second queue claim boundary is introduced.
+AC1 maps checkpoint1+3; AC2 checkpoint2; AC3 checkpoint2+3; AC4 allthree and fresh verification. Every rejection/replay/rollback input has a responsible oracle. Exact20 paths include existing request paperwork and alert fixture. Six stock planned shards; domain adjacent tests stay unchanged and finalizer tests execute directly with its real adapter.
 
-Budget remains readiness30 +implementation115 +focusedverification55 +review55 +integration25 =280minutes. Preview budget≤30minutes is tracked separately as actuals inside verification allowance. Additional requiredpaths/scopes are reported at taskboundary before mutation. Planapprovalreview/freeze are the only outstanding entry steps; this plan itself starts no execution.
-
-Execution ruling: controller and reused reviewer approved persisted US-025 descriptor selection rather than provider-factory introspection. Factory import exposed an out-of-scope ESNext ReadonlySet compatibility issue; no connector fix or suppression is included. Same18paths/3scopes/280minute readiness authorization applies.
+Whole-item forecast40 readiness/reassessment/design/planning +150 production/ALL test authoring +45 focused/previews +45 ALLreview/adversarial/boundedrepairs +35 sharedfixture/gate/ONEcold/integration =315. CompletedTask1 counted once; previews≤30 inside focused allowance. Moderate-low confidence/five-minute headroom; additional path/boundary/materialrepair or forecast>320 requires reassessment. This documentation commit does not release code continuation; root scoped review does.
