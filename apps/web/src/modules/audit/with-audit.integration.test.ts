@@ -509,7 +509,7 @@ describe("withAudit recorded receipts", () => {
       expired = await verifyRecordedAuditReceipt(transaction, expected);
       return { value: "verified", audit: expired };
     });
-    for (const token of [{} as RecordedAuditReceipt, expired!]) {
+    for (const token of [{} as RecordedAuditReceipt, { ...expired! }, expired!]) {
       const before = await owner.query("SELECT ui_language FROM user_account WHERE id=$1", [rollbackActorId]);
       await expect(withAudit(database, async transaction => {
         await transaction.update(userAccount).set({ uiLanguage: "en" }).where(eq(userAccount.id, rollbackActorId));
@@ -534,6 +534,61 @@ describe("withAudit recorded receipts", () => {
     });
     const after = await owner.query("SELECT ui_language FROM user_account WHERE id=$1", [rollbackActorId]);
     expect(after.rows).toEqual(before.rows);
+  });
+
+  test.each(["actorUserId", "action", "entityType", "entityId", "companyId", "note", "before", "after"])("rejects a partially forged descriptor missing %s", async field => {
+    const database = drizzle(appPool, { schema });
+    const forged: Record<string, unknown> = { ...expected, note: null, before: null };
+    delete forged[field];
+    const before = await owner.query("SELECT ui_language FROM user_account WHERE id=$1", [rollbackActorId]);
+    const countBefore = await owner.query("SELECT count(*)::int AS count FROM audit_log");
+    await expect(withAudit(database, async transaction => {
+      await transaction.update(userAccount).set({ uiLanguage: "en" }).where(eq(userAccount.id, rollbackActorId));
+      return { value: "wrong", audit: forged as unknown as RecordedAuditReceipt };
+    })).rejects.toThrow("INVALID_RECORDED_AUDIT_RECEIPT");
+    const after = await owner.query("SELECT ui_language FROM user_account WHERE id=$1", [rollbackActorId]);
+    expect(after.rows).toEqual(before.rows);
+    const countAfter = await owner.query("SELECT count(*)::int AS count FROM audit_log");
+    expect(countAfter.rows).toEqual(countBefore.rows);
+  });
+
+  test.each([null, undefined, "forged"])("rejects non-object forged receipt %j", async forged => {
+    const database = drizzle(appPool, { schema });
+    await expect(withAudit(database, async () => ({ value: "wrong", audit: forged as unknown as RecordedAuditReceipt }))).rejects.toThrow("INVALID_RECORDED_AUDIT_RECEIPT");
+  });
+
+  test("optional actor/time preserve canonical matching", async () => {
+    const database = drizzle(appPool, { schema });
+    const identity = { action: expected.action, entityType: expected.entityType, entityId: expected.entityId, companyId: expected.companyId, after: expected.after };
+    await expect(withAudit(database, async transaction => ({ value: "original", audit: await verifyRecordedAuditReceipt(transaction, identity) }))).resolves.toBe("original");
+  });
+
+  test("undefined and circular expected payloads reject and roll back", async () => {
+    const database = drizzle(appPool, { schema });
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    for (const [payload, reason] of [[undefined, "INVALID_RECORDED_AUDIT_EXPECTATION"], [circular, "circular"]] as const) {
+      const before = await owner.query("SELECT ui_language FROM user_account WHERE id=$1", [rollbackActorId]);
+      const countBefore = await owner.query("SELECT count(*)::int AS count FROM audit_log");
+      await expect(withAudit(database, async transaction => {
+        await transaction.update(userAccount).set({ uiLanguage: "en" }).where(eq(userAccount.id, rollbackActorId));
+        return { value: "wrong", audit: await verifyRecordedAuditReceipt(transaction, { ...expected, after: payload }) };
+      })).rejects.toThrow(reason);
+      const after = await owner.query("SELECT ui_language FROM user_account WHERE id=$1", [rollbackActorId]);
+      expect(after.rows).toEqual(before.rows);
+      const countAfter = await owner.query("SELECT count(*)::int AS count FROM audit_log");
+      expect(countAfter.rows).toEqual(countBefore.rows);
+    }
+  });
+
+  test("revokes the exact outer transaction context after commit", async () => {
+    const database = drizzle(appPool, { schema });
+    let closed: Parameters<typeof verifyRecordedAuditReceipt>[0] | undefined;
+    await withAudit(database, async transaction => {
+      closed = transaction;
+      return { value: "original", audit: await verifyRecordedAuditReceipt(transaction, expected) };
+    });
+    await expect(verifyRecordedAuditReceipt(closed!, expected)).rejects.toThrow("INACTIVE_AUDIT_TRANSACTION");
   });
 
   test("missing evidence rolls back a nested mutation and suppresses afterCommit", async () => {
