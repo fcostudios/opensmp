@@ -985,6 +985,9 @@ export function classifyPageWiringBundle(changes) {
 }
 
 const EXACT_FRAMEWORK_ADAPTERS = {
+  "apps/web/src/app/(authenticated)/uso/page.tsx": {
+    sha256: "8811d58952ee2964a76d812ea3154c2e0ebaae9869b5acfeaa3f96c4cfec0154",
+  },
   "apps/web/src/app/(authenticated)/excepciones/page.tsx": {
     sha256: "b9292276ec5b67fbff635832d65a7bf77192e4b264adb22aff70ed010a094d05",
   },
@@ -1016,6 +1019,9 @@ const EXACT_FRAMEWORK_ADAPTERS = {
 
 const EXACT_FRAMEWORK_ADAPTER_SOURCES = new Set(Object.keys(EXACT_FRAMEWORK_ADAPTERS));
 const EXACT_DELEGATION_ADAPTERS = {
+  "apps/web/src/components/usage/usage-view.tsx": {
+    sha256: "f32ecc4cf9af547457e32ad1c45886a336acb62719903856d0876ae093e6b334",
+  },
   "apps/web/src/modules/request-workflow/transition-core.ts": {
     sha256: "aea60b8e4eb6b5c7cfe39aa99d104c6b1bd72318d52c9eb50243857f17c2dcc1",
   },
@@ -1577,7 +1583,7 @@ export const DIRECT_TEST_ROUTES = {
     "apps/web/src/components/usage/usage-view.integration.test.tsx",
   ],
   "apps/web/src/components/usage/usage-view.tsx": [
-    "apps/web/src/components/usage/usage-batch-table.integration.test.tsx",
+    "apps/web/src/app/(authenticated)/uso/page.integration.test.tsx",
   ],
   "apps/web/src/components/usage/reclamation-selection-store.ts": [
     "apps/web/src/components/usage/usage-batch-table.integration.test.tsx",
