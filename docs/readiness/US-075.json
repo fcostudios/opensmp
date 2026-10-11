@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "f1ee50bc641e071663d9ef548f81d647364f781f8cd1484d7388b63fbda860fe",
+  "work_id": "US-075",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Complete anchored seat removal and close the license register",
+  "source": "docs/stories/sprint-3/r1_misc_us_075.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "An authorized admin starts offboarding from either existing detail screen; the shared entrypoint executes removal via the shipped connector capability or checklist fallback, reaches deprovisioned, closes exactly the anchored register rows with ended_on/end_reason and refreshes capacity through the approved source-aware next-sync rule.",
+      "demo": "On person and request detail, remove API and checklist-backed active seats; each transitions offboarding->deprovisioned only after removal success/confirmation, closes the correct register row for each of the three reasons and exposes updated pool capacity at the next authoritative refresh. Failure keeps the register open; retry/concurrent confirmation cannot duplicate closure/audit; another company or wrong role is refused.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "contracts",
+    "server",
+    "ui",
+    "worker",
+    "db"
+  ],
+  "signals": {
+    "routes_or_screens": 2,
+    "acceptance_flows": 3,
+    "expected_changed_files": 32,
+    "expected_mutation_shards": 8,
+    "lifecycle_or_concurrency_boundaries": 2,
+    "external_integrations": 1,
+    "schema_or_migration_changes": 1,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 35,
+    "implementation": 210,
+    "focused_verification": 90,
+    "review": 70,
+    "integration": 35,
+    "total": 440
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Are canonical allocation, parent approval and original prerequisites available?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "US-075 is the first CHG-074 child delivered by 11b03ad; parent US-024 partition approval for a1a0686a122db64484b804716546979a167afeced4d300fb8d2ac9a10c759978 was explicitly approved by Francisco and recorded in 019a1da. US-019 done e81b379 and US-020 latest revalidated done CHG-010 8594311 resolve original blockers. This does not approve this child readiness, design or plan. No started or implementation has occurred."
+    },
+    {
+      "id": "U2",
+      "statement": "How does standalone reallocated removal satisfy the existing successor invariant?",
+      "status": "unresolved",
+      "estimate_impact_minutes": 90,
+      "resolution": "Requires canonical adjudication under CHG-074: BR-02 docs/specs/09b_business_rules.md:20-29 and the deferred license_assignment_reallocation_contiguous trigger in V20260725180000__core_schema_register_integrity.sql:24 require a contiguous same-person/account/type successor for a reallocated close. US-075 AC4 calls for removing seats for all three reasons with no successor input. Plain close fails COMMIT. Preserve the invariant unless Nous explicitly defines an exception; specify whether this is transfer with successor or a standalone close and which existing item owns successor creation. Inclusive date exclusion also matters. Estimated policy-change impact 45-90 minutes, contained in the broader estimate, not permission to modify committed migrations."
+    },
+    {
+      "id": "U3",
+      "statement": "Which delivered producer and persisted freshness contract makes capacity source-aware until the next authoritative refresh?",
+      "status": "unresolved",
+      "estimate_impact_minutes": 150,
+      "resolution": "Requires canonical ownership/contract decision: packages/db/src/pool-snapshots.ts:59 derives occupancy directly from assignment dates, and its snapshot type has no source-refresh watermark. Closure becomes available next calendar day even without sync, violating DEC-SMP-031. apps/worker/src/jobs/deferred.ts:65 still defers memberSync to US-018; capacity-service.changeCapacity changes purchased quantity, while seat_freed only drives recovery. Existing seams alone cannot fulfill API and csv_import/manual AC3. Define bounded authoritative snapshot/freshness producer and consumer delivery without claiming US-055 ingestion UI or full memberSync already exists. Extra foundation estimate 90-150 minutes; full memberSync is excluded and needs canonical allocation if required."
+    },
+    {
+      "id": "U4",
+      "statement": "Is removal runtime/finalization already delivered by the provisioning prerequisites?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "No: reuse connector deprovision capability/action-planner, observation/credential/composition and US-020 checklist framework. People repository uses an unregistered default dispatcher, worker automated-invite-delivery selects invite only, and checklist confirmation completes provisioning->active only. US-075 still needs removal dispatch/claim, failure/retry, atomic anchored register/action/request finalization and both screen wiring. Existing ended_on/end_reason update grants exist at core migration:193, so a missing closure grant is not established. Any freshness/integrity migration is anticipated within this child and included in scopes/signals, append-only with full verifier/parity/runtime proof."
+    },
+    {
+      "id": "U5",
+      "statement": "Can this current canonical child fit the execution/cohesion gates?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Read-only implementer assessment: 440 minutes (35+210+90+70+35), at least five major scopes, 25-32 files and two boundaries (removal execution/finalization and source refresh). These exceed 320 minutes, three scopes, 20 files and one boundary. This estimate excludes full memberSync and cannot be made ready by renaming scopes or dropping AC3. Once U2/U3 resolve, readiness will still be partition_required unless canonical allocation is refined and all limits actually fit. Ask Nous to amend CHG-074/current children; do not mint IDs or silently move work into US-076/077."
+    },
+    {
+      "id": "U6",
+      "statement": "Which sibling boundaries and departure behavior apply?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "DEC-SMP-032 retires automatic departure marking. Minimum ordinary seat-removal behavior preserves Person.status; explicit unchecked confirmation and atomic person-wide departure remain US-076. US-077 owns business-day SLA alerts; US-028 keeps approved reclamation authority and consumes the shared entrypoint; US-068/069 keep invitation-only removal. Request-detail target is its anchor. Missing full memberSync is an identified outside-scope foundation requiring canonical ownership, not locally authorized US-018 repair."
+    },
+    {
+      "id": "U7",
+      "statement": "How will execution and verification be controlled if a revised child becomes ready?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "One consolidated implementer and reused scoped reviewer, fresh adversarial reviewer later; current two agents performed read-only readiness investigation only. No previews, gates or private containers. Approved design and bound plan precede implementation/mutation-base freeze; shared CHG-067 Postgres and exclusive /tmp/smp-full-gate.lock with caffeinate gates; CHG-069 touched previews <=30 minutes and one cold last. Work_state_read/write tools unavailable in host metadata; no substitute task list. After sync testing/critical-paths.md was inspected and unchanged. Parent does not close until canonical children dev_done and a fresh verification-only assessment is approved."
+    }
+  ],
+  "dependencies": [],
+  "decision": "blocked",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "f1ee50bc641e071663d9ef548f81d647364f781f8cd1484d7388b63fbda860fe"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
