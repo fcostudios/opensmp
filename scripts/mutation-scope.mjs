@@ -1716,6 +1716,9 @@ export const DIRECT_TEST_ROUTES = {
   "packages/connectors/src/source-boundary.ts": [
     "packages/connectors/src/dispatch.test.ts",
   ],
+  "packages/db/src/inactivity-flagging.ts": [
+    "apps/worker/src/jobs/inactivity-flagging.integration.test.ts",
+  ],
   "packages/db/src/request-transition.ts": [
     "packages/db/src/request-transition.test.ts",
   ],
