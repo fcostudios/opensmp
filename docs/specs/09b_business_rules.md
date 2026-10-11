@@ -19,7 +19,7 @@
 
 ### BR-02 — Every assigned seat-day belongs to exactly one company
 
-**Statement.** Transfers close the old row and open the new with contiguous dates (successor starts ≤ ended_on + 1 day when end_reason=reallocated, enforced by a deferred constraint trigger); the close re-verifies gap/overlap freedom as defense-in-depth.
+**Statement.** Transfers close the old row and open the new with contiguous dates (successor starts ≤ ended_on + 1 day when end_reason=reallocated, enforced by a deferred constraint trigger); the close re-verifies gap/overlap freedom as defense-in-depth. `reallocated` is therefore a transfer closure, written only together with its contiguous successor; the offboarding entrypoint (US-075) never writes it and refuses it as a removal reason, and no R1 story delivers a transfer entrypoint — one is allocated by a separate CHG if needed (DEC-SMP-040).
 
 - **Parameters:** —
 - **Enforced at:** database (deferred trigger) + close-run validation
@@ -261,14 +261,14 @@
 
 ### BR-24 — Console drift is detected hourly and claimed, never absorbed silently
 
-**Statement.** The hourly member sync raises register_drift for console members absent from the register; claiming creates the assignment (source_kind=reconciliation, note mandatory) plus its system-materialized request.
+**Statement.** One shared complete-snapshot diff (hourly API member sync for `ingestion_mode = api` accounts; the same entrypoint on every member import for csv_import/manual accounts) opens one DriftEpisode per unknown member — an active licensed console member of a validated complete snapshot with no open LicenseAssignment for the same normalized identity, vendor account and license type; invitations are not seats, detection never creates an assignment or infers a company (DEC-SMP-034) — and raises `register_drift` about that episode, deduplicated per rule and episode (DEC-SMP-035, DEC-SMP-038). Drift is never absorbed silently: an episode resolves only by a Group Admin claim or by disappearance on a newer complete snapshot. Claiming (`group_admin` with `company:write`, server-resolved scope, trimmed non-empty note mandatory — DEC-SMP-036) creates in one transaction the assignment (source_kind=reconciliation, admin-supplied `started_on` ≤ claim date and never intersecting a finalized statement, note) plus its system-materialized request and NULL-actor transition, and resolves the episode; replays return the original result and contradictory or stale claims conflict (DEC-SMP-039).
 
-- **Parameters:** hourly
-- **Enforced at:** sync job + claim action
+- **Parameters:** hourly (API accounts); on every successful member import (csv_import/manual); 30-day trailing dashboard window in America/Guayaquil (DEC-SMP-037)
+- **Enforced at:** shared diff entrypoint (sync job + member import) + claim action + unique-open DriftEpisode constraint
 - **Oracle:** exact
 - **Critical:** no
-- **Governed by stories:** US-030
-- **Verification:** Injected-drift fixture asserts alert + claim artifacts.
+- **Governed by stories:** US-030, US-078, US-079, US-080
+- **Verification:** Injected-drift fixtures for api/csv_import/manual snapshots assert one episode + one alert per unknown seat, no episode for invitations/known seats, idempotent reruns, disappearance resolution; the claim fixture asserts the exact system artifacts, rollback, replay and race behaviour.
 
 ### BR-25 — Credentials are encrypted, masked, and rotate by replacement
 

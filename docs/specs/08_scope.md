@@ -355,15 +355,16 @@
 
 ### US-024 — Offboarding + deprovisioning
 - **As**: Group Admin (persona_01) | **Want to**: remove seats same-business-day on departure | **So that**: seat-days stop leaking (J2)
-- **AC1**: `startOffboarding` (person detail / request detail) → state offboarding → removal via connector or checklist → deprovisioned
-- **AC2**: Register row closes (ended_on, end_reason left_company/inactive/reallocated — DEC-SMP-033); pool increments next sync, never optimistically at start (DEC-SMP-031)
+- **AC1**: `startOffboarding` (person detail / request detail) → state offboarding → removal via connector or checklist → deprovisioned. Entrypoint, checklist path and the atomic finalization primitive: US-075; connector execution in the worker: US-082 (DEC-SMP-042)
+- **AC2**: Register row closes (ended_on, end_reason left_company/inactive — DEC-SMP-033; `reallocated` is a BR-02 transfer closure, never a removal — DEC-SMP-040); pool increments only after the next accepted member observation, never optimistically at start (DEC-SMP-031, DEC-SMP-041 — owner US-081)
 - **AC3**: Departure flow can set Person.status='Salió del grupo' — by explicit admin confirmation, unchecked by default (DEC-SMP-032)
 - **AC4**: Offboardings with end_reason=left_company still not deprovisioned at end of the same business day raise `deprovision_overdue` (15-min alert-eval, business-day calendar, subject_ref=request) — BR-14, DEC-SMP-029/030/033
 - **Prerequisites**: US-019, US-020
 - **Feature**: FEAT-018 | **Journey**: J2 | **Release**: R1
 - **Screens**: SCR-person-detail, SCR-request-detail
 - **Server actions**: startOffboarding
-- **Entities (CRUD)**: LicenseAssignment (U close), ProvisioningAction (C), Person (U)
+- **Entities (CRUD)**: LicenseAssignment (U close), ProvisioningAction (C), Person (U), VendorAccount (U refresh watermark)
+- **Children (CHG-074 + CHG-076)**: US-075 → US-082 → (US-076 ∥ US-077); US-081 ∥ US-075 (file-boundary review); parent closes by verification
 
 ### US-025 — Vendor accounts + capability descriptor
 - **As**: Group Admin (persona_01) | **Want to**: manage orgs, modes and connector capabilities | **So that**: the vendor-neutral core is operable (Module I)
@@ -421,14 +422,15 @@
 
 ### US-030 — Drift detection + retroactive claim
 - **As**: Group Admin (persona_01) | **Want to**: catch console bypass within an hour | **So that**: the register stays the truth (J4)
-- **AC1**: Hourly member sync diffs console vs register (ingestion_mode=api orgs); for csv_import/manual orgs the SAME diff runs on every `importMembersCsv` (US-055) — unknown members → register_drift alert + Deriva tab entry either way
-- **AC2**: `claimDriftMember` assigns company retroactively: creates LicenseAssignment (source_kind=reconciliation, note=comentario) + system-materialized request
-- **AC3**: Drift metric on dashboard trends to zero (PRD §17)
+- **AC1**: Hourly member sync diffs console vs register (ingestion_mode=api orgs); for csv_import/manual orgs the SAME diff runs on every `importMembersCsv` (US-055) — unknown members → register_drift alert + Deriva tab entry either way. Unknown = active licensed console member of a validated complete snapshot with no open LicenseAssignment for the same normalized identity/account/license type; invitations are not seats; persisted as one open DriftEpisode per identity (DEC-SMP-034, DEC-SMP-035); `register_drift` is about member episodes, never financial variance (DEC-SMP-038). *Owner: US-078.*
+- **AC2**: `claimDriftMember` assigns company retroactively: creates LicenseAssignment (source_kind=reconciliation, note=comentario) + system-materialized request. Group Admin only, with `company:write` on a server-resolved company scope (DEC-SMP-036); `started_on` ≤ claim date, never intersecting a finalized statement; one transaction, replay-safe (DEC-SMP-039). *Owner: US-079.*
+- **AC3**: Drift metric on dashboard trends to zero (PRD §17): current = unresolved distinct episodes, trend = end-of-day counts over the trailing 30 completed America/Guayaquil dates derived from episode lifetimes (DEC-SMP-037). *Owner: US-080.*
 - **Prerequisites**: US-056, US-057, US-058, US-046, US-042
+- **Children (CHG-075)**: US-078 → US-079 → US-080 (sequential; parent closes by verification)
 - **Feature**: FEAT-023 | **Journey**: J4 | **Release**: R1
 - **Screens**: SCR-exceptions
 - **Server actions**: claimDriftMember
-- **Entities (CRUD)**: LicenseAssignment (C), LicenseRequest (C system), AlertEvent (C)
+- **Entities (CRUD)**: DriftEpisode (CU), LicenseAssignment (C), LicenseRequest (C system), AlertEvent (C)
 
 ### US-031 — Credential management + rotation
 - **As**: Group Admin (persona_01) | **Want to**: rotate keys without downtime | **So that**: Module H secrets rules hold
@@ -759,7 +761,7 @@
 | UserAccount | US-004:R/U idp_subject; US-006:U ui_language; US-011:CRU |
 | CompanyRoleAssignment | US-005:R; US-011:CRD |
 | Vendor | US-007:C seed: Anthropic; US-025:R; US-045:R |
-| VendorAccount | US-007:C seed per org inventory OQ-SMP-1; US-056:R; US-057:R; US-058:R; US-025:CRU; US-055:U ingestion_mode |
+| VendorAccount | US-007:C seed per org inventory OQ-SMP-1; US-056:R; US-057:R; US-058:R; US-024:U refresh watermark; US-025:CRU; US-055:U ingestion_mode |
 | VendorAccountCapacity | US-007:C seed; US-022:R; US-023:C |
 | LicenseType | US-007:C seed: Claude tiers; US-025:R |
 | IntegrationCredential | US-007:C per org; US-056:R; US-031:CRU |
@@ -769,6 +771,7 @@
 | LicenseAssignment | US-007:C; US-019:C; US-024:U close; US-030:C; US-033:R; US-055:CU |
 | ProvisioningAction | US-018:R/link only; US-057:R/link only; US-058:R/link only; US-019:CU; US-020:U; US-021:U; US-024:C |
 | ReclamationProposal | US-027:C; US-028:U |
+| DriftEpisode | US-030:CU |
 | ActivityRecord | US-026:CU; US-055:CU |
 | CostRecord | US-026:CU; US-036:R; US-050:R; US-055:CU |
 | RateCard | US-032:CR |
@@ -784,7 +787,7 @@
 <!-- nous:generated:08-sec5:end -->
 
 <!-- nous:generated:08-sec6:begin -->
-### SEC6 — Server-action ownership (all 46 TOON-declared actions)
+### SEC6 — Server-action ownership (all 47 TOON-declared actions)
 
 | Action | Story |
 |---|---|
@@ -815,6 +818,7 @@
 | `markChecklistNotDone` | US-020 |
 | `overrideReconciliation` | US-038 |
 | `proposeReclamations` | US-027 |
+| `recordManualPoolRefresh` | — |
 | `registerPurchase` | US-023 |
 | `removeCompanyRole` | US-011 |
 | `resetTwoFactor` | US-011 |

@@ -17,7 +17,7 @@
       "subtitle": "Compradas, asignadas, invitaciones pendientes y disponibles en cada organización"
     },
     "dataFreshness": {
-      "label": "Datos sincronizados al 21/07/2026 (retraso ~3 días del proveedor)"
+      "label": "Datos sincronizados al 21/07/2026 (retraso ~3 días del proveedor) · cupos liberados aparecen tras la próxima observación de miembros"
     },
     "sections": [
       {
@@ -47,7 +47,7 @@
             "pool_state": "attention",
             "pool_state_note": "Quedan 3 licencias disponibles: bajo el piso mínimo de 5.",
             "contract_renewal_on": "01/03/2027",
-            "freshness": "datos al 21/07/2026",
+            "freshness": "datos al 21/07/2026 · 1 cupo pendiente de actualización",
             "on_click": {
               "navigate_to": "SCR-vendor-account-detail"
             }

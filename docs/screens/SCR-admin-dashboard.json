@@ -70,7 +70,7 @@
               "id": "kpi_free",
               "label": "Disponibles",
               "valueExpr": "11",
-              "caption": "Compradas − asignadas − invitaciones",
+              "caption": "Compradas − asignadas − invitaciones · 1 pendiente de actualización",
               "on_click": {
                 "navigate_to": "SCR-pools"
               }
@@ -88,7 +88,8 @@
         "metricCards": {
           "columns": {
             "xs": 1,
-            "md": 3
+            "md": 2,
+            "lg": 4
           },
           "cards": [
             {
@@ -116,6 +117,15 @@
               "caption": "Revísalas y reconócelas para cerrar el ciclo",
               "on_click": {
                 "navigate_to": "SCR-alerts"
+              }
+            },
+            {
+              "id": "kpi_drift_open",
+              "label": "Deriva de consola",
+              "valueExpr": "2",
+              "caption": "Miembros con licencia en consola sin registro · tendencia 30 días hacia cero · observado hace 12 min",
+              "on_click": {
+                "navigate_to": "SCR-exceptions"
               }
             }
           ]

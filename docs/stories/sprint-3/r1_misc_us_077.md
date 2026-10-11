@@ -22,7 +22,7 @@ As a Group Admin (persona_01), I want to be told when a departure's seat removal
 | Server Actions | — |
 | Entities | AlertEvent (C), AlertRule (R), LicenseRequest (R), ProvisioningAction (R), RequestTransition (R) |
 | Business Rules | BR-14 |
-| Blocked By | US-019, US-020, US-075 |
+| Blocked By | US-019, US-020, US-075, US-082 |
 
 ## Acceptance Criteria
 
@@ -34,5 +34,6 @@ As a Group Admin (persona_01), I want to be told when a departure's seat removal
 ## Notes
 
 - Canonical child of **US-024** (parent AC coverage: **AC4**), minted by **CHG-074** on 2026-10-11 from the tenant's `partition_required` assessment (`docs/readiness/drafts/US-024.json`, proposal `departure-overdue-alert`, estimate 270 min). Decisions DEC-SMP-029, DEC-SMP-030, DEC-SMP-033. Depends on US-075 (`Blocked By`); parallel-safe with US-076 after US-075 integrates.
+- **CHG-076 (2026-10-11):** sequenced after **US-082** (shared worker surface; the failed-removal states this story alerts on are produced there). Still parallel-safe with US-076.
 - Reuses the US-042 alert evaluator, calendar injection, request-subject routing and notification outbox; this child delivers the removal-specific facts, the deadline function and race-safe evaluation. The existing inactive-candidate query requires a pending action and would omit failed removals — the eligibility here is "still `offboarding`", not "has a pending action".
 - Vertical delivery: domain deadline function (property-tested over simulated calendars, the BR-14 oracle), worker wiring, verification, review, integration. No migration expected.

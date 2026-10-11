@@ -52,6 +52,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | request_workflow_context | RequestTransition | One row per state transition (who/when/note) | [DERIVED_ENTITY] ("timestamps per transition") |
 | register_context | LicenseAssignment | THE register: person/company/account/type, start/end/reason | [SRC:RAW] |
 | register_context | ProvisioningAction | Invite/remove/checklist execution + raw payloads | [SRC:RAW] |
+| register_context | DriftEpisode | One open console-vs-register drift episode per (account, member identity, license type); resolved by claim or disappearance | [DERIVED_ENTITY] (CHG-075, DEC-SMP-035) |
 | telemetry_context | ActivityRecord | Person-day activity per account (schema-flexible counters) | [SRC:RAW] |
 | telemetry_context | CostRecord | Per-user usage cost where vendor provides it | [SRC:RAW] |
 | billing_context | RateCard | Effective-dated monthly rate per (account, license type) | [SRC:RAW] |
@@ -192,6 +193,8 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `vendor_org_ref` | `text` |  | yes | Vendor-side org identifier | … | [ASSUMPTION] |
 | `contract_renewal_on` | `date` |  | yes | Renewal alerts (🟡) | `2027-01-01` | [SRC:RAW] |
 | `low_pool_floor` | `integer` |  | no | Low-pool alert threshold, default 5 | `5` | [SRC:RAW] Module C |
+| `members_refreshed_at` | `timestamptz` |  | yes | Capacity-refresh watermark: the last validated COMPLETE account-wide member observation; stamped only by `recordAcceptedMemberSnapshot` (US-081). Null = never observed. Seats closed after it are `pending_refresh`, never free (DEC-SMP-031/041) | `2026-10-12T05:05:00Z` | CHG-076 / DEC-SMP-041 |
+| `members_refresh_source` | `text` (enum) |  | yes | Source of the watermark observation: `api / csv_import / manual` (manual = the explicit "Confirmar cupos actuales" refresh, never a single manual register entry) | `api` | CHG-076 / DEC-SMP-041 |
 | `status` | `text` (enum) |  | no | `active / inactive` | `active` | — |
 | `created_at` | `timestamptz` |  | no |  |  | — |
 | `created_by` | `uuid` | FK => UserAccount.id | no |  |  | — |
@@ -201,7 +204,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 ### `VendorAccountCapacity`
 
 - **Domain:** `vendor_catalog_context` **[DERIVED_ENTITY]**
-- **Business purpose.** Purchased quantity per (vendor account, license type) — PRD §14's "capacity by license_type" normalized. Free seats = capacity − open assignments − pending invites (derived, never stored). Updated from contracts on purchases (runbook step).
+- **Business purpose.** Purchased quantity per (vendor account, license type) — PRD §14's "capacity by license_type" normalized. Free seats = capacity − open assignments − pending invites − seats closed after the account's `members_refreshed_at` watermark (those stay `pending_refresh` until the next accepted member observation — DEC-SMP-031/041, US-081); derived, never stored. Updated from contracts on purchases (runbook step).
 - **Lifecycle.** Row per capacity change (effective-dated) so purchase history is auditable; latest row wins.
 - **Flags.** `requires_versioning: effective-dated by design` · `has_soft_delete: no` · `audit_required: yes` · `multi_tenant_scoped: no`
 
@@ -278,7 +281,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 
 - **Domain:** `request_workflow_context`
 - **Business purpose.** The J1 workflow object: one request for one person to hold one license type on one vendor account, moving through the §10 state machine with a recorded approver decision. `[SRC:RAW]` §14, Module B.
-- **Lifecycle.** Created at S1 (creates `Person` if absent); validated → Pending Approval; decided at S2; provisioned S3/S4; provisioning API error → `failed` (fires `provisioning_failure` AlertRule; retry returns to `provisioning`) per §10 "→ Failed with alert on API error"; terminal states Deprovisioned/Rejected; the daily inactivity job moves `active → flagged_inactive` at the 30-day lag-aware window and back `flagged_inactive → active` when activity resumes (DEC-SMP-028, US-074); `flagged_inactive → offboarding` only through an approved reclamation (US-028). Transitions in `RequestTransition`. **System-materialized rows:** the go-live import backfill (SEC5) and each reconciliation drift-claim (J4 claim task) create one LicenseRequest per seat directly in `state='active'` — `justification` = `'importación inicial'` / `'reclamo por deriva'`, `requested_by`/`decided_by`/`created_by` NULL (system), with one `RequestTransition` (`from_state` NULL → `active`, `actor_user_id` NULL). Every register row therefore has a request anchor, so J2 (`flagged_inactive`→`offboarding`→`deprovisioned`) and `ProvisioningAction.request_id` work identically for request-, import- and reconciliation-sourced seats. `[SRC:CJ]`
+- **Lifecycle.** Created at S1 (creates `Person` if absent); validated → Pending Approval; decided at S2; provisioned S3/S4; provisioning API error → `failed` (fires `provisioning_failure` AlertRule; retry returns to `provisioning`) per §10 "→ Failed with alert on API error"; terminal states Deprovisioned/Rejected; the daily inactivity job moves `active → flagged_inactive` at the 30-day lag-aware window and back `flagged_inactive → active` when activity resumes (DEC-SMP-028, US-074); `flagged_inactive → offboarding` only through an approved reclamation (US-028). Transitions in `RequestTransition`. **System-materialized rows:** the go-live import backfill (SEC5) and each reconciliation drift-claim (J4 claim task) create one LicenseRequest per seat directly in `state='active'` — `justification` = `'importación inicial'` / `'reclamo por deriva'`, `requested_by`/`decided_by`/`created_by` NULL (system), with one `RequestTransition` (`from_state` NULL → `active`, `actor_user_id` NULL). Every register row therefore has a request anchor, so J2 (`flagged_inactive`→`offboarding`→`deprovisioned`) and `ProvisioningAction.request_id` work identically for request-, import- and reconciliation-sourced seats. `[SRC:CJ]` The human claimant of a drift claim is recorded in `AuditLog` only; the request's NULL system actors are never replaced by the admin (DEC-SMP-036).
 - **Flags.** `requires_versioning: transitions table` · `has_soft_delete: no (terminal states)` · `audit_required: yes` · `multi_tenant_scoped: yes`
 
 | Attribute | Type | PK/FK/IDX | Nullable | Description | Example | Source(s) |
@@ -321,7 +324,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 
 - **Domain:** `register_context`
 - **Business purpose.** **The register** — one row per continuous holding of one license by one person, attributed to exactly one company: the chargeback source of truth across ALL vendors (DEC-SMP-009). Append-only time series; the only in-place update is closing the open row (`ended_on`, `end_reason`).
-- **Lifecycle.** Opened at activation (TB_S4_2) or reconciliation-claim (drift); closed at offboarding/transfer/reallocation (J2). PRD §10's `rejected-invite-expired` close reason is deliberately omitted from `end_reason`: an expired/withdrawn invite never reaches activation, so no register row exists to close — expired-invite terminations live on the request side only (`RequestTransition` to `deprovisioned` + `ProvisioningAction` `kind=withdraw_invite`, `status=withdrawn`). **DB-level integrity:** Postgres exclusion constraint forbids overlapping date ranges per (person, vendor account, license type); transfer contiguity enforced by a deferred constraint trigger in the same migration (re-verified at close, Step 9b). `[SRC:RAW]` Module E, §15.
+- **Lifecycle.** Opened at activation (TB_S4_2) or reconciliation-claim (drift); closed at offboarding/transfer/reallocation (J2). PRD §10's `rejected-invite-expired` close reason is deliberately omitted from `end_reason`: an expired/withdrawn invite never reaches activation, so no register row exists to close — expired-invite terminations live on the request side only (`RequestTransition` to `deprovisioned` + `ProvisioningAction` `kind=withdraw_invite`, `status=withdrawn`). **DB-level integrity:** Postgres exclusion constraint forbids overlapping date ranges per (person, vendor account, license type); transfer contiguity enforced by a deferred constraint trigger in the same migration (re-verified at close, Step 9b). `[SRC:RAW]` Module E, §15. A reconciliation-claim row is created in the same transaction as its system LicenseRequest, the `NULL → active` RequestTransition, the human AuditLog entry and the `DriftEpisode` resolution (`claimed`); the claim is replay-safe and locks the episode (DEC-SMP-039). Removal closures (`left_company`/`inactive`) are written only by the offboarding finalization primitive (US-075, DEC-SMP-042); a `reallocated` closure is a transfer and is written only together with its contiguous successor (BR-02, DEC-SMP-040) — the offboarding entrypoint refuses that reason.
 - **Flags.** `requires_versioning: append-only by design` · `has_soft_delete: no` · `audit_required: yes` · `multi_tenant_scoped: yes`
 
 | Attribute | Type | PK/FK/IDX | Nullable | Description | Example | Source(s) |
@@ -333,10 +336,10 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `license_type_id` | `uuid` | FK => LicenseType.id | no |  |  | [SRC:RAW] |
 | `started_on` | `date` | IDX | no | Inclusive (A-ER-4) | `2026-08-03` | [SRC:RAW] |
 | `ended_on` | `date` |  | yes | Inclusive; null = open holding. Set to the Ecuador date of the confirmed removal (provider success or checklist confirmation), in the same transaction as the ProvisioningAction completion and the `offboarding → deprovisioned` transition; a failed removal leaves it null (DEC-SMP-033) | `2026-09-09` | [SRC:RAW], DEC-SMP-033 |
-| `end_reason` | `text` (enum) |  | yes | `left_company / inactive / reallocated` — immutable once set; only `left_company` is under the BR-14 same-business-day SLA (DEC-SMP-030) | `reallocated` | [SRC:RAW] §10, DEC-SMP-030 |
+| `end_reason` | `text` (enum) |  | yes | `left_company / inactive / reallocated` — immutable once set; only `left_company` is under the BR-14 same-business-day SLA (DEC-SMP-030). `left_company`/`inactive` are removal closures written by the offboarding finalization (DEC-SMP-033/042); `reallocated` is a BR-02 transfer closure written only with its contiguous successor and never by the offboarding entrypoint (DEC-SMP-040) | `reallocated` | [SRC:RAW] §10, DEC-SMP-030 |
 | `source_request_id` | `uuid` | FK => LicenseRequest.id, UNIQUE(source_request_id) | yes | Import/reconciliation rows reference their system-materialized request (see LicenseRequest lifecycle); null only for transfer-reopened rows (a transfer's inbound leg is its own fast-tracked request, PRD §10); Postgres NULLs-distinct makes plain UNIQUE enforce the 1:0..1 | … | [SRC:RAW] §14 |
-| `source_kind` | `text` (enum) |  | no | `request / import / reconciliation / manual` — `manual` = admin-recorded row on an API-less org (DEC-SMP-018), same integrity constraints | `request` | [SRC:RAW] §14 |
-| `note` | `text` |  | yes | Rationale for import/reconciliation rows (e.g. drift-claim comment), visible on the register row expander | … | [SRC:CJ] J4 |
+| `source_kind` | `text` (enum) |  | no | `request / import / reconciliation / manual` — `manual` = admin-recorded row on an API-less org (DEC-SMP-018), same integrity constraints; `reconciliation` = a Group Admin drift claim (US-079) anchored on its system-materialized request, `started_on` admin-supplied ≤ claim date and never intersecting a finalized statement (DEC-SMP-039) | `request` | [SRC:RAW] §14 |
+| `note` | `text` |  | yes | Rationale for import/reconciliation rows (e.g. drift-claim comment), visible on the register row expander; mandatory (trimmed, non-empty) for `reconciliation` and `manual` rows (BR-24, DEC-SMP-036) | … | [SRC:CJ] J4 |
 | `created_at` | `timestamptz` |  | no |  |  | — |
 | `created_by` | `uuid` | FK => UserAccount.id | yes | Null for job-written rows | … | — |
 
@@ -380,6 +383,31 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `decided_by` | `uuid` | FK => UserAccount.id | yes |  |  | [SRC:CJ] J2 |
 | `decided_at` | `timestamptz` |  | yes |  |  | [SRC:CJ] J2 |
 | `decision_note` | `text` |  | yes | Mandatory (app-level) when dismissed | … | [SRC:CJ] J2 |
+| `created_at` | `timestamptz` |  | no |  |  | — |
+
+### `DriftEpisode`
+
+- **Domain:** `register_context` **[DERIVED_ENTITY]** (CHG-075, DEC-SMP-035)
+- **Business purpose.** One durable, deduplicated console-vs-register drift observation: a licensed active console member (per vendor account and license type) that the shared complete-snapshot diff (BR-24, US-078) found with no open `LicenseAssignment` for the same normalized identity. It is the evidence the Deriva tab lists, the subject `register_drift` alerts fire about, the row a Group Admin claims (US-079) and the unit the dashboard drift metric counts (US-080, DEC-SMP-037). Immutable `AlertEvent` carries acknowledgement but no resolution state, which is why episodes exist as their own entity.
+- **Lifecycle.** Opened by the first validated COMPLETE observation (api hourly sync, csv_import or manual import) in which the member is unknown; `observed_at` advances on every later complete observation that still shows the member; resolved exactly once — `claimed` by a successful `claimDriftMember` (one transaction with the Person/request/transition/assignment/audit writes, episode pinned and locked) or `disappeared` when a newer complete snapshot no longer shows the member (alerts stay readable, no register row is closed). Partial, failed or stale snapshots never open or resolve an episode. Reappearance after resolution opens a NEW episode. Never deleted.
+- **Flags.** `requires_versioning: no` · `has_soft_delete: no` · `audit_required: resolution is audited via the claim; detection rows are themselves evidence` · `multi_tenant_scoped: account-scoped until claimed — an open episode has no company; it is visible only to authenticated Group Admin, never attributed to a company by VendorAccount or e-mail domain (DEC-SMP-034)`
+
+| Attribute | Type | PK/FK/IDX | Nullable | Description | Example | Source(s) |
+|---|---|---|---|---|---|---|
+| `id` | `uuid` (v7) | PK | no |  |  | A-ER-1 |
+| `vendor_account_id` | `uuid` | FK => VendorAccount.id, IDX | no | Console/org the member was observed in | … | [SRC:CJ] J4 |
+| `license_type_id` | `uuid` | FK => LicenseType.id | no | Seat type observed; part of the episode identity | … | DEC-SMP-034 |
+| `member_identity` | `text` | IDX | no | Normalized console identity (lower-cased e-mail or vendor member id when no e-mail); part of the episode identity | `ana.perez@ram.ec` | DEC-SMP-034 |
+| `vendor_member_ref` | `text` |  | yes | Vendor-side member id as observed | `user_01J…` | [SRC:RAW] §11 |
+| `display_name` | `text` |  | yes | Name as reported by the console; never used to create a Person automatically | `Ana Pérez` | DEC-SMP-034 |
+| `person_id` | `uuid` | FK => Person.id | yes | Matching Person when the identity resolves unambiguously; a match never implies a company and never creates an assignment | … | DEC-SMP-034 |
+| `first_seen_at` | `timestamptz` | IDX | no | First complete observation; stable for the life of the episode (trend oracle) | `2026-10-12T05:05:00Z` | DEC-SMP-035 |
+| `observed_at` | `timestamptz` |  | no | Latest COMPLETE observation that still showed the member | `2026-10-13T05:05:00Z` | DEC-SMP-035 |
+| `source` | `text` (enum) |  | no | Source of the latest observation: `api / csv_import / manual` | `api` | DEC-SMP-018/025 |
+| `warnings` | `jsonb` |  | no | Durable identity warnings (ambiguous/null e-mail, unmapped license type, multiple Person candidates); default `[]` | `["null_email"]` | DEC-SMP-034 |
+| `resolved_at` | `timestamptz` | IDX | yes | Null = open. Partial UNIQUE (`vendor_account_id`, `member_identity`, `license_type_id`) WHERE `resolved_at IS NULL` — the unique-open constraint | … | DEC-SMP-035 |
+| `resolution_reason` | `text` (enum) |  | yes | `claimed / disappeared` — set with `resolved_at`, immutable | `claimed` | DEC-SMP-035 |
+| `resolved_by_assignment_id` | `uuid` | FK => LicenseAssignment.id, UNIQUE | yes | The reconciliation assignment a claim created (null for `disappeared`) | … | DEC-SMP-039 |
 | `created_at` | `timestamptz` |  | no |  |  | — |
 
 ### `ActivityRecord`
@@ -541,7 +569,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 ### `AlertRule`
 
 - **Domain:** `alerts_context`
-- **Business purpose.** Configurable alert definitions (Module G): pending-approval aging, provisioning failure, blocked-no-seat, low pool, invite unaccepted 7d, sync staleness, credential failure, register drift, overdue deprovisioning, and missed close; thresholds + channel.
+- **Business purpose.** Configurable alert definitions (Module G): pending-approval aging, provisioning failure, blocked-no-seat, low pool, invite unaccepted 7d, sync staleness, credential failure, register drift, overdue deprovisioning, and missed close; thresholds + channel. `register_drift` means console membership drift — a console member absent from the register, subject = `DriftEpisode` (DEC-SMP-038); it never represents reconciliation variance, which has no alert rule in this catalogue.
 - **Lifecycle.** Seeded with the 10 P0 alert types; edited by Group Admin; budget-threshold rules 🟡. `channel` members `slack`/`teams` are 🟡 R2 (Module G P1 webhooks) — R1 uses `email` only.
 - **Flags.** `requires_versioning: no` · `has_soft_delete: via enabled flag` · `audit_required: yes` · `multi_tenant_scoped: scope-dependent`
 
@@ -570,7 +598,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `id` | `uuid` (v7) | PK | no |  |  | A-ER-1 |
 | `alert_rule_id` | `uuid` | FK => AlertRule.id, IDX | no |  |  | [SRC:RAW] |
 | `fired_at` | `timestamptz` | IDX | no |  |  | [SRC:RAW] §14 |
-| `subject_ref` | `jsonb` |  | yes | What it is about (request id, account id, person id) | `{"request_id":"…"}` | [ASSUMPTION] |
+| `subject_ref` | `jsonb` |  | yes | What it is about (request id, account id, person id). For `register_drift` the subject is the member drift episode: `{"drift_episode_id":"…","vendor_account_id":"…"}` (DEC-SMP-038); historical `{"reconciliation_id":…}` subjects written by the retired financial-variance evaluation stay readable as legacy evidence and are never produced again | `{"request_id":"…"}` | [ASSUMPTION] + CHG-075 |
 | `dedupe_key` | `text` | UNIQUE | no | Stable `alert_rule_id + alert stage + subject identity + breach-window start`; retry inserts use ON CONFLICT/no-op so one AlertEvent exists per breach stage | `rule:approval_aging:48h:request:…:2026-07-27T00:00Z` | [SRC:CJ] US-017/US-042 |
 | `notified` | `jsonb` |  | no | Recipients notified | `["gm@ram.ec"]` | [SRC:RAW] §14 |
 | `acknowledged_by` | `uuid` | FK => UserAccount.id | yes |  |  | [SRC:RAW] §14 |
@@ -665,6 +693,11 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | UserAccount | Company/Vendor/etc. audit columns | 1:N | optional | reference | `created_by`/`updated_by` FKs on catalog entities | — |
 
 | LicenseAssignment | ReclamationProposal | 1:N | mandatory | composition | FK `ReclamationProposal.assignment_id` (partial UNIQUE on pending) | [SRC:CJ] J2 |
+| VendorAccount | DriftEpisode | 1:N | mandatory | composition | FK `DriftEpisode.vendor_account_id`; partial UNIQUE open episode per (account, member identity, license type) | CHG-075 / DEC-SMP-035 |
+| LicenseType | DriftEpisode | 1:N | mandatory | reference | FK `DriftEpisode.license_type_id` | CHG-075 / DEC-SMP-034 |
+| Person | DriftEpisode | 1:N | optional | reference | FK `DriftEpisode.person_id` (nullable; a match never implies a company) | CHG-075 / DEC-SMP-034 |
+| LicenseAssignment | DriftEpisode | 1:1 | optional | reference | FK `DriftEpisode.resolved_by_assignment_id` (UNIQUE, nullable) — the claim that resolved the episode | CHG-075 / DEC-SMP-039 |
+| DriftEpisode | AlertEvent | 1:N | optional | reference | `AlertEvent.subject_ref.drift_episode_id` for `register_drift` (no FK; subject_ref is jsonb) | CHG-075 / DEC-SMP-038 |
 | UserAccount | ReclamationProposal | 1:N | optional | reference | FK `ReclamationProposal.proposed_by` / `decided_by` (nullable) | [SRC:CJ] J2 |
 | CloseRun | Statement | 1:N | optional | reference | FK `Statement.close_run_id` (nullable) | [SRC:CJ] J3 |
 | UserAccount | CloseRun | 1:N | optional | reference | FK `CloseRun.triggered_by` (nullable) | [SRC:CJ] J3 |
@@ -806,6 +839,8 @@ erDiagram
     LicenseRequest ||--o{ RequestTransition : "transitions"
     LicenseRequest ||--o{ ProvisioningAction : "executes_via"
     LicenseAssignment ||--o{ ReclamationProposal : "proposed_for"
+    VendorAccount ||--o{ DriftEpisode : "observes drift in"
+    LicenseAssignment |o--o| DriftEpisode : "claim resolves"
     LicenseRequest |o--o| LicenseAssignment : "materializes_as"
     Person ||--o{ LicenseAssignment : "holds"
     Company ||--o{ LicenseAssignment : "charged_for"
@@ -860,6 +895,19 @@ erDiagram
         text status "pending/approved/dismissed"
         uuid proposed_by FK
         uuid decided_by FK
+    }
+    DriftEpisode {
+        uuid id PK
+        uuid vendor_account_id FK
+        uuid license_type_id FK
+        text member_identity
+        uuid person_id FK
+        timestamptz first_seen_at
+        timestamptz observed_at
+        text source
+        timestamptz resolved_at
+        text resolution_reason
+        uuid resolved_by_assignment_id FK
     }
 ```
 

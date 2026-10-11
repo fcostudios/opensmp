@@ -72,7 +72,7 @@
               "id": "tile_free",
               "label": "Disponibles",
               "valueExpr": "6",
-              "caption": "Piso de alerta: 5 — toca para ver cupos",
+              "caption": "Piso de alerta: 5 — toca para ver cupos · 1 cupo pendiente de actualización · observado 18/07/2026",
               "on_click": {
                 "navigate_to": "SCR-pools",
                 "trigger": "view_pools_from_vendor_account"
@@ -105,6 +105,13 @@
             "variant": "secondary",
             "icon": "upload",
             "opens_modal": "modal_import_usage_csv"
+          },
+          {
+            "id": "btn_confirm_pool_refresh",
+            "label": "Confirmar cupos actuales",
+            "variant": "secondary",
+            "icon": "refresh-cw",
+            "opens_modal": "modal_confirm_pool_refresh"
           }
         ]
       },
@@ -745,6 +752,72 @@
           },
           {
             "id": "btn_cancel_modal_import_usage_csv",
+            "label": "Cancelar",
+            "variant": "secondary"
+          }
+        ]
+      },
+      {
+        "id": "modal_confirm_pool_refresh",
+        "type": "modal",
+        "title": "Confirmar cupos actuales",
+        "description": "Confirma que revisaste la membresía actual de esta organización en la consola del proveedor. Ledger registra una observación manual completa: los cupos liberados pendientes de actualización pasan a disponibles. No reemplaza una importación de miembros.",
+        "states": [
+          {
+            "id": "default",
+            "label": {
+              "en-US": "Default",
+              "es-EC": "Predeterminado"
+            }
+          },
+          {
+            "id": "submitting",
+            "label": {
+              "en-US": "Submitting",
+              "es-EC": "Enviando"
+            }
+          },
+          {
+            "id": "success",
+            "label": {
+              "en-US": "Success",
+              "es-EC": "Éxito"
+            }
+          },
+          {
+            "id": "error",
+            "label": {
+              "en-US": "Error",
+              "es-EC": "Error"
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "refresh_note",
+            "type": "textarea",
+            "label": "Nota (opcional)",
+            "placeholder": "Ej.: revisado en la consola de Anthropic el 12/10",
+            "required": false
+          }
+        ],
+        "actions": [
+          {
+            "id": "btn_run_modal_confirm_pool_refresh",
+            "label": "Confirmar observación",
+            "variant": "primary",
+            "intent": "server_action:recordManualPoolRefresh",
+            "onSuccess": {
+              "toast": "Observación manual registrada. Los cupos pendientes de actualización ya están disponibles.",
+              "close": true,
+              "refresh": true
+            },
+            "onError": {
+              "toast": "No se pudo registrar la observación. Nada cambió; intenta de nuevo."
+            }
+          },
+          {
+            "id": "btn_cancel_modal_confirm_pool_refresh",
             "label": "Cancelar",
             "variant": "secondary"
           }
