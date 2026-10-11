@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { auditLog, reclamationProposal } from "@smp/db/schema";
 import { createReclamationServerActions } from "./reclamation-server-actions-factory";
 import { createReclamationFixture, reclamationId } from "./testing/reclamation-fixture";
 import type { LedgerAuthorization } from "../identity-access/authorization";
+import { insertReclamationProposals } from "../../../../../packages/db/src/reclamation-proposals";
 
 type Fixture = Awaited<ReturnType<typeof createReclamationFixture>>;
 function action(f: Fixture, authorization: LedgerAuthorization | null = f.admin, revalidate: (path: string) => void = () => undefined) {
@@ -14,6 +15,45 @@ async function effects(f: Fixture) {
   return { proposals: await f.database.select().from(reclamationProposal), audits: await f.database.select().from(auditLog).where(eq(auditLog.action, "reclamation.proposed")) };
 }
 describe("US-073 real audited batch action", () => {
+  it("normalizes fresh command schemas and enforces the unique selection and note boundaries", async () => {
+    vi.resetModules();
+    const { parseReclamationCommand: parse } = await import("./reclamation-command");
+    const uuid = "ABCDEFAB-CDEF-4ABC-8DEF-ABCDEFABCDEF";
+    const people = Array.from({ length: 51 }, (_, n) => `abcdefab-cdef-4abc-8def-${n.toString(16).padStart(12, "0")}`);
+    expect(parse({ person_ids: [uuid, uuid.toLowerCase()], company_id: uuid, client_request_id: uuid, note: "  note  " })).toEqual({ person_ids: [uuid.toLowerCase()], company_id: uuid.toLowerCase(), client_request_id: uuid.toLowerCase(), note: "note" });
+    expect(parse({ person_ids: people.slice(0, 50), client_request_id: uuid, note: "x".repeat(2000) }).person_ids).toEqual(people.slice(0, 50));
+    for (const note of [undefined, "", "   "]) expect(parse({ person_ids: [uuid], client_request_id: uuid, note }).note).toBeNull();
+    const base = { person_ids: [uuid], client_request_id: uuid };
+    for (const input of [{ ...base, person_ids: [] }, { ...base, person_ids: people }, { ...base, person_ids: ["bad"] }, { ...base, note: 4 }, { ...base, note: "x".repeat(2001) }, { ...base, other: true }, { ...base, company_id: "bad" }]) expect(() => parse(input)).toThrow();
+  });
+  it("executes the instrumented persistence seam with scoped open assignments, atomic rollback and pending retries", async () => {
+    const f = await createReclamationFixture();
+    try {
+      const input = { personIds: [f.ids.person1, f.ids.person2, f.ids.person3], allowedCompanyIds: [f.ids.companyA, f.ids.companyB, f.ids.companyC], actorUserId: f.ids.admin, note: "real persistence", occurredAt: f.now() };
+      const run = (value: Parameters<typeof insertReclamationProposals>[1]) => f.database.transaction(tx => insertReclamationProposals(tx, value));
+      for (const [value, code] of [
+        [{ ...input, allowedCompanyIds: [] }, "access_denied"],
+        [{ ...input, allowedCompanyIds: [f.ids.companyA], companyId: f.ids.companyB }, "access_denied"],
+        [{ ...input, allowedCompanyIds: [f.ids.companyA] }, "access_denied"],
+        [{ ...input, companyId: f.ids.companyA }, "access_denied"],
+        [{ ...input, personIds: [f.ids.person1, reclamationId(999)] }, "access_denied"],
+        [{ ...input, personIds: [f.ids.person1, f.ids.noOpen] }, "selection_changed"],
+      ] as const) await expect(run(value)).rejects.toMatchObject({ code });
+      await expect(f.database.transaction(async tx => { await insertReclamationProposals(tx, input); throw new Error("rollback contract"); })).rejects.toThrow("rollback contract");
+      expect(await effects(f)).toEqual({ proposals: [], audits: [] });
+      const result = await run(input);
+      expect(result.existing).toBe(0);
+      expect(result.inserted.map(r => r.proposal.assignmentId).sort()).toEqual(f.ids.openSelectedAssignments.slice().sort());
+      for (const { proposal, companyId } of result.inserted) {
+        expect(proposal).toMatchObject({ proposedBy: f.ids.admin, proposalNote: input.note, status: "pending", createdAt: input.occurredAt });
+        expect(companyId).toBe(proposal.assignmentId === f.ids.assignment2 ? f.ids.companyB : proposal.assignmentId === f.ids.assignment3 ? f.ids.companyC : f.ids.companyA);
+      }
+      const before = await effects(f);
+      expect(await run({ ...input, note: "retry change" })).toEqual({ inserted: [], existing: 4 });
+      expect(await effects(f)).toEqual(before);
+      expect(await run({ ...input, personIds: [f.ids.person1], companyId: f.ids.companyA })).toEqual({ inserted: [], existing: 2 });
+    } finally { await f.stop(); }
+  });
   it.each([false, true])("creates every open selected assignment and preserves original retry effects (extra=%s)", async extraAssignment => {
     const f = await createReclamationFixture({ extraAssignment });
     try {
