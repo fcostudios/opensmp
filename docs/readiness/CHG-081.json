@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "8addb440eeb964f4df54a64095436c167c065920f299ffc8ed46bc80bb4ea3d2",
+  "readiness_payload_sha256": "64b41c5fd86969d67352a6c5ee389ca383bed4c35c679dc061d10542e05501d4",
   "work_id": "CHG-081",
   "kind": "CHG",
   "work_type": "technical",
@@ -76,7 +76,7 @@
       "statement": "Shared gate ordering and known failures remain outside route scope.",
       "status": "budgeted",
       "estimate_impact_minutes": 10,
-      "resolution": "Canonical order is CHG-081 route/runtime evidence -> revised US-075 digest approval -> US-075 functional execution including required assignment-pointer/remove-kind legacy alert fixture within 20 paths -> one coordinated green regular gate -> separate CHG-079, CHG-080 and CHG-081 closures -> US-075 closure. CHG-079/080 are implemented but not done; leave their scope/readiness unchanged. Shared gate fe509ee is RED at legacy alert fixture; types/lint passed, build not reached. Historical whole Node harness fails obsolete unrelated page fixture around lines 1149/915; disclose it and keep untouched beyond current two assertion hunks. No false whole-suite GREEN, build_pass or done while gate remains red. Shared awake gate uses existing /tmp/smp-full-gate.lock with exclusive owner/inode control, no foreign-lock deletion or duplicate gate. Own ordinary TypeScript mutation eligibility expected zero because two mjs paths plus paperwork are not mutatable TS; record actual eligibility and omit invented score/test_report when zero. Runtime route proof is separate operational evidence with real cost. Foreign-lock delay, wrong composed-method interpretation or any work beyond bounded entry/assertions triggers boundary stop/reassessment."
+      "resolution": "Canonical order is CHG-081 route/runtime evidence -> revised US-075 digest approval -> US-075 functional execution including required assignment-pointer/remove-kind legacy alert fixture within 20 paths -> one coordinated green regular gate -> separate CHG-079, CHG-080 and CHG-081 closures -> US-075 closure. CHG-079/080 are implemented but not done; leave their scope/readiness unchanged. Shared gate fe509ee is RED at legacy alert fixture; types/lint passed, build not reached. Historical whole Node harness fails obsolete unrelated page fixture around lines 1149/915; disclose it and keep untouched beyond current two assertion hunks. No false whole-suite GREEN, build_pass or done while gate remains red. Shared awake gate uses existing /tmp/smp-full-gate.lock with exclusive owner/inode control, no foreign-lock deletion or duplicate gate. Own ordinary TypeScript mutation eligibility expected zero because two mjs paths plus paperwork are not mutatable TS; record actual eligibility without an invented mutation score or cold campaign. Canonical allocation requires genuine runtime route evidence as CHG-081 test_report even though own technical TS mutation eligibility is zero; that requirement is not waived or silently skipped. The current delivered reporting contract conflicts with this runtime-only report, as U5 records. Runtime route proof must carry actual suite/preflight costs only after a supported truthful event shape is resolved. Foreign-lock delay, wrong composed-method interpretation or any work beyond bounded entry/assertions triggers boundary stop/reassessment."
     },
     {
       "id": "U4",
@@ -84,16 +84,23 @@
       "status": "resolved",
       "estimate_impact_minutes": 10,
       "resolution": "Bottom-up 35 active minutes, six inclusive paths: readiness/canonical requirements/runtime-selection investigation and digest commit 10; additive entry and existing exact assertions 3; focused route checking plus real fixture migrate/schema/suite composition 7; reused scoped reviewer and fresh adversarial AC reviewer with small repair allowance 5; coordinated normal gate attribution, final own zero-shard eligibility, evidence/actuals/done.cost and ownership checks 10. Includes paperwork and review, not just route implementation. This exceeds approximate 25-minute allocation by 10; fresh human digest approval must accept 35. Human approval/external coordination waits are excluded active-cost estimates, not invented measured actuals. Existing dependencies installed, no private DB container or new harness expected. Gate and runtime wall costs measured separately; phase envelopes are forecasts. Approval pending: no started/design/plan/implementation is authorized yet."
+    },
+    {
+      "id": "U5",
+      "statement": "Canonical mandatory runtime test_report conflicts with current mutation-only feedback and terminal actuals contracts.",
+      "status": "unresolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Bounded blocker discovered during readiness correction, not a request to skip canonical reporting. docs/dev-guide/FEEDBACK.md lines 95-125 specifies test_report as one authoritative mutation-evidence report after adversarial review; requires mutation_score, scope (diff or critical-set), killed and survived, and explicitly rejects scoreless reports at substrate pull. scripts/work-readiness/model.mjs lines 1026-1031 treats every retained test_report as cold campaign evidence and rejects done with zero cold_mutation_attempts (WR_MUTATION_CAMPAIGN_EVIDENCE); it has no runtime-only report discriminator. Delivered feedback-vocabulary.json publishes no separate runtime test_report schema. scripts/check-nous-feedback-order.mjs does not validate those fields, so passing that permissive local parser would not establish substrate acceptance or truthful closure. Composed actual-source route/runtime verification is not a campaign and cannot invent mutation_score, killed/survived, or an authoritative cold attempt. Need a bounded canonical Nous ruling defining a supported truthful runtime test_report shape and its matching terminal accounting, or explicitly accepting another event for this mandatory evidence, or separately authorizing actual campaign evidence. Do not patch schema/model/harness/template, run a historical campaign, substitute feedback silently, or execute runtime tests before fresh approval. The 35-minute/six-path forecast remains provisional for the unchanged bounded routing outcome; any authorized reporting-tooling expansion needs separate ownership/readiness, not a stretched forecast."
     }
   ],
   "dependencies": [],
-  "decision": "ready",
+  "decision": "blocked",
   "partitions": [],
   "approval": {
     "status": "pending",
     "approved_by": null,
     "evidence": null,
-    "payload_sha256": "8addb440eeb964f4df54a64095436c167c065920f299ffc8ed46bc80bb4ea3d2"
+    "payload_sha256": "64b41c5fd86969d67352a6c5ee389ca383bed4c35c679dc061d10542e05501d4"
   },
   "actuals": null,
   "policy_bootstrap": false,
