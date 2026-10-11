@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "1b4b1cb8afc3c88497f2001ad6d5e1cafc50ce75c3f3d4a4c98d28b181cf2e4d",
+  "work_id": "CHG-079",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Register the accountable people-action mutation route and pin the canonical critical set",
+  "source": "docs/stories/CHANGES.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "US-075 can use the existing accountable repository integration suite for people-action-service mutations, and the reconciler recognizes the exact canonical critical-set bytes delivered by c8f3317 through a new immutable layer. This is one operational prerequisite; no functional story repartition or governance invention.",
+      "demo": "The exact direct route and real-file routedTestFiles assertions pass; a preflight over the existing service delta identifies the real repository integration suite, which runs via the CHG-067 shared PostgreSQL wrapper. Generated-guidance check and the focused reconciler suite accept the pinned canonical bytes while unknown bytes still reject. Full gate and technical authority-range validation pass.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "mutation-route-registration",
+    "generated-guidance-pin"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 10,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 12,
+    "implementation": 8,
+    "focused_verification": 8,
+    "review": 7,
+    "integration": 10,
+    "total": 45
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Canonical acceptance mapping and inclusive file scope.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Read accepted CHG-079 from d45120e and c8f3317 before other work; generated entry is truncated but the delegated canonical instruction bounds AC1 to exact DIRECT_TEST_ROUTES registration plus direct and real-file routedTestFiles assertions in existing scripts/test-mutation-scope.mjs; AC2 to the immutable critical-file layer, manifest, registration and existing fixture wiring following CHG-044; AC3 to focused route/pin tests, real service-shard preflight and suite execution, regular full gate, readiness/range evidence and closure. source is an existing repository path; model validates a nonempty string and local AC-to-outcome references, with no external source AC parser. Exact inclusive manifest: docs/readiness/CHG-079.json; .nous-feedback.jsonl; docs/superpowers/specs/2026-10-11-chg-079-route-critical-pin-design.md; docs/superpowers/plans/2026-10-11-chg-079-route-critical-pin-plan.md; scripts/mutation-scope.mjs; scripts/test-mutation-scope.mjs; infra/scripts/overrides/CHG-079/c8f3317/manifest.json; infra/scripts/overrides/CHG-079/c8f3317/testing/critical-paths.md; infra/scripts/reconcile-sprint1-docs.py; infra/scripts/tests/test_reconcile_sprint1_docs.py. Generated testing/critical-paths.md and all application source/tests remain unchanged; all approval/phase/AC/build/test/closure bookkeeping uses the same feedback path."
+    },
+    {
+      "id": "U2",
+      "statement": "Exact immutable pin ancestry and canonical bytes.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Latest registered critical-file desired artifact is overrides/CHG-069/84ab8ea/testing/critical-paths.md, SHA256 50834168a28994a3acf9dedb68952d00ebe10b3d695037869822c9400bcb85a8. New layer CHG-079/c8f3317 must bind those source bytes to the exact delivered testing/critical-paths.md SHA256 9aa63e45047cfa887a40d08d484d5e4b1cb5eb8f0eef492d1252728ddfd65467. Preserve BR-14 US-024/042/075/077/082 governance, seven removed cross-tenant governances and MemberObservation heuristic row. Reconciler change is registration only; fixture updates include latest_desired_guide, copy_reconciler_data and focused manifest acceptance/rejection proof. No hash allowlist, loader behavior, template, instrumentation, threshold or routing-gap-rejection change. Any need beyond registration/pin returns a substrate issue without local IMP/ID."
+    },
+    {
+      "id": "U3",
+      "statement": "Verification authority and real database execution costs.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 8,
+      "resolution": "After digest approval, commit reviewed readiness-bound design/plan and freeze a separate CHG-079 mutation/ownership base. mjs/Python/JSON/Markdown registration paths produce zero ordinary TypeScript mutation shards; record observed preflight rather than claiming a score. Independently prove the existing US-075 people-action service delta routes to apps/web/src/modules/org-registry/repository.integration.test.ts and execute that real suite through packages/db/src/testing/run-with-shared-postgres.ts using CHG-067 shared PostgreSQL only; no private containers or parser/import relay. Scoped Python pin mutation evidence may be run if required by the existing reconciler gate, within focused verification. Run one regular caffeinate -i pnpm check under /tmp/smp-full-gate.lock using exclusive creation, owner/inode cleanup and waits at least 60 seconds for a foreign owner; never remove another owner lock. Additional harness behavior work or forecast overrun triggers stop and reassessment."
+    },
+    {
+      "id": "U4",
+      "statement": "Whole-item estimate versus approximately 35-minute canonical allocation.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "Bottom-up whole-item forecast is 45 minutes: readiness/canonical inspection/digest commit 12; bounded route and pin authoring including existing focused fixtures 8; focused executions and service-shard DB proof 8; one reused scoped reviewer plus fresh adversarial AC verification and likely small repair allowance 7; normal awake full gate, final zero-shard campaign/report and closure/range evidence 10. These are forecast phase envelopes, not measured actuals; readiness already performed is included once. Estimate exceeds approximate allocation by 10 and needs explicit digest approval. Dependency installs not expected: existing workspace is populated. Foreign gate-lock wait or any extra behavior changes require boundary reassessment; no invented historical median or actuals."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "1b4b1cb8afc3c88497f2001ad6d5e1cafc50ce75c3f3d4a4c98d28b181cf2e4d"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
