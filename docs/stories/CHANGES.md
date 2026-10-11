@@ -919,8 +919,8 @@ _No stories linked to this change yet._
 | Story | Name | Sprint | Status | File |
 |-------|------|--------|--------|------|
 | **US-072** | Usage surface: lag-aware inactivity per person on SCR-usage | Sprint 3 | ✅ dev_done | [r1_misc_us_072.md](sprint-3/r1_misc_us_072.md) |
-| **US-073** | Batch reclamation proposals from SCR-usage | Sprint 3 | ⬜ backlog | [r1_misc_us_073.md](sprint-3/r1_misc_us_073.md) |
-| **US-074** | Daily inactivity flagging of anchor license requests | Sprint 3 | ⬜ backlog | [r1_misc_us_074.md](sprint-3/r1_misc_us_074.md) |
+| **US-073** | Batch reclamation proposals from SCR-usage | Sprint 3 | 🔨 in_development | [r1_misc_us_073.md](sprint-3/r1_misc_us_073.md) |
+| **US-074** | Daily inactivity flagging of anchor license requests | Sprint 3 | ✅ dev_done | [r1_misc_us_074.md](sprint-3/r1_misc_us_074.md) |
 
 ### CHG-072: Feedback-order checker exempts annotation-class events from the started ordering (reads the class from the emitted vocabulary)
 

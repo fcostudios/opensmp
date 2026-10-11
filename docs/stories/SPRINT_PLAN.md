@@ -1,5 +1,5 @@
 <!-- nous-sprint-stamp
-generated_at: 2026-10-11T00:40:46Z
+generated_at: 2026-10-11T02:53:36Z
 current_sprint: sprint-3
 sprints_hash: fd0f586046336e37
 -->
@@ -107,8 +107,8 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | 15 | full-stack | **US-064** ✅ | Route provider no-seat responses to the capacity workflow | 1SP | `See story file` | CHG-054 | US-014, US-023, US-063 | →1 | — | [r1_misc_us_064.md](sprint-3/r1_misc_us_064.md) |
 | 16 | full-stack | **US-068** ✅ | Withdraw a pending invitation safely from exceptions | 1SP | `See story file` | CHG-063 | US-019, US-042, US-067 | →2 | — | [r1_misc_us_068.md](sprint-3/r1_misc_us_068.md) |
 | 17 | full-stack | **US-069** ✅ | Expire stale invitations automatically and notify the requester | 1SP | `See story file` | CHG-063 | US-019, US-042, US-068 | →1 | — | [r1_misc_us_069.md](sprint-3/r1_misc_us_069.md) |
-| 18 | full-stack | **US-073** ⬜ | Batch reclamation proposals from SCR-usage | 1SP | `See story file` | CHG-071 | US-026, US-072 | →1 | — | [r1_misc_us_073.md](sprint-3/r1_misc_us_073.md) |
-| 19 | full-stack | **US-074** ⬜ | Daily inactivity flagging of anchor license requests | 1SP | `See story file` | CHG-071 | US-026, US-072 | →1 | — | [r1_misc_us_074.md](sprint-3/r1_misc_us_074.md) |
+| 18 | full-stack | **US-073** 🔨 | Batch reclamation proposals from SCR-usage | 1SP | `See story file` | CHG-071 | US-026, US-072 | →1 | — | [r1_misc_us_073.md](sprint-3/r1_misc_us_073.md) |
+| 19 | full-stack | **US-074** ✅ | Daily inactivity flagging of anchor license requests | 1SP | `See story file` | CHG-071 | US-026, US-072 | →1 | — | [r1_misc_us_074.md](sprint-3/r1_misc_us_074.md) |
 | 20 | full-stack | **US-030** ⬜ | Drift detection + retroactive claim | 3SP | `See story file` | — | US-042, US-046, US-056, US-057, US-058 | →1 | — | [r1_misc_us_030.md](sprint-3/r1_misc_us_030.md) |
 | 21 | full-stack | **US-055** ⬜ | API-less ingestion: member/usage CSV import + manual register upkeep | 3SP | `See story file` | — | US-003, US-025, US-026, US-030 | — | — | [r1_misc_us_055.md](sprint-3/r1_misc_us_055.md) |
 | 22 | full-stack | **US-063** ✅ | Deliver approved requests as vendor invitations within 15 minutes | 1SP | `See story file` | CHG-054 | US-014, US-042, US-046, US-056, US-057, US-058 | →4 | — | [r1_misc_us_063.md](sprint-3/r1_misc_us_063.md) |
