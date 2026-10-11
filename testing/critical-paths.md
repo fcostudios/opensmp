@@ -19,14 +19,14 @@
 
 | Rule | Name | Oracle | Governed-by stories |
 |------|------|--------|---------------------|
-| BR-01 | Register no-overlap (one seat, one holder, one period) | exact | US-003, US-033, US-036, US-037 |
-| BR-02 | Every assigned seat-day belongs to exactly one company | exact | US-003, US-028, US-033, US-034, US-047 |
-| BR-03 | Audit log is append-only at the database level | exact | US-003, US-008, US-036, US-037 |
-| BR-04 | Only legal state-machine transitions execute | exact | US-014, US-033, US-034 |
-| BR-08 | Approval aging: reminder at 24 h, escalation at 48 h; decision target 2 business days | exact | US-015, US-017, US-032, US-046 |
-| BR-11 | Low-pool alert below the per-org floor | exact | US-022, US-052, US-053 |
+| BR-01 | Register no-overlap (one seat, one holder, one period) | exact | US-003 |
+| BR-02 | Every assigned seat-day belongs to exactly one company | exact | US-003, US-034, US-047 |
+| BR-03 | Audit log is append-only at the database level | exact | US-003, US-008 |
+| BR-04 | Only legal state-machine transitions execute | exact | US-014 |
+| BR-08 | Approval aging: reminder at 24 h, escalation at 48 h; decision target 2 business days | exact | US-015, US-017, US-046 |
+| BR-11 | Low-pool alert below the per-org floor | exact | US-022 |
 | BR-12 | Blocked requests are never dropped; review within 1 business day | exact | US-023 |
-| BR-14 | Departure deprovisioning completes same business day | property | US-024, US-042 |
+| BR-14 | Departure deprovisioning completes same business day | property | US-024, US-042, US-075, US-077, US-082 |
 | BR-17 | Proration is daily actual/actual with exact mid-month boundaries | exact | US-034 |
 | BR-18 | Close is deterministic and idempotent; finals are immutable | exact | US-034, US-035, US-047, US-050 |
 | BR-20 | Reconciliation flips to reconciled ONLY within 0.5% | exact | US-038 |
@@ -38,6 +38,7 @@
 |--------|--------------|--------|
 | CompanyRoleAssignment | auth-sensitive entity (name heuristic) | heuristic |
 | IntegrationCredential | auth-sensitive entity (name heuristic) | heuristic |
+| MemberObservation | auth-sensitive entity (name heuristic) | heuristic |
 | UserAccount | auth-sensitive entity (name heuristic) | heuristic |
 | VendorAccount | auth-sensitive entity (name heuristic) | heuristic |
 | VendorAccountCapacity | auth-sensitive entity (name heuristic) | heuristic |
@@ -47,4 +48,4 @@
 - **Invitation hygiene (US-067, US-068, US-069; DEC-SMP-023)** — overdue age derives from the durable invitation sent_at, with strict configured boundaries, company-scoped current eligibility and one alert per open breach. Withdrawal targets the pinned invitation only, refuses acceptance races and releases capacity only after confirmed removal; automatic expiry reuses that contract and records its system action.
 - **Daily person activity (US-070; DEC-SMP-024, DEC-SMP-025)** — identity matching is company-scoped; natural-key writes are idempotent, ignore stale or equal-equivalent observations and reject equal-time contradictions; source/API activity ingestion requires explicit opt-in; replay accepts only allowlisted activity events; unmatched or null-email identities produce durable warnings; ambiguous identities reject the batch atomically.
 - **Exact revisable person costs (US-071; DEC-SMP-024, DEC-SMP-025)** — signed USD amounts use exact decimal strings and integer arithmetic; nonrepresentable precision and overflow reject before writes. The injected UTC completed-date window [D-30,D) guards every source. Company-scoped identities, account/person/day freshness, opt-in locks and atomic warning audits preserve isolation and replay; null/unmatched identities warn and conflicting equal-time payloads reject.
-<!-- nous-emitted: sha256=27258aec1cda5c60 -->
+<!-- nous-emitted: sha256=0a3fd7293b4bf931 -->
