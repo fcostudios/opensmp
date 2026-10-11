@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "54b14d4ec52c138a0dd6e5c1c6f72ef035a9a1dd5a28686386aff07d9eaf50c8",
+  "readiness_payload_sha256": "931b876c299251d8b033b0216327c7ef59c8eb83c93db62cfacc9546868cd372",
   "work_id": "US-075",
   "kind": "US",
   "work_type": "functional",
@@ -57,12 +57,12 @@
     "tooling_change": false
   },
   "estimate_minutes": {
-    "readiness": 30,
-    "implementation": 115,
-    "focused_verification": 55,
-    "review": 55,
-    "integration": 25,
-    "total": 280
+    "readiness": 40,
+    "implementation": 145,
+    "focused_verification": 45,
+    "review": 45,
+    "integration": 35,
+    "total": 310
   },
   "uncertainties": [
     {
@@ -124,9 +124,9 @@
     {
       "id": "U9",
       "statement": "Does a smaller valid composition satisfy actual routing and the20-path envelope, and what is its independently estimated remaining cost?",
-      "status": "unresolved",
-      "estimate_impact_minutes": 0,
-      "resolution": "Independent implementer read-only estimate: remaining primitive/SQL45–70, checklist wrappers25–40, read-target service/components35–55, focused behavioral verification/fixes35–55, reused scoped review/fixes20–35, fresh AC review15–25, previews/survivors15–30, gate/cold/integration25–45 minutes =215–355 remaining. These are work estimates, not measured actuals; previews and cold campaign appear once. Prior implementer Task1 active15–25 and earlier authoring10–20 are estimates; controller/reviewer spent labor not measured. Recorded entry-to-inspection58min elapsed includes waiting and is not active cost. Original280 total remains an unvalidated baseline; neither335 nor any precise replacement is proved. Whole-item range240–400 plus separately estimated prior controller/reviewer work cannot establish ready≤320. Reconcile concrete remaining phase allowances and prior work without double-counting; obtain changed digest approval only if all limits fit, otherwise evidenced vertical repartition. Existing partial commits remain valid; no resumed implementation."
+      "status": "budgeted",
+      "estimate_impact_minutes": 30,
+      "resolution": "Independent consolidated implementer reconciled whole-item forecast310min: readiness/reassessment/design/planning40; production AND test authoring145 including completedTask1; focused RED/GREEN/type/preflight/result inspection and previews≤30 within45; ALL scoped/fresh adversarial reviews and bounded repairs45; fullgate/ONEcold/integration35. No guessed elapsed-to-active conversion or addition of completedTask1. Former remaining215–355 and precise335 claims are withdrawn because authoring/repair allowances overlapped. Reuses green targeted-start, existing checklist UI and real repository fixtures; no provider/refresh delivery, pagefiles unchanged. Confidence moderate with10minmargin; extra boundary,requiredpath,expandedretryUI or significantcoldsurvivors triggers reassessment rather than budgetstretch. Technical prerequisite tooling cost belongs only to its separately approved canonical item.310is a forecast, not measured actuals; readiness remainsblocked untilcanonical responsible route delivery and changeddigestapproval."
     },
     {
       "id": "U10",
@@ -143,7 +143,7 @@
     "status": "pending",
     "approved_by": null,
     "evidence": null,
-    "payload_sha256": "54b14d4ec52c138a0dd6e5c1c6f72ef035a9a1dd5a28686386aff07d9eaf50c8"
+    "payload_sha256": "931b876c299251d8b033b0216327c7ef59c8eb83c93db62cfacc9546868cd372"
   },
   "actuals": null,
   "policy_bootstrap": false,

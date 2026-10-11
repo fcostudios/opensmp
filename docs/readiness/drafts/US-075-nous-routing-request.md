@@ -61,3 +61,11 @@ No local tooling or generated guidance changes are authorized. Nous owns the pre
 **No functional repartition is requested on the present evidence.** The previous 335-minute assertion remains withdrawn; 280 is an unvalidated baseline, and the independent remaining-work estimate is still being assessed. A technical prerequisite does not waive the 320-minute limit. If its validated whole-item forecast still fails a hard limit, return an evidenced vertical repartition request rather than stretching the estimate.
 
 Current evidence update: pending blocked digest `54b14d4ec52c138a0dd6e5c1c6f72ef035a9a1dd5a28686386aff07d9eaf50c8`. Independent remaining estimate is215–355 active minutes; prior implementer effort estimates25–45 plus separately unmeasured controller/reviewer work. The resulting range does not validate ready≤320; no precise replacement total is adopted yet. Routing prerequisite is an independent proposal, not a claim that it alone makes US-075 ready.
+
+## Final accounting reconciliation (supersedes the remaining-range estimate above)
+
+The same consolidated implementer independently forecasts **310 minutes for the whole item**: readiness/reassessment/design/plan40; production and test authoring145; focused checks and previews45; all scoped/adversarial reviews and bounded repairs45; gates, one cold campaign and integration35. Completed Task1 is included. Authoring appears only in implementation; repairs only in review; previews only in focused verification; cold campaign only in integration. The preceding215–355 remaining range is withdrawn because it included overlapping authoring/repair allowances. This is a moderate-confidence forecast with10minutes headroom, not measured actuals or a guarantee. The canonical routing prerequisite is separately approved and costed; it does not waive this item's limits.
+
+The request remains **canonical technical routing prerequisite**, not functional repartition. After delivery and actual route validation, the proposed functional composition fits20paths/310minutes and needs renewed digest-bound readiness approval. Without that prerequisite it remains21paths and non-executable. Any new path, boundary or material repair burden requires reassessment; no limits are stretched.
+
+Current blocked/pending readiness digest: 931b876c299251d8b033b0216327c7ef59c8eb83c93db62cfacc9546868cd372.
