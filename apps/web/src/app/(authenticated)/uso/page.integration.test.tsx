@@ -86,6 +86,9 @@ test("actual signed admin receives localized scoped data and invalid filters are
   const html = renderToStaticMarkup(await page("usage-admin", { companyId: usageIds.companyA, window: "60" }));
   expect(html).toContain(en.usage.title);
   expect(html).toContain("Last known Ana");
+  // US-073: the actual signed-admin page must wire the proposal action into its table.
+  expect(html).toContain('data-testid="btn_propose_reclamation" disabled=""');
+  expect(html).toContain(`data-testid="select_person_${usageIds.old}"`);
   expect(html).not.toContain("Foreign Bea");
   expect(html).toContain('value="60" selected=""');
   await data.owner.query("UPDATE user_account SET ui_language='es' WHERE id=$1", [usageIds.admin]);
