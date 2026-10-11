@@ -19,9 +19,9 @@ Actual shard routing is conventional adjacent tests plus explicit `DIRECT_TEST_R
 | personas/[personId]/page.tsx | personas/[personId]/page.test.tsx |
 | solicitudes/[requestId]/page.tsx | solicitudes/[requestId]/page.test.ts |
 
-The request page's framework exemption is bound to the old source hash; new action-binding edits invalidate it. Existing domain transition, checklist-export and page-string tests do not prove the new behavior. Web imports cannot exercise the domain-only mutation project. No test relay files, fabricated adapters, owned mocks, blanket test unions or tooling changes are proposed.
+The request page's framework exemption is bound to the old source hash; new action-binding edits invalidate it. Its exact-framework classifier rejects changed source before responsible tests can help. Nous must resolve the canonical policy/composition boundary before the entry child is assessed; adding a routed oracle alone does not authorize that change. The335-minute estimate excludes unknown external policy repair. Existing domain transition, checklist-export and page-string tests do not prove the new behavior. Web imports cannot exercise the domain-only mutation project. No test relay files, fabricated adapters, owned mocks, blanket test unions or tooling changes are proposed.
 
-Full delivery now forecasts **335 minutes / 24 delivery paths**, or **25 including this request**, with three scopes, two screens and one lifecycle boundary. Even moving orchestration cases into the routed service suite yields 23 delivery paths. File and time hard limits fail. `docs/readiness/US-075.json` is reassessed blocked with pending digest `87f72ff50966615c113a334565994cd8d8af9b7b6e7b4ca50ba2716e2e2c01be`; further implementation is stopped pending canonical allocation.
+Full delivery now forecasts **335 minutes / 24 delivery paths**, or **25 including this request**, with three scopes, two screens and one lifecycle boundary. Even moving orchestration cases into the routed service suite yields 23 delivery paths. File and time hard limits fail. `docs/readiness/US-075.json` is reassessed blocked with pending digest `9e87245de621357a7e539237b17a23afcf2494642958386b2e1feb103a953fd9`; further implementation is stopped pending canonical allocation.
 
 ## Proposed vertical allocation (proposal keys, not minted IDs)
 
@@ -35,6 +35,8 @@ Each child includes its full contracts, production execution, verification, desi
 AC1 is split at the durable pending-removal boundary: starting a removal is one user outcome; confirming its completion is another. AC2 closure has exactly one owner, checklist-completion; capacity freshness remains US-081/US-085. Provider execution remains US-082. Nothing is dropped or deferred without this named owner. No sibling parallelism is claimed between these two because completion consumes the entrypoint's immutable action context.
 
 ## Dependency and ownership updates requested
+
+- Resolve request-detail exact-framework-adapter policy/composition canonically. Do not replace a hash, add an exemption or patch mutation tooling inside the functional child. This is the same policy boundary independently found for US-081 vendor-account detail.
 
 - Reconcile amended US-075/story scope ACs and parent US-024 children with the canonical completion ID. Preserve all DEC-SMP-029..033/040..046 rulings.
 - US-082 must depend on checklist-completion, which owns the shared finalizeOffboarding primitive; its worker dispatch/claim/failure/retry scope is unchanged.
