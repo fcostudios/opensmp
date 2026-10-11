@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "ea71730b7f4e5096d15f97e1950bb7716052f7e641d157bdbb12432299e4618c",
+  "readiness_payload_sha256": "7a34a47724c6a0a83284f611a715753e87039c8efd0513dc159edd5308f38a62",
   "work_id": "US-075",
   "kind": "US",
   "work_type": "functional",
@@ -57,11 +57,11 @@
     "tooling_change": false
   },
   "estimate_minutes": {
-    "readiness": 40,
-    "implementation": 150,
-    "focused_verification": 45,
-    "review": 45,
-    "integration": 35,
+    "readiness": 55,
+    "implementation": 55,
+    "focused_verification": 10,
+    "review": 105,
+    "integration": 90,
     "total": 315
   },
   "uncertainties": [
@@ -126,7 +126,7 @@
       "statement": "Does a smaller valid composition satisfy actual routing and the20-path envelope, and what is its independently estimated remaining cost?",
       "status": "budgeted",
       "estimate_impact_minutes": 30,
-      "resolution": "Independent forecasts310 and315; adopt conservative whole315: readiness/reassessment/design/planning40; production and ALLtestauthoring150 including completedTask1 and pointer+remove-kind fixture correction; focusedchecks/resultinspection/previews45; ALLscoped/freshadversarialreviews andboundedrepairs45; sharedfixturesetup/fullgate/ONEcold/integration35. CountTask1 once, authoring onlyimplementation, repairs onlyreview, previews onlyfocused, cold onlyintegration. Moderate-lowconfidence,5min headroom, plausible295–335; upperrange notauthorized. Latesthuman directdecision/work instruction authorizes known315/20scope; no silentincrease beyondit. Technicalprerequisitecosts staytheir ownitems. Anynewpath/boundary/materialrepair or forecastabove320 stopsforreassessment; thisforecast isnotmeasuredcostorguaranteedremainingcapacity."
+      "resolution": "Re-assessed whole315-minute forecast: readiness55,implementation55,focused10,review105,integration90. Provisional conservative nonoverlapping elapsed envelope at 2026-10-11T22:09:47.016Z: 169.767 minutes, rounded up 170. Git/recorded-ts windows [[\"2026-10-11T08:34:50-05:00\",\"2026-10-11T08:45:29-05:00\"],[\"2026-10-11T09:44:33-05:00\",\"2026-10-11T09:59:30-05:00\"],[\"2026-10-11T11:10:58-05:00\",\"2026-10-11T12:27:57-05:00\"],[\"2026-10-11T14:23:07-05:00\",\"2026-10-11T14:30:57-05:00\"],[\"2026-10-11T16:10:26-05:00\",\"2026-10-11T22:09:47.016Z\"]]. Anchors 11b03ad→7b26d51,00f2b15→fff48a0,bbea2f1→d3311e3,5917e1b→c04b812,95fac1f→cutoff. Gaps are evidenced pending canonical amendment/approval and separately owned technical prerequisites; no inference that Git records every read-only minute. Included windows retain technical overlap conservatively. Concurrent agent labor and commands nested inside phases count once; preview/cold minutes are subsets, not added again. Unobservable phase buckets are absorbed into their enclosing phase. Summed agent labor and unsupported 110-minute authoring estimate rejected. Remaining reserve95: gate/setup15,cold/setup55,survivor review/bounded repair15,evidence/closure10; contingency50 below315 covers reconstruction uncertainty. This is provisional reconstructed elapsed, not billing telemetry or final actuals. Hard limit320 remains; no new paths or functional scope."
     },
     {
       "id": "U10",
@@ -140,7 +140,14 @@
       "statement": "What fixes the observed full-gate failure and supplies an ordinary realDB runtime profile?",
       "status": "budgeted",
       "estimate_impact_minutes": 5,
-      "resolution": "Shared gate fe509ee failed alerts/offboarding-workflow.integration.test.ts:146 with person_offboarding_unavailable422; type/lint passed, build not reached. US0754b924d7 requires the assignment pointer while older CHG010fixture lacks it and still expects checklist actionkind. Correct fixture pointer after realassignment insertion and expectation to canonical remove, preserving deadline/openregisteroracles; do not implement US077 or relax productionguard. Relevantbytes unchanged during079/080; no executedbaselinegreen claimed. Existing exported createPostgresFixture under CHG067sharedcluster provides ownerUrl/appUrl/migrate; an untracked scratchlauncher must require SMP_TEST_POSTGRES_CLUSTER_URL, avoid isolatedContainer/containerhooks, migrate, pass pair privately to existing verifier/preflight and clean only its own database. No usercredentials/newprivatecontainer/harnesssourcechange needed; runtime evidence still must actually pass. Repair authoring is inside150 implementation, runtimefixture inside35 integration, not extra duplicatecost. Request bounded integration order: canonicalroutefocused/runtimeevidence, renewed075digestapproval, fixture+functionalexecution, coordinatedgreenfullgate and separateitemclosureevidence."
+      "resolution": "Shared gate fe509ee failed alerts/offboarding-workflow.integration.test.ts:146 with person_offboarding_unavailable422; type/lint passed, build not reached. US0754b924d7 requires the assignment pointer while older CHG010fixture lacks it and still expects checklist actionkind. Correct fixture pointer after realassignment insertion and expectation to canonical remove, preserving deadline/openregisteroracles; do not implement US077 or relax productionguard. Relevantbytes unchanged during079/080; no executedbaselinegreen claimed. Existing exported createPostgresFixture under CHG067sharedcluster provides ownerUrl/appUrl/migrate; an untracked scratchlauncher must require SMP_TEST_POSTGRES_CLUSTER_URL, avoid isolatedContainer/containerhooks, migrate, pass pair privately to existing verifier/preflight and clean only its own database. No usercredentials/newprivatecontainer/harnesssourcechange needed; runtime evidence still must actually pass. Repair authoring is inside150 implementation, runtimefixture inside35 integration, not extra duplicatecost. Request bounded integration order: canonicalroutefocused/runtimeevidence, renewed075digestapproval, fixture+functionalexecution, coordinatedgreenfullgate and separateitemclosureevidence. Actual approved fixture repair and real shared-fixture/native suite execution are now GREEN; final full gate remains owed. Revised phase allocation supersedes the historical150/35 allocation above; no duplicate runtime cost."
+    },
+    {
+      "id": "U12",
+      "statement": "Does executing every remaining optional preview fit the measured budget before required cold verification?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Explicit bounded delegated exception to CHG-069: omit ALL remaining optional mutation previews after final source/tests and fresh independent AC1–4 PASS. Astra reviewed measured six-shard dry-run counts788 and initial runtimes: approximately43-minute cold forecast (not measured effectiveness); reserve55 for full cold/setup. Prior invalidated preview~6.1min plus dry instrumentation~0.6min remain charged, cumulative~6.7/30. Dry run executed zero mutants and supplies no mutation score. No claim missing shards were previewed or normal final-preview requirement fulfilled. Preserve threshold80, annotation of every survivor, shared full gate, cache-cleared whole-item six-shard cold last, original base37666528d03a50e2529cad4382f2a5ae146dca63. Any failed campaign needing source/test fixes must retain failed evidence and invalidation before final retry. This local exception is authorized by Francisco explicit Astra/controller delegation, not a policy-file edit or Nous amendment."
     }
   ],
   "dependencies": [],
@@ -149,8 +156,8 @@
   "approval": {
     "status": "approved",
     "approved_by": "Francisco",
-    "evidence": "US075-READY-DELEGATED-20261011-V3",
-    "payload_sha256": "ea71730b7f4e5096d15f97e1950bb7716052f7e641d157bdbb12432299e4618c"
+    "evidence": "US075-READY-DELEGATED-20261011-V4",
+    "payload_sha256": "7a34a47724c6a0a83284f611a715753e87039c8efd0513dc159edd5308f38a62"
   },
   "actuals": null,
   "policy_bootstrap": false,
