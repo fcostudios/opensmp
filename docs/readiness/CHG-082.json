@@ -104,7 +104,27 @@
     "evidence": "CHG082-READINESS-20261011",
     "payload_sha256": "c986a49ff57fe6ed7df3665df48cd239069e51ae97e392385ac4c2d509e86ce4"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 30,
+      "implementation": 9,
+      "focused_verification": 1,
+      "review": 6,
+      "integration": 4
+    },
+    "total": 50,
+    "changed_files": 19,
+    "commits": 15,
+    "review_fix_loops": 2,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": -250,
+    "root_cause": "CHG-082 only. Contiguous nonoverlapping UTC wall envelope 2026-10-11T21:53:22+00:00..2026-10-11T22:41:04.644780+00:00, each phase rounded up separately; boundary stamps: 2026-10-11T21:53:22+00:00; 2026-10-11T22:22:55.951088+00:00; 2026-10-11T22:31:17.713294+00:00; 2026-10-11T22:32:12.003273+00:00; 2026-10-11T22:37:15.039658+00:00; 2026-10-11T22:41:04.644780+00:00. One controller session (readiness opened21:53:22), peak context126482; one consolidated implementer, reused scoped reviewer, fresh adversarial reviewer; two review_fix_loops. Prior interleaved RED/GREEN and first scoped repair fold into implementation; second adversarial repair folds into review; no backdated markers. Aggregate costs are measured at captured snapshot 2026-10-11T22:38:44.900381+00:00, excluding subsequent closing tail; input includes cached input and is cumulative across calls, not peak context. Per-role measured costs: chg082_implementer: 78 calls,9609067 input including 9477376 cached,32924 output,peak context 156252,cutoff 2026-10-11T22:38:40.732Z; chg082_adversarial: 23 calls,1741788 input including 1694848 cached,5296 output,peak context 83057,cutoff 2026-10-11T22:36:00.271Z; chg082_scoped_reviewer: 37 calls,3880684 input including 3781760 cached,5239 output,peak context 117649,cutoff 2026-10-11T22:34:46.664Z; controller: 77 calls,8324255 input including 8211584 cached,17947 output,peak context 126482,cutoff 2026-10-11T22:38:24.368Z. Provenance: /tmp/chg082-closure-cost.json and its four rollout JSONL files; per-test-generation/execution/analysis token split unavailable, no allocation invented. 286 existing+34 CHG-082 focused fixtures green. Immutable predecessor fd73ee3 differential covers all57integrated routes. Scope14own paths (10delivery+4closed-list bookkeeping),19baseline paths include5delivered Nous paths (.nous-project.json,.nous-provenance.json,.nous-sync.json,docs/stories/CHANGES.md,docs/stories/SPRINT_PLAN.md);15reachablecommits including this closure,14CHG-082-owned excluding Nous59380d3. Fresh adversarial and reused scoped PASS89901ae. Atomic exclusive /tmp/smp-full-gate.lock with owner PID/nonce;0.000219s wait; caffeinate -i pnpm check exit0 wall4.576242s, valid Turbo cache (no uncached claim). Shared CHG-067 Postgres fresh fixture committed applier/schema/runtime/parity exit0 wall6.346446s:63migrations,32tables,342columns,84FKs,39enums,5append-only triggers,exact ledger_app least-privilege grants. Only own lock released; no other owner's lock touched. Last-five gate median unavailable, no comparison invented. fd73ee3 preflight0mutatable ranges/shards,0preview_rounds,0preview_minutes,0campaigns and no test_report. Deferred hardening outside CHG-082: pre-existing router page-wiring fixture drift, test-mutation-scope.mjs1149 reproduces identically on fd73ee3 and current router; logs /tmp/chg082-baseline-router.log and /tmp/chg082-router.log, not included in pnpm check and not represented as green. CHG-079/081 remain intact on us-024's61-entry inline route table; whichever line lands second rebases/moves new entries to JSON, records original-to-rebased SHA map per CHG-066 and reruns full61-entry differential. Their61routes are not claimed integrated or verified here. Historical approved/pending readiness payloads remain unchanged; new policy begins on completed CHG-082's fast-forward integration. No branch ref change or merge by implementer. Exact candidate completion artifact/ledger validated before emission in disposable real Git ancestry: check CHG-082,check-all64artifacts,and two-path completion range all exit0;all prior payload introductions remain before activation."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
