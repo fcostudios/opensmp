@@ -1182,12 +1182,34 @@ export function readinessDeliveryPolicy({ root, revision = "HEAD", artifact }) {
 
 function itemAuthorityPaths(root, authority, head, workId) {
   const paths = new Set();
+  const readinessPath = `docs/readiness/${workId}.json`;
+  const authorityArtifact = parseJson(readRevisionFile(root, authority, readinessPath), readinessPath);
   for (const entry of linearCommits(root, authority, head)) {
     const message = git(root, ["show", "-s", "--format=%B", entry.commit]).toString("utf8");
     // A multi-item commit cannot silently lend a source to this work item.
     const ids = extractWorkIds(message);
     if (ids.length === 1 && ids[0] === workId) {
-      listChangedPaths({ root, base: entry.parent, head: entry.commit }).forEach((path) => paths.add(path));
+      // Owning a commit message is not authorization. Only source changes
+      // whose immutable parent already approved this exact payload contribute.
+      const text = readRevisionFile(root, entry.parent, readinessPath, { required: false });
+      if (text === null) continue;
+      try {
+        const artifact = parseJson(text, readinessPath);
+        if (artifact.work_id !== workId || artifact.readiness_payload_sha256 !== authorityArtifact.readiness_payload_sha256) continue;
+        const feedback = parseFeedback(readRevisionFile(root, entry.parent, ".nous-feedback.jsonl", { required: false }));
+        const assessment = validateAssessment(artifact, {
+          feedbackRecords: feedback,
+          deliveryPolicy: readinessDeliveryPolicy({ root, revision: entry.parent, artifact }),
+        });
+        if (assessment.decision !== "ready" || !assessment.active) continue;
+        if (validatedActivationIndex(root, entry.parent, feedback) >= 0 && !artifact.policy_bootstrap) {
+          requireImplementationPlan({ root, revision: entry.parent, feedback, workId });
+        }
+        listChangedPaths({ root, base: entry.parent, head: entry.commit }).forEach((path) => paths.add(path));
+      } catch (error) {
+        if (error instanceof WorkReadinessError) continue;
+        throw error;
+      }
     }
   }
   return paths;

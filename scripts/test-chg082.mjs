@@ -21,7 +21,7 @@ function decision(value) { return { story: value.work_id, event: "decision", id:
 function git(root, ...args) { return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim(); }
 function write(root, path, value) { mkdirSync(dirname(join(root, path)), { recursive: true }); writeFileSync(join(root, path), value); }
 function commit(root, message) { git(root, "add", "."); git(root, "-c", "core.hooksPath=/dev/null", "commit", "-qm", message); return git(root, "rev-parse", "HEAD"); }
-function fixture(body) {
+function fixture(body, { approved = true } = {}) {
   const root = mkdtempSync(join(tmpdir(), "chg082-"));
   try {
     git(root, "init", "-q"); git(root, "config", "user.name", "Fixture"); git(root, "config", "user.email", "fixture@example.test");
@@ -32,7 +32,7 @@ function fixture(body) {
     write(root, "scripts/mutation-routes.json", JSON.stringify({ "apps/web/src/foreign.ts": ["apps/web/src/oracle.test.ts"] }));
     const value = artifact(); delete value.signals.bookkeeping_files; refresh(value);
     write(root, "docs/readiness/US-901.json", JSON.stringify(value));
-    write(root, ".nous-feedback.jsonl", JSON.stringify(decision(value)) + "\n");
+    write(root, ".nous-feedback.jsonl", approved ? JSON.stringify(decision(value)) + "\n" : "");
     const authority = commit(root, "US-901 approve fixture");
     body({ root, authority, value });
   } finally { rmSync(root, { recursive: true, force: true }); }
@@ -147,4 +147,21 @@ for (const mode of ["responsible", "unowned", "alter", "script"]) {
     if (mode === "responsible") assert.equal(ownership.validateRangeOwnership({ root, base, head }).classification, "implementation");
     else mixed(() => ownership.validateRangeOwnership({ root, base, head }));
   }));
+}
+
+for (const mode of ["preapproval", "revoked"]) {
+  test(`CHG-082 refuses to borrow own-ID source from ${mode} history`, () => fixture(({ root, authority, value }) => {
+    if (mode === "revoked") {
+      write(root, ".nous-feedback.jsonl", readFileSync(join(root, ".nous-feedback.jsonl"), "utf8") + JSON.stringify({ story: "US-901", event: "blocked", reason: "Fixture revocation" }) + "\n");
+      commit(root, "US-901 revoke authorization");
+    }
+    write(root, "apps/web/src/owned.ts", "export const owned = 9;\n"); commit(root, "US-901 unauthorized source edit");
+    value.approval.evidence = "US901-LATER-READY";
+    write(root, "docs/readiness/US-901.json", JSON.stringify(value));
+    write(root, ".nous-feedback.jsonl", readFileSync(join(root, ".nous-feedback.jsonl"), "utf8") + JSON.stringify(decision(value)) + "\n");
+    const base = commit(root, "US-901 approve delivery now");
+    write(root, "scripts/mutation-routes.json", JSON.stringify({ "apps/web/src/foreign.ts": ["apps/web/src/oracle.test.ts"], "apps/web/src/owned.ts": ["apps/web/src/extra.test.ts"] }));
+    const head = commit(root, "US-901 add route without source edit");
+    mixed(() => ownership.validateFunctionalDelivery({ root, base, head, authority, workId: "US-901" }));
+  }, { approved: mode !== "preapproval" }));
 }
