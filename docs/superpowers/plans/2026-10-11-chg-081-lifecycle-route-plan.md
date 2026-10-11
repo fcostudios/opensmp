@@ -1,6 +1,6 @@
 **Work item:** CHG-081
 **Readiness assessment:** docs/readiness/CHG-081.json
-**Approved estimate:** 90 minutes
+**Approved estimate:** 125 minutes
 
 # Accountable runtime and atomic audited-action verification plan
 
@@ -13,12 +13,12 @@
 
 ## Global Constraints
 
-- 90 whole active minutes, eight inclusive paths: previous six plus scripts/check-audited-actions.mjs and existing apps/web/src/modules/audit/audited-actions-enforcement.test.ts. Prior50 forecast is not actualspent; completed route/runtime counted once plus40forecast for audit prerequisite.
+- Superseding whole125 forecast; inclusive attempted10paths / planned committed8. Original6 plus existing with-audit.ts/integration test; withdrawn checker/enforcement attempts count inclusive but remainHEAD. Prior50/90 not actualspent. Task4 withdrawn; Task5 is current material plan.
 - Preserve lifecycle -> orchestration integration plus adjacent lifecycle.test.ts. ADD checklist-action-transaction.ts -> orchestration.integration.test.ts and person-offboarding.tsx -> repository.integration.test.ts, retaining each adjacent test. Exact full paths are in Spec table.
-- No instrumentation, threshold, routing-gap/classifier/env-dummy, schema/model/template, generated/application behavior or prior technical artifact changes. Only added checker recognition/test within exact eight owned paths; no source exemption/name allowlist/mock audit marker.
+- No instrumentation, threshold, routing-gap/classifier/env-dummy, schema/model/template, generated/application behavior or prior technical artifact changes. Current primitive changes only existing with-audit.ts/integration test; no checker/allowlist changes.
 - Native default-provider preflight uses actual whole-US-075 base37666528d03a50e2529cad4382f2a5ae146dca63 including working changes; true isDatabaseBacked/real resolved profile/no gaps. Actual selected suites use stock shared cluster owned DB, migrations/schema, supported private pair and existing root Vitest config.
 - No private container hooks, user credentials, synthetic runtime provider, historical campaign, fabricated score/count/cold attempt or parser-only runtime GREEN.
-- Genuine route evidence uses existing ac_pass/ac_verify/phase/feedback under the delegated event-name exception; own expected TS mutation shards zero; no done before shared green gate.
+- Genuine route evidence uses existing ac_pass/ac_verify/phase/feedback under the delegated event-name exception; own expectedTSmutation shard1 (actual native discovery controls); genuine preview/cold/test_report required; no done before shared green gate.
 
 ## Review Focus
 
@@ -71,7 +71,7 @@ Ruling: forced inline role continuation preserves one CHG-081 session because bo
 
 Ruling: this is disclosed local scope deviation beyond canonical lifecycle-only allocation, independently bound to fresh e6645789 readiness under Francisco delegated technical decision/work authority. Same6paths/50wholeminutes, no new canonical ID/amendment/oldapproval reuse. Repository integration is backend/tenant only; adjacent actual component journey supplies UI causality. Wrong responsibility pairing costs runtime assurance rework; no classifier/env/template change.
 
-### Task 4: Recognize the actual atomic audited action contract without exemptions
+### Task 4: Withdrawn attempted structural recognition (history only; do not execute)
 
 **Files:** Modify only `scripts/check-audited-actions.mjs` and existing `apps/web/src/modules/audit/audited-actions-enforcement.test.ts`. Retain three routes/adjacent tests unchanged. No other production path, helper file or fixture file is added.
 **Interfaces:** Existing AST `importedBindings`, actual source/package export resolution, `namedTarget`, `returnedFactoryMember`, shadow detection and whole-body audit traversal. New internal structural proof consumes actual wrapper/factory/operation/finalizer/port/transitive source nodes and recognizes only bounded stable binding/transaction/control-flow shapes. Its boolean result fails closed on unresolved/unknown/substituted shapes; no hardcoded factory-name/source whitelist.
@@ -87,3 +87,18 @@ Ruling: this is disclosed local scope deviation beyond canonical lifecycle-only 
 - [ ] Fresh adversarial AC checks runtime responsibility and independent negative audit proof; one coordinated awake regular gate follows all repairs/review, before075actualfinalcold. Then separate081 actuals/cost/evidence closure within exact8paths. Whole technical TSmutatable production stays0 (mjs script/test only), so no fake mutation score/test_report/cold. Shared global gate failures/costs and foreigncommit attribution remain explicit.
 
 Ruling: new atomic-audit prerequisite is an explicit local delegated8-path/whole90-minute deviation beyond canonical lifecycle-only allocation and prior50scope. Astra concrete FINAL PROCEED supplies fail-closed actualbinding/transaction/audit/replay obligations; controller/root decision under Francisco exactinstruction, not newcanonicalNousamendment/ID or oldapprovalreuse. Wrong recognizer could admit unaudited paths, so unknowns reject and actual copied negative oracles are mandatory; if proof is too costly, reassess rather than weaken it.
+
+### Task 5: Extend existing trusted withAudit with exact durable receipts
+
+**Files:** ONLY apps/web/src/modules/audit/with-audit.ts and existing with-audit.integration.test.ts; same six route/docs paths for evidence. Inclusive attempted10 / planned committed8. Domain port/checker/enforcement sources unchanged.
+**Interface:** Existing withAudit trusted name; local ordinary descriptor OR opaque RecordedAuditReceipt callback result. Awaited verifier receives active outer transaction and exact expected event/entity/company/canonical after fields. Private WeakMap binds token to tx/row; revalidation beforecommit. US075 owns consumer nested-savepoint operation/expected completion payload inside existing20paths.
+
+- [ ] Root independently reviews revised digest/design/plan and read-only API; bind fresh delegated approval then explicit release. Same081 inlineimplementer; no duplicatedstarted. Freeze continuation. Original075 worker implements only consumers after API review; no controller source authorship.
+- [ ] Read TESTING before test edits. Strongest real PostgreSQL given-write/when-receipt/then-persistedstate+exactevidence tests in existing integration file: validfresh, validatedoriginalreplay/no duplicate, forged receipt, foreign transaction, missing evidence rollback, deleted/changed evidence rollback. Retain ordinary descriptor/redaction/afterCommit regressions. Watch new exact failure before implementation; no owned mocks/privatefixtures.
+- [ ] Implement bounded local union/private WeakMap/active withAudit tx/verifier. Verify exact expected canonical JSONB and row identity, reject unknown/forged/inactive/foreign token. Requery before commit to reject deleted/changed evidence. Receipt returns without second insert; ordinary descriptor path unchanged. Do not echo row as expected or accept skipbool/null. Missing receipt rolls back all outer mutation writes.
+- [ ] Focused real integration suite +webtypes; give root exact diff and actualRED/GREEN with timings for scopedreview. Bounded fixwave; sourceheld if crosstransaction ownership/expectedpayload cannot be sound without newpath.
+- [ ] Actual own frozenbase native preflight must discover current changed-range with-audit.ts shard selecting existing integration test; DB profile/schema proof. Own per-task mutation preview on audit shard; strongest tests kill actual mutants, survivors described once. Native whole075base37666528d03a50e2529cad4382f2a5ae146dca63 counts actualsources (likely7, notforced). No extra route unless actualgap discovered and separately budgeted.
+- [ ] After original075 consumer checkpoint, revalidate affected real responsible suites with currentsource/suite/schema hashes using supported serialized sharedPG fixture/migrate/schema/default native profiles. No repeated wholecampaign/fullgate here.
+- [ ] Fresh adversarial AC reviews receipt/security/rollback/replay + route/runtime responsibility. Root owns one coordinated green gate/final cold campaign. Use actual retained audit-shard score/counts for081 test_report and actual ownsubset for075; no whole-score substitution, duplicate execution or fakezero. Record actualcoldattempt/invalidation/cost from genuine shared attributable evidence. Separate technicalclosure only after allgreen.
+
+Ruling: prior structural recognizer infeasible within bounded design; unsafe uncommittedsource withdrawn after18m31.835399s measuredphase, not hidden/partitioned. New existingtrustedreceiptboundary is fresh delegated materialdecision, NOT old826f approval/canonicalamendment/newID. Whole125 = observed49.452min wallenvelope +75remaining rounded; active-only cost remains estimated until closure. NewownTS means genuine mutation governance now applies.
