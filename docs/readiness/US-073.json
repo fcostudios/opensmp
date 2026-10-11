@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "6784f0f0562a2fdd70604a097ca227f2f2b553b3e43ba530a8557d84c0add05a",
+  "work_id": "US-073",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Batch reclamation proposals from SCR-usage",
+  "source": "docs/stories/sprint-3/r1_misc_us_073.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Group Admins select inactive people on SCR-usage and submit an optional note to create one audited pending ReclamationProposal per selected open assignment, with company isolation and idempotent resubmission.",
+      "demo": "Select three flagged people and submit a note: three pending proposals carry the note and admin proposed_by, with one audit entry each including client_request_id; resubmit and create none; submit a mixed-company unauthorized person and reject the entire batch; refuse any non-group_admin.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "db",
+    "server",
+    "ui"
+  ],
+  "signals": {
+    "routes_or_screens": 1,
+    "acceptance_flows": 3,
+    "expected_changed_files": 16,
+    "expected_mutation_shards": 4,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 25,
+    "implementation": 90,
+    "focused_verification": 45,
+    "review": 50,
+    "integration": 20,
+    "total": 230
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Official allocation, prerequisites and policy must already be delivered.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Verified clean chg-070 at 872f9381b1914a01fba4cbfb18964c65dd4b2c2c; US-026 and US-072 are dev_done in canonical sprint/change files and carry terminal ledger evidence. US-027 approved partition assigns US-073 parent AC1. CHG-070 and CHG-073 delivered; CHG-071 dev_in_progress. DEC-SMP-027 supplies partial UNIQUE idempotency and audit-only client_request_id; DEC-SMP-028 forbids job proposals. This child needs independent Francisco digest-bound readiness, design and plan approvals; no implementation until all three."
+    },
+    {
+      "id": "U2",
+      "statement": "Batch authorization, assignment grain and atomic audit require an explicit transactional design.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 20,
+      "resolution": "Use group_admin plus company:write from verified LedgerAuthorization; validate every selected person before any writes and refuse the whole mixed unauthorized batch. Resolve selected people to their open assignments through tenant-scoped joins; reclamation_proposal has no company_id and must remain scoped through LicenseAssignment and Person. Persist pending proposals with insert-on-conflict-do-nothing against the committed assignment_id partial UNIQUE, audit only newly created rows including client_request_id and actor, and keep batch/audit writes in one outer transaction using existing withAudit semantics. Specify transaction composition and empty/closed selection behavior in approved design. No migration or shared audit framework expansion; reassess if existing transaction composition cannot support this within scope."
+    },
+    {
+      "id": "U3",
+      "statement": "Selection/modal must reuse US-072 without changing shared classification or read-model sources.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "Consume UsageReadModel and the existing lag classifier read-only; add selection and modal to /uso, optional note, request id, submitting/success/error states and localized copy. Record the exact person/assignment selection interface in the design before UI implementation. New action/service and proposal persistence are US-073-owned files; no worker, request transitions, approve/dismiss, dismissal suppression, offboarding or /reclamaciones changes. Any required shared-source change is a deviation communicated to US-074 through Francisco before committing."
+    },
+    {
+      "id": "U4",
+      "statement": "Verification must constrain concurrency, isolation, audit and UI behavior with real implementations.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "Read TESTING.md and TEST_EFFECTIVENESS_STANDARD.md before touching tests; real PGlite seams prove one proposal/audit per open assignment, no new rows on retry/concurrent conflict, audit client_request_id without proposal persistence, rollback on batch refusal/audit failure, role and company:write refusals, and the three-person demo. Rendered UI behavior exercises selection, note, submit and result through real action factories without mocking owned code. Update TESTING.md critical-path inventory when needed. Four estimated mutation shards (persistence/service, action boundary, selection/modal, rendered usage integration); final preflight supplies actual count as deviation rather than altering approved assessment."
+    },
+    {
+      "id": "U5",
+      "statement": "Consolidated execution and concurrent US-074 integration need bounded measurement and serialized gates.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "One implementer for every task with checkpoint commits, one reused scoped reviewer, one fresh adversarial reviewer; controller only plans, briefs and decides, at most three sessions with about 200K context ceiling. Background touched-shard previews after focused-green, tasks+1 rounds and <=30 minutes; slow shards once final unless touched; one cold campaign last after adversarial verification and all fixes. All full gates use caffeinate -i pnpm check with atomically acquired /tmp/smp-full-gate.lock and owner-only cleanup; wait >=60 s without deleting sibling lock. Freeze mutation base after entry approvals. Append UTC phase markers, measured or labeled estimated nonzero costs and session counts, preview_rounds/minutes and actuals. Sequential fast-forward integration; second sibling rebases, retains both ledgers in ts order, records rewritten SHA map deviation and reruns readiness:check plus test:feedback-order. After any Nous sync inspect testing/critical-paths.md and restore unowned changes (IMP-434). Out-of-scope findings are deviations/deferred hardening, no new work items."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "6784f0f0562a2fdd70604a097ca227f2f2b553b3e43ba530a8557d84c0add05a"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
