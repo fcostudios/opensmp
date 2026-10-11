@@ -123,7 +123,8 @@ describe("US-073 real usage selection and proposal dialog", () => {
       await user.click(screen.getByTestId("btn_send_proposals"));
       await waitFor(() => expect(screen.getByRole("status").textContent).toContain(labels.proposal.success.replace("{created}", "0").replace("{existing}", "3")));
       expect(await f.database.select().from(reclamationProposal)).toEqual(pending);
-      view.rerender(<UsageView model={await model(f)} locale="es-EC" labels={labels} />);
+      view.unmount();
+      render(<UsageView model={await model(f)} locale="es-EC" labels={labels} />);
       expect(screen.queryByTestId("btn_propose_reclamation")).toBeNull();
       expect(screen.queryByRole("checkbox")).toBeNull();
     } finally { await f.stop(); }

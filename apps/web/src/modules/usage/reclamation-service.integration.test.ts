@@ -52,6 +52,18 @@ describe("US-073 real audited batch action", () => {
       expect(await run({ ...input, note: "retry change" })).toEqual({ inserted: [], existing: 4 });
       expect(await effects(f)).toEqual(before);
       expect(await run({ ...input, personIds: [f.ids.person1], companyId: f.ids.companyA })).toEqual({ inserted: [], existing: 2 });
+      vi.useFakeTimers({ toFake: ["Date"] });
+      try {
+        vi.setSystemTime(f.now());
+        const defaultClock = createReclamationServerActions({ database: f.database, loadAuthorization: async () => f.admin, revalidate: () => undefined }).proposeReclamations;
+        expect(await defaultClock({ person_ids: [f.ids.outsider], client_request_id: f.ids.command2 })).toEqual({ status: "success", created: 1, existing: 0 });
+        const { proposals, audits } = await effects(f);
+        const proposal = proposals.find(p => p.assignmentId === f.ids.assignmentOutsider)!;
+        expect(audits).toHaveLength(1);
+        expect(Number.isFinite(proposal.createdAt.getTime())).toBe(true);
+        expect(audits[0].occurredAt).toEqual(proposal.createdAt);
+        expect(audits[0].entityId).toBe(proposal.id);
+      } finally { vi.useRealTimers(); }
     } finally { await f.stop(); }
   });
   it.each([false, true])("creates every open selected assignment and preserves original retry effects (extra=%s)", async extraAssignment => {
