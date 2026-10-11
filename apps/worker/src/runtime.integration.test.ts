@@ -281,7 +281,7 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
       expect(replay).toEqual(expect.any(String));
       // Assert the persisted queue throttling period independently of our
       // runtime's constant, against the timestamp of this actual DB insertion.
-      const bucket = (await owner.query("SELECT extract(epoch FROM singleton_on)::bigint AS singleton_epoch,extract(epoch FROM created_on)::bigint AS created_epoch FROM pgboss.job WHERE id=$1", [replay])).rows[0];
+      const bucket = (await owner.query("SELECT extract(epoch FROM singleton_on)::bigint AS singleton_epoch,floor(extract(epoch FROM created_on))::bigint AS created_epoch FROM pgboss.job WHERE id=$1", [replay])).rows[0];
       expect(Number(bucket.singleton_epoch)).toBe(Math.floor(Number(bucket.created_epoch) / 172800) * 172800);
       await assertComplete(replay!, 0);
       expect((await owner.query("SELECT count(*)::int AS count FROM request_transition WHERE request_id=$1", [flagId(21)])).rows[0].count).toBe(1);
