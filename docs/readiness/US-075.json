@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "fb8907c50cce044c0307ec1fa1d77cc4109194c388ebc9bc2f6fb7d5675aa090",
+  "readiness_payload_sha256": "4da6a174774341d0bba6ee7521e48b42162946d95be3ea2b423ace12085abb18",
   "work_id": "US-075",
   "kind": "US",
   "work_type": "functional",
@@ -155,6 +155,13 @@
       "status": "budgeted",
       "estimate_impact_minutes": 8,
       "resolution": "Actual shared gate failed11.347s at audited-action checker. Attempted strict checker recognizer proved infeasible/unsafe and was withdrawn under separateCHG081 with18m31.835399s retained technical cost; no checker/source exemption committed. Independent Astra selects genuine existingwithAudit extension: localdescriptor-or-opaqueRecordedAuditReceipt result, activeoutertransaction privateWeakMap-bound exact persisted auditidentity/company/payload revalidatedbeforecommit, missing/forged/foreign evidence rollsback, receipt emitsno duplicateaudit. CHG081 freshapproved f468852e whole125 inclusiveattempted10/final8 owns existingauditprimitive/integrationtest and genuine ownmutationauditshard. US075 consumes verified API only in existingwrapper/test paths: move removal inside existingwithAuditcallback, create realoperations from callbacktransaction so nestedDrizzlesavepoint sharesoutercommit, verify independentlyexpected exactoriginalcompletion normalizedonlyreplayedfalse (strip operation transport extras) or exactfailureId/trimreason; company from authoritative request/result, neverechoauditafter as expected. Originalactor/time/confirmationID preserved on replay; replayingadmin neednotmatchoriginalactor. Denials ordinaryauthorization.denied descriptor; rejected commands return existingfailed-action descriptor accepted:false/errorCode, intentional rejected-attempt audit. Successful/replayed completion/unconfirmed attempts return recordedreceipt, no accepted:true wrapper audit; adjust exactoracle to distinguish legitimate rejectedattempt from duplicate successfulwrapperaudit while retainingexactonecompletion/attempt/state/transition proofs. Existingprovisioning andpostcommit notificationbehavior preserved. This is sharedexistingauditboundary reuse, no newUS075file/scope/grant/schema, no provider/person/capacity/invitation expansion. Implementation8minutes/realDBnestedrollback/freshreplay/concurrent/denial/failurefocused checks andscoped/freshfixwave review are withinremaining315forecast; sourcehelduntilprimitiveAPIscopedGREEN andsameimplementerrelease. Actualcombinednativecampaign maydiscover7sources dueforeignCHG081audit; reportactual075owned6source subset andCHG081audit separately fromonesharedcache-clearedcampaign, neverforceoldcount/usewhole-scoreassubset. Sharedgate/finalcold80threshold/everysurvivorreview retained. Technicalprerequisitewait from22:17:40UTC recorded separately, notsummedfunctionalagentlabor."
+    },
+    {
+      "id": "U14",
+      "statement": "Does the actual domain mutation sandbox execute the newly added primitive through its real-database oracle?",
+      "status": "budgeted",
+      "estimate_impact_minutes": 0,
+      "resolution": "Coldattempt1 root+implementer realpath proof showed sandbox web/node_modules symlink and @smp/domain export resolve unmutated worktree source; instrumented sandbox lifecycle is separate. Domain52/239 observed survivors therefore invalid effectiveness, not evidence of52assertion gaps. Ownedcampaign stopped/cleaned exit130680.292s=11.3382minutes; failed wrapper39K8S10NC/57 and repo261K30S1NC/292 candidate reports retained, noaggregate/green. SameAstra independently approves changing ONLY existingorchestration.integration.test primitive import to ../../../../../packages/domain/src/request-workflow/lifecycle; packageexport points to that exact production source. Direct finalizer with realSQLtransactionport is meaningful oracle, not relay/mock. Production-entrypoint alias still escapes sandbox, so do not claim everyproductionentrypoint test instrumented; directprimitive oracle must kill unambiguous newfinalizer mutant in boundedstockdiagnostic with actualsandbox resolution/instrumentedbytes identity. Repair demonstrated wrapper/repository gaps onlyexistingtests, focusedrealDB/scopedreview, regulargate then completeactual7cache-clearedcold originalbase37666528, six075+oneCHG081 attribution/80threshold/every survivor review. No harness/classifier/routes/sourceexemptions/newfiles/functionalboundary. Conservative nonoverlap spent baseline170 plus denial3+consumer5.833+gate2.488+invalidcold11.338=192.659; add4.883minutes from22:09:47to22:17:40 envelope excluding alreadycounteddenial3, and17.850minutes from22:54:41to23:18:22 envelope excluding alreadycountedconsumer5.833, deliberately retaining foreigntechnicalreview/idle conservatively:215.392minutes at attemptstop. Remaining98 includes repairdiagnostic25/cold50/gate3/review+evidence20, including currentpoststop Astra/controllerreview rather than addingagain; total313.392, original315forecast fits1.608forecastmargin/6.608hard320margin. Explicit22:17:40to22:54:41 technicalwait excluded; nested/concurrentcommands once. Actual futurecampaign controls: any newpath/boundary/materialburden or forecasthardlimitbreach requires reassessment, neverstretch. Currentfailedcostretained and mutationinvalidation recorded before replacement."
     }
   ],
   "dependencies": [],
@@ -163,8 +170,8 @@
   "approval": {
     "status": "approved",
     "approved_by": "Francisco",
-    "evidence": "US075-READY-RECEIPT-DELEGATED-20261011-V5",
-    "payload_sha256": "fb8907c50cce044c0307ec1fa1d77cc4109194c388ebc9bc2f6fb7d5675aa090"
+    "evidence": "US075-READY-DIRECT-ORACLE-DELEGATED-20261011-V6",
+    "payload_sha256": "4da6a174774341d0bba6ee7521e48b42162946d95be3ea2b423ace12085abb18"
   },
   "actuals": null,
   "policy_bootstrap": false,
