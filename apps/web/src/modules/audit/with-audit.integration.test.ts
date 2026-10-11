@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
@@ -7,10 +7,10 @@ import {
   createPostgresFixture,
   type PostgresFixture,
 } from "@smp/db/testing/postgres-container";
-import { userAccount } from "@smp/db/schema";
+import { auditLog, userAccount } from "@smp/db/schema";
 import * as schema from "@smp/db/schema";
 
-import { withAudit } from "./with-audit";
+import { withAudit, verifyRecordedAuditReceipt, type RecordedAuditReceipt } from "./with-audit";
 
 const actorId = "00000000-0000-0000-0000-000000000811";
 const rollbackActorId = "00000000-0000-0000-0000-000000000812";
@@ -441,5 +441,132 @@ describe("withAudit", () => {
         },
       },
     ]);
+  });
+});
+
+
+describe("withAudit recorded receipts", () => {
+  const receiptEntity = "00000000-0000-0000-0000-000000000815";
+  const expected = {
+    actorUserId: actorId, action: "offboarding.removal_confirmed",
+    entityType: "ProvisioningAction", entityId: receiptEntity, companyId,
+    after: { completionId: "original", replayed: false, actorUserId: actorId },
+    occurredAt: changedAt,
+  };
+  beforeAll(async () => {
+    await drizzle(owner, { schema }).insert(auditLog).values({ ...expected, note: null, before: null });
+  });
+
+  test("commits nested mutation and one exact receipt, then replays without duplicate evidence", async () => {
+    const database = drizzle(appPool, { schema });
+    const observed: string[] = [];
+    const freshExpected = { ...expected, entityId: "00000000-0000-0000-0000-000000000816" };
+    const value = await withAudit(database, async transaction => {
+      await transaction.transaction(async nested => {
+        await nested.update(userAccount).set({ uiLanguage: "en" }).where(eq(userAccount.id, actorId));
+        await nested.insert(auditLog).values({ ...freshExpected, note: null, before: null });
+      });
+      return { value: "original", audit: await verifyRecordedAuditReceipt(transaction, freshExpected) };
+    }, {
+      afterCommit: async value => {
+        const committed = await owner.query("SELECT ui_language FROM user_account WHERE id=$1", [actorId]);
+        expect(committed.rows).toEqual([{ ui_language: "en" }]);
+        observed.push(value);
+      }, onAfterCommitFailure: async error => { throw error; },
+    });
+    expect(value).toBe("original");
+    expect(observed).toEqual(["original"]);
+    await expect(withAudit(database, async transaction => ({
+      value: "original", audit: await verifyRecordedAuditReceipt(transaction, freshExpected),
+    }))).resolves.toBe("original");
+    const rows = await owner.query("SELECT actor_user_id, action, company_id, after, occurred_at FROM audit_log WHERE entity_id=$1", [freshExpected.entityId]);
+    expect(rows.rows).toEqual([{ actor_user_id: actorId, action: expected.action, company_id: companyId, after: expected.after, occurred_at: changedAt }]);
+  });
+
+  test.each([
+    { companyId: "00000000-0000-0000-0000-000000000899" },
+    { entityId: "00000000-0000-0000-0000-000000000898" },
+    { action: "offboarding.removal_unconfirmed" },
+    { entityType: "LicenseRequest" },
+    { after: { ...expected.after, completionId: "substituted" } },
+    { actorUserId: rollbackActorId },
+    { occurredAt: new Date("2026-07-26T20:15:00.000Z") },
+  ])("rejects mismatched receipt identity %j and rolls back mutation", async mismatch => {
+    const database = drizzle(appPool, { schema });
+    const before = await owner.query("SELECT ui_language FROM user_account WHERE id=$1", [rollbackActorId]);
+    await expect(withAudit(database, async transaction => {
+      await transaction.update(userAccount).set({ uiLanguage: "en" }).where(eq(userAccount.id, rollbackActorId));
+      return { value: "wrong", audit: await verifyRecordedAuditReceipt(transaction, { ...expected, ...mismatch }) };
+    })).rejects.toThrow("RECORDED_AUDIT_NOT_FOUND");
+    const after = await owner.query("SELECT ui_language FROM user_account WHERE id=$1", [rollbackActorId]);
+    expect(after.rows).toEqual(before.rows);
+  });
+
+  test("rejects forged, foreign and expired receipts without committing mutation", async () => {
+    const database = drizzle(appPool, { schema });
+    let expired: RecordedAuditReceipt | undefined;
+    await withAudit(database, async transaction => {
+      expired = await verifyRecordedAuditReceipt(transaction, expected);
+      return { value: "verified", audit: expired };
+    });
+    for (const token of [{} as RecordedAuditReceipt, expired!]) {
+      const before = await owner.query("SELECT ui_language FROM user_account WHERE id=$1", [rollbackActorId]);
+      await expect(withAudit(database, async transaction => {
+        await transaction.update(userAccount).set({ uiLanguage: "en" }).where(eq(userAccount.id, rollbackActorId));
+        return { value: "wrong", audit: token };
+      })).rejects.toThrow("INVALID_RECORDED_AUDIT_RECEIPT");
+      const after = await owner.query("SELECT ui_language FROM user_account WHERE id=$1", [rollbackActorId]);
+      expect(after.rows).toEqual(before.rows);
+    }
+    await expect(database.transaction(transaction => verifyRecordedAuditReceipt(transaction, expected))).rejects.toThrow("INACTIVE_AUDIT_TRANSACTION");
+  });
+
+  test("rejects a token owned by another still-active outer transaction", async () => {
+    const database = drizzle(appPool, { schema });
+    const before = await owner.query("SELECT ui_language FROM user_account WHERE id=$1", [rollbackActorId]);
+    await withAudit(database, async outer => {
+      const receipt = await verifyRecordedAuditReceipt(outer, expected);
+      await expect(withAudit(database, async inner => {
+        await inner.update(userAccount).set({ uiLanguage: "en" }).where(eq(userAccount.id, rollbackActorId));
+        return { value: "wrong", audit: receipt };
+      })).rejects.toThrow("INVALID_RECORDED_AUDIT_RECEIPT");
+      return { value: "original", audit: receipt };
+    });
+    const after = await owner.query("SELECT ui_language FROM user_account WHERE id=$1", [rollbackActorId]);
+    expect(after.rows).toEqual(before.rows);
+  });
+
+  test("missing evidence rolls back a nested mutation and suppresses afterCommit", async () => {
+    const database = drizzle(appPool, { schema });
+    const observed: string[] = [];
+    const before = await owner.query("SELECT ui_language FROM user_account WHERE id=$1", [rollbackActorId]);
+    await expect(withAudit(database, async transaction => {
+      await transaction.transaction(nested => nested.update(userAccount).set({ uiLanguage: "en" }).where(eq(userAccount.id, rollbackActorId)));
+      return { value: "wrong", audit: await verifyRecordedAuditReceipt(transaction, { ...expected, entityId: rollbackActorId }) };
+    }, { afterCommit: async value => { observed.push(value); }, onAfterCommitFailure: async error => { throw error; } })).rejects.toThrow("RECORDED_AUDIT_NOT_FOUND");
+    const after = await owner.query("SELECT ui_language FROM user_account WHERE id=$1", [rollbackActorId]);
+    expect(after.rows).toEqual(before.rows);
+    expect(observed).toEqual([]);
+  });
+
+  test.each(["deleted", "changed"] as const)("rejects evidence %s after token creation before outer commit", async alteration => {
+    // Owner-only fault injection bypasses the real append-only trigger inside the
+    // transaction; rollback restores both evidence and trigger. App grants stay intact.
+    const database = drizzle(owner, { schema });
+    const before = await owner.query("SELECT ui_language FROM user_account WHERE id=$1", [rollbackActorId]);
+    await expect(withAudit(database, async transaction => {
+      const audit = await verifyRecordedAuditReceipt(transaction, expected);
+      await transaction.update(userAccount).set({ uiLanguage: "en" }).where(eq(userAccount.id, rollbackActorId));
+      await transaction.execute(sql`ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_mutate`);
+      if (alteration === "deleted") await transaction.delete(auditLog).where(eq(auditLog.entityId, receiptEntity));
+      else await transaction.update(auditLog).set({ after: { completionId: "changed" } }).where(eq(auditLog.entityId, receiptEntity));
+      return { value: "wrong", audit };
+    })).rejects.toThrow("RECORDED_AUDIT_CHANGED");
+    const after = await owner.query("SELECT ui_language FROM user_account WHERE id=$1", [rollbackActorId]);
+    expect(after.rows).toEqual(before.rows);
+    const rows = await owner.query("SELECT after FROM audit_log WHERE entity_id=$1", [receiptEntity]);
+    expect(rows.rows).toEqual([{ after: expected.after }]);
+    const trigger = await owner.query("SELECT tgenabled FROM pg_trigger WHERE tgname='audit_log_no_mutate'");
+    expect(trigger.rows).toEqual([{ tgenabled: "O" }]);
   });
 });
