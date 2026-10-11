@@ -134,8 +134,10 @@ export async function executeOffboardingIntent(
   if (authorization.globalRole !== "group_admin") {
     return { state: { ok: false, globalError: "person_forbidden" }, invalidationPaths: [] };
   }
-  const read = z.object({ intent: z.literal("read_targets"), personId: z.string().uuid() }).safeParse(input);
-  if (read.success) {
+  const hasIntent = typeof input === "object" && input !== null && Object.prototype.hasOwnProperty.call(input, "intent");
+  const read = z.object({ intent: z.literal("read_targets"), personId: z.string().uuid() }).strict().safeParse(input);
+  if (hasIntent) {
+    if (!read.success) return { state: { ok: false, globalError: "person_validation_failed" }, invalidationPaths: [] };
     try {
       const detail = await repository.detail(authorization, read.data.personId);
       const targets = new Map<string, { requestId: string; label: string }>();

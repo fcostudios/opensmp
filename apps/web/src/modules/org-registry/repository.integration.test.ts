@@ -1335,6 +1335,11 @@ describe("people repository", () => {
         VALUES($1,$2,$3,$4,$5,'2026-07-27',$6,'request',$7,$8)`, [assignments[index],holder,companyA,vendorAccountId,license,requests[index],occurredAt,adminId]);
       await owner.query(`UPDATE license_request SET license_assignment_id=$1 WHERE id=$2`,[assignments[index],requests[index]]);
     }
+    for (const intent of ["typo", null, "read_targets"]) {
+      const refused=await executeOffboardingIntent(repository,admin,{intent,personId:holder,requestId:requests[0],endReason:"inactive",note:"Otherwise valid mutation"},occurredAt);
+      expect(refused.state).toEqual({ok:false,globalError:"person_validation_failed"});
+      expect(refused.invalidationPaths).toEqual([]);
+    }
     const choices = await executeOffboardingIntent(repository, admin, {intent:"read_targets",personId:holder}, occurredAt);
     expect(choices.state.ok).toBe(true);
     expect(choices.state.targets?.map(target=>target.requestId).sort()).toEqual([...requests].sort());
@@ -1368,6 +1373,11 @@ describe("people repository", () => {
     await expect(repository.startOffboarding(admin,{...input,requestId:inactiveRequestId},occurredAt)).rejects.toMatchObject({code:"person_offboarding_unavailable"});
     await expect(repository.startOffboarding(admin,{...input,endReason:"reallocated"},occurredAt)).rejects.toMatchObject({code:"person_offboarding_transfer_required"});
     await expect(repository.startOffboarding(viewer,input,occurredAt)).rejects.toMatchObject({code:"person_forbidden"});
+    const initialExecution=await executeOffboardingIntent(repository,admin,input,occurredAt);
+    expect(initialExecution.state).toMatchObject({ok:true,personId:holder,affectedRequestIds:[requests[0]],status:"offboarding"});
+    expect(initialExecution.invalidationPaths).toEqual(["/personas",`/personas/${holder}`,`/solicitudes/${requests[0]}`]);
+    const initialFacts=await owner.query(`SELECT request.state,(SELECT count(*)::int FROM provisioning_action WHERE request_id=request.id) AS actions,(SELECT count(*)::int FROM request_transition WHERE request_id=request.id) AS transitions,(SELECT count(*)::int FROM audit_log WHERE entity_id=$2 AND action='person.offboarding_started') AS audits FROM license_request request WHERE id=$1`,[requests[0],holder]);
+    expect(initialFacts.rows).toEqual([{state:"offboarding",actions:1,transitions:1,audits:1}]);
     const [started, concurrent] = await Promise.all([repository.startOffboarding(admin,input,occurredAt), repository.startOffboarding(admin,input,occurredAt)]);
     expect(concurrent).toEqual(started);
     expect(started.affectedRequestIds).toEqual([requests[0]]);
