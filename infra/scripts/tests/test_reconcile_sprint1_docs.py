@@ -35,6 +35,7 @@ CHG055_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-055/e240d85"
 CHG059_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-059/7f42371"
 CHG065_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-065/7817e94"
 CHG069_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-069/84ab8ea"
+CHG079_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-079/c8f3317"
 CHG053_DELIVERED_ROOT = Path(__file__).parents[3]
 CHG053_GUIDES = (
     "CLAUDE.md",
@@ -102,6 +103,9 @@ def desired_guide(relative_path: str) -> bytes:
 
 
 def latest_desired_guide(relative_path: str) -> bytes:
+    chg079 = CHG079_OVERRIDE_ROOT / relative_path
+    if chg079.is_file():
+        return chg079.read_bytes()
     chg069 = CHG069_OVERRIDE_ROOT / relative_path
     if chg069.is_file():
         return chg069.read_bytes()
@@ -224,6 +228,11 @@ def copy_reconciler_data(root: Path) -> Path:
             CHG069_OVERRIDE_ROOT,
             data_root / "overrides/CHG-069/84ab8ea",
         )
+    if CHG079_OVERRIDE_ROOT.is_dir():
+        shutil.copytree(
+            CHG079_OVERRIDE_ROOT,
+            data_root / "overrides/CHG-079/c8f3317",
+        )
     return data_root
 
 
@@ -332,6 +341,49 @@ def transaction_artifacts(root: Path) -> list[Path]:
 
 
 class ReconciliationBehaviorTests(unittest.TestCase):
+    def test_chg079_manifest_binds_canonical_critical_set_and_rejects_unknown_bytes(self) -> None:
+        relative_path = "testing/critical-paths.md"
+        manifest = json.loads(
+            (CHG079_OVERRIDE_ROOT / "manifest.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(manifest, {
+            "version": 1,
+            "paths": {
+                relative_path: {
+                    "source_path": "overrides/CHG-069/84ab8ea/testing/critical-paths.md",
+                    "source_sha256": "50834168a28994a3acf9dedb68952d00ebe10b3d695037869822c9400bcb85a8",
+                    "desired_sha256": "9aa63e45047cfa887a40d08d484d5e4b1cb5eb8f0eef492d1252728ddfd65467",
+                },
+            },
+        })
+        entry = manifest["paths"][relative_path]
+        self.assertEqual(
+            hashlib.sha256((SCRIPT_DATA_ROOT / entry["source_path"]).read_bytes()).hexdigest(),
+            entry["source_sha256"],
+        )
+        self.assertEqual(
+            hashlib.sha256((CHG079_OVERRIDE_ROOT / relative_path).read_bytes()).hexdigest(),
+            entry["desired_sha256"],
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "project"
+            create_project(root)
+            data_root = copy_reconciler_data(base)
+            reconciled = run_reconciler(root, data_root=data_root)
+            self.assertEqual(reconciled.returncode, 0, reconciled.stderr)
+            before = snapshot(root)
+            accepted = run_reconciler(root, "--check", data_root=data_root)
+            self.assertEqual(accepted.returncode, 0, accepted.stderr)
+            self.assertEqual(snapshot(root), before)
+            critical = root / relative_path
+            critical.write_bytes(critical.read_bytes() + b"unknown future critical set\n")
+            before = snapshot(root)
+            rejected = run_reconciler(root, data_root=data_root)
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertIn("testing/critical-paths.md: unknown generated guidance state", rejected.stderr)
+            self.assertEqual(snapshot(root), before)
+
     def test_initializing_transaction_crashes_restart_all_old_without_orphans(self) -> None:
         for point in (
             "during_initial_journal",
