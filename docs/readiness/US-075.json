@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "f5aebfbc0dca0fa6496d625083e78b6fec1eefd4d4ccf662de9847259ab7d5d7",
+  "readiness_payload_sha256": "87f72ff50966615c113a334565994cd8d8af9b7b6e7b4ca50ba2716e2e2c01be",
   "work_id": "US-075",
   "kind": "US",
   "work_type": "functional",
@@ -48,7 +48,7 @@
   "signals": {
     "routes_or_screens": 2,
     "acceptance_flows": 3,
-    "expected_changed_files": 18,
+    "expected_changed_files": 25,
     "expected_mutation_shards": 5,
     "lifecycle_or_concurrency_boundaries": 1,
     "external_integrations": 0,
@@ -59,10 +59,10 @@
   "estimate_minutes": {
     "readiness": 30,
     "implementation": 115,
-    "focused_verification": 55,
-    "review": 55,
+    "focused_verification": 100,
+    "review": 65,
     "integration": 25,
-    "total": 280
+    "total": 335
   },
   "uncertainties": [
     {
@@ -112,7 +112,7 @@
       "statement": "What exact file surface and effectiveness oracles fit the hard limits?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Expected18 changed paths including implementation, strong tests and all execution paperwork: packages/domain/src/request-workflow/lifecycle.ts; apps/web/src/modules/request-workflow/transition-core.ts; apps/web/src/modules/org-registry/repository.ts; apps/web/src/modules/org-registry/people-action-service.ts; apps/web/src/components/people/person-offboarding.tsx; apps/web/src/app/(authenticated)/personas/[personId]/page.tsx; apps/web/src/app/(authenticated)/solicitudes/[requestId]/page.tsx; apps/web/src/modules/request-workflow/orchestration.ts; apps/web/src/modules/request-workflow/actions/checklist-action-transaction.ts; apps/web/messages/es-EC.json; apps/web/messages/en-US.json; apps/web/src/modules/org-registry/repository.integration.test.ts; apps/web/src/modules/request-workflow/orchestration.integration.test.ts; apps/web/src/components/people/person-offboarding.test.tsx; docs/readiness/US-075.json; docs/superpowers/specs/2026-10-11-us-075-anchored-removal-design.md; docs/superpowers/plans/2026-10-11-us-075-anchored-removal.md; .nous-feedback.jsonl. No package barrel/exports/dependencies changes. Real-DB orchestration suite directly imports domain primitive and server adapter and asserts persisted atomic outcomes, rollback, committed replay and controlled concurrency; repository suite constrains start/anchors/roles and existing UI suite constrains targeting/reason/confirmation. No shallow mirrored tests or mocks of owned code. Current estimate280min and three explicit scopes domain/server/ui; one boundary entrypoint->confirmation->finalization, two detail screens. Any new required path must be counted;20 is hard maximum, not license to omit necessary behavior. TESTING.md and critical-paths.md are generated/read-only; inspected existing BR-14/tenant/auth critical coverage applies, and any required §3 registry addition is requested via canonical config/Nous rather than hand editing. Preflight confirms actual domain/server/UI shard routing before previews; routing gaps invalidate score claims."
+      "resolution": "Expected25 changed paths including implementation, strong tests and all execution paperwork: packages/domain/src/request-workflow/lifecycle.ts; apps/web/src/modules/request-workflow/transition-core.ts; apps/web/src/modules/org-registry/repository.ts; apps/web/src/modules/org-registry/people-action-service.ts; apps/web/src/components/people/person-offboarding.tsx; apps/web/src/app/(authenticated)/personas/[personId]/page.tsx; apps/web/src/app/(authenticated)/solicitudes/[requestId]/page.tsx; apps/web/src/modules/request-workflow/orchestration.ts; apps/web/src/modules/request-workflow/actions/checklist-action-transaction.ts; apps/web/messages/es-EC.json; apps/web/messages/en-US.json; apps/web/src/modules/org-registry/repository.integration.test.ts; apps/web/src/modules/request-workflow/orchestration.integration.test.ts; apps/web/src/components/people/person-offboarding.test.tsx; docs/readiness/US-075.json; docs/superpowers/specs/2026-10-11-us-075-anchored-removal-design.md; docs/superpowers/plans/2026-10-11-us-075-anchored-removal.md; .nous-feedback.jsonl. No package barrel/exports/dependencies changes. Real-DB orchestration suite directly imports domain primitive and server adapter and asserts persisted atomic outcomes, rollback, committed replay and controlled concurrency; repository suite constrains start/anchors/roles and existing UI suite constrains targeting/reason/confirmation. No shallow mirrored tests or mocks of owned code. Reassessed estimate335min and three explicit scopes domain/server/ui; one boundary entrypoint->confirmation->finalization, two detail screens. Any new required path must be counted;20 is hard maximum, not license to omit necessary behavior. TESTING.md and critical-paths.md are generated/read-only; inspected existing BR-14/tenant/auth critical coverage applies, and any required §3 registry addition is requested via canonical config/Nous rather than hand editing. Preflight confirms actual domain/server/UI shard routing before previews; routing gaps invalidate score claims. Routing inspection after Task1 requires these additional paths: apps/web/src/modules/org-registry/people-action-service.test.ts; packages/domain/src/request-workflow/lifecycle.test.ts; apps/web/src/modules/request-workflow/service.integration.test.ts; apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts; apps/web/src/app/(authenticated)/personas/[personId]/page.test.tsx; apps/web/src/app/(authenticated)/solicitudes/[requestId]/page.test.ts; docs/readiness/drafts/US-075-nous-routing-request.md. Domain/web mutation projects and per-source shards do not follow cross-suite imports. The full delivery exceeds the20-file limit (24 delivery paths plus this canonical request) and335-minute estimate exceeds320. No import-only relay, tooling patch or silent oracle removal is permitted."
     },
     {
       "id": "U8",
@@ -120,16 +120,23 @@
       "status": "resolved",
       "estimate_impact_minutes": 0,
       "resolution": "Same consolidated implementer and same reused scoped reviewer resumed read-only investigation after the amendment; no forced role restart. No started/design/plan/production edits authorized yet. Child readiness, design and bound plan require separate explicit approvals, then mutation-base freeze. CHG-069 touched previews <=30min, one cold last after fresh adversarial review; shared CHG-067 Postgres only, caffeinate fullgate under exclusive shared /tmp/smp-full-gate.lock. Cost provenance and phase markers recorded on execution; no done now. US-081 source surfaces are parallel-safe with US-075 except serialized locales/ledger/generated guidance; it consumes the transition timestamp and may not edit primitive. Its explicit three-screen scope exceeds readiness limit and requires a separate canonical repartition request; it is not launched as executable parallel child. US-078 must coordinate the accepted-snapshot producer contract with US-081. After00f2b15 critical-paths inspected unchanged. Work_state tools unavailable on host; no substitute task-list file."
+    },
+    {
+      "id": "U9",
+      "statement": "Actual mutation routing invalidates the approved delivery envelope; which canonical vertical allocation will Nous deliver?",
+      "status": "unresolved",
+      "estimate_impact_minutes": 55,
+      "resolution": "Task1 fixes at4b924d7 pass13 real-DB tests, web type check and accountability preflight. Shard routing remains blocking for people-action-service; remaining domain finalizer, transition adapter, checklist audit wrapper and both pages require responsible routed oracles. Full assessment335min/25changedpaths violates hard limits; proposed split is anchored entrypoint/screens first and portable atomic checklist completion second, with explicit AC slices/dependencies in docs/readiness/drafts/US-075-nous-routing-request.md. Nous must reconcile canonical allocation and dependencies before further implementation. Prior approval and valid partial commits remain historical, not authority for expanded work. Proposed new boundaries preserve all behavior; cost-if-wrong is another readiness/review round and no implementation under guessed child IDs."
     }
   ],
   "dependencies": [],
-  "decision": "ready",
+  "decision": "blocked",
   "partitions": [],
   "approval": {
-    "status": "approved",
-    "approved_by": "Francisco Lomas",
-    "evidence": "US075-READY-20261011-APPROVAL",
-    "payload_sha256": "f5aebfbc0dca0fa6496d625083e78b6fec1eefd4d4ccf662de9847259ab7d5d7"
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "87f72ff50966615c113a334565994cd8d8af9b7b6e7b4ca50ba2716e2e2c01be"
   },
   "actuals": null,
   "policy_bootstrap": false,
