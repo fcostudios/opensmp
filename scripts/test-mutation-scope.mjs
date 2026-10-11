@@ -1221,6 +1221,40 @@ assert.deepEqual(
   "the real repository tree must retain both the lifecycle and orchestration suites",
 );
 assert.deepEqual(
+  DIRECT_TEST_ROUTES["apps/web/src/modules/request-workflow/actions/checklist-action-transaction.ts"],
+  ["apps/web/src/modules/request-workflow/orchestration.integration.test.ts"],
+  "checklist removal mutations must retain exactly their accountable orchestration integration suite",
+);
+assert.deepEqual(
+  routedTestFiles(
+    ["apps/web/src/modules/request-workflow/actions/checklist-action-transaction.ts"],
+    ["apps/web/src/modules/request-workflow/actions/checklist-action-transaction.ts"],
+    existsSync,
+  ),
+  [
+    "apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts",
+    "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+  ],
+  "the real repository tree must retain both checklist wrapper and orchestration suites",
+);
+assert.deepEqual(
+  DIRECT_TEST_ROUTES["apps/web/src/components/people/person-offboarding.tsx"],
+  ["apps/web/src/modules/org-registry/repository.integration.test.ts"],
+  "person offboarding mutations must retain exactly their accountable backend tenant suite",
+);
+assert.deepEqual(
+  routedTestFiles(
+    ["apps/web/src/components/people/person-offboarding.tsx"],
+    ["apps/web/src/components/people/person-offboarding.tsx"],
+    existsSync,
+  ),
+  [
+    "apps/web/src/components/people/person-offboarding.test.tsx",
+    "apps/web/src/modules/org-registry/repository.integration.test.ts",
+  ],
+  "the real repository tree must retain both the actual UI journey and backend tenant suites",
+);
+assert.deepEqual(
   DIRECT_TEST_ROUTES["apps/web/src/modules/org-registry/people-action-service.ts"],
   ["apps/web/src/modules/org-registry/repository.integration.test.ts"],
   "people actions must retain exactly their accountable real-PostgreSQL repository suite",

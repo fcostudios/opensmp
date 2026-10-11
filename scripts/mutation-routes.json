@@ -189,5 +189,11 @@
   ],
   "packages/domain/src/request-workflow/lifecycle.ts": [
     "apps/web/src/modules/request-workflow/orchestration.integration.test.ts"
+  ],
+  "apps/web/src/modules/request-workflow/actions/checklist-action-transaction.ts": [
+    "apps/web/src/modules/request-workflow/orchestration.integration.test.ts"
+  ],
+  "apps/web/src/components/people/person-offboarding.tsx": [
+    "apps/web/src/modules/org-registry/repository.integration.test.ts"
   ]
 }
