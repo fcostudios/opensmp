@@ -8,10 +8,12 @@ import {
   type PersonInput,
 } from "@smp/contracts";
 
+import type { LedgerAuthorization } from "../identity-access/authorization";
 import { loadCurrentLedgerAuthorization } from "../identity-access/server-authorization";
 import {
   PeopleRepositoryError,
   peopleRepository,
+  type PeopleRepository,
 } from "./repository";
 import {
   startOffboardingWithAuthorization,
@@ -33,9 +35,13 @@ export type PersonAction = (
   input: PersonInput,
 ) => Promise<PersonActionState>;
 
+export interface OffboardingActionResponse extends StartOffboardingActionState {
+  readonly targets?: readonly { readonly requestId: string; readonly label: string }[];
+}
+
 export type StartOffboardingAction = (
   input: unknown,
-) => Promise<StartOffboardingActionState>;
+) => Promise<OffboardingActionResponse>;
 
 function errorState(error: unknown): PersonActionState {
   if (error instanceof PeopleRepositoryError) {
@@ -118,29 +124,43 @@ export function safeParseOffboardingTarget(input: unknown) {
   return startOffboardingInputSchema.extend({ requestId: z.string().uuid().optional() }).safeParse(input);
 }
 
-export async function startOffboardingService(
+/** The production intent executor; reads and rejections never invalidate mutation views. */
+export async function executeOffboardingIntent(
+  repository: PeopleRepository,
+  authorization: LedgerAuthorization,
   input: unknown,
-): Promise<StartOffboardingActionState> {
+  occurredAt?: Date,
+): Promise<{ readonly state: OffboardingActionResponse; readonly invalidationPaths: readonly string[] }> {
+  if (authorization.globalRole !== "group_admin") {
+    return { state: { ok: false, globalError: "person_forbidden" }, invalidationPaths: [] };
+  }
+  const read = z.object({ intent: z.literal("read_targets"), personId: z.string().uuid() }).safeParse(input);
+  if (read.success) {
+    try {
+      const detail = await repository.detail(authorization, read.data.personId);
+      const targets = new Map<string, { requestId: string; label: string }>();
+      for (const assignment of detail.assignmentHistory) {
+        if (assignment.endedOn !== null || assignment.sourceRequestState !== "active" || !assignment.sourceRequestId) continue;
+        targets.set(assignment.sourceRequestId, { requestId: assignment.sourceRequestId, label: `${assignment.vendorAccountName} · ${assignment.licenseTypeName}` });
+      }
+      return { state: { ok: true, personId: detail.id, targets: [...targets.values()] }, invalidationPaths: [] };
+    } catch (error) {
+      return { state: { ok: false, globalError: error instanceof PeopleRepositoryError ? error.code : "person_offboarding_failed" }, invalidationPaths: [] };
+    }
+  }
   const parsed = safeParseOffboardingTarget(input);
-  if (!parsed.success) {
-    return {
-      ok: false,
-      globalError: "person_validation_failed",
-    };
-  }
+  if (!parsed.success) return { state: { ok: false, globalError: "person_validation_failed" }, invalidationPaths: [] };
+  const state = await startOffboardingWithAuthorization(repository, authorization, parsed.data, occurredAt);
+  return {
+    state,
+    invalidationPaths: state.ok ? ["/personas", `/personas/${state.personId}`, ...(state.affectedRequestIds ?? []).map(requestId => `/solicitudes/${requestId}`)] : [],
+  };
+}
+
+export async function startOffboardingService(input: unknown): Promise<OffboardingActionResponse> {
   const authorization = await loadCurrentLedgerAuthorization();
-  if (!authorization) {
-    return { ok: false, globalError: "person_unauthorized" };
-  }
-  const result = await startOffboardingWithAuthorization(
-    peopleRepository,
-    authorization,
-    parsed.data,
-  );
-  if (result.ok) {
-    revalidatePath("/personas");
-    revalidatePath(`/personas/${result.personId}`);
-    for (const requestId of result.affectedRequestIds ?? []) revalidatePath(`/solicitudes/${requestId}`);
-  }
-  return result;
+  if (!authorization) return { ok: false, globalError: "person_unauthorized" };
+  const result = await executeOffboardingIntent(peopleRepository, authorization, input);
+  for (const path of result.invalidationPaths) revalidatePath(path);
+  return result.state;
 }

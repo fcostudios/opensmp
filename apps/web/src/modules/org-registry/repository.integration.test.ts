@@ -23,7 +23,7 @@ import {
 import {
   startOffboardingWithAuthorization,
 } from "./people-action-core";
-import { safeParseOffboardingTarget } from "./people-action-service";
+import { executeOffboardingIntent, safeParseOffboardingTarget } from "./people-action-service";
 import {
   PeopleRepositoryError,
   createPeopleRepository,
@@ -538,6 +538,7 @@ describe("people repository", () => {
         endReason: null,
         sourceKind: "import",
         sourceRequestId: null,
+        sourceRequestState: null,
       },
       {
         id: orderedAssignmentId,
@@ -550,6 +551,7 @@ describe("people repository", () => {
         endReason: null,
         sourceKind: "import",
         sourceRequestId: null,
+        sourceRequestState: null,
       },
     ]);
     expect(moveDetail.activityHistory).toEqual([
@@ -1333,6 +1335,20 @@ describe("people repository", () => {
         VALUES($1,$2,$3,$4,$5,'2026-07-27',$6,'request',$7,$8)`, [assignments[index],holder,companyA,vendorAccountId,license,requests[index],occurredAt,adminId]);
       await owner.query(`UPDATE license_request SET license_assignment_id=$1 WHERE id=$2`,[assignments[index],requests[index]]);
     }
+    const choices = await executeOffboardingIntent(repository, admin, {intent:"read_targets",personId:holder}, occurredAt);
+    expect(choices.state.ok).toBe(true);
+    expect(choices.state.targets?.map(target=>target.requestId).sort()).toEqual([...requests].sort());
+    expect(choices.state.targets?.every(target=>target.label.length>0)).toBe(true);
+    expect(choices.invalidationPaths).toEqual([]);
+    for (const invalid of [{intent:"read_targets",personId:"bad"},{personId:holder,requestId:"bad",endReason:"inactive",note:"Bad target"},{personId:holder,requestId:requests[0],endReason:"reallocated",note:"Transfer"}]) {
+      const refused=await executeOffboardingIntent(repository,admin,invalid,occurredAt);
+      expect(refused.state.ok).toBe(false);
+      expect(refused.invalidationPaths).toEqual([]);
+    }
+    expect((await executeOffboardingIntent(repository,viewer,{intent:"read_targets",personId:holder},occurredAt)).state).toEqual({ok:false,globalError:"person_forbidden"});
+    expect((await executeOffboardingIntent(repository,admin,{intent:"read_targets",personId:randomUUID()},occurredAt)).state.ok).toBe(false);
+    const readFacts=await owner.query(`SELECT (SELECT count(*)::int FROM provisioning_action WHERE request_id=ANY($1::uuid[])) AS actions,(SELECT count(*)::int FROM request_transition WHERE request_id=ANY($1::uuid[])) AS transitions,(SELECT count(*)::int FROM audit_log WHERE entity_id=ANY($2::uuid[])) AS audits`,[requests,[holder,...requests]]);
+    expect(readFacts.rows).toEqual([{actions:0,transitions:0,audits:0}]);
     const parsed = safeParseOffboardingTarget({personId:holder,requestId:requests[0]!,endReason:"inactive",note:"Remove only selected seat"});
     expect(parsed.success).toBe(true);
     if (!parsed.success) throw new Error("Valid target rejected");
@@ -1357,6 +1373,13 @@ describe("people repository", () => {
     expect(started.affectedRequestIds).toEqual([requests[0]]);
     expect(started.person.status).toBe("active");
     expect(await repository.startOffboarding(admin,input,occurredAt)).toEqual(started);
+    const executed=await executeOffboardingIntent(repository,admin,input,occurredAt);
+    expect(executed.state).toMatchObject({ok:true,personId:holder,affectedRequestIds:[requests[0]],status:"offboarding"});
+    expect(executed.invalidationPaths).toEqual(["/personas",`/personas/${holder}`,`/solicitudes/${requests[0]}`]);
+    const remaining=await executeOffboardingIntent(repository,admin,{intent:"read_targets",personId:holder},occurredAt);
+    expect(remaining.state.targets?.map(target=>target.requestId)).toEqual([requests[1]]);
+    expect(remaining.invalidationPaths).toEqual([]);
+
     const facts = await owner.query(`SELECT request.id::text,request.state,assignment.ended_on::text,
       (SELECT count(*)::int FROM provisioning_action WHERE request_id=request.id) AS actions,
       (SELECT count(*)::int FROM request_transition WHERE request_id=request.id) AS transitions

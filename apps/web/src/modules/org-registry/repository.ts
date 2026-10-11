@@ -104,6 +104,7 @@ export interface PersonDetail extends PersonListItem {
     readonly endReason: (typeof licenseAssignment.$inferSelect)["endReason"];
     readonly sourceKind: (typeof licenseAssignment.$inferSelect)["sourceKind"];
     readonly sourceRequestId: string | null;
+    readonly sourceRequestState: (typeof licenseRequest.$inferSelect)["state"] | null;
   }[];
   readonly activityHistory: readonly {
     readonly id: string;
@@ -331,6 +332,7 @@ export function createPeopleRepository(
           endReason: licenseAssignment.endReason,
           sourceKind: licenseAssignment.sourceKind,
           sourceRequestId: licenseAssignment.sourceRequestId,
+          sourceRequestState: licenseRequest.state,
         })
         .from(licenseAssignment)
         .innerJoin(company, eq(company.id, licenseAssignment.companyId))
@@ -342,6 +344,14 @@ export function createPeopleRepository(
           licenseType,
           eq(licenseType.id, licenseAssignment.licenseTypeId),
         )
+        .leftJoin(licenseRequest, and(
+          eq(licenseRequest.id, licenseAssignment.sourceRequestId),
+          eq(licenseRequest.personId, licenseAssignment.personId),
+          eq(licenseRequest.companyId, licenseAssignment.companyId),
+          eq(licenseRequest.vendorAccountId, licenseAssignment.vendorAccountId),
+          eq(licenseRequest.licenseTypeId, licenseAssignment.licenseTypeId),
+          eq(licenseRequest.licenseAssignmentId, licenseAssignment.id),
+        ))
         .where(
           and(
             eq(licenseAssignment.personId, personId),
