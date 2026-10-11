@@ -2278,6 +2278,7 @@ function installReadinessHook(root) {
     "scripts/work-readiness.mjs",
     "scripts/work-readiness/model.mjs",
     "scripts/work-readiness/git.mjs",
+    "scripts/work-readiness/delivery-policy.mjs",
     "docs/dev-guide/feedback-vocabulary.json",
   ]) {
     writeRepoFile(root, path, readFileSync(new URL(path, sourceRoot), "utf8"));
@@ -5293,3 +5294,6 @@ test("preview_rounds and preview_minutes are optional non-negative integer actua
 
 assert.ok(assertions >= 30);
 process.stdout.write(`work-readiness model: ${assertions} behavioral tests passed\n`);
+
+// CHG-082 focused real-Git and differential contracts.
+await import("./test-chg082.mjs");

@@ -33,11 +33,38 @@ non-repeatable exception; changing or copying it does not create another one.
 3. More than three major technical scopes are touched.
 4. More than two routes or screens are changed.
 5. More than three independently testable acceptance flows exist.
-6. Expected changed files exceed 20.
+6. Expected delivery paths (`signals.expected_changed_files`) exceed 20. For
+   assessments created after CHG-082 integrates, bookkeeping is counted separately
+   as informational integer `signals.bookkeeping_files`. The closed list is
+   `docs/readiness/**` (including drafts and requests), `docs/superpowers/specs/**`,
+   `docs/superpowers/plans/**`, and `.nous-feedback.jsonl`; no judgment-based
+   exceptions exist. `scripts/mutation-routes.json` is one delivery path.
+   The gate does not compare actual diffs against this limit; any future such
+   check must use this same closed list.
 7. More than one lifecycle or concurrency boundary exists.
-8. Functional delivery and a tooling/framework change are combined.
+8. Functional delivery and a tooling/framework change are combined. The sole
+   carve-out, for assessments created after CHG-082 integrates, is an additive
+   change to `scripts/mutation-routes.json`: preserve all base keys and ordered
+   values, add only new keys or appended test values, require every new key's
+   source to be changed by the item's own authorized delivery, and require every
+   new value to name an existing test file. Existing keys may append test values
+   without changing that source. New routes are not `tooling_change`; their
+   execution evidence is the item's mutation preflight showing the shard executes
+   the suite. Removals, replacement/reordering of existing values, exemptions,
+   thresholds, instrumentation, and any script edit remain technical-only and
+   fail functional ownership with `WR_MIXED_FUNCTIONAL_TOOLING`.
 9. An uncertainty lacks a resolution or explicit estimate impact.
 10. The implementation requires an unofficial or unresolved work-item ID.
+
+CHG-082 is prospective. Immutable Git history identifies the first introduction
+of each canonical payload digest and validates the completed, approved CHG-082
+chain in that introduction's parent. A new uncommitted payload uses HEAD as its
+creation boundary. Omission of `bookkeeping_files` does not evade the new policy.
+Previously approved or pending digests, including US-075, US-081, US-083,
+CHG-079, CHG-080 and CHG-081, retain their original classification and approval.
+CHG-079/081 are preserved; the second integration line rebases their complete
+route table into the JSON data, records its original-to-rebased SHA map, and
+reruns the differential oracle over every predecessor entry.
 
 The phase total must equal `readiness + implementation +
 focused_verification + review + integration`. Outcome and acceptance-criterion

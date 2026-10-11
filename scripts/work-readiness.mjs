@@ -29,6 +29,7 @@ import {
 } from "./work-readiness/model.mjs";
 import {
   resolveDefaultRange,
+  readinessDeliveryPolicy,
   validateRangeOwnership,
 } from "./work-readiness/git.mjs";
 
@@ -180,7 +181,7 @@ function loadAssessment(root, workId) {
 
 function validateOne(root, workId, feedbackRecords) {
   const value = loadAssessment(root, workId);
-  const assessment = validateAssessment(value, { feedbackRecords, approvedReadinessAuthorities: loadApprovedReadinessAuthorities(root) });
+  const assessment = validateAssessment(value, { feedbackRecords, approvedReadinessAuthorities: loadApprovedReadinessAuthorities(root), deliveryPolicy: readinessDeliveryPolicy({ root, artifact: value }) });
   return { artifact: value, assessment };
 }
 
@@ -239,6 +240,7 @@ function skeleton(workId) {
       routes_or_screens: 0,
       acceptance_flows: 0,
       expected_changed_files: 0,
+      bookkeeping_files: 0,
       expected_mutation_shards: 0,
       lifecycle_or_concurrency_boundaries: 0,
       external_integrations: 0,
@@ -366,7 +368,7 @@ export function calibrateAssessmentFile({ root, workId, feedbackRecords, fsOps =
   };
   const canonicalRoot = ops.realpathSync(root);
   const value = loadAssessment(canonicalRoot, workId);
-  const validated = validateAssessment(value, { feedbackRecords });
+  const validated = validateAssessment(value, { feedbackRecords, deliveryPolicy: readinessDeliveryPolicy({ root, artifact: value }) });
   if (validated.complete || !validated.active) cliError("WR_APPROVAL_INACTIVE", "Only an active, uncompleted approval can be calibrated", "$.approval.evidence");
   const approvalIndex = feedbackRecords.findIndex((record) => record.event === "decision" && record.id === value.approval.evidence);
   if (feedbackRecords.some((record, index) => index > approvalIndex && record.story === workId && isExecutionEvidenceEvent(record.event))) {

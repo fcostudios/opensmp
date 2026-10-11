@@ -14,14 +14,12 @@ import {
   validateCompletionActuals,
 } from "./model.mjs";
 
+import { isBookkeepingPath, isToolingPath, MUTATION_ROUTES_PATH, validRouteTable } from "./delivery-policy.mjs";
+
 const MAX_GIT_OUTPUT_BYTES = 1024 * 1024;
 const MAX_CI_EVENT_BYTES = 1024 * 1024;
 const WORK_ID_PATTERN = /(?<![A-Z0-9-])(?:US|CHG)-[0-9]{3,}(?![A-Z0-9-])/giu;
-const BOOTSTRAP_DOCUMENT_PREFIXES = [
-  "docs/readiness/",
-  "docs/superpowers/specs/",
-  "docs/superpowers/plans/",
-];
+
 const GENERATED_NOUS_PATHS = [
   /^docs\/stories\//u,
   /^docs\/sprints\//u,
@@ -404,7 +402,7 @@ function validatePlanBinding({ root, revision, authorizationRevision, feedback, 
   if (artifactText === null) fail("WR_READINESS_MISSING", expectedPath, `Implementation plan for ${header.workId} requires prior readiness approval`);
   const assessment = parseJson(artifactText, expectedPath);
   if (assessment.work_id !== header.workId) fail("WR_READINESS_WORK_ID_MISMATCH", expectedPath, `Artifact work_id does not match ${header.workId}`);
-  const validated = validateAssessment(assessment, { feedbackRecords: feedback });
+  const validated = validateAssessment(assessment, { feedbackRecords: feedback, deliveryPolicy: readinessDeliveryPolicy({ root, revision: authorizationRevision, artifact: assessment }) });
   if (assessment.decision !== "ready") fail("WR_WORK_NOT_READY", expectedPath, `${header.workId} is ${String(assessment.decision)}, not ready`);
   if (!validated.active) fail("WR_APPROVAL_INACTIVE", expectedPath, `${header.workId} readiness authorization is inactive`);
   if (header.estimate > assessment.estimate_minutes.total) {
@@ -499,6 +497,9 @@ function validateChangedMachineArtifacts(root, revision, changedPaths) {
     const assessment = parseJson(readRevisionFile(root, revision, path), path);
     const expectedWorkId = path.slice("docs/readiness/".length, -".json".length);
     classifyAssessment(assessment);
+    if (readinessDeliveryPolicy({ root, revision, artifact: assessment }) && !Object.hasOwn(assessment.signals, "bookkeeping_files")) {
+      fail("WR_MISSING_PROPERTY", `${path}.signals.bookkeeping_files`, "New assessments require informational bookkeeping_files");
+    }
     if (assessment.work_id !== expectedWorkId) fail("WR_READINESS_WORK_ID_MISMATCH", path, `Artifact work_id does not match ${expectedWorkId}`);
   }
 }
@@ -996,7 +997,7 @@ export function extractWorkIds(message) {
 
 export function classifyChangedPath(path) {
   validateRelativePath(path);
-  if (path === ".nous-feedback.jsonl" || BOOTSTRAP_DOCUMENT_PREFIXES.some((prefix) => path.startsWith(prefix))) {
+  if (isBookkeepingPath(path)) {
     return "bootstrap-documentation";
   }
   if (GENERATED_NOUS_PATHS.some((pattern) => pattern.test(path))) return "generated-nous";
@@ -1137,6 +1138,103 @@ export function resolveDefaultBase(root, env = process.env) {
   return resolveDefaultRange(root, env).base;
 }
 
+// Activation is genuine completed/approved CHG-082 authority, read from an
+// immutable ancestor. A raw terminal string cannot enable the carve-out.
+const deliveryPolicyCompletionCache = new Map();
+function completedDeliveryPolicy(root, revision) {
+  const cacheKey = `${root}:${revision}`;
+  if (/^[0-9a-f]{40}$/u.test(revision) && deliveryPolicyCompletionCache.has(cacheKey)) return deliveryPolicyCompletionCache.get(cacheKey);
+  const text = readRevisionFile(root, revision, "docs/readiness/CHG-082.json", { required: false });
+  if (text === null) return false;
+  try {
+    const value = parseJson(text, "docs/readiness/CHG-082.json");
+    if (value.work_id !== "CHG-082" || value.work_type !== "technical") return false;
+    const records = parseFeedback(readRevisionFile(root, revision, ".nous-feedback.jsonl", { required: false }));
+    const complete = validateAssessment(value, { feedbackRecords: records }).complete;
+    if (/^[0-9a-f]{40}$/u.test(revision)) deliveryPolicyCompletionCache.set(cacheKey, complete);
+    return complete;
+  } catch (error) {
+    if (error instanceof WorkReadinessError) return false;
+    throw error;
+  }
+}
+
+// The policy is bound to payload creation, never an author-controlled marker or
+// path age. Approval/actuals edits keep the same payload. An uncommitted new
+// payload uses current immutable HEAD policy as its introduction boundary.
+export function readinessDeliveryPolicy({ root, revision = "HEAD", artifact }) {
+  const head = resolveCommit(root, revision, "$.head");
+  if (!completedDeliveryPolicy(root, head)) return false;
+  const path = `docs/readiness/${artifact.work_id}.json`;
+  const digest = computeReadinessPayloadSha256(artifact);
+  const history = git(root, ["log", "--format=%H", "--reverse", head, "--", path]).toString("utf8").trim();
+  for (const commit of history === "" ? [] : history.split("\n")) {
+    const bytes = readRevisionFile(root, commit, path, { required: false });
+    if (bytes === null) continue;
+    let candidate;
+    try { candidate = parseJson(bytes, path); } catch (error) { if (error instanceof WorkReadinessError) continue; throw error; }
+    if (computeReadinessPayloadSha256(candidate) !== digest) continue;
+    const parents = git(root, ["rev-list", "--parents", "-n", "1", commit]).toString("utf8").trim().split(/\s+/u);
+    return parents.length > 1 && completedDeliveryPolicy(root, parents[1]);
+  }
+  return completedDeliveryPolicy(root, head);
+}
+
+function itemAuthorityPaths(root, authority, head, workId) {
+  const paths = new Set();
+  for (const entry of linearCommits(root, authority, head)) {
+    const message = git(root, ["show", "-s", "--format=%B", entry.commit]).toString("utf8");
+    // A multi-item commit cannot silently lend a source to this work item.
+    const ids = extractWorkIds(message);
+    if (ids.length === 1 && ids[0] === workId) {
+      listChangedPaths({ root, base: entry.parent, head: entry.commit }).forEach((path) => paths.add(path));
+    }
+  }
+  return paths;
+}
+
+function payloadAuthority(root, revision, artifact) {
+  const path = `docs/readiness/${artifact.work_id}.json`;
+  const history = git(root, ["log", "--format=%H", "--reverse", revision, "--", path]).toString("utf8").trim();
+  for (const commit of history === "" ? [] : history.split("\n")) {
+    const text = readRevisionFile(root, commit, path, { required: false });
+    if (text !== null && computeReadinessPayloadSha256(parseJson(text, path)) === artifact.readiness_payload_sha256) return commit;
+  }
+  fail("WR_READINESS_MISSING", path, "Functional routing requires a previously committed assessment payload");
+}
+
+export function validateFunctionalDelivery({ root, base, head, workId, authority }) {
+  const reject = (message) => fail("WR_MIXED_FUNCTIONAL_TOOLING", MUTATION_ROUTES_PATH, message);
+  const changed = listChangedPaths({ root, base, head });
+  const forbidden = changed.find((path) => path !== MUTATION_ROUTES_PATH && isToolingPath(path));
+  if (forbidden) reject(`Functional delivery cannot edit tooling: ${forbidden}`);
+  if (!changed.includes(MUTATION_ROUTES_PATH)) return true;
+  if (revisionMode(root, base, MUTATION_ROUTES_PATH) !== "100644"
+    || revisionMode(root, head, MUTATION_ROUTES_PATH) !== "100644") reject("Mutation routes must be existing regular JSON files");
+  let prior, candidate;
+  try {
+    prior = JSON.parse(readRevisionFile(root, base, MUTATION_ROUTES_PATH));
+    candidate = JSON.parse(readRevisionFile(root, head, MUTATION_ROUTES_PATH));
+  } catch { reject("Mutation routes must be valid JSON"); }
+  if (!validRouteTable(prior) || !validRouteTable(candidate)) reject("Mutation route data has an unsafe or non-route shape");
+  for (const [source, tests] of Object.entries(prior)) {
+    if (!Object.hasOwn(candidate, source) || tests.some((test, index) => candidate[source][index] !== test)) {
+      reject(`Existing route values cannot be removed, replaced or reordered: ${source}`);
+    }
+  }
+  const owned = itemAuthorityPaths(root, authority, head, workId);
+  for (const [source, tests] of Object.entries(candidate)) {
+    const old = Object.hasOwn(prior, source) ? prior[source] : [];
+    if (!Object.hasOwn(prior, source) && (!owned.has(source) || !["100644", "100755"].includes(revisionMode(root, head, source)))) {
+      reject(`New route source must be changed by this item's own delivery: ${source}`);
+    }
+    for (const test of tests.slice(old.length)) {
+      if (!["100644", "100755"].includes(revisionMode(root, head, test))) reject(`New responsible test must exist as a regular test file: ${test}`);
+    }
+  }
+  return true;
+}
+
 // CHG-037 §2 — the git-timestamp execution clock is gone: findExecutionTimeline,
 // commitEpochSeconds, validateElapsedCheckpoint and hasBootstrapElapsedDeviation.
 // It fired twice in the project's history, and both times it stopped work at a
@@ -1220,7 +1318,7 @@ function validateCommitOwnership({
     }
     const parentArtifact = parseJson(artifactText, readinessPath);
     if (parentArtifact.work_id !== workId) fail("WR_READINESS_WORK_ID_MISMATCH", readinessPath, `Artifact work_id does not match ${workId}`);
-    const parentAssessment = validateAssessment(parentArtifact, { feedbackRecords: authorizationFeedback });
+    const parentAssessment = validateAssessment(parentArtifact, { feedbackRecords: authorizationFeedback, deliveryPolicy: readinessDeliveryPolicy({ root, revision: parent, artifact: parentArtifact }) });
     if (parentArtifact.decision !== "ready") fail("WR_WORK_NOT_READY", readinessPath, `${workId} is ${String(parentArtifact.decision)}, not ready`);
     if (!parentAssessment.active) {
       if (parentArtifact.policy_bootstrap && parentAssessment.complete) {
@@ -1236,7 +1334,7 @@ function validateCommitOwnership({
     if (candidateArtifactText === null) fail("WR_READINESS_MISSING", readinessPath, `Candidate implementation removes readiness for ${workId}`);
     const candidateArtifact = parseJson(candidateArtifactText, readinessPath);
     if (candidateArtifact.work_id !== workId) fail("WR_READINESS_WORK_ID_MISMATCH", readinessPath, `Candidate artifact work_id does not match ${workId}`);
-    const candidateAssessment = validateAssessment(candidateArtifact, { feedbackRecords: candidateFeedback });
+    const candidateAssessment = validateAssessment(candidateArtifact, { feedbackRecords: candidateFeedback, deliveryPolicy: readinessDeliveryPolicy({ root, revision: commit, artifact: candidateArtifact }) });
     if (candidateArtifact.decision !== "ready") fail("WR_WORK_NOT_READY", readinessPath, `${workId} candidate state is ${String(candidateArtifact.decision)}, not ready`);
     if (!candidateAssessment.active) {
       if (candidateArtifact.policy_bootstrap && candidateAssessment.complete) {
@@ -1252,6 +1350,9 @@ function validateCommitOwnership({
       || candidateArtifact.approval.status !== parentArtifact.approval.status
       || candidateArtifact.approval.approved_by !== parentArtifact.approval.approved_by) {
       fail("WR_CANDIDATE_APPROVAL_CHANGED", readinessPath, `${workId} approval binding cannot change in its implementation commit`);
+    }
+    if (parentArtifact.work_type === "functional" && readinessDeliveryPolicy({ root, revision: parent, artifact: parentArtifact })) {
+      validateFunctionalDelivery({ root, base: parent, head: commit, workId, authority: payloadAuthority(root, parent, parentArtifact) });
     }
     if (parentArtifact.policy_bootstrap) {
       const allowed = new Set(parentArtifact.bootstrap_authorization.allowed_paths);

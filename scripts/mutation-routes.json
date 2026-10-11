@@ -1,0 +1,187 @@
+{
+  "apps/web/src/components/usage/usage-batch-table.tsx": [
+    "apps/web/src/components/usage/usage-view.integration.test.tsx"
+  ],
+  "apps/web/src/components/usage/usage-view.tsx": [
+    "apps/web/src/app/(authenticated)/uso/page.integration.test.tsx"
+  ],
+  "apps/web/src/components/usage/reclamation-selection-store.ts": [
+    "apps/web/src/components/usage/usage-batch-table.integration.test.tsx"
+  ],
+  "apps/web/src/modules/usage/reclamation-command.ts": [
+    "apps/web/src/modules/usage/reclamation-service.integration.test.ts"
+  ],
+  "apps/web/src/modules/usage/reclamation-operations.ts": [
+    "apps/web/src/modules/usage/reclamation-service.integration.test.ts"
+  ],
+  "apps/web/src/modules/usage/reclamation-server-actions-factory.ts": [
+    "apps/web/src/modules/usage/reclamation-service.integration.test.ts"
+  ],
+  "packages/db/src/reclamation-proposals.ts": [
+    "apps/web/src/modules/usage/reclamation-service.integration.test.ts"
+  ],
+  "apps/web/src/modules/request-workflow/repository.ts": [
+    "apps/web/src/modules/request-workflow/read-repository.integration.test.ts"
+  ],
+  "apps/worker/src/alerts/evaluate-alerts.ts": [
+    "apps/worker/src/alerts/overdue-invitations.integration.test.ts"
+  ],
+  "apps/web/src/app/(authenticated)/excepciones/page.tsx": [
+    "apps/web/src/components/exceptions/exception-page-boundaries.test.ts"
+  ],
+  "apps/web/src/app/(authenticated)/organizaciones/[vendorAccountId]/page.tsx": [
+    "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
+    "apps/web/src/modules/vendor-catalog/vendor-account-page-loaders.test.ts"
+  ],
+  "apps/web/src/app/(authenticated)/organizaciones/error.tsx": [
+    "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts"
+  ],
+  "apps/web/src/app/(authenticated)/organizaciones/loading.tsx": [
+    "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts"
+  ],
+  "apps/web/src/app/(authenticated)/organizaciones/page.tsx": [
+    "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts",
+    "apps/web/src/modules/vendor-catalog/vendor-account-page-loaders.test.ts"
+  ],
+  "apps/web/src/components/vendor-accounts/capability-card.tsx": [
+    "apps/web/src/components/vendor-accounts/vendor-account-detail.test.tsx"
+  ],
+  "apps/web/src/components/vendor-accounts/vendor-account-dialog.tsx": [
+    "apps/web/src/components/vendor-accounts/vendor-accounts.test.tsx",
+    "apps/web/src/components/vendor-accounts/vendor-accounts.integration.test.tsx"
+  ],
+  "apps/web/src/components/vendor-accounts/vendor-account-form.tsx": [
+    "apps/web/src/components/vendor-accounts/vendor-accounts.test.tsx",
+    "apps/web/src/components/vendor-accounts/vendor-accounts.integration.test.tsx"
+  ],
+  "apps/web/src/components/vendor-accounts/vendor-account-tabs.tsx": [
+    "apps/web/src/components/vendor-accounts/vendor-account-detail.test.tsx",
+    "apps/web/src/components/vendor-accounts/vendor-accounts.integration.test.tsx"
+  ],
+  "apps/web/src/components/vendor-accounts/vendor-accounts-table.tsx": [
+    "apps/web/src/components/vendor-accounts/vendor-accounts.test.tsx"
+  ],
+  "apps/web/src/modules/vendor-catalog/actions/manage-vendor-accounts-operations.ts": [
+    "apps/web/src/modules/vendor-catalog/actions/manage-vendor-accounts.test.ts"
+  ],
+  "apps/web/src/modules/vendor-catalog/actions/manage-vendor-accounts-server-actions-factory.ts": [
+    "apps/web/src/modules/vendor-catalog/actions/manage-vendor-accounts.test.ts"
+  ],
+  "apps/web/src/modules/vendor-catalog/vendor-account-route-access.ts": [
+    "apps/web/src/app/(authenticated)/organizaciones/vendor-account-page-boundaries.test.ts"
+  ],
+  "apps/web/src/modules/vendor-catalog/production-vendor-account-repository.ts": [
+    "apps/web/src/modules/vendor-catalog/vendor-account-repository.integration.test.ts"
+  ],
+  "apps/web/src/modules/vendor-catalog/vendor-account-service.ts": [
+    "apps/web/src/modules/vendor-catalog/vendor-account-repository.integration.test.ts"
+  ],
+  "apps/web/src/app/(authenticated)/cupos/labels.ts": [
+    "apps/web/src/app/(authenticated)/cupos/labels.test.ts"
+  ],
+  "apps/web/src/app/(authenticated)/excepciones/labels.ts": [
+    "apps/web/src/app/(authenticated)/excepciones/labels.test.ts"
+  ],
+  "apps/web/src/app/(authenticated)/usuarios/page.tsx": [
+    "apps/web/src/components/users/users-roles-panel.test.tsx",
+    "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts"
+  ],
+  "apps/web/src/app/(authenticated)/alertas/page.tsx": [
+    "apps/web/src/components/alerts/alert-page-boundaries.test.ts"
+  ],
+  "apps/web/src/modules/alerts/actions.ts": [
+    "apps/web/src/modules/alerts/ack-alert-service.test.ts"
+  ],
+  "apps/web/src/modules/identity-access/actions/manage-users.ts": [
+    "apps/web/src/components/users/users-roles-panel.test.tsx",
+    "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts"
+  ],
+  "apps/web/src/modules/identity-access/provider-operation-repository.ts": [
+    "apps/web/src/modules/identity-access/repository.integration.test.ts",
+    "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts"
+  ],
+  "apps/web/src/modules/identity-access/server-authorization.ts": [
+    "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts"
+  ],
+  "apps/web/src/modules/identity-access/users-roles-page.tsx": [
+    "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts"
+  ],
+  "apps/web/src/modules/request-workflow/approval/repository.ts": [
+    "apps/web/src/modules/request-workflow/approval-repository.integration.test.ts"
+  ],
+  "apps/web/src/modules/request-workflow/transition-core.ts": [
+    "apps/web/src/modules/request-workflow/service.integration.test.ts"
+  ],
+  "apps/web/src/modules/vendor-catalog/credential-crypto.ts": [
+    "apps/web/src/modules/vendor-catalog/credential-crypto-adapter.test.ts"
+  ],
+  "apps/worker/src/connector-composition.ts": [
+    "apps/worker/src/connector-composition.test.ts"
+  ],
+  "apps/worker/src/index.ts": [
+    "apps/worker/src/runtime.integration.test.ts"
+  ],
+  "apps/web/src/modules/vendor-catalog/capacity-recovery-outbox.ts": [
+    "apps/web/src/modules/vendor-catalog/capacity-service.integration.test.ts"
+  ],
+  "apps/web/src/modules/vendor-catalog/no-seat-observation.ts": [
+    "apps/web/src/modules/vendor-catalog/capacity-service.integration.test.ts"
+  ],
+  "apps/web/src/modules/vendor-catalog/actions/manage-capacity-operations.ts": [
+    "apps/web/src/modules/vendor-catalog/actions/manage-capacity.test.ts"
+  ],
+  "apps/web/src/modules/vendor-catalog/actions/manage-capacity.ts": [
+    "apps/web/src/modules/vendor-catalog/actions/manage-capacity.test.ts"
+  ],
+  "apps/web/src/modules/vendor-catalog/actions/manage-capacity-server-actions-factory.ts": [
+    "apps/web/src/modules/vendor-catalog/actions/manage-capacity.test.ts"
+  ],
+  "apps/web/vitest.config.ts": [
+    "apps/web/next.config.test.ts",
+    "apps/web/src/modules/identity-access/keycloak-admin.pact.test.ts"
+  ],
+  "packages/contracts/src/index.ts": [
+    "packages/contracts/src/capacity.test.ts",
+    "packages/contracts/src/identity-access.test.ts"
+  ],
+  "packages/connectors/src/index.ts": [
+    "packages/connectors/src/action-planner.test.ts",
+    "packages/connectors/src/dispatch.test.ts"
+  ],
+  "packages/connectors/src/contracts.ts": [
+    "packages/connectors/src/dispatch.test.ts",
+    "packages/connectors/src/providers/anthropic/connector.test.ts"
+  ],
+  "packages/connectors/src/dispatch.ts": [
+    "packages/connectors/src/dispatch.test.ts",
+    "packages/connectors/src/providers/anthropic/connector.test.ts"
+  ],
+  "packages/connectors/src/providers/anthropic/request.ts": [
+    "packages/connectors/src/providers/anthropic/request.test.ts",
+    "packages/connectors/src/providers/anthropic/connector.test.ts"
+  ],
+  "packages/connectors/src/source-boundary.ts": [
+    "packages/connectors/src/dispatch.test.ts"
+  ],
+  "packages/db/src/inactivity-flagging.ts": [
+    "apps/worker/src/jobs/inactivity-flagging.integration.test.ts"
+  ],
+  "packages/db/src/request-transition.ts": [
+    "packages/db/src/request-transition.test.ts"
+  ],
+  "packages/db/src/credential-crypto.ts": [
+    "packages/db/src/credential-crypto.test.ts"
+  ],
+  "packages/db/src/provisioning-routing.ts": [
+    "packages/db/src/provisioning-routing.test.ts"
+  ],
+  "packages/db/src/schema.ts": [
+    "packages/db/src/schema.test.ts"
+  ],
+  "packages/notifications/vitest.config.ts": [
+    "packages/notifications/vitest.config.test.ts"
+  ],
+  "scripts/probes/anthropic/vitest.contract.config.ts": [
+    "apps/web/src/modules/identity-access/keycloak-admin.pact.test.ts"
+  ]
+}

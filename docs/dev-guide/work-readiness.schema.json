@@ -508,6 +508,9 @@
         "acceptance_flows": {
           "$ref": "#/$defs/nonnegative_integer"
         },
+        "bookkeeping_files": {
+          "$ref": "#/$defs/nonnegative_integer"
+        },
         "expected_changed_files": {
           "$ref": "#/$defs/nonnegative_integer"
         },

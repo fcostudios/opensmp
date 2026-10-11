@@ -153,7 +153,8 @@ function validateWorkId(value, path) {
 }
 
 function validateSignals(value, path) {
-  object(value, path, SIGNAL_KEYS);
+  object(value, path, SIGNAL_KEYS, { optional: ["bookkeeping_files"] });
+  if (Object.hasOwn(value, "bookkeeping_files")) integer(value.bookkeeping_files, `${path}.bookkeeping_files`);
   for (const key of SIGNAL_KEYS.slice(0, -1)) integer(value[key], `${path}.${key}`);
   if (typeof value.tooling_change !== "boolean") fail("WR_INVALID_TYPE", `${path}.tooling_change`, `${path}.tooling_change must be boolean`);
 }
@@ -1282,8 +1283,11 @@ export function validateCompletionActuals(value, feedbackRecords, { approvedRead
 // two real checkpoint events, and the closed-key shape check would reject it outright
 // if the key were dropped — the same history-preserving reasoning as CHG-036's optional
 // attestation keys. `init` no longer emits it for new artifacts.
-export function validateAssessment(value, { feedbackRecords = [], approvedReadinessAuthorities } = {}) {
+export function validateAssessment(value, { feedbackRecords = [], approvedReadinessAuthorities, deliveryPolicy = false } = {}) {
   validateShape(value);
+  if (deliveryPolicy && !Object.hasOwn(value.signals, "bookkeeping_files")) {
+    fail("WR_MISSING_PROPERTY", "$.signals.bookkeeping_files", "New assessments require informational bookkeeping_files");
+  }
   feedbackArray(feedbackRecords);
   if (value.policy_bootstrap) {
     exactBootstrap(value);
