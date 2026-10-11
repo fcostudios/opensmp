@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "55c7fbb2c8f4db46d48fcaa41968d6eb94d4f4808a4bcaf1cb70b51139a8d1f9",
+  "work_id": "CHG-080",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Pin the published capacity-refresh critical set and testing guidance",
+  "source": "docs/stories/CHANGES.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The reconciler recognizes the exact canonical capacity-refresh guidance published by d9d5d48 through one immutable registered layer, preserving generated ownership and rejecting unknown bytes. This is one technical prerequisite and adds no business rule or functional partition.",
+      "demo": "Both published files retain their exact hashes; generated-guidance check and the real reconciler fixture suite accept the registered layer and reject corrupt or unknown bytes without writes. Readiness ownership and the regular full gate pass; closure records accountable cost.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "generated-guidance-pin"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 9,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 7,
+    "implementation": 5,
+    "focused_verification": 5,
+    "review": 5,
+    "integration": 8,
+    "total": 30
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Official work allocation, local source and bounded acceptance mapping.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Francisco allocated CHG-080 as technical and accepted in the canonical human ruling: it owns the publication and reconciler pin. Canonical publication d9d5d48 changes exactly testing/critical-paths.md, docs/dev-guide/TESTING.md and .nous-sync.json; it does not deliver a CHANGES.md entry. Existing docs/stories/CHANGES.md is the canonical change narrative path, not a claim that it currently contains CHG-080. No local work ID or generated source edit is invented. AC1 binds one immutable layer with both exact published artifacts and manifest; AC2 binds registration and existing harness fixture wiring, preserving unknown-hash rejection; AC3 binds generated-guidance and focused suite evidence, review/adversarial verification, normal gate, ownership-range validation and done.cost. Local source and AC validation checks only the source string and exact local outcome mapping; no external source AC parser is asserted."
+    },
+    {
+      "id": "U2",
+      "statement": "Inclusive changed-path inventory.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Exactly nine paths: docs/readiness/CHG-080.json; .nous-feedback.jsonl; docs/superpowers/specs/2026-10-11-chg-080-guidance-pin-design.md; docs/superpowers/plans/2026-10-11-chg-080-guidance-pin-plan.md; infra/scripts/overrides/CHG-080/d9d5d48/manifest.json; infra/scripts/overrides/CHG-080/d9d5d48/testing/critical-paths.md; infra/scripts/overrides/CHG-080/d9d5d48/docs/dev-guide/TESTING.md; infra/scripts/reconcile-sprint1-docs.py; infra/scripts/tests/test_reconcile_sprint1_docs.py. Five implementation paths plus four readiness/design/plan/feedback paths equals nine. All lifecycle, approval, phase, evidence and cost bookkeeping shares the feedback path. Both live generated files and all prior override layers remain unchanged."
+    },
+    {
+      "id": "U3",
+      "statement": "Canonical ruling names CHG-065 as TESTING ancestry, but the existing loader resolves CHG-069.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Explicit approval proposal: use the actual resolving CHG-069/84ab8ea/docs/dev-guide/TESTING.md source SHA256 50415d7ed774990b1de236fafe69ba39018d7cd4928ab71858b3a6733ff796e8, preserving preview-budget rules, instead of older CHG-065 source SHA256 61b352aa19d768b7b66a9cd596f776b14563a6c1c42366395fd0c04666eafb5c. load_layered_overrides independently confirms this source. Critical source is overrides/CHG-079/c8f3317/testing/critical-paths.md SHA256 9aa63e45047cfa887a40d08d484d5e4b1cb5eb8f0eef492d1252728ddfd65467. Desired critical SHA256 41a9566719dc6088393a6514035d653ca13f975b90a2eb707455cd936d3474f7 and desired TESTING SHA256 71c65e1cb6b8e77ff883b33a3bb05947d17dd3c9794bed40dbe2d91cee0853d0 match the published bytes. The human digest approval must accept this explicit correction; no silent ancestry substitution. Pin config-v44 Capacity refresh watermark US-081/US-085 DEC-SMP-031/041 operator addition, BR-14 children and seven cross-tenant governance removals exactly as delivered; no new BR or story repartition."
+    },
+    {
+      "id": "U4",
+      "statement": "Whole-item forecast and verification cost.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 8,
+      "resolution": "Bottom-up forecast 30 minutes including prior assessment once: readiness/canonical and ancestry inspection/digest commit 7; copy immutable artifacts, manifest and registration/fixture updates 5; focused generated-guidance and existing Python fixture suite with exact manifest and corrupt/unknown-byte negative cases 5; one reused scoped reviewer and fresh adversarial AC verifier plus small repair allowance 5; normal awake full gate, final diff-scoped mutation eligibility/report and closure/range checks 8. Reuse CHG-044/079 shapes; no new coverage-only tests, loader behavior, hash allowlist, thresholds, instrumentation or mutation routes. Ordinary TS shards expected zero for these Python/JSON/Markdown-only paths; record observed campaign eligibility, never claim a fabricated score. No DB change or private PostgreSQL. Full gate uses caffeinate -i and shared /tmp/smp-full-gate.lock with exclusive creation, owner/inode cleanup, at least 60-second foreign-owner waits, never deleting another owner. Coordinate gate reuse with CHG-079 pending global gate. Existing baseline Node fixture issues are named deferred outside scope, not silently repaired or given a new ID. Any extra behavior work, foreign-lock delay or forecast above approval triggers boundary reassessment."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "55c7fbb2c8f4db46d48fcaa41968d6eb94d4f4808a4bcaf1cb70b51139a8d1f9"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
