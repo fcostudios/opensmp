@@ -48,6 +48,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | vendor_catalog_context | LicenseType | Seat/SKU dimension per vendor | [SRC:RAW] |
 | vendor_catalog_context | IntegrationCredential | Encrypted scoped keys per account; health state | [SRC:RAW] |
 | vendor_catalog_context | ConnectorCallObservation | Append-only sanitized request/outcome evidence per connector attempt | [DERIVED_ENTITY] (CHG-045) |
+| vendor_catalog_context | MemberObservation | One accepted COMPLETE account-wide member snapshot (source, observed_at, content identity, counts, warnings); the account's observation watermark | [DERIVED_ENTITY] (CHG-077, DEC-SMP-044) |
 | request_workflow_context | LicenseRequest | §10 state-machine object; approver decision | [SRC:RAW] |
 | request_workflow_context | RequestTransition | One row per state transition (who/when/note) | [DERIVED_ENTITY] ("timestamps per transition") |
 | register_context | LicenseAssignment | THE register: person/company/account/type, start/end/reason | [SRC:RAW] |
@@ -172,6 +173,8 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `has_usage_data` | `boolean` |  | no |  | `true` | [SRC:RAW] Module I |
 | `has_cost_data` | `boolean` |  | no |  | `true` | [SRC:RAW] Module I |
 | `identity_matching` | `text` (enum) |  | no | `email / upn / vendor_user_id` | `email` | [SRC:RAW] Module I |
+| `member_seat_evidence` | `text` (enum) |  | no | How licensed-seat evidence is obtained from a member listing: `provider_field` (per-member seat flag), `all_members_licensed` (every member occupies a seat; invitations do not), `none` (no evidence → `unknown` + warning, never `licensed`). Anthropic R1: `all_members_licensed` | `all_members_licensed` | CHG-077 / DEC-SMP-043 |
+| `member_license_identity` | `text` (enum) |  | no | Whether the member listing carries a per-member seat/plan identifier: `provider_field` (mapped via `LicenseType.provider_ref`) or `none` (mapped via `VendorAccount.default_license_type_id`). Anthropic R1: `none` | `none` | CHG-077 / DEC-SMP-043 |
 | `status` | `text` (enum) |  | no | `active / inactive` | `active` | — |
 | `created_at` | `timestamptz` |  | no |  |  | — |
 | `created_by` | `uuid` | FK => UserAccount.id | no |  |  | — |
@@ -189,6 +192,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `vendor_id` | `uuid` | FK => Vendor.id, IDX | no |  |  | [SRC:RAW] |
 | `name` | `text` | UNIQUE(vendor_id, name) | no |  | `Central Claude Enterprise org` | [SRC:RAW] |
 | `mode` | `text` (enum) |  | no | `automated / orchestration` | `automated` | [SRC:RAW] §13 |
+| `default_license_type_id` | `uuid` | FK => LicenseType.id | yes | Catalogue license every observed member maps to when the vendor declares `member_license_identity = none`; required before `ingestion_mode = api` is enabled on such an account (US-055 AC4 Configuración); absent → every member carries `unmapped_license` and no episode is opened (DEC-SMP-043/045) | … | CHG-077 / DEC-SMP-043 |
 | `ingestion_mode` | `text` (enum) |  | no | `api / csv_import / manual` — how member/activity/cost data enters for this org (DEC-SMP-018). Orgs without API access (e.g. a Claude Teams plan) run on Console CSV exports or manual upkeep; independent of provisioning `mode`. Default `manual` for unconfigured accounts; `api` is enabled explicitly per account (DEC-SMP-025) | `manual` | DEC-SMP-018, DEC-SMP-025 |
 | `vendor_org_ref` | `text` |  | yes | Vendor-side org identifier | … | [ASSUMPTION] |
 | `contract_renewal_on` | `date` |  | yes | Renewal alerts (🟡) | `2027-01-01` | [SRC:RAW] |
@@ -232,6 +236,7 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `vendor_id` | `uuid` | FK => Vendor.id, IDX | no |  |  | [SRC:RAW] |
 | `name` | `text` | UNIQUE(vendor_id, name) | no |  | `Enterprise seat` | [SRC:RAW] |
 | `unit` | `text` (enum) |  | no | `seat / license` | `seat` | [SRC:RAW] |
+| `provider_ref` | `text` | UNIQUE(vendor_id, provider_ref) | yes | Vendor-side seat/plan identifier used to map member observations when the vendor declares `member_license_identity = provider_field`; null otherwise | `enterprise_seat` | CHG-077 / DEC-SMP-043 |
 | `status` | `text` (enum) |  | no | `active / inactive` | `active` | — |
 | `created_at` | `timestamptz` |  | no |  |  | — |
 | `created_by` | `uuid` | FK => UserAccount.id | no |  |  | — |
@@ -276,6 +281,28 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `classification` | `text` |  | yes | Neutral outcome/error classification; null only for requested | `rate_limited` | CHG-045 |
 | `summary` | `jsonb` |  | no | Strict allowlist only: endpoint class, method, status class, page/count, retry/rate hints, schema shape, keyed correlation hashes | `{ "endpoint_class": "members", "method": "GET" }` | CHG-045 |
 | `occurred_at` | `timestamptz` | IDX | no | Commit timestamp for this immutable event | … | CHG-045 |
+
+### `MemberObservation`
+
+- **Domain:** `vendor_catalog_context` **[DERIVED_ENTITY]** (CHG-077, DEC-SMP-044)
+- **Business purpose.** One accepted COMPLETE account-wide member observation: the evidence unit every console-vs-register judgement (drift diff US-078, confirmed-provision verification US-084, capacity refresh US-081) is made from. Carries the source, the observation instant, the content identity of the normalized member records (DEC-SMP-043), the counts and the durable identity/license warnings (DEC-SMP-045). The latest accepted row per account is the account's observation watermark — which is why an empty first snapshot still leaves a watermark and why `AuditLog` + the account lock alone were not enough (no content identity, no empty-snapshot evidence).
+- **Lifecycle.** Written only by `acceptMemberObservation` (US-083) under the account advisory lock: completeness validated (every page succeeded in `ConnectorCallObservation`, provider total matches when exposed; a CSV parsed to the end), then compared with the latest accepted row — older `observed_at` → rejected `stale` (AuditLog only); equal `observed_at` + equal `content_hash` → idempotent no-op; equal `observed_at` + different hash → rejected `conflict` (AuditLog + account warning); newer → inserted and the `member_observation_accepted` event is emitted. Never updated, never deleted. The manual pool refresh (US-081) is an attestation, not an observation: it writes no row here.
+- **Flags.** `requires_versioning: append-only by design` · `has_soft_delete: no` · `audit_required: is itself evidence; rejections go to AuditLog` · `multi_tenant_scoped: no (account-scoped; members have no company until the register says so)`
+
+| Attribute | Type | PK/FK/IDX | Nullable | Description | Example | Source(s) |
+|---|---|---|---|---|---|---|
+| `id` | `uuid` (v7) | PK | no |  |  | A-ER-1 |
+| `vendor_account_id` | `uuid` | FK => VendorAccount.id, IDX | no | Observed account | … | DEC-SMP-044 |
+| `source` | `text` (enum) |  | no | `api / csv_import / manual` | `api` | DEC-SMP-018/044 |
+| `observed_at` | `timestamptz` | UNIQUE(vendor_account_id, observed_at), IDX | no | API: injected worker clock at the first page request; csv_import: export timestamp supplied by the admin (default upload time). The unique pair is the equal-timestamp conflict guard | `2026-10-12T05:05:00Z` | DEC-SMP-044 |
+| `content_hash` | `text` |  | no | sha256 over the canonical sorted normalized member records (provider ref, e-mail, status, seat evidence, license ref) | `9f3a…` | DEC-SMP-044 |
+| `member_count` | `integer` |  | no | Members with `membership_status = member`; 0 for a complete empty snapshot | `118` | DEC-SMP-044 |
+| `licensed_count` | `integer` |  | no | Members with `seat_evidence = licensed` and a resolved license | `116` | DEC-SMP-043 |
+| `invited_count` | `integer` |  | no | Pending invitations observed (never seats) | `3` | DEC-SMP-034 |
+| `warnings` | `jsonb` |  | no | Durable identity/license warnings, one entry per affected member: `{kind: null_email \| ambiguous_identity \| unmapped_license \| unknown_seat_evidence, provider_member_ref, email, detail}`; default `[]`. Shown separately on Deriva, excluded from episodes and claims | `[{"kind":"unmapped_license",…}]` | DEC-SMP-045 |
+| `correlation_id` | `uuid` | IDX | yes | `ConnectorCallObservation.correlation_id` of the API read; null for csv_import/manual | … | CHG-045 |
+| `accepted_at` | `timestamptz` |  | no | Acceptance commit instant | … | DEC-SMP-044 |
+| `accepted_by` | `uuid` | FK => UserAccount.id | yes | Admin who submitted an import; null for the job | … | — |
 
 ### `LicenseRequest`
 
@@ -402,9 +429,9 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `display_name` | `text` |  | yes | Name as reported by the console; never used to create a Person automatically | `Ana Pérez` | DEC-SMP-034 |
 | `person_id` | `uuid` | FK => Person.id | yes | Matching Person when the identity resolves unambiguously; a match never implies a company and never creates an assignment | … | DEC-SMP-034 |
 | `first_seen_at` | `timestamptz` | IDX | no | First complete observation; stable for the life of the episode (trend oracle) | `2026-10-12T05:05:00Z` | DEC-SMP-035 |
-| `observed_at` | `timestamptz` |  | no | Latest COMPLETE observation that still showed the member | `2026-10-13T05:05:00Z` | DEC-SMP-035 |
+| `observed_at` | `timestamptz` |  | no | `observed_at` of the latest accepted `MemberObservation` that still showed the member (DEC-SMP-044) | `2026-10-13T05:05:00Z` | DEC-SMP-035 |
 | `source` | `text` (enum) |  | no | Source of the latest observation: `api / csv_import / manual` | `api` | DEC-SMP-018/025 |
-| `warnings` | `jsonb` |  | no | Durable identity warnings (ambiguous/null e-mail, unmapped license type, multiple Person candidates); default `[]` | `["null_email"]` | DEC-SMP-034 |
+| `warnings` | `jsonb` |  | no | Episode-level notes only (e.g. multiple Person candidates at claim time); default `[]`. Identity/license warnings that PREVENT an episode (null e-mail, unmapped license, unknown seat evidence) live on `MemberObservation.warnings` (DEC-SMP-045) | `["null_email"]` | DEC-SMP-034 |
 | `resolved_at` | `timestamptz` | IDX | yes | Null = open. Partial UNIQUE (`vendor_account_id`, `member_identity`, `license_type_id`) WHERE `resolved_at IS NULL` — the unique-open constraint | … | DEC-SMP-035 |
 | `resolution_reason` | `text` (enum) |  | yes | `claimed / disappeared` — set with `resolved_at`, immutable | `claimed` | DEC-SMP-035 |
 | `resolved_by_assignment_id` | `uuid` | FK => LicenseAssignment.id, UNIQUE | yes | The reconciliation assignment a claim created (null for `disappeared`) | … | DEC-SMP-039 |
@@ -693,6 +720,8 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | UserAccount | Company/Vendor/etc. audit columns | 1:N | optional | reference | `created_by`/`updated_by` FKs on catalog entities | — |
 
 | LicenseAssignment | ReclamationProposal | 1:N | mandatory | composition | FK `ReclamationProposal.assignment_id` (partial UNIQUE on pending) | [SRC:CJ] J2 |
+| VendorAccount | MemberObservation | 1:N | mandatory | composition | FK `MemberObservation.vendor_account_id`; UNIQUE(vendor_account_id, observed_at) — the latest row is the account's observation watermark | CHG-077 / DEC-SMP-044 |
+| LicenseType | VendorAccount | 1:N | optional | reference | FK `VendorAccount.default_license_type_id` (nullable) — member license mapping when the vendor exposes none | CHG-077 / DEC-SMP-043 |
 | VendorAccount | DriftEpisode | 1:N | mandatory | composition | FK `DriftEpisode.vendor_account_id`; partial UNIQUE open episode per (account, member identity, license type) | CHG-075 / DEC-SMP-035 |
 | LicenseType | DriftEpisode | 1:N | mandatory | reference | FK `DriftEpisode.license_type_id` | CHG-075 / DEC-SMP-034 |
 | Person | DriftEpisode | 1:N | optional | reference | FK `DriftEpisode.person_id` (nullable; a match never implies a company) | CHG-075 / DEC-SMP-034 |
@@ -840,6 +869,7 @@ erDiagram
     LicenseRequest ||--o{ ProvisioningAction : "executes_via"
     LicenseAssignment ||--o{ ReclamationProposal : "proposed_for"
     VendorAccount ||--o{ DriftEpisode : "observes drift in"
+    VendorAccount ||--o{ MemberObservation : "observed by"
     LicenseAssignment |o--o| DriftEpisode : "claim resolves"
     LicenseRequest |o--o| LicenseAssignment : "materializes_as"
     Person ||--o{ LicenseAssignment : "holds"
@@ -908,6 +938,18 @@ erDiagram
         timestamptz resolved_at
         text resolution_reason
         uuid resolved_by_assignment_id FK
+    }
+    MemberObservation {
+        uuid id PK
+        uuid vendor_account_id FK
+        text source
+        timestamptz observed_at
+        text content_hash
+        int member_count
+        int licensed_count
+        int invited_count
+        jsonb warnings
+        timestamptz accepted_at
     }
 ```
 

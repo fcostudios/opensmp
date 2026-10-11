@@ -356,7 +356,7 @@
 ### US-024 — Offboarding + deprovisioning
 - **As**: Group Admin (persona_01) | **Want to**: remove seats same-business-day on departure | **So that**: seat-days stop leaking (J2)
 - **AC1**: `startOffboarding` (person detail / request detail) → state offboarding → removal via connector or checklist → deprovisioned. Entrypoint, checklist path and the atomic finalization primitive: US-075; connector execution in the worker: US-082 (DEC-SMP-042)
-- **AC2**: Register row closes (ended_on, end_reason left_company/inactive — DEC-SMP-033; `reallocated` is a BR-02 transfer closure, never a removal — DEC-SMP-040); pool increments only after the next accepted member observation, never optimistically at start (DEC-SMP-031, DEC-SMP-041 — owner US-081)
+- **AC2**: Register row closes (ended_on, end_reason left_company/inactive — DEC-SMP-033; `reallocated` is a BR-02 transfer closure, never a removal — DEC-SMP-040); pool increments only after the next accepted member observation, never optimistically at start (DEC-SMP-031, DEC-SMP-041 — owners US-081 foundation + vendor-account surface, US-085 pools/dashboard overview)
 - **AC3**: Departure flow can set Person.status='Salió del grupo' — by explicit admin confirmation, unchecked by default (DEC-SMP-032)
 - **AC4**: Offboardings with end_reason=left_company still not deprovisioned at end of the same business day raise `deprovision_overdue` (15-min alert-eval, business-day calendar, subject_ref=request) — BR-14, DEC-SMP-029/030/033
 - **Prerequisites**: US-019, US-020
@@ -364,7 +364,7 @@
 - **Screens**: SCR-person-detail, SCR-request-detail
 - **Server actions**: startOffboarding
 - **Entities (CRUD)**: LicenseAssignment (U close), ProvisioningAction (C), Person (U), VendorAccount (U refresh watermark)
-- **Children (CHG-074 + CHG-076)**: US-075 → US-082 → (US-076 ∥ US-077); US-081 ∥ US-075 (file-boundary review); parent closes by verification
+- **Children (CHG-074 + CHG-076 + CHG-078)**: US-075 → US-082 → (US-076 ∥ US-077); US-081 ∥ US-075 (file-boundary review cleared) → US-085; parent closes by verification
 
 ### US-025 — Vendor accounts + capability descriptor
 - **As**: Group Admin (persona_01) | **Want to**: manage orgs, modes and connector capabilities | **So that**: the vendor-neutral core is operable (Module I)
@@ -422,15 +422,15 @@
 
 ### US-030 — Drift detection + retroactive claim
 - **As**: Group Admin (persona_01) | **Want to**: catch console bypass within an hour | **So that**: the register stays the truth (J4)
-- **AC1**: Hourly member sync diffs console vs register (ingestion_mode=api orgs); for csv_import/manual orgs the SAME diff runs on every `importMembersCsv` (US-055) — unknown members → register_drift alert + Deriva tab entry either way. Unknown = active licensed console member of a validated complete snapshot with no open LicenseAssignment for the same normalized identity/account/license type; invitations are not seats; persisted as one open DriftEpisode per identity (DEC-SMP-034, DEC-SMP-035); `register_drift` is about member episodes, never financial variance (DEC-SMP-038). *Owner: US-078.*
+- **AC1**: Hourly member sync diffs console vs register (ingestion_mode=api orgs); for csv_import/manual orgs the SAME diff runs on every `importMembersCsv` (US-055) — unknown members → register_drift alert + Deriva tab entry either way. The snapshot is an accepted `MemberObservation` carrying provider identity, membership status and license evidence (DEC-SMP-043/044); warned members are excluded (DEC-SMP-045). Unknown = active licensed console member of a validated complete snapshot with no open LicenseAssignment for the same normalized identity/account/license type; invitations are not seats; persisted as one open DriftEpisode per identity (DEC-SMP-034, DEC-SMP-035); `register_drift` is about member episodes, never financial variance (DEC-SMP-038). *Owner: US-078.*
 - **AC2**: `claimDriftMember` assigns company retroactively: creates LicenseAssignment (source_kind=reconciliation, note=comentario) + system-materialized request. Group Admin only, with `company:write` on a server-resolved company scope (DEC-SMP-036); `started_on` ≤ claim date, never intersecting a finalized statement; one transaction, replay-safe (DEC-SMP-039). *Owner: US-079.*
 - **AC3**: Drift metric on dashboard trends to zero (PRD §17): current = unresolved distinct episodes, trend = end-of-day counts over the trailing 30 completed America/Guayaquil dates derived from episode lifetimes (DEC-SMP-037). *Owner: US-080.*
 - **Prerequisites**: US-056, US-057, US-058, US-046, US-042
-- **Children (CHG-075)**: US-078 → US-079 → US-080 (sequential; parent closes by verification)
+- **Children (CHG-075 + CHG-077)**: US-083 → (US-084 ∥ US-078, file-boundary review; else US-084 first) → US-079 → US-080; parent AC1 owned collectively by US-083 + US-084 + US-078; parent closes by verification
 - **Feature**: FEAT-023 | **Journey**: J4 | **Release**: R1
 - **Screens**: SCR-exceptions
 - **Server actions**: claimDriftMember
-- **Entities (CRUD)**: DriftEpisode (CU), LicenseAssignment (C), LicenseRequest (C system), AlertEvent (C)
+- **Entities (CRUD)**: MemberObservation (C), DriftEpisode (CU), LicenseAssignment (C), LicenseRequest (C system), AlertEvent (C)
 
 ### US-031 — Credential management + rotation
 - **As**: Group Admin (persona_01) | **Want to**: rotate keys without downtime | **So that**: Module H secrets rules hold
@@ -766,6 +766,7 @@
 | LicenseType | US-007:C seed: Claude tiers; US-025:R |
 | IntegrationCredential | US-007:C per org; US-056:R; US-031:CRU |
 | ConnectorCallObservation | US-018:C; US-057:C; US-058:C |
+| MemberObservation | US-030:C |
 | LicenseRequest | US-007:C system; US-012:C; US-013:R; US-014:U; US-015:U; US-019:U; US-023:U; US-027:U; US-028:U; US-030:C system; US-055:C system |
 | RequestTransition | US-012:C; US-013:R; US-014:C; US-015:C |
 | LicenseAssignment | US-007:C; US-019:C; US-024:U close; US-030:C; US-033:R; US-055:CU |

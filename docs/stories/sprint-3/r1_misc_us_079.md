@@ -35,5 +35,6 @@ As a Group Admin (persona_01), I want to assign an observed console member to a 
 ## Notes
 
 - Canonical child of **US-030** (parent AC coverage: **AC2**), minted by **CHG-075** on 2026-10-11 from the tenant's `partition_required` assessment (`docs/readiness/drafts/US-030.json`, proposal `claim-member`, estimate 260 min). Decisions DEC-SMP-034, DEC-SMP-036, DEC-SMP-039. Depends on US-078's episode evidence and shared contracts (`Blocked By`); sequential, not parallel-safe with US-080 (shared locale/package export surfaces; US-080's final verification consumes this action).
+- **CHG-077 (2026-10-11):** the episode this claim resolves was opened from an accepted `MemberObservation` (US-083); a member with an identity/license warning has no episode and cannot be claimed (DEC-SMP-045).
 - The ER model already specifies the system-materialized request shape (LicenseRequest lifecycle) and the mandatory note (BR-24, `AuditLog.note`); this child wires them behind the production action and adds the retroactive-date, replay and race rules. Runtime grants ship here only if missing.
 - Vertical delivery: shared input/result contracts, production action wiring, authorization/audit, real-DB verification of atomicity, rollback, replay and races, locales, review, integration.

@@ -237,16 +237,20 @@
             "id": "table_drift",
             "type": "data-table",
             "title": "Deriva: miembros en consola que no están en el registro",
-            "description": "Detectados por la sincronización horaria de miembros (consola vs. registro) (AlertEvent). Reclámalos y asígnales compañía retroactivamente; se crea una LicenseAssignment con source_kind=reconciliation.",
+            "description": "Detectados por la observación completa de miembros (sincronización horaria por API o importación CSV) comparada con el registro. Reclámalos y asígnales compañía retroactivamente; se crea una LicenseAssignment con source_kind=reconciliation. La compañía sugerida es solo orientativa.",
             "visibleWhen": "activeTab == 'tab_drift'",
             "columns": [
               {
                 "id": "email_consola",
-                "label": "Correo en consola"
+                "label": "Identidad en consola"
               },
               {
                 "id": "organizacion",
                 "label": "Organización"
+              },
+              {
+                "id": "licencia",
+                "label": "Licencia"
               },
               {
                 "id": "detectado",
@@ -262,13 +266,15 @@
                 "email_consola": "dparedes@rightangle.ec",
                 "organizacion": "Org central Claude Enterprise",
                 "detectado": "19/07/2026",
-                "compania_sugerida": "Right Angle Media (por dominio)"
+                "compania_sugerida": "Right Angle Media (por dominio)",
+                "licencia": "Enterprise seat"
               },
               {
                 "email_consola": "lvega@ppm.ec",
                 "organizacion": "Org central Claude Enterprise",
                 "detectado": "17/07/2026",
-                "compania_sugerida": "PPM (por dominio)"
+                "compania_sugerida": "PPM (por dominio)",
+                "licencia": "Enterprise seat"
               }
             ],
             "actions": [
@@ -278,6 +284,45 @@
                 "variant": "primary",
                 "opens_modal": "modal_claim_drift",
                 "trigger": "open_claim_drift"
+              }
+            ]
+          },
+          {
+            "id": "table_drift_warnings",
+            "type": "data-table",
+            "title": "Advertencias de identidad y licencia (no cuentan como deriva)",
+            "description": "Miembros de la última observación aceptada cuya identidad o licencia no se pudo establecer. No abren episodios ni se pueden reclamar: corrige el mapeo de licencias o la identidad en la consola y espera la próxima observación.",
+            "visibleWhen": "activeTab == 'tab_drift'",
+            "columns": [
+              {
+                "id": "identidad",
+                "label": "Identidad en consola"
+              },
+              {
+                "id": "organizacion",
+                "label": "Organización"
+              },
+              {
+                "id": "advertencia",
+                "label": "Advertencia"
+              },
+              {
+                "id": "observado",
+                "label": "Observado"
+              }
+            ],
+            "rows": [
+              {
+                "identidad": "user_01J8…Q2 (sin correo)",
+                "organizacion": "Org central Claude Enterprise",
+                "advertencia": "Sin correo en la consola",
+                "observado": "19/07/2026 05:05"
+              },
+              {
+                "identidad": "mruiz@ram.ec",
+                "organizacion": "Org central Claude Enterprise",
+                "advertencia": "Tipo de licencia sin mapeo (plan_x)",
+                "observado": "19/07/2026 05:05"
               }
             ]
           },
