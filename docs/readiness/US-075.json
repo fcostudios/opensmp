@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "7f9c7f4a73da50868273d106737106cd682f2d8d82116aedf9ef4695360e61fd",
+  "readiness_payload_sha256": "f22f1c08dc0f47572ad346432cb4556b5571fdc1d151b80360ad6f5253a5952a",
   "work_id": "US-075",
   "kind": "US",
   "work_type": "functional",
@@ -48,8 +48,8 @@
   "signals": {
     "routes_or_screens": 2,
     "acceptance_flows": 3,
-    "expected_changed_files": 21,
-    "expected_mutation_shards": 5,
+    "expected_changed_files": 20,
+    "expected_mutation_shards": 6,
     "lifecycle_or_concurrency_boundaries": 1,
     "external_integrations": 0,
     "schema_or_migration_changes": 0,
@@ -112,28 +112,28 @@
       "statement": "What exact file surface and effectiveness oracles fit the hard limits?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Independent reused implementer and reviewer confirm the current concrete composition is21 inclusive paths, including all already changed paperwork and the required alerts/offboarding-workflow.integration.test.ts fixture correction. Exact conditional20-path manifest is in docs/readiness/drafts/US-075-nous-routing-request.md. CHG-079 implemented people-action-service.ts -> repository.integration.test.ts; no feature/runtime/full-gate closure is claimed. A canonical domain lifecycle.ts -> existing orchestration.integration.test.ts responsible route could keep lifecycle.test.ts unchanged and place direct primitive plus realSQL adapter oracles together, yielding20 inclusive paths. Both detail pages remain unchanged; portable domain primitive and replay-safe checklist wrapper/test remain necessary. No dropped oracle, import relay, owned mock, tooling exemption or global-minimum claim. New route is requested, not locally implemented; actual runtime/shard evidence and changed-digest approval remain mandatory."
+      "resolution": "Concrete20 inclusive paths now supported by canonical CHG081 accepted allocationae0427a and actual routeb6e67ea/runtimehandoff95fac1f. Domainlifecycle.ts1; orgregistryrepository.ts/repository.integration.test.ts/people-action-service.ts3; requestworkfloworchestration.ts/orchestration.integration.test.ts/checklist-action-transaction.ts/checklist-action-transaction.test.ts4; alertsoffboarding-workflow.integration.test.ts1; personcomponent/test2; requestcomponent/test2; locales2; existingreadiness/design/plan/routingrequest/feedback5. Existinglifecycle.test.ts remainsunchanged; directprimitive andrealSQLadapter oracles live in existingorchestration integration suite, actually selected with adjacent lifecycle tests by CHG081 route. Both detailpagefiles remainunchanged. No source exemptions, droppedoracles, importrelay, ownedmock or globalminimumclaim. Actual future native diffpreflight/shards and cold score remain mandatory; Stockplanned-scope inspection of the exactseven productionpaths at95fac1f discoverssixshards: domainlifecycle, orchestration, checklistwrapper, mergedrepository/service, personcomponent andrequestcomponent; no routinggap. Recordactualdiffdiscovery as sourceschange ratherthanforcecount."
     },
     {
       "id": "U8",
       "statement": "What session, sibling and verification boundaries apply?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Standing human authorization70826e1: each approved US-024 child readiness digest authorizes design, planning and implementation within scope and budget; ask again only changed readiness digest or material scope. Historical f5aebfbc approval and frozen mutation base37666528d03a50e2529cad4382f2a5ae146dca63 authorize the existing partial Task1 checkpoints only; current changed assessment is blocked/pending, no implementation resumes. One consolidated implementer and reused scoped reviewer; fresh adversarial reviewer last. Previews≤30min inside verification, one final cold campaign, shared Postgres, caffeinate fullgate under exclusive shared regular-file lock; real or clearly estimated costs. US-081/085 refined by CHG-078 at0e56c7f; API producer US-084 via US-083, CSV US-055. US-081 parallel file-boundary review excludes shared locale/ledger integration. testing/critical-paths.md inspected unchanged after Nous sync. Work-state lists maintained with available native tools."
+      "resolution": "Francisco standing70826e1 authorizes allstages within approved childreadinessscope/budget. Latest human instruction after canonical CHG081 allocation and published315/conditional20composition: More ruling? Nous is not a nanny, decide with astray and get to work. Controller/Astra resolved narrow081runtimeevent-name reporting exception locally; route/runtimeproof actually implemented, not presumed. This instruction supplies scoped delegated execution authority for the current known US024 continuation; controller binds this ready075digest honestly after applying evidenced20pathcomposition, without claiming Francisco typed or inspected the resulting hash. No newfunctionalAC/scope or higher315forecast is introduced. Original Task1 checkpoints5a3f7e4/4b924d7 and whole075mutationbase37666528d03a50e2529cad4382f2a5ae146dca63 remain; freeze currentresumehead separately. Sameconsolidated075implementer resumes, rootindependentreusedscopedreviewer if harness refuses worker-reviewer concurrency; record forcedrole/processdeviations accurately, no fakefreshreview. Fresh adversarial AC verification last; previews<=30min onefinalcold; sharedPostgres/awakegate regularfileownlock cleanup only. Subsequentnewpath/boundary or hardbudgetbreach stillrequiresreassessment, no stretchedestimate. US081/085 and075 sourcefileboundaries retained; technical079080081 separateclosures after coordinatedgreen gate."
     },
     {
       "id": "U9",
       "statement": "Does a smaller valid composition satisfy actual routing and the20-path envelope, and what is its independently estimated remaining cost?",
       "status": "budgeted",
       "estimate_impact_minutes": 30,
-      "resolution": "Read-only independent forecasts310 and315; adopt conservative whole-item315: readiness/design/planning/reassessment40; production and ALL test authoring150 including completedTask1 and pointer+remove-kind alert fixture correction; focused checks/result inspection/previews45; ALL scoped/fresh adversarial reviews and bounded repairs45; sharedfixture setup/fullgate/ONEcold/integration35. Task1 counted once, authoring only implementation, repairs only review, previews only focused, cold only integration. Forecast is moderate-low confidence with5min headroom, plausible295–335; upper range is not authorized. Completed technical prerequisite costs remain their own items. Any additionalpath/boundary/materialrepair or forecast above320 requires reassessment rather than stretch. No measured total or guaranteed remaining capacity is claimed."
+      "resolution": "Independent forecasts310 and315; adopt conservative whole315: readiness/reassessment/design/planning40; production and ALLtestauthoring150 including completedTask1 and pointer+remove-kind fixture correction; focusedchecks/resultinspection/previews45; ALLscoped/freshadversarialreviews andboundedrepairs45; sharedfixturesetup/fullgate/ONEcold/integration35. CountTask1 once, authoring onlyimplementation, repairs onlyreview, previews onlyfocused, cold onlyintegration. Moderate-lowconfidence,5min headroom, plausible295–335; upperrange notauthorized. Latesthuman directdecision/work instruction authorizes known315/20scope; no silentincrease beyondit. Technicalprerequisitecosts staytheir ownitems. Anynewpath/boundary/materialrepair or forecastabove320 stopsforreassessment; thisforecast isnotmeasuredcostorguaranteedremainingcapacity."
     },
     {
       "id": "U10",
-      "statement": "Can the canonical responsible route cover the portable domain finalizer without a second changed oracle file?",
-      "status": "unresolved",
+      "statement": "Are the responsible service and portable-domain routes implemented and runtime-proven?",
+      "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "CHG-079 service registration and pin implemented atcce85d4/2be5283; CHG-080 publication/pin implemented atd9d5d48/5fe2ee7. Both technical closures remain pending after sharedgateRED; no delivered/dev_done claim. Request canonical technical amendment/successor registering packages/domain/src/request-workflow/lifecycle.ts -> apps/web/src/modules/request-workflow/orchestration.integration.test.ts, with exactdirect/real-file route assertions and actual sharedDB runtime preflight. Existing adjacent tests remain routed. No instrumentation/threshold/template/routing-gap exemption. Without this conditional prerequisite current21-pathcandidate is non-executable. Nous alone allocates canonical amendment/successor and integration order; no functional repartition is requested on current evidence."
+      "resolution": "CHG079 service registrationcce85d4/pin2be5283; CHG080publicationd9d5d48/pin5fe2ee7; CHG081 canonicalaccepted successorrecordae0427a routeb6e67ea handoff95fac1f. Actuallifecycle plannedsource shardvitest-84830f5103b2 selects BOTH lifecycle.test.ts and orchestration.integration.test.ts; actualstocksharedfixture migrate+realowner/appschema verification+existingrootmutationVitestexecuted464passed1existingMailpitskip0failed, ownDBcleanup0; retainedcomposed6.901735458s, firstscratchsummaryfailurealso preserved. Rootindependentlyreviewedexact2file route andsource/suitehashes plus focusedassertionsGREEN. This iscomposedruntimeproof, NOTnativecurrentdiffpreflight or authoritativemutationcampaign. TheirfreshAC/fullgateclosurestillpending; canonicalorder permits075approvedfunctionalexecutionbefore coordinatedgreen gate and separatetechnicalclosures. No false technicaldoneclaim or harness/template/threshold/routinggap patch. Actual075newprimitiveoracles andnativecold proofstilldue."
     },
     {
       "id": "U11",
@@ -144,13 +144,13 @@
     }
   ],
   "dependencies": [],
-  "decision": "blocked",
+  "decision": "ready",
   "partitions": [],
   "approval": {
-    "status": "pending",
-    "approved_by": null,
-    "evidence": null,
-    "payload_sha256": "7f9c7f4a73da50868273d106737106cd682f2d8d82116aedf9ef4695360e61fd"
+    "status": "approved",
+    "approved_by": "Francisco",
+    "evidence": "US075-READY-DELEGATED-20261011-V2",
+    "payload_sha256": "f22f1c08dc0f47572ad346432cb4556b5571fdc1d151b80360ad6f5253a5952a"
   },
   "actuals": null,
   "policy_bootstrap": false,

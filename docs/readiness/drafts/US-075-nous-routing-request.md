@@ -1,5 +1,7 @@
 # US-075 — canonical responsible-route amendment request
 
+**Current status:** Nous allocated accepted technical successor CHG-081 at `ae0427a`. Its additive route is implemented at `b6e67ea`; actual shared-Postgres route/runtime proof and scoped review are committed at `95fac1f` (464 passed, one existing Mailpit skip; composed run 6.902s). Technical closure remains pending the coordinated green gate and fresh AC review. The request below is historical: no additional Nous ruling is requested. Francisco's explicit controller/Astra decision-and-work instruction authorizes local continuation; the evidenced US-075 composition is 20 inclusive paths, 315 minutes and six planned shards, with no routing gap. Revised digest-bound authorization is recorded in the readiness artifact and feedback ledger; no claim that Francisco typed the computed hash.
+
 ## Current request after CHG-079/080 verification (2026-10-11)
 
 The historical request below is superseded by this section. CHG-079's service route and pin are implemented (`cce85d4`, `2be5283`); CHG-080's publication and pin are implemented (`d9d5d48`, `5fe2ee7`). Their full-gate closure is pending, not claimed delivered/dev_done. The shared gate failed on the older offboarding alert fixture: US-075's required assignment-pointer guard rejects a seed without `license_assignment_id`; the same fixture still expects `kind = checklist` instead of canonical `remove`.
