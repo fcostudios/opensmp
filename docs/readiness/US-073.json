@@ -110,7 +110,27 @@
     "evidence": "US073-READINESS-20261011",
     "payload_sha256": "6784f0f0562a2fdd70604a097ca227f2f2b553b3e43ba530a8557d84c0add05a"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 18,
+      "implementation": 35,
+      "focused_verification": 43,
+      "review": 15,
+      "integration": 46
+    },
+    "total": 157,
+    "changed_files": 24,
+    "commits": 13,
+    "review_fix_loops": 4,
+    "cold_mutation_attempts": 2,
+    "mutation_invalidations": 1,
+    "mutation_minutes": 21,
+    "mutation_shards_actual": 6,
+    "preview_rounds": 3,
+    "preview_minutes": 33,
+    "estimate_variance_minutes": -73,
+    "root_cause": "Phase values are ESTIMATED active nonoverlapping allocation from phase markers and measured command envelopes: excludes44.055min approval idle and asynchronous gate/preview overlap. Entry readiness18min estimated; baseline316s included focused verification. US073_PREVIEW_ACCOUNTABILITY_REPAIR: three rounds32.2918167min exceeded30 by2.2918167min for truthful legacy table routing, isolated zero-AST seams and actual helper/fresh-schema instrumentation plus shared-oracle repair; no whole-set rerun. Approved exact source pins/guard exception preserved; final six shards vs four estimated. Second-sibling rebase preserved both ledgers and twelve own SHA mappings but changed all dependency fingerprints; attempt1 retained/invalidation1 and integrated final gate300.505s plus cold2 required. Both cold campaigns total20.77885min included integration, never added twice. All full gates below2x316s baseline. Frozen-base monolithic page-wiring classifier fixture remains disclosed red/deferred hardening. Preview round3 and cold2 outer wrappers exited1 after successful scoring because owned clone prevented SQL role-drop; private containers unconditionally disposed, errors retained, no overall-wrapper-green claim. Parent context ceiling overshoot217799 recorded; controller session2 retained, no worker restart. Ledger integration repair adds7 estimated active minutes: own last checkpoint rewritten via authorized normal Git rebase edit/continue to fold chronological preterminal rows; scoring/dependency tree unchanged, final SHA map appended. Integer fields ceiling-rounded mutation21 and previews33; exact20.77885/32.2918167 retained. Additional10 ESTIMATED active integration repair minutes include failed hook diagnostics, reviewed original-prefix remedy and approved own-only replay; overnight approval idle excluded entirely. Approved global-ts-union exception keeps exact inherited bytes and original per-story raw timestamps, all12 prefix transitions/range readiness GREEN. Ledger-only replay finalmappedbase83c591f links original frozen3b and cold2historical5759; all six non-runtime dependency rehashes exactly match cold2, no third cold. Integer schema fields mutation21/preview33 ceiling-rounded; precise20.77885/32.2918167 retained.\ncontroller1 sessions=1, measured cumulative input=29015063, output=52377, usage-advance call proxy=308, peak last total=217799.\ncontroller2 sessions=1, measured cumulative input=36437095, output=64188, usage-advance call proxy=387, peak last total=155290.\nimplementer sessions=1, measured cumulative input=45846220, output=138089, usage-advance call proxy=407, peak last total=199003.\nreviewer sessions=1, measured cumulative input=13334807, output=32107, usage-advance call proxy=110, peak last total=191818.\nfresh_ac sessions=1, measured cumulative input=4068341, output=10863, usage-advance call proxy=47, peak last total=101230. Closing-tail ESTIMATE input400000/output2500/calls20; cached inputs and reasoning outputs are measured subsets, never double-counted."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
