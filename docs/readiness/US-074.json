@@ -124,7 +124,27 @@
     "evidence": "US074-READINESS-20261011",
     "payload_sha256": "d82de66f84aa6b8f4e3f22d1a7769ccb1ef3b8bc7bfbdef8b333e110df9ddf46"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 16,
+      "implementation": 24,
+      "focused_verification": 11,
+      "review": 0,
+      "integration": 8
+    },
+    "total": 59,
+    "changed_files": 13,
+    "commits": 14,
+    "review_fix_loops": 2,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 3,
+    "mutation_shards_actual": 4,
+    "preview_rounds": 4,
+    "preview_minutes": 9,
+    "estimate_variance_minutes": -201,
+    "root_cause": "Measured closure cutoff 2026-10-11T01:55:32.863753Z, controller envelope 2026-10-11T00:55:40.873Z..2026-10-11T01:55:32.863753Z; boundaries {\"focused_verification\": \"2026-10-11T01:36:27.528Z\", \"implementation\": \"2026-10-11T01:12:01.512022Z\", \"integration\": \"2026-10-11T01:47:08.000Z\", \"review\": \"2026-10-11T01:36:27.522Z\"}. Nonoverlapping intervals rounded to nearest whole minute (floor(seconds/60+0.5)); total=sum buckets. Scoped reviews and interleaved focused checks before first review marker are absorbed in implementation; 6ms review interval rounds0. Readiness includes human entry approvals. Integration includes cold run and closure bookkeeping. Final-tail integration/FF after cutoff estimated rather than claimed measured.\nGit branch point872f9381b1914a01fba4cbfb18964c65dd4b2c2c; approved mutation authority8f00bca15283f6a4c9741bbab8c7b0daa91e5837; final product sourcec6cf485063da353f3ac87daa38c63d9923ce563f; campaign/evidence HEADa8375b7befd798e0e07b744bf0c03ba7e4054355. Changed files against authority plus closure readiness=13; reachable item commits from branch point including this prospective closure=14. No scored change after campaign. All4 archive report SHA256 verified against canonical manifest6554cba259f48d016ed06ebc54d82c2840304cd7afe85f706b55d26fe6a18234. Cold87k/1s score98.863636%,0NoCoverage/0Timeout;1attempt,0invalidations,child201.131s (shard execution194.662267s).\nFour previews542.777s=9.0463min rounded9: task2 schedule; final3DBshards; touched persistence/runtime repair; persistence-only guard repair. tasks+1 budget respected, no whole-set reruns. Initial import escape not accepted as evidence; corrected relative source oracle. Guard31 observable A->B->A fixed and killed; sole schema{} equivalent reviewer signoff. Two reviewer-to-fix loops: epoch-floor correction and rejected guard equivalence regression. Preview repairs join final wave. Mutation shard estimate3/actual4 deviation recorded.\nGate aborted41.210s for reviewer guard oracle repair; no build_pass. Final exclusive caffeinate pnpmcheck252.209s, verify0.196s/parity1.832s; lock creation01:42:14.347Z, fullcheck finish01:46:30.581Z. Sibling lock wait approx120s separate from execution. No valid same-gate five-run median available, so no fabricated >2x comparison; guard preview263.217s vs persistence prior137.236s <2x; dry-run slowdown under sibling/shared test load noted. Shared CHG067 disposable fixtures, no private containers. First sibling integration possible: chg-070 remains872f938 at cutoff.\nCorrections/deviations: planned DB->domain dependency would cycle contracts->db->domain->contracts; real policy callbacks injected from worker, shared classifier/read model unchanged. One explicit accountable sourceTests route, no routing algorithm/tooling expansion. No migration, proposals, UI or deprovisioning. Generated testing/critical-paths.md unchanged; no Nous sync in this session.\nImplementer cost: implementer: sessions1,restarts0,calls169,input18406819,output53750,peak_context202045,modelgpt-6.1-sol,window258400.\nReviewer cost: reviewer: sessions1,restarts0,calls25,input3103080,output8920,peak_context118441,modelgpt-6.1-sol,window258400. Fresh adversarial adversarial: sessions1,restarts0,calls10,input771452,output2707,peak_context79876,modelgpt-6.1-sol,window258400.\nController cost: controller: sessions1,restarts0,calls141,input21166686,output36432,peak_context186480,modelgpt-6.1-sol,window258400. Closing tail explicitly estimated +4calls/+650000input/+6000output; one controller session below~200K peak.\nHarness totals through snapshot {\"calls\": 345, \"input_tokens\": 43448037, \"output_tokens\": 101809}; cached input already included once in input_tokens; reasoning already included in output_tokens. done.cost uses aggregate cumulative input as context_tokens plus explicit closing-tail estimate, not peak context. Call count=unique function_call/custom_tool_call IDs. All snapshots in /tmp/smp-us074-closure-costs.json, named rollout paths in durable measurement feedback. Nous independent transcript measurement/pull/sync follows handoff; no independent agreement claimed."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
