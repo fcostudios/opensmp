@@ -23,6 +23,7 @@ import {
 import {
   startOffboardingWithAuthorization,
 } from "./people-action-core";
+import { safeParseOffboardingTarget } from "./people-action-service";
 import {
   PeopleRepositoryError,
   createPeopleRepository,
@@ -315,6 +316,11 @@ beforeAll(async () => {
       offboardingAssignmentId2,
     ],
   );
+  // Activated request fixtures must point at their coherent source assignment.
+  await owner.query(`UPDATE license_request request SET license_assignment_id=assignment.id
+    FROM license_assignment assignment WHERE assignment.source_request_id=request.id
+      AND assignment.person_id=request.person_id AND assignment.company_id=request.company_id
+      AND assignment.vendor_account_id=request.vendor_account_id AND assignment.license_type_id=request.license_type_id`);
   await owner.query(
     `INSERT INTO activity_record
        (id, vendor_account_id, person_id, activity_date, counters, synced_at)
@@ -1327,7 +1333,22 @@ describe("people repository", () => {
         VALUES($1,$2,$3,$4,$5,'2026-07-27',$6,'request',$7,$8)`, [assignments[index],holder,companyA,vendorAccountId,license,requests[index],occurredAt,adminId]);
       await owner.query(`UPDATE license_request SET license_assignment_id=$1 WHERE id=$2`,[assignments[index],requests[index]]);
     }
-    const input = {personId:holder,requestId:requests[0]!,endReason:"inactive" as const,note:"Remove only selected seat"};
+    const parsed = safeParseOffboardingTarget({personId:holder,requestId:requests[0]!,endReason:"inactive",note:"Remove only selected seat"});
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) throw new Error("Valid target rejected");
+    const input = parsed.data;
+    expect(input.requestId).toBe(requests[0]);
+    expect(safeParseOffboardingTarget({...input,requestId:"not-a-uuid"}).success).toBe(false);
+    for (const badPointer of [null,assignments[1]]) {
+      await owner.query("UPDATE license_request SET license_assignment_id=$1 WHERE id=$2",[badPointer,requests[0]]);
+      await expect(repository.startOffboarding(admin,input,occurredAt)).rejects.toMatchObject({code:"person_offboarding_unavailable"});
+      const unchanged=await owner.query(`SELECT request.state,assignment.ended_on::text,
+        (SELECT count(*)::int FROM provisioning_action WHERE request_id=request.id) AS actions,
+        (SELECT count(*)::int FROM audit_log WHERE entity_id=ANY($2::uuid[])) AS audits
+        FROM license_request request JOIN license_assignment assignment ON assignment.source_request_id=request.id WHERE request.id=$1`,[requests[0],[holder,...requests]]);
+      expect(unchanged.rows).toEqual([{state:"active",ended_on:null,actions:0,audits:0}]);
+    }
+    await owner.query("UPDATE license_request SET license_assignment_id=$1 WHERE id=$2",[assignments[0],requests[0]]);
     await expect(repository.startOffboarding(admin,{...input,requestId:inactiveRequestId},occurredAt)).rejects.toMatchObject({code:"person_offboarding_unavailable"});
     await expect(repository.startOffboarding(admin,{...input,endReason:"reallocated"},occurredAt)).rejects.toMatchObject({code:"person_offboarding_transfer_required"});
     await expect(repository.startOffboarding(viewer,input,occurredAt)).rejects.toMatchObject({code:"person_forbidden"});

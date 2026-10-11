@@ -113,10 +113,15 @@ export async function updatePersonService(
   }
 }
 
+/** Production target validation shared by the action and its real-DB oracle. */
+export function safeParseOffboardingTarget(input: unknown) {
+  return startOffboardingInputSchema.extend({ requestId: z.string().uuid().optional() }).safeParse(input);
+}
+
 export async function startOffboardingService(
   input: unknown,
 ): Promise<StartOffboardingActionState> {
-  const parsed = startOffboardingInputSchema.extend({ requestId: z.string().uuid().optional() }).safeParse(input);
+  const parsed = safeParseOffboardingTarget(input);
   if (!parsed.success) {
     return {
       ok: false,

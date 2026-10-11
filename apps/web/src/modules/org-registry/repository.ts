@@ -697,6 +697,7 @@ export function createPeopleRepository(
       if (assignments.length === 0 || assignments.some(assignment =>
         assignment.vendorAccountId !== request.vendorAccountId || assignment.licenseTypeId !== request.licenseTypeId)) throw unavailable();
       const assignmentIds = assignments.map(({ id }) => id);
+      if (request.licenseAssignmentId === null || !assignmentIds.includes(request.licenseAssignmentId)) throw unavailable();
       if (request.state === "offboarding") {
         const action = priorActions.length === 1 ? priorActions[0] : undefined;
         const raw = action?.rawRequest as { context?: { assignmentIds?: unknown; endReason?: unknown; personId?: unknown; requestId?: unknown; vendorAccountId?: unknown }; checklistSteps?: unknown[] } | null;
