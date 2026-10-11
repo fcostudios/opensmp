@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "8addb440eeb964f4df54a64095436c167c065920f299ffc8ed46bc80bb4ea3d2",
+  "work_id": "CHG-081",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Register lifecycle mutations with the existing orchestration integration oracle",
+  "source": "docs/stories/CHANGES.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The existing request-workflow lifecycle source selects its adjacent domain oracle and accountable real-PostgreSQL orchestration suite through one additive direct route, so US-075 need not own a harness amendment. No functional repartition or generated critical-set change.",
+      "demo": "Exact direct-route and real-file selection assertions prove both existing suites are selected; composed actual-source shard discovery, migrated owner/app schema verification and execution of the discovered suites prove the route works with CHG-067 shared PostgreSQL. One coordinated regular gate and separate technical closure complete the outcome.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "mutation-route-registration"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 6,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 10,
+    "implementation": 3,
+    "focused_verification": 7,
+    "review": 5,
+    "integration": 10,
+    "total": 35
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Canonical allocation and exact inclusive ownership.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Read canonical ae0427a0ad9bc27f7958c6fd31d8aecb1b2b0f0c first. Accepted technical CHG-081 is a successor, not an amendment to CHG-079. AC1: add only DIRECT_TEST_ROUTES entry packages/domain/src/request-workflow/lifecycle.ts -> apps/web/src/modules/request-workflow/orchestration.integration.test.ts, preserving testsForSource and responsible-tests behavior and the existing adjacent packages/domain/src/request-workflow/lifecycle.test.ts. AC2: extend existing scripts/test-mutation-scope.mjs with exact direct-route assertion and real-file routedTestFiles assertion selecting BOTH existing suites. AC3: composed actual-source runtime verification, scoped and fresh adversarial review, one coordinated green gate, final technical eligibility, authority-range validation and separate closure/cost. Exact inclusive six-path inventory: scripts/mutation-scope.mjs; scripts/test-mutation-scope.mjs; docs/readiness/CHG-081.json; docs/superpowers/specs/2026-10-11-chg-081-lifecycle-route-design.md; docs/superpowers/plans/2026-10-11-chg-081-lifecycle-route-plan.md; .nous-feedback.jsonl. Scratch runtime launcher stays untracked outside repository; all evidence/approval/cost uses feedback path. No instrumentation, threshold, routing-gap, runtime harness, template, application/source/test or generated-file change."
+    },
+    {
+      "id": "U2",
+      "statement": "Approval proposal: composed actual-source runtime verification, explicitly distinct from native diff preflight.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 7,
+      "resolution": "Lifecycle source is unchanged since d8a8019 (US-064), so current technical/US-075 diff preflight cannot prove its runtime route. Existing --planned-scope/calculatePlannedMutationScope discovers complete current files but has no runtime-preflight flag; native runMutationScope preflight uses Git diff and rejects shard selection. Proposed bounded composition: after approval and route commit, calculatePlannedMutationScope([actual packages/domain/src/request-workflow/lifecycle.ts]); assert actual shard testFiles include both existing lifecycle and orchestration suites; inside existing run-with-shared-postgres.ts wrapper require SMP_TEST_POSTGRES_CLUSTER_URL, reject inherited mutation pairs, call stock createPostgresFixture without isolated/container hooks, migrate committed migrations, call real verifyMigratedSchema on private ownerUrl/appUrl pair, then pass only supported US042_MUTATION_DATABASE_ADMIN_URL/US042_MUTATION_DATABASE_URL privately and execute the discovered actual testFiles through existing root vitest.mutation.config.mjs. Finally clean up only the owned fixture database. Record source/suite identities and separate discovery, migrate/schema, actual suite and composed shard-preflight wall times. This is COMPOSED route/runtime verification, NOT native runMutationScope --preflight, authoritative mutation evidence, a synthetic runtime provider, parser-only success or dry discovery GREEN. Root controller interprets canonical discovery plus real-DB execution requirement as fulfilled by this composition; Francisco must explicitly approve that digest-covered interpretation. If actual stock cross-package Vitest execution or fixture/profile composition fails, stop with bounded evidence and return to Nous; no local repair, historical whole campaign or source patch to create a diff. Final US-075 changed source still owes ordinary native preflight and cold evidence before closure."
+    },
+    {
+      "id": "U3",
+      "statement": "Shared gate ordering and known failures remain outside route scope.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "Canonical order is CHG-081 route/runtime evidence -> revised US-075 digest approval -> US-075 functional execution including required assignment-pointer/remove-kind legacy alert fixture within 20 paths -> one coordinated green regular gate -> separate CHG-079, CHG-080 and CHG-081 closures -> US-075 closure. CHG-079/080 are implemented but not done; leave their scope/readiness unchanged. Shared gate fe509ee is RED at legacy alert fixture; types/lint passed, build not reached. Historical whole Node harness fails obsolete unrelated page fixture around lines 1149/915; disclose it and keep untouched beyond current two assertion hunks. No false whole-suite GREEN, build_pass or done while gate remains red. Shared awake gate uses existing /tmp/smp-full-gate.lock with exclusive owner/inode control, no foreign-lock deletion or duplicate gate. Own ordinary TypeScript mutation eligibility expected zero because two mjs paths plus paperwork are not mutatable TS; record actual eligibility and omit invented score/test_report when zero. Runtime route proof is separate operational evidence with real cost. Foreign-lock delay, wrong composed-method interpretation or any work beyond bounded entry/assertions triggers boundary stop/reassessment."
+    },
+    {
+      "id": "U4",
+      "statement": "Independent whole-item forecast exceeds 25-minute target.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "Bottom-up 35 active minutes, six inclusive paths: readiness/canonical requirements/runtime-selection investigation and digest commit 10; additive entry and existing exact assertions 3; focused route checking plus real fixture migrate/schema/suite composition 7; reused scoped reviewer and fresh adversarial AC reviewer with small repair allowance 5; coordinated normal gate attribution, final own zero-shard eligibility, evidence/actuals/done.cost and ownership checks 10. Includes paperwork and review, not just route implementation. This exceeds approximate 25-minute allocation by 10; fresh human digest approval must accept 35. Human approval/external coordination waits are excluded active-cost estimates, not invented measured actuals. Existing dependencies installed, no private DB container or new harness expected. Gate and runtime wall costs measured separately; phase envelopes are forecasts. Approval pending: no started/design/plan/implementation is authorized yet."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "8addb440eeb964f4df54a64095436c167c065920f299ffc8ed46bc80bb4ea3d2"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
