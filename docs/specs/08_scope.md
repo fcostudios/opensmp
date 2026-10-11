@@ -356,9 +356,9 @@
 ### US-024 — Offboarding + deprovisioning
 - **As**: Group Admin (persona_01) | **Want to**: remove seats same-business-day on departure | **So that**: seat-days stop leaking (J2)
 - **AC1**: `startOffboarding` (person detail / request detail) → state offboarding → removal via connector or checklist → deprovisioned
-- **AC2**: Register row closes (ended_on, end_reason left_company/inactive/reallocated); pool increments next sync
-- **AC3**: Departure flow can set Person.status='Salió del grupo'
-- **AC4**: Offboardings with end_reason=left_company still not deprovisioned at end of the same business day raise `deprovision_overdue` (15-min alert-eval, business-day calendar, subject_ref=request) — BR-14
+- **AC2**: Register row closes (ended_on, end_reason left_company/inactive/reallocated — DEC-SMP-033); pool increments next sync, never optimistically at start (DEC-SMP-031)
+- **AC3**: Departure flow can set Person.status='Salió del grupo' — by explicit admin confirmation, unchecked by default (DEC-SMP-032)
+- **AC4**: Offboardings with end_reason=left_company still not deprovisioned at end of the same business day raise `deprovision_overdue` (15-min alert-eval, business-day calendar, subject_ref=request) — BR-14, DEC-SMP-029/030/033
 - **Prerequisites**: US-019, US-020
 - **Feature**: FEAT-018 | **Journey**: J2 | **Release**: R1
 - **Screens**: SCR-person-detail, SCR-request-detail

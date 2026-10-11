@@ -151,13 +151,13 @@
 
 ### BR-14 — Departure deprovisioning completes same business day
 
-**Statement.** Offboarding for end_reason=left_company must reach deprovisioned (removal executed or checklist confirmed) within the same business day; breaches alert.
+**Statement.** Offboarding for end_reason=left_company must reach deprovisioned (removal executed or checklist confirmed) by local midnight (America/Guayaquil) ending the business day of the `active → offboarding` transition — anchored on that transition, never a retry; a weekend or `ECUADOR_HOLIDAYS` start rolls to the next business day (DEC-SMP-029) — and breaches alert at the first evaluation tick after the deadline, including on non-business days. Only `left_company` is under this rule (DEC-SMP-030). A removal that failed or was only partially finalized is still a breach while the request remains `offboarding` (DEC-SMP-033).
 
-- **Parameters:** same business day; alert type `deprovision_overdue`
+- **Parameters:** same business day (operator-maintained Ecuador calendar, local midnight deadline, DEC-SMP-029); reasons: `left_company` only (DEC-SMP-030); alert type `deprovision_overdue`, subject = request, one open alert per breached request, suppressed at `deprovisioned`
 - **Enforced at:** alert-eval job (deprovision_overdue) + email
 - **Oracle:** property (SLA over simulated calendars)
 - **Critical:** YES
-- **Governed by stories:** US-024, US-042
+- **Governed by stories:** US-024, US-042, US-075, US-077
 - **Verification:** Business-day calendar test incl. weekend edge.
 
 ### BR-15 — Reclamation requires consent; dismissal suppresses re-proposal

@@ -332,8 +332,8 @@ Eight data domains: **org registry** (Company, Person + platform identity), **ve
 | `vendor_account_id` | `uuid` | FK => VendorAccount.id, IDX | no | Seat lives in this org's pool | … | [SRC:RAW] §9 |
 | `license_type_id` | `uuid` | FK => LicenseType.id | no |  |  | [SRC:RAW] |
 | `started_on` | `date` | IDX | no | Inclusive (A-ER-4) | `2026-08-03` | [SRC:RAW] |
-| `ended_on` | `date` |  | yes | Inclusive; null = open holding | `2026-09-09` | [SRC:RAW] |
-| `end_reason` | `text` (enum) |  | yes | `left_company / inactive / reallocated` | `reallocated` | [SRC:RAW] §10 |
+| `ended_on` | `date` |  | yes | Inclusive; null = open holding. Set to the Ecuador date of the confirmed removal (provider success or checklist confirmation), in the same transaction as the ProvisioningAction completion and the `offboarding → deprovisioned` transition; a failed removal leaves it null (DEC-SMP-033) | `2026-09-09` | [SRC:RAW], DEC-SMP-033 |
+| `end_reason` | `text` (enum) |  | yes | `left_company / inactive / reallocated` — immutable once set; only `left_company` is under the BR-14 same-business-day SLA (DEC-SMP-030) | `reallocated` | [SRC:RAW] §10, DEC-SMP-030 |
 | `source_request_id` | `uuid` | FK => LicenseRequest.id, UNIQUE(source_request_id) | yes | Import/reconciliation rows reference their system-materialized request (see LicenseRequest lifecycle); null only for transfer-reopened rows (a transfer's inbound leg is its own fast-tracked request, PRD §10); Postgres NULLs-distinct makes plain UNIQUE enforce the 1:0..1 | … | [SRC:RAW] §14 |
 | `source_kind` | `text` (enum) |  | no | `request / import / reconciliation / manual` — `manual` = admin-recorded row on an API-less org (DEC-SMP-018), same integrity constraints | `request` | [SRC:RAW] §14 |
 | `note` | `text` |  | yes | Rationale for import/reconciliation rows (e.g. drift-claim comment), visible on the register row expander | … | [SRC:CJ] J4 |
