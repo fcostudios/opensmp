@@ -51,26 +51,28 @@ The **aggregate + projection layers should be the widest part of the suite**, no
 - **Tenant isolation** — every path that touches tenant-scoped data (filtered by `company_id`). → explicit isolation assertions (a query for tenant A must never return tenant B's rows).
 - **Authorization** — role/permission gates on commands/mutations. → integration tests for allowed vs forbidden (expect 403).
 - **Money / tax / financial math** (if present) — amounts, rounding, and idempotency of charge/ledger events. → property-based + a provider contract test.
-- **BR-01 — Register no-overlap (one seat, one holder, one period)** — critical business rule; oracle: `exact`. (stories: US-003, US-033, US-036, US-037)
-- **BR-02 — Every assigned seat-day belongs to exactly one company** — critical business rule; oracle: `exact`. (stories: US-003, US-028, US-033, US-034, US-047)
-- **BR-03 — Audit log is append-only at the database level** — critical business rule; oracle: `exact`. (stories: US-003, US-008, US-036, US-037)
-- **BR-04 — Only legal state-machine transitions execute** — critical business rule; oracle: `exact`. (stories: US-014, US-033, US-034)
-- **BR-08 — Approval aging: reminder at 24 h, escalation at 48 h; decision target 2 business days** — critical business rule; oracle: `exact`. (stories: US-015, US-017, US-032, US-046)
-- **BR-11 — Low-pool alert below the per-org floor** — critical business rule; oracle: `exact`. (stories: US-022, US-052, US-053)
+- **BR-01 — Register no-overlap (one seat, one holder, one period)** — critical business rule; oracle: `exact`. (stories: US-003)
+- **BR-02 — Every assigned seat-day belongs to exactly one company** — critical business rule; oracle: `exact`. (stories: US-003, US-034, US-047)
+- **BR-03 — Audit log is append-only at the database level** — critical business rule; oracle: `exact`. (stories: US-003, US-008)
+- **BR-04 — Only legal state-machine transitions execute** — critical business rule; oracle: `exact`. (stories: US-014)
+- **BR-08 — Approval aging: reminder at 24 h, escalation at 48 h; decision target 2 business days** — critical business rule; oracle: `exact`. (stories: US-015, US-017, US-046)
+- **BR-11 — Low-pool alert below the per-org floor** — critical business rule; oracle: `exact`. (stories: US-022)
 - **BR-12 — Blocked requests are never dropped; review within 1 business day** — critical business rule; oracle: `exact`. (stories: US-023)
-- **BR-14 — Departure deprovisioning completes same business day** — critical business rule; oracle: `property`. (stories: US-024, US-042)
+- **BR-14 — Departure deprovisioning completes same business day** — critical business rule; oracle: `property`. (stories: US-024, US-042, US-075, US-077, US-082)
 - **BR-17 — Proration is daily actual/actual with exact mid-month boundaries** — critical business rule; oracle: `exact`. (stories: US-034)
 - **BR-18 — Close is deterministic and idempotent; finals are immutable** — critical business rule; oracle: `exact`. (stories: US-034, US-035, US-047, US-050)
 - **BR-20 — Reconciliation flips to reconciled ONLY within 0.5%** — critical business rule; oracle: `exact`. (stories: US-038)
 - **BR-22 — Company scoping is enforced server-side on every query** — critical business rule; oracle: `exact`. (stories: US-005, US-047)
 - **CompanyRoleAssignment** — auth-sensitive entity (name heuristic).
 - **IntegrationCredential** — auth-sensitive entity (name heuristic).
+- **MemberObservation** — auth-sensitive entity (name heuristic).
 - **UserAccount** — auth-sensitive entity (name heuristic).
 - **VendorAccount** — auth-sensitive entity (name heuristic).
 - **VendorAccountCapacity** — auth-sensitive entity (name heuristic).
 - **Invitation hygiene (US-067, US-068, US-069; DEC-SMP-023)** — overdue age derives from the durable invitation sent_at, with strict configured boundaries, company-scoped current eligibility and one alert per open breach. Withdrawal targets the pinned invitation only, refuses acceptance races and releases capacity only after confirmed removal; automatic expiry reuses that contract and records its system action.
 - **Daily person activity (US-070; DEC-SMP-024, DEC-SMP-025)** — identity matching is company-scoped; natural-key writes are idempotent, ignore stale or equal-equivalent observations and reject equal-time contradictions; source/API activity ingestion requires explicit opt-in; replay accepts only allowlisted activity events; unmatched or null-email identities produce durable warnings; ambiguous identities reject the batch atomically.
 - **Exact revisable person costs (US-071; DEC-SMP-024, DEC-SMP-025)** — signed USD amounts use exact decimal strings and integer arithmetic; nonrepresentable precision and overflow reject before writes. The injected UTC completed-date window [D-30,D) guards every source. Company-scoped identities, account/person/day freshness, opt-in locks and atomic warning audits preserve isolation and replay; null/unmatched identities warn and conflicting equal-time payloads reject.
+- **Capacity refresh watermark (US-081, US-085; DEC-SMP-031, DEC-SMP-041)** — freed seats never become free capacity optimistically: only `recordAcceptedMemberSnapshot` writes `VendorAccount.members_refreshed_at`/`members_refresh_source`, and only for a validated-complete account-wide member observation (partial/failed/stale observations, provider removal success, invitation polling and single manual entries never stamp it); the `pool-snapshots` projection counts a closed assignment as freed only when the watermark is strictly later than the closure instant (the anchoring `offboarding → deprovisioned` transition `occurred_at`, else `ended_on` end-of-day America/Guayaquil), a null watermark frees nothing, and every other closure reports `pending_refresh`; `seat_freed` recovery and purchased quantities are untouched; every pool surface reads this one projection. Oracle: property-based over generated closure/observation histories with an injected clock, plus real-DB grant/apply verification.
 - *(Derived from this project's business rules + graph — `testing/critical-paths.md`. Keep current.)*
 
 ## 4. CI gates
@@ -139,4 +141,4 @@ pnpm test:mutation  # ONE diff-scoped mutation campaign  ← the gate
 ## 8. Reference
 
 Full rationale + evidence base: `docs/TEST_EFFECTIVENESS_STANDARD.md`.
-<!-- nous-emitted: sha256=dc31b2f59469b1d4 -->
+<!-- nous-emitted: sha256=def04795425bd1f6 -->
