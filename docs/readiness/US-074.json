@@ -119,9 +119,9 @@
   "decision": "ready",
   "partitions": [],
   "approval": {
-    "status": "pending",
-    "approved_by": null,
-    "evidence": null,
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "US074-READINESS-20261011",
     "payload_sha256": "d82de66f84aa6b8f4e3f22d1a7769ccb1ef3b8bc7bfbdef8b333e110df9ddf46"
   },
   "actuals": null,
