@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "c986a49ff57fe6ed7df3665df48cd239069e51ae97e392385ac4c2d509e86ce4",
+  "work_id": "CHG-082",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Exclude closed-list bookkeeping and permit additive responsible mutation routes",
+  "source": "Francisco’s complete CHG-082 execution instruction, 2026-10-11; accepted Nous record delivered in 59380d37922876822e519eb8b86bb0ec03eb14aa on chg-082, based on chg-070 fd73ee31fc9f7aeb1f62ff28881f2a4a516571b0. The emitted CHANGES.md notes are truncated; the user instruction supplies the complete clauses, seven RED fixtures and sequencing authority.",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The readiness gate counts only delivery paths for future assessments and permits functional items to add responsible routes in mutation-routes.json under a fail-closed additive-only contract, preserving every existing approval and mutation routing result.",
+      "demo": "Seven prescribed RED fixtures pass against the real gate/router; existing readiness digests stay byte-identical; full-table differential routing remains identical, including CHG-079/081 when integrated. Readiness suites and the exclusive-lock awake full gate pass before fast-forward integration into chg-070.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling",
+    "readiness-policy",
+    "verification"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 16,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 30,
+    "implementation": 100,
+    "focused_verification": 50,
+    "review": 65,
+    "integration": 55,
+    "total": 300
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "CHG-082 changes the gate that validates its own assessment and historical/pending digests.",
+      "status": "resolved",
+      "estimate_impact_minutes": 15,
+      "resolution": "Assess CHG-082 under the existing inclusive file rule: at most 16 paths (12 delivery plus 4 bookkeeping), without the not-yet-supported bookkeeping_files field. Add optional integer bookkeeping_files with no digest normalization/default insertion into old artifacts; new assessments declare it and count delivery only. Determine prospective policy eligibility from immutable assessment introduction and CHG-082 integration/activation history, never an author-supplied optional marker: an assessment first created after integration cannot evade new-policy validation by omitting fields. Historical first-created artifacts retain their prior inclusive classification. Preserve US-075/081/083 and CHG-079/080/081 bytes, approvals and classification. Tests exercise unchanged historical digests and new assessments with omitted marker. No approved or pending assessment is reclassified."
+    },
+    {
+      "id": "U2",
+      "statement": "The current model trusts tooling_change and git.mjs does not enforce a script-versus-functional diff contract.",
+      "status": "resolved",
+      "estimate_impact_minutes": 15,
+      "resolution": "Keep hard limit 8 and add actual immutable-base/candidate validation for new-policy functional route edits: closed canonical route JSON shape; base routes retained without removal or alteration; only new keys or appended values. Every new key must name a source changed by the item across its own authorized delivery range, not merely unrelated branch edits or only the route commit. Existing keys may gain new values without a changed-source restriction, as the canonical clause requires. Every new value is an existing test path, validated for naming and existence in immutable Git trees. No script edits, exemption/threshold/instrumentation changes are covered by this carve-out. No actual diff file-limit check is introduced. A pure shared policy helper may centralize closed bookkeeping patterns and route validation; mutation preflight remains the execution evidence for new route ownership, not mere existence."
+    },
+    {
+      "id": "U3",
+      "statement": "CHG-079/081 route entries exist on us-024 while chg-070 remains fd73ee3; parallel integration may change the immutable routing base.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "Recheck both branches at integration. Preserve those technical CHGs; never undo their work or approve their closure here. Whichever line lands second rebases and moves all integrated inline entries into JSON, records original-to-rebased SHA mapping following CHG-066, and reruns differential comparison over the complete predecessor table including their entries. If chg-070 cannot fast-forward, inform Francisco before integration and reconcile within authorized sequencing; no force update or false fast-forward claim."
+    },
+    {
+      "id": "U4",
+      "statement": "The full gate is shared with other active items; dependency setup and gate wait can affect actual time.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "Install frozen dependencies if needed; use CHG-067 shared Postgres fixture. Acquire /tmp/smp-full-gate.lock exclusively, never remove another owner’s lock; run caffeinate -i pnpm check. Record waits/slow runs and median availability truthfully. Mjs/JSON/documentation changes forecast zero mutation shards; prove with item-scoped preflight and record deviation for mismatch. Use CHG-069 touched-shard previews if any shards arise. Authoritative campaign only after fresh adversarial review and repairs."
+    },
+    {
+      "id": "U5",
+      "statement": "Consolidated review and complete cost evidence must fit one cohesive technical item.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "One implementer, one reused scoped reviewer, then one fresh adversarial reviewer; controller plans/briefs/records verdicts rather than implementing. One controller session, no more than three resumed sessions or about 200K context. Costs use available transcript usage with provenance; never invent measured token counts. Record phase timestamps, preview_rounds/preview_minutes, implementer/reviewer costs in root_cause and real done.cost. Outside-scope findings are deviations or named deferred hardening, not new items."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "c986a49ff57fe6ed7df3665df48cd239069e51ae97e392385ac4c2d509e86ce4"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
