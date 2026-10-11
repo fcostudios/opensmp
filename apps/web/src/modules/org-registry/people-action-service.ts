@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import { revalidatePath } from "next/cache";
 
 import {
@@ -114,7 +116,7 @@ export async function updatePersonService(
 export async function startOffboardingService(
   input: unknown,
 ): Promise<StartOffboardingActionState> {
-  const parsed = startOffboardingInputSchema.safeParse(input);
+  const parsed = startOffboardingInputSchema.extend({ requestId: z.string().uuid().optional() }).safeParse(input);
   if (!parsed.success) {
     return {
       ok: false,
@@ -133,6 +135,7 @@ export async function startOffboardingService(
   if (result.ok) {
     revalidatePath("/personas");
     revalidatePath(`/personas/${result.personId}`);
+    for (const requestId of result.affectedRequestIds ?? []) revalidatePath(`/solicitudes/${requestId}`);
   }
   return result;
 }

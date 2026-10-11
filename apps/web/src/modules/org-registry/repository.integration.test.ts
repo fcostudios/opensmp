@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
@@ -656,330 +658,38 @@ describe("people repository", () => {
     ]);
   });
 
-  test("starts left-company offboarding with transition, manual removal work, and audit evidence", async () => {
+  test("starts left-company removal without departing the person and refuses inconsistent register anchors", async () => {
     const repository = createPeopleRepository(drizzle(appPool, { schema }));
-    const saved = await startOffboardingWithAuthorization(repository, admin, {
-      personId: offboardingPersonId,
-      endReason: "left_company",
-      note: "Confirmed departure",
-    }, occurredAt);
-
-    const action = await owner.query(
-      `SELECT id::text, request_id::text, vendor_account_id::text,
-              kind, mode, status, raw_request, created_at
-         FROM provisioning_action WHERE request_id = $1`,
-      [offboardingRequestId],
-    );
-    expect(action.rows).toHaveLength(1);
-    const actionId = action.rows[0].id as string;
-    expect(saved).toEqual({
-      ok: true,
-      personId: offboardingPersonId,
-      status: "offboarding",
-      affectedRequestIds: [offboardingRequestId],
-      provisioningActionIds: [actionId],
-    });
-    expect(action.rows).toMatchObject([
-      {
-        id: actionId,
-        request_id: offboardingRequestId,
-        vendor_account_id: vendorAccountId,
-        kind: "checklist",
-        mode: "orchestration",
-        status: "pending",
-        raw_request: {
-          checklistSteps: [
-            { messageKey: "connector.manual.open_vendor_console" },
-            { messageKey: "connector.manual.remove_person" },
-            { messageKey: "connector.manual.revoke_license" },
-            { messageKey: "connector.manual.confirm_execution" },
-          ],
-          context: {
-            assignmentIds: [
-              offboardingAssignmentId,
-              offboardingAssignmentId2,
-            ],
-            endReason: "left_company",
-            note: "Confirmed departure",
-            personId: offboardingPersonId,
-            requestId: offboardingRequestId,
-            vendorAccountId,
-          },
-        },
-        created_at: occurredAt,
-      },
-    ]);
-    const persisted = await owner.query(
-      `SELECT assignment.id::text AS assignment_id,
-              p.status AS person_status, request.state AS request_state,
-              assignment.ended_on::text, assignment.end_reason,
-              transition.from_state, transition.to_state,
-              transition.actor_user_id::text, transition.note,
-              transition.occurred_at
-         FROM person p
-         JOIN license_assignment assignment ON assignment.person_id = p.id
-         JOIN license_request request ON request.id = assignment.source_request_id
-         JOIN request_transition transition ON transition.request_id = request.id
-        WHERE p.id = $1
-        ORDER BY assignment.id`,
-      [offboardingPersonId],
-    );
-    expect(persisted.rows).toEqual([
-      {
-        assignment_id: offboardingAssignmentId,
-        person_status: "departed",
-        request_state: "offboarding",
-        ended_on: null,
-        end_reason: null,
-        from_state: "active",
-        to_state: "offboarding",
-        actor_user_id: adminId,
-        note: "Confirmed departure",
-        occurred_at: occurredAt,
-      },
-      {
-        assignment_id: offboardingAssignmentId2,
-        person_status: "departed",
-        request_state: "offboarding",
-        ended_on: null,
-        end_reason: null,
-        from_state: "active",
-        to_state: "offboarding",
-        actor_user_id: adminId,
-        note: "Confirmed departure",
-        occurred_at: occurredAt,
-      },
-    ]);
-    const audits = await owner.query(
-      `SELECT actor_user_id::text, action, entity_type, entity_id::text,
-              company_id::text, note, before, after, occurred_at
-         FROM audit_log
-        WHERE (
-          action = 'person.offboarding_started' AND entity_id = $1
-        ) OR (
-          action = 'request.offboarding' AND entity_id = $2
-        )
-        ORDER BY action`,
-      [offboardingPersonId, offboardingRequestId],
-    );
-    expect(audits.rows).toEqual([
-      {
-        actor_user_id: adminId,
-        action: "person.offboarding_started",
-        entity_type: "Person",
-        entity_id: offboardingPersonId,
-        company_id: companyA,
-        note: "Confirmed departure",
-        before: {
-          status: "active",
-          requestStates: {
-            [offboardingRequestId]: "active",
-          },
-        },
-        after: {
-          status: "departed",
-          requestStates: {
-            [offboardingRequestId]: "offboarding",
-          },
-          provisioningActionIds: [actionId],
-        },
-        occurred_at: occurredAt,
-      },
-      {
-        actor_user_id: adminId,
-        action: "request.offboarding",
-        entity_type: "LicenseRequest",
-        entity_id: offboardingRequestId,
-        company_id: companyA,
-        note: "Confirmed departure",
-        before: { state: "active" },
-        after: { state: "offboarding" },
-        occurred_at: occurredAt,
-      },
-    ]);
-
-    await owner.query(
-      `UPDATE provisioning_action
-          SET kind = 'invite'
-        WHERE request_id = $1`,
-      [offboardingRequestId],
-    );
-    await expect(
-      startOffboardingWithAuthorization(repository, admin, {
-        personId: offboardingPersonId,
-        endReason: "left_company",
-        note: "Confirmed departure",
-      }, occurredAt),
-    ).resolves.toEqual({
-      ok: false,
-      globalError: "person_offboarding_unavailable",
-    });
-    await owner.query(
-      `UPDATE provisioning_action
-          SET kind = 'checklist', mode = 'automated'
-        WHERE request_id = $1`,
-      [offboardingRequestId],
-    );
-    await expect(
-      startOffboardingWithAuthorization(repository, admin, {
-        personId: offboardingPersonId,
-        endReason: "left_company",
-        note: "Confirmed departure",
-      }, occurredAt),
-    ).resolves.toEqual({
-      ok: false,
-      globalError: "person_offboarding_unavailable",
-    });
-    await owner.query(
-      `UPDATE provisioning_action
-          SET mode = 'orchestration'
-        WHERE request_id = $1`,
-      [offboardingRequestId],
-    );
-    await owner.query(
-      `UPDATE provisioning_action
-          SET raw_request = jsonb_set(
-            raw_request,
-            '{operation}',
-            '"provision"'::jsonb
-          )
-        WHERE request_id = $1`,
-      [offboardingRequestId],
-    );
-    await expect(
-      startOffboardingWithAuthorization(repository, admin, {
-        personId: offboardingPersonId,
-        endReason: "left_company",
-        note: "Confirmed departure",
-      }, occurredAt),
-    ).resolves.toEqual({
-      ok: false,
-      globalError: "person_offboarding_unavailable",
-    });
-    await owner.query(
-      `UPDATE provisioning_action
-          SET status = 'sent',
-              raw_request = jsonb_set(
-                raw_request,
-                '{operation}',
-                '"deprovision"'::jsonb
-              )
-        WHERE request_id = $1`,
-      [offboardingRequestId],
-    );
-    await expect(
-      startOffboardingWithAuthorization(repository, admin, {
-        personId: offboardingPersonId,
-        endReason: "left_company",
-        note: "Confirmed departure",
-      }, occurredAt),
-    ).resolves.toEqual({
-      ok: false,
-      globalError: "person_offboarding_unavailable",
-    });
-    await expect(
-      owner.query(
-        `SELECT
-           (SELECT count(*)::int FROM provisioning_action
-             WHERE request_id = $1) AS actions,
-           (SELECT count(*)::int FROM request_transition
-             WHERE request_id = $1) AS transitions,
-           (SELECT count(*)::int FROM audit_log
-             WHERE action = 'person.offboarding_started'
-               AND entity_id = $2) AS audits,
-           (SELECT state FROM license_request WHERE id = $1) AS request_state,
-           (SELECT status FROM person WHERE id = $2) AS person_status`,
-        [offboardingRequestId, offboardingPersonId],
-      ),
-    ).resolves.toMatchObject({
-      rows: [{
-        actions: 1,
-        audits: 1,
-        person_status: "departed",
-        request_state: "offboarding",
-        transitions: 1,
-      }],
-    });
+    const input = {personId:offboardingPersonId,requestId:offboardingRequestId,endReason:"left_company" as const,note:"Seat removal"};
+    await expect(repository.startOffboarding(admin,input,occurredAt)).rejects.toMatchObject({code:"person_offboarding_unavailable"});
+    // The old fixture tied two different license types to one source request.
+    // Its unrelated imported seat is not part of this request's removal.
+    await owner.query("UPDATE license_assignment SET source_request_id=NULL,source_kind='import' WHERE id=$1",[offboardingAssignmentId2]);
+    const saved = await repository.startOffboarding(admin,input,occurredAt);
+    expect(saved.person.status).toBe("active");
+    expect(saved.affectedRequestIds).toEqual([offboardingRequestId]);
+    const facts=await owner.query(`SELECT kind,mode,status,raw_request->'context'->'assignmentIds' AS assignments FROM provisioning_action WHERE request_id=$1`,[offboardingRequestId]);
+    expect(facts.rows).toEqual([{kind:"remove",mode:"orchestration",status:"pending",assignments:[offboardingAssignmentId]}]);
+    expect(await repository.startOffboarding(admin,input,occurredAt)).toEqual(saved);
+    await expect(repository.startOffboarding(admin,{...input,endReason:"inactive"},occurredAt)).rejects.toMatchObject({code:"person_offboarding_unavailable"});
+    const persisted=await owner.query(`SELECT ended_on::text,end_reason FROM license_assignment WHERE person_id=$1`,[offboardingPersonId]);
+    expect(persisted.rows).toEqual([{ended_on:null,end_reason:null},{ended_on:null,end_reason:null}]);
+    const audits=await owner.query(`SELECT action,count(*)::int AS count FROM audit_log WHERE entity_id=ANY($1::uuid[]) GROUP BY action ORDER BY action`,[[offboardingPersonId,offboardingRequestId]]);
+    expect(audits.rows).toEqual([{action:"person.offboarding_started",count:1},{action:"request.offboarding",count:1}]);
   });
 
-  test("preserves person status for inactive and reallocated offboarding", async () => {
-    const repository = createPeopleRepository(drizzle(appPool, { schema }));
-    const inputs = [
-      {
-        personId: inactivePersonId,
-        requestId: inactiveRequestId,
-        endReason: "inactive" as const,
-      },
-      {
-        personId: reallocatedPersonId,
-        requestId: reallocatedRequestId,
-        endReason: "reallocated" as const,
-      },
-    ];
-    for (const input of inputs) {
-      const result = await startOffboardingWithAuthorization(
-        repository,
-        admin,
-        {
-          personId: input.personId,
-          endReason: input.endReason,
-          note: `Reason: ${input.endReason}`,
-        },
-        occurredAt,
-      );
-      expect(result).toMatchObject({
-        ok: true,
-        personId: input.personId,
-        status: "offboarding",
-        affectedRequestIds: [input.requestId],
-      });
-    }
-    const states = await owner.query(
-      `SELECT p.id::text, p.status, request.state,
-              assignment.ended_on::text,
-              count(action.id)::int AS actions
-         FROM person p
-         JOIN license_assignment assignment ON assignment.person_id = p.id
-         JOIN license_request request ON request.id = assignment.source_request_id
-         LEFT JOIN provisioning_action action ON action.request_id = request.id
-        WHERE p.id IN ($1, $2)
-        GROUP BY p.id, p.status, request.state, assignment.ended_on
-        ORDER BY p.id`,
-      [inactivePersonId, reallocatedPersonId],
-    );
-    expect(states.rows).toEqual([
-      {
-        id: inactivePersonId,
-        status: "active",
-        state: "offboarding",
-        ended_on: null,
-        actions: 1,
-      },
-      {
-        id: reallocatedPersonId,
-        status: "active",
-        state: "offboarding",
-        ended_on: null,
-        actions: 1,
-      },
-    ]);
-
-    await owner.query(
-      `UPDATE provisioning_action
-          SET vendor_account_id = $1
-        WHERE request_id = $2`,
-      [vendorAccountId2, reallocatedRequestId],
-    );
-    await expect(
-      startOffboardingWithAuthorization(repository, admin, {
-        personId: reallocatedPersonId,
-        endReason: "reallocated",
-        note: "Reason: reallocated",
-      }, occurredAt),
-    ).resolves.toEqual({
-      ok: false,
-      globalError: "person_offboarding_unavailable",
-    });
+  test("inactive removal preserves status and reallocated is refused as a transfer", async () => {
+    const repository=createPeopleRepository(drizzle(appPool,{schema}));
+    const saved=await repository.startOffboarding(admin,{personId:inactivePersonId,endReason:"inactive",note:"Inactive seat"},occurredAt);
+    expect(saved.person.status).toBe("active");
+    expect(saved.affectedRequestIds).toEqual([inactiveRequestId]);
+    await expect(repository.startOffboarding(admin,{personId:reallocatedPersonId,endReason:"reallocated",note:"Transfer"},occurredAt)).rejects.toMatchObject({code:"person_offboarding_transfer_required"});
+    const states=await owner.query(`SELECT p.id::text,p.status,request.state,assignment.ended_on::text,
+      (SELECT count(*)::int FROM provisioning_action WHERE request_id=request.id) AS actions
+      FROM person p JOIN license_assignment assignment ON assignment.person_id=p.id
+      JOIN license_request request ON request.id=assignment.source_request_id WHERE p.id=ANY($1::uuid[]) ORDER BY p.id`,[[inactivePersonId,reallocatedPersonId]]);
+    expect(states.rows).toEqual([{id:inactivePersonId,status:"active",state:"offboarding",ended_on:null,actions:1},
+      {id:reallocatedPersonId,status:"active",state:"active",ended_on:null,actions:0}]);
   });
 
   test("fails closed for absent, legacy, wrong-state, and unauthorized licenses", async () => {
@@ -1352,7 +1062,6 @@ describe("people repository", () => {
       SELECT pg_advisory_lock(1010);
     `);
     let result;
-    let offboarding;
     try {
       const movePromise = repository.update(admin, {
         id: movePersonId,
@@ -1363,17 +1072,11 @@ describe("people repository", () => {
         confirmCompanyMove: true,
       }, occurredAt);
       await waitForLockWaiters(owner, 1);
-      const offboardingPromise = repository.startOffboarding(admin, {
-        personId: movePersonId,
-        endReason: "inactive",
-        note: "Move cleanup",
-      }, occurredAt);
-      await waitForLockWaiters(owner, 2);
+      await expect(repository.startOffboarding(admin, {
+        personId: movePersonId, endReason: "inactive", note: "Move cleanup",
+      }, occurredAt)).rejects.toMatchObject({code:"person_offboarding_unavailable"});
       await owner.query("SELECT pg_advisory_unlock(1010)");
-      [result, offboarding] = await Promise.all([
-        movePromise,
-        offboardingPromise,
-      ]);
+      result = await movePromise;
     } finally {
       await owner.query(`
         SELECT pg_advisory_unlock_all();
@@ -1595,184 +1298,71 @@ describe("people repository", () => {
       ]),
     );
 
-    expect(offboarding.affectedRequestIds).toEqual(
-      result.fastTrackRequestIds,
-    );
-    const removals = await owner.query(
-      `SELECT id::text, request_id::text, vendor_account_id::text,
-              kind, mode, status, raw_request
-         FROM provisioning_action
-        WHERE request_id = ANY($1::uuid[])
-        ORDER BY request_id`,
-      [result.fastTrackRequestIds],
-    );
-    expect(removals.rows).toHaveLength(successors.rows.length);
-    for (const row of successors.rows) {
-      expect(
-        removals.rows.find(
-          (removal) => removal.request_id === row.source_request_id,
-        ),
-      ).toMatchObject({
-        id: expect.any(String),
-        request_id: row.source_request_id,
-        vendor_account_id: row.vendor_account_id,
-        kind: "checklist",
-        mode: "orchestration",
-        status: "pending",
-        raw_request: {
-          checklistSteps: [
-            { messageKey: "connector.manual.open_vendor_console" },
-            { messageKey: "connector.manual.remove_person" },
-            { messageKey: "connector.manual.revoke_license" },
-            { messageKey: "connector.manual.confirm_execution" },
-          ],
-          context: {
-            assignmentIds: [row.id],
-            endReason: "inactive",
-            note: "Move cleanup",
-            personId: movePersonId,
-            requestId: row.source_request_id,
-            vendorAccountId: row.vendor_account_id,
-          },
-          operation: "deprovision",
-          version: 1,
-        },
-      });
+    const targetRequest = result.fastTrackRequestIds[0]!;
+    const input = {personId:movePersonId,requestId:targetRequest,endReason:"inactive" as const,note:"Move cleanup"};
+    await expect(repository.startOffboarding(admin,{personId:movePersonId,endReason:"inactive",note:"Missing target"},occurredAt)).rejects.toMatchObject({code:"person_offboarding_unavailable"});
+    const offboarding = await repository.startOffboarding(admin,input,occurredAt);
+    expect(offboarding.affectedRequestIds).toEqual([targetRequest]);
+    expect(await repository.startOffboarding(admin,input,occurredAt)).toEqual(offboarding);
+    const states = await owner.query(`SELECT id::text,state FROM license_request WHERE id=ANY($1::uuid[]) ORDER BY id`,[result.fastTrackRequestIds]);
+    expect(states.rows.find(row=>row.id===targetRequest)?.state).toBe("offboarding");
+    expect(states.rows.filter(row=>row.id!==targetRequest).map(row=>row.state)).toEqual(["active"]);
+    const audits = await owner.query(`SELECT count(*)::int AS count FROM audit_log WHERE action='person.offboarding_started' AND entity_id=$1`,[movePersonId]);
+    expect(audits.rows).toEqual([{count:1}]);
+
+  });
+
+  test("targets one anchor, preserves another seat and person status, and deduplicates starts", async () => {
+    const repository = createPeopleRepository(drizzle(appPool, { schema }));
+    const holder = randomUUID();
+    const requests = [randomUUID(), randomUUID()];
+    const assignments = [randomUUID(), randomUUID()];
+    await owner.query(`INSERT INTO person(id,email,full_name,company_id,status,created_at,created_by)
+      VALUES($1,$2,'Targeted removal',$3,'active',$4,$5)`, [holder, `${holder}@example.test`, companyA, occurredAt, adminId]);
+    for (let index = 0; index < 2; index += 1) {
+      const license = index === 0 ? licenseTypeId : licenseTypeId2;
+      await owner.query(`INSERT INTO license_request(id,request_no,person_id,company_id,vendor_account_id,license_type_id,state,justification,created_at,created_by)
+        VALUES($1::uuid,$1::text,$2,$3,$4,$5,'active','Targeted removal',$6,$7)`, [requests[index],holder,companyA,vendorAccountId,license,occurredAt,adminId]);
+      await owner.query(`INSERT INTO license_assignment(id,person_id,company_id,vendor_account_id,license_type_id,started_on,source_request_id,source_kind,created_at,created_by)
+        VALUES($1,$2,$3,$4,$5,'2026-07-27',$6,'request',$7,$8)`, [assignments[index],holder,companyA,vendorAccountId,license,requests[index],occurredAt,adminId]);
+      await owner.query(`UPDATE license_request SET license_assignment_id=$1 WHERE id=$2`,[assignments[index],requests[index]]);
     }
-    expect(
-      removals.rows.map(({ id }) => id).sort(),
-    ).toEqual([...offboarding.provisioningActionIds].sort());
+    const input = {personId:holder,requestId:requests[0]!,endReason:"inactive" as const,note:"Remove only selected seat"};
+    await expect(repository.startOffboarding(admin,{...input,requestId:inactiveRequestId},occurredAt)).rejects.toMatchObject({code:"person_offboarding_unavailable"});
+    await expect(repository.startOffboarding(admin,{...input,endReason:"reallocated"},occurredAt)).rejects.toMatchObject({code:"person_offboarding_transfer_required"});
+    await expect(repository.startOffboarding(viewer,input,occurredAt)).rejects.toMatchObject({code:"person_forbidden"});
+    const [started, concurrent] = await Promise.all([repository.startOffboarding(admin,input,occurredAt), repository.startOffboarding(admin,input,occurredAt)]);
+    expect(concurrent).toEqual(started);
+    expect(started.affectedRequestIds).toEqual([requests[0]]);
+    expect(started.person.status).toBe("active");
+    expect(await repository.startOffboarding(admin,input,occurredAt)).toEqual(started);
+    const facts = await owner.query(`SELECT request.id::text,request.state,assignment.ended_on::text,
+      (SELECT count(*)::int FROM provisioning_action WHERE request_id=request.id) AS actions,
+      (SELECT count(*)::int FROM request_transition WHERE request_id=request.id) AS transitions
+      FROM license_request request JOIN license_assignment assignment ON assignment.source_request_id=request.id
+      WHERE request.id=ANY($1::uuid[]) ORDER BY request.id`,[requests]);
+    expect(facts.rows.find(row=>row.id===requests[0])).toEqual({id:requests[0],state:"offboarding",ended_on:null,actions:1,transitions:1});
+    expect(facts.rows.find(row=>row.id===requests[1])).toEqual({id:requests[1],state:"active",ended_on:null,actions:0,transitions:0});
+    const actions = await owner.query(`SELECT kind,mode,status,raw_request->'context' AS context FROM provisioning_action WHERE request_id=$1`,[requests[0]]);
+    expect(actions.rows).toEqual([{kind:"remove",mode:"orchestration",status:"pending",context:{assignmentIds:[assignments[0]],endReason:"inactive",note:input.note,personId:holder,requestId:requests[0],vendorAccountId}}]);
+    const audits = await owner.query(`SELECT count(*)::int AS count FROM audit_log WHERE entity_id=$1 AND action='person.offboarding_started'`,[holder]);
+    expect(audits.rows).toEqual([{count:1}]);
+  });
 
-    await owner.query(
-      `UPDATE provisioning_action
-          SET raw_request = jsonb_set(
-            raw_request,
-            '{operation}',
-            '"provision"'::jsonb
-          )
-        WHERE id = $1`,
-      [offboarding.provisioningActionIds[0]],
-    );
-    await expect(
-      repository.startOffboarding(admin, {
-        personId: movePersonId,
-        endReason: "inactive",
-        note: "Move cleanup",
-      }, occurredAt),
-    ).rejects.toMatchObject({
-      code: "person_offboarding_unavailable",
-    });
-    await owner.query(
-      `UPDATE provisioning_action
-          SET raw_request = jsonb_set(
-            raw_request,
-            '{operation}',
-            '"deprovision"'::jsonb
-          )
-        WHERE id = $1`,
-      [offboarding.provisioningActionIds[0]],
-    );
-    await owner.query(
-      "UPDATE provisioning_action SET raw_request = NULL WHERE id = $1",
-      [offboarding.provisioningActionIds[1]],
-    );
-    await expect(
-      repository.startOffboarding(admin, {
-        personId: movePersonId,
-        endReason: "inactive",
-        note: "Move cleanup",
-      }, occurredAt),
-    ).rejects.toMatchObject({
-      code: "person_offboarding_unavailable",
-    });
-    await owner.query(
-      "UPDATE provisioning_action SET raw_request = $2::jsonb WHERE id = $1",
-      [
-        offboarding.provisioningActionIds[1],
-        removals.rows.find(
-          ({ id }) => id === offboarding.provisioningActionIds[1],
-        )?.raw_request,
-      ],
-    );
-    const replay = await repository.startOffboarding(admin, {
-      personId: movePersonId,
-      endReason: "inactive",
-      note: "Move cleanup",
-    }, occurredAt);
-    expect(replay).toEqual(offboarding);
-    const actionCount = await owner.query(
-      `SELECT count(*)::int AS count FROM provisioning_action
-        WHERE request_id = ANY($1::uuid[])`,
-      [result.fastTrackRequestIds],
-    );
-    expect(actionCount.rows).toEqual([{ count: 2 }]);
-    const replayAudits = await owner.query(
-      `SELECT actor_user_id::text, action, entity_type, entity_id::text,
-              company_id::text, note, before, after, occurred_at
-         FROM audit_log
-        WHERE action = 'person.offboarding_started' AND entity_id = $1`,
-      [movePersonId],
-    );
-    const requestStatesActive = Object.fromEntries(
-      result.fastTrackRequestIds.map((id) => [id, "active"]),
-    );
-    const requestStatesOffboarding = Object.fromEntries(
-      result.fastTrackRequestIds.map((id) => [id, "offboarding"]),
-    );
-    const commonAudit = {
-      actor_user_id: adminId,
-      action: "person.offboarding_started",
-      entity_type: "Person",
-      entity_id: movePersonId,
-      company_id: companyB,
-      note: "Move cleanup",
-      occurred_at: occurredAt,
-    };
-    expect(replayAudits.rows).toHaveLength(2);
-    expect(replayAudits.rows).toEqual(
-      expect.arrayContaining([
-        {
-          ...commonAudit,
-          before: {
-            status: "active",
-            requestStates: requestStatesActive,
-          },
-          after: {
-            status: "active",
-            requestStates: requestStatesOffboarding,
-            provisioningActionIds: offboarding.provisioningActionIds,
-          },
-        },
-        {
-          ...commonAudit,
-          before: {
-            status: "active",
-            requestStates: requestStatesOffboarding,
-          },
-          after: {
-            status: "active",
-            requestStates: requestStatesOffboarding,
-            provisioningActionIds: offboarding.provisioningActionIds,
-          },
-        },
-      ]),
-    );
-
-    await owner.query(
-      `UPDATE license_request
-          SET state = 'active'
-        WHERE id = $1`,
-      [result.fastTrackRequestIds[0]],
-    );
-    await expect(
-      repository.startOffboarding(admin, {
-        personId: movePersonId,
-        endReason: "inactive",
-        note: "Move cleanup",
-      }, occurredAt),
-    ).rejects.toMatchObject({
-      code: "person_offboarding_unavailable",
-    });
+  test("creates automated pending removal from the shipped REST capability without provider execution", async () => {
+    const repository=createPeopleRepository(drizzle(appPool,{schema}));
+    await owner.query("UPDATE vendor SET connector_type='api',provisioning_protocol='rest',can_deprovision=true WHERE id=$1",[vendorId]);
+    await owner.query("UPDATE vendor_account SET mode='automated' WHERE id=$1",[vendorAccountId]);
+    const saved=await repository.startOffboarding(admin,{personId:reallocatedPersonId,requestId:reallocatedRequestId,endReason:"left_company",note:"Await worker"},occurredAt);
+    expect(saved.person.status).toBe("active");
+    const result=await owner.query(`SELECT request.state,action.kind,action.mode,action.status,
+      action.raw_request->>'protocol' AS protocol,action.raw_request->'checklistSteps' AS steps,
+      assignment.ended_on::text FROM license_request request
+      JOIN provisioning_action action ON action.request_id=request.id
+      JOIN license_assignment assignment ON assignment.source_request_id=request.id WHERE request.id=$1`,[reallocatedRequestId]);
+    expect(result.rows).toEqual([{state:"offboarding",kind:"remove",mode:"automated",status:"pending",protocol:"rest",steps:[],ended_on:null}]);
+    const observed=await owner.query(`SELECT count(*)::int AS count FROM connector_call_observation WHERE provisioning_action_id=ANY($1::uuid[])`,[saved.provisioningActionIds]);
+    expect(observed.rows).toEqual([{count:0}]);
   });
 
 });

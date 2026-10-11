@@ -55,6 +55,7 @@ export type PeopleRepositoryErrorCode =
   | "person_email_conflict"
   | "person_forbidden"
   | "person_not_found"
+  | "person_offboarding_transfer_required"
   | "person_offboarding_unavailable"
   | "person_request_number_conflict";
 
@@ -70,6 +71,7 @@ export class PeopleRepositoryError extends Error {
         : code === "person_email_conflict"
           ? 409
           : code === "company_move_confirmation_required" ||
+              code === "person_offboarding_transfer_required" ||
               code === "person_offboarding_unavailable" ||
               code === "person_request_number_conflict"
             ? 422
@@ -659,377 +661,101 @@ export function createPeopleRepository(
 
   async function startOffboarding(
     authorization: LedgerAuthorization,
-    input: StartOffboardingInput,
+    input: StartOffboardingInput & { readonly requestId?: string },
     occurredAt = new Date(),
   ): Promise<StartOffboardingResult> {
     requireAdmin(authorization);
-    assertLegalTransition("active", "offboarding");
-    return withAudit(
-      database,
-      async (transaction) => {
-        const [existing] = await transaction
-          .select()
-          .from(person)
-          .where(
-            and(
-              eq(person.id, input.personId),
-              readScope(authorization, person.companyId),
-            ),
-          )
-          .for("update")
-          .limit(1);
-        if (!existing) {
-          throw new PeopleRepositoryError(
-            "person_offboarding_unavailable",
-          );
-        }
-        const openAssignments = await transaction
-          .select()
-          .from(licenseAssignment)
-          .where(
-            and(
-              eq(licenseAssignment.personId, existing.id),
-              eq(licenseAssignment.companyId, existing.companyId),
-              isNull(licenseAssignment.endedOn),
-            ),
-          )
-          .orderBy(asc(licenseAssignment.id))
-          .for("update");
-        if (
-          openAssignments.length === 0 ||
-          openAssignments.some(
-            (assignment) => assignment.sourceRequestId === null,
-          )
-        ) {
-          throw new PeopleRepositoryError(
-            "person_offboarding_unavailable",
-          );
-        }
-        const requestIds = [
-          ...new Set(
-            openAssignments.map(
-              (assignment) => assignment.sourceRequestId!,
-            ),
-          ),
-        ].sort();
-        const activeRequests = await transaction
-          .select()
-          .from(licenseRequest)
-          .where(
-            and(
-              inArray(licenseRequest.id, requestIds),
-              eq(licenseRequest.personId, existing.id),
-              eq(licenseRequest.companyId, existing.companyId),
-              inArray(licenseRequest.state, ["active", "offboarding"]),
-            ),
-          )
-          .orderBy(asc(licenseRequest.id))
-          .for("update");
-        const requestById = new Map(
-          activeRequests.map((request) => [request.id, request]),
-        );
-        const usable =
-          activeRequests.length === requestIds.length &&
-          openAssignments.every((assignment) => {
-            const request = requestById.get(
-              assignment.sourceRequestId!,
-            );
-            return (
-              request !== undefined &&
-              request.vendorAccountId === assignment.vendorAccountId
-            );
-          }) &&
-          (activeRequests.every((request) => request.state === "active") ||
-            activeRequests.every(
-              (request) => request.state === "offboarding",
-            ));
-        if (!usable) {
-          // TODO(US-024): materialize an active source request for legacy
-          // imported assignments before enabling their offboarding.
-          throw new PeopleRepositoryError(
-            "person_offboarding_unavailable",
-          );
-        }
-
-        if (
-          activeRequests.every(
-            (request) => request.state === "offboarding",
-          )
-        ) {
-          const existingActions = await transaction
-            .select({
-              id: provisioningAction.id,
-              kind: provisioningAction.kind,
-              mode: provisioningAction.mode,
-              rawRequest: provisioningAction.rawRequest,
-              requestId: provisioningAction.requestId,
-              status: provisioningAction.status,
-              vendorAccountId: provisioningAction.vendorAccountId,
-            })
-            .from(provisioningAction)
-            .where(
-              and(
-                inArray(provisioningAction.requestId, requestIds),
-                eq(provisioningAction.status, "pending"),
-              ),
-            )
-            .orderBy(asc(provisioningAction.requestId));
-          const actionByRequest = new Map(
-            existingActions.map((action) => [action.requestId, action]),
-          );
-          const canonicalActions = activeRequests.every((request) => {
-            const action = actionByRequest.get(request.id);
-            return (
-              action !== undefined &&
-              action.kind === "checklist" &&
-              action.mode === "orchestration" &&
-              // Stryker disable next-line ConditionalExpression: @equivalent
-              // The SQL predicate already admits only pending rows.
-              action.status === "pending" &&
-              // Stryker disable next-line ConditionalExpression: @equivalent
-              // Map lookup is keyed by this selected requestId.
-              action.requestId === request.id &&
-              action.vendorAccountId === request.vendorAccountId &&
-              (
-                action.rawRequest as
-                  | { operation?: unknown }
-                  | null
-              )?.operation === "deprovision"
-            );
-          });
-          if (!canonicalActions) {
-            throw new PeopleRepositoryError(
-              "person_offboarding_unavailable",
-            );
-          }
-          const provisioningActionIds = requestIds.map(
-            (requestId) => actionByRequest.get(requestId)!.id,
-          );
-          return {
-            value: {
-              person: existing,
-              status: "offboarding" as const,
-              affectedRequestIds: requestIds,
-              provisioningActionIds,
-            },
-            audit: {
-              actorUserId: authorization.userAccountId,
-              action: "person.offboarding_started",
-              entityType: "Person",
-              entityId: existing.id,
-              companyId: existing.companyId,
-              note: input.note,
-              before: {
-                status: existing.status,
-                requestStates: Object.fromEntries(
-                  requestIds.map((id) => [id, "offboarding"]),
-                ),
-              },
-              after: {
-                status: existing.status,
-                requestStates: Object.fromEntries(
-                  requestIds.map((id) => [id, "offboarding"]),
-                ),
-                provisioningActionIds,
-              },
-            },
-          };
-        }
-
-        for (const request of activeRequests) {
-          const updated = await transaction
-            .update(licenseRequest)
-            .set({ state: "offboarding", updatedAt: occurredAt })
-            .where(
-              and(
-                eq(licenseRequest.id, request.id),
-                eq(licenseRequest.companyId, existing.companyId),
-                eq(licenseRequest.state, "active"),
-              ),
-            )
-            .returning({ id: licenseRequest.id });
-          // Stryker disable all: @equivalent: each request is locked and was
-          // verified active; its id, company, and state cannot change here.
-          if (updated.length !== 1) {
-            throw new PeopleRepositoryError(
-              "person_offboarding_unavailable",
-            );
-          }
-          // Stryker restore all
-        }
-        await transaction.insert(requestTransition).values(
-          activeRequests.map((request) => ({
-            requestId: request.id,
-            fromState: "active",
-            toState: "offboarding",
-            actorUserId: authorization.userAccountId,
-            note: input.note,
-            occurredAt,
-          })),
-        );
-        await transaction.insert(auditLog).values(
-          activeRequests.map((request) => ({
-            actorUserId: authorization.userAccountId,
-            action: "request.offboarding",
-            entityType: "LicenseRequest",
-            entityId: request.id,
-            companyId: existing.companyId,
-            note: input.note,
-            before: { state: "active" },
-            after: { state: "offboarding" },
-            occurredAt,
-          })),
-        );
-        const actionPlans = await Promise.all(
-          activeRequests.map(async (request) => {
-            const [facts] = await transaction
-              .select({
-                accountMode: vendorAccount.mode,
-                canDeprovision: vendor.canDeprovision,
-                canProvision: vendor.canProvision,
-                licenseTypeName: licenseType.name,
-                provisioningProtocol: vendor.provisioningProtocol,
-              })
-              .from(vendorAccount)
-              .innerJoin(vendor, eq(vendor.id, vendorAccount.vendorId))
-              .innerJoin(
-                licenseType,
-                and(
-                  eq(licenseType.id, request.licenseTypeId),
-                  eq(licenseType.vendorId, vendor.id),
-                ),
-              )
-              .where(eq(vendorAccount.id, request.vendorAccountId))
-              .limit(1);
-            if (!facts) {
-              throw new PeopleRepositoryError(
-                "person_offboarding_unavailable",
-              );
-            }
-            const assignmentIds = openAssignments
-              .filter(
-                (assignment) =>
-                  assignment.sourceRequestId === request.id,
-              )
-              .map((assignment) => assignment.id)
-              .sort();
-            const plan = await planProvisioningAction(
-              createConnectorDispatcher(),
-              {
-                accountMode: facts.accountMode,
-                context: {
-                  assignmentIds,
-                  endReason: input.endReason,
-                  note: input.note,
-                  personId: existing.id,
-                  requestId: request.id,
-                  vendorAccountId: request.vendorAccountId,
-                },
-                entityIds: {
-                  licenseId: request.licenseTypeId,
-                  personId: existing.id,
-                },
-                instruction: {
-                  licenseTypeName: facts.licenseTypeName,
-                  personEmail: existing.email,
-                  requestId: request.id,
-                  vendorAccountId: request.vendorAccountId,
-                },
-                operation: "deprovision",
-                vendor: {
-                  canDeprovision: facts.canDeprovision,
-                  canProvision: facts.canProvision,
-                  provisioningProtocol: facts.provisioningProtocol,
-                },
-              },
-            );
-            return { plan, request };
-          }),
-        );
-        const actions = await transaction
-          .insert(provisioningAction)
-          .values(
-            actionPlans.map(({ plan, request }) => {
-              return {
-                requestId: request.id,
-                vendorAccountId: request.vendorAccountId,
-                kind: plan.kind,
-                mode: plan.mode,
-                status: plan.status,
-                rawRequest: plan.rawRequest,
-                createdAt: occurredAt,
-              };
-            }),
-          )
-          .returning({ id: provisioningAction.id });
-        // Stryker disable all: @equivalent: INSERT ... RETURNING yields one
-        // row for every value in the exact activeRequests mapping.
-        if (actions.length !== activeRequests.length) {
-          throw new PeopleRepositoryError(
-            "person_offboarding_unavailable",
-          );
-        }
-        // Stryker restore all
-        const nextStatus =
-          input.endReason === "left_company"
-            ? "departed"
-            : existing.status;
-        const [saved] = await transaction
-          .update(person)
-          .set({
-            status: nextStatus,
-            updatedAt: occurredAt,
-            updatedBy: authorization.userAccountId,
-          })
-          .where(
-            and(
-              eq(person.id, existing.id),
-              eq(person.companyId, existing.companyId),
-            ),
-          )
-          .returning();
-        // Stryker disable all: @equivalent: the locked row cannot disappear,
-        // and both predicates are immutable values read from that row.
-        if (!saved) {
-          throw new PeopleRepositoryError(
-            "person_offboarding_unavailable",
-          );
-        }
-        // Stryker restore all
-        const provisioningActionIds = actions.map(({ id }) => id);
-        const requestStates = Object.fromEntries(
-          requestIds.map((id) => [id, "active"]),
-        );
-        return {
-          value: {
-            person: saved,
-            status: "offboarding" as const,
-            affectedRequestIds: requestIds,
-            provisioningActionIds,
-          },
-          audit: {
-            actorUserId: authorization.userAccountId,
-            action: "person.offboarding_started",
-            entityType: "Person",
-            entityId: existing.id,
-            companyId: existing.companyId,
-            note: input.note,
-            before: {
-              status: existing.status,
-              requestStates,
-            },
-            after: {
-              status: saved.status,
-              requestStates: Object.fromEntries(
-                requestIds.map((id) => [id, "offboarding"]),
-              ),
-              provisioningActionIds,
-            },
-          },
-        };
-      },
-      { occurredAt },
-    );
+    if (input.endReason === "reallocated") {
+      throw new PeopleRepositoryError("person_offboarding_transfer_required");
+    }
+    return database.transaction(async (transaction) => {
+      const unavailable = () => new PeopleRepositoryError("person_offboarding_unavailable");
+      const [existing] = await transaction.select().from(person).where(and(
+        eq(person.id, input.personId), readScope(authorization, person.companyId),
+      )).limit(1);
+      if (!existing) throw unavailable();
+      const candidates = await transaction.select({ requestId: licenseAssignment.sourceRequestId })
+        .from(licenseAssignment).where(and(eq(licenseAssignment.personId, existing.id),
+          eq(licenseAssignment.companyId, existing.companyId), isNull(licenseAssignment.endedOn)));
+      const candidateIds = [...new Set(candidates.map(({ requestId }) => requestId).filter((id): id is string => id !== null))];
+      const targetId = input.requestId ?? (candidateIds.length === 1 ? candidateIds[0] : undefined);
+      if (!targetId || !candidateIds.includes(targetId)) throw unavailable();
+      const [request] = await transaction.select().from(licenseRequest).where(and(
+        eq(licenseRequest.id, targetId), eq(licenseRequest.companyId, existing.companyId),
+        eq(licenseRequest.personId, existing.id), inArray(licenseRequest.state, ["active", "offboarding"]),
+      )).for("update").limit(1);
+      if (!request) throw unavailable();
+      const priorActions = await transaction.select().from(provisioningAction)
+        .where(and(eq(provisioningAction.requestId, request.id),
+          eq(provisioningAction.vendorAccountId, request.vendorAccountId),
+          sql`${provisioningAction.rawRequest}->>'operation' = 'deprovision'`))
+        .orderBy(asc(provisioningAction.id)).for("update");
+      const assignments = await transaction.select().from(licenseAssignment).where(and(
+        eq(licenseAssignment.sourceRequestId, request.id), eq(licenseAssignment.companyId, existing.companyId),
+        eq(licenseAssignment.personId, existing.id), isNull(licenseAssignment.endedOn),
+      )).orderBy(asc(licenseAssignment.id)).for("update");
+      if (assignments.length === 0 || assignments.some(assignment =>
+        assignment.vendorAccountId !== request.vendorAccountId || assignment.licenseTypeId !== request.licenseTypeId)) throw unavailable();
+      const assignmentIds = assignments.map(({ id }) => id);
+      if (request.state === "offboarding") {
+        const action = priorActions.length === 1 ? priorActions[0] : undefined;
+        const raw = action?.rawRequest as { context?: { assignmentIds?: unknown; endReason?: unknown; personId?: unknown; requestId?: unknown; vendorAccountId?: unknown }; checklistSteps?: unknown[] } | null;
+        const context = raw?.context;
+        if (!action || action.status !== "pending" ||
+          !((action.kind === "remove" && (action.mode === "orchestration" || action.mode === "automated")) ||
+            (action.kind === "checklist" && action.mode === "orchestration")) ||
+          (action.mode === "automated" && raw?.checklistSteps?.length !== 0) ||
+          context?.endReason !== input.endReason || context.personId !== existing.id ||
+          context.requestId !== request.id || context.vendorAccountId !== request.vendorAccountId ||
+          JSON.stringify(context.assignmentIds) !== JSON.stringify(assignmentIds)) throw unavailable();
+        return { person: existing, status: "offboarding" as const,
+          affectedRequestIds: [request.id], provisioningActionIds: [action.id] };
+      }
+      if (priorActions.length !== 0) throw unavailable();
+      const [facts] = await transaction.select({ accountMode: vendorAccount.mode,
+        canDeprovision: vendor.canDeprovision, canProvision: vendor.canProvision,
+        licenseTypeName: licenseType.name, provisioningProtocol: vendor.provisioningProtocol,
+      }).from(vendorAccount).innerJoin(vendor, eq(vendor.id, vendorAccount.vendorId))
+        .innerJoin(licenseType, and(eq(licenseType.id, request.licenseTypeId), eq(licenseType.vendorId, vendor.id)))
+        .where(and(eq(vendorAccount.id, request.vendorAccountId), eq(vendorAccount.status, "active"),
+          eq(vendor.status, "active"), eq(licenseType.status, "active"))).limit(1);
+      if (!facts) throw unavailable();
+      const plan = await planProvisioningAction(createConnectorDispatcher(), {
+        accountMode: facts.accountMode,
+        context: { assignmentIds, endReason: input.endReason, note: input.note,
+          personId: existing.id, requestId: request.id, vendorAccountId: request.vendorAccountId },
+        entityIds: { licenseId: request.licenseTypeId, personId: existing.id },
+        instruction: { licenseTypeName: facts.licenseTypeName, personEmail: existing.email,
+          requestId: request.id, vendorAccountId: request.vendorAccountId },
+        operation: "deprovision", vendor: facts,
+      });
+      // US-025's persisted descriptor is the planning authority. Runtime
+      // provider composition and execution belong to US-082.
+      const automated = facts.accountMode === "automated" && facts.canDeprovision && facts.provisioningProtocol === "rest";
+      const removalPayload = automated
+        ? { ...(plan.rawRequest as Record<string, unknown>), checklistSteps: [] }
+        : plan.rawRequest;
+      assertLegalTransition("active", "offboarding");
+      await transaction.update(licenseRequest).set({ state: "offboarding", updatedAt: occurredAt })
+        .where(and(eq(licenseRequest.id, request.id), eq(licenseRequest.companyId, existing.companyId), eq(licenseRequest.state, "active")));
+      await transaction.insert(requestTransition).values({ requestId: request.id, fromState: "active",
+        toState: "offboarding", actorUserId: authorization.userAccountId, note: input.note, occurredAt });
+      const [action] = await transaction.insert(provisioningAction).values({ requestId: request.id,
+        vendorAccountId: request.vendorAccountId, kind: "remove", mode: automated ? "automated" : "orchestration",
+        status: "pending", rawRequest: removalPayload, createdAt: occurredAt }).returning({ id: provisioningAction.id });
+      if (!action) throw unavailable();
+      await transaction.insert(auditLog).values([
+        { actorUserId: authorization.userAccountId, action: "request.offboarding", entityType: "LicenseRequest",
+          entityId: request.id, companyId: existing.companyId, note: input.note,
+          before: { state: "active" }, after: { state: "offboarding" }, occurredAt },
+        { actorUserId: authorization.userAccountId, action: "person.offboarding_started", entityType: "Person",
+          entityId: existing.id, companyId: existing.companyId, note: input.note,
+          before: { status: existing.status, requestStates: { [request.id]: "active" } },
+          after: { status: existing.status, requestStates: { [request.id]: "offboarding" }, provisioningActionIds: [action.id] }, occurredAt },
+      ]);
+      return { person: existing, status: "offboarding" as const,
+        affectedRequestIds: [request.id], provisioningActionIds: [action.id] };
+    });
   }
 
   async function companies(
