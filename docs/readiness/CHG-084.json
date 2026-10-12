@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "60e06ce0e5522bd0874204a3c6fa90b6512c52390238184b87a7b1247ced7228",
+  "work_id": "CHG-084",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Preserve readiness counting through rebase using explicit bookkeeping presence",
+  "source": "docs/stories/CHANGES.md CHG-084; Francisco complete execution instruction for167802bc on2026-10-11",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "An unchanged approved readiness payload uses the same legacy inclusive counting before and after rebase; bookkeeping_files opts into CHG-082 delivery counting without ancestry classification.",
+      "demo": "Real-Git pre/post-rebase fixture passes unchanged; legacy21-path assessment refuses WR_TOO_MANY_FILES; explicit-field delivery16/bookkeeping5 assessment passes; currentUS024/075/079080081 artifacts remain byte-identical and validate.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling",
+    "readiness-policy",
+    "verification"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 6,
+    "bookkeeping_files": 4,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 15,
+    "implementation": 25,
+    "focused_verification": 20,
+    "review": 15,
+    "integration": 15,
+    "total": 90
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Optional schema2 gate is not required by canonical allocation.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Do not introduce schema2. Presence of signals.bookkeeping_files selects delivery counting, absence selects legacy inclusive. Validate integer field when present. No historical artifacts or approval bytes changed."
+    },
+    {
+      "id": "U2",
+      "statement": "Full gate also needs regenerated-guidance pin underCHG085.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "Own code/focused/scoped checks first, then CHG085 sequential pin; reuse one coordinated owned-lock awake gate for both closures. No84closure before own AC/finalgreen evidence. HistoricalUS075mutationFAIL belongs to functional children, not zero-source technical scope."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG084-READY-DELEGATED-20261012",
+    "payload_sha256": "60e06ce0e5522bd0874204a3c6fa90b6512c52390238184b87a7b1247ced7228"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
