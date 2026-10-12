@@ -692,7 +692,7 @@ export function createPeopleRepository(
       if (!targetId || !candidateIds.includes(targetId)) throw unavailable();
       const [request] = await transaction.select().from(licenseRequest).where(and(
         eq(licenseRequest.id, targetId), eq(licenseRequest.companyId, existing.companyId),
-        eq(licenseRequest.personId, existing.id), inArray(licenseRequest.state, ["active", "offboarding"]),
+        eq(licenseRequest.personId, existing.id), eq(licenseRequest.state, "active"),
       )).for("update").limit(1);
       if (!request) throw unavailable();
       const priorActions = await transaction.select().from(provisioningAction)
@@ -708,20 +708,6 @@ export function createPeopleRepository(
         assignment.vendorAccountId !== request.vendorAccountId || assignment.licenseTypeId !== request.licenseTypeId)) throw unavailable();
       const assignmentIds = assignments.map(({ id }) => id);
       if (request.licenseAssignmentId === null || !assignmentIds.includes(request.licenseAssignmentId)) throw unavailable();
-      if (request.state === "offboarding") {
-        const action = priorActions.length === 1 ? priorActions[0] : undefined;
-        const raw = action?.rawRequest as { context?: { assignmentIds?: unknown; endReason?: unknown; personId?: unknown; requestId?: unknown; vendorAccountId?: unknown }; checklistSteps?: unknown[] } | null;
-        const context = raw?.context;
-        if (!action || action.status !== "pending" ||
-          !((action.kind === "remove" && (action.mode === "orchestration" || action.mode === "automated")) ||
-            (action.kind === "checklist" && action.mode === "orchestration")) ||
-          (action.mode === "automated" && raw?.checklistSteps?.length !== 0) ||
-          context?.endReason !== input.endReason || context.personId !== existing.id ||
-          context.requestId !== request.id || context.vendorAccountId !== request.vendorAccountId ||
-          JSON.stringify(context.assignmentIds) !== JSON.stringify(assignmentIds)) throw unavailable();
-        return { person: existing, status: "offboarding" as const,
-          affectedRequestIds: [request.id], provisioningActionIds: [action.id] };
-      }
       if (priorActions.length !== 0) throw unavailable();
       const [facts] = await transaction.select({ accountMode: vendorAccount.mode,
         canDeprovision: vendor.canDeprovision, canProvision: vendor.canProvision,
