@@ -185,6 +185,7 @@ test.each([{flow:"person discovery",fixed:false,endReason:"inactive"},{flow:"req
   releaseStart();
   await screen.findByText(labels.offboardingSuccess);
   expect(screen.getByText(labels.offboardingSuccess).parentElement?.className).toContain("text-success");
+  expect(screen.getByText(esMessages.people.offboardingPending)).toBeTruthy();
   expect(screen.getByRole("link",{name:esMessages.people.offboardingViewRequest}).getAttribute("href")).toBe(`/solicitudes/${requests[1]}`);
   await waitFor(()=>expect((screen.getByTestId("modal_offboarding") as HTMLDetailsElement).open).toBe(false));
   const persisted=await owner.query("SELECT request.id::text,request.state,assignment.ended_on,assignment.end_reason,(SELECT count(*)::int FROM provisioning_action WHERE request_id=request.id) AS actions,(SELECT count(*)::int FROM request_transition WHERE request_id=request.id) AS transitions FROM license_request request JOIN license_assignment assignment ON assignment.id=request.license_assignment_id WHERE request.id=ANY($1::uuid[]) ORDER BY request.id",[requests]);
