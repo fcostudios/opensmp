@@ -5,6 +5,9 @@ import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { getTableName, SQL } from "drizzle-orm";
+import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
+import { vendor, vendorAccount, licenseType, memberObservation } from "./schema";
 import {
   createPostgresFixture,
   type PostgresFixture,
@@ -409,6 +412,109 @@ describe("US-083 observation catalog and immutable ledger", () => {
     const other = "00000000-0000-0000-0000-000000000084";
     const actor = "00000000-0000-0000-0000-000000000001";
     try {
+      // Compare the application declarations with the independent committed PostgreSQL catalog.
+      // This observes schema-static mutants; SQL-only enforcement checks below cannot do so.
+      const dialect = new PgDialect();
+      const targets = [
+        { name: "vendor", table: vendor, columns: [vendor.memberSeatEvidence, vendor.memberLicenseIdentity] },
+        { name: "vendor_account", table: vendorAccount, columns: [vendorAccount.defaultLicenseTypeId] },
+        { name: "license_type", table: licenseType, columns: [licenseType.providerRef] },
+        { name: "member_observation", table: memberObservation, columns: getTableConfig(memberObservation).columns },
+      ];
+      for (const { name, table, columns } of targets) {
+        expect(getTableName(table)).toBe(name);
+        const catalog = await app.query<{
+          name: string; type: string; notNull: boolean; defaultExpression: string | null; enumValues: string[];
+        }>(`SELECT attribute.attname AS name,
+                  format_type(attribute.atttypid, attribute.atttypmod) AS type,
+                  attribute.attnotnull AS "notNull",
+                  pg_get_expr(column_default.adbin, column_default.adrelid) AS "defaultExpression",
+                  ARRAY(SELECT enum_value.enumlabel::text FROM pg_enum enum_value
+                        WHERE enum_value.enumtypid = attribute.atttypid
+                        ORDER BY enum_value.enumsortorder) AS "enumValues"
+           FROM pg_attribute attribute
+           LEFT JOIN pg_attrdef column_default ON column_default.adrelid = attribute.attrelid
+             AND column_default.adnum = attribute.attnum
+           WHERE attribute.attrelid = $1::regclass AND attribute.attnum > 0 AND NOT attribute.attisdropped
+           ORDER BY attribute.attnum`, [`public.${name}`]);
+        if (name === "member_observation") expect(columns.map(column => column.name)).toEqual(catalog.rows.map(column => column.name));
+        for (const column of columns) {
+          const actual = catalog.rows.find(row => row.name === column.name);
+          expect(actual, `${name}.${column.name} exists`).toBeDefined();
+          expect(column.getSQLType()).toBe(actual!.type);
+          expect(column.notNull).toBe(actual!.notNull);
+          expect(column.hasDefault).toBe(actual!.defaultExpression !== null);
+          if ("enumValues" in column) expect(column.enumValues ?? []).toEqual(actual!.enumValues);
+          if (actual!.defaultExpression !== null) {
+            // Compare constant defaults by evaluated value; UUID expressions by function identity.
+            if (column.default instanceof SQL) {
+              expect(dialect.sqlToQuery(column.default).sql.replaceAll('"', "")).toBe(actual!.defaultExpression);
+            } else {
+              const databaseValue = await app.query<{ value: string }>(`SELECT (${actual!.defaultExpression})::text AS value`);
+              const applicationValue = Array.isArray(column.default)
+                ? await app.query<{ value: string }>("SELECT $1::jsonb::text AS value", [JSON.stringify(column.default)])
+                : await app.query<{ value: string }>("SELECT $1::text AS value", [column.default]);
+              expect(applicationValue.rows).toEqual(databaseValue.rows);
+            }
+          }
+        }
+      }
+      for (const { name, table, columns } of targets.filter(target => target.name !== "vendor")) {
+        const config = getTableConfig(table);
+        const names = columns.map(column => column.name);
+        const keys = await app.query<{ columns: string[]; foreignTable: string; foreignColumns: string[] }>(`
+          SELECT ARRAY(SELECT attribute.attname::text FROM unnest(key.conkey) WITH ORDINALITY part(num, position)
+                       JOIN pg_attribute attribute ON attribute.attrelid = key.conrelid AND attribute.attnum = part.num
+                       ORDER BY part.position) AS columns,
+                 relation.relname AS "foreignTable",
+                 ARRAY(SELECT attribute.attname::text FROM unnest(key.confkey) WITH ORDINALITY part(num, position)
+                       JOIN pg_attribute attribute ON attribute.attrelid = key.confrelid AND attribute.attnum = part.num
+                       ORDER BY part.position) AS "foreignColumns"
+          FROM pg_constraint key JOIN pg_class relation ON relation.oid = key.confrelid
+          WHERE key.conrelid = $1::regclass AND key.contype = 'f'`, [`public.${name}`]);
+        const relevant = (key: { columns: string[] }) => key.columns.some(column => names.includes(column));
+        const sortKeys = <T extends { columns: string[] }>(keys: T[]) => keys.sort((left, right) => left.columns.join().localeCompare(right.columns.join()));
+        expect(sortKeys(config.foreignKeys.map(key => ({
+          columns: key.reference().columns.map(column => column.name),
+          foreignTable: getTableName(key.reference().foreignTable),
+          foreignColumns: key.reference().foreignColumns.map(column => column.name),
+        })).filter(relevant))).toEqual(sortKeys(keys.rows.filter(relevant)));
+        const unique = await app.query<{ name: string; columns: string[] }>(`
+          SELECT key.conname AS name,
+                 ARRAY(SELECT attribute.attname::text FROM unnest(key.conkey) WITH ORDINALITY part(num, position)
+                       JOIN pg_attribute attribute ON attribute.attrelid = key.conrelid AND attribute.attnum = part.num
+                       ORDER BY part.position) AS columns
+          FROM pg_constraint key WHERE key.conrelid = $1::regclass AND key.contype = 'u'`, [`public.${name}`]);
+        expect(sortKeys(config.uniqueConstraints.map(key => ({ name: key.name, columns: key.columns.map(column => column.name) })).filter(relevant)))
+          .toEqual(sortKeys(unique.rows.filter(relevant)));
+      }
+      const observationConfig = getTableConfig(memberObservation);
+      const primary = await app.query<{ columns: string[] }>(`SELECT ARRAY(
+        SELECT attribute.attname::text FROM unnest(key.conkey) WITH ORDINALITY part(num, position)
+        JOIN pg_attribute attribute ON attribute.attrelid = key.conrelid AND attribute.attnum = part.num
+        ORDER BY part.position) AS columns FROM pg_constraint key
+        WHERE key.conrelid = 'public.member_observation'::regclass AND key.contype = 'p'`);
+      expect(observationConfig.columns.filter(column => column.primary).map(column => column.name)).toEqual(primary.rows[0].columns);
+      const checks = await app.query<{ name: string; expression: string }>(`SELECT conname AS name,
+        pg_get_expr(conbin, conrelid) AS expression FROM pg_constraint
+        WHERE conrelid = 'public.member_observation'::regclass AND contype = 'c' ORDER BY conname`);
+      const normalizeCheck = (value: string) => value.replaceAll('"member_observation".', "")
+        .replace(/::text/g, "").replace(/[\s()"]/g, "");
+      expect(observationConfig.checks.map(check => ({ name: check.name,
+        expression: normalizeCheck(dialect.sqlToQuery(check.value).sql) })).sort((left, right) => (left.name ?? "").localeCompare(right.name ?? "")))
+        .toEqual(checks.rows.map(check => ({ ...check, expression: normalizeCheck(check.expression) })));
+      const indexes = await app.query<{ name: string; columns: string[]; unique: boolean }>(`
+        SELECT relation.relname AS name, index.indisunique AS unique,
+          ARRAY(SELECT attribute.attname::text FROM unnest(index.indkey) WITH ORDINALITY part(num, position)
+                JOIN pg_attribute attribute ON attribute.attrelid = index.indrelid AND attribute.attnum = part.num
+                ORDER BY part.position) AS columns
+        FROM pg_index index JOIN pg_class relation ON relation.oid = index.indexrelid
+        WHERE index.indrelid = 'public.member_observation'::regclass
+          AND NOT EXISTS (SELECT 1 FROM pg_constraint key WHERE key.conindid = index.indexrelid)
+        ORDER BY relation.relname`);
+      expect(observationConfig.indexes.map(({ config }) => ({ name: config.name, unique: config.unique,
+        columns: config.columns.map(column => "name" in column ? column.name : undefined) }))
+        .sort((left, right) => (left.name ?? "").localeCompare(right.name ?? ""))).toEqual(indexes.rows);
       for (const [id, name] of [["00000000-0000-0000-0000-000000000085", "ANTHROPIC"], [other, "Other provider"]]) {
         await owner.query(`INSERT INTO vendor (id,name,connector_type,provisioning_protocol,can_provision,
           can_deprovision,has_usage_data,has_cost_data,identity_matching,status,created_at,created_by)
