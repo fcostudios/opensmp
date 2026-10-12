@@ -6,7 +6,7 @@ import * as schema from "@smp/db/schema";
 import { createPeopleRepository } from "../../modules/org-registry/repository";
 import { executeOffboardingIntent } from "../../modules/org-registry/people-action-service";
 import { createAuthorizationRepository } from "../../modules/identity-access/authorization";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { afterEach, describe, expect, test } from "vitest";
@@ -86,22 +86,76 @@ test.each([{flow:"person discovery",fixed:false,endReason:"inactive"},{flow:"req
    await owner.query("UPDATE license_request SET license_assignment_id=$1 WHERE id=$2",[assignments[index],requests[index]]);
   }
   const repository=createPeopleRepository(database),authorizationRepository=createAuthorizationRepository(database);
+  let discoveryCalls=0,startCalls=0;
+  let releaseDiscovery!:()=>void, releaseStart!:()=>void;
+  const discoveryBarrier=new Promise<void>(resolve=>{releaseDiscovery=resolve;});
+  const startBarrier=new Promise<void>(resolve=>{releaseStart=resolve;});
+  let holdStart=false;
   const action=async(input:unknown)=>{
+   const discovering=(input as {intent?:string}).intent==="read_targets";
+   if(discovering){discoveryCalls++;await discoveryBarrier;}else{startCalls++;}
    const authorization=await authorizationRepository.load({subject:"us075-ui-admin"});
-   return (await executeOffboardingIntent(repository,authorization,input,at)).state;
+   const result=(await executeOffboardingIntent(repository,authorization,input,at)).state;
+   if(!discovering && holdStart)await startBarrier;
+   return result;
   };
   const user=userEvent.setup();
-  render(<NextIntlClientProvider locale="es-EC" messages={esMessages}><PersonOffboarding action={action} labels={labels} personId={person} fixedRequestId={fixed?requests[1]:undefined}/></NextIntlClientProvider>);
+  render(<NextIntlClientProvider locale="es-EC" messages={esMessages}><PersonOffboarding action={action} personId={person} fixedRequestId={fixed?requests[1]:undefined}/></NextIntlClientProvider>);
   await user.click(screen.getByTestId("btn_start_offboarding"));
+  if(!fixed){
+   await screen.findByText(esMessages.people.offboardingLoadingTargets);
+   expect((screen.getByTestId("offboarding_target") as HTMLSelectElement).disabled).toBe(true);
+   expect((screen.getByTestId("btn_confirm_offboarding") as HTMLButtonElement).disabled).toBe(true);
+   // Close/reopen during the real discovery request cannot create a second request.
+   await user.click(screen.getByTestId("btn_start_offboarding"));
+   await user.click(screen.getByTestId("btn_start_offboarding"));
+   expect(discoveryCalls).toBe(1);
+  }
+  if(!fixed)await owner.query("UPDATE user_account SET global_role=NULL WHERE id=$1",[admin]);
+  releaseDiscovery();
+  if(!fixed){
+   await screen.findByText(labels.offboardingError);
+   expect(screen.queryByText(labels.offboardingUnavailable)).toBeNull();
+   await owner.query("UPDATE user_account SET global_role='group_admin' WHERE id=$1",[admin]);
+   await user.click(screen.getByTestId("btn_start_offboarding"));
+   await user.click(screen.getByTestId("btn_start_offboarding"));
+   await screen.findByRole("option",{name:"UI account · UI seat 2"});
+   expect(discoveryCalls).toBe(2);
+  }
   if(fixed){
+   expect(discoveryCalls).toBe(0);
    expect(screen.queryByTestId("offboarding_target")).toBeNull();
    expect((screen.getByTestId("offboarding_request_id") as HTMLInputElement).value).toBe(requests[1]);
   }else{await screen.findByRole("option",{name:"UI account · UI seat 2"});}
   expect((await owner.query("SELECT count(*)::int AS count FROM provisioning_action WHERE request_id=ANY($1::uuid[])",[requests])).rows).toEqual([{count:0}]);
-  if(!fixed) await user.selectOptions(screen.getByTestId("offboarding_target"),requests[1]!);
+  const form=screen.getByTestId("offboarding_note").closest("form")!;
+  fireEvent.submit(form);
+  expect(startCalls).toBe(0);
+  if(!fixed){
+   await user.type(screen.getByLabelText(labels.offboardingNote),"   ");
+   fireEvent.submit(form);expect(startCalls).toBe(0);
+   await user.selectOptions(screen.getByTestId("offboarding_target"),requests[1]!);
+   fireEvent.submit(form);expect(startCalls).toBe(0);
+   await user.clear(screen.getByLabelText(labels.offboardingNote));
+  }
   await user.selectOptions(screen.getByTestId("end_reason"),endReason);
   await user.type(screen.getByLabelText(labels.offboardingNote),"Remove only UI seat 2");
+  // Authorization is reloaded at execution, not frozen when the modal opens.
+  await owner.query("UPDATE user_account SET global_role=NULL WHERE id=$1",[admin]);
   await user.click(screen.getByTestId("btn_confirm_offboarding"));
+  await screen.findByText(labels.offboardingError);
+  expect((screen.getByTestId("offboarding_note") as HTMLTextAreaElement).value).toBe("Remove only UI seat 2");
+  expect((await owner.query("SELECT count(*)::int AS count FROM provisioning_action WHERE request_id=ANY($1::uuid[])",[requests])).rows).toEqual([{count:0}]);
+  await owner.query("UPDATE user_account SET global_role='group_admin' WHERE id=$1",[admin]);
+  holdStart=true;
+  await user.click(screen.getByTestId("btn_confirm_offboarding"));
+  await screen.findByText(labels.offboardingSubmitting);
+  expect((screen.getByTestId("btn_confirm_offboarding") as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.submit(form);
+  expect(startCalls).toBe(2); // one refused attempt, one pending actual execution
+  await waitFor(async()=>expect((await owner!.query("SELECT count(*)::int AS count FROM provisioning_action WHERE request_id=$1",[requests[1]])).rows).toEqual([{count:1}]));
+  expect(screen.queryByText(labels.offboardingSuccess)).toBeNull();
+  releaseStart();
   await screen.findByText(labels.offboardingSuccess);
   expect(screen.getByRole("link",{name:esMessages.people.offboardingViewRequest}).getAttribute("href")).toBe(`/solicitudes/${requests[1]}`);
   await waitFor(()=>expect((screen.getByTestId("modal_offboarding") as HTMLDetailsElement).open).toBe(false));
