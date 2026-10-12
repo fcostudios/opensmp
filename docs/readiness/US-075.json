@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "4da6a174774341d0bba6ee7521e48b42162946d95be3ea2b423ace12085abb18",
+  "readiness_payload_sha256": "cdcd5797b29ca9b6afab182569ad05e473b8a5af0d88b89f95d508164c91779b",
   "work_id": "US-075",
   "kind": "US",
   "work_type": "functional",
@@ -57,12 +57,12 @@
     "tooling_change": false
   },
   "estimate_minutes": {
-    "readiness": 55,
-    "implementation": 55,
-    "focused_verification": 10,
-    "review": 105,
-    "integration": 90,
-    "total": 315
+    "readiness": 60,
+    "implementation": 95,
+    "focused_verification": 15,
+    "review": 110,
+    "integration": 70,
+    "total": 350
   },
   "uncertainties": [
     {
@@ -126,7 +126,7 @@
       "statement": "Does a smaller valid composition satisfy actual routing and the20-path envelope, and what is its independently estimated remaining cost?",
       "status": "budgeted",
       "estimate_impact_minutes": 30,
-      "resolution": "Re-assessed whole315-minute forecast: readiness55,implementation55,focused10,review105,integration90. Provisional conservative nonoverlapping elapsed envelope at 2026-10-11T22:09:47.016Z: 169.767 minutes, rounded up 170. Git/recorded-ts windows [[\"2026-10-11T08:34:50-05:00\",\"2026-10-11T08:45:29-05:00\"],[\"2026-10-11T09:44:33-05:00\",\"2026-10-11T09:59:30-05:00\"],[\"2026-10-11T11:10:58-05:00\",\"2026-10-11T12:27:57-05:00\"],[\"2026-10-11T14:23:07-05:00\",\"2026-10-11T14:30:57-05:00\"],[\"2026-10-11T16:10:26-05:00\",\"2026-10-11T22:09:47.016Z\"]]. Anchors 11b03ad→7b26d51,00f2b15→fff48a0,bbea2f1→d3311e3,5917e1b→c04b812,95fac1f→cutoff. Gaps are evidenced pending canonical amendment/approval and separately owned technical prerequisites; no inference that Git records every read-only minute. Included windows retain technical overlap conservatively. Concurrent agent labor and commands nested inside phases count once; preview/cold minutes are subsets, not added again. Unobservable phase buckets are absorbed into their enclosing phase. Summed agent labor and unsupported 110-minute authoring estimate rejected. Remaining reserve95: gate/setup15,cold/setup55,survivor review/bounded repair15,evidence/closure10; contingency50 below315 covers reconstruction uncertainty. This is provisional reconstructed elapsed, not billing telemetry or final actuals. Hard limit320 remains; no new paths or functional scope."
+      "resolution": "Re-assessed whole315-minute forecast: readiness55,implementation55,focused10,review105,integration90. Provisional conservative nonoverlapping elapsed envelope at 2026-10-11T22:09:47.016Z: 169.767 minutes, rounded up 170. Git/recorded-ts windows [[\"2026-10-11T08:34:50-05:00\",\"2026-10-11T08:45:29-05:00\"],[\"2026-10-11T09:44:33-05:00\",\"2026-10-11T09:59:30-05:00\"],[\"2026-10-11T11:10:58-05:00\",\"2026-10-11T12:27:57-05:00\"],[\"2026-10-11T14:23:07-05:00\",\"2026-10-11T14:30:57-05:00\"],[\"2026-10-11T16:10:26-05:00\",\"2026-10-11T22:09:47.016Z\"]]. Anchors 11b03ad\u21927b26d51,00f2b15\u2192fff48a0,bbea2f1\u2192d3311e3,5917e1b\u2192c04b812,95fac1f\u2192cutoff. Gaps are evidenced pending canonical amendment/approval and separately owned technical prerequisites; no inference that Git records every read-only minute. Included windows retain technical overlap conservatively. Concurrent agent labor and commands nested inside phases count once; preview/cold minutes are subsets, not added again. Unobservable phase buckets are absorbed into their enclosing phase. Summed agent labor and unsupported 110-minute authoring estimate rejected. Remaining reserve95: gate/setup15,cold/setup55,survivor review/bounded repair15,evidence/closure10; contingency50 below315 covers reconstruction uncertainty. This is provisional reconstructed elapsed, not billing telemetry or final actuals. Hard limit320 remains; no new paths or functional scope."
     },
     {
       "id": "U10",
@@ -147,7 +147,7 @@
       "statement": "Does executing every remaining optional preview fit the measured budget before required cold verification?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Explicit bounded delegated exception to CHG-069: omit ALL remaining optional mutation previews after final source/tests and fresh independent AC1–4 PASS. Astra reviewed measured six-shard dry-run counts788 and initial runtimes: approximately43-minute cold forecast (not measured effectiveness); reserve55 for full cold/setup. Prior invalidated preview~6.1min plus dry instrumentation~0.6min remain charged, cumulative~6.7/30. Dry run executed zero mutants and supplies no mutation score. No claim missing shards were previewed or normal final-preview requirement fulfilled. Preserve threshold80, annotation of every survivor, shared full gate, cache-cleared whole-item six-shard cold last, original base37666528d03a50e2529cad4382f2a5ae146dca63. Any failed campaign needing source/test fixes must retain failed evidence and invalidation before final retry. This local exception is authorized by Francisco explicit Astra/controller delegation, not a policy-file edit or Nous amendment."
+      "resolution": "Explicit bounded delegated exception to CHG-069: omit ALL remaining optional mutation previews after final source/tests and fresh independent AC1\u20134 PASS. Astra reviewed measured six-shard dry-run counts788 and initial runtimes: approximately43-minute cold forecast (not measured effectiveness); reserve55 for full cold/setup. Prior invalidated preview~6.1min plus dry instrumentation~0.6min remain charged, cumulative~6.7/30. Dry run executed zero mutants and supplies no mutation score. No claim missing shards were previewed or normal final-preview requirement fulfilled. Preserve threshold80, annotation of every survivor, shared full gate, cache-cleared whole-item six-shard cold last, original base37666528d03a50e2529cad4382f2a5ae146dca63. Any failed campaign needing source/test fixes must retain failed evidence and invalidation before final retry. This local exception is authorized by Francisco explicit Astra/controller delegation, not a policy-file edit or Nous amendment."
     },
     {
       "id": "U13",
@@ -162,16 +162,103 @@
       "status": "budgeted",
       "estimate_impact_minutes": 0,
       "resolution": "Coldattempt1 root+implementer realpath proof showed sandbox web/node_modules symlink and @smp/domain export resolve unmutated worktree source; instrumented sandbox lifecycle is separate. Domain52/239 observed survivors therefore invalid effectiveness, not evidence of52assertion gaps. Ownedcampaign stopped/cleaned exit130680.292s=11.3382minutes; failed wrapper39K8S10NC/57 and repo261K30S1NC/292 candidate reports retained, noaggregate/green. SameAstra independently approves changing ONLY existingorchestration.integration.test primitive import to ../../../../../packages/domain/src/request-workflow/lifecycle; packageexport points to that exact production source. Direct finalizer with realSQLtransactionport is meaningful oracle, not relay/mock. Production-entrypoint alias still escapes sandbox, so do not claim everyproductionentrypoint test instrumented; directprimitive oracle must kill unambiguous newfinalizer mutant in boundedstockdiagnostic with actualsandbox resolution/instrumentedbytes identity. Repair demonstrated wrapper/repository gaps onlyexistingtests, focusedrealDB/scopedreview, regulargate then completeactual7cache-clearedcold originalbase37666528, six075+oneCHG081 attribution/80threshold/every survivor review. No harness/classifier/routes/sourceexemptions/newfiles/functionalboundary. Conservative nonoverlap spent baseline170 plus denial3+consumer5.833+gate2.488+invalidcold11.338=192.659; add4.883minutes from22:09:47to22:17:40 envelope excluding alreadycounteddenial3, and17.850minutes from22:54:41to23:18:22 envelope excluding alreadycountedconsumer5.833, deliberately retaining foreigntechnicalreview/idle conservatively:215.392minutes at attemptstop. Remaining98 includes repairdiagnostic25/cold50/gate3/review+evidence20, including currentpoststop Astra/controllerreview rather than addingagain; total313.392, original315forecast fits1.608forecastmargin/6.608hard320margin. Explicit22:17:40to22:54:41 technicalwait excluded; nested/concurrentcommands once. Actual futurecampaign controls: any newpath/boundary/materialburden or forecasthardlimitbreach requires reassessment, neverstretch. Currentfailedcostretained and mutationinvalidation recorded before replacement."
+    },
+    {
+      "id": "U15",
+      "statement": "Can the fully measured delivery and all genuine critical-path oracle repairs finish inside the320minute hard cap?",
+      "status": "resolved",
+      "estimate_impact_minutes": 35,
+      "resolution": "Fullcold2 actual1234.58s20.576min exits1/ownedcleanup00:12:18.158UTC. US075six-owned803mutants576K195S32NoCoverage71.731FAIL; domain119K113S7NC/23949.79, Person42K31S12NC/8549.41, orchestration81K28S9NC/11868.64 genuinefailedshards. Wrapper84.21/repo94.18/Request91.67PASS; foreignCHG081audit88K2S/9097.78PASS notpartUS075score. SameAstra independently read actualallthreefailurecategories andworkerbottomup: domain12\u201320/UI12\u201320/adapter8\u201315authorfocused, review8\u201312, gate1.4\u20133, replacementcold25\u201330, evidence5\u20138. Optimisticremaining71.4; central~95. Conservative215.392spent atfirststop +continuous39.6106minute firststop23:32:41.530\u2192cold2end00:12:18.158 envelope=255.0026, allconcurrency/nestedcommands countedonce; difference11.3636vsselective243.639 is actualcontroller/Astra/review/proof/scratch overhead notdiscarded. Minimumcomplete326.403before further reassessment, abovehard320; centralforecast350includesreassessment and uncertainty. SameAstra verdictpartition_required, no defensible completeplanwithin65min moderateconfidence. No loweredthreshold/routeshardexclusion/blanketaccepted/sunkcostreset. Two functionalverticaloutcomes proposed pendingcanonicalNousids: auditedanchoredstart onbothscreens; checklistconfirmedatomiccompletion. Existingcanonicalallocation unchangeduntilsync. No newimplementation under exhaustedassessment; retain original sourcecommits and failedcampaigncosts."
     }
   ],
   "dependencies": [],
-  "decision": "ready",
-  "partitions": [],
+  "decision": "partition_required",
+  "partitions": [
+    {
+      "proposal_key": "anchored-removal-start",
+      "work_id": null,
+      "title": "Start anchored removal from both detail screens",
+      "outcome": "Authorized admin discovers or selects one anchored seat and starts left_company/inactive removal from either detail screen: audit active\u2192offboarding, create one pending remove action and select execution, preserving register/person/capacity.",
+      "demo": "Bothscreens/authorizedtargets/reasons/transferrefusal/tenantroleisolation/replay; checklist and connector-backed descriptors create pendingremove with no provider call, closure or optimisticcapacity.",
+      "acceptance_criteria": [
+        "AC1",
+        "AC4"
+      ],
+      "work_type": "functional",
+      "scopes": [
+        "server",
+        "ui"
+      ],
+      "signals": {
+        "routes_or_screens": 2,
+        "acceptance_flows": 3,
+        "expected_changed_files": 14,
+        "expected_mutation_shards": 3,
+        "lifecycle_or_concurrency_boundaries": 1,
+        "external_integrations": 0,
+        "schema_or_migration_changes": 0,
+        "authorization_or_audit_boundaries": 1,
+        "tooling_change": false
+      },
+      "uncertainties": [],
+      "estimate_minutes": {
+        "readiness": 25,
+        "implementation": 75,
+        "focused_verification": 40,
+        "review": 50,
+        "integration": 40,
+        "total": 230
+      },
+      "depends_on": [],
+      "cross_cutting_rationale": "AC4 starts here and confirms in checklist-completion; this child owns start/selection/refusal facts, no confirmation deferredoutside namedchild. US075 verificationparent owns finalcomposedAC4demo. Fullownproduction/contracts/test/review/grantmigrationifneeded, nottests-only."
+    },
+    {
+      "proposal_key": "checklist-removal-completion",
+      "work_id": null,
+      "title": "Confirm checklist removal and atomically close the register",
+      "outcome": "Real checklist removal confirms through shared portablefinalizer andSQLadapter: actionconfirmed+anchoredregisterclose+transition+audit oneTX, originalevidence replay, unconfirmed/retryable request retainedoffboarding.",
+      "demo": "left_company/inactive confirmedEcuadordate onbothdetailinitiatedanchors; exactrow close/replay/concurrency/failedreceiptrollback/tenantisolation/unconfirmedattempt, no providerdispatch/person/capacitymutation.",
+      "acceptance_criteria": [
+        "AC2",
+        "AC3",
+        "AC4"
+      ],
+      "work_type": "functional",
+      "scopes": [
+        "domain",
+        "server"
+      ],
+      "signals": {
+        "routes_or_screens": 0,
+        "acceptance_flows": 3,
+        "expected_changed_files": 10,
+        "expected_mutation_shards": 3,
+        "lifecycle_or_concurrency_boundaries": 1,
+        "external_integrations": 0,
+        "schema_or_migration_changes": 0,
+        "authorization_or_audit_boundaries": 1,
+        "tooling_change": false
+      },
+      "uncertainties": [],
+      "estimate_minutes": {
+        "readiness": 25,
+        "implementation": 85,
+        "focused_verification": 45,
+        "review": 50,
+        "integration": 45,
+        "total": 250
+      },
+      "depends_on": [
+        "anchored-removal-start"
+      ],
+      "cross_cutting_rationale": "AC4 confirmation/closure/replay/unconfirmedfacts ownedhere; start owns namedentrychild. US075verificationparent composes finalfullAC4. Reuses separatelyownedCHG081auditreceipt; ownfullprimitive/contracts/productionchecklist/realDBandmutationproof, grantmigrationifneeded."
+    }
+  ],
   "approval": {
     "status": "approved",
     "approved_by": "Francisco",
-    "evidence": "US075-READY-DIRECT-ORACLE-DELEGATED-20261011-V6",
-    "payload_sha256": "4da6a174774341d0bba6ee7521e48b42162946d95be3ea2b423ace12085abb18"
+    "evidence": "US075-PARTITION-ACTUAL-COLD-20261012",
+    "payload_sha256": "cdcd5797b29ca9b6afab182569ad05e473b8a5af0d88b89f95d508164c91779b"
   },
   "actuals": null,
   "policy_bootstrap": false,
