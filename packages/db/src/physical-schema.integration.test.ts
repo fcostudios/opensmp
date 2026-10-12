@@ -4,11 +4,13 @@ import { readFile, readdir, mkdtemp, copyFile, rm } from "node:fs/promises";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   createPostgresFixture,
   type PostgresFixture,
 } from "./testing/postgres-container";
 
+const packageRoot = fileURLToPath(new URL("../", import.meta.url));
 const fixtures: PostgresFixture[] = [];
 
 const expectedTables = [
@@ -60,6 +62,7 @@ describe("US-003 physical schema parity", () => {
     const app = await fixture.connectAsApp();
     const accountId = "00000000-0000-0000-0000-000000000457";
     const verify = () => promisify(execFile)(process.execPath, ["scripts/verify-schema.mjs"], {
+      cwd: packageRoot,
       env: { ...process.env, DATABASE_ADMIN_URL: fixture.ownerUrl, DATABASE_URL: fixture.appUrl },
     });
     try {
@@ -152,6 +155,7 @@ describe("US-003 physical schema parity", () => {
         }
       }
       const verify = () => promisify(execFile)(process.execPath, ["scripts/verify-schema.mjs"], {
+      cwd: packageRoot,
         env: { ...process.env, DATABASE_ADMIN_URL: fixture.ownerUrl, DATABASE_URL: fixture.appUrl },
       });
       expect((await verify()).stdout).toContain("✓");
@@ -390,7 +394,7 @@ describe("US-083 observation catalog and immutable ledger", () => {
       for (const filename of await readdir(migrationDirectory)) {
         if (filename.endsWith(".sql") && !filename.endsWith("__member_observations.sql")) await copyFile(new URL(filename,migrationDirectory),join(previousMigrations,filename));
       }
-      await promisify(execFile)(process.execPath,["scripts/apply-migrations.mjs"], { env: {
+      await promisify(execFile)(process.execPath,["scripts/apply-migrations.mjs"], { cwd: packageRoot, env: {
         ...process.env,DATABASE_ADMIN_URL:fixture.ownerUrl,DATABASE_URL:fixture.appUrl,MIGRATIONS_DIR:previousMigrations,
       }});
       const existing = await fixture.connectAsOwner();
@@ -448,6 +452,7 @@ describe("US-083 observation catalog and immutable ledger", () => {
         { cmd: "INSERT", roles: ["ledger_app"] }, { cmd: "SELECT", roles: ["ledger_app"] },
       ]);
       const verified = await promisify(execFile)(process.execPath,["scripts/verify-schema.mjs"], {
+      cwd: packageRoot,
         env: { ...process.env,DATABASE_ADMIN_URL:fixture.ownerUrl,DATABASE_URL:fixture.appUrl },
       });
       expect(verified.stdout).toContain("✓ ledger_app has the exact least-privilege runtime grant matrix");
@@ -461,6 +466,7 @@ describe("US-083 observation catalog and immutable ledger", () => {
       ]) {
         await owner.query(mutation);
         try { await expect(promisify(execFile)(process.execPath,["scripts/verify-schema.mjs"],{
+          cwd: packageRoot,
           env: {...process.env,DATABASE_ADMIN_URL:fixture.ownerUrl,DATABASE_URL:fixture.appUrl},
         })).rejects.toMatchObject({code:1}); }
         finally { await owner.query(restore); }
