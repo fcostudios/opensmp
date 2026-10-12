@@ -133,7 +133,27 @@
     "evidence": "US086-READY-FRANCISCO-20261012",
     "payload_sha256": "9a4a88e0e8a41ef1c6848d9b4971969206a30a90a8e212b7ba269e3b0fc39f1e"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 20,
+      "implementation": 26,
+      "focused_verification": 22,
+      "review": 30,
+      "integration": 68
+    },
+    "total": 166,
+    "changed_files": 7,
+    "commits": 9,
+    "review_fix_loops": 2,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 41,
+    "mutation_shards_actual": 7,
+    "preview_rounds": 3,
+    "preview_minutes": 21,
+    "estimate_variance_minutes": -64,
+    "root_cause": "Prospective child actuals166minutes are retrospective active-role estimates plus conservatively rounded measured execution, not billing telemetry. Readiness20 +implementation26 +focused22 +review30 +integration68 =166 versus230(-64). ParentUS075255.0026historicalminutes, approvals and inheritedcheckpoints preserved once, neither reset nor recounted. Actual7paths=3delivery(repository source+existingrepo/UItests)+4bookkeeping versus approved15+4ceiling;8own commits plus closure9. Roles: readinesscontroller20 and supervisingroot18; implementer32(26tasks+6gate/coldcontrol); scoped17; fresh13. Process costs separate and charged once: preview20.690minutes rounded21 plus focusedchecks1; cold2455.548s40.9258min rounded41, gate72.20231625s rounded2, schemaCLIprovenance conservatively1. Role totals100 +process66 =166. No foreignowner waits or privatecontainers; stocksharedfixture migration/schema/appgrant proof. Final native7 fullcache-bypass cold ran once last, actualexit1 due US087domain49.79/orchestration68.64; owned3 each>=80 and aggregate301K6S2NC/30997.411%. No whole-green claim, score exclusions or borrowed completion/audit score. Wholecold exceeds25min forecast by15.926min due inherited domain/audit runtimes; included41 once, offset by bounded implementation/review/cache-independent focused work. RuntimeProfile/schemaFingerprint not emitted by native persisted evidence; no invented values/databaseName. ExplicitCLI63committedchecksums32tables5appendonlytriggers and leastprivilegegrant matrix is direct proof. Gate freshweb129files1006pass3skip, typeslintbuildfresh; packagescached. Initialpreflight runtime-profile-unavailable invocationcost retained in implementercontrol. Three selectedpreviewexecutions20.690min, no fourth/whole-set preview. Preview-found oraclefixes stayed withinexistingtests; twobounded fix waves counted honestly. One accepted RequestRecord mutant10 is observable staleactive+closedview affordance only, authoritativeopen-anchorrefusal preventswrites; bothreviewers agree not worth~40minnewnativecampaign; retainedin denominator, not equivalent. Other7nonkilled mutants have precise independentlyreviewed contracts. Source/suite/report identities match a73050acb2b46f2601ffeac344f21355389b6890.\nController: 2 bounded sessions (sameUS086readinesscontroller20 +parentroot supervision18), estimated38active minutes allocated once.\nImplementer: 1 reusedUS086session, estimated32active minutes; measuredpreview/gate/cold execution charged separately once.\nScoped reviewer: 1 reused session, estimated17active minutes.\nFresh adversarial reviewer: 1 session reused finalproof, estimated13active minutes. Calls/tokens/modelwindow unexposed; done.cost is explicit aggregate estimate, window omitted instead of fabricated."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
