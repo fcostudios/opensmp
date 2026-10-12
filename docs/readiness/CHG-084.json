@@ -84,7 +84,27 @@
     "evidence": "CHG084-READY-DELEGATED-20261012",
     "payload_sha256": "60e06ce0e5522bd0874204a3c6fa90b6512c52390238184b87a7b1247ced7228"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 10,
+      "implementation": 12,
+      "focused_verification": 8,
+      "review": 8,
+      "integration": 5
+    },
+    "total": 43,
+    "changed_files": 10,
+    "commits": 4,
+    "review_fix_loops": 0,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": -47,
+    "root_cause": "Retrospective phase and role minutes are explicit active-time estimates; exact billing/call/token telemetry unavailable. Shared gate on baa693288fd50812e1aa2853ba365f3ca16c6f48 used main8c1f638 baseline: exit0, 3.780s command, cached type9/9 lint8/8 test15/15 build9/9; preflight8sources7shards48ranges, not US075 effectiveness evidence. Own technical source scope0 mutatable/0shards; no test_report or borrowed mutation score. Shared gate costs (accepted launcher7.232s plus wrong-base first launcher7.365s, retained) charged once to085 integration,084 citation only. Historical5 approved artifacts and generated live bytes unchanged. Focused37Node +286readiness +62reconciler checks pass; 71real artifacts pass. Broader72Python discovery had2 external environment errors, not all-Python green. Fresh selector mismatch ran286 existing tests49.6s retained without rerun. Exactly6delivery+4bookkeeping paths;3own commits plus this closure=4. No fix loops/previews/cold campaigns. Lower actuals reflect bounded implementation and cache reuse, not omitted failed attempts.\nController: 1 session reused across authorized sequential084/085 pair; 18 estimated active minutes allocated to CHG-084; other-item costs excluded.\nImplementer: 1 session reused across authorized sequential084/085 pair; 17 estimated active minutes allocated to CHG-084; other-item costs excluded.\nScoped reviewer: 1 session reused across authorized sequential084/085 pair; 5 estimated active minutes allocated to CHG-084; other-item costs excluded.\nFresh adversarial reviewer: 1 session reused across authorized sequential084/085 pair; 3 estimated active minutes allocated to CHG-084; other-item costs excluded."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
