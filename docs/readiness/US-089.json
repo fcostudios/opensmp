@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "79a96902a5720ea9ed1971976dcea074633960e9c4ba273f61602096ed65f334",
+  "readiness_payload_sha256": "7ec8fe2451bbb93d058a9472d314bb46242b681c2463da2569972c46e850f6c3",
   "work_id": "US-089",
   "kind": "US",
   "work_type": "functional",
@@ -47,8 +47,8 @@
   "signals": {
     "routes_or_screens": 0,
     "acceptance_flows": 3,
-    "expected_changed_files": 5,
-    "bookkeeping_files": 4,
+    "expected_changed_files": 12,
+    "bookkeeping_files": 5,
     "expected_mutation_shards": 2,
     "lifecycle_or_concurrency_boundaries": 1,
     "external_integrations": 0,
@@ -57,12 +57,12 @@
     "tooling_change": false
   },
   "estimate_minutes": {
-    "readiness": 33,
+    "readiness": 38,
     "implementation": 71,
     "focused_verification": 111,
     "review": 50,
-    "integration": 13,
-    "total": 278
+    "integration": 23,
+    "total": 293
   },
   "uncertainties": [
     {
@@ -75,9 +75,9 @@
     {
       "id": "U2",
       "statement": "Which exact paths and inherited blobs are owned?",
-      "status": "resolved",
-      "estimate_impact_minutes": 0,
-      "resolution": "Five delivery paths: packages/db/src/member-observations.ts; packages/db/src/member-observations.integration.test.ts; packages/db/src/index.ts; packages/db/src/index.test.ts; docs/dev-guide/TESTING.md acceptance-critical §3 amendment required by AGENTS.md. Four bookkeeping paths: docs/readiness/US-089.json; docs/superpowers/specs/2026-10-12-us089-design.md; docs/superpowers/plans/2026-10-12-us089-plan.md; .nous-feedback.jsonl. No route-data reserve is necessary: existing name-based discovery routes source to own integration suite and index to index.test.ts. No migration, schema, verifier, connector, runner, threshold, fixture/config or generic tooling edits authorized. Whole immutable migration289e93cafc3478648ba406248b6b701bd8cc81e9 belongs delivered US-088. Historical candidate6191fe834f940317cec7ecfa81eb43398815627d exact inherited blob/modes: service540e7e4db9a43db3761a0c6115e2699b509a37b3; integration208033352507f4e97aa72b0f3cf6a17c3cebd03f; index89628359e441ef71c062606a67e8282141453b5f; index.test3c5c7d886dfe8b4b77e58221392887a9609ca622; all100644. Current index4504e5adefa1c15a373f822540e17e46e9309bb7 differs only missing export."
+      "status": "unresolved",
+      "estimate_impact_minutes": 15,
+      "resolution": "Required canonical dependency: Nous must append an existing-US-089 acceptance/replay/transaction oracle entry to testing.critical_paths while preserving existing additions, regenerate docs/dev-guide/TESTING.md and testing/critical-paths.md, and deliver exact authorized pin/provenance records. No direct generated handedit and no new work ID. Provisional12delivery inventory: four owned DB source/test paths; both generated guides; .nous-provenance.json/.nous-project.json/.nous-sync.json if envelope changed; up to three pin paths (manifest plus exact copied guides) whose canonical owner/revision/path MUST be delivered by Nous and re-counted before approval. This is a bounded planning forecast, not authority to invent pin paths or change tooling. Five bookkeeping: readiness, design, plan, .nous-feedback.jsonl and docs/readiness/drafts/US-089-nous-request.md. Exact pin count/authority and final guide bytes remain unresolved; digest cannot be approved until delivery. Source candidate blobs/modes preserved in /tmp/us089-inherited-custody.json: service540e7e4db9a43db3761a0c6115e2699b509a37b3; integration208033352507f4e97aa72b0f3cf6a17c3cebd03f; index89628359e441ef71c062606a67e8282141453b5f; index.test3c5c7d886dfe8b4b77e58221392887a9609ca622; all100644. No route-data change required by current forecast. Whole immutable migration289e93cafc3478648ba406248b6b701bd8cc81e9 is deliveredUS088; no schema, verifier or runtime-tooling authority."
     },
     {
       "id": "U3",
@@ -98,14 +98,14 @@
       "statement": "How is historical and remaining effort counted honestly?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Allocate parent estimated254minutes exactly once: US-088130 already closed, US-089124. Historical124 phase attribution18readiness/31implementation/32focused/35review/8integration is a planning proxy, not measured phase or token allocation. Original canonical remaining103=repair35+focused10+review15+gate5+cold33+closure5 omitted fresh child readiness/materialization and required preview. Re-assessed remaining154=readiness15+materialization5+repair35+focused10+preview30+scoped/fresh review15+forced gate6+cold33+closure5. Full phase33/71/111/50/13=278. Preview/cold/gate costs are inside focused111, not added again to total. No US-088 or technical CHG-088/089/091 tokens/cost borrowed. No approved budget waiver is needed for this fresh under320 assessment; task-boundary forecast above278 stops for assessment/authority review, above320 or cohesion fails to Nous."
+      "resolution": "Allocate parent estimated254minutes exactly once: US-088130 already closed, US-089124. Historical124 phase attribution18readiness/31implementation/32focused/35review/8integration is a planning proxy, not measured phase or token allocation. Original canonical remaining103=repair35+focused10+review15+gate5+cold33+closure5 omitted fresh child readiness/materialization and required preview. Re-assessed remaining154=readiness15+materialization5+repair35+focused10+preview30+scoped/fresh review15+forced gate6+cold33+closure5. Full phase33/71/111/50/13=278. Preview/cold/gate costs are inside focused111, not added again to total. No US-088 or technical CHG-088/089/091 tokens/cost borrowed. No approved budget waiver is needed for this fresh under320 assessment; task-boundary forecast above278 stops for assessment/authority review, above320 or cohesion fails to Nous. Canonical guidance regeneration adds5readiness and10integration/custody minutes; re-assessed remaining169/full293, phases38/71/111/50/23. The15increment is included once. Exact generated delivery inventory must be reconciled before approval; above320 or20paths returns to Nous."
     },
     {
       "id": "U6",
       "statement": "Which failed-campaign gaps need stronger oracles?",
       "status": "budgeted",
       "estimate_impact_minutes": 35,
-      "resolution": "Retained failed US-083 acceptance74.15%,413killed/133survived/11uncovered of557 is diagnostic only. Triaged representative IDs215/225/230/231 completeness totals;305 inactive vendor;353 capability mismatch;368/369/370 duplicate provider identity;271 normalized email;496 newer identical content;490/547 exact audit payload;554 typed event;291 lock. Budget35minutes targeted repairs in existing integration suite, demonstrated RED against representative controlled faults then restored GREEN. Production changes only where reproduced bug warrants it. Deterministic concurrency test must establish held lock/second transaction blocking with explicit coordination, not timing sleeps. Exact warning tuples and audit fields use injected time/IDs and independently computed canonical hash; no owned-code mock or coverage-only tests."
+      "resolution": "Retained failed US-083 acceptance74.15%,413killed/133survived/11uncovered of557 is diagnostic only. Triaged representative IDs215/225/230/231 completeness totals;305 inactive vendor;353 capability mismatch;368/369/370 duplicate provider identity;271 normalized email;496 newer identical content;490/547 exact audit payload;554 typed event;291 lock. Budget35minutes targeted repairs in existing integration suite, demonstrated RED against representative controlled faults then restored GREEN. Production changes only where reproduced bug warrants it. Deterministic concurrency test must establish held lock/second transaction blocking with explicit coordination, not timing sleeps. Exact warning tuples and audit fields use injected time/IDs and independently computed canonical hash; no owned-code mock or coverage-only tests. Existing inherited integration catalog-roundtrip and ORM-physical-contract tests may remain unchanged as historical dependencies, never claimed as new US-089 schema delivery; avoid new duplicate schema tests."
     },
     {
       "id": "U7",
@@ -148,13 +148,13 @@
       "reason": "Shared drift diff consumes accepted normalized observations."
     }
   ],
-  "decision": "ready",
+  "decision": "blocked",
   "partitions": [],
   "approval": {
     "status": "pending",
     "approved_by": null,
     "evidence": null,
-    "payload_sha256": "79a96902a5720ea9ed1971976dcea074633960e9c4ba273f61602096ed65f334"
+    "payload_sha256": "7ec8fe2451bbb93d058a9472d314bb46242b681c2463da2569972c46e850f6c3"
   },
   "actuals": null,
   "policy_bootstrap": false,
