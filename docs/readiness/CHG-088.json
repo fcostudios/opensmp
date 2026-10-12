@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "eb2c743321a3d9b7b1c84cd5755ab1d131dd7aeb02b3631e3945807d59b49eed",
+  "work_id": "CHG-088",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Authorize only the exact inherited US-088 schema-verifier replay",
+  "source": "/Users/fcolomas/Projects/nous/Nous/WorkControl/fcostudios/smp/CHG-088_TECH_SPEC.md; canonical policy approved by Francisco on 2026-10-11; isolated authority base 8a5c4fb1cc3c44a879b818368dbf9941570c9c3f",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The functional delivery gate accepts only the approved US-088 verifier transition under immutable committed readiness authority, preserves all other tooling and additive-route rejection checks, and proves the preserved candidate through ordinary staged and historical gates after separate technical integration.",
+      "demo": "Real disposable-Git RED then GREEN for work US-088, digest 4904efb89d28d78f2e7cc754c8fbeb4ce16cf2bd1f1581e282d2781be98c469b, packages/db/scripts/verify-schema.mjs blob c793e5d163eb2abe025701b919c83df17d5c5abd to 4b189bb3adc899d4ea6bc9767a8ee5b83a6aeef3, modes 100644; hostile authority/path/blob/mode and mixed-route negatives reject. Technical gates and fresh independent review precede integration and the ordinary staged proof of preserved tree a80cf209e7698c2f0197072068cfc8667b3ea487; full historical and child ranges carry an explicit frozen-authority/rebase map.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC5",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling",
+    "readiness-policy",
+    "verification"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 3,
+    "bookkeeping_files": 4,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 15,
+    "implementation": 35,
+    "focused_verification": 35,
+    "review": 35,
+    "integration": 30,
+    "total": 150
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Canonical policy approval does not bind this newly authored technical estimate and payload.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Submit this exact 150-minute payload for the tenant-required human digest-bound readiness decision; approval remains pending until actual human authorization. No design, plan, tests, implementation or started evidence before readiness passes. No repeated policy approval is requested."
+    },
+    {
+      "id": "U2",
+      "statement": "Commit and range semantics may need a transition wider than the canonical exact parent/candidate pair.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "Budget real-Git staged and complete-range reproduction. If exact semantics cannot satisfy the specification, stop and report the concrete reproduction; never widen the binding. Preserve the US-088 index, governance, digest and blobs until technical integration."
+    },
+    {
+      "id": "U3",
+      "statement": "Separate technical verification must fit the declared scope without borrowing functional effectiveness evidence.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Only scripts/work-readiness/delivery-policy.mjs (optional binding), scripts/work-readiness/git.mjs and scripts/test-work-readiness.mjs are delivery paths; four bookkeeping paths are this assessment, technical design, technical plan and append-only feedback. Confirmed entrypoint pnpm test:work-readiness runs node scripts/test-work-readiness.mjs. Three flows are immutable exact replay, hostile transitions with continued route checks, and separate integration/preserved staged plus mapped range proof. No mutatable TS/TSX source changes: zero shards, no borrowed preview/cold/test_report. Existing readiness and feedback governance suites plus owned-lock awake full pnpm check and explicit zero-source preflight remain required. TESTING.md and testing/critical-paths.md stay byte-identical to the base."
+    },
+    {
+      "id": "U4",
+      "statement": "Role and remaining-work costs require independent attribution.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "One technical controller, one bounded implementer, one reused scoped reviewer and one fresh independent reviewer; controller briefs and reviews rather than implementing code. Charge all technical roles and gates to CHG-088. After technical integration and proof, provide US-088 controller a remaining forecast within its unchanged 210-minute authority; its own preflight, full gate, fresh AC review and final cold campaign remain outstanding. No CHG-087 continuation, budget waiver or US-089 authority."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "eb2c743321a3d9b7b1c84cd5755ab1d131dd7aeb02b3631e3945807d59b49eed"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
