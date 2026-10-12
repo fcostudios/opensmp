@@ -1,5 +1,5 @@
 <!-- nous-sprint-stamp
-generated_at: 2026-10-12T03:17:53Z
+generated_at: 2026-10-12T18:14:45Z
 current_sprint: sprint-3
 sprints_hash: db87bd9c25fa6332
 -->
@@ -119,7 +119,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | 27 | full-stack | **US-070** ✅ | Ingest accurate daily person activity from API-enabled accounts | 1SP | `See story file` | CHG-068 | US-056, US-057, US-058, US-046 | →2 | — | [r1_misc_us_070.md](sprint-3/r1_misc_us_070.md) |
 | 28 | full-stack | **US-075** 🔨 | Start anchored seat removal from both detail screens and finalize the register atomically | 1SP | `See story file` | CHG-074 | US-019, US-020, US-086, US-087 | →1 | — | [r1_misc_us_075.md](sprint-3/r1_misc_us_075.md) |
 | 29 | full-stack | **US-077** ⬜ | Raise same-business-day departure deprovisioning alerts | 1SP | `See story file` | CHG-074 | US-019, US-020, US-082, US-086 | →1 | — | [r1_misc_us_077.md](sprint-3/r1_misc_us_077.md) |
-| 30 | full-stack | **US-088** ⬜ | Deliver authoritative member evidence and its persisted catalogue mapping | 1SP | `See story file` | CHG-086 | US-042, US-046, US-056, US-057, US-058 | →3 | — | [r1_misc_us_088.md](sprint-3/r1_misc_us_088.md) |
+| 30 | full-stack | **US-088** 🔨 | Deliver authoritative member evidence and its persisted catalogue mapping | 1SP | `See story file` | CHG-086 | US-042, US-046, US-056, US-057, US-058 | →3 | — | [r1_misc_us_088.md](sprint-3/r1_misc_us_088.md) |
 | 31 | full-stack | **US-018** ✅ | Anthropic connector client | 4SP | `See story file` | — | US-045, US-056, US-057, US-058, US-003, US-025 | — | — | [r1_misc_us_018.md](sprint-3/r1_misc_us_018.md) |
 | 32 | full-stack | **US-021** ✅ | Invite hygiene | 2SP | `See story file` | — | US-019, US-042, US-067, US-068, US-069 | — | — | [r1_misc_us_021.md](sprint-3/r1_misc_us_021.md) |
 | 33 | full-stack | **US-027** ✅ | Inactivity flags + usage surface | 2SP | `See story file` | — | US-026, US-072, US-073, US-074 | →1 | — | [r1_misc_us_027.md](sprint-3/r1_misc_us_027.md) |
