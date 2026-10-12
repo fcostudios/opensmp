@@ -426,7 +426,7 @@
 - **AC2**: `claimDriftMember` assigns company retroactively: creates LicenseAssignment (source_kind=reconciliation, note=comentario) + system-materialized request. Group Admin only, with `company:write` on a server-resolved company scope (DEC-SMP-036); `started_on` ≤ claim date, never intersecting a finalized statement; one transaction, replay-safe (DEC-SMP-039). *Owner: US-079.*
 - **AC3**: Drift metric on dashboard trends to zero (PRD §17): current = unresolved distinct episodes, trend = end-of-day counts over the trailing 30 completed America/Guayaquil dates derived from episode lifetimes (DEC-SMP-037). *Owner: US-080.*
 - **Prerequisites**: US-056, US-057, US-058, US-046, US-042
-- **Children (CHG-075 + CHG-077)**: US-083 → (US-084 ∥ US-078, file-boundary review; else US-084 first) → US-079 → US-080; parent AC1 owned collectively by US-083 + US-084 + US-078; parent closes by verification
+- **Children (CHG-075 + CHG-077 + CHG-086)**: US-083 = US-088 → US-089; US-089 → (US-084 ∥ US-078, file-boundary review; else US-084 first) → US-079 → US-080; parent AC1 owned collectively by US-083 + US-084 + US-078; parent closes by verification
 - **Feature**: FEAT-023 | **Journey**: J4 | **Release**: R1
 - **Screens**: SCR-exceptions
 - **Server actions**: claimDriftMember

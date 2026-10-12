@@ -22,7 +22,7 @@ As a Group Admin (persona_01), I want to catch console bypass within an hour so 
 | Server Actions | claimDriftMember |
 | Entities | MemberObservation (C), DriftEpisode (CU), LicenseAssignment (C), LicenseRequest (C system), AlertEvent (C) |
 | Business Rules | BR-24 |
-| Blocked By | US-056, US-057, US-058, US-046, US-042, US-078, US-079, US-080, US-083, US-084 |
+| Blocked By | US-056, US-057, US-058, US-046, US-042, US-078, US-079, US-080, US-083, US-084, US-088, US-089 |
 
 ## Acceptance Criteria
 

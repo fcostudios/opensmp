@@ -94,8 +94,8 @@ sufficient. See `CLAUDE.md` for the summary; this is the authoritative gate.
    ```jsonl
    {"story":"US-XXX","event":"done","ts":"2026-04-02T21:30:00Z"}
    ```
-   Optionally add a `cost` object — what this session consumed, as token counts,
-   never money: `"cost":{"calls":142,"context_tokens":310000,"output_tokens":41000,"model":"<model>","window":1000000}`
+   Add a `cost` object — what this session consumed, as token counts, never money
+   (an item closed without one is listed as unreported by `[Execution Cost]`): `"cost":{"calls":142,"context_tokens":310000,"output_tokens":41000,"model":"<model>","window":1000000}`
    (`calls` = tool calls, `context_tokens` = the context the session reached; both
    required inside `cost`, the rest optional). A malformed `cost` rejects the whole
    `done` at pull, naming the field.
@@ -114,4 +114,4 @@ A story is REJECTED during sprint acceptance if any of these hold:
   that script authorizes nothing else. It is a convention gate over the package's own tree:
   whoever edits `.nous-sync.json` can claim a path, so it authorizes by consistency, not by
   proof of authorship.
-<!-- nous-emitted: sha256=b23e655b91d4d948 -->
+<!-- nous-emitted: sha256=14bf7f24501685da -->

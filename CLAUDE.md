@@ -20,6 +20,7 @@ Drizzle, Auth.js with Keycloak) — there is no separate backend service.
 | **API registry** | `docs/api-contract-registry.json` | Before implementing a route handler — source of truth for API paths |
 | **Navigation map** | `docs/specs/07c_navigation_map.json` | **Before adding a route, sidebar item, or flow — authoritative registry** |
 | **Feature backlog** | `docs/specs/07b_features_backlog.md` | Feature-level specs (FT-NNN) |
+| **Business rules** | `docs/specs/09b_business_rules.md` | Before a story whose Meta row names a BR — statement, parameters, enforcement layer, oracle, critical flag |
 
 ### Dev-guide references (load on demand)
 
@@ -323,10 +324,12 @@ How you run a session is the largest lever on what a story costs. Defaults:
 - **Close when idle; resume from the story file + `.nous-feedback.jsonl`** — after a >1 h idle gap the whole context is re-created anyway.
 - **Never run a whole-repo read skill** (e.g. `learn-codebase`) — read the files the story names.
 - **If you delegate** (e.g. superpowers `subagent-driven-development`): the orchestrator plans, briefs and reviews — it does not implement; each worker gets a bounded brief; a parent above ~200K context is the expensive shape.
+- **Waiting is not free** — await a background gate or campaign with a blocking wait or a yield of ≥ 60 s. A 1-second poll is one API call per tick, and every tick re-sends the whole context (measured: 29 % of all calls on one project were polls).
+- **Under delegation the parent is one session per work item too** — it opens at readiness and closes at `done`, and it briefs a reviewer for adversarial verification and scoped review instead of running them in its own context. A parent that verifies pays twice: the full story context AND the verification transcript.
 - **Large tool output goes through a sandbox or a summary** — never paste it into the conversation.
 - **Checkpoint = commit what is green and start a fresh session** at ~150 tool calls or ~300K context. There is no `checkpoint` feedback event — it is retired; do not emit one.
 
-These thresholds are defaults measured on one harness (Claude Code, 2026-08/09). On another harness keep the shape and adjust the numbers.
+These thresholds are defaults measured on two harnesses (Claude Code, 2026-08/09; a controller + subagent harness, 2026-10). On another harness keep the shape and adjust the numbers.
 
 ## Skills Required
 
@@ -347,6 +350,41 @@ execution-ready; partition it into official, approved vertical children first.
 
 Run `pnpm readiness:check -- <WORK-ID>`. The complete mandatory contract is in
 [`docs/dev-guide/WORK_READINESS.md`](docs/dev-guide/WORK_READINESS.md).
+
+## Verification cost (CHG-065)
+
+Full text: `WORK_READINESS.md` §Per-task mutation previews, §Session shape and
+§Closure template.
+
+- **Re-preview only touched shards.** After a fix round, preview only the
+  shards whose preflight `sources` intersect the files changed since the
+  previous preview. A whole-set re-preview needs a named reason in the closure.
+  Record `preview_rounds` and `preview_minutes` in `actuals`.
+- **Preview budget (CHG-069).** One round per implementation task plus one
+  after the final fix wave, at most 30 `preview_minutes` per child; more rounds
+  or minutes need a named `root_cause` reason. A shard whose last run exceeded
+  5 minutes is previewed once, in the final round, unless a fix touched its
+  sources. A survivor found by a preview joins the next fix round. A
+  `routing_gaps` entry from preflight means that shard's score is not evidence.
+- **One line per survivor.** `surviving_annotated` holds
+  `<mutant-id> <file>:<line> @equivalent: <reason>` (or `@accepted: <reason>`
+  when the reviewer agrees an observable mutant is not worth a test). The
+  reviewer's verdict is the sign-off; no signed equivalence report and no
+  counterfactual log. A killed survivor is
+  proven by the test that kills it.
+- **One controller session per work item**, opened at readiness and closed at
+  `done` (a checkpoint or idle restart resumes the same item). The controller briefs a reviewer for adversarial AC verification and
+  scoped review instead of running them in its own context. Wait for
+  background gates and campaigns with a blocking wait or a yield of 60 s or
+  more, never a 1 s poll. Launch a preview round in the background, start the
+  next task, and collect it at that task's review boundary.
+- **Host awake during gates.** Run local gates as `caffeinate -i pnpm check`
+  (Linux: `systemd-inhibit --what=idle:sleep pnpm check`); record any gate run
+  above 2x the median wall time with its cause in `root_cause`.
+- **`cost` on every `done`**: `calls`, `context_tokens`, `output_tokens`,
+  `model`, `window`. `done` accepts no other key, so the sentence saying whether
+  the numbers are measured or estimated goes in a `feedback` annotation emitted
+  just before `done`.
 
 ## Sprint 1 Execution Contract (DEC-SMP-017 / CHG-001)
 
@@ -388,4 +426,4 @@ Run `pnpm readiness:check -- <WORK-ID>`. The complete mandatory contract is in
   runtime checks use `ledger_app`; no duplicate timestamp migrations exist
   under `packages/db/src/migrations/`.
 - Report evidence: `{"story":"US-XXX","event":"build_pass",...}` then `{"event":"done",...}`.
-<!-- nous-emitted: sha256=ca4a7c18b2c9a049 -->
+<!-- nous-emitted: sha256=f69c18865ba11df7 -->

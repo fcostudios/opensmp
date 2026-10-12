@@ -22,7 +22,7 @@ As a Group Admin (persona_01), I want every console membership observation Ledge
 | Server Actions | — |
 | Entities | MemberObservation (C), Vendor (U capability fields), LicenseType (U provider_ref), VendorAccount (U default_license_type_id), ConnectorCallObservation (R), AuditLog (C) |
 | Business Rules | BR-24 |
-| Blocked By | US-056, US-057, US-058, US-046, US-042 |
+| Blocked By | US-056, US-057, US-058, US-046, US-042, US-088, US-089 |
 | Migration | slug=member_observations |
 
 ## Acceptance Criteria
@@ -35,6 +35,7 @@ As a Group Admin (persona_01), I want every console membership observation Ledge
 
 ## Notes
 
+- **CHG-086 (2026-10-12) — partitioned after execution** (final cold 74.15%; full forecast 357 against 320): **US-088** (authoritative member evidence + persisted mapping; owns the committed combined migration whole) → **US-089** (atomic acceptance; owns the root export). This story closes by verification. Completed commits, approval history and real sunk cost are preserved and split between the children by the tenant. No policy change.
 - Canonical child of **US-030** (parent AC1 — the evidence foundation of the detection chain), minted by **CHG-077** on 2026-10-11 from the tenant's blocked US-078 readiness (`docs/readiness/US-078.json`, 540 min / 38 files / 2 boundaries against the 270-minute / 20-file ceiling; the connector exposed `{email, active}` only). Decisions DEC-SMP-043, DEC-SMP-044, DEC-SMP-045. First of the amended chain: **US-084** (hourly execution + confirmed-provision composition) and **US-078** (drift episodes, alerts, Deriva) consume it. Nous allocation target ≈ 220 min; the tenant re-assesses.
 - Scopes: connectors contract + Pact, db migration, packages acceptance pipeline. The operator-facing `default_license_type_id` field lives in US-055 AC4's Configuración (ingestion-mode configuration), not here. The capacity watermark stamp (`recordAcceptedMemberSnapshot`, US-081/DEC-SMP-041) is a consumer of the event: US-084 wires it for API observations once both are integrated.
 - Falsifiers that require repartition through Nous: a second provider, UI scope, or a file inventory above 20.

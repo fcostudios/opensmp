@@ -144,6 +144,33 @@ Use `actuals_corrected` when primary evidence proves immutable completion actual
 | `evidence` | **yes** | one or more non-empty primary-source descriptions |
 | `ts` | **yes** | ISO-8601 UTC timestamp after the terminal or preceding correction |
 
+## Readiness decisions — the typed `readiness` object on `decision`
+
+A `decision` event is a ruling, recorded as an annotation. When the ruling IS a
+readiness decision, add a `readiness` object so Nous records it in
+`readiness_decisions` (its claim gate, ready-checks 169/170 and calibration read
+that table). The event then also **requires `id`** (the row's evidence — replaying
+the file never doubles a row) **and `ts`** (the row's `decided_at`). A malformed
+`readiness` rejects the whole event at pull, naming the field.
+
+| Field | Required | Meaning |
+|-------|----------|---------|
+| `readiness.decision` | **yes** | `ready` \| `partition_required` \| `blocked` |
+| `readiness.work_id` | no | the decided item when it is not `subject_work_id`/`story` |
+| `readiness.partitions` | no | child work ids, in order — **required on `partition_required`**, refused otherwise |
+| `readiness.approved_by` | **yes** | the named human who approved it |
+| `readiness.tenant_payload_sha256` | no | your gate's own digest (kept on the event; never verified by Nous) |
+
+```jsonl
+{"story":"US-021","event":"decision","id":"US021-PARTITION","ts":"2026-10-02T01:09:23Z","text":"…","readiness":{"decision":"partition_required","partitions":["US-067","US-068","US-069"],"approved_by":"<name>"}}
+{"story":"US-067","event":"decision","id":"US067-READY","ts":"2026-10-02T02:10:00Z","text":"…","readiness":{"decision":"ready","approved_by":"<name>"}}
+{"story":"CHG-052","event":"decision","id":"CHG052-US059-BLOCKED","ts":"2026-10-02T03:00:00Z","subject_work_id":"US-059","relationship":"controlling_change","text":"…","readiness":{"decision":"blocked","approved_by":"<name>"}}
+```
+
+Nous cannot recompute your gate's digest, so the row is recorded **unbound**: a
+`ready` recorded this way is visible approval history, but it does not by itself
+make the item claimable through Nous's own claim gate.
+
 ## Canonical Event Vocabulary (authoritative)
 
 Canonical event vocabulary (single source: `feedback_schemas`). Unknown event names are surfaced by `pull`/`drift`, never silently dropped:
@@ -154,6 +181,7 @@ Canonical event vocabulary (single source: `feedback_schemas`). Unknown event na
 - **Decision (registered):** `decision`
 - **Sprint-level marker (project audit trail, never flips a story):** `closed_with_deferrals`, `adversarial_review`, `deferred_memory_saved`, `closure_hygiene`, `implemented_with_external_verification`
 - **Informational (counted, not persisted):** `build_pass`
+- **Project-local events (declared in `feedback.local_events`; this project only):** `lifecycle_corrected`
 - **Retired (accepted for history, never emit):** `checkpoint`
 
 Any `done_with_<qualifier>` event is recognized as terminal (recorded as a deferral); prefer plain `done` when there is no caveat.
@@ -167,9 +195,10 @@ Stamp events with `ts` when they happen, for example
 
 - `actuals_corrected` requires `ts`; it must be a valid ISO-8601 UTC timestamp.
 - `phase` requires `ts`; it must be a valid ISO-8601 UTC timestamp.
+- `decision` requires `ts` when it carries a `readiness` object; it must be a valid ISO-8601 UTC timestamp.
 
 For every other event, `ts` remains recommended but optional; an absent stamp
 never fails a sync. Without timestamps, `nous_trace.py story elapsed` reports
 missing endpoints rather than inventing a zero duration. A malformed stamp is
 excluded and named rather than guessed at.
-<!-- nous-emitted: sha256=080b9a3abb626d00 -->
+<!-- nous-emitted: sha256=d9248e5ae80e604a -->

@@ -22,7 +22,7 @@ As a Group Admin (persona_01), I want to catch console bypass within an hour so 
 | Server Actions | — |
 | Entities | DriftEpisode (CU), AlertEvent (C), MemberObservation (R), LicenseAssignment (R), VendorAccount (R), Person (R) |
 | Business Rules | BR-24 |
-| Blocked By | US-056, US-057, US-058, US-046, US-042, US-083 |
+| Blocked By | US-056, US-057, US-058, US-046, US-042, US-089 |
 | Migration | slug=drift_episodes |
 
 ## Acceptance Criteria
@@ -35,6 +35,7 @@ As a Group Admin (persona_01), I want to catch console bypass within an hour so 
 
 ## Notes
 
+- **CHG-086 (2026-10-12):** US-083 was partitioned; this story consumes accepted observations and now depends on **US-089**.
 - Canonical child of **US-030** (parent AC coverage: **AC1** — the drift outcome of the detection chain), minted by **CHG-075** on 2026-10-11 and **amended by CHG-077** the same day after the tenant's blocked readiness (`docs/readiness/US-078.json`, 540 min / 38 files): the connector contract repair, observation ledger and warnings moved to **US-083**; the hourly worker and confirmed-provision composition to **US-084**. Decisions DEC-SMP-034, DEC-SMP-035, DEC-SMP-038, DEC-SMP-045. Depends on US-083 (`Blocked By`); parallel-safe with US-084 subject to the tenant's file-boundary review, otherwise after it. **US-079** (claim) and **US-080** (metric) build on the episode evidence this child delivers. Nous allocation target ≈ 260 min; the tenant re-assesses — if the post-foundation inventory still exceeds 20 files, Nous allocates a further independently demonstrable outcome (e.g. alert correction + legacy readability apart from episodes + Deriva), never a technical layer.
-- Owns the shared diff/upsert entrypoint that **US-055** calls for every successful `importMembersCsv` (after producing its observation through US-083's pipeline); US-055 implements no second drift algorithm.
+- Owns the shared diff/upsert entrypoint that **US-055** calls for every successful `importMembersCsv` (after producing its observation through US-089's acceptance pipeline); US-055 implements no second drift algorithm.
 - Vertical delivery: migration + grants, packages diff/upsert, alert contract correction, Deriva listing + warnings, locales, verification (all sources, races, disappearance, legacy alerts, authorization), review, integration.

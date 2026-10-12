@@ -21,6 +21,7 @@ Related guides: [`NAVIGATION.md`](NAVIGATION.md) (routes & screens),
 | Market / competitors / AI-RAG rationale | `01_research.md` |
 | Who the users are, their goals | `02_cx_personas.md` |
 | The flows users go through (AS-IS / TO-BE) | `03_cx_journeys.md` |
+| Service blueprint (frontstage / backstage / support) | `03b_service_blueprint.md` *(if present)* |
 | Data model, entities, bounded contexts | `04_er_model.md` |
 | Colors, typography, brand voice | `05_brand.md` |
 | Components, design tokens, WCAG/a11y | `06_design_system.md` |
@@ -29,6 +30,7 @@ Related guides: [`NAVIGATION.md`](NAVIGATION.md) (routes & screens),
 | **Routes / screens / flows (source of truth)** | `07c_navigation_map.json` |
 | User stories & acceptance criteria | `08_scope.md`, `docs/stories/` |
 | Architecture, DDD contexts, NFRs | `09_architecture.md` |
+| **What a `BR-NN` means** (statement, parameters, critical flag) — the ids in a story's `Business Rules` row and in `testing/critical-paths.md` | `09b_business_rules.md` *(if present)* |
 | Sprints & roadmap | `10_plan.md` |
 | Estimates / QA (proofread, risk, legal) | `11_estimates.md`, `12_proofread.md`, `13_risk.md`, `14_legal.md` *(if present)* |
 | How/why a decision was made | `docs/decisions/`, tech-specs & design docs in `docs/specs/` |
