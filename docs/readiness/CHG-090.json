@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "48641cc87d4a039bd273ea320a3d88452f92dd38095cd6278250639699a7999f",
+  "readiness_payload_sha256": "268d716e337d577c914ae460dd45a41bed5195307de6b59a32160b06a199ae24",
   "work_id": "CHG-090",
   "kind": "CHG",
   "work_type": "technical",
@@ -29,6 +29,18 @@
     },
     {
       "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC5",
       "outcome_ids": [
         "O1"
       ]
@@ -88,8 +100,8 @@
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "CHG090-READY-STANDING-20261012",
-    "payload_sha256": "48641cc87d4a039bd273ea320a3d88452f92dd38095cd6278250639699a7999f"
+    "evidence": "CHG090-READY-CANONICAL-ACS-20261012",
+    "payload_sha256": "268d716e337d577c914ae460dd45a41bed5195307de6b59a32160b06a199ae24"
   },
   "actuals": null,
   "policy_bootstrap": false,

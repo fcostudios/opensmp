@@ -22,12 +22,14 @@ File: scripts/work-readiness/git.mjs only literal REVIEWED_RECONCILER_SHA256 and
 
 - [ ] Independent scoped reviewer reads complete reconciler delta from reviewedbfabaa bytes plus both fullchains/manifest and focused tests. No digest update until review explicitlyGREEN.
 - [ ] Compute full reconcilerSHA256 only after review; set literal/comment to that reviewed identity. Run full Node readiness contracts proving exactfullbytes accepted and modifiedbytes failclosed; ownreadiness/range checksGREEN.
-- [ ] Fresh adversarial reviewer verifies AC1–4 with concrete negatives and immutable live guides/mirrors/US087 history. Hand root bothtechnicalreview/guidanceGREEN before global/stockgate.
+- [ ] Fresh adversarial reviewer verifies AC1–5 with concrete negatives and immutable live guides/mirrors/US087 history. Hand root bothtechnicalreview/guidanceGREEN before global/stockgate.
 
 ## Task3 — coordinated integration and truthful closure
 
 - [ ] Root owns coordinated awake pnpmcheck stock sharedPG fixture under exclusive ownedtoken/device/inode lock after bothtechnicalreviews. Record actualfullgate results; global pendingUS087 is only resolved under separate authorized assessment, never silentlyignored.
 - [ ] Run native scopedpreflight/campaign againstCHG090authoritybase568891c. If no eligible sources report0sources/0shards, no mutation score/test_report. No rerun ofUS086campaign, no sharedcachedeletion.
-- [ ] Record finalphaseactuals, estimatevariance, evidence/cost provenance and four verifiedACs appendonly; doneonlyafter gates. Rootcoordinatesledgerwrites; preserve foreignreports/locks and blockedoriginalUS087a587591.
+- [ ] Record finalphaseactuals, estimatevariance, evidence/cost provenance and five canonical verifiedACs appendonly; doneonlyafter gates. Rootcoordinatesledgerwrites; preserve foreignreports/locks and blockedoriginalUS087a587591.
 
 Review focus: exact pathsourcechain; unrecognized bytes; manifest/source/desired tamper; missing/wrongpredecessor; consumer rawbyte tamper. All tests use realfilesystem/subprocess and assert no project writes. No product/model/lifecycle behavior changes; CHG089owns its own paths and correction.
+
+Canonical coverage repair: all five canonical criteria map to O1; current digest 268d716e337d577c914ae460dd45a41bed5195307de6b59a32160b06a199ae24 is approved under standing authority. Earlier digest 48641cc87d4a039bd273ea320a3d88452f92dd38095cd6278250639699a7999f authorized original start/source and remains recorded. AC4 owns truthful global/focused/stock awake gate evidence; AC5 owns actual effort and cost reassessment. Scope six delivery paths, budget60minutes unchanged.
