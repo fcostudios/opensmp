@@ -22,7 +22,7 @@ As a Group Admin (persona_01), I want connector-backed removals to actually reac
 | Server Actions | — |
 | Entities | ProvisioningAction (U), ConnectorCallObservation (C), IntegrationCredential (R), VendorAccount (R), LicenseRequest (U via primitive), LicenseAssignment (U via primitive), RequestTransition (C via primitive) |
 | Business Rules | BR-14 |
-| Blocked By | US-019, US-020, US-075 |
+| Blocked By | US-019, US-020, US-087 |
 
 ## Acceptance Criteria
 
@@ -33,6 +33,7 @@ As a Group Admin (persona_01), I want connector-backed removals to actually reac
 
 ## Notes
 
+- **CHG-083 (2026-10-11):** US-075 was partitioned; this story now depends on **US-087** (the child that owns what it consumes) instead of the parent.
 - Canonical child of **US-024** (parent AC coverage: **AC1** connector execution), minted by **CHG-076** on 2026-10-11 from the tenant's blocked US-075 readiness, which found the people entrypoint falling back to the checklist through an unregistered dispatcher, the worker selecting `invite` only, and no removal finalization. Decisions DEC-SMP-033, DEC-SMP-042. Depends on US-075's entrypoint and primitive (`Blocked By`). Nous allocation target ≈ 180 min; the tenant re-assesses.
 - Reuses, does not re-specify: the provider deprovision capability and action planner (US-025/US-063..066), credential/composition/observation foundations (US-056/US-057/US-058), the Fallidas retry affordance. Runs after US-075; US-077 (worker alert surface) is sequenced after this story; US-076 may run in parallel with it subject to the file-boundary review.
 - Vertical delivery: worker selection/claim, dispatch, failure/retry, finalization call, exceptions surface, verification with contract-backed connector fixtures (success, failure, already-removed, race), review, integration. No migration expected.

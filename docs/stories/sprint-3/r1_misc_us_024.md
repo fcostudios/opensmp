@@ -22,7 +22,7 @@ As a Group Admin (persona_01), I want to remove seats same-business-day on depar
 | Server Actions | startOffboarding |
 | Entities | LicenseAssignment (U close), ProvisioningAction (C), Person (U), VendorAccount (U refresh watermark) |
 | Business Rules | BR-14 |
-| Blocked By | US-019, US-020, US-075, US-076, US-077, US-081, US-082, US-085 |
+| Blocked By | US-019, US-020, US-075, US-076, US-077, US-081, US-082, US-085, US-086, US-087 |
 
 ## Acceptance Criteria
 

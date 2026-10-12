@@ -26,7 +26,7 @@
 | BR-08 | Approval aging: reminder at 24 h, escalation at 48 h; decision target 2 business days | exact | US-015, US-017, US-046 |
 | BR-11 | Low-pool alert below the per-org floor | exact | US-022 |
 | BR-12 | Blocked requests are never dropped; review within 1 business day | exact | US-023 |
-| BR-14 | Departure deprovisioning completes same business day | property | US-024, US-042, US-075, US-077, US-082 |
+| BR-14 | Departure deprovisioning completes same business day | property | US-024, US-042, US-075, US-077, US-082, US-086, US-087 |
 | BR-17 | Proration is daily actual/actual with exact mid-month boundaries | exact | US-034 |
 | BR-18 | Close is deterministic and idempotent; finals are immutable | exact | US-034, US-035, US-047, US-050 |
 | BR-20 | Reconciliation flips to reconciled ONLY within 0.5% | exact | US-038 |
@@ -49,4 +49,4 @@
 - **Daily person activity (US-070; DEC-SMP-024, DEC-SMP-025)** — identity matching is company-scoped; natural-key writes are idempotent, ignore stale or equal-equivalent observations and reject equal-time contradictions; source/API activity ingestion requires explicit opt-in; replay accepts only allowlisted activity events; unmatched or null-email identities produce durable warnings; ambiguous identities reject the batch atomically.
 - **Exact revisable person costs (US-071; DEC-SMP-024, DEC-SMP-025)** — signed USD amounts use exact decimal strings and integer arithmetic; nonrepresentable precision and overflow reject before writes. The injected UTC completed-date window [D-30,D) guards every source. Company-scoped identities, account/person/day freshness, opt-in locks and atomic warning audits preserve isolation and replay; null/unmatched identities warn and conflicting equal-time payloads reject.
 - **Capacity refresh watermark (US-081, US-085; DEC-SMP-031, DEC-SMP-041)** — freed seats never become free capacity optimistically: only `recordAcceptedMemberSnapshot` writes `VendorAccount.members_refreshed_at`/`members_refresh_source`, and only for a validated-complete account-wide member observation (partial/failed/stale observations, provider removal success, invitation polling and single manual entries never stamp it); the `pool-snapshots` projection counts a closed assignment as freed only when the watermark is strictly later than the closure instant (the anchoring `offboarding → deprovisioned` transition `occurred_at`, else `ended_on` end-of-day America/Guayaquil), a null watermark frees nothing, and every other closure reports `pending_refresh`; `seat_freed` recovery and purchased quantities are untouched; every pool surface reads this one projection. Oracle: property-based over generated closure/observation histories with an injected clock, plus real-DB grant/apply verification.
-<!-- nous-emitted: sha256=1a8bb329503b9860 -->
+<!-- nous-emitted: sha256=f3dbc66aa9d74be0 -->

@@ -58,7 +58,7 @@ The **aggregate + projection layers should be the widest part of the suite**, no
 - **BR-08 — Approval aging: reminder at 24 h, escalation at 48 h; decision target 2 business days** — critical business rule; oracle: `exact`. (stories: US-015, US-017, US-046)
 - **BR-11 — Low-pool alert below the per-org floor** — critical business rule; oracle: `exact`. (stories: US-022)
 - **BR-12 — Blocked requests are never dropped; review within 1 business day** — critical business rule; oracle: `exact`. (stories: US-023)
-- **BR-14 — Departure deprovisioning completes same business day** — critical business rule; oracle: `property`. (stories: US-024, US-042, US-075, US-077, US-082)
+- **BR-14 — Departure deprovisioning completes same business day** — critical business rule; oracle: `property`. (stories: US-024, US-042, US-075, US-077, US-082, US-086, US-087)
 - **BR-17 — Proration is daily actual/actual with exact mid-month boundaries** — critical business rule; oracle: `exact`. (stories: US-034)
 - **BR-18 — Close is deterministic and idempotent; finals are immutable** — critical business rule; oracle: `exact`. (stories: US-034, US-035, US-047, US-050)
 - **BR-20 — Reconciliation flips to reconciled ONLY within 0.5%** — critical business rule; oracle: `exact`. (stories: US-038)
@@ -141,4 +141,4 @@ pnpm test:mutation  # ONE diff-scoped mutation campaign  ← the gate
 ## 8. Reference
 
 Full rationale + evidence base: `docs/TEST_EFFECTIVENESS_STANDARD.md`.
-<!-- nous-emitted: sha256=def04795425bd1f6 -->
+<!-- nous-emitted: sha256=ca959bbd4cd13bce -->

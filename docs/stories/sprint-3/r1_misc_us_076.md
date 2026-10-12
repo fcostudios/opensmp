@@ -22,7 +22,7 @@ As a Group Admin (persona_01), I want to mark a person as having left the group 
 | Server Actions | startOffboarding |
 | Entities | Person (U), LicenseAssignment (R), LicenseRequest (U), AuditLog (C) |
 | Business Rules | — |
-| Blocked By | US-019, US-020, US-075 |
+| Blocked By | US-019, US-020, US-086 |
 
 ## Acceptance Criteria
 
@@ -33,6 +33,7 @@ As a Group Admin (persona_01), I want to mark a person as having left the group 
 
 ## Notes
 
+- **CHG-083 (2026-10-11):** US-075 was partitioned; this story now depends on **US-086** (the child that owns what it consumes) instead of the parent.
 - Canonical child of **US-024** (parent AC coverage: **AC3**), minted by **CHG-074** on 2026-10-11 from the tenant's `partition_required` assessment (`docs/readiness/drafts/US-024.json`, proposal `departure-confirmation`, estimate 240 min). Decision DEC-SMP-032. Depends on US-075's entrypoint (`Blocked By`); parallel-safe with US-077 after US-075 integrates (people/UI surface vs alert/calendar surface).
 - `packages/contracts/src/people.ts` already carries `active / departed`; this child adds the confirmation, the atomic person-wide start and the rollback, not a new state.
 - Vertical delivery: contracts, both detail screens, authorization/audit, real-DB verification of atomicity and rollback, review, integration. No migration expected.

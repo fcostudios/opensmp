@@ -22,7 +22,7 @@ As a Group Admin (persona_01), I want to remove seats same-business-day on depar
 | Server Actions | startOffboarding |
 | Entities | LicenseAssignment (U close), ProvisioningAction (CU), LicenseRequest (U), RequestTransition (C), VendorAccount (R), AuditLog (C) |
 | Business Rules | BR-14 |
-| Blocked By | US-019, US-020 |
+| Blocked By | US-019, US-020, US-086, US-087 |
 
 ## Acceptance Criteria
 
@@ -33,6 +33,7 @@ As a Group Admin (persona_01), I want to remove seats same-business-day on depar
 
 ## Notes
 
+- **CHG-083 (2026-10-11) — partitioned** on the tenant's assessment (350 min against 320): **US-086** (start: AC1 + start half of AC4; 230) → **US-087** (completion: AC2, AC3 + completion half of AC4; 250). This story closes by verification once both are dev_done. Existing work, approvals and incurred cost stay recorded here and are carried by the children, not re-counted. No new policy ruling.
 - Canonical child of **US-024** (parent AC coverage: **AC1** entrypoint + checklist path, **AC2** register closure), minted by **CHG-074** on 2026-10-11 and **amended by CHG-076** the same day after the tenant's blocked readiness (`docs/readiness/US-075.json`, 440 min / 5 scopes / 25–32 files): connector execution moved to **US-082**, the capacity-refresh foundation to **US-081**, and `reallocated` removed from the accepted reasons. Decisions DEC-SMP-031, DEC-SMP-033, DEC-SMP-040, DEC-SMP-042. First child; no sibling dependency. Nous allocation target ≈ 210 min; the tenant re-assesses.
 - Owns the shared offboarding entrypoint and the finalization primitive that **US-082** (worker connector removal), **US-076** (departure confirmation), **US-077** (overdue alert) and **US-028** (approved reclamation → offboarding) reuse. Invitation-only removal and `invited → deprovisioned` stay with US-068/US-069. The `occurred_at` of the `offboarding → deprovisioned` transition is the closure instant the US-081 capacity projection compares against the account's refresh watermark (DEC-SMP-041).
 - Vertical delivery: contracts, production entrypoint on both detail screens, checklist extension, the primitive, authorization/audit, real-DB verification (atomic close + transition, unconfirmed/retry/concurrency), review, integration. No schema or migration expected (`ended_on`/`end_reason` UPDATE grants already exist); if one is needed it ships here, append-only, with fresh-database verification.

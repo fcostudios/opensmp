@@ -364,7 +364,7 @@
 - **Screens**: SCR-person-detail, SCR-request-detail
 - **Server actions**: startOffboarding
 - **Entities (CRUD)**: LicenseAssignment (U close), ProvisioningAction (C), Person (U), VendorAccount (U refresh watermark)
-- **Children (CHG-074 + CHG-076 + CHG-078)**: US-075 → US-082 → (US-076 ∥ US-077); US-081 ∥ US-075 (file-boundary review cleared) → US-085; parent closes by verification
+- **Children (CHG-074 + CHG-076 + CHG-078 + CHG-083)**: US-075 = US-086 → US-087; US-087 → US-082; US-086 → US-076; (US-086, US-082) → US-077; US-081 → US-085; parent closes by verification
 
 ### US-025 — Vendor accounts + capability descriptor
 - **As**: Group Admin (persona_01) | **Want to**: manage orgs, modes and connector capabilities | **So that**: the vendor-neutral core is operable (Module I)
