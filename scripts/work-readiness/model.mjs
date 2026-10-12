@@ -1283,11 +1283,8 @@ export function validateCompletionActuals(value, feedbackRecords, { approvedRead
 // two real checkpoint events, and the closed-key shape check would reject it outright
 // if the key were dropped — the same history-preserving reasoning as CHG-036's optional
 // attestation keys. `init` no longer emits it for new artifacts.
-export function validateAssessment(value, { feedbackRecords = [], approvedReadinessAuthorities, deliveryPolicy = false } = {}) {
+export function validateAssessment(value, { feedbackRecords = [], approvedReadinessAuthorities } = {}) {
   validateShape(value);
-  if (deliveryPolicy && !Object.hasOwn(value.signals, "bookkeeping_files")) {
-    fail("WR_MISSING_PROPERTY", "$.signals.bookkeeping_files", "New assessments require informational bookkeeping_files");
-  }
   feedbackArray(feedbackRecords);
   if (value.policy_bootstrap) {
     exactBootstrap(value);

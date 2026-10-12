@@ -60,10 +60,10 @@ test("CHG-082 counts 21 paths with five closed-list bookkeeping as 16 delivery",
   assert.throws(() => validateAssessment(value, { feedbackRecords: [decision(value)], deliveryPolicy: true }), { code: "WR_TOO_MANY_FILES" });
   assert.deepEqual(policy.deliveryFileSignals(["docs/readiness-other/a", "docs/superpowers/specs-other/a", ".nous-feedback.jsonl.bak"]), { expected_changed_files: 3, bookkeeping_files: 0 });
 });
-test("CHG-082 prospective field omission fails while historical payload stays valid", () => {
+test("CHG-082 field omission retains legacy counting despite a caller policy flag", () => {
   const value = artifact(); delete value.signals.bookkeeping_files; refresh(value);
   assert.equal(validateAssessment(value, { feedbackRecords: [decision(value)] }).decision, "ready");
-  assert.throws(() => validateAssessment(value, { feedbackRecords: [decision(value)], deliveryPolicy: true }), { code: "WR_MISSING_PROPERTY" });
+  assert.equal(validateAssessment(value, { feedbackRecords: [decision(value)], deliveryPolicy: true }).decision, "ready");
   for (const invalid of [-1, 1.5, "5"]) { value.signals.bookkeeping_files = invalid; refresh(value); assert.throws(() => validateAssessment(value, { feedbackRecords: [decision(value)] }), { code: "WR_INVALID_INTEGER" }); }
 });
 
@@ -114,20 +114,20 @@ test("CHG-082 full-table routing equals immutable predecessor for every source",
   }
 });
 
-test("CHG-082 immutable payload introductions preserve history and require new omitted-field payloads", () => fixture(({ root, value }) => {
+test("CHG-082 payload introductions do not change explicit counting classification", () => fixture(({ root, value }) => {
   activate(root);
   assert.equal(ownership.readinessDeliveryPolicy({ root, revision: "HEAD", artifact: value }), false);
   value.title = "A newly assessed outcome in the old file"; refresh(value);
   write(root, "docs/readiness/US-901.json", JSON.stringify(value)); commit(root, "US-901 replace assessment payload");
-  assert.equal(ownership.readinessDeliveryPolicy({ root, revision: "HEAD", artifact: value }), true);
+  assert.equal(ownership.readinessDeliveryPolicy({ root, revision: "HEAD", artifact: value }), false);
   const later = artifact("US-903"); delete later.signals.bookkeeping_files; refresh(later);
-  assert.equal(ownership.readinessDeliveryPolicy({ root, revision: "HEAD", artifact: later }), true);
+  assert.equal(ownership.readinessDeliveryPolicy({ root, revision: "HEAD", artifact: later }), false);
   write(root, "docs/readiness/US-903.json", JSON.stringify(later)); commit(root, "US-903 introduce pending assessment");
-  assert.equal(ownership.readinessDeliveryPolicy({ root, revision: "HEAD", artifact: later }), true);
+  assert.equal(ownership.readinessDeliveryPolicy({ root, revision: "HEAD", artifact: later }), false);
 }));
-test("CHG-082 raw done cannot activate prospective rules", () => fixture(({ root }) => {
+test("CHG-082 raw done does not affect explicit field classification", () => fixture(({ root }) => {
   activate(root, { genuine: false });
-  assert.equal(ownership.readinessDeliveryPolicy({ root, revision: "HEAD", artifact: artifact("US-903") }), false);
+  assert.equal(ownership.readinessDeliveryPolicy({ root, revision: "HEAD", artifact: artifact("US-903") }), true);
 }));
 
 for (const mode of ["responsible", "unowned", "alter", "script"]) {

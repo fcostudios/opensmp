@@ -33,9 +33,10 @@ non-repeatable exception; changing or copying it does not create another one.
 3. More than three major technical scopes are touched.
 4. More than two routes or screens are changed.
 5. More than three independently testable acceptance flows exist.
-6. Expected delivery paths (`signals.expected_changed_files`) exceed 20. For
-   assessments created after CHG-082 integrates, bookkeeping is counted separately
-   as informational integer `signals.bookkeeping_files`. The closed list is
+6. Expected paths (`signals.expected_changed_files`) exceed 20. If
+   `signals.bookkeeping_files` is absent, this is the legacy inclusive count.
+   Presence of the field selects delivery-path counting, with bookkeeping counted
+   separately as an informational nonnegative integer. The closed list is
    `docs/readiness/**` (including drafts and requests), `docs/superpowers/specs/**`,
    `docs/superpowers/plans/**`, and `.nous-feedback.jsonl`; no judgment-based
    exceptions exist. `scripts/mutation-routes.json` is one delivery path.
@@ -43,7 +44,7 @@ non-repeatable exception; changing or copying it does not create another one.
    check must use this same closed list.
 7. More than one lifecycle or concurrency boundary exists.
 8. Functional delivery and a tooling/framework change are combined. The sole
-   carve-out, for assessments created after CHG-082 integrates, is an additive
+   carve-out, for assessments containing `signals.bookkeeping_files`, is an additive
    change to `scripts/mutation-routes.json`: preserve all base keys and ordered
    values, add only new keys or appended test values, require every new key's
    source to be changed by the item's own authorized delivery, and require every
@@ -56,15 +57,18 @@ non-repeatable exception; changing or copying it does not create another one.
 9. An uncertainty lacks a resolution or explicit estimate impact.
 10. The implementation requires an unofficial or unresolved work-item ID.
 
-CHG-082 is prospective. Immutable Git history identifies the first introduction
-of each canonical payload digest and validates the completed, approved CHG-082
-chain in that introduction's parent. A new uncommitted payload uses HEAD as its
-creation boundary. Omission of `bookkeeping_files` does not evade the new policy.
-Previously approved or pending digests, including US-075, US-081, US-083,
-CHG-079, CHG-080 and CHG-081, retain their original classification and approval.
-CHG-079/081 are preserved; the second integration line rebases their complete
-route table into the JSON data, records its original-to-rebased SHA map, and
-reruns the differential oracle over every predecessor entry.
+CHG-084 makes counting explicit: absence of `signals.bookkeeping_files` preserves
+legacy inclusive counting; presence selects CHG-082 delivery counting and the
+additive route-data contract. Negative, fractional or non-integer bookkeeping
+counts are invalid. The same 20-path hard limit applies to either count. Git
+ancestry, commit order, activation and rebase position do not classify the
+payload. Git history still authorizes each item's changed-source ownership.
+Previously approved or pending artifacts, including US-024, US-075, US-081,
+US-083, CHG-079, CHG-080 and CHG-081, retain their bytes, digest and approval.
+No schema-version change is required. CHG-079/081 are preserved; the second
+integration line rebases their complete route table into the JSON data, records
+its original-to-rebased SHA map, and reruns the differential oracle over every
+predecessor entry.
 
 The phase total must equal `readiness + implementation +
 focused_verification + review + integration`. Outcome and acceptance-criterion

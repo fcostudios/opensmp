@@ -497,9 +497,6 @@ function validateChangedMachineArtifacts(root, revision, changedPaths) {
     const assessment = parseJson(readRevisionFile(root, revision, path), path);
     const expectedWorkId = path.slice("docs/readiness/".length, -".json".length);
     classifyAssessment(assessment);
-    if (readinessDeliveryPolicy({ root, revision, artifact: assessment }) && !Object.hasOwn(assessment.signals, "bookkeeping_files")) {
-      fail("WR_MISSING_PROPERTY", `${path}.signals.bookkeeping_files`, "New assessments require informational bookkeeping_files");
-    }
     if (assessment.work_id !== expectedWorkId) fail("WR_READINESS_WORK_ID_MISMATCH", path, `Artifact work_id does not match ${expectedWorkId}`);
   }
 }
@@ -1138,46 +1135,10 @@ export function resolveDefaultBase(root, env = process.env) {
   return resolveDefaultRange(root, env).base;
 }
 
-// Activation is genuine completed/approved CHG-082 authority, read from an
-// immutable ancestor. A raw terminal string cannot enable the carve-out.
-const deliveryPolicyCompletionCache = new Map();
-function completedDeliveryPolicy(root, revision) {
-  const cacheKey = `${root}:${revision}`;
-  if (/^[0-9a-f]{40}$/u.test(revision) && deliveryPolicyCompletionCache.has(cacheKey)) return deliveryPolicyCompletionCache.get(cacheKey);
-  const text = readRevisionFile(root, revision, "docs/readiness/CHG-082.json", { required: false });
-  if (text === null) return false;
-  try {
-    const value = parseJson(text, "docs/readiness/CHG-082.json");
-    if (value.work_id !== "CHG-082" || value.work_type !== "technical") return false;
-    const records = parseFeedback(readRevisionFile(root, revision, ".nous-feedback.jsonl", { required: false }));
-    const complete = validateAssessment(value, { feedbackRecords: records }).complete;
-    if (/^[0-9a-f]{40}$/u.test(revision)) deliveryPolicyCompletionCache.set(cacheKey, complete);
-    return complete;
-  } catch (error) {
-    if (error instanceof WorkReadinessError) return false;
-    throw error;
-  }
-}
-
-// The policy is bound to payload creation, never an author-controlled marker or
-// path age. Approval/actuals edits keep the same payload. An uncommitted new
-// payload uses current immutable HEAD policy as its introduction boundary.
-export function readinessDeliveryPolicy({ root, revision = "HEAD", artifact }) {
-  const head = resolveCommit(root, revision, "$.head");
-  if (!completedDeliveryPolicy(root, head)) return false;
-  const path = `docs/readiness/${artifact.work_id}.json`;
-  const digest = computeReadinessPayloadSha256(artifact);
-  const history = git(root, ["log", "--format=%H", "--reverse", head, "--", path]).toString("utf8").trim();
-  for (const commit of history === "" ? [] : history.split("\n")) {
-    const bytes = readRevisionFile(root, commit, path, { required: false });
-    if (bytes === null) continue;
-    let candidate;
-    try { candidate = parseJson(bytes, path); } catch (error) { if (error instanceof WorkReadinessError) continue; throw error; }
-    if (computeReadinessPayloadSha256(candidate) !== digest) continue;
-    const parents = git(root, ["rev-list", "--parents", "-n", "1", commit]).toString("utf8").trim().split(/\s+/u);
-    return parents.length > 1 && completedDeliveryPolicy(root, parents[1]);
-  }
-  return completedDeliveryPolicy(root, head);
+// Counting is a property of the approved payload, independent of Git history.
+// Git history continues to authorize source ownership in itemAuthorityPaths.
+export function readinessDeliveryPolicy({ artifact }) {
+  return Object.hasOwn(artifact.signals, "bookkeeping_files");
 }
 
 function itemAuthorityPaths(root, authority, head, workId) {

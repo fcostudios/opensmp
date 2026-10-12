@@ -5297,3 +5297,6 @@ process.stdout.write(`work-readiness model: ${assertions} behavioral tests passe
 
 // CHG-082 focused real-Git and differential contracts.
 await import("./test-chg082.mjs");
+
+// CHG-084 explicit counting and unchanged approval rebase contracts.
+await import("./test-chg084.mjs");
