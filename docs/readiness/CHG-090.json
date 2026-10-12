@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "48641cc87d4a039bd273ea320a3d88452f92dd38095cd6278250639699a7999f",
+  "work_id": "CHG-090",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Register immutable guidance pins for canonical sync 8a5c4fb",
+  "source": "docs/stories/CHANGES.md CHG-090; canonical Nous 7e239ee CHG-090_TECH_SPEC.md; Francisco standing request dbf03c249f9f04ee83968d4bf87450c26acb0887",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The exact delivered CLAUDE and Definition of Done bytes validate through their independently inspected immutable predecessor chains; the consumer accepts only independently reviewed complete reconciler bytes.",
+      "demo": "Generated-guidance check passes unchanged delivered bytes; exact-chain registration and rejection tests pass without writes; consumer raw-byte tampering rejects.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling",
+    "readiness-policy",
+    "verification"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 6,
+    "bookkeeping_files": 4,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 10,
+    "implementation": 10,
+    "focused_verification": 15,
+    "review": 15,
+    "integration": 10,
+    "total": 60
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Resolving predecessor must be inspected for each delivered file separately.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Actual loader validates CLAUDE chain001/825e882→022/16f72c9→042/fd7741f→049/6466f60→053/2dee869→065/7817e94; DoD001→022→042→049→055/e240d85→065/7817e94. Bind CLAUDE source_path overrides/CHG-065/7817e94/CLAUDE.md hash ea24b7b9af19f4a050d2dce58d2095a48e0ec96369290455504c50f8f91ce40e and DoD source_path overrides/CHG-065/7817e94/docs/dev-guide/DEFINITION_OF_DONE.md hash a0b4aff2d0baa8dfad6557ee51d547de4f94e037729b1d9dbc3c70a225725429. Desired exact delivery05722c7d8351bffcf1f17fa1ab7d62411dbf12f5ce1759fde8f3ba26396cc685 and2d683a7b4161cdb07838b5fe3fbddff4bd4a1221ce7b8e026bdfddd39c25e392 verified live and8a5c4fb Git objects; mirrors consistent."
+    },
+    {
+      "id": "U2",
+      "statement": "Appended registration changes complete reconciler raw digest.",
+      "status": "resolved",
+      "estimate_impact_minutes": 5,
+      "resolution": "Six delivery paths: infra/scripts/overrides/CHG-090/8a5c4fb/{manifest.json,CLAUDE.md,docs/dev-guide/DEFINITION_OF_DONE.md}; infra/scripts/reconcile-sprint1-docs.py; infra/scripts/tests/test_reconcile_sprint1_docs.py; scripts/work-readiness/git.mjs. Only append closed two-path registration and focused harness; update consumer literal/provenance after independent complete delta review. No parser or behavioral relaxation."
+    },
+    {
+      "id": "U3",
+      "statement": "Global prerequisites and shared full gate require CHG-089 coordination.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "Sequential git.mjs and append-only ledger handoff after089checkpoint568891c. Independent reviews before root coordinated owned-lock awake stock gate. PendingUS087a587591 immutable; global all currently fails solely its pending approval, never falsely reported GREEN. Root separately refreshes readiness only after both technical prerequisites GREEN. Own technical0mutatable sources expected; native scoped preflight/campaign, no borrowedUS086score/campaign and no foreign lock removal."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG090-READY-STANDING-20261012",
+    "payload_sha256": "48641cc87d4a039bd273ea320a3d88452f92dd38095cd6278250639699a7999f"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
