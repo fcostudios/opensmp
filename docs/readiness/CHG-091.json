@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "b467465a3e5f4f0f59bd8107bd3a1b7ebf72a5ebdf5cf147d48fc46a18428903",
+  "work_id": "CHG-091",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Propagate committed correction context through readiness consumers",
+  "source": "/Users/fcolomas/Projects/nous/Nous/WorkControl/fcostudios/smp/CHG-091_TECH_SPEC.md; delivered canonical allocation99b9709; request189b6e2; exact technical base2ec2d3f993732c294efd74e3bff0e5e30f4efc45",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Existing pinned committed correction authority and raw annotation identity survive the exact replay and feedback-order consumers, while every closed guard remains unchanged.",
+      "demo": "Real rebased US088 bundle with independently authorized foreign CHG089 correction is RED before repair and GREEN after consumer-only repair; hostile authority/raw/history cases reject. Separate technical integration then readonly exact current child delivery/range/order/ready proof preserves13entries, originala80, migration289e93 and11map.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling",
+    "readiness-consumers",
+    "verification"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 4,
+    "bookkeeping_files": 4,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 10,
+    "implementation": 15,
+    "focused_verification": 30,
+    "review": 20,
+    "integration": 25,
+    "total": 100
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Consumers must select independently committed correction authority without mutable authority fallback.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "Reuse existing authority/parser primitives pinned to the validated authorization revision; real-Git missing/mismatched/unapproved/future/uncommitted authority and altered raw bytes regressions. No model or closed binding changes."
+    },
+    {
+      "id": "U2",
+      "statement": "Technical and functional work/cost boundaries and current source proof must remain distinct.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Exactly4delivery paths scripts/work-readiness/git.mjs, scripts/check-nous-feedback-order.mjs, scripts/test-work-readiness.mjs, scripts/test-feedback-order.mjs;4bookkeeping paths this readiness, design, plan and append-only ledger.100minutes already approved and canonicalCHG091 delivered.0mutatable shards; no borrowed cold or mutation score. Parent controls reviewers and functional resume; readonly exact0301 child reference captured before implementation."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG091-READY-CONTEXT-20261012",
+    "payload_sha256": "b467465a3e5f4f0f59bd8107bd3a1b7ebf72a5ebdf5cf147d48fc46a18428903"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
