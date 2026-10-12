@@ -7,6 +7,8 @@ import {
   DELIVERED_CANONICAL_EVENTS,
   DELIVERED_LOCAL_EVENTS,
   WorkReadinessError,
+  parseFeedbackRecords,
+  validateLifecycleCorrections,
   actualsCorrectionSchemaErrors,
   classifyAssessment,
   computeReadinessPayloadSha256,
@@ -255,16 +257,11 @@ function readRevisionBytes(root, revision, path, { required = true } = {}) {
 }
 
 function parseFeedback(text) {
-  if (text === null || text.trim() === "") return [];
-  return text.split(/\r?\n/u).filter((line) => line.length > 0).map((line, index) => {
-    try {
-      const value = JSON.parse(line);
-      if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error("record is not an object");
-      return value;
-    } catch (error) {
-      fail("WR_FEEDBACK_INVALID", `.nous-feedback.jsonl:${index + 1}`, `Invalid feedback JSON: ${error.message}`);
-    }
-  });
+  return parseFeedbackRecords(text);
+}
+function annotationAuthorities(root, revision) {
+  const text = readRevisionFile(root, revision, "docs/readiness/CHG-089.json", { required: false });
+  return text === null ? new Map() : new Map([["CHG-089", { artifact: parseJson(text, "docs/readiness/CHG-089.json") }]]);
 }
 
 const KNOWN_FEEDBACK_EVENTS = new Set([
@@ -402,7 +399,7 @@ function validatePlanBinding({ root, revision, authorizationRevision, feedback, 
   if (artifactText === null) fail("WR_READINESS_MISSING", expectedPath, `Implementation plan for ${header.workId} requires prior readiness approval`);
   const assessment = parseJson(artifactText, expectedPath);
   if (assessment.work_id !== header.workId) fail("WR_READINESS_WORK_ID_MISMATCH", expectedPath, `Artifact work_id does not match ${header.workId}`);
-  const validated = validateAssessment(assessment, { feedbackRecords: feedback, deliveryPolicy: readinessDeliveryPolicy({ root, revision: authorizationRevision, artifact: assessment }) });
+  const validated = validateAssessment(assessment, { feedbackRecords: feedback, approvedReadinessAuthorities: annotationAuthorities(root, authorizationRevision), deliveryPolicy: readinessDeliveryPolicy({ root, revision: authorizationRevision, artifact: assessment }) });
   if (assessment.decision !== "ready") fail("WR_WORK_NOT_READY", expectedPath, `${header.workId} is ${String(assessment.decision)}, not ready`);
   if (!validated.active) fail("WR_APPROVAL_INACTIVE", expectedPath, `${header.workId} readiness authorization is inactive`);
   if (header.estimate > assessment.estimate_minutes.total) {
@@ -1160,6 +1157,7 @@ function itemAuthorityPaths(root, authority, head, workId) {
         const feedback = parseFeedback(readRevisionFile(root, entry.parent, ".nous-feedback.jsonl", { required: false }));
         const assessment = validateAssessment(artifact, {
           feedbackRecords: feedback,
+          approvedReadinessAuthorities: annotationAuthorities(root, entry.parent),
           deliveryPolicy: readinessDeliveryPolicy({ root, revision: entry.parent, artifact }),
         });
         if (assessment.decision !== "ready" || !assessment.active) continue;
@@ -1314,6 +1312,23 @@ function validateCommitOwnership({
       workIds.push(record.story);
     }
   }
+  // A ledger-only append is still required to carry prior committed authority.
+  for (const correction of candidateFeedback.slice(parentFeedbackRecords.length)
+    .filter((record) => record.event === "lifecycle_corrected" && (record.target_event !== "started"
+      || record.authority !== undefined || record.target_sha256 !== undefined))) {
+    try {
+      const authorities = annotationAuthorities(root, parent);
+      const artifact = authorities.get("CHG-089")?.artifact;
+      if (!artifact) fail("WR_CORRECTION_INVALID", "$.approval.evidence", "Correction authority must exist in the immutable parent tree");
+      const prior = validateAssessment(artifact, { feedbackRecords: parentFeedbackRecords, independentAuthority: true });
+      if (!prior.active || prior.complete) fail("WR_CORRECTION_INVALID", "$.approval.evidence", "Prior committed technical authority must be active");
+      validateLifecycleCorrections(candidateFeedback, correction.story, { approvedReadinessAuthorities: authorities });
+      validateLifecycleCorrections(candidateFeedback, correction.story, { approvedReadinessAuthorities: annotationAuthorities(root, commit) });
+    } catch (error) {
+      if (error instanceof WorkReadinessError) fail("WR_CORRECTION_INVALID", "$.approval.evidence", error.message);
+      throw error;
+    }
+  }
   const authorizationFeedback = parentFeedbackRecords;
   const policyActive = validatedActivationIndex(root, parent, authorizationFeedback) >= 0;
   validateAllActualTransitions({
@@ -1371,7 +1386,7 @@ function validateCommitOwnership({
     }
     const parentArtifact = parseJson(artifactText, readinessPath);
     if (parentArtifact.work_id !== workId) fail("WR_READINESS_WORK_ID_MISMATCH", readinessPath, `Artifact work_id does not match ${workId}`);
-    const parentAssessment = validateAssessment(parentArtifact, { feedbackRecords: authorizationFeedback, deliveryPolicy: readinessDeliveryPolicy({ root, revision: parent, artifact: parentArtifact }) });
+    const parentAssessment = validateAssessment(parentArtifact, { feedbackRecords: authorizationFeedback, approvedReadinessAuthorities: annotationAuthorities(root, parent), deliveryPolicy: readinessDeliveryPolicy({ root, revision: parent, artifact: parentArtifact }) });
     if (parentArtifact.decision !== "ready") fail("WR_WORK_NOT_READY", readinessPath, `${workId} is ${String(parentArtifact.decision)}, not ready`);
     if (!parentAssessment.active) {
       if (parentArtifact.policy_bootstrap && parentAssessment.complete) {
@@ -1387,7 +1402,7 @@ function validateCommitOwnership({
     if (candidateArtifactText === null) fail("WR_READINESS_MISSING", readinessPath, `Candidate implementation removes readiness for ${workId}`);
     const candidateArtifact = parseJson(candidateArtifactText, readinessPath);
     if (candidateArtifact.work_id !== workId) fail("WR_READINESS_WORK_ID_MISMATCH", readinessPath, `Candidate artifact work_id does not match ${workId}`);
-    const candidateAssessment = validateAssessment(candidateArtifact, { feedbackRecords: candidateFeedback, deliveryPolicy: readinessDeliveryPolicy({ root, revision: commit, artifact: candidateArtifact }) });
+    const candidateAssessment = validateAssessment(candidateArtifact, { feedbackRecords: candidateFeedback, approvedReadinessAuthorities: annotationAuthorities(root, commit), deliveryPolicy: readinessDeliveryPolicy({ root, revision: commit, artifact: candidateArtifact }) });
     if (candidateArtifact.decision !== "ready") fail("WR_WORK_NOT_READY", readinessPath, `${workId} candidate state is ${String(candidateArtifact.decision)}, not ready`);
     if (!candidateAssessment.active) {
       if (candidateArtifact.policy_bootstrap && candidateAssessment.complete) {

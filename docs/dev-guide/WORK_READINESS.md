@@ -207,6 +207,29 @@ ledger bytes and append the correction at its actual time. Readiness check
 summaries report `; 1 corrected start` (pluralized for larger counts), including
 the existing JSON `summary` field; uncorrected summaries stay unchanged.
 
+CHG-089 additionally permits exactly the US-024 `deviation` at
+`2026-10-12T03:00:34.941232Z`, whose original UTF-8 line bytes excluding LF
+hash to `d1dba52d00fd4b60aa47a2654e4ee4c82f229370966d1dcdfea2c5911b6150bd`.
+Its closed `lifecycle_corrected` shape adds `target_sha256` and
+`authority: {work_id, payload_sha256, evidence}` to the fields above;
+`target_event` is `deviation` and authority work_id must be `CHG-089`.
+The reason records the operator-approved bookkeeping correction; approver
+must match the technical artifact and its prior digest-bound decision.
+
+CLI and Git parsers retain raw-line identity privately. JSON reserialization,
+changed whitespace, another story/event/timestamp, absent or ambiguous targets,
+and duplicate corrections fail closed. The independently validated CHG-089
+artifact must be technical, ready, approved, active and uncompleted against
+the raw prefix before correction, with no parent projection or controlling
+parent authority. Its approval must follow the target and precede correction
+in ledger order and explicit UTC time. Git additionally requires that authority
+and approval to exist in the immutable parent commit, including ledger-only
+appends. Only this exact annotation is omitted from the postapproval execution
+scan; raw history and audit records remain visible. Real execution deviations,
+starts, builds, AC evidence, test reports and terminal evidence are not eligible.
+The historical-start contract above and all byte-prefix history guards remain
+unchanged. This correction leaves US-024's partition decision and approval intact.
+
 ## Generated Nous ownership
 
 Generated Nous paths have exactly two authorization routes:

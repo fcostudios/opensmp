@@ -753,14 +753,78 @@ function isPreapprovalAnnotation(event) {
     && !["build_pass", "ac_verify", "test_report"].includes(event);
 }
 
-export function validateLifecycleCorrections(records, workId) {
+// Identity is carried privately from the raw ledger parser, never reserialized.
+const feedbackLineDigests = new WeakMap();
+export function parseFeedbackRecords(text) {
+  if (text === null || text.trim() === "") return [];
+  return text.split("\n").filter((line) => line.length > 0).map((line, index) => {
+    try {
+      const record = JSON.parse(line);
+      if (record === null || typeof record !== "object" || Array.isArray(record)) throw new Error("expected an object");
+      feedbackLineDigests.set(record, createHash("sha256").update(line, "utf8").digest("hex"));
+      return record;
+    } catch (error) {
+      fail("WR_FEEDBACK_INVALID", `.nous-feedback.jsonl:${index + 1}`, `Invalid feedback JSON: ${error.message}`);
+    }
+  });
+}
+const ANNOTATION_IDENTITY = Object.freeze({
+  story: "US-024", event: "deviation", ts: "2026-10-12T03:00:34.941232Z",
+  digest: "d1dba52d00fd4b60aa47a2654e4ee4c82f229370966d1dcdfea2c5911b6150bd",
+});
+function validateAnnotationCorrection(records, record, index, correctedIndices, context) {
+  const invalid = (message) => fail("WR_CORRECTION_INVALID", "$.approval.evidence", message);
+  object(record, "$.correction", ["story", "event", "target_event", "target_ts", "target_sha256",
+    "disposition", "reason", "approved_by", "authority", "ts"]);
+  string(record.reason, "$.correction.reason");
+  string(record.approved_by, "$.correction.approved_by");
+  if (record.story !== ANNOTATION_IDENTITY.story || record.target_event !== ANNOTATION_IDENTITY.event
+    || record.target_ts !== ANNOTATION_IDENTITY.ts || record.target_sha256 !== ANNOTATION_IDENTITY.digest
+    || record.disposition !== "not_execution") invalid("Only the canonical CHG-089 non-execution annotation may be corrected");
+  object(record.authority, "$.correction.authority", ["work_id", "payload_sha256", "evidence"]);
+  if (record.authority.work_id !== "CHG-089") invalid("Annotation correction requires independent CHG-089 technical authority");
+  const targets = records.map((candidate, candidateIndex) => ({ candidate, candidateIndex }))
+    .filter(({ candidate }) => candidate.story === record.story && candidate.event === record.target_event && candidate.ts === record.target_ts);
+  if (targets.length !== 1 || targets[0].candidateIndex >= index) invalid("Correction requires exactly one earlier canonical annotation");
+  const { candidate, candidateIndex } = targets[0];
+  if (feedbackLineDigests.get(candidate) !== record.target_sha256) invalid("Original raw annotation bytes do not match the canonical identity");
+  if (correctedIndices.has(candidateIndex)) invalid("Annotation may be corrected only once");
+  const artifact = context.approvedReadinessAuthorities?.get("CHG-089")?.artifact;
+  if (!artifact || artifact.work_id !== "CHG-089" || artifact.kind !== "CHG" || artifact.work_type !== "technical"
+    || artifact.decision !== "ready" || artifact.policy_bootstrap || artifact.controlling_change != null
+    || artifact.readiness_payload_sha256 !== record.authority.payload_sha256
+    || artifact.approval.evidence !== record.authority.evidence || artifact.approval.approved_by !== record.approved_by) {
+    invalid("Missing or mismatched independently approved technical artifact");
+  }
+  // The raw prefix validates ONLY the authority's lifecycle. Parent projection
+  // cannot grant authority, and this correction cannot authorize itself.
+  const prefix = records.slice(0, index);
+  const assessment = validateAssessment(artifact, { feedbackRecords: prefix, independentAuthority: true });
+  if (!assessment.active || assessment.complete) invalid("Technical authority must be active and uncompleted before correction");
+  const approvals = prefix.map((entry, position) => ({ entry, position }))
+    .filter(({ entry }) => entry.event === "decision" && entry.id === record.authority.evidence);
+  if (approvals.length !== 1 || approvals[0].position <= candidateIndex) invalid("Independent approval must follow the target and precede correction");
+  const approvalTime = parseExplicitUtcTimestamp(approvals[0].entry.ts);
+  const correctionTime = parseExplicitUtcTimestamp(record.ts);
+  if (approvalTime === null || correctionTime === null
+    || approvalTime <= parseExplicitUtcTimestamp(record.target_ts) || correctionTime <= approvalTime) invalid("Annotation correction chronology is invalid");
+  correctedIndices.add(candidateIndex);
+}
+
+export function validateLifecycleCorrections(records, workId, context = {}) {
   feedbackArray(records);
   const correctedStartIndices = new Set();
+  const correctedAnnotationIndices = new Set();
   const corrections = records.map((record, index) => ({ record, index }))
     .filter(({ record }) => record.story === workId && record.event === "lifecycle_corrected");
   for (const { record, index } of corrections) {
     const invalid = (message) => fail("WR_CORRECTION_INVALID", "$.approval.evidence", message);
     try {
+      if (record.target_event !== "started" || record.authority !== undefined || record.target_sha256 !== undefined) {
+        if (context.independentAuthority) invalid("Technical authority cannot use annotation projection");
+        validateAnnotationCorrection(records, record, index, correctedAnnotationIndices, context);
+        continue;
+      }
       object(record, "$.correction", [
         "story", "event", "target_event", "target_ts", "disposition", "reason", "approved_by", "ts",
       ]);
@@ -814,7 +878,7 @@ export function validateLifecycleCorrections(records, workId) {
       throw error;
     }
   }
-  return { correctedStartIndices, correctedStarts: correctedStartIndices.size };
+  return { correctedStartIndices, correctedAnnotationIndices, correctedStarts: correctedStartIndices.size };
 }
 
 function validatePreapprovalHistory(value, feedbackRecords, evidenceIndex, terminalProjection, correctedStartIndices) {
@@ -864,13 +928,13 @@ function validatePreapprovalHistory(value, feedbackRecords, evidenceIndex, termi
   }
 }
 
-function validatePostapprovalHistory(value, feedbackRecords, evidenceIndex, terminalProjection) {
+function validatePostapprovalHistory(value, feedbackRecords, evidenceIndex, terminalProjection, correctedAnnotationIndices) {
   let active = value.decision === "ready";
   let stale = false;
   let inactiveReason = active ? null : "decision_not_ready";
   const seenDecisionIds = new Set([value.approval.evidence]);
   for (let index = evidenceIndex + 1; index < feedbackRecords.length; index += 1) {
-    if (terminalProjection.omittedIndices.has(index)) continue;
+    if (terminalProjection.omittedIndices.has(index) || correctedAnnotationIndices.has(index)) continue;
     const record = feedbackRecords[index];
     if (record.story !== value.work_id) continue;
     if (record.event === "decision") {
@@ -919,13 +983,13 @@ function validatePostapprovalHistory(value, feedbackRecords, evidenceIndex, term
   return { active, inactiveReason };
 }
 
-export function validateApproval(value, feedbackRecords) {
+export function validateApproval(value, feedbackRecords, context = {}) {
   feedbackArray(feedbackRecords);
-  const correctedStories = new Set(feedbackRecords.filter((record) => record.event === "lifecycle_corrected").map((record) => record.story));
+  const correctedStories = new Set(context.independentAuthority ? [] : feedbackRecords.filter((record) => record.event === "lifecycle_corrected").map((record) => record.story));
   correctedStories.add(value.work_id);
   let corrections;
   for (const workId of correctedStories) {
-    const result = validateLifecycleCorrections(feedbackRecords, workId);
+    const result = validateLifecycleCorrections(feedbackRecords, workId, context);
     if (workId === value.work_id) corrections = result;
   }
   const terminalProjection = buildTerminalProjection(feedbackRecords, value.work_id);
@@ -985,7 +1049,7 @@ export function validateApproval(value, feedbackRecords) {
       if (mentionedIds.filter((workId) => workId === childId).length !== 1) fail("WR_APPROVAL_CHILD_BINDING", "$.approval.evidence", `Approval decision must bind official child ${childId} exactly once`);
     }
   }
-  const authorization = validatePostapprovalHistory(value, feedbackRecords, evidenceIndex, terminalProjection);
+  const authorization = validatePostapprovalHistory(value, feedbackRecords, evidenceIndex, terminalProjection, corrections.correctedAnnotationIndices);
   return { evidence: value.approval.evidence, payloadSha256: recomputed, ...authorization, correctedStarts: corrections.correctedStarts };
 }
 
@@ -1283,7 +1347,7 @@ export function validateCompletionActuals(value, feedbackRecords, { approvedRead
 // two real checkpoint events, and the closed-key shape check would reject it outright
 // if the key were dropped — the same history-preserving reasoning as CHG-036's optional
 // attestation keys. `init` no longer emits it for new artifacts.
-export function validateAssessment(value, { feedbackRecords = [], approvedReadinessAuthorities } = {}) {
+export function validateAssessment(value, { feedbackRecords = [], approvedReadinessAuthorities, independentAuthority = false } = {}) {
   validateShape(value);
   feedbackArray(feedbackRecords);
   if (value.policy_bootstrap) {
@@ -1304,7 +1368,7 @@ export function validateAssessment(value, { feedbackRecords = [], approvedReadin
   if (value.decision === "partition_required" && value.partitions.length === 0) fail("WR_PARTITIONS_REQUIRED", "$.partitions", "Partition-required work must propose at least one child");
   // CHG-037 §3: the checkpoint-supersession escape hatch went with the clock —
   // it existed so a terminal completion could override a 90-minute partition stop.
-  const authorization = validateApproval(value, feedbackRecords);
+  const authorization = validateApproval(value, feedbackRecords, { approvedReadinessAuthorities, independentAuthority });
   if (value.decision === "ready" && !authorization.active && !completion.complete) {
     fail("WR_APPROVAL_INACTIVE", "$.approval.evidence", "Inactive ready authorization requires valid terminal completion actuals");
   }

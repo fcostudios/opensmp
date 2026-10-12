@@ -183,6 +183,7 @@ function expectError(code, path, action) {
 
 let assertions = 0;
 function test(name, body) {
+  if (process.env.READINESS_TEST_FILTER && !name.includes(process.env.READINESS_TEST_FILTER)) return;
   try {
     body();
     assertions += 1;
@@ -2399,6 +2400,106 @@ function parseCliJson(result) {
   assert.deepEqual(Object.keys(output), ["ok", "command", "work_ids", "errors", "summary"]);
   return output;
 }
+
+// Fault oracle: omitting the exact deviation projection must keep the parent RED;
+// omitting raw identity/independent authority checks must admit an adversarial case.
+const annotationLine = repositoryFeedback.split("\n").find((line) => {
+  const row = line ? JSON.parse(line) : {};
+  return row.story === "US-024" && row.ts === "2026-10-12T03:00:34.941232Z";
+});
+const annotationDigest = "d1dba52d00fd4b60aa47a2654e4ee4c82f229370966d1dcdfea2c5911b6150bd";
+function annotationFixture() {
+  const parent = normal({ work_id: "US-024", decision: "blocked",
+    uncertainties: [{ id: "U1", statement: "Parent blocked", status: "unresolved", estimate_impact_minutes: null, resolution: null }] });
+  const authority = normal({ work_id: "CHG-089", kind: "CHG", work_type: "technical",
+    approval: { status: "approved", approved_by: "user", evidence: "CHG089-READY", payload_sha256: "0".repeat(64) } });
+  const parentApproval = decisionFor(parent, { ts: "2026-10-12T02:00:00Z" });
+  const approval = decisionFor(authority, { ts: "2026-10-12T03:22:25.308Z" });
+  const correction = { story: "US-024", event: "lifecycle_corrected", target_event: "deviation",
+    target_ts: "2026-10-12T03:00:34.941232Z", target_sha256: annotationDigest,
+    disposition: "not_execution", reason: "Operator-authorized CHG-089 integration bookkeeping correction",
+    approved_by: "user", authority: { work_id: "CHG-089", payload_sha256: authority.readiness_payload_sha256, evidence: authority.approval.evidence },
+    ts: "2026-10-12T03:30:00Z" };
+  return { parent, authority, parentApproval, approval, correction };
+}
+function withAnnotationRepo(body) {
+  const { root } = makeGitRepo();
+  const fixture = annotationFixture();
+  const { parent, authority, parentApproval, approval, correction } = fixture;
+  writeRepoFile(root, "docs/readiness/US-024.json", JSON.stringify(parent));
+  writeRepoFile(root, "docs/readiness/CHG-089.json", JSON.stringify(authority));
+  const prefix = `${JSON.stringify(parentApproval)}\n${annotationLine}\n${JSON.stringify(approval)}\n`;
+  writeRepoFile(root, ".nous-feedback.jsonl", prefix);
+  const base = commitRepo(root, "docs(CHG-089): approve annotation fixture", ["docs/readiness/US-024.json", "docs/readiness/CHG-089.json", ".nous-feedback.jsonl"]);
+  try { body({ ...fixture, root, prefix, base }); } finally { rmSync(root, { recursive: true, force: true }); }
+}
+test("CHG-089 exact annotation restores lifecycle in CLI and real Git without rewriting parent or prefix", () => {
+  assert.equal(createHash("sha256").update(annotationLine).digest("hex"), annotationDigest);
+  withAnnotationRepo(({ root, prefix, correction, base }) => {
+    const originalParent = readFileSync(join(root, "docs/readiness/US-024.json"));
+    assert.equal(JSON.parse(runCli(root, ["check-all", "--json"]).stdout).errors[0].code, "WR_APPROVAL_ORDER");
+    writeRepoFile(root, ".nous-feedback.jsonl", prefix + JSON.stringify(correction) + "\n");
+    const result = runCli(root, ["check-all", "--json"]);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    writeRepoFile(root, "scripts/work-readiness/model.mjs", "export const annotationFixture = true;\n");
+    const head = commitRepo(root, "fix(CHG-089): append exact correction", [".nous-feedback.jsonl", "scripts/work-readiness/model.mjs"]);
+    assert.deepEqual(validateRangeOwnership({ root, base, head }).workIds, ["CHG-089"]);
+    assert.deepEqual(readFileSync(join(root, "docs/readiness/US-024.json")), originalParent);
+    assert.ok(readFileSync(join(root, ".nous-feedback.jsonl")).subarray(0, Buffer.byteLength(prefix)).equals(Buffer.from(prefix)));
+    writeRepoFile(root, ".nous-feedback.jsonl", prefix.replace(annotationLine, annotationLine + " ") + JSON.stringify(correction) + "\n");
+    const mutated = commitRepo(root, "fix(CHG-089): mutate original bytes", [".nous-feedback.jsonl"]);
+    expectError("WR_FEEDBACK_HISTORY_MUTATED", ".nous-feedback.jsonl", () => validateRangeOwnership({ root, base: head, head: mutated }));
+  });
+});
+test("CHG-089 refuses authority, identity, execution and duplicate attacks", () => {
+  withAnnotationRepo(({ root, prefix, authority, correction, approval, parentApproval }) => {
+    const reject = (text, artifact = authority, expectedCode = "WR_CORRECTION_INVALID") => {
+      writeRepoFile(root, "docs/readiness/CHG-089.json", JSON.stringify(artifact));
+      writeRepoFile(root, ".nous-feedback.jsonl", text);
+      const result = runCli(root, ["check", "US-024", "--json"]);
+      assert.equal(result.status, 1, result.stdout);
+      assert.equal(JSON.parse(result.stdout).errors[0].code, expectedCode, result.stdout);
+    };
+    for (const mutate of [
+      (r) => { delete r.authority; }, (r) => { r.authority.work_id = "US-024"; },
+      (r) => { r.authority.evidence = "forged"; }, (r) => { r.authority.payload_sha256 = "0".repeat(64); },
+      (r) => { r.story = "US-999"; }, (r) => { r.target_sha256 = "0".repeat(64); },
+      (r) => { r.target_ts = "2026-10-12T03:00:35Z"; }, (r) => { r.approved_by = "forged"; },
+      (r) => { r.reason = " "; }, (r) => { r.ts = approval.ts; },
+    ]) { const changed = clone(correction); mutate(changed); reject(prefix + JSON.stringify(changed) + "\n"); }
+    for (const event of ["started", "build_pass", "ac_verify", "test_report", "done", "deviation"]) {
+      const target = { story: "US-024", event, ts: correction.target_ts, notes: "Actual execution" };
+      const changed = { ...correction, target_event: event, target_sha256: createHash("sha256").update(JSON.stringify(target)).digest("hex") };
+      reject(`${JSON.stringify(parentApproval)}\n${JSON.stringify(target)}\n${JSON.stringify(approval)}\n${JSON.stringify(changed)}\n`, authority, event === "done" ? "WR_ACTUALS_REQUIRED" : "WR_CORRECTION_INVALID");
+    }
+    reject(prefix.replace(annotationLine + "\n", "") + JSON.stringify(correction) + "\n");
+    reject(prefix.replace(annotationLine, JSON.stringify(JSON.parse(annotationLine), null, 0) + " ") + JSON.stringify(correction) + "\n");
+    reject(prefix + JSON.stringify({ story: "CHG-089", event: "done", ts: "2026-10-12T03:25:00Z" }) + "\n" + JSON.stringify(correction) + "\n");
+    reject(prefix.replace(JSON.stringify(approval), JSON.stringify({ story: "CHG-089", event: "started", ts: "2026-10-12T03:21:00Z" }) + "\n" + JSON.stringify(approval)) + JSON.stringify(correction) + "\n");
+    reject(prefix + annotationLine + "\n" + JSON.stringify(correction) + "\n");
+    reject(prefix + JSON.stringify(correction) + "\n" + JSON.stringify(correction) + "\n");
+    reject(prefix.replace(JSON.stringify(approval) + "\n", "") + JSON.stringify(correction) + "\n" + JSON.stringify(approval) + "\n");
+    reject(prefix + JSON.stringify({ story: "CHG-089", event: "blocker", reason: "Inactive", ts: "2026-10-12T03:25:00Z" }) + "\n" + JSON.stringify(correction) + "\n");
+    reject(prefix + JSON.stringify(correction) + "\n", { ...authority, approval: { ...authority.approval, status: "pending" } });
+    reject(prefix + JSON.stringify(correction) + "\n", refreshDigest({ ...clone(authority), work_type: "functional" }));
+    rmSync(join(root, "docs/readiness/CHG-089.json"));
+    writeRepoFile(root, ".nous-feedback.jsonl", prefix + JSON.stringify(correction) + "\n");
+    assert.equal(JSON.parse(runCli(root, ["check", "US-024", "--json"]).stdout).errors[0].code, "WR_CORRECTION_INVALID");
+  });
+});
+
+test("CHG-089 real Git requires correction authority already committed in parent", () => {
+  withAnnotationRepo(({ root, prefix, correction, base }) => {
+    git(root, ["rm", "docs/readiness/CHG-089.json"]);
+    git(root, ["commit", "-m", "docs(CHG-089): remove authority fixture"]);
+    const missing = git(root, ["rev-parse", "HEAD"]);
+    const { authority } = annotationFixture();
+    writeRepoFile(root, "docs/readiness/CHG-089.json", JSON.stringify(authority));
+    writeRepoFile(root, ".nous-feedback.jsonl", prefix + JSON.stringify(correction) + "\n");
+    const late = commitRepo(root, "docs(CHG-089): forge same-commit correction authority", ["docs/readiness/CHG-089.json", ".nous-feedback.jsonl"]);
+    expectError("WR_CORRECTION_INVALID", "$.approval.evidence", () => validateRangeOwnership({ root, base: missing, head: late }));
+  });
+});
 
 test("readiness CLI reports corrections in plain and JSON summaries and leaves ordinary output unchanged", () => {
   const { root } = makeGitRepo();
@@ -5489,7 +5590,7 @@ test("CHG-088 copy-only delivery cannot export the bound candidate bytes elsewhe
   } finally { rmSync(fixture.root, { recursive: true, force: true }); }
 });
 
-assert.ok(assertions >= 30);
+assert.ok(process.env.READINESS_TEST_FILTER ? assertions > 0 : assertions >= 30);
 process.stdout.write(`work-readiness model: ${assertions} behavioral tests passed\n`);
 
 // CHG-082 focused real-Git and differential contracts.

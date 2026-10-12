@@ -23,6 +23,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 
 import {
   WorkReadinessError,
+  parseFeedbackRecords,
   computeReadinessPayloadSha256,
   isExecutionEvidenceEvent,
   validateAssessment,
@@ -148,17 +149,7 @@ function parseObject(text, path) {
 
 function loadFeedback(root) {
   const text = readBoundedFile(root, ".nous-feedback.jsonl", { required: false });
-  if (text === null || text.trim() === "") return [];
-  return text.split(/\r?\n/u).filter((line) => line.length > 0).map((line, index) => {
-    const path = `.nous-feedback.jsonl:${index + 1}`;
-    try {
-      const record = JSON.parse(line);
-      if (record === null || typeof record !== "object" || Array.isArray(record)) throw new Error("expected an object");
-      return record;
-    } catch (error) {
-      cliError("WR_FEEDBACK_INVALID", `Invalid feedback JSON: ${error.message}`, path);
-    }
-  });
+  return parseFeedbackRecords(text);
 }
 
 function normalizeWorkId(raw) {
@@ -193,6 +184,7 @@ function loadApprovedReadinessAuthorities(root) {
       && value.approval.payload_sha256 === value.readiness_payload_sha256
       && computeReadinessPayloadSha256(value) === value.readiness_payload_sha256) {
       authorities.set(workId, {
+        artifact: value,
         digest: value.readiness_payload_sha256,
         evidence: value.approval.evidence,
         approvedBy: value.approval.approved_by,
