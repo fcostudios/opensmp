@@ -1248,7 +1248,8 @@ export function validateFunctionalDelivery({ root, base, head, workId, authority
   const replay = changed.includes(INHERITED_REPLAY.path) && exactInheritedReplay({ root, base, head, workId, authority });
   const forbidden = changed.find((path) => {
     if (replay && path === INHERITED_REPLAY.path) return false;
-    if (replay && revisionBlobEntry(root, head, path)?.blob === INHERITED_REPLAY.newBlob) return true;
+    // The assigned bytes cannot be exported under another path, even alone.
+    if (path !== INHERITED_REPLAY.path && revisionBlobEntry(root, head, path)?.blob === INHERITED_REPLAY.newBlob) return true;
     if (path === MUTATION_ROUTES_PATH) return false;
     if (isToolingPath(path)) return true;
     // Executable JS/TS scripts can live outside a scripts directory. Inspect
