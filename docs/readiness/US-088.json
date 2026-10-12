@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "4904efb89d28d78f2e7cc754c8fbeb4ce16cf2bd1f1581e282d2781be98c469b",
+  "work_id": "US-088",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Deliver authoritative member evidence and its persisted catalogue mapping",
+  "source": "docs/stories/sprint-3/r1_misc_us_088.md",
+  "scopes": [
+    "contracts",
+    "db"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 13,
+    "expected_mutation_shards": 4,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 1,
+    "schema_or_migration_changes": 1,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false,
+    "bookkeeping_files": 4
+  },
+  "estimate_minutes": {
+    "readiness": 32,
+    "implementation": 40,
+    "focused_verification": 72,
+    "review": 48,
+    "integration": 18,
+    "total": 210
+  },
+  "decision": "ready",
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "US088-READY-20261012",
+    "payload_sha256": "4904efb89d28d78f2e7cc754c8fbeb4ce16cf2bd1f1581e282d2781be98c469b"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null,
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Membership listings expose authoritative lossless provider identity and declared evidence, preserve shipped invitation polling, and persist conservative capability/license mapping and immutable storage through the complete committed migration.",
+      "demo": "Exact complete Anthropic Pact records, provider descriptor and unchanged legacy projection; fresh committed migrations, physical/schema parity, 33-table/87-FK release inventory and exact least-privilege grants.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "partitions": [],
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "What is the canonical child allocation and existing implementation authority?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "CHG-086 at58ae93991d3c3eeff880f09779a384182e98f1d9 canonically partitions US-083 after execution; US-088 AC1-4 are the verbatim generated story criteria, each maps O1. AC1 raw contract/legacy compatibility; AC2 persisted declarations/Pact; AC3 the WHOLE combined migration and schema/grants/release proof; AC4 independent provider and fresh-database demo. Acceptance behavior and public DB export are US-089. Existing implementation candidate6191fe834f940317cec7ecfa81eb43398815627d is unchanged through sync; prior US-083 approvals authorize history only. CHG-087 remains proposed and grants no continuation authority. Five inherited prerequisites US-056/057/058/046/042 are delivered. Human approval of this NEW digest is required before started, design, plan, source or test changes. One controller for US-088, one consolidated implementer, reused scoped reviewer and fresh adversarial reviewer; do not carry the US-030 controller across items. Canonical blocked-by story rows are satisfied prerequisites; readiness dependencies list only unresolved/current ordering, so fulfilled prerequisites are recorded here rather than mislabeled blocked_by."
+    },
+    {
+      "id": "U2",
+      "statement": "Does the inventory include the inherited delivery, without double ownership?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Twelve inherited delivery paths, not merely prospective edits: packages/connectors/src/contracts.ts; packages/connectors/src/dispatch.ts; packages/connectors/src/dispatch.test.ts; packages/connectors/src/providers/anthropic/connector.ts; packages/connectors/src/providers/anthropic/connector.test.ts; packages/connectors/src/providers/anthropic/connector.pact.test.ts; packages/db/scripts/verify-schema.mjs; packages/db/src/schema.ts; packages/db/src/schema-parity.test.ts; packages/db/src/physical-schema.test.ts; packages/db/src/migrations/V20261011165000__member_observations.sql; packages/db/src/migration-release.integration.test.ts. Additional prospective path packages/db/src/physical-schema.integration.test.ts is the exact same real-PG oracle renamed for discovery, hence13 paths counting old+new; no duplicate test or packed logic. Four informational bookkeeping paths: docs/readiness/US-088.json, docs/superpowers/specs/2026-10-12-us088-design.md, docs/superpowers/plans/2026-10-12-us088-plan.md, .nous-feedback.jsonl. Outside delivery: packages/db/src/member-observations.ts, member-observations.integration.test.ts, index.ts, index.test.ts belong US-089; historical docs/dev-guide/TESTING.md amendment describes acceptance and stays historical US-083 provenance (future acceptance-critical changes US-089), not child-owned delivery. contracts.test.ts and schema.test.ts remain existing unchanged accountable dependencies, not omitted child edits. No scripts/mutation-routes.json reserve or tooling change."
+    },
+    {
+      "id": "U3",
+      "statement": "Are flows, boundaries, scopes and migration ownership cohesive?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "One valuable package outcome, two scopes contracts/db, zero screens/routes, three acceptance flows: lossless paginated provider/Pact records+descriptor; shipped legacy projection/invitation polling; persisted conservative mapping+fresh whole migration physical/parity/release/grants. One lifecycle boundary is append-only database ledger storage enforcement, not acceptance transaction/replay/consumer execution. One authorization boundary is exact owner/app RLS and grants; catalog/account is not a company tenant, never invent company_id. Complete migration V20261011165000__member_observations.sql original00e8072 maps14e03d7 with identical Git blob289e93cafc3478648ba406248b6b701bd8cc81e9 at candidate6191fe8/current58ae939. Preserve immutable whole SQL; all33tables/87FKs and runtime grant matrix stay exact. Persist Anthropic all_members_licensed/none, unknown provider none with nullable mapping; nullable raw records and provider ids/roles retained. No second provider, API worker, acceptance, CSV/admin UI, drift, alert or capacity consumer enters this child."
+    },
+    {
+      "id": "U4",
+      "statement": "Can the failed combined campaign supply final child mutation proof?",
+      "status": "budgeted",
+      "estimate_impact_minutes": 12,
+      "resolution": "No. Current WORK_READINESS authoritative contract requires a cache-cleared full diff campaign after fresh AC/review. The completed failed US-083 campaign48847-1791764484311-69a5b8ec7abf68 retains valid diagnostic schema94% (47killed/3equivalent candidates), provider97.26% (142/4), contracts96.08% (147/6 narrow candidates), dispatch100% (5killed), but global exit1; acceptance74.15% and index zero-mutant seam are US-089. Do not borrow either foreign score, promote previews, or report global PASS. Rename changes routed test/config fingerprints and mandates own cold proof and reviewer binding to new mutant IDs. Budget12minutes for own four-source final cold, based on retained own shard durations272.665s schema+84.855s provider+104.007s contracts+11.132s dispatch =472.659s (~7.88min), plus fresh runtime/routing overhead. Retained whole global1975.4162145s and invalidated553.019965958s remain historical costs, not new measured child times."
+    },
+    {
+      "id": "U5",
+      "statement": "How can ordinary discovery score only the full inherited child sources?",
+      "status": "budgeted",
+      "estimate_impact_minutes": 5,
+      "resolution": "After human approval, materialize canonical child outcome in an isolated checkout rooted at frozen original full-item base72f92728fd0a2b836d3807091636c6e10dd829c3 with the twelve owned inherited artifacts from6191fe8 plus canonical docs/readiness/approval and committed child design/plan. Record exact source/migration blobs and replay mappings; preserve original us-030 branch, parent digests and all US-089 artifacts/history. No moving-HEAD baseline, source filters, threshold/runner changes, foreign tests or synthetic zero-score authority. Own four scored sources are contracts.ts, dispatch.ts, providers/anthropic/connector.ts and schema.ts. Current side-effect-free calculatePlannedMutationScope discovery over12paths yields4shards but a schema-static routing gap: physical-schema.test.ts is real PostgreSQL yet lacks integration suffix; migration-release.integration.test.ts is explicitly incompatible with mutation. Budgeted rename physical-schema.test.ts -> physical-schema.integration.test.ts preserves the exact oracle and removes its obsolete pathname only in isolated child; forecast helper confirms schema.test.ts plus renamed owned real-PG oracle routes, four shards, zero gaps. This forecast models future filename existence only, not executed preflight. Run actual approved-authority preflight after replay/rename and record any observed mismatch/deviation, never hardcode shard IDs. Any owned semantic change needs reproduced correctness evidence and scoped review; materialization conflict or further delivery path triggers reassessment."
+    },
+    {
+      "id": "U6",
+      "statement": "Is full-outcome cost carried honestly and exactly once?",
+      "status": "budgeted",
+      "estimate_impact_minutes": 8,
+      "resolution": "Historical254minutes are explicit effort estimates in docs/superpowers/plans/2026-10-11-us083-plan.md@adaecb3: sunk160+reassessment10+resumed execution84, including controller/reviewer/failure/shared-schema/gates, not billed tokens or independently measurable per-child time. Allocate130 toUS-088 and complementary124 toUS-089 exactly once (130+124=254). Estimated US-088 historical phase allocation readiness22/implementation35/focused45/review20/integration8=130, based on six connector artifacts, complete six DB artifacts, shared governance and physical/release repair burden; longer acceptance logic/oracle repair and foreign pipeline cold belong complementary share. Shared controller/readiness/review/failure/gate effort is apportioned in these130/124, never charged254 to both. Attribution is uncertain because work overlapped; no measured phase/billing split is asserted. Historical4previews23.56047204197measuredmin plus0.1minor setup estimated, both cold attempts, all reviewers and repeated gates remain in parent records with no token attribution invented. US-088 remaining80 =readiness10+materialization/rename5+focused15+cold12+scoped/fresh review20+bounded finding contingency8+gate/closure10; phase32/40/72/48/18=210 includes historical130 once. US-089 complementary124+canonical remaining103 (repair35/focused10/review15/gate5/cold33/closure5)=227 <=320 and includes acceptance historical share; its own future readiness must verify it. Combined historical carry stays254; incremental child ceremony/own proof increases aggregate planned total without hiding costs. US-088 has110min slack but80 is the approved remaining estimate, not permission to stretch; stop at a task boundary if revised expected full cost exceeds210, exceeds320, or scope changes."
+    },
+    {
+      "id": "U7",
+      "statement": "Which verification must be fresh and which historical gates remain blocked?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "After approval: scoped review/replay parity, focused exact connector+Pact and renamed real-PG physical/parity/release inventory checks, independent fresh AC1-4 adversarial verification, owner-safe forced caffeinate -i pnpm check using officialCHG067 shared fixture/serial runtime and exact grants, then one own4source cache-cleared campaign last; no source/test/config/dependency mutation after cold without invalidation/reassessment. Historical6191fe8 forced full gate PASS284.426306417s and fresh parentAC1-5 are evidence provenance, not new US-088 build_pass/ac_verify/test_report. One final preview round only as applicable; slow schema final once, no repeated whole-set previews. Keep broad checks limited to required proof. CHG-084 correction from us-024 must reach main before rebase/integration; full historical readiness range/check-all currently fails WR_MISSING_PROPERTY and is a named deviation, not US-088 tooling authority. No closure/integration while canonical gates remain unresolved; no new follow-up ID or local historical checker repair."
+    },
+    {
+      "id": "U8",
+      "statement": "Can parent design be inherited without losing child authority?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Parent approved design docs/superpowers/specs/2026-10-11-us083-design.md and approved plan docs/superpowers/plans/2026-10-11-us083-plan.md retain historical interfaces/DEC-SMP-043..046. The new scoped materialization and integration-oracle rename need their own committed child design and bound plan after approval; this readiness is not that plan. Child plan must start exact WORK_READINESS three-line header forUS-088/this readiness/210minutes. Canonical parent history and earlier digests remain immutable. Human digest approval authorizes all subsequent within-scope/budget stages; no additional design/plan permission cycle is inferred."
+    }
+  ],
+  "dependencies": [
+    {
+      "work_id": "US-089",
+      "type": "blocks",
+      "reason": "Atomic acceptance consumes authoritative evidence and the whole verified persisted mapping/storage contract; its service/integration/root exports have separate ownership."
+    }
+  ]
+}
