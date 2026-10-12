@@ -48,11 +48,12 @@ const CHG022_EXECUTABLE_BOUNDARY = "72f5e8545ea5d98795e2a5f19e62f6ba5e7ae7cb";
 // Reviewed fail-closed raw-byte binding for the complete reconciler. Any
 // whitespace, definition rebinding, helper, build-plan, or runtime edit
 // requires an explicit review and a new digest before ownership is accepted.
-// Re-pinned by CHG-085 after independent review of the complete delta from
-// CHG-069: only closed CHG-079/080/085 path dictionaries and appended layer
-// registrations. CHG-085 binds both guides to exact regenerated delivery bytes.
+// Re-pinned by CHG-090 after independent complete-delta review: seven
+// additions append only the closed CHG-090 dictionary/layer to CHG-085's
+// reviewed bfabaa0889027126dbb4721879285b40ff3b5da15cc752aa6c51cd60c36248ef.
+// Both guides bind exact 8a5c4fb bytes through separately inspected CHG-065 chains.
 // test-work-readiness.mjs asserts this constant against the file on disk.
-const REVIEWED_RECONCILER_SHA256 = "bfabaa0889027126dbb4721879285b40ff3b5da15cc752aa6c51cd60c36248ef";
+const REVIEWED_RECONCILER_SHA256 = "8895f6ccbe38c1b9ad3828fad53f180b9d0fb5f0577cb363956217dda672ae8f";
 
 function isTerminalEvent(event) {
   return event === "done" || event === "verified"
