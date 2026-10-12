@@ -83,7 +83,7 @@
       "statement": "Whole125 forecast counts observed failed work once and budgets75 remaining",
       "status": "budgeted",
       "estimate_impact_minutes": 35,
-      "resolution": "Prior90 and50 were forecasts, not actualspent. Observed nonoverlapping wall envelopes: 20:54:26.815882Z–21:10:25.015351Z=15.970min; 21:37:52.817915Z–21:42:26.081Z=4.554min; 21:48:43.584371Z–21:52:49.298981Z=4.095min; 22:19:31.043872Z–22:44:21Z=24.833min, total49.452min envelope including initial readiness, completed route/runtime work once and failed structural attempt. These are wall/provenance envelopes, NOT measured active-only/billing totals; idle gaps excluded, some preparation before first record unmeasured and estimate rounding carries uncertainty. Failed implementation phase22:25:49.164601Z–22:44:21Z=18m31.835399s counted once within last envelope. Unsafe489-line walker never becameGREEN; independently reviewed receiver-purity/pre-postbranch/reachability bypasses; both source/test restoredHEAD and scratch/logs preserved ignored. New remaining75 forecast includes revised readiness/contract12, primitive+integration implementation25, realDB/mutation preview18, independent/fresh review10, coordinated gate/cold/closure10; whole estimate rounds49.452+75 to125, five phases35/45/25/12/8. Cold campaign measured own shard runtime may materially change forecast; stop with exact evidence/reassessment if total exceeds125 or receipt requires extra production path, do not weaken. Inclusive10<20, scopes2<3, one primary outcome/3flows/1existing audit boundary, no new screens/migrations. Source hold until root review/release; same inline controller forced fallback, root independent review, no fresh-review fabrication."
+      "resolution": "Prior90 and50 were forecasts, not actualspent. Observed nonoverlapping wall envelopes: 20:54:26.815882Z\u201321:10:25.015351Z=15.970min; 21:37:52.817915Z\u201321:42:26.081Z=4.554min; 21:48:43.584371Z\u201321:52:49.298981Z=4.095min; 22:19:31.043872Z\u201322:44:21Z=24.833min, total49.452min envelope including initial readiness, completed route/runtime work once and failed structural attempt. These are wall/provenance envelopes, NOT measured active-only/billing totals; idle gaps excluded, some preparation before first record unmeasured and estimate rounding carries uncertainty. Failed implementation phase22:25:49.164601Z\u201322:44:21Z=18m31.835399s counted once within last envelope. Unsafe489-line walker never becameGREEN; independently reviewed receiver-purity/pre-postbranch/reachability bypasses; both source/test restoredHEAD and scratch/logs preserved ignored. New remaining75 forecast includes revised readiness/contract12, primitive+integration implementation25, realDB/mutation preview18, independent/fresh review10, coordinated gate/cold/closure10; whole estimate rounds49.452+75 to125, five phases35/45/25/12/8. Cold campaign measured own shard runtime may materially change forecast; stop with exact evidence/reassessment if total exceeds125 or receipt requires extra production path, do not weaken. Inclusive10<20, scopes2<3, one primary outcome/3flows/1existing audit boundary, no new screens/migrations. Source hold until root review/release; same inline controller forced fallback, root independent review, no fresh-review fabrication."
     },
     {
       "id": "U5",
@@ -102,7 +102,27 @@
     "evidence": "CHG081-READY-RECEIPT-DELEGATED-20261011",
     "payload_sha256": "f468852e3d7e6530f25cdc9d97e8f1f09f6bf31929992a5d002963c3e3923594"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 30,
+      "implementation": 28,
+      "focused_verification": 14,
+      "review": 12,
+      "integration": 8
+    },
+    "total": 92,
+    "changed_files": 10,
+    "commits": 18,
+    "review_fix_loops": 2,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 2,
+    "mutation_shards_actual": 1,
+    "preview_rounds": 3,
+    "preview_minutes": 4,
+    "estimate_variance_minutes": -33,
+    "root_cause": "Retrospective ACTIVE phase values are explicit integer ESTIMATES, not unexposed billing/complete telemetry. Same dedicated081controller1session; controller/readiness/integration38min and inlineimplementer/verification42min share that SAME session, independentreview12min estimated across reusedroot/Astra/freshtechnicalAC contexts (root6/Astra3/freshAC3), sum92 without duplicate role/session cost. Nonoverlapping recorded earlier wallenvelopes49.452221533min inform estimates; idle075waits excluded. Withdrawn unsafechecker18m31.835399s counted ONCE inimplementation28; twoattemptedpaths restoredHEAD, finalgit8paths but inclusiveattempted10. Current17itemcommits plus proposedclosurecommit=18; root confirms afterapply. Review-to-fixloops2: unsafeproofwithdrawal/receiptredesign and real71.11previewguardfix, not reflogamends. Originalgenuine lifecycle twoattempts13.834147583s and routes3parallelfailed20.603887167/serialized9.218898125s retainedonce. Executedownpreviews3: interruptedunscored37/90 lastprogress35.428sminimum (completionwall/cleanupunconfirmed; no live testcontainer/no manualcleanup), failed71.11total79.661584166s, fixed97.78total81.827518958s; scratchforeignwrappernativeassertion0.940707917s no mutationexecution, allcostretained. These measuredlowerbound197.857811041s support preview_minutes4 roundedESTIMATE, not exactcompletewall. Cold1whole7campaign680.292s aborted BEFOREaudit execution: auditpending/configNOTreport, sharedUS075 cost/history only, no doublecharge081. Cold2actualauditexecuted81.730614125s (1owncold/0invalidations) from sharedcompleted7-source campaign, ownraw97.7777777778%88K2S0NC; mutation_minutes2 rounded. WholeUS075 aggregate71.731FAILED, noUS075closure claim. Current9048f6b coordinatedfullgate80.794sGREEN is shared evidence, not another081gateexecution; earlier149.271s and11.347s gatecost retained sharedUS075 history, not chargedagainhere. No newwholegate/cold. Last-five comparable gate timings incomplete; no unsupported2x-median claim. FreshtechnicalAC and exactsource/suite hashes retained; costs/session roles estimates prominently stated.\nController: 1 CHG-081 session, estimated 38 active minutes.\nImplementer: same inline CHG-081 session (no additional implementer session), estimated 42 active minutes.\nReviewers: reused root reviewer 1 session/6 minutes, same Astra 1 session/3 minutes, fresh technical AC reviewer 1 session/3 minutes, estimated 12 active minutes total. Roles sum 92 estimated minutes without duplicate session cost; call/token telemetry unavailable."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
