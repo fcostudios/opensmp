@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "7009d8ac872a23fe2717862891008f623c7fcd93ababbfcb37573b8071cb432f",
+  "readiness_payload_sha256": "9aeeb1afd4100c7f9bf17b3107907942c3560e14fff77218f44720d7351e451e",
   "work_id": "US-087",
   "kind": "US",
   "work_type": "functional",
   "title": "Complete checklist seat removal and close the register atomically",
-  "source": "docs/stories/sprint-3/r1_misc_us_087.md; canonical CHG-083 child of US-075; inherited docs/readiness/US-075.json and docs/superpowers/specs/2026-10-11-us-075-anchored-removal-design.md plus docs/superpowers/plans/2026-10-11-us-075-anchored-removal.md; assessed main/us-024 108833bcff6d5a4f1992c16d459d9c0d54d4be98",
+  "source": "docs/stories/sprint-3/r1_misc_us_087.md; canonical CHG-083 child of US-075; inherited docs/readiness/US-075.json and docs/superpowers/specs/2026-10-11-us-075-anchored-removal-design.md plus docs/superpowers/plans/2026-10-11-us-075-anchored-removal.md; assessed main/us-024 108833bcff6d5a4f1992c16d459d9c0d54d4be98; prerequisite source checkpoints CHG-08913621a7/568891c and CHG-090f086d46/7fc98df/f3ff20a independently reviewed",
   "outcomes": [
     {
       "id": "O1",
@@ -113,38 +113,38 @@
       "statement": "How are historical and sibling actuals counted?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Preserve US-075 historical255.0026minutes once without reset/recount or invented per-child split, including prior invalid cold and repaired whole cold. Preserve US-086 own actuals and diagnostic full cold40.9258minutes once on US-086, never charge its reused reports to US-087. New250 covers only prospective US-087 readiness/controller/implementer/reviewer/test/gate/cold/evidence costs counted once. Current readiness phase will be reported as active-role estimate if precise labor telemetry is unavailable, not fabricated billing. Closure actuals include preview_rounds/minutes and deviations; done.cost uses available measured values or explicitly estimated nonzero aggregate, no invented model/window metrics."
+      "resolution": "Preserve US-075 historical255.0026minutes once without reset/recount or invented per-child split, including prior invalid cold and repaired whole cold. Preserve US-086 own actuals and diagnostic full cold40.9258minutes once on US-086, never charge its reused reports to US-087. New250 covers only prospective US-087 readiness/controller/implementer/reviewer/test/gate/cold/evidence costs counted once. Current readiness phase will be reported as active-role estimate if precise labor telemetry is unavailable, not fabricated billing. Closure actuals include preview_rounds/minutes and deviations; done.cost uses available measured values or explicitly estimated nonzero aggregate, no invented model/window metrics. Same readiness controller resumed for this prerequisite-resolution refresh; combined readiness active-role labor estimate is22minutes (prior18 plus refresh4), rather than an invented measured value or reset. This is a current readiness phase variance+2 against20 within full250 estimate; root must carry it honestly in final actuals and remaining forecast."
     },
     {
       "id": "U9",
-      "statement": "Generated guidance is unknown after main Nous sync8a5c4fb; may functional work repair it?",
-      "status": "unresolved",
-      "estimate_impact_minutes": null,
-      "resolution": "BLOCKED technical prerequisite, currently UNALLOCATED: check:generated-guidance exits1 for CLAUDE.md SHA25605722c7d8351bffcf1f17fa1ab7d62411dbf12f5ce1759fde8f3ba26396cc685 and docs/dev-guide/DEFINITION_OF_DONE.md SHA2562d683a7b4161cdb07838b5fe3fbddff4bd4a1221ce7b8e026bdfddd39c25e392. Requires canonical technical allocation, immutable registered exact layer and reconciler literal review. TESTING/critical paths retain exact CHG-085 bytes. Do not invent a CHG, expand closed CHG scope, edit generated guidance or bypass checker in US-087. Root requests canonical allocation; remediation effort belongs to that separate technical allocation and is not silently deducted from250."
+      "statement": "Is the generated-guidance technical prerequisite verified independently?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Canonical CHG-090 allocation replaces the former unallocated prerequisite. Source f086d46 registers the immutable exact layer for unchanged CLAUDE.md SHA25605722c7d8351bffcf1f17fa1ab7d62411dbf12f5ce1759fde8f3ba26396cc685 and Definition of Done SHA2562d683a7b4161cdb07838b5fe3fbddff4bd4a1221ce7b8e026bdfddd39c25e392; all five canonical ACs mapped in7fc98df. Independent scoped and fresh reviews approved complete reconciler bytes8895f6ccbe38c1b9ad3828fad53f180b9d0fb5f0577cb363956217dda672ae8f; f3ff20a pins that exact consumer literal after review. check:generated-guidance now passes; focused full Python63 contracts passed. TESTING/critical CHG-085 bytes preserved. This is source-verified technical outcome, not a CHG-090 dev_done or fullgate claim. Root retains joint owned-lock awake fullgate and technical closures before releasing US-087 execution. Separate technical cost is not charged to US-087250."
     },
     {
       "id": "U10",
-      "statement": "Global readiness rejects the US-024 postpartition integration annotation chronology.",
-      "status": "unresolved",
-      "estimate_impact_minutes": null,
-      "resolution": "BLOCKED technical prerequisite, currently UNALLOCATED: readiness:check:all exits1 WR_APPROVAL_ORDER after root integration-map note at108833b uses US-024 deviation after US-075 parent partition. US-086 own check remains valid. Existing lifecycle_corrected only handles preapproval started to not_execution, not annotation; requires canonical technical allocation and narrow append-only historical correction semantics. Preserve original approved US-024019a1daf artifact bytes and every parent feedback byte/order; no patched old row, hook bypass, forged parent ready/terminal, local ID or reopened closed CHG. Root handles allocation and remediation separately. After both technical gates pass, revise blocked artifact/dependencies with canonical IDs and fresh digest before execution."
+      "statement": "Is the parent integration-annotation chronology corrected without rewriting history?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Canonical CHG-089 allocation replaces the former unallocated prerequisite. Source13621a7 implements exact byte-bound independent-authority append-only correction;568891c appends the canonical US-024 deviation correction for target2026-10-12T03:00:34.941232Z and target SHA256d1dba52d00fd4b60aa47a2654e4ee4c82f229370966d1dcdfea2c5911b6150bd. Focused/fresh independent review and full Node289 behavioral plus37 imported tests passed. Original approved US-024019a1daf artifact, ledger prefix904418, every parent feedback byte/order and former US-087a587591 artifact remain preserved in Git/history. No forged parent ready/terminal or reopened closed CHG. Global order defect is source-verified resolved; check-all awaits this readiness approval. CHG-089 technical closure remains pending the root joint fullgate; no false dev_done claim. Root holds execution until that gate and both technical closures."
     },
     {
       "id": "U11",
       "statement": "How is standing authorization recorded without fabricated new human approval?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "User authorized canonical US-087 and all next approvals through US-024 controller delegation. This assessment remains blocked with approval pending; no started/design/code/test/harness/ledger edit is authorized by these bytes. Root alone serializes artifacts/ledger, and only after blockers resolve records delegated digest-bound readiness decision for the exact ready artifact under the standing authorization; do not fabricate an explicit new user digest reply or ask the user routinely again. Readiness-only documentation may commit with normal hooks while pending; failed hooks remain blockers, never bypassed."
+      "resolution": "Francisco authorized canonical US-087 and all next approvals through US-024 controller delegation, standing operator request dbf03c249f9f04ee83968d4bf87450c26acb0887. With CHG-089/090 independently source-verified and generated-guidance passing, this exact refreshed250-minute/6delivery/4bookkeeping assessment receives a delegated digest-bound ready decision under that existing authority; no fabricated explicit new user digest reply. Original blockeda587591 artifact/digest remain in Git. Ready describes assessed functional execution suitability, not completed technical stories or completed global gate. Root retains the additional release condition: no execution/design/started until joint owned-lock awake fullgate passes and CHG-089/090 technical closures are recorded. Root then releases the single implementer and serializes lifecycle/ledger; no routine human design approval pause within this unchanged scope. No code/test/tooling change in this refresh."
     }
   ],
   "dependencies": [],
-  "decision": "blocked",
+  "decision": "ready",
   "partitions": [],
   "approval": {
-    "status": "pending",
-    "approved_by": null,
-    "evidence": null,
-    "payload_sha256": "7009d8ac872a23fe2717862891008f623c7fcd93ababbfcb37573b8071cb432f"
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "US087-READY-STANDING-20261012",
+    "payload_sha256": "9aeeb1afd4100c7f9bf17b3107907942c3560e14fff77218f44720d7351e451e"
   },
   "actuals": null,
   "policy_bootstrap": false,
