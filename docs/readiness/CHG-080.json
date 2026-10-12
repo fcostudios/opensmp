@@ -92,10 +92,30 @@
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "CHG080-READINESS-20261011",
+    "evidence": "CHG080-CLOSURE-RESUME-20261012",
     "payload_sha256": "55c7fbb2c8f4db46d48fcaa41968d6eb94d4f4808a4bcaf1cb70b51139a8d1f9"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 7,
+      "implementation": 4,
+      "focused_verification": 13,
+      "review": 4,
+      "integration": 12
+    },
+    "total": 40,
+    "changed_files": 9,
+    "commits": 9,
+    "review_fix_loops": 0,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": 10,
+    "root_cause": "Phase minutes are retrospective active-time estimates, not measured wall or billing telemetry: controller19 + implementer4 + reused scoped reviewer4 + same fresh AC verifier13 =40minutes. The initial implementation started19:10:48UTC and committed19:13:18; report finalized19:14:51 (initial worker approximate10minutes superseded by bounded approximately4minute envelope for allocation, not measured exclusive work). Controller readiness/design/bookkeeping and resumed closure are included once; paused prerequisite wait excluded, concurrent role work and shared gates not summed twice. Estimate overrun10minutes reflects blocked gate disposition and resumed closure validation; no additional source/test scope or gate run. Measured focused62tests8.437s, targeted scoped0.925s/fresh0.928s, failed shared gate64.553267s retained, prior technical eligibility0.76s0mutatable; current shared gate9048f6b exit0/80.794s is US075 execution reused without duplication. No080TypeScript mutation source, zero previews/cold attempts/score; US075cold71.731failed is not borrowed. Exactly9own paths,8existingown commits plus serialized closure=9. Historical blocked/falseAC3 evidence preserved; current fresh closure report supplies AC3 revalidation. Same fresh verifier reports9\u201313estimated totalactive minutes including6\u20138resumed; conservative13retained instead of unsupported6. Cumulative measured verifier17orchestration/24shell/1poll/2scratchwrites/2messages; shell calls not added twice to top-level. Estimatedpeak55\u201365K,cumulativeinput650\u2013850K,output9\u201312K. No additional implementation or verification remains beyond root serialized closure.\nController: 1 CHG-080 session, estimated 19 active minutes.\nImplementer: 1 CHG-080 session, estimated 4 active minutes.\nScoped reviewer: 1 reused CHG-080 session, estimated 4 active minutes.\nFresh adversarial reviewer: 1 CHG-080 session resumed for closure, estimated 13 active minutes. Role costs are estimates, not measured telemetry."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
