@@ -90,7 +90,27 @@
     "evidence": "CHG091-READY-CONTEXT-20261012",
     "payload_sha256": "b467465a3e5f4f0f59bd8107bd3a1b7ebf72a5ebdf5cf147d48fc46a18428903"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 7,
+      "implementation": 3,
+      "focused_verification": 12,
+      "review": 4,
+      "integration": 3
+    },
+    "total": 29,
+    "changed_files": 8,
+    "commits": 4,
+    "review_fix_loops": 0,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": -71,
+    "root_cause": "Active controller envelope 28.763 minutes: preliminary readonly assessment18:09:35-18:11:30 plus canonical execution21:42:51-2026-10-12T22:09:41.808Z; intervening approximately3h31 dependency idle excluded. Nonoverlapping phase allocation follows actual markers, sums repeated focused intervals; integer minutes rounded to total ceiling, residual assigned to integration. Exact measured gate333.999s (total336.532s), full governance78.721s; no gate repeated, no cache borrowed. One consolidated fresh implementer, fresh scoped reused only here, distinct fresh final reviewer. Controller physically reused closedCHG088 thread with new logical cost baseline; old closed costs frozen. Initial uncommitted plan-header hook rejection repaired before implementation. Initial movingHEAD fault failed setup because isolated copy omitted unchanged hooks: retained/excluded; repaired intended future assertion killed fault; ignored matcher metadata corrected without source/test change. No material review fix loop. No mutation shards/previews/cold campaign or score. US088 functional verification remains separate and unfinished."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
