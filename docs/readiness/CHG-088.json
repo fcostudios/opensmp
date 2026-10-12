@@ -110,7 +110,27 @@
     "evidence": "CHG088-READY-EXACT-20261012",
     "payload_sha256": "eb2c743321a3d9b7b1c84cd5755ab1d131dd7aeb02b3631e3945807d59b49eed"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 7,
+      "implementation": 15,
+      "focused_verification": 29,
+      "review": 21,
+      "integration": 15
+    },
+    "total": 87,
+    "changed_files": 6,
+    "commits": 7,
+    "review_fix_loops": 1,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": -63,
+    "root_cause": "Final independent AC1-5 PASS; completion envelope measured to 2026-10-12T03:40:15.158Z. One nonoverlapping wall envelope from controller rollout02:14:58.120Z to 2026-10-12T03:38:59.917314+00:00; ceil total once, readiness7/implementation15/review21/focused29 and residual integration. Observed worker start02:21:54.577Z, original d3b4c02 source commit02:36:48Z, retained review/focused marker02:57:22.626Z and integration marker03:26:23.512Z; phase allocation is estimated where checks/repair/rebase overlap. Missing on-time implementation marker is a named execution deviation, not backdated. Source base108833 to technical0ae536d has6paths and6reachable item commits before closure; closure makes7. One consolidated reviewed portability/copy repair wave; initial parent fault SURVIVED then corrected actual-authority oracle KILLED. Private-object-free clean clone full governance PASS after reachable mainref environment repair, initial55.621s failure retained. Required stock gates347.131s on718 and353.064s on rebasedd9 because main advanced; official owned fixtures and lock cleanup. Five-run historical gate median unavailable; no invented threshold comparison. Controller crossed150-call checkpoint default and compacted same item; thread cap forced physical review reuse with separate CHG windows and preserved prior costs. Newmain US024 WR_APPROVAL_ORDER check-all failed diagnostic independently baseline-reproduced, no foreign patch. Ordinary FF preserved exact five foreign sync file bytes/modes/index/status. Original US088a80 staged gate and both complete histories PASS; mapped55a4ddc normal source hook and full17-path child range PASS, exact13product entries/digest preserved; global tree5d6295c differs intentionally. US088 estimated130 historical+30 active+4prep=164carry,46remaining,total210; original130+124=254 retained exactly once, all CHG costs separate. Zero TS/TSX source shards/previews/cold attempts; no mutation score/test_report. Final closure evidence cutoff2026-10-12T03:41:32.895Z; lifecycle build_pass/ac_verify capture corrected within uncommitted additions before terminal; committed ledger untouched."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
