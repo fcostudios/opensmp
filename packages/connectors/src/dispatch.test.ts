@@ -1440,7 +1440,28 @@ describe("US-083 evidence rejection at the real dispatch boundary",()=>{
       {records:[{...valid,display_name:'control\nname'}],evidence},{records:[{...invitation,seat_evidence:'licensed'}],evidence},
       {records:[{...valid,reported_role:undefined,extra:'missing-key-replacement'}],evidence}];
     const missing={...valid}as Record<string,unknown>;delete missing.reported_role;missing.extra='replacement';malformed.push({records:[missing],evidence});
-    for(const envelope of malformed)expect(()=>validateMemberEvidence(envelope)).toThrow('Invalid connector member evidence');
+    // Authoritative fields must be own properties, and every malformed envelope
+    // must fail with the contract rejection rather than a downstream JSON/type error.
+    malformed.push(
+      Object.assign(Object.create({ evidence }), { records: [] }),
+      Object.assign(Object.create({ records: [] }), { evidence }),
+      { records: [{ ...valid, provider_member_ref: 42 }], evidence },
+      { records: [valid], evidence: Object.assign(() => undefined, evidence) },
+      { records: [Object.assign(() => undefined, valid)], evidence },
+    );
+    const inheritedRecord = Object.assign(Object.create({ reported_role: null }), valid);
+    delete inheritedRecord.reported_role;
+    inheritedRecord.extra = "replacement";
+    malformed.push({ records: [inheritedRecord], evidence });
+    for (const envelope of malformed) {
+      let rejection: unknown;
+      try { validateMemberEvidence(envelope); } catch (error) { rejection = error; }
+      expect(rejection).toBeInstanceOf(Error);
+      expect(rejection).toMatchObject({
+        name: "Error",
+        message: "Invalid connector member evidence",
+      });
+    }
     const classRecord=Object.assign(Object.create({custom:true}),valid);
     expect(()=>validateMemberEvidence({records:[classRecord],evidence})).toThrow('Connector JSON value is not JSON-safe: memberEvidence.records[0]');
   });
