@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+import { annotationAuthorities } from "./work-readiness/git.mjs";
 
 import {
   WorkReadinessError,
   actualsCorrectionSchemaErrors,
   computeReadinessPayloadSha256,
+  parseFeedbackRecords,
   validateCompletionActuals,
   validateLifecycleCorrections,
 } from "./work-readiness/model.mjs";
@@ -39,9 +42,10 @@ function fail(line, message) {
   failed = true;
 }
 
-for (const [index, line] of readFileSync(path, "utf8").trimEnd().split("\n").entries()) {
+for (const [index, line] of readFileSync(path, "utf8").replace(/\n+$/u, "").split("\n").entries()) {
   try {
-    const record = JSON.parse(line);
+    // Preserve the parser-owned object identity and exact raw line digest.
+    const record = parseFeedbackRecords(line)[0];
     if (!record || typeof record !== "object" || Array.isArray(record)) throw new Error("must be a JSON object");
     if (typeof record.story !== "string" || !record.story) throw new Error("requires a non-empty story");
     if (typeof record.event !== "string" || !events.has(record.event)) throw new Error("requires a known event");
@@ -73,10 +77,20 @@ for (const [index, line] of readFileSync(path, "utf8").trimEnd().split("\n").ent
 }
 
 const lifecycleCorrections = records.filter(({ record }) => record.event === "lifecycle_corrected");
+// Freeze repository authority once. Ordinary non-Git feedback fixtures need no
+// annotation authority; a correction cannot borrow an uncommitted artifact.
+let committedAnnotationAuthorities = new Map();
+if (lifecycleCorrections.some(({ record }) => record.target_event !== "started" || record.authority !== undefined)) {
+  const pin = spawnSync("git", ["rev-parse", "--verify", "HEAD^{commit}"], { cwd: root, encoding: "utf8" });
+  if (pin.status === 0 && /^[0-9a-f]{40}$/u.test(pin.stdout.trim())) {
+    try { committedAnnotationAuthorities = annotationAuthorities(root, pin.stdout.trim()); }
+    catch (error) { fail(lifecycleCorrections[0].line, `committed correction authority rejected: ${error.message}`); }
+  }
+}
 for (const story of new Set(lifecycleCorrections.map(({ record }) => record.story))) {
   const firstLine = lifecycleCorrections.find(({ record }) => record.story === story).line;
   try {
-    validateLifecycleCorrections(records.map(({ record }) => record), story);
+    validateLifecycleCorrections(records.map(({ record }) => record), story, { approvedReadinessAuthorities: committedAnnotationAuthorities });
   } catch (error) {
     const message = error instanceof WorkReadinessError
       ? `${error.code}: ${error.message}`

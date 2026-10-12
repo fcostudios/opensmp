@@ -5429,6 +5429,62 @@ function makeReplayRepo({ hooks = true, routes = {} } = {}) {
   return { root, base, authority: base, workId: "US-088" };
 }
 
+// CHG-091: real committed foreign correction coexists with the portable exact
+// US-088 authority and verifier fixture. No private Git objects are required.
+function makeCorrectionReplayRepo({ variant = "valid", hooks = false } = {}) {
+  const fixture = makeReplayRepo({ hooks: false });
+  const { root } = fixture;
+  git(root, ["checkout", "--", replayPath]);
+  const { authority, parentApproval, approval, correction } = annotationFixture();
+  const prefix = `${JSON.stringify(parentApproval)}\n${annotationLine}\n${JSON.stringify(approval)}\n`;
+  const authorityPath = "docs/readiness/CHG-089.json";
+  let artifact = authority;
+  if (variant === "unapproved") artifact = { ...authority, approval: { ...authority.approval, status: "pending" } };
+  if (variant === "mismatched") artifact = { ...authority, readiness_payload_sha256: "0".repeat(64) };
+  if (!["missing", "future", "uncommitted"].includes(variant)) writeRepoFile(root, authorityPath, JSON.stringify(artifact));
+  writeRepoFile(root, ".nous-feedback.jsonl", replayFeedbackBytes.toString("utf8") + prefix);
+  const authorityPaths = [".nous-feedback.jsonl", ...(existsSync(join(root, authorityPath)) ? [authorityPath] : [])];
+  commitRepo(root, "docs(CHG-089): commit independent correction authority", authorityPaths);
+  const changedCorrection = clone(correction);
+  if (variant === "wrong actor") changedCorrection.approved_by = "forged";
+  if (variant === "cross story") changedCorrection.story = "US-088";
+  if (variant === "wrong target") changedCorrection.target_ts = "2026-10-12T03:00:35Z";
+  let text = replayFeedbackBytes.toString("utf8") + prefix + JSON.stringify(changedCorrection) + "\n";
+  if (variant === "raw bytes") text = text.replace(annotationLine, annotationLine + " ");
+  if (variant === "duplicate") text += JSON.stringify(correction) + "\n";
+  writeRepoFile(root, ".nous-feedback.jsonl", text);
+  const base = commitRepo(root, "docs(CHG-089): retain foreign correction", [".nous-feedback.jsonl"]);
+  if (["future", "uncommitted"].includes(variant)) writeRepoFile(root, authorityPath, JSON.stringify(authority));
+  if (hooks) installReadinessHook(root);
+  writeRepoFile(root, replayPath, replayNewBytes);
+  return { ...fixture, base };
+}
+
+test("CHG-091 exact replay retains committed foreign correction context in helper and ordinary hook", () => {
+  const fixture = makeCorrectionReplayRepo();
+  try {
+    const head = commitRepo(fixture.root, "feat(US-088): replay with foreign correction", [replayPath]);
+    assert.equal(validateFunctionalDelivery({ ...fixture, head }), true);
+    assert.deepEqual(validateRangeOwnership({ root: fixture.root, base: fixture.base, head }).workIds, ["US-088"]);
+    git(fixture.root, ["reset", "--soft", fixture.base]);
+    installReadinessHook(fixture.root);
+    const ordinary = runGit(fixture.root, ["commit", "-m", "feat(US-088): ordinary corrected-context replay"]);
+    assert.equal(ordinary.status, 0, ordinary.stderr);
+  } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+});
+
+test("CHG-091 replay refuses hostile correction authority raw identity and history", () => {
+  for (const variant of ["missing", "mismatched", "unapproved", "future", "uncommitted", "raw bytes", "wrong actor", "cross story", "wrong target", "duplicate"]) {
+    const fixture = makeCorrectionReplayRepo({ variant });
+    try {
+      const paths = [replayPath, ...(variant === "future" ? ["docs/readiness/CHG-089.json"] : [])];
+      const head = commitRepo(fixture.root, "feat(US-088): hostile correction context", paths);
+      assert.throws(() => validateFunctionalDelivery({ ...fixture, head }),
+        (error) => error.code === "WR_MIXED_FUNCTIONAL_TOOLING", variant);
+    } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
+
 test("CHG-088 exact inherited replay passes ordinary staged commit and range", () => {
   const fixture = makeReplayRepo();
   try {

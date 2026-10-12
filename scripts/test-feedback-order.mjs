@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -411,6 +413,65 @@ run("revalidation requires an earlier change decision", [
   },
   ...priorEvidence.slice(4),
 ], 1);
+
+// CHG-091: capture actual closed CHG-089 bytes from the committed project
+// bundle; disposable repositories independently commit the authority first.
+const annotationRaw = readFileSync(join(repo, ".nous-feedback.jsonl"), "utf8").split("\n").find((line) => {
+  const record = line ? JSON.parse(line) : {};
+  return record.story === "US-024" && record.ts === "2026-10-12T03:00:34.941232Z";
+});
+assert.equal(createHash("sha256").update(annotationRaw).digest("hex"), "d1dba52d00fd4b60aa47a2654e4ee4c82f229370966d1dcdfea2c5911b6150bd");
+const actualAnnotationAuthorityBytes = readFileSync(join(repo, "docs/readiness/CHG-089.json"), "utf8");
+const actualAnnotationAuthority = JSON.parse(actualAnnotationAuthorityBytes);
+const annotationDecision = {
+  story: "CHG-089", event: "decision", id: actualAnnotationAuthority.approval.evidence,
+  text: `Decision ready for readiness payload SHA-256 ${actualAnnotationAuthority.readiness_payload_sha256}.`,
+  reason: "Approved technical correction", approved_by: actualAnnotationAuthority.approval.approved_by,
+  subject_work_id: "CHG-089", relationship: "self", ts: "2026-10-12T03:22:25.308Z",
+};
+const exactAnnotationCorrection = {
+  story: "US-024", event: "lifecycle_corrected", target_event: "deviation",
+  target_ts: "2026-10-12T03:00:34.941232Z", target_sha256: "d1dba52d00fd4b60aa47a2654e4ee4c82f229370966d1dcdfea2c5911b6150bd",
+  disposition: "not_execution", reason: "Approved CHG-089 annotation correction",
+  approved_by: actualAnnotationAuthority.approval.approved_by,
+  authority: { work_id: "CHG-089", payload_sha256: actualAnnotationAuthority.readiness_payload_sha256, evidence: actualAnnotationAuthority.approval.evidence },
+  ts: "2026-10-12T03:30:00Z",
+};
+for (const variant of ["valid", "missing", "mismatched", "unapproved", "uncommitted", "raw bytes", "wrong actor", "cross story", "wrong target", "duplicate", "terminal", "line diagnostics"]) {
+  const root = mkdtempSync(join(tmpdir(), "smp-feedback-annotation-"));
+  try {
+    const git = (args) => {
+      const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    git(["init", "--initial-branch=main"]);
+    git(["config", "user.email", "fixture@example.test"]); git(["config", "user.name", "Fixture"]);
+    mkdirSync(join(root, "docs/readiness"), { recursive: true });
+    const artifact = structuredClone(actualAnnotationAuthority);
+    if (variant === "unapproved") artifact.approval.status = "pending";
+    if (variant === "mismatched") artifact.approval.payload_sha256 = "0".repeat(64);
+    const authorityPath = join(root, "docs/readiness/CHG-089.json");
+    if (!["missing", "uncommitted"].includes(variant)) writeFileSync(authorityPath, JSON.stringify(artifact));
+    writeFileSync(join(root, ".nous-feedback.jsonl"), `${annotationRaw}\n${JSON.stringify(annotationDecision)}\n`);
+    git(["add", "."]); git(["commit", "-m", "docs(CHG-089): independent authority"]);
+    if (variant === "uncommitted") writeFileSync(authorityPath, actualAnnotationAuthorityBytes);
+    const correction = structuredClone(exactAnnotationCorrection);
+    if (variant === "wrong actor") correction.approved_by = "forged";
+    if (variant === "cross story") correction.story = "US-088";
+    if (variant === "wrong target") correction.target_ts = "2026-10-12T03:00:35Z";
+    let raw = `${annotationRaw}${variant === "raw bytes" ? " " : ""}\n${JSON.stringify(annotationDecision)}\n`;
+    if (variant === "terminal") raw += JSON.stringify({ story: "CHG-089", event: "done", ts: "2026-10-12T03:25:00Z" }) + "\n";
+    raw += JSON.stringify(correction) + "\n";
+    if (variant === "duplicate") raw += JSON.stringify(correction) + "\n";
+    if (variant === "line diagnostics") raw = "\n" + raw + "{invalid\n";
+    writeFileSync(join(root, ".nous-feedback.jsonl"), raw);
+    const result = spawnSync(node, [join(repo, "scripts/check-nous-feedback-order.mjs"), root], { encoding: "utf8" });
+    assert.equal(result.status, variant === "valid" ? 0 : 1, `${variant}: ${result.stderr}`);
+    if (variant === "line diagnostics") assert.match(result.stderr, /line 5:/u);
+    else if (variant !== "valid") assert.match(result.stderr, /WR_CORRECTION_INVALID/u, variant);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+}
 
 if (failures.length) {
   for (const failure of failures) console.error(`[feedback-order test] ${failure}`);

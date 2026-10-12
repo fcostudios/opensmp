@@ -260,7 +260,7 @@ function readRevisionBytes(root, revision, path, { required = true } = {}) {
 function parseFeedback(text) {
   return parseFeedbackRecords(text);
 }
-function annotationAuthorities(root, revision) {
+export function annotationAuthorities(root, revision) {
   const text = readRevisionFile(root, revision, "docs/readiness/CHG-089.json", { required: false });
   return text === null ? new Map() : new Map([["CHG-089", { artifact: parseJson(text, "docs/readiness/CHG-089.json") }]]);
 }
@@ -1217,7 +1217,7 @@ function exactInheritedReplay({ root, base, head, workId, authority }) {
         || artifact.readiness_payload_sha256 !== INHERITED_REPLAY.digest
         || computeReadinessPayloadSha256(artifact) !== INHERITED_REPLAY.digest) return false;
       const feedback = parseFeedback(readRevisionFile(root, revision, ".nous-feedback.jsonl", { required: false }));
-      const validated = validateAssessment(artifact, { feedbackRecords: feedback, deliveryPolicy: readinessDeliveryPolicy({ artifact }) });
+      const validated = validateAssessment(artifact, { feedbackRecords: feedback, approvedReadinessAuthorities: annotationAuthorities(root, revision), deliveryPolicy: readinessDeliveryPolicy({ artifact }) });
       if (validated.decision !== "ready" || !validated.active) return false;
       parentArtifact = artifact;
     }
