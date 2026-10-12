@@ -37,7 +37,27 @@
     "evidence": "US088-READY-20261012",
     "payload_sha256": "4904efb89d28d78f2e7cc754c8fbeb4ce16cf2bd1f1581e282d2781be98c469b"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 29,
+      "implementation": 61,
+      "focused_verification": 91,
+      "review": 57,
+      "integration": 26
+    },
+    "total": 264,
+    "changed_files": 17,
+    "commits": 17,
+    "review_fix_loops": 3,
+    "cold_mutation_attempts": 2,
+    "mutation_invalidations": 1,
+    "mutation_minutes": 29,
+    "mutation_shards_actual": 4,
+    "preview_rounds": 3,
+    "preview_minutes": 5,
+    "estimate_variance_minutes": 54,
+    "root_cause": "Total264 is mixed estimated active phase effort calibrated by measured verification runtimes, not measured phase clocks or billing. Historical130 phase proxy19/33/33/37/8 is estimated from parent315 plan weights45/80/80/90/20 atadaecb3; complementaryUS089124 retains original254 exactlyonce. New active effort includes child readiness/materialization, all rebase/governance interruptions, cwd-oracle repair, genuine7enum differential repair and six malformed-envelope rejection repairs, reused scoped and earlier conditional plus actual fresh AC reviewers. Controller/implementer prolonged context shape and associated measured token excess are retained candidly; original parent historical tokens remain its preserved records, no arbitrary per-child token split. Prior two previews failed/interrupted2.41144min; bounded final contracts preview1.77309 gives3rounds4.18454min, below30. Latest schema preview was explicitly skipped accepted nonauthoritative deviation to reserve own cold. Prior gate aborted4.69562min exit143 notPASS; stock firstgate334.14963s and renewed295.34727s helpers, firstcold859.56142s invalidated once for real six-survivor test gap, finalcold849.34451s all retained within focused91, never doubleadded. Both authoritative cold attempts28.4817654min are included in phase effort. Original210 estimate/header/digest preserved; direct human Waiver approved by me, go ahead supersedes same-item cost stop; variance54, scope13delivery/17completepaths and hard320 remain. No >2x-last-five comparable gate assertion because five comparable owned runs unavailable. Idle hours excluded; phase markers record actual dispatch/closure boundaries, historical phase attribution remains uncertain estimated proxy. US089 acceptance/root exports excluded; crossvendor DB rejection is deferred hardening rather than canonical promised FK existence. Closed actuals integer minute fields round up: mutation_minutes29 from exact28.481765416minutes; preview_minutes5 from exact4.184536674minutes. Exact secondcold849.344507292seconds and first859.561417667seconds remain in receipts/feedback; neither rounded minute diagnostic is added to phase total."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
