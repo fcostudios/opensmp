@@ -44,6 +44,8 @@ export const vendor_account_status_enum = pgEnum("vendor_account_status_enum", [
 export const vendor_connector_type_enum = pgEnum("vendor_connector_type_enum", ["api", "orchestration", "manual"]);
 export const vendor_identity_matching_enum = pgEnum("vendor_identity_matching_enum", ["email", "upn", "vendor_user_id"]);
 export const vendor_provisioning_protocol_enum = pgEnum("vendor_provisioning_protocol_enum", ["rest", "scim", "none"]);
+export const vendor_member_seat_evidence_enum = pgEnum("vendor_member_seat_evidence_enum", ["provider_field", "all_members_licensed", "none"]);
+export const vendor_member_license_identity_enum = pgEnum("vendor_member_license_identity_enum", ["provider_field", "none"]);
 export const vendor_status_enum = pgEnum("vendor_status_enum", ["active", "inactive"]);
 
 export const alertRule = pgTable("alert_rule", {
@@ -510,6 +512,8 @@ export const vendor = pgTable("vendor", {
   status: vendor_status_enum("status").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   createdBy: uuid("created_by").references((): AnyPgColumn => userAccount.id).notNull(),
+  memberSeatEvidence: vendor_member_seat_evidence_enum("member_seat_evidence").notNull().default("none"),
+  memberLicenseIdentity: vendor_member_license_identity_enum("member_license_identity").notNull().default("none"),
 }, (table) => ({
   nameUnique: unique("uq_vendor_name").on(table.name),
 }));
@@ -528,6 +532,7 @@ export const vendorAccount = pgTable("vendor_account", {
   updatedAt: timestamp("updated_at", { withTimezone: true }),
   updatedBy: uuid("updated_by").references((): AnyPgColumn => userAccount.id),
   ingestionMode: ingestion_source("ingestion_mode").default("manual").notNull(),
+  defaultLicenseTypeId: uuid("default_license_type_id").references((): AnyPgColumn => licenseType.id),
 }, (table) => ({
   lowPoolFloorNonnegative: check(
     "vendor_account_low_pool_floor_nonnegative",
@@ -538,6 +543,33 @@ export const vendorAccount = pgTable("vendor_account", {
   vendorOrgRefUnique: uniqueIndex("uq_vendor_account_vendor_id_vendor_org_ref")
     .on(table.vendorId, table.vendorOrgRef)
     .where(sql`${table.vendorOrgRef} IS NOT NULL`),
+}));
+
+export const memberObservation = pgTable("member_observation", {
+  id: uuid(
+    "id", // @equivalent: empty SQL name is inferred as id from the same Drizzle property key.
+  ).primaryKey().defaultRandom().notNull(),
+  vendorAccountId: uuid("vendor_account_id").references(() => vendorAccount.id).notNull(),
+  source: ingestion_source(
+    "source", // @equivalent: empty SQL name is inferred as source from the same Drizzle property key.
+  ).notNull(),
+  observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+  contentHash: text("content_hash").notNull(),
+  memberCount: integer("member_count").notNull(),
+  licensedCount: integer("licensed_count").notNull(),
+  invitedCount: integer("invited_count").notNull(),
+  warnings: jsonb(
+    "warnings", // @equivalent: empty SQL name is inferred as warnings from the same Drizzle property key.
+  ).notNull().default([]),
+  correlationId: uuid("correlation_id"),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull(),
+  acceptedBy: uuid("accepted_by").references(() => userAccount.id),
+}, (table) => ({
+  accountObservedUnique: unique("uq_member_observation_account_observed").on(table.vendorAccountId,table.observedAt),
+  countsCheck: check("member_observation_counts_check",sql`${table.memberCount} >= 0 AND ${table.licensedCount} >= 0 AND ${table.invitedCount} >= 0 AND ${table.licensedCount} <= ${table.memberCount}`),
+  hashCheck: check("member_observation_hash_check",sql`${table.contentHash} ~ '^[0-9a-f]{64}$'`),
+  warningsCheck: check("member_observation_warnings_check",sql`jsonb_typeof(${table.warnings}) = 'array'`),
+  correlationIndex: index("idx_member_observation_correlation").on(table.correlationId),
 }));
 
 export const connector_call_operation_enum = pgEnum(
@@ -619,7 +651,10 @@ export const licenseType = pgTable("license_type", {
   status: license_type_status_enum("status").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   createdBy: uuid("created_by").references((): AnyPgColumn => userAccount.id).notNull(),
-});
+  providerRef: text("provider_ref"),
+}, (table) => ({
+  providerRefUnique: unique("uq_license_type_vendor_provider_ref").on(table.vendorId,table.providerRef),
+}));
 
 const capacityRecoveryTableName = "capacity_recovery_work";
 

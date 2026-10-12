@@ -1,5 +1,6 @@
 import {
   assertJsonValue,
+  validateMemberEvidence,
   normalizeActivityCounters,
   isConnectorFailureCode,
   isMemberPageStream,
@@ -324,9 +325,10 @@ function validateMemberPageSnapshot(value: MemberPageSnapshot): MemberPageSnapsh
   try {
     assertJsonValue(value, "value");
     const json = value as unknown as Record<string, unknown>;
+    const authoritative = validateMemberEvidence(value);
     if (
       !json || typeof json !== "object" || Array.isArray(json)
-      || Object.keys(json).length !== 6
+      || Object.keys(json).length !== (authoritative ? 8 : 6)
       || !Object.hasOwn(json, "members")
       || !Object.hasOwn(json, "cursor")
       || !Object.hasOwn(json, "resume")
@@ -381,8 +383,9 @@ function validatedConnector(connector: LegacyVendorConnector): VendorConnector {
       return validateResult(result, "instruction");
     },
     async syncMembers(input: SyncInput) {
-      const result = await syncMembers(input);
-      return validateResult(result, "sync");
+      const result = validateResult(await syncMembers(input), "sync");
+      if (result.ok) validateMemberEvidence(result.value);
+      return result;
     },
     async syncMemberPage(input: SyncMemberPageInput) {
       validateMemberPageInput(input);

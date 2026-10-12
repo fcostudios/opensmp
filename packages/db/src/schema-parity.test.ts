@@ -22,6 +22,7 @@ const expectedTables = [
   "licenseType",
   "lifecycleNotification",
   "lifecycleNotificationDelivery",
+  "memberObservation",
   "person",
   "provisioningAction",
   "rateCard",

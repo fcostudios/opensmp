@@ -1393,3 +1393,55 @@ describe("activity dispatch safe replay boundary", () => {
     await expect(dispatched(records).syncActivity(input)).rejects.toThrow();
   });
 });
+
+
+describe("US-083 authoritative evidence validator",()=>{
+  it("keeps nullable identity records and rejects malformed or one-sided authoritative envelopes",async()=>{
+    const {validateMemberEvidence}=await import("./contracts.js");
+    const record={provider_member_ref:"u",email:null,display_name:null,membership_status:"member",reported_role:null,seat_evidence:"licensed",seat_evidence_provenance:"capability:all_members_licensed",provider_license_ref:null};
+    const evidence={member_seat_evidence:"all_members_licensed",member_license_identity:"none"};
+    expect(validateMemberEvidence({records:[record],evidence})).toEqual({records:[record],evidence});
+    for(const bad of [{records:[record]},{evidence},{records:null,evidence},{records:[{...record,email:42}],evidence},{records:[{...record,membership_status:"accepted"}],evidence},{records:[{...record,seat_evidence:"guessed"}],evidence},{records:[{...record,provider_member_ref:""}],evidence},{records:[{...record,secret:"leak"}],evidence},{records:[record],evidence:{...evidence,member_seat_evidence:"guessed"}}])expect(()=>validateMemberEvidence(bad)).toThrow("Invalid connector member evidence");
+    expect(validateMemberEvidence({members:[]})).toBeNull();
+  });
+});
+
+
+describe("US-083 evidence rejection at the real dispatch boundary",()=>{
+  const input={vendorAccountId:"00000000-0000-0000-0000-000000000083",observedAt:new Date("2026-10-11T00:00:00Z")};
+  const valid={provider_member_ref:"u",email:null,display_name:null,membership_status:"member",reported_role:null,
+    seat_evidence:"licensed",seat_evidence_provenance:"capability:all_members_licensed",provider_license_ref:null};
+  const evidence={member_seat_evidence:"all_members_licensed",member_license_identity:"none"};
+  it("rejects a malformed protocol implementation before both member consumption boundaries",async()=>{
+    // A concrete in-memory protocol implementation supplies bad wire values; dispatcher is exercised directly.
+    const invalid={members:[],records:[{...valid,seat_evidence:"guessed"}],evidence};
+    const implementation={...connectorWith("syncMembers"),
+      syncMembers:async()=>({ok:true,raw:null,value:invalid}as never),
+      syncMemberPage:async()=>({ok:true,raw:null,value:{...invalid,cursor:null,resume:null,pageCount:2,memberSetSize:0,complete:true}}as never)};
+    const dispatcher=createConnectorDispatcher({rest:implementation}).forProtocol('rest');
+    await expect(dispatcher.syncMembers(input)).rejects.toThrow("Invalid connector member evidence");
+    await expect(dispatcher.syncMemberPage({...input,cursor:null})).rejects.toThrow("Invalid connector member page result");
+    const unsupported=createConnectorDispatcher({rest:{...connectorWith('syncMembers'),syncMembers:async()=>({ok:false,code:'unsupported',checklistSteps:['Unsafe sync instruction']}as const)}}).forProtocol('rest');
+    await expect(unsupported.syncMembers(input)).rejects.toThrow("Invalid connector unsupported checklist: sync");
+  });
+  it("validates every declared evidence/status branch and rejects noncanonical JSON shapes",async()=>{
+    const {validateMemberEvidence}=await import('./contracts.js');
+    for(const member_seat_evidence of ['provider_field','all_members_licensed','none'])for(const member_license_identity of ['provider_field','none'])for(const seat_evidence of ['licensed','unlicensed','unknown']){
+      const envelope={records:[{...valid,seat_evidence}],evidence:{member_seat_evidence,member_license_identity}};
+      expect(validateMemberEvidence(envelope)).toEqual(envelope);
+    }
+    const invitation={...valid,membership_status:'invited',seat_evidence:'unlicensed'};
+    expect(validateMemberEvidence({records:[invitation],evidence})).toEqual({records:[invitation],evidence});
+    const malformed:unknown[]=[null,0,[],Object.assign([],{records:[valid],evidence}),{records:[valid],evidence:null},
+      {records:[valid],evidence:Object.assign([],{...evidence})},{records:[valid],evidence:{...evidence,extra:1}},
+      {records:[null],evidence},{records:[0],evidence},{records:[Object.assign([],{...valid})],evidence},
+      {records:[{...valid,email:['a@example.test']}],evidence},{records:[{...valid,email:'not-an-email'}],evidence},{records:[{...valid,email:' a@example.test'}],evidence},
+      {records:[{...valid,email:'a@example.test '}],evidence},{records:[{...valid,reported_role:'   '}],evidence},
+      {records:[{...valid,display_name:'control\nname'}],evidence},{records:[{...invitation,seat_evidence:'licensed'}],evidence},
+      {records:[{...valid,reported_role:undefined,extra:'missing-key-replacement'}],evidence}];
+    const missing={...valid}as Record<string,unknown>;delete missing.reported_role;missing.extra='replacement';malformed.push({records:[missing],evidence});
+    for(const envelope of malformed)expect(()=>validateMemberEvidence(envelope)).toThrow('Invalid connector member evidence');
+    const classRecord=Object.assign(Object.create({custom:true}),valid);
+    expect(()=>validateMemberEvidence({records:[classRecord],evidence})).toThrow('Connector JSON value is not JSON-safe: memberEvidence.records[0]');
+  });
+});

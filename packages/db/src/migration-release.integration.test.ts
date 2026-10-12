@@ -15,7 +15,7 @@ import { promisify } from "node:util";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { POSTGRES_16_ALPINE_IMAGE } from "./testing/postgres-container";
+import { POSTGRES_16_ALPINE_IMAGE, SHARED_POSTGRES_CLUSTER_ENV } from "./testing/postgres-container";
 
 const execFileAsync = promisify(execFile);
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -42,7 +42,7 @@ async function readLatestIdentityProviderVerifier(): Promise<string> {
   return await readFile(join(committedMigrationsPath, filename), "utf8");
 }
 
-let container: StartedPostgreSqlContainer;
+let container: StartedPostgreSqlContainer | undefined;
 let clusterAdminUrl: string;
 let ownerAdminUrl: string;
 let appAdminUrl: string;
@@ -260,35 +260,42 @@ async function waitForConcurrentAdvisoryLocks(databaseName: string): Promise<boo
 }
 
 beforeAll(async () => {
-  container = await new PostgreSqlContainer(POSTGRES_16_ALPINE_IMAGE)
-    .withStartupTimeout(120_000)
-    .start();
-  clusterAdminUrl = container.getConnectionUri();
+  const sharedClusterUrl = process.env[SHARED_POSTGRES_CLUSTER_ENV];
+  if (sharedClusterUrl) {
+    clusterAdminUrl = sharedClusterUrl;
+  } else {
+    container = await new PostgreSqlContainer(POSTGRES_16_ALPINE_IMAGE)
+      .withStartupTimeout(120_000)
+      .start();
+    clusterAdminUrl = container.getConnectionUri();
+  }
 
-  const admin = new pg.Client({ connectionString: clusterAdminUrl });
-  await admin.connect();
-  try {
-    await admin.query(`
-      DO $$
-      BEGIN
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ledger_owner') THEN
-          CREATE ROLE ledger_owner LOGIN CREATEDB PASSWORD 'owner-secret';
-        END IF;
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ledger_app') THEN
-          CREATE ROLE ledger_app LOGIN PASSWORD 'app-secret';
-        END IF;
-      END
-      $$
-    `);
-    await admin.query(
-      "ALTER ROLE ledger_owner NOSUPERUSER NOCREATEROLE CREATEDB NOREPLICATION NOBYPASSRLS LOGIN PASSWORD 'owner-secret'",
-    );
-    await admin.query(
-      "ALTER ROLE ledger_app NOSUPERUSER NOCREATEROLE NOCREATEDB NOREPLICATION NOBYPASSRLS LOGIN PASSWORD 'app-secret'",
-    );
-    await admin.query("REVOKE ledger_owner FROM ledger_app");
-  } finally {
-    await admin.end();
+  if (!sharedClusterUrl) {
+    const admin = new pg.Client({ connectionString: clusterAdminUrl });
+    await admin.connect();
+    try {
+      await admin.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ledger_owner') THEN
+            CREATE ROLE ledger_owner LOGIN CREATEDB PASSWORD 'owner-secret';
+          END IF;
+          IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ledger_app') THEN
+            CREATE ROLE ledger_app LOGIN PASSWORD 'app-secret';
+          END IF;
+        END
+        $$
+      `);
+      await admin.query(
+        "ALTER ROLE ledger_owner NOSUPERUSER NOCREATEROLE CREATEDB NOREPLICATION NOBYPASSRLS LOGIN PASSWORD 'owner-secret'",
+      );
+      await admin.query(
+        "ALTER ROLE ledger_app NOSUPERUSER NOCREATEROLE NOCREATEDB NOREPLICATION NOBYPASSRLS LOGIN PASSWORD 'app-secret'",
+      );
+      await admin.query("REVOKE ledger_owner FROM ledger_app");
+    } finally {
+      await admin.end();
+    }
   }
 
   const owner = new URL(clusterAdminUrl);
@@ -302,7 +309,7 @@ beforeAll(async () => {
 }, 150_000);
 
 afterAll(async () => {
-  await container.stop();
+  await container?.stop();
 }, 30_000);
 
 describe("committed migration release path", () => {
@@ -2697,8 +2704,8 @@ describe("migration parity", () => {
       databaseAdminUrl: ownerAdminUrl,
       applicationUrl: appAdminUrl,
     });
-    expect(structure.tables).toHaveLength(32);
-    expect(structure.foreignKeys).toHaveLength(84);
+    expect(structure.tables).toHaveLength(33);
+    expect(structure.foreignKeys).toHaveLength(87);
     expect(
       structure.enums.find(
         ({ enum_name }: { enum_name: string }) =>
@@ -3018,7 +3025,7 @@ describe("migration parity", () => {
         }: {
           pushUrl: string;
         }) => {
-          expect(await applicationTableCount(pushUrl)).toBe(32);
+          expect(await applicationTableCount(pushUrl)).toBe(33);
           expect(await applicationTableCount(conflicting.ownerUrl)).toBe(0);
         },
       });

@@ -178,3 +178,25 @@ test("documented per-user cost uses one day, exact fractional cents and nullable
     expect(JSON.stringify([result,observations])).not.toMatch(/must-not-persist|contract-admin|contract-analytics|authorization/);
   }); } finally {rmSync(dir,{recursive:true,force:true});}
 });
+
+
+test("US-083 lossless member contract preserves identity, role and both complete streams", async () => {
+  const dir=mkdtempSync(join(tmpdir(),"us083-members-pact-"));
+  const pact=new PactV3({consumer:"ledger-authoritative-members",provider:"anthropic-enterprise-api",dir,logLevel:"error"});
+  const records=[{type:"user",id:"u-null",name:null,email:null,role:"admin"},{type:"user",id:"u-member",name:"Member",email:"MEMBER@example.test",role:"user"}];
+  const bodies=[{data:[records[0]],has_more:true,first_id:"u-null",last_id:"u-null"},{data:[records[1]],has_more:false,first_id:"u-member",last_id:"u-member"},{data:[invite("i-one"),{...invite("i-two"),email:null}],has_more:false,first_id:"i-one",last_id:"i-two"}];
+  bodies.forEach((body,index)=>pact.addInteraction({uponReceiving:`complete member evidence page ${index}`,withRequest:{method:"GET",path:index<2?"/v1/organizations/users":"/v1/organizations/invites",query:index===1?{limit:"1000",after_id:"u-null"}:{limit:"1000"}},willRespondWith:{status:200,headers:{"Content-Type":"application/json"},body}}));
+  try{await pact.executeTest(async server=>{
+    const journal:ConnectorCallObservationAppendInput[]=[];
+    const clock={now:()=>at.getTime()},sleep=async()=>undefined;
+    const connector=createAnthropicConnector({credentialsFor:async()=>[{vendorAccountId:account,kind:"admin_scoped",secret:"contract-admin",status:"active",health:"ok"},{vendorAccountId:account,kind:"analytics",secret:"contract-analytics",status:"active",health:"ok"}],observationSessionFor:async input=>createConnectorCallObservationSession({vendorAccountId:account,provisioningActionId:null,operation:input.operation,clock:()=>at,randomId:()=>requestId,append:async event=>{journal.push(event);}}),requestDependencies:{clock,sleep,limiter:createAnthropicRateLimiter({clock,sleep}),transport:async request=>{const url=new URL(request.url);return fetch(new Request(new URL(url.pathname+url.search,server.url),request));}}});
+    const result=await connector.syncMembers({vendorAccountId:account,observedAt:at});
+    expect(result.ok).toBe(true);if(!result.ok)throw Error("expected complete evidence");
+    const value=result.value as unknown as {records:Record<string,unknown>[];evidence:unknown;members:unknown};
+    expect(value.records.map(r=>[r.provider_member_ref,r.email,r.reported_role,r.membership_status,r.seat_evidence])).toEqual([["u-null",null,"admin","member","licensed"],["u-member","member@example.test","user","member","licensed"],["i-one","selected@example.test",null,"invited","unlicensed"],["i-two",null,null,"invited","unlicensed"]]);
+    expect(value.evidence).toEqual({member_seat_evidence:"all_members_licensed",member_license_identity:"none"});
+    expect(value.members).toEqual([{email:"member@example.test",active:true},{email:"selected@example.test",active:false}]);
+    expect(journal.filter(event=>event.phase==="succeeded").map(event=>event.summary.endpoint_class)).toEqual(["members","members","invitations"]);
+    expect(JSON.stringify(journal)).not.toMatch(/u-null|MEMBER@example|selected@example|contract-admin/);
+  });}finally{rmSync(dir,{recursive:true,force:true});}
+});

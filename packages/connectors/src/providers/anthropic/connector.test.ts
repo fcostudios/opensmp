@@ -128,6 +128,16 @@ async function successValue<T>(operation: Promise<ConnectorResult<T>>, raw: unkn
   return result.value;
 }
 
+function legacySnapshot<T extends { records?: unknown; evidence?: unknown }>(value: T): Omit<T, "records" | "evidence"> {
+  const { records: _records, evidence: _evidence, ...legacy } = value;
+  return legacy;
+}
+
+async function legacyMemberValue<T extends { members: readonly unknown[]; records?: unknown; evidence?: unknown }>(operation: Promise<ConnectorResult<T>>) {
+  return legacySnapshot(await successValue(operation));
+}
+
+
 it("keeps distinct documented person counters without summaries", async () => {
   const requests: Request[] = [];
   const { connector } = fixture(async request => { requests.push(request); return json({data:[
@@ -192,7 +202,7 @@ describe("Anthropic neutral connector", () => {
       .toEqual({ vendorRef: "inv-1" });
     expect(await successValue(connector.deprovision({ requestId: REQUEST, vendorAccountId: ACCOUNT, personEmail: "member@example.test", licenseTypeName: "Claude" })))
       .toEqual({ vendorRef: "usr-1" });
-    expect(await successValue(connector.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW }))).toEqual({
+    expect(await legacyMemberValue(connector.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW }))).toEqual({
       members: [
         { email: "member@example.test", active: true },
         { email: "pending@example.test", active: false },
@@ -512,7 +522,7 @@ describe("Anthropic neutral connector", () => {
         const result = await connector.syncMemberPage({ vendorAccountId: ACCOUNT, observedAt: NOW,
           cursor: { stream, pageCount: 99, memberSetSize: 0 },
           resume: { vendorAccountId: ACCOUNT, stream, continuation: "page99", seenContinuations: ["page99"], pageCount: 99, memberSetSize: 0 } });
-        expect(result).toEqual(stream === "members"
+        expect(result.ok ? { ...result, value: legacySnapshot(result.value) } : result).toEqual(stream === "members"
           ? { ok: false, code: "provider_error", retryable: false, raw: null }
           : { ok: true, raw: null, value: { members: [], cursor: null, resume: null, pageCount: 100, memberSetSize: 0, complete: true } });
       }
@@ -536,7 +546,7 @@ describe("Anthropic neutral connector", () => {
         : json(idPage([invite("i2", "d@example.test")]));
     });
 
-    expect(await successValue(connector.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW }))).toEqual({
+    expect(await legacyMemberValue(connector.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW }))).toEqual({
       members: [
         { email: "a@example.test", active: true },
         { email: "b@example.test", active: true },
@@ -557,16 +567,20 @@ describe("Anthropic neutral connector", () => {
     ["two distinct emails", [invite("i1", "A@example.test"), invite("i2", "b@example.test")], [{ email: "a@example.test", active: false }, { email: "b@example.test", active: false }], 2],
   ])("maps invitation page members independently: %s", async (_name, data, members, memberSetSize) => {
     const { connector } = fixture(async () => json(idPage(data as never)));
-    expect(await connector.syncMemberPage({ vendorAccountId: ACCOUNT, observedAt: NOW,
+    const result = await connector.syncMemberPage({ vendorAccountId: ACCOUNT, observedAt: NOW,
       cursor: { stream: "invitations", pageCount: 1, memberSetSize: 0 },
-      resume: { vendorAccountId: ACCOUNT, stream: "invitations", continuation: null, seenContinuations: [], pageCount: 1, memberSetSize: 0 } }))
+      resume: { vendorAccountId: ACCOUNT, stream: "invitations", continuation: null, seenContinuations: [], pageCount: 1, memberSetSize: 0 } });
+    expect(result.ok ? { ...result, value: legacySnapshot(result.value) } : result)
       .toEqual({ ok: true, raw: null, value: { members, cursor: null, resume: null, pageCount: 2, memberSetSize, complete: true } });
   });
 
-  it("rejects duplicate normalized emails on a direct member page", async () => {
+  it("retains ambiguous authoritative evidence and excludes it from legacy polling page", async () => {
     const { connector } = fixture(async () => json(idPage([member("u1", "A@example.test"), member("u2", "a@example.test")])));
-    expect(await connector.syncMemberPage({ vendorAccountId: ACCOUNT, observedAt: NOW, cursor: null }))
-      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+    const result = await connector.syncMemberPage({ vendorAccountId: ACCOUNT, observedAt: NOW, cursor: null });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw Error("expected lossless ambiguous evidence");
+    expect(result.value.members).toEqual([]);
+    expect(result.value.records?.map(record => record.email)).toEqual(["a@example.test", "a@example.test"]);
   });
 
   it.each(["x".repeat(513), "x\u202ey"])("rejects unsafe direct page tokens before transport: %j", async (token) => {
@@ -611,7 +625,7 @@ describe("Anthropic neutral connector", () => {
 
   it("accepts an explicit null initial resume without rejecting the first page", async () => {
     const { connector } = fixture(async () => json(idPage([member("u1", "a@example.test")])));
-    const page = await successValue(connector.syncMemberPage({ vendorAccountId: ACCOUNT, observedAt: NOW, cursor: null, resume: null }));
+    const page = await legacyMemberValue(connector.syncMemberPage({ vendorAccountId: ACCOUNT, observedAt: NOW, cursor: null, resume: null }));
     expect(page.members).toEqual([{ email: "a@example.test", active: true }]);
     expect(page.pageCount).toBe(1);
   });
@@ -633,7 +647,7 @@ describe("Anthropic neutral connector", () => {
     const connector = createConnectorDispatcher({ rest: implementation }).forProtocol("rest");
     const input = { vendorAccountId: ACCOUNT, observedAt: NOW };
 
-    const first = await successValue(connector.syncMemberPage({ ...input, cursor: null }));
+    const first = await legacyMemberValue(connector.syncMemberPage({ ...input, cursor: null }));
     expect(first).toEqual({
       members: [{ email: "first@example.test", active: true }],
       cursor: { stream: "members", pageCount: 1, memberSetSize: 1 },
@@ -647,7 +661,7 @@ describe("Anthropic neutral connector", () => {
     expect(JSON.stringify(first.cursor)).not.toContain("u1");
     expect(JSON.stringify(first.cursor)).not.toContain("first@example.test");
 
-    const second = await successValue(connector.syncMemberPage({ ...input, cursor: first.cursor, resume: first.resume }));
+    const second = await legacyMemberValue(connector.syncMemberPage({ ...input, cursor: first.cursor, resume: first.resume }));
     expect(second).toEqual({
       members: [{ email: "second@example.test", active: true }],
       cursor: { stream: "invitations", pageCount: 2, memberSetSize: 2 },
@@ -657,7 +671,7 @@ describe("Anthropic neutral connector", () => {
       complete: false,
     });
 
-    const terminal = await successValue(connector.syncMemberPage({ ...input, cursor: second.cursor, resume: second.resume }));
+    const terminal = await legacyMemberValue(connector.syncMemberPage({ ...input, cursor: second.cursor, resume: second.resume }));
     expect(terminal).toEqual({
       members: [{ email: "pending@example.test", active: false }],
       cursor: null,
@@ -683,7 +697,7 @@ describe("Anthropic neutral connector", () => {
         : json(idPage([member("u2", "second@example.test")]));
     });
     const input = { vendorAccountId: ACCOUNT, observedAt: NOW };
-    const first = await successValue(connector.syncMemberPage({ ...input, cursor: null }));
+    const first = await legacyMemberValue(connector.syncMemberPage({ ...input, cursor: null }));
 
     for (const fragment of [
       { cursor: first.cursor },
@@ -831,18 +845,21 @@ describe("Anthropic neutral connector", () => {
         invite("pending", "pending@example.test"),
         { ...invite("accepted", "accepted@example.test"), status: "accepted" },
       ])));
-    expect(await successValue(connector.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW }))).toEqual({
+    expect(await legacyMemberValue(connector.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW }))).toEqual({
       members: [{ email: "pending@example.test", active: false }],
     });
   });
 
-  it("rejects a normalized email shared by a member and invitation", async () => {
-    // Mutations killed: omitting normalized-email uniqueness duplicates one person across provider collections.
+  it("retains ambiguous authoritative evidence and excludes it from legacy polling snapshot", async () => {
+    // Preserve ambiguity for acceptance warnings while refusing that identity to legacy polling.
     const { connector } = fixture(async (request) => new URL(request.url).pathname.endsWith("/users")
       ? json(idPage([member("u", "Person@Example.test")]))
       : json(idPage([invite("i", "person@example.test")])));
-    expect(await connector.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW }))
-      .toEqual({ ok: false, code: "provider_error", retryable: false, raw: null });
+    const result = await connector.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw Error("expected lossless ambiguous evidence");
+    expect(result.value.members).toEqual([]);
+    expect(result.value.records?.map(record => record.email)).toEqual(["person@example.test", "person@example.test"]);
   });
 
   it.each([
@@ -888,6 +905,31 @@ describe("Anthropic neutral connector", () => {
       body: idPage([{ ...member("u", "a@example.test"), name: 7 }]),
       expectedPaths: ["/v1/organizations/users"],
     },
+    {
+      name: "wrong member type", operation: "members", stage: "members",
+      body: idPage([{ ...member("u", "a@example.test"), type: "invite" }]),
+      expectedPaths: ["/v1/organizations/users"],
+    },
+    {
+      name: "numeric member role", operation: "members", stage: "members",
+      body: idPage([{ ...member("u", "a@example.test"), role: 7 }]),
+      expectedPaths: ["/v1/organizations/users"],
+    },
+    {
+      name: "wrong invitation type", operation: "members", stage: "invitations",
+      body: idPage([{ ...invite("i", "a@example.test"), type: "user" }]),
+      expectedPaths: ["/v1/organizations/users", "/v1/organizations/invites"],
+    },
+    {
+      name: "numeric invitation role", operation: "members", stage: "invitations",
+      body: idPage([{ ...invite("i", "a@example.test"), role: 7 }]),
+      expectedPaths: ["/v1/organizations/users", "/v1/organizations/invites"],
+    },
+    {
+      name: "malformed invitation email", operation: "members", stage: "invitations",
+      body: idPage([invite("i", "not-an-email")]),
+      expectedPaths: ["/v1/organizations/users", "/v1/organizations/invites"],
+    },
   ] as const)("contains malformed provider success: $name", async ({ operation, stage, body, expectedPaths }) => {
     // Mutations killed: weakening closed-shape/type guards exposes partial provider data or reaches a later endpoint.
     const seen: string[] = [];
@@ -897,7 +939,7 @@ describe("Anthropic neutral connector", () => {
       if (path.endsWith("/users") && !path.includes("analytics")) {
         return json(stage === "members" ? body : idPage([]));
       }
-      if (path.endsWith("/invites")) return json(idPage([]));
+      if (path.endsWith("/invites")) return json(stage === "invitations" ? body : idPage([]));
       if (path.endsWith("/analytics/users")) {
         return json(stage === "analytics" ? body : opaquePage([analyticsUser("u", "a@example.test")]));
       }
@@ -1236,5 +1278,28 @@ describe("documented activity identity and page contracts", () => {
     });
     await expect(connector.syncActivity(input)).resolves.toEqual(failure);
     expect(calls).toBe(1);
+  });
+});
+
+describe("US-083 authoritative member evidence", () => {
+  it("retains null identity/name and reported role beside the legacy polling projection", async () => {
+    const { connector: real } = fixture(async request => new URL(request.url).pathname.endsWith("/users")
+      ? json(idPage([{ ...member("u-null", null), name: null, role: "admin" }, member("u-a", "A@example.test")]))
+      : json(idPage([{ ...invite("i-a", "invited@example.test"), role: "user" }, { ...invite("i-null", null), role: null }])));
+    const connector = createConnectorDispatcher({ rest: real }).forProtocol("rest");
+    const result = await connector.syncMembers({ vendorAccountId: ACCOUNT, observedAt: NOW });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected complete authoritative observation");
+    const value = result.value as unknown as {records: Record<string, unknown>[]; evidence: unknown; members: unknown};
+    expect(value.evidence).toEqual({ member_seat_evidence: "all_members_licensed", member_license_identity: "none" });
+    // Cold survivors: preserve every identity/name/role/provenance atom, including optional invitation roles.
+    expect(value.records).toEqual([
+      {provider_member_ref:"u-null",email:null,display_name:null,membership_status:"member",reported_role:"admin",seat_evidence:"licensed",seat_evidence_provenance:"capability:all_members_licensed",provider_license_ref:null},
+      {provider_member_ref:"u-a",email:"a@example.test",display_name:"Member",membership_status:"member",reported_role:null,seat_evidence:"licensed",seat_evidence_provenance:"capability:all_members_licensed",provider_license_ref:null},
+      {provider_member_ref:"i-a",email:"invited@example.test",display_name:null,membership_status:"invited",reported_role:"user",seat_evidence:"unlicensed",seat_evidence_provenance:null,provider_license_ref:null},
+      {provider_member_ref:"i-null",email:null,display_name:null,membership_status:"invited",reported_role:null,seat_evidence:"unlicensed",seat_evidence_provenance:null,provider_license_ref:null},
+    ]);
+    expect(value.members).toEqual([{email:"a@example.test",active:true},{email:"invited@example.test",active:false}]);
+    expect(Object.isFrozen(value.records[0])).toBe(true);
   });
 });

@@ -36,7 +36,64 @@ export type ProvisionResult = { vendorRef: string | null };
 export type DeprovisionInput = ProvisionInput;
 export type DeprovisionResult = { vendorRef: string | null };
 export type SyncInput = { vendorAccountId: string; observedAt: Date };
+export type MemberSeatEvidence = "licensed" | "unlicensed" | "unknown";
+export type MemberEvidenceDescriptor = Readonly<{
+  member_seat_evidence: "provider_field" | "all_members_licensed" | "none";
+  member_license_identity: "provider_field" | "none";
+}>;
+export type ConnectorMemberRecord = Readonly<{
+  provider_member_ref: string | null;
+  email: string | null;
+  display_name: string | null;
+  membership_status: "member" | "invited";
+  reported_role: string | null;
+  seat_evidence: MemberSeatEvidence;
+  seat_evidence_provenance: string | null;
+  provider_license_ref: string | null;
+}>;
+export type NormalizedMemberRecord = ConnectorMemberRecord & Readonly<{ license_type_id: string | null }>;
+export type MemberIdentityWarning = Readonly<{
+  kind: "null_email" | "ambiguous_identity" | "unmapped_license" | "unknown_seat_evidence";
+  provider_member_ref: string | null;
+  email: string | null;
+  detail: string;
+}>;
+
+/** Optional compatibility envelope; a legacy projection is never authoritative evidence. */
+export function validateMemberEvidence(value: unknown): Readonly<{
+  records: readonly ConnectorMemberRecord[];
+  evidence: MemberEvidenceDescriptor;
+}> | null {
+  const invalid = (): never => { throw new Error("Invalid connector member evidence"); };
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return invalid();
+  const envelope = value as Record<string, unknown>;
+  const hasRecords = Object.hasOwn(envelope, "records"), hasEvidence = Object.hasOwn(envelope, "evidence");
+  if (!hasRecords && !hasEvidence) return null;
+  if (!hasRecords || !hasEvidence) return invalid();
+  const evidence = envelope.evidence as Record<string, unknown>;
+  if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)
+    || Object.keys(evidence).length !== 2
+    || !["provider_field", "all_members_licensed", "none"].includes(evidence.member_seat_evidence as string)
+    || !["provider_field", "none"].includes(evidence.member_license_identity as string)) return invalid();
+  const nullableText = (input: unknown): boolean => input === null || (typeof input === "string" && input.trim().length > 0 && !/[\u0000-\u001f\u007f]/u.test(input));
+  const keys = ["provider_member_ref", "email", "display_name", "membership_status", "reported_role", "seat_evidence", "seat_evidence_provenance", "provider_license_ref"];
+  if (!Array.isArray(envelope.records) || !envelope.records.every(input => {
+    if (!input || typeof input !== "object" || Array.isArray(input)) return false;
+    const record = input as Record<string, unknown>;
+    return Object.keys(record).length === keys.length && keys.every(key => Object.hasOwn(record, key))
+      && [record.provider_member_ref, record.display_name, record.reported_role, record.provider_license_ref, record.seat_evidence_provenance].every(nullableText)
+      && (record.email === null || (typeof record.email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(record.email)))
+      && ["member", "invited"].includes(record.membership_status as string)
+      && ["licensed", "unlicensed", "unknown"].includes(record.seat_evidence as string)
+      && (record.membership_status !== "invited" || record.seat_evidence === "unlicensed");
+  })) return invalid();
+  assertJsonValue({ records: envelope.records, evidence }, "memberEvidence");
+  return { records: envelope.records as ConnectorMemberRecord[], evidence: evidence as MemberEvidenceDescriptor };
+}
+
 export type MemberSnapshot = {
+  records?: readonly ConnectorMemberRecord[];
+  evidence?: MemberEvidenceDescriptor;
   members: readonly { email: string; active: boolean }[];
 };
 export const memberPageStreams = Object.freeze(["members", "invitations"] as const);
@@ -77,6 +134,8 @@ export type SyncMemberPageInput = SyncInput & {
   resume?: MemberPageResume | null;
 };
 export type MemberPageSnapshot = {
+  records?: readonly ConnectorMemberRecord[];
+  evidence?: MemberEvidenceDescriptor;
   members: readonly { email: string; active: boolean }[];
   cursor: MemberPageCursor | null;
   resume: MemberPageResume | null;

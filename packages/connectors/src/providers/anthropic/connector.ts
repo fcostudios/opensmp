@@ -7,6 +7,7 @@ import type {
   ActivityIngestionRecord,
   CostIngestionRecord,
   ConnectorCapability,
+  ConnectorMemberRecord,
   MemberPageCursor,
   MemberPageResume,
   MemberPageSnapshot,
@@ -66,8 +67,8 @@ type OpaquePage<T> = Readonly<{
   next_page: string | null;
 }>;
 
-type Member = Readonly<{ type: "user"; id: string; name: string; email: string | null }>;
-type Invitation = Readonly<{ type: "invite"; id: string; email: string | null; status: string }>;
+type Member = Readonly<{ type: "user"; id: string; name: string | null; email: string | null; role: string | null }>;
+type Invitation = Readonly<{ type: "invite"; id: string; email: string | null; status: string; role: string | null }>;
 type AnalyticsUser = ActivityIngestionRecord;
 
 const capabilities = Object.freeze([
@@ -184,17 +185,19 @@ function validDate(value: unknown): value is string {
 }
 
 function parseMember(value: unknown): Member | null {
-  const item = exact(value, ["type", "id", "name", "email"]);
-  if (!item || item.type !== "user" || !opaqueToken(item.id) || !nonblank(item.name)) return null;
+  const candidate = record(value);
+  const item = exact(value, candidate && Object.hasOwn(candidate, "role") ? ["type", "id", "name", "email", "role"] : ["type", "id", "name", "email"]);
+  if (!item || item.type !== "user" || !opaqueToken(item.id) || (item.name !== null && !nonblank(item.name)) || (item.role != null && !nonblank(item.role))) return null;
   const email = usableEmail(item.email);
-  return email === undefined ? null : { type: "user", id: item.id, name: item.name, email };
+  return email === undefined ? null : { type: "user", id: item.id, name: item.name as string | null, email, role: (item.role as string | null) ?? null };
 }
 
 function parseInvitation(value: unknown): Invitation | null {
-  const item = exact(value, ["type", "id", "email", "status"]);
-  if (!item || item.type !== "invite" || !opaqueToken(item.id) || !nonblank(item.status)) return null;
+  const candidate = record(value);
+  const item = exact(value, candidate && Object.hasOwn(candidate, "role") ? ["type", "id", "email", "status", "role"] : ["type", "id", "email", "status"]);
+  if (!item || item.type !== "invite" || !opaqueToken(item.id) || !nonblank(item.status) || (item.role != null && !nonblank(item.role))) return null;
   const email = usableEmail(item.email);
-  return email === undefined ? null : { type: "invite", id: item.id, email, status: item.status };
+  return email === undefined ? null : { type: "invite", id: item.id, email, status: item.status, role: (item.role as string | null) ?? null };
 }
 
 function parseAnalyticsUser(value: unknown, observedOn: string): AnalyticsUser | null {
@@ -306,20 +309,28 @@ function memberPageResume(value: unknown, vendorAccountId: string): MemberPageRe
     memberSetSize: candidate.memberSetSize as number };
 }
 
-function normalMemberPageMembers(
-  stream: MemberPageCursor["stream"],
-  data: readonly Member[] | readonly Invitation[],
-): readonly { email: string; active: boolean }[] | null {
-  const normalized = stream === "members"
-    ? (data as readonly Member[])
-      .filter((item): item is Member & { email: string } => item.email !== null)
-      .map(({ email }) => ({ email, active: true }))
-    : (data as readonly Invitation[])
-      .filter((item): item is Invitation & { email: string } => item.email !== null && item.status === "pending")
-      .map(({ email }) => ({ email, active: false }));
-  return new Set(normalized.map(({ email }) => email)).size === normalized.length
-    ? normalized
-    : null;
+const memberEvidence = Object.freeze({ member_seat_evidence: "all_members_licensed", member_license_identity: "none" } as const);
+
+function authoritativeMemberRecords(stream: MemberPageCursor["stream"], data: readonly Member[] | readonly Invitation[]): readonly ConnectorMemberRecord[] {
+  return data.filter(item => stream === "members" || (item as Invitation).status === "pending").map(item => ({
+    provider_member_ref: item.id, email: item.email,
+    display_name: stream === "members" ? (item as Member).name : null,
+    reported_role: item.role, membership_status: stream === "members" ? "member" : "invited",
+    seat_evidence: stream === "members" ? "licensed" : "unlicensed",
+    seat_evidence_provenance: stream === "members" ? "capability:all_members_licensed" : null,
+    provider_license_ref: null,
+  }));
+}
+
+function legacyMemberProjection(records: readonly ConnectorMemberRecord[]): readonly { email: string; active: boolean }[] {
+  const counts = new Map<string, number>();
+  for (const record of records) if (record.email !== null) counts.set(record.email, (counts.get(record.email) ?? 0) + 1);
+  return records.filter((item): item is ConnectorMemberRecord & { email: string } => item.email !== null && counts.get(item.email) === 1)
+    .map(item => ({ email: item.email, active: item.membership_status === "member" }));
+}
+
+function normalMemberPageMembers(stream: MemberPageCursor["stream"], data: readonly Member[] | readonly Invitation[]): readonly { email: string; active: boolean }[] {
+  return legacyMemberProjection(authoritativeMemberRecords(stream, data));
 }
 
 // Capability inspection does not need credentials, observations, or transport.
@@ -427,7 +438,6 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
       : parseIdPage(pageResult.body, parseInvitation);
     if (!page) return providerFailure();
     const members = normalMemberPageMembers(stream, page.data);
-    if (!members) return providerFailure();
     const pageCount = (cursor?.pageCount ?? 0) + 1;
     const memberSetSize = (cursor?.memberSetSize ?? 0) + members.length;
     if (page.has_more) {
@@ -436,7 +446,7 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
       ) return providerFailure();
       return {
         snapshot: {
-          members,
+          members, records: authoritativeMemberRecords(stream, page.data), evidence: memberEvidence,
           cursor: { stream, pageCount, memberSetSize },
           resume: { vendorAccountId, stream, continuation: page.last_id,
             seenContinuations: [...(resume?.seenContinuations ?? []), page.last_id],
@@ -452,7 +462,7 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
       if (pageCount >= 100) return providerFailure();
       return {
         snapshot: {
-          members,
+          members, records: authoritativeMemberRecords(stream, page.data), evidence: memberEvidence,
           cursor: { stream: "invitations", pageCount, memberSetSize },
           resume: { vendorAccountId, stream: "invitations", continuation: null, seenContinuations: [], pageCount, memberSetSize },
           pageCount,
@@ -463,7 +473,7 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
       };
     }
     return {
-      snapshot: { members, cursor: null, resume: null, pageCount, memberSetSize, complete: true },
+      snapshot: { members, records: authoritativeMemberRecords(stream, page.data), evidence: memberEvidence, cursor: null, resume: null, pageCount, memberSetSize, complete: true },
       providerIds: page.data.map(({ id }) => id),
     };
   }
@@ -575,7 +585,7 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
     async syncMembers(input) {
       syncDate(input);
       const operation = await context(input.vendorAccountId, null, "sync_members");
-      const normalized: { email: string; active: boolean }[] = [];
+      const records: ConnectorMemberRecord[] = [];
       const providerIds = new Set<string>();
       let cursor: MemberPageCursor | null = null;
       let resume: MemberPageResume | null = null;
@@ -584,13 +594,12 @@ export function createAnthropicConnector(dependencies?: AnthropicConnectorDepend
         if ("ok" in page) return page;
         if (page.providerIds.some((id) => providerIds.has(id))) return providerFailure();
         page.providerIds.forEach((id) => providerIds.add(id));
-        normalized.push(...page.snapshot.members);
+        records.push(...page.snapshot.records!);
         if (page.snapshot.complete) break;
         cursor = page.snapshot.cursor;
         resume = page.snapshot.resume;
       }
-      if (new Set(normalized.map(({ email }) => email)).size !== normalized.length) return providerFailure();
-      return success({ members: normalized });
+      return success({ members: legacyMemberProjection(records), records, evidence: memberEvidence });
     },
     async syncMemberPage(input) {
       syncDate(input);

@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { execFile } from "node:child_process";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, mkdtemp, copyFile, rm } from "node:fs/promises";
 import { promisify } from "node:util";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   createPostgresFixture,
   type PostgresFixture,
@@ -28,6 +30,7 @@ const expectedTables = [
   "license_type",
   "lifecycle_notification",
   "lifecycle_notification_delivery",
+  "member_observation",
   "person",
   "provisioning_action",
   "rate_card",
@@ -374,5 +377,95 @@ describe("US-003 physical schema parity", () => {
     } finally {
       await owner.end();
     }
+  }, 150_000);
+});
+
+
+describe("US-083 observation catalog and immutable ledger", () => {
+  test("bootstraps authoritative Anthropic capability and enforces the fresh account ledger", async () => {
+    const fixture = await createPostgresFixture(); fixtures.push(fixture);
+    const previousMigrations = await mkdtemp(join(tmpdir(), "us083-prior-migrations-"));
+    const migrationDirectory = new URL("./migrations/", import.meta.url);
+    try {
+      for (const filename of await readdir(migrationDirectory)) {
+        if (filename.endsWith(".sql") && !filename.endsWith("__member_observations.sql")) await copyFile(new URL(filename,migrationDirectory),join(previousMigrations,filename));
+      }
+      await promisify(execFile)(process.execPath,["scripts/apply-migrations.mjs"], { env: {
+        ...process.env,DATABASE_ADMIN_URL:fixture.ownerUrl,DATABASE_URL:fixture.appUrl,MIGRATIONS_DIR:previousMigrations,
+      }});
+      const existing = await fixture.connectAsOwner();
+      try { await existing.query(`INSERT INTO vendor (id,name,connector_type,provisioning_protocol,can_provision,
+        can_deprovision,has_usage_data,has_cost_data,identity_matching,status,created_at,created_by)
+        VALUES ('00000000-0000-0000-0000-000000000083','Anthropic','api','rest',true,true,true,true,'email','active','2026-10-11','00000000-0000-0000-0000-000000000001')`); }
+      finally { await existing.end(); }
+    } finally { await rm(previousMigrations,{recursive:true,force:true}); }
+    await fixture.migrate();
+    const owner = await fixture.connectAsOwner(); const app = await fixture.connectAsApp();
+    const account = "00000000-0000-0000-0000-000000000083";
+    const other = "00000000-0000-0000-0000-000000000084";
+    const actor = "00000000-0000-0000-0000-000000000001";
+    try {
+      for (const [id, name] of [["00000000-0000-0000-0000-000000000085", "ANTHROPIC"], [other, "Other provider"]]) {
+        await owner.query(`INSERT INTO vendor (id,name,connector_type,provisioning_protocol,can_provision,
+          can_deprovision,has_usage_data,has_cost_data,identity_matching,status,created_at,created_by)
+          VALUES ($1,$2,'api','rest',true,true,true,true,'email','active','2026-10-11',$3)`, [id,name,actor]);
+      }
+      expect((await app.query(`SELECT name,member_seat_evidence,member_license_identity FROM vendor ORDER BY name`)).rows).toEqual([
+        { name: "ANTHROPIC", member_seat_evidence: "all_members_licensed", member_license_identity: "none" },
+        { name: "Anthropic", member_seat_evidence: "all_members_licensed", member_license_identity: "none" },
+        { name: "Other provider", member_seat_evidence: "none", member_license_identity: "none" },
+      ]);
+      await owner.query(`UPDATE vendor SET member_seat_evidence='none' WHERE id=$1`, [account]);
+      expect((await app.query(`SELECT member_seat_evidence FROM vendor WHERE id=$1`, [account])).rows).toEqual([{ member_seat_evidence: "none" }]);
+      const addLicense = (id: string,vendorId: string,reference: string|null) => owner.query(`INSERT INTO license_type (id,vendor_id,name,unit,status,created_at,created_by,provider_ref)
+        VALUES ($1::uuid,$2,$1::text,'seat','active','2026-10-11',$3,$4) RETURNING provider_ref`,[id,vendorId,actor,reference]);
+      const licA="00000000-0000-0000-0000-000000000086",licB="00000000-0000-0000-0000-000000000087";
+      expect((await addLicense(licA,account,"provider-plan")).rows).toEqual([{provider_ref:"provider-plan"}]);
+      await expect(addLicense(licB,account,"provider-plan")).rejects.toMatchObject({code:"23505"});
+      expect((await addLicense(licB,other,"provider-plan")).rows).toEqual([{provider_ref:"provider-plan"}]);
+      for (const id of ["00000000-0000-0000-0000-000000000088","00000000-0000-0000-0000-000000000089"]) {
+        expect((await addLicense(id,account,null)).rows).toEqual([{provider_ref:null}]);
+      }
+      await owner.query(`INSERT INTO vendor_account (id,vendor_id,name,mode,low_pool_floor,status,created_at,created_by)
+        VALUES ($1,$1,'Observation fixture','automated',0,'active','2026-10-11',$2)`, [account,actor]);
+      await expect(owner.query(`UPDATE vendor_account SET default_license_type_id=$2 WHERE id=$1`, [account,other])).rejects.toMatchObject({ code: "23503" });
+      const insert = (time: string, count=0, hash="a".repeat(64), target=account) => app.query(`INSERT INTO member_observation
+        (vendor_account_id,source,observed_at,content_hash,member_count,licensed_count,invited_count,warnings,accepted_at)
+        VALUES ($1,'api',$2,$3,$4,0,0,'[]','2026-10-11') RETURNING vendor_account_id,member_count,warnings`, [target,time,hash,count]);
+      expect((await insert("2026-10-11T00:00:00Z")).rows).toEqual([{ vendor_account_id: account, member_count: 0, warnings: [] }]);
+      await expect(insert("2026-10-11T00:00:00Z")).rejects.toMatchObject({ code: "23505" });
+      await expect(insert("2026-10-11T01:00:00Z",-1)).rejects.toMatchObject({ code: "23514" });
+      await expect(insert("2026-10-11T01:00:00Z",0,"bad hash")).rejects.toMatchObject({ code: "23514" });
+      await expect(insert("2026-10-11T01:00:00Z",0,"a".repeat(64),other)).rejects.toMatchObject({ code: "42501" });
+      for (const sql of ["UPDATE member_observation SET warnings='[]'", "DELETE FROM member_observation", "TRUNCATE member_observation"]) {
+        await expect(app.query(sql)).rejects.toMatchObject({ code: "42501" });
+      }
+      for (const sql of ["UPDATE member_observation SET warnings='[]'", "DELETE FROM member_observation"]) {
+        await expect(owner.query(sql)).rejects.toMatchObject({ code: "55000" });
+      }
+      expect((await owner.query(`SELECT relrowsecurity FROM pg_class WHERE oid='member_observation'::regclass`)).rows).toEqual([{ relrowsecurity: true }]);
+      expect((await owner.query(`SELECT cmd,roles::text[] AS roles FROM pg_policies WHERE tablename='member_observation' ORDER BY cmd`)).rows).toEqual([
+        { cmd: "INSERT", roles: ["ledger_app"] }, { cmd: "SELECT", roles: ["ledger_app"] },
+      ]);
+      const verified = await promisify(execFile)(process.execPath,["scripts/verify-schema.mjs"], {
+        env: { ...process.env,DATABASE_ADMIN_URL:fixture.ownerUrl,DATABASE_URL:fixture.appUrl },
+      });
+      expect(verified.stdout).toContain("✓ ledger_app has the exact least-privilege runtime grant matrix");
+      for (const [mutation,restore] of [
+        ["ALTER TABLE member_observation DISABLE ROW LEVEL SECURITY","ALTER TABLE member_observation ENABLE ROW LEVEL SECURITY"],
+        ["ALTER POLICY member_observation_catalog_select ON member_observation USING (EXISTS (SELECT 1 FROM vendor_account WHERE id=vendor_account_id) OR TRUE)","ALTER POLICY member_observation_catalog_select ON member_observation USING (EXISTS (SELECT 1 FROM vendor_account WHERE id=vendor_account_id))"],
+        ["ALTER POLICY member_observation_catalog_insert ON member_observation WITH CHECK (EXISTS (SELECT 1 FROM vendor_account WHERE id=vendor_account_id) OR TRUE)","ALTER POLICY member_observation_catalog_insert ON member_observation WITH CHECK (EXISTS (SELECT 1 FROM vendor_account WHERE id=vendor_account_id))"],
+        ["ALTER TABLE member_observation DISABLE TRIGGER trg_member_observation_append_only","ALTER TABLE member_observation ENABLE TRIGGER trg_member_observation_append_only"],
+        ["ALTER TABLE vendor DISABLE TRIGGER trg_vendor_member_capability_bootstrap","ALTER TABLE vendor ENABLE TRIGGER trg_vendor_member_capability_bootstrap"],
+        ["GRANT UPDATE ON member_observation TO ledger_app","REVOKE UPDATE ON member_observation FROM ledger_app"],
+      ]) {
+        await owner.query(mutation);
+        try { await expect(promisify(execFile)(process.execPath,["scripts/verify-schema.mjs"],{
+          env: {...process.env,DATABASE_ADMIN_URL:fixture.ownerUrl,DATABASE_URL:fixture.appUrl},
+        })).rejects.toMatchObject({code:1}); }
+        finally { await owner.query(restore); }
+      }
+
+    } finally { await Promise.all([owner.end(),app.end()]); }
   }, 150_000);
 });

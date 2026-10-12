@@ -17,6 +17,7 @@ for (const [key, value] of Object.entries(explicitEnvironment)) {
 }
 
 const expectedAppendOnlyTriggers = [
+  { tableName: "member_observation", triggerName: "trg_member_observation_append_only", functionName: "prevent_member_observation_mutation", functionSource: "BEGIN RAISE EXCEPTION 'member observations are append-only' USING ERRCODE = '55000'; END;" },
   {
     tableName: "audit_log",
     triggerName: "audit_log_no_mutate",
@@ -52,7 +53,7 @@ const expectedAppendOnlyTriggers = [
     functionSource:
       "BEGIN RAISE EXCEPTION 'append_only: % is forbidden on request_transition', TG_OP; END;",
   },
-];
+].sort((left,right)=>left.tableName.localeCompare(right.tableName));
 
 const coreTableNames = [
   "activity_record",
@@ -73,6 +74,7 @@ const coreTableNames = [
   "license_type",
   "lifecycle_notification",
   "lifecycle_notification_delivery",
+  "member_observation",
   "person",
   "provisioning_action",
   "rate_card",
@@ -300,6 +302,64 @@ export async function verifyMigratedSchema({
             .join(", "),
       );
     }
+
+    const memberCapabilities = await owner.query(`SELECT table_name,column_name,udt_name,is_nullable,column_default
+      FROM information_schema.columns WHERE table_schema='public' AND
+        ((table_name='vendor' AND column_name IN ('member_seat_evidence','member_license_identity'))
+        OR (table_name='vendor_account' AND column_name='default_license_type_id')
+        OR (table_name='license_type' AND column_name='provider_ref')) ORDER BY table_name,column_name`);
+    const expectedMemberCapabilities = [
+      ["license_type","provider_ref","text","YES",null],
+      ["vendor","member_license_identity","vendor_member_license_identity_enum","NO","'none'::vendor_member_license_identity_enum"],
+      ["vendor","member_seat_evidence","vendor_member_seat_evidence_enum","NO","'none'::vendor_member_seat_evidence_enum"],
+      ["vendor_account","default_license_type_id","uuid","YES",null],
+    ];
+    if (JSON.stringify(memberCapabilities.rows.map(({table_name,column_name,udt_name,is_nullable,column_default})=>[table_name,column_name,udt_name,is_nullable,column_default]))!==JSON.stringify(expectedMemberCapabilities)) throw new Error("member capability/mapping column mismatch");
+    const memberEnums = await owner.query(`SELECT typname,array_agg(enumlabel ORDER BY enumsortorder)::text[] AS values
+      FROM pg_type JOIN pg_enum ON enumtypid=pg_type.oid WHERE typname IN ('vendor_member_seat_evidence_enum','vendor_member_license_identity_enum') GROUP BY typname ORDER BY typname`);
+    if (JSON.stringify(memberEnums.rows)!==JSON.stringify([
+      {typname:"vendor_member_license_identity_enum",values:["provider_field","none"]},
+      {typname:"vendor_member_seat_evidence_enum",values:["provider_field","all_members_licensed","none"]},
+    ])) throw new Error("member capability enum mismatch");
+    const providerLicenseKey = await owner.query(`SELECT convalidated,pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid='public.license_type'::regclass AND conname='uq_license_type_vendor_provider_ref'`);
+    if (providerLicenseKey.rows.length!==1 || !providerLicenseKey.rows[0].convalidated || normalizeSqlDefinition(providerLicenseKey.rows[0].definition)!=="unique(vendor_id,provider_ref)") throw new Error("member provider license unique key mismatch");
+    const defaultLicenseKey = await owner.query(`SELECT convalidated,pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid='public.vendor_account'::regclass AND conname='vendor_account_default_license_type_id_fkey'`);
+    if (defaultLicenseKey.rows.length!==1 || !defaultLicenseKey.rows[0].convalidated || normalizeSqlDefinition(defaultLicenseKey.rows[0].definition)!=="foreignkey(default_license_type_id)referenceslicense_type(id)") throw new Error("member default license foreign key mismatch");
+
+    const observationColumns = await owner.query(`SELECT attname AS name,format_type(atttypid,atttypmod) AS type,attnotnull AS required
+      FROM pg_attribute WHERE attrelid='public.member_observation'::regclass AND attnum>0 AND NOT attisdropped ORDER BY attnum`);
+    const expectedObservationColumns = [
+      ["id","uuid",true],["vendor_account_id","uuid",true],["source","ingestion_source",true],
+      ["observed_at","timestamp with time zone",true],["content_hash","text",true],
+      ["member_count","integer",true],["licensed_count","integer",true],["invited_count","integer",true],
+      ["warnings","jsonb",true],["correlation_id","uuid",false],["accepted_at","timestamp with time zone",true],["accepted_by","uuid",false],
+    ];
+    if (JSON.stringify(observationColumns.rows.map(({name,type,required})=>[name,type,required])) !== JSON.stringify(expectedObservationColumns)) throw new Error("member observation column contract mismatch");
+    const observationSecurity = await owner.query(`SELECT relrowsecurity FROM pg_class WHERE oid='public.member_observation'::regclass`);
+    const observationPolicies = await owner.query(`SELECT policyname,cmd,roles::text[] AS roles,qual,with_check FROM pg_policies WHERE schemaname='public' AND tablename='member_observation' ORDER BY cmd`);
+    const accountPolicy = normalizeSqlDefinition("(EXISTS ( SELECT 1 FROM vendor_account WHERE (vendor_account.id = member_observation.vendor_account_id)))");
+    if (!observationSecurity.rows[0]?.relrowsecurity || JSON.stringify(observationPolicies.rows.map(({policyname,cmd,roles,qual,with_check})=>[policyname,cmd,roles,qual===null?null:normalizeSqlDefinition(qual),with_check===null?null:normalizeSqlDefinition(with_check)]))!==JSON.stringify([
+      ["member_observation_catalog_insert","INSERT",["ledger_app"],null,accountPolicy],
+      ["member_observation_catalog_select","SELECT",["ledger_app"],accountPolicy,null],
+    ])) throw new Error("member observation catalog RLS mismatch");
+    const observationKeys = await owner.query(`SELECT conname,contype,convalidated,pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid='public.member_observation'::regclass ORDER BY conname`);
+    const requiredObservationConstraints = {
+      uq_member_observation_account_observed: "UNIQUE(vendor_account_id,observed_at)",
+      member_observation_counts_check: "licensed_count<=member_count",
+      member_observation_hash_check: "^[0-9a-f]{64}$",
+      member_observation_warnings_check: "jsonb_typeof(warnings)",
+      member_observation_vendor_account_id_fkey: "REFERENCESvendor_account(id)",
+      member_observation_accepted_by_fkey: "REFERENCESuser_account(id)",
+    };
+    for (const [name,fragment] of Object.entries(requiredObservationConstraints)) {
+      const constraint=observationKeys.rows.find(row=>row.conname===name);
+      if (!constraint?.convalidated || !normalizeSqlDefinition(constraint.definition).includes(normalizeSqlDefinition(fragment))) throw new Error(`member observation constraint mismatch: ${name}`);
+    }
+    const bootstrap = await owner.query(`SELECT trigger_row.tgenabled, trigger_row.tgtype, procedure.prosrc,procedure.prosecdef,procedure.provolatile,procedure.proacl::text[] AS proacl
+      FROM pg_trigger trigger_row JOIN pg_proc procedure ON procedure.oid=trigger_row.tgfoid
+      WHERE trigger_row.tgrelid='public.vendor'::regclass AND trigger_row.tgname='trg_vendor_member_capability_bootstrap'`);
+    const bootstrapSource = normalizeSqlDefinition(`BEGIN IF lower(NEW.name) = 'anthropic' THEN NEW.member_seat_evidence := 'all_members_licensed'; NEW.member_license_identity := 'none'; END IF; RETURN NEW; END;`);
+    if (bootstrap.rows.length!==1 || bootstrap.rows[0].tgenabled!=="O" || bootstrap.rows[0].tgtype!==7 || bootstrap.rows[0].prosecdef || bootstrap.rows[0].provolatile!=="v" || normalizeSqlDefinition(bootstrap.rows[0].prosrc)!==bootstrapSource || bootstrap.rows[0].proacl?.some(acl=>acl.startsWith("=X"))) throw new Error("vendor member capability bootstrap mismatch");
 
     const costColumns = await owner.query(`
       SELECT attribute.attname AS name, format_type(attribute.atttypid,attribute.atttypmod) AS type,
