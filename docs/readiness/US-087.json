@@ -1,0 +1,154 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "7009d8ac872a23fe2717862891008f623c7fcd93ababbfcb37573b8071cb432f",
+  "work_id": "US-087",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Complete checklist seat removal and close the register atomically",
+  "source": "docs/stories/sprint-3/r1_misc_us_087.md; canonical CHG-083 child of US-075; inherited docs/readiness/US-075.json and docs/superpowers/specs/2026-10-11-us-075-anchored-removal-design.md plus docs/superpowers/plans/2026-10-11-us-075-anchored-removal.md; assessed main/us-024 108833bcff6d5a4f1992c16d459d9c0d54d4be98",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "A confirmed checklist removal closes exactly its company-scoped anchored register rows once through the shared finalizeOffboarding primitive: action confirmed, offboarding to deprovisioned transition and completion audit commit atomically, preserving the original Ecuador confirmation date/reason on replay. Failed or unconfirmed removal remains retryable/offboarding with the register open.",
+      "demo": "Complete US-086 checklist removals for left_company and inactive from their real anchored starts; assert exact action/transition/audit/register facts, Ecuador date boundary, controlled concurrent and changed-ID replay, rollback on audit/receipt failure and tenant refusal. Unconfirmed attempts retain the open register, and free capacity changes only after an accepted later observation.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "domain",
+    "server"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 6,
+    "bookkeeping_files": 4,
+    "expected_mutation_shards": 7,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 20,
+    "implementation": 70,
+    "focused_verification": 40,
+    "review": 50,
+    "integration": 70,
+    "total": 250
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "What delivery and bookkeeping paths make this a complete vertical child?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Six delivery paths, including inherited completion logic and any in-scope oracle/repair edits: packages/domain/src/request-workflow/lifecycle.ts; apps/web/src/modules/request-workflow/orchestration.ts; apps/web/src/modules/request-workflow/orchestration.integration.test.ts; apps/web/src/modules/request-workflow/actions/checklist-action-transaction.ts; apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts; apps/web/src/modules/alerts/offboarding-workflow.integration.test.ts. Four bookkeeping paths: this artifact; docs/superpowers/specs/2026-10-12-US-087-checklist-removal-completion.md; docs/superpowers/plans/2026-10-12-US-087-checklist-removal-completion.md; .nous-feedback.jsonl. Bookkeeping presence selects CHG-082 counting. Existing panel consumes pendingChecklist and confirmation wrappers; no screen/page/controller/locale change expected. lifecycle.test.ts stays unchanged. Existing grants/schema suffice subject to real ledger_app proof; any new migration/path/boundary requires reassessment before execution. No tooling/routing/generated-guidance edit belongs to this functional child."
+    },
+    {
+      "id": "U2",
+      "statement": "Which prior behavior, dependencies and design authority are inherited?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "US-019, US-020 and US-086 are effectively dev_done; no functional blocking dependency remains. US-075 stays a partition/verification parent, never a dev_done claim. Its approved design and plan Completion/atomic finalization, Checkpoint2, Verified audit receipt consumption and Delegated direct-primitive oracle repair sections cover this child interface, tenant/role boundary, one transaction lifecycle, non-goals and verification strategy. A child plan must cite those exact sections if design inheritance is used; otherwise prepare a bounded child design after technical gates clear. US-082 owns connector dispatch/retry and consumes this primitive; US-076 departure confirmation, US-077 business calendar/job, US-028 reclamation approval, US-068/069 invitation-only deprovision transitions, US-081/085 capacity projection remain adjacent allocations. Existing invitation deprovision path is not removal completion. Preserve person status, quantities and refresh watermark; no provider call."
+    },
+    {
+      "id": "U3",
+      "statement": "What real completion assurance deficit remains?",
+      "status": "budgeted",
+      "estimate_impact_minutes": 70,
+      "resolution": "Reuse diagnostic only: .superpowers/sdd/2026-10-12-us086-anchored-removal-start-plan/cold-proof.json at candidate a73050acb2b46f2601ffeac344f21355389b6890, manifest hash ee3d8d9acfe32e554a2ef49eff5a439b4b8c92af5ca094b98e57cebc967e8437. Owned lifecycle vitest-5224445ac963:119 killed/113 survived/7 no coverage of239=49.79%; orchestration vitest-86d14021ac87:81/28/9 of118=68.64%; wrapper vitest-0d9d477c30ff:48/6/3 of57=84.21%. These are unfinished US-087 completion shards, not acceptable inherited closure. Nonkilled clusters: lifecycle90-117 validator/confirmation/replay/date rules; orchestration47-68 SQL loading/row-count/actor/transition guards and474 identity,682 unconfirmed state guards; wrapper93-95/236/243-244 identity/result validation. Implementation70 reserves meaningful direct finalizer/validator and real wrapper/SQL oracle repair, not blanket equivalence or guard deletion. Any larger repair forecast is reassessed, not hidden behind inherited production."
+    },
+    {
+      "id": "U4",
+      "statement": "How will tests distinguish semantic malformed context and prove the aggregate without owned mocks?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Read TESTING before edits. Start with facts from stock migrated PostgreSQL and actual createOffboardingTransactionPort. Exercise SQL-permitted raw_request JSON malformations individually: null/non-object context, absent/non-array/empty/non-string/duplicate assignmentIds, invalid reason, wrong request/person/account identity, missing anchor and differing anchored set. Assert exact OFFBOARDING_CONFLICT plus unchanged accepted audits/register/action/request/transition state. Directly invoke the real validateOffboardingFacts with those real loaded facts and deliberate semantic mutations for branches prevented by database foreign keys/checks; pure-function inputs are not mocked owned services. Keep real database constraints intact, do not drop them for coverage. Direct finalizeOffboarding uses real atomic SQL persistence given historical provision/start events when confirmation then exact emitted transition/completion and closure or rejection; verify invalid/blank/oversize confirmation ID, invalid instant, pending/sent/failed statuses, incompatible states/closure, original completion consistency and context tampering. Generated Ecuador boundary/history cases with injected clock/seed prove date and immutability properties. Use controlled barriers/locks for concurrency and real failure triggers for atomic rollback. No mock event store/service, package relay or synthetic mutation baseline. Keep only tests killing a previously nonkilled mutant; reviewer signs precise one-line unreachable equivalents only when constraints prove equivalence."
+    },
+    {
+      "id": "U5",
+      "statement": "Which end-to-end behaviors and inherited fixture must finish together?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Real authorization repository and actual checklist wrapper must prove both removal reasons, pendingChecklist visibility, not-done trimmed reason/failure ID replay and conflict, distinct attempts, retryability and zero closure while unconfirmed, successful retry clearing failure_reason, exact request/action/assignment/audit identity, no accepted:true wrapper duplicate audit, permitted denial/failed-attempt audit only, original receipt/date/reason retained across same/different confirmation IDs/admins and concurrent confirmations. Force completion-audit and independently expected receipt failure through real SQL triggers and assert rollback of every accepted write. Seed unrelated seat/second tenant and assert no mutation or data leak; no Person.status/capacity/watermark write. Legacy alert fixture already has request assignment pointer and kind remove at assessed head; retain its ownership and prove inherited repair plus exact Ecuador same-business-day deadline, rather than manufacture edits. Use existing US-081 real projection to prove closure remains pending_refresh until a strictly later accepted observation; consume adjacent implementation without changing it."
+    },
+    {
+      "id": "U6",
+      "statement": "How is mutation authority preserved after inherited code landed on main?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Freeze MUTATION_BASE=783d09df4467e27462dec440cc64ac4855d02e02, the accepted mapping of original US-075 base37666528d03a50e2529cad4382f2a5ae146dca63 in docs/readiness/drafts/CHG-082-us024-main-integration.md (all88 commits mapped). Native initial discovery is7 shards/8 sources/48 ranges; do not use current main to hide inherited completion. US-087 owns exactly wrapper/lifecycle/orchestration three shards; the three US-086 entry shards and separately closed CHG-081 audit shard remain discovered. No source filter or harness threshold/instrumentation/routing edits. Record any native discovery delta. Each owned shard must independently reach80% and every nonkilled mutant gets reviewed one-line annotation; no borrowed foreign score. US-086 owns301K/6S/2NC of309=97.411% and its one accepted low-risk stale UI affordance remains explicit, not equivalent. Retain all reports/manifests/content and suite hashes/exit statuses."
+    },
+    {
+      "id": "U7",
+      "statement": "Can the full prospective work including the actual cold runtime fit250 minutes?",
+      "status": "budgeted",
+      "estimate_impact_minutes": 0,
+      "resolution": "New allocation250 is a full prospective envelope: readiness20 includes this bounded assessment; implementation70 includes inherited completion conformance and all meaningful oracle repairs; focused40 includes focused tests10 and touched previews up to30; review50 includes reused scoped review15, fresh adversarial AC1-3 review20 and bounded survivor/fix review15; integration70 includes final native cold45 (measured prior2455.548s=40.9258min plus setup reserve), owned-lock awake stock gate/migration/grant proof5 and evidence/identity/actuals/integration20. Sum250, hard cap320 leaves70 risk margin, not automatic permission to expand250. One consolidated implementer, one reused scoped reviewer and fresh adversarial reviewer; controller plans/briefs/reviews. At most one preview per task plus final fix round and30minutes; slow shards once finally unless touched; no whole-set preview without named cause. Domain/orchestration prior failed performance entries have null duration, so budget uses whole measured run, not fabricated shard times. Real shared CHG-067 PG fixture only, no private containers/owned mocks. Acquire/release only owned token+inode /tmp/smp-full-gate.lock for caffeinate -i pnpm check. Final one cache-cleared native whole7 cold last after code/test/review settle; failed repair reruns preserve cost/evidence and trigger forecast reassessment."
+    },
+    {
+      "id": "U8",
+      "statement": "How are historical and sibling actuals counted?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Preserve US-075 historical255.0026minutes once without reset/recount or invented per-child split, including prior invalid cold and repaired whole cold. Preserve US-086 own actuals and diagnostic full cold40.9258minutes once on US-086, never charge its reused reports to US-087. New250 covers only prospective US-087 readiness/controller/implementer/reviewer/test/gate/cold/evidence costs counted once. Current readiness phase will be reported as active-role estimate if precise labor telemetry is unavailable, not fabricated billing. Closure actuals include preview_rounds/minutes and deviations; done.cost uses available measured values or explicitly estimated nonzero aggregate, no invented model/window metrics."
+    },
+    {
+      "id": "U9",
+      "statement": "Generated guidance is unknown after main Nous sync8a5c4fb; may functional work repair it?",
+      "status": "unresolved",
+      "estimate_impact_minutes": null,
+      "resolution": "BLOCKED technical prerequisite, currently UNALLOCATED: check:generated-guidance exits1 for CLAUDE.md SHA25605722c7d8351bffcf1f17fa1ab7d62411dbf12f5ce1759fde8f3ba26396cc685 and docs/dev-guide/DEFINITION_OF_DONE.md SHA2562d683a7b4161cdb07838b5fe3fbddff4bd4a1221ce7b8e026bdfddd39c25e392. Requires canonical technical allocation, immutable registered exact layer and reconciler literal review. TESTING/critical paths retain exact CHG-085 bytes. Do not invent a CHG, expand closed CHG scope, edit generated guidance or bypass checker in US-087. Root requests canonical allocation; remediation effort belongs to that separate technical allocation and is not silently deducted from250."
+    },
+    {
+      "id": "U10",
+      "statement": "Global readiness rejects the US-024 postpartition integration annotation chronology.",
+      "status": "unresolved",
+      "estimate_impact_minutes": null,
+      "resolution": "BLOCKED technical prerequisite, currently UNALLOCATED: readiness:check:all exits1 WR_APPROVAL_ORDER after root integration-map note at108833b uses US-024 deviation after US-075 parent partition. US-086 own check remains valid. Existing lifecycle_corrected only handles preapproval started to not_execution, not annotation; requires canonical technical allocation and narrow append-only historical correction semantics. Preserve original approved US-024019a1daf artifact bytes and every parent feedback byte/order; no patched old row, hook bypass, forged parent ready/terminal, local ID or reopened closed CHG. Root handles allocation and remediation separately. After both technical gates pass, revise blocked artifact/dependencies with canonical IDs and fresh digest before execution."
+    },
+    {
+      "id": "U11",
+      "statement": "How is standing authorization recorded without fabricated new human approval?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "User authorized canonical US-087 and all next approvals through US-024 controller delegation. This assessment remains blocked with approval pending; no started/design/code/test/harness/ledger edit is authorized by these bytes. Root alone serializes artifacts/ledger, and only after blockers resolve records delegated digest-bound readiness decision for the exact ready artifact under the standing authorization; do not fabricate an explicit new user digest reply or ask the user routinely again. Readiness-only documentation may commit with normal hooks while pending; failed hooks remain blockers, never bypassed."
+    }
+  ],
+  "dependencies": [],
+  "decision": "blocked",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "7009d8ac872a23fe2717862891008f623c7fcd93ababbfcb37573b8071cb432f"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
