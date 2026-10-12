@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "73d070331c2edf8d40f29ffbf33b363367388f6c29df8ff5c4ac572bcdc559a3",
+  "readiness_payload_sha256": "79a96902a5720ea9ed1971976dcea074633960e9c4ba273f61602096ed65f334",
   "work_id": "US-089",
   "kind": "US",
   "work_type": "functional",
@@ -148,13 +148,13 @@
       "reason": "Shared drift diff consumes accepted normalized observations."
     }
   ],
-  "decision": "blocked",
+  "decision": "ready",
   "partitions": [],
   "approval": {
     "status": "pending",
     "approved_by": null,
     "evidence": null,
-    "payload_sha256": "73d070331c2edf8d40f29ffbf33b363367388f6c29df8ff5c4ac572bcdc559a3"
+    "payload_sha256": "79a96902a5720ea9ed1971976dcea074633960e9c4ba273f61602096ed65f334"
   },
   "actuals": null,
   "policy_bootstrap": false,
