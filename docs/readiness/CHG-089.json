@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "a57d243512603239d509e80719e49b5501c80674b823362207d4dba6afaa1882",
+  "work_id": "CHG-089",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Append-only exact integration annotation correction",
+  "source": "Nous/WorkControl/fcostudios/smp/CHG-089_TECH_SPEC.md at Nous 7e239ee; operator request dbf03c249f9f04ee83968d4bf87450c26acb0887; standing authority covers concrete assessed scope and budget",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Independently authorized append-only correction classifies exactly the pinned non-execution integration annotation while preserving raw history and parent authority.",
+      "demo": "RED uncorrected parent and ledger; GREEN exact correction; real-Git negative contracts reject forged authority, wrong identity, execution targets and history mutation.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC5",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "readiness-policy",
+    "verification",
+    "local-contract-docs"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 5,
+    "bookkeeping_files": 4,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 10,
+    "implementation": 20,
+    "focused_verification": 15,
+    "review": 20,
+    "integration": 15,
+    "total": 80
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Authority must be validated without using the projected parent correction.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Validate the prior CHG-089 technical readiness against the raw prefix and current artifact, including ready active status and exact approval, before projecting only the canonical identity. No US-024 or US-086 authority used."
+    },
+    {
+      "id": "U2",
+      "statement": "Exact delivery paths and shared global gate depend on coordinated guidance repair.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "Delivery paths: scripts/work-readiness/model.mjs, scripts/work-readiness.mjs, scripts/work-readiness/git.mjs, scripts/test-work-readiness.mjs, docs/dev-guide/WORK_READINESS.md. Bookkeeping: this readiness artifact, design, plan, ledger. CHG-090 separately repairs guidance pin after source checkpoint; no green fullgate claim before that. Stock shared fixture and existing full-gate lock protocol; zero mutatable TS sources, no US-086 score borrowing."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG089-READY-STANDING-20261012",
+    "payload_sha256": "a57d243512603239d509e80719e49b5501c80674b823362207d4dba6afaa1882"
+  },
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null,
+  "actuals": null
+}
