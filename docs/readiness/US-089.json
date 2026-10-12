@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "73d070331c2edf8d40f29ffbf33b363367388f6c29df8ff5c4ac572bcdc559a3",
+  "work_id": "US-089",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Accept complete member observations atomically",
+  "source": "docs/stories/sprint-3/r1_misc_us_089.md",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Only complete, authorized account-wide observations enter the immutable ledger and invoke ordered transactional consumers; replay, stale and conflict cannot reopen state.",
+      "demo": "Real shared-PostgreSQL fixture demonstrates exact normalized records/warnings/counts and audit/event receipts; complete empty/newer observations, equivalent replay, stale/conflict, concurrent identical acceptance and later-consumer rollback/retry; public @smp/db export invokes the same service.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "db-acceptance",
+    "db-public-contract"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 5,
+    "bookkeeping_files": 4,
+    "expected_mutation_shards": 2,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 33,
+    "implementation": 71,
+    "focused_verification": 111,
+    "review": 50,
+    "integration": 13,
+    "total": 278
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "What owns inherited delivery and prerequisites?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "CHG-086 at58ae939 canonically assigns US-089 AC1-4 atomic acceptance, effective mapping, warnings, completeness, replay, receipts, consumers and root export. Integrated US-088 closes at main2b3a4d8389279a32fec2e86727f1634c19d317bf. Inherited five US-056/057/058/046/042 prerequisites are already dev_done. AC1 normalization/effective validation; AC2 journal/temporal rules; AC3 transaction receipts/export; AC4 independent demo and specific missing oracles all map O1. Worker/confirmed-provision extraction US-084, drift US-078, CSV producer/config US-055, capacity US-081 stay named downstream owners."
+    },
+    {
+      "id": "U2",
+      "statement": "Which exact paths and inherited blobs are owned?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Five delivery paths: packages/db/src/member-observations.ts; packages/db/src/member-observations.integration.test.ts; packages/db/src/index.ts; packages/db/src/index.test.ts; docs/dev-guide/TESTING.md acceptance-critical §3 amendment required by AGENTS.md. Four bookkeeping paths: docs/readiness/US-089.json; docs/superpowers/specs/2026-10-12-us089-design.md; docs/superpowers/plans/2026-10-12-us089-plan.md; .nous-feedback.jsonl. No route-data reserve is necessary: existing name-based discovery routes source to own integration suite and index to index.test.ts. No migration, schema, verifier, connector, runner, threshold, fixture/config or generic tooling edits authorized. Whole immutable migration289e93cafc3478648ba406248b6b701bd8cc81e9 belongs delivered US-088. Historical candidate6191fe834f940317cec7ecfa81eb43398815627d exact inherited blob/modes: service540e7e4db9a43db3761a0c6115e2699b509a37b3; integration208033352507f4e97aa72b0f3cf6a17c3cebd03f; index89628359e441ef71c062606a67e8282141453b5f; index.test3c5c7d886dfe8b4b77e58221392887a9609ca622; all100644. Current index4504e5adefa1c15a373f822540e17e46e9309bb7 differs only missing export."
+    },
+    {
+      "id": "U3",
+      "statement": "Can inherited mixed-branch commits be integrated or silently rewritten?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "No. Managed isolated /Users/fcolomas/.codex/worktrees/us089-acceptance/smp starts integrated main2b3a4d8; original mixed us-030 and original parent254minute history remain untouched. Before approved source materialization record exact old-source-to-child commit SHA map and blob/mode custody. Materialize only owned candidate artifacts, then repair reproduced gaps in own test/service. Preserve US-088 already-integrated files, original rejected a80 tree and all old histories. Check testing/critical-paths.md and docs/dev-guide/TESTING.md after sync/rebase; initial blobsb7b17fca49b087a195d71e0db16d039e3cbc9a6e/e36e93535158477d33719ba4af6c62dbfbb26645. No fake empty diff, moving HEAD base, synthetic historical authorization or tooling carve-out."
+    },
+    {
+      "id": "U4",
+      "statement": "Do four ACs imply more than three acceptance flows or boundaries?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Three independently demonstrated flows: authorized complete normalized evidence with vendor-bound mapping/warnings (AC1 and AC2 completeness); temporal acceptance/replay/stale/conflict including empty/concurrent identical (AC2 and AC4); exact audit/event receipts and ordered consumer atomic rollback/retry/public export (AC3 and AC4). One lifecycle/concurrency boundary is the account-wide acceptance transaction protected by its advisory lock. Catalog/account is not company tenancy; global group-admin server identity and API opt-in are checked without invented company_id. Company Person/LicenseAssignment are not written. Cross-account isolation and cross-vendor mapping remain explicit oracles."
+    },
+    {
+      "id": "U5",
+      "statement": "How is historical and remaining effort counted honestly?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Allocate parent estimated254minutes exactly once: US-088130 already closed, US-089124. Historical124 phase attribution18readiness/31implementation/32focused/35review/8integration is a planning proxy, not measured phase or token allocation. Original canonical remaining103=repair35+focused10+review15+gate5+cold33+closure5 omitted fresh child readiness/materialization and required preview. Re-assessed remaining154=readiness15+materialization5+repair35+focused10+preview30+scoped/fresh review15+forced gate6+cold33+closure5. Full phase33/71/111/50/13=278. Preview/cold/gate costs are inside focused111, not added again to total. No US-088 or technical CHG-088/089/091 tokens/cost borrowed. No approved budget waiver is needed for this fresh under320 assessment; task-boundary forecast above278 stops for assessment/authority review, above320 or cohesion fails to Nous."
+    },
+    {
+      "id": "U6",
+      "statement": "Which failed-campaign gaps need stronger oracles?",
+      "status": "budgeted",
+      "estimate_impact_minutes": 35,
+      "resolution": "Retained failed US-083 acceptance74.15%,413killed/133survived/11uncovered of557 is diagnostic only. Triaged representative IDs215/225/230/231 completeness totals;305 inactive vendor;353 capability mismatch;368/369/370 duplicate provider identity;271 normalized email;496 newer identical content;490/547 exact audit payload;554 typed event;291 lock. Budget35minutes targeted repairs in existing integration suite, demonstrated RED against representative controlled faults then restored GREEN. Production changes only where reproduced bug warrants it. Deterministic concurrency test must establish held lock/second transaction blocking with explicit coordination, not timing sleeps. Exact warning tuples and audit fields use injected time/IDs and independently computed canonical hash; no owned-code mock or coverage-only tests."
+    },
+    {
+      "id": "U7",
+      "statement": "Can parent gates or index forecast replace own mutation evidence?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "No. Retain parent failed fullcold1975.416s and prior invalidated553.020s in history; never child PASS/attempt. Side-effect-free planning helper over virtual inherited four owned paths returns2 full-file candidate shards (index and acceptance), existing test routes no gaps; this is forecast, not executable preflight. Exact added index export is an existing verification-only AST seam on real diff, so actual preflight may yield1scored acceptance shard plus exact zero-mutant export proof. Discover actual IDs/count/seam audits after approved committed task, never hardcode IDs or alter classifier. Final own cache-cleared full diff uses frozen approved integration base; if whole unrelated index logic is selected unexpectedly stop/review scope rather than invent exclusion."
+    },
+    {
+      "id": "U8",
+      "statement": "Are required previews and cold proof affordable?",
+      "status": "budgeted",
+      "estimate_impact_minutes": 63,
+      "resolution": "One cohesive task materializes acceptance/public export then repairs specific missing oracles before focused-green and scoped review. Its one slow acceptance preview runs only in final round under CHG-069, budget30minutes, with discovered exact touched shards; any genuine survivor joins next bounded fix wave. Parent cold excluding four US-088 shards estimates acceptance~1503seconds; final cold33minutes includes current overhead. Final fresh adversarial AC1-4 review closes before ONE own fullcold. Any scored source/test/config/dependency change invalidates campaign; bookkeeping commits do not. Every surviving annotation is individually reviewer-signed; raw>=80% required for each scored shard, export seam exact proof required."
+    },
+    {
+      "id": "U9",
+      "statement": "Can schema scope or consumer ownership expand implicitly?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "No. Reuse delivered MemberObservation storage/grants and vendor mapping columns; application service resolves default/provider license within active vendor even though DB default FK only targets LicenseType.id. Keep append-only ledger transaction and typed consumer port; actual confirmed-provision, drift and capacity consumers are supplied by downstream items, not implemented here. Missing storage/grants, wider independent contract repair, file inventory above20 or second concurrency boundary are canonical repartition falsifiers, not relabeling or hidden new work. Outside findings remain named deviations/deferred hardening."
+    },
+    {
+      "id": "U10",
+      "statement": "What authority and execution shape apply?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Approval pending for THIS digest. WORK_READINESS.md states every new US/CHG needs approved machine-valid readiness before production/test/migration/tooling, and approval.payload_sha256 must exactly equal readiness_payload_sha256. Existing human standing authorization covers subsequent design/plan/implementation within approved readiness; do not fabricate approval from parent digest or separately request stage approvals. Do not emit started before digest approval. Commit child design/plan bound278minutes after approval and freeze mutation base. One same implementer/reused scoped reviewer, fresh adversarial reviewer, bounded same controller; phase events ts and real nonzero done.cost, actual preview_rounds/minutes and cold attempts/invalidations. Future forced caffeinate -i pnpm check under owned /tmp/smp-full-gate.lock; wait foreign US-024/US-087 owners at least60seconds, never delete their lock. Shared official CHG-067 fixture, no private containers. Integrate main by fast-forward only after final proof; rebase with recorded SHA map if required."
+    }
+  ],
+  "dependencies": [
+    {
+      "work_id": "US-084",
+      "type": "blocks",
+      "reason": "Production worker and confirmed-provision adapter require the accepted-observation transaction contract."
+    },
+    {
+      "work_id": "US-078",
+      "type": "blocks",
+      "reason": "Shared drift diff consumes accepted normalized observations."
+    }
+  ],
+  "decision": "blocked",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "73d070331c2edf8d40f29ffbf33b363367388f6c29df8ff5c4ac572bcdc559a3"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
