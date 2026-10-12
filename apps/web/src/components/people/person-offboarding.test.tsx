@@ -104,7 +104,9 @@ test.each([{flow:"person discovery",fixed:false,endReason:"inactive"},{flow:"req
   await user.click(screen.getByTestId("btn_start_offboarding"));
   if(!fixed){
    await screen.findByText(esMessages.people.offboardingLoadingTargets);
-   expect((screen.getByTestId("offboarding_target") as HTMLSelectElement).disabled).toBe(true);
+   const targetSelect=screen.getByLabelText(esMessages.people.offboardingTarget) as HTMLSelectElement;
+   expect(targetSelect.disabled).toBe(true);
+   expect(Array.from(targetSelect.options).map(option=>({value:option.value,label:option.text}))).toEqual([{value:"",label:esMessages.people.offboardingSelectTarget}]);
    expect((screen.getByTestId("btn_confirm_offboarding") as HTMLButtonElement).disabled).toBe(true);
    // Close/reopen during the real discovery request cannot create a second request.
    await user.click(screen.getByTestId("btn_start_offboarding"));
@@ -116,11 +118,28 @@ test.each([{flow:"person discovery",fixed:false,endReason:"inactive"},{flow:"req
   if(!fixed){
    await screen.findByText(labels.offboardingError);
    expect(screen.queryByText(labels.offboardingUnavailable)).toBeNull();
+   expect(Array.from((screen.getByTestId("offboarding_target") as HTMLSelectElement).options).map(option=>option.value)).toEqual([""]);
    await owner.query("UPDATE user_account SET global_role='group_admin' WHERE id=$1",[admin]);
-   await user.click(screen.getByTestId("btn_start_offboarding"));
+   await user.click(screen.getByTestId("btn_cancel_offboarding"));
+   expect(discoveryCalls).toBe(1);
+   // A real authorization-query privilege failure rejects before the executor;
+   // the client catches that operational failure and allows another discovery.
+   await owner.query("REVOKE SELECT ON user_account FROM ledger_app");
+   try{
+    await user.click(screen.getByTestId("btn_start_offboarding"));
+    await screen.findByText(labels.offboardingError);
+    await waitFor(()=>expect(screen.queryByText(esMessages.people.offboardingLoadingTargets)).toBeNull());
+    expect(screen.queryByText(labels.offboardingSuccess)).toBeNull();
+   }finally{await owner.query("GRANT SELECT ON user_account TO ledger_app");}
+   await user.click(screen.getByTestId("btn_cancel_offboarding"));
+   expect(discoveryCalls).toBe(2);
    await user.click(screen.getByTestId("btn_start_offboarding"));
    await screen.findByRole("option",{name:"UI account · UI seat 2"});
-   expect(discoveryCalls).toBe(2);
+   expect(discoveryCalls).toBe(3);
+   await user.click(screen.getByTestId("btn_cancel_offboarding"));
+   await user.click(screen.getByTestId("btn_start_offboarding"));
+   expect(discoveryCalls).toBe(3);
+   expect(screen.queryByText(labels.offboardingUnavailable)).toBeNull();
   }
   if(fixed){
    expect(discoveryCalls).toBe(0);
@@ -136,10 +155,18 @@ test.each([{flow:"person discovery",fixed:false,endReason:"inactive"},{flow:"req
    fireEvent.submit(form);expect(startCalls).toBe(0);
    await user.selectOptions(screen.getByTestId("offboarding_target"),requests[1]!);
    fireEvent.submit(form);expect(startCalls).toBe(0);
+   expect((screen.getByTestId("btn_confirm_offboarding") as HTMLButtonElement).disabled).toBe(true);
    await user.clear(screen.getByLabelText(labels.offboardingNote));
   }
   await user.selectOptions(screen.getByTestId("end_reason"),endReason);
   await user.type(screen.getByLabelText(labels.offboardingNote),"Remove only UI seat 2");
+  const reasonSelect=screen.getByTestId("end_reason") as HTMLSelectElement;
+  reasonSelect.add(new Option("Tampered transfer","reallocated"));
+  await user.selectOptions(reasonSelect,"reallocated");
+  await user.click(screen.getByTestId("btn_confirm_offboarding"));
+  await screen.findByText(esMessages.people.offboardingTransferRequired);
+  expect((await owner.query("SELECT count(*)::int AS count FROM provisioning_action WHERE request_id=ANY($1::uuid[])",[requests])).rows).toEqual([{count:0}]);
+  await user.selectOptions(reasonSelect,endReason);
   // Authorization is reloaded at execution, not frozen when the modal opens.
   await owner.query("UPDATE user_account SET global_role=NULL WHERE id=$1",[admin]);
   await user.click(screen.getByTestId("btn_confirm_offboarding"));
@@ -152,11 +179,12 @@ test.each([{flow:"person discovery",fixed:false,endReason:"inactive"},{flow:"req
   await screen.findByText(labels.offboardingSubmitting);
   expect((screen.getByTestId("btn_confirm_offboarding") as HTMLButtonElement).disabled).toBe(true);
   fireEvent.submit(form);
-  expect(startCalls).toBe(2); // one refused attempt, one pending actual execution
+  expect(startCalls).toBe(3); // transfer refusal, authorization refusal, pending actual execution
   await waitFor(async()=>expect((await owner!.query("SELECT count(*)::int AS count FROM provisioning_action WHERE request_id=$1",[requests[1]])).rows).toEqual([{count:1}]));
   expect(screen.queryByText(labels.offboardingSuccess)).toBeNull();
   releaseStart();
   await screen.findByText(labels.offboardingSuccess);
+  expect(screen.getByText(labels.offboardingSuccess).parentElement?.className).toContain("text-success");
   expect(screen.getByRole("link",{name:esMessages.people.offboardingViewRequest}).getAttribute("href")).toBe(`/solicitudes/${requests[1]}`);
   await waitFor(()=>expect((screen.getByTestId("modal_offboarding") as HTMLDetailsElement).open).toBe(false));
   const persisted=await owner.query("SELECT request.id::text,request.state,assignment.ended_on,assignment.end_reason,(SELECT count(*)::int FROM provisioning_action WHERE request_id=request.id) AS actions,(SELECT count(*)::int FROM request_transition WHERE request_id=request.id) AS transitions FROM license_request request JOIN license_assignment assignment ON assignment.id=request.license_assignment_id WHERE request.id=ANY($1::uuid[]) ORDER BY request.id",[requests]);
@@ -165,5 +193,13 @@ test.each([{flow:"person discovery",fixed:false,endReason:"inactive"},{flow:"req
   expect((await owner.query("SELECT status FROM person WHERE id=$1",[person])).rows).toEqual([{status:"active"}]);
   expect((await owner.query("SELECT purchased_qty FROM vendor_account_capacity WHERE vendor_account_id=$1 ORDER BY license_type_id",[account])).rows).toEqual([{purchased_qty:5},{purchased_qty:5}]);
   expect((await owner.query("SELECT count(*)::int AS count FROM audit_log WHERE entity_id=$1 AND action='person.offboarding_started'",[person])).rows).toEqual([{count:1}]);
+  cleanup();
+  const actualTargets=(await executeOffboardingIntent(repository,await authorizationRepository.load({subject:"us075-ui-admin"}),{intent:"read_targets",personId:person},at)).state.targets!;
+  const previousDiscoveries=discoveryCalls;
+  render(<NextIntlClientProvider locale="es-EC" messages={esMessages}><PersonOffboarding action={action} personId={person} targets={actualTargets}/></NextIntlClientProvider>);
+  await user.click(screen.getByTestId("btn_start_offboarding"));
+  expect(discoveryCalls).toBe(previousDiscoveries);
+  expect(Array.from((screen.getByTestId("offboarding_target") as HTMLSelectElement).options).map(option=>option.value)).toEqual(["",requests[0]]);
+
  }finally{cleanup();await pool?.end();await owner?.end();await fixture.stop();}
 },120_000);
