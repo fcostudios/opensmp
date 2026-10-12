@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "9a4a88e0e8a41ef1c6848d9b4971969206a30a90a8e212b7ba269e3b0fc39f1e",
+  "work_id": "US-086",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Start anchored seat removal from both detail screens",
+  "source": "docs/stories/sprint-3/r1_misc_us_086.md; CHG-083 delivered 167802bc9da8363c31ce533515ff9c45737e7142; inherited US-075 candidate with accepted CHG-082 SHA map; main integration ec6be2f",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "An authorized Group Admin selects one company-scoped anchored seat from person or request detail and starts left_company/inactive removal: active to offboarding at the BR-14 anchor instant, one pending remove action, persisted-descriptor connector/checklist selection, audited once, without changing Person.status, the open assignment or free capacity.",
+      "demo": "Both screens and both reasons exercise checklist and connector-backed seats through the production-used intent executor and real database. read_targets writes nothing. Transfer, foreign/non-admin/malformed/mismatched/non-active and repeated starts refuse without writes; concurrent starts have one winner. Unrelated seats remain unchanged.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "contracts",
+    "server",
+    "ui"
+  ],
+  "signals": {
+    "routes_or_screens": 2,
+    "acceptance_flows": 3,
+    "expected_changed_files": 15,
+    "bookkeeping_files": 4,
+    "expected_mutation_shards": 7,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 25,
+    "implementation": 60,
+    "focused_verification": 40,
+    "review": 50,
+    "integration": 55,
+    "total": 230
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "What is the complete delivery and bookkeeping inventory under CHG-082?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Conservative authorized delivery envelope of 15 paths, including retained inherited production/contracts/screen wiring and in-scope assurance repairs: packages/contracts/src/people.ts; packages/contracts/src/people.test.ts; apps/web/src/modules/org-registry/people-action-core.ts; apps/web/src/modules/org-registry/people-action-service.ts; apps/web/src/modules/org-registry/actions/people.ts; apps/web/src/modules/org-registry/repository.ts; apps/web/src/modules/org-registry/repository.integration.test.ts; apps/web/src/components/people/person-offboarding.tsx; apps/web/src/components/people/person-offboarding.test.tsx; apps/web/src/components/requests/request-record.tsx; apps/web/src/components/requests/request-record.test.tsx; apps/web/src/app/(authenticated)/personas/[personId]/page.tsx; apps/web/src/app/(authenticated)/solicitudes/[requestId]/page.tsx; apps/web/messages/es-EC.json; apps/web/messages/en-US.json. Four bookkeeping paths: docs/readiness/US-086.json; docs/superpowers/specs/2026-10-12-US-086-anchored-removal-start.md; docs/superpowers/plans/2026-10-12-US-086-anchored-removal-start.md; .nous-feedback.jsonl. Existing shared CHG-079/081 route data and published TESTING/critical-paths are consumed, not edited. No schema/grant migration currently needed: existing committed assignment/request/action grants are reused and proved with ledger_app. Any new delivery path, boundary or migration need is reassessment before work."
+    },
+    {
+      "id": "U2",
+      "statement": "Canonical AC2 requires refusal of repeated start, but inherited code returns successful replay.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 20,
+      "resolution": "Observed repository.ts offboarding branch returns existing action and offboarding state when context matches; repository.integration.test.ts asserts that replay success. Change this start entrypoint to refuse an already-offboarding request, with exact production executor error and unchanged action/transition/audit counts. Keep row-level request locking: two competing starts produce one successful transition/action and a refusal for the loser. Update all inherited start replay expectations in the same real-DB suite; completion replay semantics remain US-087. This is direct AC2 conformance, not a new product ruling."
+    },
+    {
+      "id": "U3",
+      "statement": "What assurance remains after the genuine Person UI mutation failure?",
+      "status": "budgeted",
+      "estimate_impact_minutes": 40,
+      "resolution": "Inherited entry slice: person-offboarding 42 killed/31 survived/12 no-coverage out of85,49.41%; repository/service275/16/1 out of292,94.18%; request-record11/1/0 out of12,91.67%. These are diagnostics, not new child closure proof. Repair deterministic loading/pending/duplicate-discovery guards, default translations, submit defenses, retained selection/note state and real authorization/stale-target error rendering. Use actual component to production-used intent executor to real authorization repository/database with injected clock and scheduling barriers; no owned-service mocks, import relays, blanket equivalence labels or removing source guards. Focused tests must kill specific exposed mutants and assert tenant isolation. Implementation reserve60 includes replay repair20 plus UI/oracle repairs40."
+    },
+    {
+      "id": "U4",
+      "statement": "How does the child preserve inherited mutation authority after main already contains production code?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Accepted map docs/readiness/drafts/CHG-082-us024-main-integration.md: original mutation base37666528d03a50e2529cad4382f2a5ae146dca63 maps to783d09df4467e27462dec440cc64ac4855d02e02; candidate9048f6b5612d7492004d656660e3b2f538b10413 maps to47e599f7232a4e253116ef321bfaf5b3dc411cf1. Inherited Task1 checkpoints5a3f7e41f7f72d5241e8bf2333ebc6292d79777a and4b924d7ab11d0792bd5043343d468b2d7e5b3c06 map to88cb290a42b96ee8ff941a725a7973bc53858269 and3c3046c4c2fac4092fb0e881710953ad2a71e25a. Freeze mutation authority at mapped783d09df, separately record postapproval mutation checkpoint; do not use today main as baseline to hide inherited logic. Native inherited diff discovers7 shards/8 sources/48 ranges before own changes: three owned entry shards, three US-087 completion shards, one separately closed CHG-081 audit shard. MUTATION_WORK_ID only compares expected discovery, never filters ownership. Keep native routing/instrumentation untouched and independently report any discovery delta."
+    },
+    {
+      "id": "U5",
+      "statement": "Can US-086 close independently when a whole native campaign also executes unfinished sibling sources?",
+      "status": "budgeted",
+      "estimate_impact_minutes": 25,
+      "resolution": "Controller decision: one ordinary cache-cleared full native cold campaign using inherited mapped783d09df, expected7 discovery, no source filters/synthetic baseline/harness exemptions. Retain every raw report, identity hash, manifest and exit status. US-086 source-owned three entry shards alone must meet80% with every survivor annotated and reviewed; no completion/audit score borrowed. If runner exits1 solely for named US-087 completion shards, record that foreign failure as deviation and do not claim the whole campaign green. Own ACs and stock full gate must pass. Full runner cost is charged once to US-086 execution; US-087 may reuse retained diagnostic evidence without recounting this run. US-087 owes its own postrepair authoritative cold evidence. Own entry failure cannot be waived and triggers repair/reassessment within budget."
+    },
+    {
+      "id": "U6",
+      "statement": "Is 230 minutes a defensible full prospective envelope rather than a reset of the exhausted parent?",
+      "status": "budgeted",
+      "estimate_impact_minutes": 25,
+      "resolution": "New child envelope230: readiness25 includes inherited inspection/digest and approval record; implementation60 includes observed replay mismatch20 and UI/oracle repair40; focused40 includes deterministic focused checks15 and touched-shard previews up to25 (maximum30 remains hard); review50 includes same scoped reviewer15, fresh adversarial20 and survivor review/fix allowance15; integration55 includes full native cold25, shared-fixture owned-lock awake gate10 and identity/report/actuals/closure20. Parent whole cold measured20.576min makes25 plausible with setup reserve; slow shards preview once final round unless touched. 90 minutes below hard320 is risk margin, not authorization to expand230 without reassessment. No unbounded repair loops: new paths/boundaries/material repair forecast require a new digest before proceeding."
+    },
+    {
+      "id": "U7",
+      "statement": "How are prior work, approvals and incurred cost carried without fabricated per-child accounting?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Canonical CHG-083 preserves all original US-075 source/approval/history. Historical nonoverlapping parent cost255.0026min, including invalid first cold11.3382min and corrected whole cold20.576min, remains on its historical parent allocation and is not reset, forgiven or charged again to children. Task1 production and entry diagnostics above are explicitly carried into US-086; completion source/diagnostics carried into US-087. Historical evidence lacks a defensible exact per-child time split, so do not invent one: preserve shared parent amount and named checkpoint ownership. New230 budget covers only prospective child work from this readiness session, including this assessment, all subsequent role costs and actual runner costs counted once. No child done claim from historical parent approvals; new readiness digest approval is required."
+    },
+    {
+      "id": "U8",
+      "statement": "Do prerequisites and adjacent allocations leave any unnamed delivery gap?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "US-019 and US-020 are dev_done in current canonical sprint plan, so no blocking dependency is retained. US-087 owns finalizer/checklist/atomic close/completion replay and legacy alert fixture; US-082 connector dispatch/failure/retry; US-076 departure confirmation; US-077 BR-14 calendar/job; US-028 reclamation approval; US-068/069 invitation-only transition; US-081/085 accepted-refresh capacity projection. Their inherited code may execute under the whole mutation runner but is not claimed as delivered by US-086. BR-14 canonical TESTING/critical registration names US-086 and owes mutation test_report; generated guidance check passed before drafting."
+    },
+    {
+      "id": "U9",
+      "statement": "Can standing all-stage approval authorize this newly minted child digest automatically?",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "No fabricated human approval. Artifact remains approval pending. A new Francisco digest-bound decision is required before design/planning/implementation execution; once approved, his standing rule authorizes all those stages within this scope and230-minute budget. Emit started only after that approval. One controller, one implementer, one reused scoped reviewer and one fresh adversarial session; previews within CHG-069; stock shared CHG-067 Postgres and caffeinate -i pnpm check under owned /tmp/smp-full-gate.lock, waiting for foreign locks without deleting them. Phase markers carry ts; closure done.cost uses real exposed numbers or explicit estimates; actuals include preview counts/minutes."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "9a4a88e0e8a41ef1c6848d9b4971969206a30a90a8e212b7ba269e3b0fc39f1e"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
