@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "0e783ccd5da455c5d51bdfc4c61563aa1066be1b381670586d337e63d923ce0b",
+  "work_id": "CHG-085",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Pin regenerated BR14 guidance and the reviewed reconciler registration",
+  "source": "docs/stories/CHANGES.md CHG-085; Francisco167802bc pin execution instruction",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "The exact regenerated guidance validates through one immutable CHG-085 layer chained from CHG-080 for both files, and the readiness ownership harness accepts only the independently reviewed reconciler digest.",
+      "demo": "Generated-guidance check exits0, reconciler tests accept deliveredhashes and rejectunknown/live/layer/manifest changes; reviewedexactdigest fixture and fullNode readiness contracts pass; generatedbytes unchanged.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling",
+    "readiness-policy",
+    "verification"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 6,
+    "bookkeeping_files": 4,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 10,
+    "implementation": 10,
+    "focused_verification": 10,
+    "review": 10,
+    "integration": 5,
+    "total": 45
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "FullNode readiness suite exposes a stale REVIEWED_RECONCILER_SHA256 constant fromCHG069;079080layerregistrations never repinned it.",
+      "status": "resolved",
+      "estimate_impact_minutes": 10,
+      "resolution": "Include scripts/work-readiness/git.mjs as sixth delivery path for literal digest/comment update only, after independent review of unchanged reconciler behavior and appended079080085layerregistrations. Existingfailclosedhashassertion remains; no parser orownership behavior changes. Baselinefailure retained under084; repair belongs thispinconsumer under085."
+    },
+    {
+      "id": "U2",
+      "statement": "Canonical publication must remain generated and immutable with source ancestry080 for bothfiles.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Copy exact167802bc generatedbytes to infra/scripts/overrides/CHG-085/167802b/, manifest predecessors CHG080/d9d5d48 bothpaths. Sourcehashes41a956...critical and71c65e...TESTING; desired d2324d...critical anddb3923...TESTING verifiedlive/delivery. Preserve oldlayers/livefiles. Extend harness latestlayer/unknownhash assertions exactly080pattern."
+    },
+    {
+      "id": "U3",
+      "statement": "084and085 sequentialdelivery may reuse one shared finalgate.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 5,
+      "resolution": "Wait foreign /tmp/smp-full-gate.lock, oneownedtoken/inode awake pnpmcheck via stocksharedfixture. OwnzeroTS preflight/campaign; no mutationreportorforeignUS075scoreborrowed. Technical closures separate with rolecostattribution, no duplicate sharedgate charge."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG085-READY-DELEGATED-20261012",
+    "payload_sha256": "0e783ccd5da455c5d51bdfc4c61563aa1066be1b381670586d337e63d923ce0b"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
