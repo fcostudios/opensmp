@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "7ec8fe2451bbb93d058a9472d314bb46242b681c2463da2569972c46e850f6c3",
+  "readiness_payload_sha256": "01b79d134682886f71bd55c0a99b815b3f6e49c9b453f789b1c7334ece52238a",
   "work_id": "US-089",
   "kind": "US",
   "work_type": "functional",
@@ -98,7 +98,7 @@
       "statement": "How is historical and remaining effort counted honestly?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Allocate parent estimated254minutes exactly once: US-088130 already closed, US-089124. Historical124 phase attribution18readiness/31implementation/32focused/35review/8integration is a planning proxy, not measured phase or token allocation. Original canonical remaining103=repair35+focused10+review15+gate5+cold33+closure5 omitted fresh child readiness/materialization and required preview. Re-assessed remaining154=readiness15+materialization5+repair35+focused10+preview30+scoped/fresh review15+forced gate6+cold33+closure5. Full phase33/71/111/50/13=278. Preview/cold/gate costs are inside focused111, not added again to total. No US-088 or technical CHG-088/089/091 tokens/cost borrowed. No approved budget waiver is needed for this fresh under320 assessment; task-boundary forecast above278 stops for assessment/authority review, above320 or cohesion fails to Nous. Canonical guidance regeneration adds5readiness and10integration/custody minutes; re-assessed remaining169/full293, phases38/71/111/50/23. The15increment is included once. Exact generated delivery inventory must be reconciled before approval; above320 or20paths returns to Nous."
+      "resolution": "Allocate parent estimated254minutes exactly once: US-088130 already closed, US-089124. Historical124 phase attribution18readiness/31implementation/32focused/35review/8integration is a planning proxy, not measured phase or token allocation. Original canonical remaining103=repair35+focused10+review15+gate5+cold33+closure5 omitted fresh child readiness/materialization and required preview. Re-assessed remaining154=readiness15+materialization5+repair35+focused10+preview30+scoped/fresh review15+forced gate6+cold33+closure5. Full phase33/71/111/50/13=278. Preview/cold/gate costs are inside focused111, not added again to total. No US-088 or technical CHG-088/089/091 tokens/cost borrowed. No approved budget waiver is needed for this fresh under320 assessment; task-boundary forecast above the final approved293 stops for assessment/authority review, above320 or cohesion fails to Nous. Canonical guidance regeneration adds5readiness and10integration/custody minutes; re-assessed remaining169/full293, phases38/71/111/50/23. The15increment is included once. Exact generated delivery inventory must be reconciled before approval; above320 or20paths returns to Nous."
     },
     {
       "id": "U6",
@@ -133,7 +133,7 @@
       "statement": "What authority and execution shape apply?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Approval pending for THIS digest. WORK_READINESS.md states every new US/CHG needs approved machine-valid readiness before production/test/migration/tooling, and approval.payload_sha256 must exactly equal readiness_payload_sha256. Existing human standing authorization covers subsequent design/plan/implementation within approved readiness; do not fabricate approval from parent digest or separately request stage approvals. Do not emit started before digest approval. Commit child design/plan bound278minutes after approval and freeze mutation base. One same implementer/reused scoped reviewer, fresh adversarial reviewer, bounded same controller; phase events ts and real nonzero done.cost, actual preview_rounds/minutes and cold attempts/invalidations. Future forced caffeinate -i pnpm check under owned /tmp/smp-full-gate.lock; wait foreign US-024/US-087 owners at least60seconds, never delete their lock. Shared official CHG-067 fixture, no private containers. Integrate main by fast-forward only after final proof; rebase with recorded SHA map if required."
+      "resolution": "Approval pending for THIS digest. WORK_READINESS.md states every new US/CHG needs approved machine-valid readiness before production/test/migration/tooling, and approval.payload_sha256 must exactly equal readiness_payload_sha256. Existing human standing authorization covers subsequent design/plan/implementation within approved readiness; do not fabricate approval from parent digest or separately request stage approvals. Do not emit started before digest approval. Commit child design/plan bound to the finalized approved total (current forecast293minutes) after approval and freeze mutation base. One same implementer/reused scoped reviewer, fresh adversarial reviewer, bounded same controller; phase events ts and real nonzero done.cost, actual preview_rounds/minutes and cold attempts/invalidations. Future forced caffeinate -i pnpm check under owned /tmp/smp-full-gate.lock; wait foreign US-024/US-087 owners at least60seconds, never delete their lock. Shared official CHG-067 fixture, no private containers. Integrate main by fast-forward only after final proof; rebase with recorded SHA map if required."
     }
   ],
   "dependencies": [
@@ -154,7 +154,7 @@
     "status": "pending",
     "approved_by": null,
     "evidence": null,
-    "payload_sha256": "7ec8fe2451bbb93d058a9472d314bb46242b681c2463da2569972c46e850f6c3"
+    "payload_sha256": "01b79d134682886f71bd55c0a99b815b3f6e49c9b453f789b1c7334ece52238a"
   },
   "actuals": null,
   "policy_bootstrap": false,
