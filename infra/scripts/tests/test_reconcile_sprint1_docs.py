@@ -37,6 +37,7 @@ CHG065_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-065/7817e94"
 CHG069_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-069/84ab8ea"
 CHG079_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-079/c8f3317"
 CHG080_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-080/d9d5d48"
+CHG085_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-085/167802b"
 CHG053_DELIVERED_ROOT = Path(__file__).parents[3]
 CHG053_GUIDES = (
     "CLAUDE.md",
@@ -104,6 +105,9 @@ def desired_guide(relative_path: str) -> bytes:
 
 
 def latest_desired_guide(relative_path: str) -> bytes:
+    chg085 = CHG085_OVERRIDE_ROOT / relative_path
+    if chg085.is_file():
+        return chg085.read_bytes()
     chg080 = CHG080_OVERRIDE_ROOT / relative_path
     if chg080.is_file():
         return chg080.read_bytes()
@@ -242,6 +246,11 @@ def copy_reconciler_data(root: Path) -> Path:
             CHG080_OVERRIDE_ROOT,
             data_root / "overrides/CHG-080/d9d5d48",
         )
+    if CHG085_OVERRIDE_ROOT.is_dir():
+        shutil.copytree(
+            CHG085_OVERRIDE_ROOT,
+            data_root / "overrides/CHG-085/167802b",
+        )
     return data_root
 
 
@@ -350,22 +359,22 @@ def transaction_artifacts(root: Path) -> list[Path]:
 
 
 class ReconciliationBehaviorTests(unittest.TestCase):
-    def test_chg080_manifest_binds_both_guides_and_rejects_unreviewed_bytes(self) -> None:
-        manifest_path = CHG080_OVERRIDE_ROOT / "manifest.json"
-        self.assertTrue(manifest_path.is_file(), "CHG-080 immutable layer is missing")
+    def test_chg085_manifest_binds_both_guides_and_rejects_unreviewed_bytes(self) -> None:
+        manifest_path = CHG085_OVERRIDE_ROOT / "manifest.json"
+        self.assertTrue(manifest_path.is_file(), "CHG-085 immutable layer is missing")
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         self.assertEqual(manifest, {
             "version": 1,
             "paths": {
                 "testing/critical-paths.md": {
-                    "source_path": "overrides/CHG-079/c8f3317/testing/critical-paths.md",
-                    "source_sha256": "9aa63e45047cfa887a40d08d484d5e4b1cb5eb8f0eef492d1252728ddfd65467",
-                    "desired_sha256": "41a9566719dc6088393a6514035d653ca13f975b90a2eb707455cd936d3474f7",
+                    "source_path": "overrides/CHG-080/d9d5d48/testing/critical-paths.md",
+                    "source_sha256": "41a9566719dc6088393a6514035d653ca13f975b90a2eb707455cd936d3474f7",
+                    "desired_sha256": "d2324d079cabb4c69caad11ca5b6d3bd4aa9527e5a6021e735e3b4810595b817",
                 },
                 "docs/dev-guide/TESTING.md": {
-                    "source_path": "overrides/CHG-069/84ab8ea/docs/dev-guide/TESTING.md",
-                    "source_sha256": "50415d7ed774990b1de236fafe69ba39018d7cd4928ab71858b3a6733ff796e8",
-                    "desired_sha256": "71c65e1cb6b8e77ff883b33a3bb05947d17dd3c9794bed40dbe2d91cee0853d0",
+                    "source_path": "overrides/CHG-080/d9d5d48/docs/dev-guide/TESTING.md",
+                    "source_sha256": "71c65e1cb6b8e77ff883b33a3bb05947d17dd3c9794bed40dbe2d91cee0853d0",
+                    "desired_sha256": "db3923afa3c6342621dfe6b9f96c64abb72fd83762f58dfa09965b56bbacf72b",
                 },
             },
         })
@@ -375,7 +384,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 entry["source_sha256"],
             )
             self.assertEqual(
-                hashlib.sha256((CHG080_OVERRIDE_ROOT / relative_path).read_bytes()).hexdigest(),
+                hashlib.sha256((CHG085_OVERRIDE_ROOT / relative_path).read_bytes()).hexdigest(),
                 entry["desired_sha256"],
             )
 
@@ -393,7 +402,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             for relative_path in manifest["paths"]:
                 self.assertEqual(
                     (root / relative_path).read_bytes(),
-                    (CHG080_OVERRIDE_ROOT / relative_path).read_bytes(),
+                    (CHG085_OVERRIDE_ROOT / relative_path).read_bytes(),
                 )
             before = snapshot(root)
             accepted = run_reconciler(root, "--check", data_root=data_root)
@@ -414,8 +423,8 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                         target = root / relative_path
                         expected_error = f"{relative_path}: unknown generated guidance state"
                     else:
-                        target = data_root / "overrides/CHG-080/d9d5d48" / relative_path
-                        expected_error = f"{relative_path}: CHG-080"
+                        target = data_root / "overrides/CHG-085/167802b" / relative_path
+                        expected_error = f"{relative_path}: CHG-085"
                     if fault == "missing_artifact":
                         target.unlink()
                     else:
@@ -434,7 +443,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 root = base / "project"
                 create_project(root)
                 data_root = copy_reconciler_data(base)
-                target = data_root / "overrides/CHG-080/d9d5d48/manifest.json"
+                target = data_root / "overrides/CHG-085/167802b/manifest.json"
                 if fault == "missing":
                     target.unlink()
                 else:
@@ -443,7 +452,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 data_before = snapshot(data_root)
                 rejected = run_reconciler(root, data_root=data_root)
                 self.assertNotEqual(rejected.returncode, 0)
-                self.assertIn("CHG-080 override manifest", rejected.stderr)
+                self.assertIn("CHG-085 override manifest", rejected.stderr)
                 self.assertEqual(snapshot(root), before)
                 self.assertEqual(snapshot(data_root), data_before)
 
