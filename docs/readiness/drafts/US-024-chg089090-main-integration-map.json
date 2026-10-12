@@ -1,0 +1,106 @@
+{
+  "old_head": "269c439ae049cb528632b3fb2f5c8bd8818d1f31",
+  "old_base": "108833bcff6d5a4f1992c16d459d9c0d54d4be98",
+  "new_base": "550454335ff819198ceb63169b4e2f583240c83b",
+  "old_commits": [
+    "dbf03c249f9f04ee83968d4bf87450c26acb0887",
+    "a587591677c88e8e48c07869afea8f5e03bd4f79",
+    "da0a6409cb8bf00cea059235359be952132c73f5",
+    "b06888c74cef785fc4100058c661f77c20ac864c",
+    "7c3183ede61009d6761d77194f531ff8d166c46c",
+    "13621a7a6464979ad18ae69d40968007e35e738b",
+    "568891c640bf5694812ff9367f538d8154c28021",
+    "bb6b0e24c00aa3688111fddec0dd015f96fe7422",
+    "4643aa26b970dea63d37f5172a3b648701c389b9",
+    "f086d46a0c867f90002b1fd23be054e29c3d1be4",
+    "7fc98dfea0415b6408e5515f6b9fc2a236a657fa",
+    "f3ff20abfcb152922294819b53150dbe9026cbfb",
+    "9e5a356fd2b437632ceff5204c7fc4d9f7acc2f4",
+    "38d0b8f5c6f45932d2b82d50e2b6ce9e2c00140f",
+    "6169425a3277244b6f0f92855e39d1c3862798e9",
+    "269c439ae049cb528632b3fb2f5c8bd8818d1f31"
+  ],
+  "new_head": "34f1e23820fe6a3c0723ee8d0854012602cf16a7",
+  "sha_map": [
+    {
+      "old": "dbf03c249f9f04ee83968d4bf87450c26acb0887",
+      "new": "ad1368f60ea4fe771a24149b3bf6139621be8bce",
+      "subject": "US-024: request canonical integration correction and guidance pin prerequisites"
+    },
+    {
+      "old": "a587591677c88e8e48c07869afea8f5e03bd4f79",
+      "new": "a32ef6c30a9ca65f5528a732a4dc0d229d92f349",
+      "subject": "docs(US-087): assess completion readiness and technical blockers"
+    },
+    {
+      "old": "da0a6409cb8bf00cea059235359be952132c73f5",
+      "new": "03e41490ee3e44a966921f74ee8f6960ed52dd06",
+      "subject": "CHG-089 CHG-090: record canonical technical allocations from Nous"
+    },
+    {
+      "old": "b06888c74cef785fc4100058c661f77c20ac864c",
+      "new": "63c028efef5f49e9316f61fa3ed7cfc9d4dffca8",
+      "subject": "docs(CHG-089): bind technical readiness to standing authority"
+    },
+    {
+      "old": "7c3183ede61009d6761d77194f531ff8d166c46c",
+      "new": "6f61ef10398f1f84c491da81aa6dddcaf793061b",
+      "subject": "docs(CHG-089): record exact correction design and plan"
+    },
+    {
+      "old": "13621a7a6464979ad18ae69d40968007e35e738b",
+      "new": "08731cc1cc6263ef85e0bb6ebdbe62b6de05f180",
+      "subject": "fix(CHG-089): validate exact annotation correction with independent authority"
+    },
+    {
+      "old": "568891c640bf5694812ff9367f538d8154c28021",
+      "new": "15d15caee67aeafd05ab0b81cbb4d2969406da3e",
+      "subject": "fix(CHG-089): append authorized US-024 annotation correction"
+    },
+    {
+      "old": "bb6b0e24c00aa3688111fddec0dd015f96fe7422",
+      "new": "286aff1cc1b908f6472f8db0abeecaeb948d2e52",
+      "subject": "docs(CHG-090): bind assessed guidance pins to standing approval"
+    },
+    {
+      "old": "4643aa26b970dea63d37f5172a3b648701c389b9",
+      "new": "eb73eb665b1e1872b9195bf63edc3f4ef525afb3",
+      "subject": "docs(CHG-090): record exact ancestry design and bound plan"
+    },
+    {
+      "old": "f086d46a0c867f90002b1fd23be054e29c3d1be4",
+      "new": "d54e9e3fb1046bee741f2ae574f463b5cd06029b",
+      "subject": "fix(CHG-090): register exact canonical guidance layer and rejection oracle"
+    },
+    {
+      "old": "7fc98dfea0415b6408e5515f6b9fc2a236a657fa",
+      "new": "01237c1abb28ebb8006e3859408403847309ee9e",
+      "subject": "docs(CHG-090): bind all five canonical acceptance criteria"
+    },
+    {
+      "old": "f3ff20abfcb152922294819b53150dbe9026cbfb",
+      "new": "f1dfa35ef72cf4bc55ad636333540ddc79dd1a39",
+      "subject": "fix(CHG-090): pin independently reviewed complete reconciler bytes"
+    },
+    {
+      "old": "9e5a356fd2b437632ceff5204c7fc4d9f7acc2f4",
+      "new": "7f31e776c5f95f0660c4c77051e4f57dd189b095",
+      "subject": "docs(US-087): resolve prerequisites and bind standing readiness approval"
+    },
+    {
+      "old": "38d0b8f5c6f45932d2b82d50e2b6ce9e2c00140f",
+      "new": "d623e1d73c71ff9eabb23f7144cfb8669bb4ecba",
+      "subject": "CHG-090: mark coordinated technical integration gate"
+    },
+    {
+      "old": "6169425a3277244b6f0f92855e39d1c3862798e9",
+      "new": "bcdfd09b2d9b858f525761e825e35b544065e2fd",
+      "subject": "CHG-089: close exact annotation correction with independent proof and costs"
+    },
+    {
+      "old": "269c439ae049cb528632b3fb2f5c8bd8818d1f31",
+      "new": "34f1e23820fe6a3c0723ee8d0854012602cf16a7",
+      "subject": "CHG-090: close immutable guidance pins with reviewed digest and gate evidence"
+    }
+  ]
+}
