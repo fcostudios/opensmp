@@ -668,7 +668,7 @@ describe("people repository", () => {
 
   test("starts left-company removal without departing the person and refuses inconsistent register anchors", async () => {
     const repository = createPeopleRepository(drizzle(appPool, { schema }));
-    const input = {personId:offboardingPersonId,requestId:offboardingRequestId,endReason:"left_company" as const,note:"Seat removal"};
+    const input = {personId:offboardingPersonId,endReason:"left_company" as const,note:"Seat removal"};
     await expect(repository.startOffboarding(admin,input,occurredAt)).rejects.toMatchObject({code:"person_offboarding_unavailable"});
     // The old fixture tied two different license types to one source request.
     // Its unrelated imported seat is not part of this request's removal.
@@ -676,6 +676,7 @@ describe("people repository", () => {
     const saved = await repository.startOffboarding(admin,input,occurredAt);
     expect(saved.person.status).toBe("active");
     expect(saved.affectedRequestIds).toEqual([offboardingRequestId]);
+    expect(saved.provisioningActionIds).toEqual((await owner.query("SELECT id::text FROM provisioning_action WHERE request_id=$1",[offboardingRequestId])).rows.map(row=>row.id));
     const facts=await owner.query(`SELECT kind,mode,status,raw_request->'context'->'assignmentIds' AS assignments FROM provisioning_action WHERE request_id=$1`,[offboardingRequestId]);
     expect(facts.rows).toEqual([{kind:"remove",mode:"orchestration",status:"pending",assignments:[offboardingAssignmentId]}]);
     await expect(repository.startOffboarding(admin,input,occurredAt)).rejects.toMatchObject({code:"person_offboarding_unavailable"});
@@ -691,7 +692,7 @@ describe("people repository", () => {
     const saved=await repository.startOffboarding(admin,{personId:inactivePersonId,endReason:"inactive",note:"Inactive seat"},occurredAt);
     expect(saved.person.status).toBe("active");
     expect(saved.affectedRequestIds).toEqual([inactiveRequestId]);
-    await expect(repository.startOffboarding(admin,{personId:reallocatedPersonId,endReason:"reallocated",note:"Transfer"},occurredAt)).rejects.toMatchObject({code:"person_offboarding_transfer_required"});
+    await expect(repository.startOffboarding(admin,{personId:reallocatedPersonId,endReason:"reallocated",note:"Transfer"},occurredAt)).rejects.toMatchObject({code:"person_offboarding_transfer_required",status:422});
     const states=await owner.query(`SELECT p.id::text,p.status,request.state,assignment.ended_on::text,
       (SELECT count(*)::int FROM provisioning_action WHERE request_id=request.id) AS actions
       FROM person p JOIN license_assignment assignment ON assignment.person_id=p.id
@@ -1367,6 +1368,25 @@ describe("people repository", () => {
     const input = parsed.data;
     expect(input.requestId).toBe(requests[0]);
     expect(safeParseOffboardingTarget({...input,requestId:"not-a-uuid"}).success).toBe(false);
+    // The candidate guard runs before the request lock: a command whose
+    // target is initially unanchored must refuse even if another transaction
+    // restores that anchor while a weakened guard is waiting for the lock.
+    await owner.query("UPDATE license_assignment SET source_request_id=NULL,source_kind='import' WHERE id=$1",[assignments[0]]);
+    await owner.query("BEGIN");
+    await owner.query("SELECT id FROM license_request WHERE id=$1 FOR UPDATE",[requests[0]]);
+    let settled=false;
+    const racing=executeOffboardingIntent(repository,admin,input,occurredAt).then(result=>{settled=true;return result;});
+    try{
+      let observed=false;
+      for(let attempt=0;attempt<200;attempt++){
+        const locks=await owner.query("SELECT count(*)::int AS count FROM pg_locks WHERE NOT granted AND pid IN (SELECT pid FROM pg_stat_activity WHERE datname=current_database())");
+        if(settled || locks.rows[0].count>0){observed=true;break;}
+        await new Promise(resolve=>setTimeout(resolve,10));
+      }
+      expect(observed).toBe(true);
+      await owner.query("UPDATE license_assignment SET source_request_id=$1,source_kind='request' WHERE id=$2",[requests[0],assignments[0]]);
+    }finally{await owner.query("COMMIT");}
+    expect(await racing).toEqual({state:{ok:false,globalError:"person_offboarding_unavailable"},invalidationPaths:[]});
     for (const badPointer of [null,assignments[1]]) {
       await owner.query("UPDATE license_request SET license_assignment_id=$1 WHERE id=$2",[badPointer,requests[0]]);
       await expect(repository.startOffboarding(admin,input,occurredAt)).rejects.toMatchObject({code:"person_offboarding_unavailable"});
@@ -1377,8 +1397,20 @@ describe("people repository", () => {
       expect(unchanged.rows).toEqual([{state:"active",ended_on:null,actions:0,audits:0}]);
     }
     await owner.query("UPDATE license_request SET license_assignment_id=$1 WHERE id=$2",[assignments[0],requests[0]]);
+    const beforeStart=async()=>expect((await owner.query("SELECT (SELECT count(*)::int FROM provisioning_action WHERE request_id=$1) AS actions,(SELECT count(*)::int FROM request_transition WHERE request_id=$1) AS transitions,(SELECT count(*)::int FROM audit_log WHERE entity_id=ANY($2::uuid[])) AS audits",[requests[0],[holder,requests[0]]])).rows).toEqual([{actions:0,transitions:0,audits:0}]);
+    await owner.query("UPDATE license_assignment SET vendor_account_id=$1 WHERE id=$2",[vendorAccountId2,assignments[0]]);
+    try{await expect(repository.startOffboarding(admin,input,occurredAt)).rejects.toMatchObject({code:"person_offboarding_unavailable"});await beforeStart();}
+    finally{await owner.query("UPDATE license_assignment SET vendor_account_id=$1 WHERE id=$2",[vendorAccountId,assignments[0]]);}
+    await owner.query("UPDATE vendor_account SET status='inactive' WHERE id=$1",[vendorAccountId]);
+    try{expect(await executeOffboardingIntent(repository,admin,input,occurredAt)).toEqual({state:{ok:false,globalError:"person_offboarding_unavailable"},invalidationPaths:[]});await beforeStart();}
+    finally{await owner.query("UPDATE vendor_account SET status='active' WHERE id=$1",[vendorAccountId]);}
+    const existingRemoval=randomUUID();
+    await owner.query("INSERT INTO provisioning_action(id,request_id,vendor_account_id,kind,mode,status,raw_request,created_at) VALUES($1,$2,$3,'remove','orchestration','pending',$4,$5)",[existingRemoval,requests[0],vendorAccountId,{operation:"deprovision"},occurredAt]);
+    try{await expect(repository.startOffboarding(admin,input,occurredAt)).rejects.toMatchObject({code:"person_offboarding_unavailable"});expect((await owner.query("SELECT count(*)::int AS count FROM provisioning_action WHERE request_id=$1",[requests[0]])).rows).toEqual([{count:1}]);}
+    finally{await owner.query("DELETE FROM provisioning_action WHERE id=$1",[existingRemoval]);}
+    await beforeStart();
     await expect(repository.startOffboarding(admin,{...input,requestId:inactiveRequestId},occurredAt)).rejects.toMatchObject({code:"person_offboarding_unavailable"});
-    await expect(repository.startOffboarding(admin,{...input,endReason:"reallocated"},occurredAt)).rejects.toMatchObject({code:"person_offboarding_transfer_required"});
+    await expect(repository.startOffboarding(admin,{...input,endReason:"reallocated"},occurredAt)).rejects.toMatchObject({code:"person_offboarding_transfer_required",status:422});
     await expect(repository.startOffboarding(viewer,input,occurredAt)).rejects.toMatchObject({code:"person_forbidden"});
     const initialExecution=await executeOffboardingIntent(repository,admin,input,occurredAt);
     expect(initialExecution.state).toMatchObject({ok:true,personId:holder,affectedRequestIds:[requests[0]],status:"offboarding"});
@@ -1464,11 +1496,11 @@ describe("people repository", () => {
     expect((await owner.query("SELECT status FROM person WHERE id=$1",[reallocatedPersonId])).rows).toEqual([{status:"active"}]);
     expect((await owner.query("SELECT (SELECT count(*)::int FROM provisioning_action WHERE request_id=$1) AS actions,(SELECT count(*)::int FROM request_transition WHERE request_id=$1) AS transitions,(SELECT count(*)::int FROM audit_log WHERE entity_id=ANY($2::uuid[])) AS audits",[reallocatedRequestId,[reallocatedPersonId,reallocatedRequestId]])).rows).toEqual([{actions:1,transitions:1,audits:2}]);
     const result=await owner.query(`SELECT request.state,action.kind,action.mode,action.status,
-      action.raw_request->>'protocol' AS protocol,action.raw_request->'checklistSteps' AS steps,
+      action.raw_request->>'protocol' AS protocol,action.raw_request->>'operation' AS operation,action.raw_request->'checklistSteps' AS steps,
       assignment.ended_on::text FROM license_request request
       JOIN provisioning_action action ON action.request_id=request.id
       JOIN license_assignment assignment ON assignment.source_request_id=request.id WHERE request.id=$1`,[reallocatedRequestId]);
-    expect(result.rows).toEqual([{state:"offboarding",kind:"remove",mode:expectedMode,status:"pending",protocol,steps:expectedMode==="automated"?[]:expect.any(Array),ended_on:null}]);
+    expect(result.rows).toEqual([{state:"offboarding",kind:"remove",mode:expectedMode,status:"pending",protocol,operation:"deprovision",steps:expectedMode==="automated"?[]:expect.any(Array),ended_on:null}]);
     if(expectedMode!=="automated")expect(result.rows[0].steps.length).toBeGreaterThan(0);
     const observed=await owner.query(`SELECT count(*)::int AS count FROM connector_call_observation WHERE provisioning_action_id=ANY($1::uuid[])`,[saved.provisioningActionIds]);
     expect(observed.rows).toEqual([{count:0}]);
