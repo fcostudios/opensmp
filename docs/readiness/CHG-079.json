@@ -93,10 +93,30 @@
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "CHG079-READINESS-20261011",
+    "evidence": "CHG079-CLOSURE-RESUME-20261012",
     "payload_sha256": "1b4b1cb8afc3c88497f2001ad6d5e1cafc50ce75c3f3d4a4c98d28b181cf2e4d"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 18,
+      "implementation": 9,
+      "focused_verification": 3,
+      "review": 7,
+      "integration": 10
+    },
+    "total": 47,
+    "changed_files": 10,
+    "commits": 11,
+    "review_fix_loops": 0,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": 2,
+    "root_cause": "CHG-079 only: one controller session resumed for the same item, one consolidated implementer (three task dispatch/resume turns), one reused scoped reviewer and one fresh adversarial reviewer resumed for closure. Controller plans/briefs/records; shared CHG-080 reviewer ran final zero-scope command when implementer resume hit thread limit. Active phase minutes18/9/3/7/10=47 are retrospective rounded estimates because complete session timing telemetry is not exposed; they are not elapsed wall duration or measured totals. Readiness includes canonical/validator/pin ancestry inspection; implementation includes route/pin fixture authoring and two self-repairs; focused includes baseline/focused command collection; review includes design, both scoped checkpoints and initial/current fresh AC reviews; integration includes coordination bookkeeping, failed evidence and closure. Human/long external prerequisite waits and US-075 repair/campaign costs excluded. Estimated +2m variance is retained rather than fabricated as under budget. Measured original command walls: repo13 realDB cases4.77s, reconciler61 tests7.46s, baseline Node failure3.40s, technical preflight0shards0.64s, final zero-mutatable command0.76s. Prior shared RED gate64.553267s attributed to CHG-080; current GREEN gate80.794s at9048f6b executed once by original US-075 implementer, cited shared evidence with owned token/inode release23:51:30.838UTC, not charged as independently rerun079 verification. Current fullgate repository16 cases GREEN; historical migrated native7 runtime report053d802 has13 repository cases and current source identities, not current16 test identity. Current repository cold94.178% is supplementary US-075 proof; wholeUS075cold71.731% FAILED, no075done. No new079 tests/production/gate/campaign at closure. CHG079 own ordinary sources0, no test_report required or claimed. Earlier actuals were null while blocked; old failed AC3/blockers remain append-only. Original technical implementation range1c7acf8..7cf1d22 valid7paths; original inclusive c8f3317..f1c4508 valid10paths, own trailing5917e1b doc range valid. Later foreign sync/routing changes excluded from own10-path11-commit accounting. Deferred baseline old Node page fixture failure remains named and outside079. Phase/token/call costs estimated; command durations measured.\nController: 1 CHG-079 session, estimated 28 active minutes (18 readiness + 10 integration/bookkeeping).\nImplementer: 1 reused CHG-079 session across 3 dispatch/resume turns, estimated 12 active minutes (9 implementation + 3 focused verification).\nScoped reviewer: 1 reused CHG-079 session, estimated 4 active review minutes.\nFresh adversarial reviewer: 1 CHG-079 session resumed for closure, estimated 3 active review minutes. These are retrospective rounded role allocations of the disclosed 47-minute estimate, not measured elapsed time; exact per-role call/token telemetry unavailable. Measured command walls remain separately attributed."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
