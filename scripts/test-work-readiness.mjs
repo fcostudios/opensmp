@@ -32,6 +32,7 @@ import {
   listChangedPaths,
   resolveDefaultBase,
   validateRangeOwnership,
+  validateFunctionalDelivery,
 } from "./work-readiness/git.mjs";
 import { calibrateAssessment, createAssessmentFile, readCanonicalMessageFile } from "./work-readiness.mjs";
 import * as readinessCli from "./work-readiness.mjs";
@@ -5290,6 +5291,169 @@ test("preview_rounds and preview_minutes are optional non-negative integer actua
       }));
     }
   }
+});
+
+// CHG-088: use the real committed child authority and inherited Git blobs.
+const replayPath = "packages/db/scripts/verify-schema.mjs";
+const replayAuthorityCommit = "ff859d390126dcb3a13ece1ecdb00e2eaf863d70";
+const replayOldBlob = "c793e5d163eb2abe025701b919c83df17d5c5abd";
+const replayNewBlob = "4b189bb3adc899d4ea6bc9767a8ee5b83a6aeef3";
+function makeReplayRepo({ hooks = true, routes = {} } = {}) {
+  const { root } = makeGitRepo();
+  const origin = new URL("../", import.meta.url).pathname;
+  const artifact = git(origin, ["show", `${replayAuthorityCommit}:docs/readiness/US-088.json`]);
+  const records = git(origin, ["show", `${replayAuthorityCommit}:.nous-feedback.jsonl`])
+    .split("\n").filter((line) => line && JSON.parse(line).story === "US-088");
+  assert.equal(computeReadinessPayloadSha256(JSON.parse(artifact)), "4904efb89d28d78f2e7cc754c8fbeb4ce16cf2bd1f1581e282d2781be98c469b");
+  writeRepoFile(root, "docs/readiness/US-088.json", `${artifact}\n`);
+  writeRepoFile(root, ".nous-feedback.jsonl", `${records.join("\n")}\n`);
+  writeRepoFile(root, replayPath, `${git(origin, ["cat-file", "blob", replayOldBlob])}\n`);
+  writeRepoFile(root, "scripts/mutation-routes.json", `${JSON.stringify(routes)}\n`);
+  const base = commitRepo(root, "docs(US-088): preserve committed child authority", ["docs/readiness/US-088.json", ".nous-feedback.jsonl", replayPath, "scripts/mutation-routes.json"]);
+  assert.equal(git(root, ["rev-parse", `${base}:${replayPath}`]), replayOldBlob);
+  if (hooks) installReadinessHook(root);
+  writeRepoFile(root, replayPath, `${git(origin, ["cat-file", "blob", replayNewBlob])}\n`);
+  return { root, base, authority: base, workId: "US-088" };
+}
+
+test("CHG-088 exact inherited replay passes ordinary staged commit and range", () => {
+  const fixture = makeReplayRepo();
+  try {
+    const head = commitRepo(fixture.root, "feat(US-088): replay assigned verifier bytes", [replayPath]);
+    assert.equal(git(fixture.root, ["rev-parse", `${head}:${replayPath}`]), replayNewBlob);
+    assert.equal(validateFunctionalDelivery({ ...fixture, head }), true);
+    assert.deepEqual(validateRangeOwnership({ root: fixture.root, base: fixture.base, head }).workIds, ["US-088"]);
+  } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+});
+
+test("CHG-088 replay requires immutable validated exact authority", () => {
+  const fixture = makeReplayRepo();
+  try {
+    const head = commitRepo(fixture.root, "feat(US-088): replay authority fixture", [replayPath]);
+    for (const overrides of [
+      { authority: undefined }, { authority: "missing-authority" },
+      { authority: `${fixture.base}^` }, { authority: head },
+      { workId: "US-089" }, { authority: { readiness_payload_sha256: "4904efb89d28d78f2e7cc754c8fbeb4ce16cf2bd1f1581e282d2781be98c469b" } },
+    ]) {
+      assert.throws(() => validateFunctionalDelivery({ ...fixture, head, ...overrides }),
+        (error) => error.code === "WR_MIXED_FUNCTIONAL_TOOLING");
+    }
+    // Working-tree assertions cannot lend approval to immutable Git authority.
+    writeRepoFile(fixture.root, "docs/readiness/US-088.json", '{}\n');
+    assert.equal(validateFunctionalDelivery({ ...fixture, head }), true);
+  } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+});
+
+test("CHG-088 hostile replay bytes modes paths and mixed tooling reject through real Git", () => {
+  const variants = [
+    ["one byte", (r) => writeRepoFile(r, replayPath, `${readFileSync(join(r, replayPath), "utf8")} `)],
+    ["deletion", (r) => rmSync(join(r, replayPath))],
+    ["rename", (r) => renameSync(join(r, replayPath), join(r, "packages/db/scripts/renamed.mjs"))],
+    ["copy", (r) => writeRepoFile(r, "packages/db/copied.txt", readFileSync(join(r, replayPath)))],
+    ["symlink", (r) => { rmSync(join(r, replayPath)); symlinkSync("other.mjs", join(r, replayPath)); }],
+    ["executable", (r) => chmodSync(join(r, replayPath), 0o755)],
+    ...["scripts/arbitrary.mjs", "scripts/test-mutation.mjs", "scripts/mutation-cache.mjs", "stryker.config.json", "vitest.config.ts", ".githooks/commit-msg", "packages/domain/src/disguised.ts", "packages/domain/src/disguised.js"].map((path) => [path, (r) => writeRepoFile(r, path, "#!/usr/bin/env node\nexport {};\n")]),
+    ["removed existing route", (r) => writeRepoFile(r, "scripts/mutation-routes.json", '{}\n')],
+    ["unsafe route data", (r) => writeRepoFile(r, "scripts/mutation-routes.json", '{"threshold":0}\n')],
+    ["unowned route", (r) => {
+      writeRepoFile(r, "scripts/mutation-routes.json", '{"packages/domain/src/missing.ts":["packages/domain/src/replay.test.ts"]}\n');
+      writeRepoFile(r, "packages/domain/src/replay.test.ts", 'export {};\n');
+    }],
+  ];
+  for (const [name, mutate] of variants) {
+    const fixture = makeReplayRepo({ hooks: false, routes: name === "removed existing route" ? { "packages/domain/src/prior.ts": ["packages/domain/src/prior.test.ts"] } : {} });
+    try {
+      mutate(fixture.root);
+      git(fixture.root, ["add", "-A"]);
+      git(fixture.root, ["commit", "-m", `feat(US-088): hostile ${name}`]);
+      assert.throws(() => validateFunctionalDelivery({ ...fixture, head: "HEAD" }),
+        (error) => error.code === "WR_MIXED_FUNCTIONAL_TOOLING", name);
+      assert.throws(() => validateRangeOwnership({ root: fixture.root, base: fixture.base, head: "HEAD" }),
+        (error) => error.code === "WR_MIXED_FUNCTIONAL_TOOLING", name);
+      git(fixture.root, ["reset", "--soft", fixture.base]);
+      installReadinessHook(fixture.root);
+      const staged = runGit(fixture.root, ["commit", "-m", `feat(US-088): staged hostile ${name}`]);
+      assert.equal(staged.status, 1, `${name}: ${staged.stderr}`);
+      assert.match(staged.stderr, /WR_MIXED_FUNCTIONAL_TOOLING/u, name);
+    } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
+
+test("CHG-088 wrong parent digest approval and foreign authority reject", () => {
+  for (const variant of ["parent blob", "parent mode", "digest", "approval", "missing feedback", "missing artifact", "foreign work"]) {
+    const fixture = makeReplayRepo({ hooks: false });
+    try {
+      git(fixture.root, ["checkout", "--", replayPath]);
+      const path = "docs/readiness/US-088.json";
+      const artifact = JSON.parse(readFileSync(join(fixture.root, path), "utf8"));
+      if (variant === "parent blob") writeRepoFile(fixture.root, replayPath, 'different parent\n');
+      if (variant === "parent mode") chmodSync(join(fixture.root, replayPath), 0o755);
+      if (variant === "digest") {
+        artifact.title += " changed";
+        const oldDigest = artifact.readiness_payload_sha256;
+        refreshDigest(artifact);
+        // Valid differently approved payload: rejection must come from the closed binding.
+        const feedbackPath = join(fixture.root, ".nous-feedback.jsonl");
+        writeFileSync(feedbackPath, readFileSync(feedbackPath, "utf8").replaceAll(oldDigest, artifact.readiness_payload_sha256));
+        assert.equal(validateAssessment(artifact, { feedbackRecords: readFileSync(feedbackPath, "utf8").trim().split("\n").map(JSON.parse), deliveryPolicy: true }).active, true);
+      }
+      if (variant === "approval") artifact.approval.approved_by = "forged";
+      if (variant === "foreign work") artifact.work_id = "US-089";
+      if (["digest", "approval", "foreign work"].includes(variant)) writeRepoFile(fixture.root, path, `${JSON.stringify(artifact)}\n`);
+      if (variant === "missing feedback") writeRepoFile(fixture.root, ".nous-feedback.jsonl", '');
+      if (variant === "missing artifact") rmSync(join(fixture.root, path));
+      git(fixture.root, ["add", "-A"]);
+      git(fixture.root, ["commit", "-m", `docs(US-088): hostile authority ${variant}`]);
+      const base = git(fixture.root, ["rev-parse", "HEAD"]);
+      writeRepoFile(fixture.root, replayPath, `${git(new URL("../", import.meta.url).pathname, ["cat-file", "blob", replayNewBlob])}\n`);
+      chmodSync(join(fixture.root, replayPath), 0o644);
+      const head = commitRepo(fixture.root, "feat(US-088): hostile authority replay", [replayPath]);
+      assert.throws(() => validateFunctionalDelivery({ ...fixture, base, head, authority: ["parent blob", "parent mode"].includes(variant) ? fixture.authority : base }),
+        (error) => error.code === "WR_MIXED_FUNCTIONAL_TOOLING", variant);
+    } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
+
+test("CHG-088 allowed verifier still permits owned additive routes and refuses later edits", () => {
+  const fixture = makeReplayRepo();
+  try {
+    const source = "packages/domain/src/replay.ts", responsible = "packages/domain/src/replay.test.ts";
+    writeRepoFile(fixture.root, source, 'export const value = 1;\n');
+    writeRepoFile(fixture.root, responsible, 'export {};\n');
+    writeRepoFile(fixture.root, "scripts/mutation-routes.json", `${JSON.stringify({ [source]: [responsible] })}\n`);
+    const first = commitRepo(fixture.root, "feat(US-088): replay with owned additive route", [replayPath, source, responsible, "scripts/mutation-routes.json"]);
+    assert.equal(validateFunctionalDelivery({ ...fixture, head: first }), true);
+    assert.deepEqual(validateRangeOwnership({ root: fixture.root, base: fixture.base, head: first }).workIds, ["US-088"]);
+    writeRepoFile(fixture.root, replayPath, `${readFileSync(join(fixture.root, replayPath), "utf8")} `);
+    git(fixture.root, ["add", replayPath]);
+    const later = runGit(fixture.root, ["commit", "-m", "feat(US-088): forbidden later verifier edit"]);
+    assert.equal(later.status, 1);
+    assert.match(later.stderr, /WR_MIXED_FUNCTIONAL_TOOLING/u);
+    git(fixture.root, ["checkout", "HEAD", "--", replayPath]);
+    writeRepoFile(fixture.root, "scripts/mutation-routes.json", '{}\n');
+    git(fixture.root, ["add", "scripts/mutation-routes.json"]);
+    const removal = runGit(fixture.root, ["commit", "-m", "feat(US-088): remove existing route"]);
+    assert.equal(removal.status, 1);
+    assert.match(removal.stderr, /WR_MIXED_FUNCTIONAL_TOOLING/u);
+  } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+});
+
+test("CHG-088 aggregate endpoints cannot conceal reversal and later edits", () => {
+  const fixture = makeReplayRepo({ hooks: false });
+  try {
+    const first = commitRepo(fixture.root, "feat(US-088): exact initial transition", [replayPath]);
+    git(fixture.root, ["checkout", fixture.base, "--", replayPath]);
+    const reversed = commitRepo(fixture.root, "feat(US-088): hostile reversal", [replayPath]);
+    assert.throws(() => validateFunctionalDelivery({ ...fixture, base: first, head: reversed }),
+      (error) => error.code === "WR_MIXED_FUNCTIONAL_TOOLING");
+    git(fixture.root, ["checkout", first, "--", replayPath]);
+    const restored = commitRepo(fixture.root, "feat(US-088): hostile aggregate replay", [replayPath]);
+    assert.equal(git(fixture.root, ["rev-parse", `${restored}:${replayPath}`]), replayNewBlob);
+    assert.throws(() => validateFunctionalDelivery({ ...fixture, head: restored }),
+      (error) => error.code === "WR_MIXED_FUNCTIONAL_TOOLING");
+    assert.throws(() => validateRangeOwnership({ root: fixture.root, base: fixture.base, head: restored }),
+      (error) => error.code === "WR_MIXED_FUNCTIONAL_TOOLING");
+  } finally { rmSync(fixture.root, { recursive: true, force: true }); }
 });
 
 assert.ok(assertions >= 30);

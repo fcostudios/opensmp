@@ -1186,10 +1186,69 @@ function payloadAuthority(root, revision, artifact) {
   fail("WR_READINESS_MISSING", path, "Functional routing requires a previously committed assessment payload");
 }
 
+// CHG-088 authorizes one inherited transition, never future verifier edits.
+const INHERITED_REPLAY = Object.freeze({
+  workId: "US-088",
+  digest: "4904efb89d28d78f2e7cc754c8fbeb4ce16cf2bd1f1581e282d2781be98c469b",
+  path: "packages/db/scripts/verify-schema.mjs",
+  oldBlob: "c793e5d163eb2abe025701b919c83df17d5c5abd",
+  newBlob: "4b189bb3adc899d4ea6bc9767a8ee5b83a6aeef3",
+});
+
+function revisionBlobEntry(root, revision, path) {
+  const records = git(root, ["ls-tree", "-z", revision, "--", path]).toString("utf8").split("\0").filter(Boolean);
+  if (records.length !== 1) return null;
+  const match = /^(\d{6}) blob ([0-9a-f]{40})\t(.+)$/u.exec(records[0]);
+  return match?.[3] === path ? { mode: match[1], blob: match[2] } : null;
+}
+
+function exactInheritedReplay({ root, base, head, workId, authority }) {
+  if (workId !== INHERITED_REPLAY.workId || typeof authority !== "string") return false;
+  try {
+    const parent = resolveCommit(root, base, "$.base");
+    const committedAuthority = resolveCommit(root, authority, "$.authority");
+    if (git(root, ["merge-base", "--is-ancestor", committedAuthority, parent], { allowMissing: true }) === null) return false;
+    const readinessPath = `docs/readiness/${workId}.json`;
+    let parentArtifact;
+    for (const revision of [committedAuthority, parent]) {
+      const text = readRevisionFile(root, revision, readinessPath, { required: false });
+      if (text === null || revisionMode(root, revision, readinessPath) !== "100644") return false;
+      const artifact = parseJson(text, readinessPath);
+      if (artifact.work_id !== workId || artifact.work_type !== "functional"
+        || artifact.readiness_payload_sha256 !== INHERITED_REPLAY.digest
+        || computeReadinessPayloadSha256(artifact) !== INHERITED_REPLAY.digest) return false;
+      const feedback = parseFeedback(readRevisionFile(root, revision, ".nous-feedback.jsonl", { required: false }));
+      const validated = validateAssessment(artifact, { feedbackRecords: feedback, deliveryPolicy: readinessDeliveryPolicy({ artifact }) });
+      if (validated.decision !== "ready" || !validated.active) return false;
+      parentArtifact = artifact;
+    }
+    if (payloadAuthority(root, parent, parentArtifact) !== committedAuthority) return false;
+    const exactTransition = (prior, candidate) => {
+      const old = revisionBlobEntry(root, prior, INHERITED_REPLAY.path);
+      const next = revisionBlobEntry(root, candidate, INHERITED_REPLAY.path);
+      return old?.mode === "100644" && next?.mode === "100644"
+        && old.blob === INHERITED_REPLAY.oldBlob && next.blob === INHERITED_REPLAY.newBlob;
+    };
+    if (!exactTransition(parent, head)) return false;
+    // An aggregate range cannot hide a later edit/reversal behind matching endpoints.
+    for (const entry of linearCommits(root, parent, resolveCommit(root, head, "$.head"))) {
+      if (listChangedPaths({ root, base: entry.parent, head: entry.commit }).includes(INHERITED_REPLAY.path)
+        && !exactTransition(entry.parent, entry.commit)) return false;
+    }
+    return true;
+  } catch (error) {
+    if (error instanceof WorkReadinessError) return false;
+    throw error;
+  }
+}
+
 export function validateFunctionalDelivery({ root, base, head, workId, authority }) {
   const reject = (message) => fail("WR_MIXED_FUNCTIONAL_TOOLING", MUTATION_ROUTES_PATH, message);
   const changed = listChangedPaths({ root, base, head });
+  const replay = changed.includes(INHERITED_REPLAY.path) && exactInheritedReplay({ root, base, head, workId, authority });
   const forbidden = changed.find((path) => {
+    if (replay && path === INHERITED_REPLAY.path) return false;
+    if (replay && revisionBlobEntry(root, head, path)?.blob === INHERITED_REPLAY.newBlob) return true;
     if (path === MUTATION_ROUTES_PATH) return false;
     if (isToolingPath(path)) return true;
     // Executable JS/TS scripts can live outside a scripts directory. Inspect
