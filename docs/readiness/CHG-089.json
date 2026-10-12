@@ -100,5 +100,25 @@
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
   "controlling_change": null,
-  "actuals": null
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 7,
+      "implementation": 8,
+      "focused_verification": 2,
+      "review": 15,
+      "integration": 6
+    },
+    "total": 38,
+    "changed_files": 9,
+    "commits": 5,
+    "review_fix_loops": 0,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": -42,
+    "root_cause": "Explicit estimated active-role effort38 vs approved80 (-42), not billing: controller12 one resumed CHG089 session; root share4; implementer8 conservative round of reported7.3, one session; scoped reviewer8 one reused independent session; fresh reviewer6 one independent session allocated from final paired12, no US086 review double charge. Phases7/8/2/15/6 sum38. Measured focused9.95s, artifact sweep8.27s; full suite wall not exposed. Independent scoped and fresh adversarial canonical AC1-5 PASS; full Node289 behavioral+37 imported GREEN; all75 readiness and generated-guidance GREEN. Joint caffeinate -i pnpm check at38d0b8f exit0, measured3.339123458s, all Turbo tasks cached (not fresh application checks); foreignUS088 lock wait60.012950416s then own regular token/device/inode243255989 cleanup verified. MUTATION_BASE=da0a640 MUTATION_WORK_ID=CHG-090 MUTATION_CACHE=off pnpm test:mutation exit0 .546077417s changed18 mutatable0/ranges0. No mutation score borrowed; zero eligible shards omit test_report. Gate execution charged onlyCHG090; waits excluded active estimates. Raw904418-byte original ledger prefix and parent019a1da unchanged; originalUS087a587591 retained in Git, refreshed readiness9e5a356 separately authorized. Missed review-entry phase during serialized ledger handoff recorded now at actual closure timestamp, never backdated. Five own commits includes closure; nine paths=5delivery4bookkeeping. No previews/cold invalidations."
+  }
 }
