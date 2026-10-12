@@ -77,7 +77,7 @@
       "statement": "Resolving predecessor must be inspected for each delivered file separately.",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Actual loader validates CLAUDE chain001/825e882→022/16f72c9→042/fd7741f→049/6466f60→053/2dee869→065/7817e94; DoD001→022→042→049→055/e240d85→065/7817e94. Bind CLAUDE source_path overrides/CHG-065/7817e94/CLAUDE.md hash ea24b7b9af19f4a050d2dce58d2095a48e0ec96369290455504c50f8f91ce40e and DoD source_path overrides/CHG-065/7817e94/docs/dev-guide/DEFINITION_OF_DONE.md hash a0b4aff2d0baa8dfad6557ee51d547de4f94e037729b1d9dbc3c70a225725429. Desired exact delivery05722c7d8351bffcf1f17fa1ab7d62411dbf12f5ce1759fde8f3ba26396cc685 and2d683a7b4161cdb07838b5fe3fbddff4bd4a1221ce7b8e026bdfddd39c25e392 verified live and8a5c4fb Git objects; mirrors consistent."
+      "resolution": "Actual loader validates CLAUDE chain001/825e882\u2192022/16f72c9\u2192042/fd7741f\u2192049/6466f60\u2192053/2dee869\u2192065/7817e94; DoD001\u2192022\u2192042\u2192049\u2192055/e240d85\u2192065/7817e94. Bind CLAUDE source_path overrides/CHG-065/7817e94/CLAUDE.md hash ea24b7b9af19f4a050d2dce58d2095a48e0ec96369290455504c50f8f91ce40e and DoD source_path overrides/CHG-065/7817e94/docs/dev-guide/DEFINITION_OF_DONE.md hash a0b4aff2d0baa8dfad6557ee51d547de4f94e037729b1d9dbc3c70a225725429. Desired exact delivery05722c7d8351bffcf1f17fa1ab7d62411dbf12f5ce1759fde8f3ba26396cc685 and2d683a7b4161cdb07838b5fe3fbddff4bd4a1221ce7b8e026bdfddd39c25e392 verified live and8a5c4fb Git objects; mirrors consistent."
     },
     {
       "id": "U2",
@@ -103,7 +103,27 @@
     "evidence": "CHG090-READY-CANONICAL-ACS-20261012",
     "payload_sha256": "268d716e337d577c914ae460dd45a41bed5195307de6b59a32160b06a199ae24"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 9,
+      "implementation": 8,
+      "focused_verification": 3,
+      "review": 17,
+      "integration": 8
+    },
+    "total": 45,
+    "changed_files": 10,
+    "commits": 7,
+    "review_fix_loops": 1,
+    "cold_mutation_attempts": 0,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 0,
+    "mutation_shards_actual": 0,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": -15,
+    "root_cause": "Explicit estimated active-role/process effort45 vs approved60 (-15), not billing: same resumed controller/inline implementer21 one session; root090share8; independent scoped reviewer9 one reused session; fresh reviewer6 one independent session split paired12 equally, no US086 review charge; measured joint gate3.339s conservatively ceil1minute charged090 only. Phases9/8/3/17/8 sum45. Foreign lock wait60.013s separate, not active effort. FullPython63 GREEN11.827s; retained initial fixture-stamp failure11.583s repaired before review; focused22faults2.273s, registration omission mutant killed .092s; no mutation score claimed from that probe. Independent scoped and fresh adversarial canonical AC1-5 PASS; full Node289 behavioral+37 imported GREEN; all75 readiness and generated-guidance GREEN. Joint caffeinate -i pnpm check at38d0b8f exit0, measured3.339123458s, all Turbo tasks cached (not fresh application checks); foreignUS088 lock wait60.012950416s then own regular token/device/inode243255989 cleanup verified. MUTATION_BASE=da0a640 MUTATION_WORK_ID=CHG-090 MUTATION_CACHE=off pnpm test:mutation exit0 .546077417s changed18 mutatable0/ranges0. No mutation score borrowed; zero eligible shards omit test_report. Canonical AC mapping fixed7fc98df one review fixloop, same6delivery/4bookkeeping/60budget; both complete chains sourceCHG065 independently reviewed. Full8895f6cc reconciler independently approved before consumer literal/comment updatef3ff20a; existing tamper tests GREEN. Seven own commits includes closure; ten paths. No previews or eligible cold shards."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
