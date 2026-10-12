@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "paths": {
+    "CLAUDE.md": {
+      "source_path": "overrides/CHG-065/7817e94/CLAUDE.md",
+      "source_sha256": "ea24b7b9af19f4a050d2dce58d2095a48e0ec96369290455504c50f8f91ce40e",
+      "desired_sha256": "05722c7d8351bffcf1f17fa1ab7d62411dbf12f5ce1759fde8f3ba26396cc685"
+    },
+    "docs/dev-guide/DEFINITION_OF_DONE.md": {
+      "source_path": "overrides/CHG-065/7817e94/docs/dev-guide/DEFINITION_OF_DONE.md",
+      "source_sha256": "a0b4aff2d0baa8dfad6557ee51d547de4f94e037729b1d9dbc3c70a225725429",
+      "desired_sha256": "2d683a7b4161cdb07838b5fe3fbddff4bd4a1221ce7b8e026bdfddd39c25e392"
+    }
+  }
+}

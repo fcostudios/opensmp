@@ -152,6 +152,12 @@ CHG085_PATHS = {
         "overrides/CHG-080/d9d5d48/docs/dev-guide/TESTING.md"
     ),
 }
+CHG090_PATHS = {
+    "CLAUDE.md": "overrides/CHG-065/7817e94/CLAUDE.md",
+    "docs/dev-guide/DEFINITION_OF_DONE.md": (
+        "overrides/CHG-065/7817e94/docs/dev-guide/DEFINITION_OF_DONE.md"
+    ),
+}
 LAYERED_OVERRIDE_SPECS = (
     ("CHG-004/e4b9a06", CHG004_PATHS),
     ("CHG-022/16f72c9", CHG022_PATHS),
@@ -166,6 +172,7 @@ LAYERED_OVERRIDE_SPECS = (
     ("CHG-079/c8f3317", CHG079_PATHS),
     ("CHG-080/d9d5d48", CHG080_PATHS),
     ("CHG-085/167802b", CHG085_PATHS),
+    ("CHG-090/8a5c4fb", CHG090_PATHS),
 )
 CHG005_PATHS = {
     "docs/stories/sprint-2/r1_misc_us_014.md",

@@ -38,6 +38,7 @@ CHG069_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-069/84ab8ea"
 CHG079_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-079/c8f3317"
 CHG080_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-080/d9d5d48"
 CHG085_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-085/167802b"
+CHG090_OVERRIDE_ROOT = SCRIPT_DATA_ROOT / "overrides/CHG-090/8a5c4fb"
 CHG053_DELIVERED_ROOT = Path(__file__).parents[3]
 CHG053_GUIDES = (
     "CLAUDE.md",
@@ -48,10 +49,9 @@ CHG055_GUIDES = (
     "docs/dev-guide/SECURITY.md",
     "docs/dev-guide/STANDARDS.md",
 )
-# Stamp Nous's agent-sync emitted on the 2026-10-01 mirrors (CODEX.md) for the
-# CLAUDE.md that the CHG-065 layer pins.
-CHG065_MIRROR_HEADER = (
-    b"<!-- agent-sync: ca4a7c18b2c9 | source: CLAUDE.md | DO NOT EDIT "
+# Stamp the exact canonical CLAUDE trailer pinned by CHG-090.
+CURRENT_MIRROR_HEADER = (
+    b"<!-- agent-sync: f69c18865ba1 | source: CLAUDE.md | DO NOT EDIT "
     b"\xe2\x80\x94 this file is auto-generated from CLAUDE.md. Edit CLAUDE.md then "
     b"run: python3 nous_agent_sync.py -->\n"
 )
@@ -105,6 +105,9 @@ def desired_guide(relative_path: str) -> bytes:
 
 
 def latest_desired_guide(relative_path: str) -> bytes:
+    chg090 = CHG090_OVERRIDE_ROOT / relative_path
+    if chg090.is_file():
+        return chg090.read_bytes()
     chg085 = CHG085_OVERRIDE_ROOT / relative_path
     if chg085.is_file():
         return chg085.read_bytes()
@@ -153,7 +156,7 @@ def create_project(root: Path) -> None:
     claude_body, trailer = split_terminal_emitted_trailer(
         latest_desired_guide("CLAUDE.md")
     )
-    synced_mirror = CHG065_MIRROR_HEADER + claude_body + trailer
+    synced_mirror = CURRENT_MIRROR_HEADER + claude_body + trailer
     for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
         path = root / mirror
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -251,6 +254,8 @@ def copy_reconciler_data(root: Path) -> Path:
             CHG085_OVERRIDE_ROOT,
             data_root / "overrides/CHG-085/167802b",
         )
+    if CHG090_OVERRIDE_ROOT.is_dir():
+        shutil.copytree(CHG090_OVERRIDE_ROOT, data_root / "overrides/CHG-090/8a5c4fb")
     return data_root
 
 
@@ -341,7 +346,7 @@ def create_chg022_drift(root: Path) -> None:
         latest_desired_guide("CLAUDE.md")
     )
     for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
-        (root / mirror).write_bytes(CHG065_MIRROR_HEADER + claude + trailer)
+        (root / mirror).write_bytes(CURRENT_MIRROR_HEADER + claude + trailer)
     write(
         root,
         "docs/dev-guide/PACKAGE_MAP.md",
@@ -359,6 +364,82 @@ def transaction_artifacts(root: Path) -> list[Path]:
 
 
 class ReconciliationBehaviorTests(unittest.TestCase):
+    def test_chg090_manifest_binds_actual_chains_and_rejects_tampering(self) -> None:
+        layer = SCRIPT_DATA_ROOT / "overrides/CHG-090/8a5c4fb"
+        self.assertTrue((layer / "manifest.json").is_file(), "CHG-090 immutable layer is missing")
+        expected = {
+            "version": 1,
+            "paths": {
+                "CLAUDE.md": {
+                    "source_path": "overrides/CHG-065/7817e94/CLAUDE.md",
+                    "source_sha256": "ea24b7b9af19f4a050d2dce58d2095a48e0ec96369290455504c50f8f91ce40e",
+                    "desired_sha256": "05722c7d8351bffcf1f17fa1ab7d62411dbf12f5ce1759fde8f3ba26396cc685",
+                },
+                "docs/dev-guide/DEFINITION_OF_DONE.md": {
+                    "source_path": "overrides/CHG-065/7817e94/docs/dev-guide/DEFINITION_OF_DONE.md",
+                    "source_sha256": "a0b4aff2d0baa8dfad6557ee51d547de4f94e037729b1d9dbc3c70a225725429",
+                    "desired_sha256": "2d683a7b4161cdb07838b5fe3fbddff4bd4a1221ce7b8e026bdfddd39c25e392",
+                },
+            },
+        }
+        self.assertEqual(json.loads((layer / "manifest.json").read_text()), expected)
+        for path, entry in expected["paths"].items():
+            self.assertEqual(hashlib.sha256((SCRIPT_DATA_ROOT / entry["source_path"]).read_bytes()).hexdigest(), entry["source_sha256"])
+            self.assertEqual(hashlib.sha256((layer / path).read_bytes()).hexdigest(), entry["desired_sha256"])
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "project"
+            create_project(root)
+            data = copy_reconciler_data(base)
+            for path, entry in expected["paths"].items():
+                (root / path).write_bytes((SCRIPT_DATA_ROOT / entry["source_path"]).read_bytes())
+            result = run_reconciler(root, data_root=data)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for path in expected["paths"]:
+                self.assertEqual((root / path).read_bytes(), (layer / path).read_bytes())
+            before = snapshot(root)
+            result = run_reconciler(root, "--check", data_root=data)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(snapshot(root), before)
+        for path, entry in expected["paths"].items():
+            for fault in ("live_byte", "desired_byte", "desired_missing", "source_byte", "source_missing", "wrong_predecessor", "wrong_source_hash", "wrong_desired_hash", "extra_path", "manifest_missing", "manifest_json"):
+                with self.subTest(path=path, fault=fault), tempfile.TemporaryDirectory() as directory:
+                    base = Path(directory)
+                    root = base / "project"
+                    create_project(root)
+                    data = copy_reconciler_data(base)
+                    manifest_path = data / "overrides/CHG-090/8a5c4fb/manifest.json"
+                    if fault == "live_byte":
+                        target = root / path
+                    elif fault.startswith("desired_") and fault != "wrong_desired_hash":
+                        target = data / "overrides/CHG-090/8a5c4fb" / path
+                    elif fault.startswith("source_"):
+                        target = data / entry["source_path"]
+                    else:
+                        target = manifest_path
+                    if fault.endswith("_missing"):
+                        target.unlink()
+                    elif fault.endswith("_byte"):
+                        original = target.read_bytes()
+                        target.write_bytes(original[:-1] + bytes([original[-1] ^ 1]))
+                    elif fault == "manifest_json":
+                        target.write_bytes(b"{broken JSON\n")
+                    else:
+                        manifest = json.loads(target.read_text())
+                        if fault == "wrong_predecessor":
+                            manifest["paths"][path]["source_path"] = "overrides/CHG-001/825e882/" + path
+                        elif fault == "extra_path":
+                            manifest["paths"]["AGENTS.md"] = entry
+                        else:
+                            key = "source_sha256" if fault == "wrong_source_hash" else "desired_sha256"
+                            manifest["paths"][path][key] = "0" * 64
+                        target.write_text(json.dumps(manifest))
+                    before, data_before = snapshot(root), snapshot(data)
+                    result = run_reconciler(root, data_root=data)
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assertEqual(snapshot(root), before)
+                    self.assertEqual(snapshot(data), data_before)
+
     def test_chg085_manifest_binds_both_guides_and_rejects_unreviewed_bytes(self) -> None:
         manifest_path = CHG085_OVERRIDE_ROOT / "manifest.json"
         self.assertTrue(manifest_path.is_file(), "CHG-085 immutable layer is missing")
@@ -1308,7 +1389,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 + b" | source: CLAUDE.md | DO NOT EDIT \xe2\x80\x94 this file is auto-generated "
                 + b"from CLAUDE.md. Edit CLAUDE.md then run: python3 nous_agent_sync.py -->\n"
             )
-            self.assertEqual(expected_header, CHG065_MIRROR_HEADER)
+            self.assertEqual(expected_header, CURRENT_MIRROR_HEADER)
             for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
                 delivered = chg053_delivered_guide(mirror)
                 mirror_body, mirror_trailer = split_terminal_emitted_trailer(delivered)
@@ -1340,7 +1421,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             }
             for relative_path, trailer in trailers.items():
                 (root / relative_path).write_bytes(
-                    CHG065_MIRROR_HEADER + claude_body + trailer
+                    CURRENT_MIRROR_HEADER + claude_body + trailer
                 )
 
             self.assertEqual(len(set(trailers.values())), len(trailers))
@@ -1361,14 +1442,14 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             )
             mirror = root / "CODEX.md"
             trailer = b"<!-- nous-emitted: sha256=abcdef0123456789 -->\n"
-            mirror.write_bytes(CHG065_MIRROR_HEADER + b"drifted mirror body\n" + trailer)
+            mirror.write_bytes(CURRENT_MIRROR_HEADER + b"drifted mirror body\n" + trailer)
 
             result = run_reconciler(root)
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(
                 mirror.read_bytes(),
-                CHG065_MIRROR_HEADER + claude_body + trailer,
+                CURRENT_MIRROR_HEADER + claude_body + trailer,
             )
 
     def test_chg053_invalid_mirror_frames_fail_closed_without_writes(self) -> None:
@@ -1376,25 +1457,25 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             chg053_delivered_guide("CLAUDE.md")
         )
         valid_trailer = b"<!-- nous-emitted: sha256=abcdef0123456789 -->\n"
-        stale_header = CHG065_MIRROR_HEADER.replace(b"ca4a7c18b2c9", b"000000000000")
+        stale_header = CURRENT_MIRROR_HEADER.replace(b"f69c18865ba1", b"000000000000")
         malformed_header = b"<!-- agent-sync: malformed -->\n"
         cases = {
             "missing header": claude_body + valid_trailer,
             "duplicate header": (
-                CHG065_MIRROR_HEADER + CHG065_MIRROR_HEADER + claude_body + valid_trailer
+                CURRENT_MIRROR_HEADER + CURRENT_MIRROR_HEADER + claude_body + valid_trailer
             ),
             "stale header": stale_header + claude_body + valid_trailer,
-            "misplaced header": claude_body + CHG065_MIRROR_HEADER + valid_trailer,
+            "misplaced header": claude_body + CURRENT_MIRROR_HEADER + valid_trailer,
             "malformed header": malformed_header + claude_body + valid_trailer,
-            "missing trailer": CHG065_MIRROR_HEADER + claude_body,
+            "missing trailer": CURRENT_MIRROR_HEADER + claude_body,
             "duplicate trailer": (
-                CHG065_MIRROR_HEADER + claude_body + valid_trailer + valid_trailer
+                CURRENT_MIRROR_HEADER + claude_body + valid_trailer + valid_trailer
             ),
             "misplaced trailer": (
-                CHG065_MIRROR_HEADER + valid_trailer + claude_body
+                CURRENT_MIRROR_HEADER + valid_trailer + claude_body
             ),
             "malformed trailer": (
-                CHG065_MIRROR_HEADER
+                CURRENT_MIRROR_HEADER
                 + claude_body
                 + b"<!-- nous-emitted: sha256=not-hexadecimal -->\n"
             ),
@@ -1424,9 +1505,9 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 body_and_header, trailer = split_terminal_emitted_trailer(
                     (root / relative_path).read_bytes()
                 )
-                self.assertTrue(body_and_header.startswith(CHG065_MIRROR_HEADER))
+                self.assertTrue(body_and_header.startswith(CURRENT_MIRROR_HEADER))
                 (root / relative_path).write_bytes(
-                    body_and_header[len(CHG065_MIRROR_HEADER) :] + trailer
+                    body_and_header[len(CURRENT_MIRROR_HEADER) :] + trailer
                 )
             before = snapshot(root)
 
@@ -1503,7 +1584,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             }
             for relative_path, trailer in trailers.items():
                 (root / relative_path).write_bytes(
-                    CHG065_MIRROR_HEADER + claude_body + trailer
+                    CURRENT_MIRROR_HEADER + claude_body + trailer
                 )
             write(
                 root,
@@ -1525,14 +1606,14 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             mirror = root / "CODEX.md"
             trailer = b"<!-- nous-emitted: sha256=abcdef0123456789 -->\n"
             mirror.write_bytes(
-                CHG065_MIRROR_HEADER + b"drifted mirror body\n" + trailer
+                CURRENT_MIRROR_HEADER + b"drifted mirror body\n" + trailer
             )
 
             result = run_reconciler(root)
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(
-                mirror.read_bytes(), CHG065_MIRROR_HEADER + claude_body + trailer
+                mirror.read_bytes(), CURRENT_MIRROR_HEADER + claude_body + trailer
             )
 
     def test_invalid_mirror_trailers_fail_closed_without_writes(self) -> None:
@@ -1572,7 +1653,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             )
             for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
                 (root / mirror).write_bytes(
-                    CHG065_MIRROR_HEADER + desired_guide("CLAUDE.md") + trailer
+                    CURRENT_MIRROR_HEADER + desired_guide("CLAUDE.md") + trailer
                 )
 
             result = run_reconciler(root)
@@ -1584,7 +1665,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             for mirror in ("CODEX.md", ".cursorrules", ".github/copilot-instructions.md"):
                 self.assertEqual(
                     (root / mirror).read_bytes(),
-                    CHG065_MIRROR_HEADER + claude_body + trailer,
+                    CURRENT_MIRROR_HEADER + claude_body + trailer,
                     mirror,
                 )
 
@@ -1605,7 +1686,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             ):
                 self.assertEqual(
                     (root / mirror).read_bytes(),
-                    CHG065_MIRROR_HEADER + claude,
+                    CURRENT_MIRROR_HEADER + claude,
                     mirror,
                 )
 
@@ -1747,7 +1828,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 ".github/copilot-instructions.md",
             ):
                 self.assertEqual(
-                    (root / mirror).read_bytes(), CHG065_MIRROR_HEADER + claude
+                    (root / mirror).read_bytes(), CURRENT_MIRROR_HEADER + claude
                 )
 
     def test_desired_hash_is_noop_and_claude_drives_mirrors(self) -> None:
@@ -1771,7 +1852,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
                 ".github/copilot-instructions.md",
             ):
                 self.assertEqual(
-                    (root / mirror).read_bytes(), CHG065_MIRROR_HEADER + claude
+                    (root / mirror).read_bytes(), CURRENT_MIRROR_HEADER + claude
                 )
             package_map = (root / "docs/dev-guide/PACKAGE_MAP.md").read_text(
                 encoding="utf-8"
@@ -2117,7 +2198,7 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             mirror = root / "CODEX.md"
             _, trailer = split_terminal_emitted_trailer(mirror.read_bytes())
             mirror.write_bytes(
-                CHG065_MIRROR_HEADER + b"drifted mirror body\n" + trailer
+                CURRENT_MIRROR_HEADER + b"drifted mirror body\n" + trailer
             )
             before = snapshot(root)
 
@@ -2208,7 +2289,7 @@ class SyncIntegrationTests(unittest.TestCase):
                 ".github/copilot-instructions.md",
             ):
                 self.assertEqual(
-                    (root / mirror).read_bytes(), CHG065_MIRROR_HEADER + claude
+                    (root / mirror).read_bytes(), CURRENT_MIRROR_HEADER + claude
                 )
 
 
