@@ -1,0 +1,227 @@
+{
+  "schema_version": 1,
+  "project_id": "fcostudios__smp",
+  "subject_work_id": "US-089",
+  "purpose": "Preparation-only correction for deferred request ee54839b-cbd3-4253-9767-f623e2b9f6cb; do not submit until server resolution and authority prerequisites verified",
+  "created_at": "2026-10-13T16:12:42.595973+00:00",
+  "child_revision": "b1b48bc9613c8fb87709fb958d506123236a4cc4",
+  "integration_main_revision": "ae98f9fd4206a2e933355ec438cf9970ac3579bf",
+  "substrate_repository_revision": "87c62ceed23eb25c1d836653d0fe9ac8cb492b06",
+  "readiness_payload_sha256": "01b79d134682886f71bd55c0a99b815b3f6e49c9b453f789b1c7334ece52238a",
+  "facts": [
+    {
+      "role": "child owned assessment/request or canonical story copy",
+      "repository": "/Users/fcolomas/.codex/worktrees/us089-acceptance/smp",
+      "revision": "b1b48bc9613c8fb87709fb958d506123236a4cc4",
+      "locator": "docs/readiness/US-089.json",
+      "git_blob": "abb59370d4f81b25df4c2cd15ef0a42330cf3284",
+      "git_mode": "100644",
+      "sha256": "e5bd915826dbbf00ce608282be14c2de52e6e39a2c2e526ee0a227f1c8e0a286",
+      "bytes": 13489,
+      "server_resolution": "UNPROVEN: local immutable Git fact only; no canonical_snapshot/pin ID"
+    },
+    {
+      "role": "child owned assessment/request or canonical story copy",
+      "repository": "/Users/fcolomas/.codex/worktrees/us089-acceptance/smp",
+      "revision": "b1b48bc9613c8fb87709fb958d506123236a4cc4",
+      "locator": "docs/readiness/drafts/US-089-nous-request.md",
+      "git_blob": "52391acaefcfcc6eb46c1a53e908fe55dc4cb378",
+      "git_mode": "100644",
+      "sha256": "452e3a1d661aa436d290d22aec1f6f93b3c63e3b4d15e8555c5554b7c589467b",
+      "bytes": 4645,
+      "server_resolution": "UNPROVEN: local immutable Git fact only; no canonical_snapshot/pin ID"
+    },
+    {
+      "role": "child owned assessment/request or canonical story copy",
+      "repository": "/Users/fcolomas/.codex/worktrees/us089-acceptance/smp",
+      "revision": "b1b48bc9613c8fb87709fb958d506123236a4cc4",
+      "locator": "docs/stories/sprint-3/r1_misc_us_089.md",
+      "git_blob": "e16b50cdaa923ddc25220b31811eb0ab53c4bcb7",
+      "git_mode": "100644",
+      "sha256": "5d8ae4da4da123397c2821404dbd616d07a0cf8483ad73fb4cb8307cdf865a50",
+      "bytes": 3475,
+      "server_resolution": "UNPROVEN: local immutable Git fact only; no canonical_snapshot/pin ID"
+    },
+    {
+      "role": "current main policy/guidance; not relabeled child bytes",
+      "repository": "/Users/fcolomas/Projects/smp",
+      "revision": "ae98f9fd4206a2e933355ec438cf9970ac3579bf",
+      "locator": "docs/dev-guide/TESTING.md",
+      "git_blob": "e36e93535158477d33719ba4af6c62dbfbb26645",
+      "git_mode": "100644",
+      "sha256": "db3923afa3c6342621dfe6b9f96c64abb72fd83762f58dfa09965b56bbacf72b",
+      "bytes": 12650,
+      "server_resolution": "UNPROVEN: local immutable Git fact only; no canonical_snapshot/pin ID"
+    },
+    {
+      "role": "current main policy/guidance; not relabeled child bytes",
+      "repository": "/Users/fcolomas/Projects/smp",
+      "revision": "ae98f9fd4206a2e933355ec438cf9970ac3579bf",
+      "locator": "testing/critical-paths.md",
+      "git_blob": "b7b17fca49b087a195d71e0db16d039e3cbc9a6e",
+      "git_mode": "100644",
+      "sha256": "d2324d079cabb4c69caad11ca5b6d3bd4aa9527e5a6021e735e3b4810595b817",
+      "bytes": 5556,
+      "server_resolution": "UNPROVEN: local immutable Git fact only; no canonical_snapshot/pin ID"
+    },
+    {
+      "role": "current main policy/guidance; not relabeled child bytes",
+      "repository": "/Users/fcolomas/Projects/smp",
+      "revision": "ae98f9fd4206a2e933355ec438cf9970ac3579bf",
+      "locator": "AGENTS.md",
+      "git_blob": "e4318e71c54a4e61422302e718aec3e4384f6efd",
+      "git_mode": "100644",
+      "sha256": "a6c55831abc0d02624de46127c5cd23f1b2e3ac90557f944ece7c10601c9f8bd",
+      "bytes": 8570,
+      "server_resolution": "UNPROVEN: local immutable Git fact only; no canonical_snapshot/pin ID"
+    },
+    {
+      "role": "current main policy/guidance; not relabeled child bytes",
+      "repository": "/Users/fcolomas/Projects/smp",
+      "revision": "ae98f9fd4206a2e933355ec438cf9970ac3579bf",
+      "locator": "docs/dev-guide/WORK_READINESS.md",
+      "git_blob": "660f164c4d2856e86e7d8b3cf39bb92c9a5f2bac",
+      "git_mode": "100644",
+      "sha256": "1cc31704d386e9558993ae9ab54741e0642d8c75ea0ff1f0e2d1fb6e15d1e537",
+      "bytes": 44551,
+      "server_resolution": "UNPROVEN: local immutable Git fact only; no canonical_snapshot/pin ID"
+    },
+    {
+      "role": "substrate file facts; server snapshot IDs unproven",
+      "repository": "/Users/fcolomas/Projects/nous",
+      "revision": "87c62ceed23eb25c1d836653d0fe9ac8cb492b06",
+      "locator": "Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_089.md",
+      "git_blob": "e16b50cdaa923ddc25220b31811eb0ab53c4bcb7",
+      "git_mode": "100644",
+      "sha256": "5d8ae4da4da123397c2821404dbd616d07a0cf8483ad73fb4cb8307cdf865a50",
+      "bytes": 3475,
+      "server_resolution": "UNPROVEN: local immutable Git fact only; no canonical_snapshot/pin ID"
+    },
+    {
+      "role": "substrate file facts; server snapshot IDs unproven",
+      "repository": "/Users/fcolomas/Projects/nous",
+      "revision": "87c62ceed23eb25c1d836653d0fe9ac8cb492b06",
+      "locator": "Nous/WorkControl/fcostudios/smp/DECISION_MATRIX.md",
+      "git_blob": "73a8fac9f99ea6b36c8f67d9f5c86b703d938526",
+      "git_mode": "100644",
+      "sha256": "3744450f3e1af448ebf6e8b466e4a36b3c1c85a56ac54a444fa8c526a8bf13dc",
+      "bytes": 42712,
+      "server_resolution": "UNPROVEN: local immutable Git fact only; no canonical_snapshot/pin ID"
+    },
+    {
+      "role": "inherited US089 exact custody; NOT materialized",
+      "repository": "/Users/fcolomas/.codex/worktrees/us089-acceptance/smp",
+      "revision": "6191fe834f940317cec7ecfa81eb43398815627d",
+      "locator": "packages/db/src/member-observations.ts",
+      "git_blob": "540e7e4db9a43db3761a0c6115e2699b509a37b3",
+      "git_mode": "100644",
+      "sha256": "6246d8f5f7171b76ca8442f0265e9103379be4874bd594f3f503fc282500cf0d",
+      "bytes": 12761,
+      "server_resolution": "UNPROVEN: local immutable Git fact only; no canonical_snapshot/pin ID"
+    },
+    {
+      "role": "inherited US089 exact custody; NOT materialized",
+      "repository": "/Users/fcolomas/.codex/worktrees/us089-acceptance/smp",
+      "revision": "6191fe834f940317cec7ecfa81eb43398815627d",
+      "locator": "packages/db/src/member-observations.integration.test.ts",
+      "git_blob": "208033352507f4e97aa72b0f3cf6a17c3cebd03f",
+      "git_mode": "100644",
+      "sha256": "863711e4302b778d2ceca695887e83336bbf361317c0026ef3ea93f593b23f40",
+      "bytes": 26880,
+      "server_resolution": "UNPROVEN: local immutable Git fact only; no canonical_snapshot/pin ID"
+    },
+    {
+      "role": "inherited US089 exact custody; NOT materialized",
+      "repository": "/Users/fcolomas/.codex/worktrees/us089-acceptance/smp",
+      "revision": "6191fe834f940317cec7ecfa81eb43398815627d",
+      "locator": "packages/db/src/index.ts",
+      "git_blob": "89628359e441ef71c062606a67e8282141453b5f",
+      "git_mode": "100644",
+      "sha256": "52cff05f7fb41c9596c39e72a3c5300285a53c780cb86559c0674ca06ee32a7c",
+      "bytes": 1070,
+      "server_resolution": "UNPROVEN: local immutable Git fact only; no canonical_snapshot/pin ID"
+    },
+    {
+      "role": "inherited US089 exact custody; NOT materialized",
+      "repository": "/Users/fcolomas/.codex/worktrees/us089-acceptance/smp",
+      "revision": "6191fe834f940317cec7ecfa81eb43398815627d",
+      "locator": "packages/db/src/index.test.ts",
+      "git_blob": "3c5c7d886dfe8b4b77e58221392887a9609ca622",
+      "git_mode": "100644",
+      "sha256": "e6d36a5e60afdcdf5779adea3108d6109805853344f25e35b26004005d77b541",
+      "bytes": 753,
+      "server_resolution": "UNPROVEN: local immutable Git fact only; no canonical_snapshot/pin ID"
+    }
+  ],
+  "root_marker_file_facts": [
+    {
+      "absolute_path": "/Users/fcolomas/Projects/smp/.nous-request-root.json",
+      "sha256": "cfbb57c2a72e72d005528410e6e921e6ed4f53895727a2feccd4d8c016e41e15",
+      "bytes": 99,
+      "filesystem_mode": "0o644",
+      "contents": {
+        "schema_version": 1,
+        "project_id": "fcostudios__smp",
+        "sources": [
+          "tenant_file"
+        ]
+      },
+      "tracked_git_blob": null,
+      "server_registration": "UNPROVEN; marker presence does not prove package_roots/source_roots registration"
+    },
+    {
+      "absolute_path": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/.nous-request-root.json",
+      "sha256": "12ccaefbbb6f51bc0087a0deb0301270f16288c08d1753d9e791dd77f5fad8ab",
+      "bytes": 102,
+      "filesystem_mode": "0o644",
+      "contents": {
+        "schema_version": 1,
+        "project_id": "fcostudios__smp",
+        "sources": [
+          "substrate_spec"
+        ]
+      },
+      "tracked_git_blob": null,
+      "server_registration": "UNPROVEN; marker presence does not prove package_roots/source_roots registration"
+    }
+  ],
+  "preserve_operator_additions": {
+    "source_revision": "ae98f9fd4206a2e933355ec438cf9970ac3579bf",
+    "locator": "testing/critical-paths.md",
+    "section_sha256": "c7f1c218f2c019a6f5df672f21752f1101a4e1cddf1aceece217f130b4617920",
+    "rows_in_order": [
+      "- **Invitation hygiene (US-067, US-068, US-069; DEC-SMP-023)** — overdue age derives from the durable invitation sent_at, with strict configured boundaries, company-scoped current eligibility and one alert per open breach. Withdrawal targets the pinned invitation only, refuses acceptance races and releases capacity only after confirmed removal; automatic expiry reuses that contract and records its system action.",
+      "- **Daily person activity (US-070; DEC-SMP-024, DEC-SMP-025)** — identity matching is company-scoped; natural-key writes are idempotent, ignore stale or equal-equivalent observations and reject equal-time contradictions; source/API activity ingestion requires explicit opt-in; replay accepts only allowlisted activity events; unmatched or null-email identities produce durable warnings; ambiguous identities reject the batch atomically.",
+      "- **Exact revisable person costs (US-071; DEC-SMP-024, DEC-SMP-025)** — signed USD amounts use exact decimal strings and integer arithmetic; nonrepresentable precision and overflow reject before writes. The injected UTC completed-date window [D-30,D) guards every source. Company-scoped identities, account/person/day freshness, opt-in locks and atomic warning audits preserve isolation and replay; null/unmatched identities warn and conflicting equal-time payloads reject.",
+      "- **Capacity refresh watermark (US-081, US-085; DEC-SMP-031, DEC-SMP-041)** — freed seats never become free capacity optimistically: only `recordAcceptedMemberSnapshot` writes `VendorAccount.members_refreshed_at`/`members_refresh_source`, and only for a validated-complete account-wide member observation (partial/failed/stale observations, provider removal success, invitation polling and single manual entries never stamp it); the `pool-snapshots` projection counts a closed assignment as freed only when the watermark is strictly later than the closure instant (the anchoring `offboarding → deprovisioned` transition `occurred_at`, else `ended_on` end-of-day America/Guayaquil), a null watermark frees nothing, and every other closure reports `pending_refresh`; `seat_freed` recovery and purchased quantities are untouched; every pool surface reads this one projection. Oracle: property-based over generated closure/observation histories with an injected clock, plus real-DB grant/apply verification."
+    ],
+    "contract": "Preserve exact bytes and order of all existing rows; append only the minimal requested row through canonical config and regenerate BOTH guides. Re-read live config before patch; local rows do not prove current server config."
+  },
+  "proposed_minimal_critical_row": "**Atomic member observation acceptance (US-089; DEC-SMP-044)** — complete account-wide observations are serialized by the account advisory lock: older observations are stale, equal-time identical canonical content is a no-op, equal-time contradictory content conflicts, and newer observations (including empty snapshots) are accepted. Exact audit receipts and the typed member_observation_accepted event share one transaction with ordered consumers; a later consumer failure rolls back the ledger, audits and earlier effects. Oracle: deterministic shared-PostgreSQL replay/empty/concurrent-lock and exact audit/event/rollback-retry assertions in packages/db/src/member-observations.integration.test.ts, plus exact package export proof in packages/db/src/index.test.ts.",
+  "canonical_decisions_file_lines": [
+    52,
+    53,
+    54
+  ],
+  "known_failure_receipts": {
+    "request_id": "ee54839b-cbd3-4253-9767-f623e2b9f6cb",
+    "status": "resolved/deferred, not assessed",
+    "unresolved_prior_context_count": 6,
+    "request_knowledge_search": "Exposed IMP443/444; root reported four US089/DEC043/044/045 calls rejected codecapability; source requires read_project. No candidates, canonical_snapshot or pin IDs proven.",
+    "live_config_read": "Root reported host Python3.9 incompatible; bundled3.13 lacks psycopg. No dependency install, alternate credential or local bypass authorized."
+  },
+  "remaining_remedy": {
+    "credential": "Operator grants the existing credential correct project-scoped read_project capability; then rerun ordinary knowledge search and snapshot/pin resolution. Do not change credentials here.",
+    "workspace": "Operator confirms/registers the existing package_roots key and applicable source_roots/marker mapping for the isolated child, OR supplies registered main authority references plus full attached child request/assessment body and exact hashes. Never claim child b1b48bc bytes belong to main.",
+    "generation_authority": "Named canonical CHG/domain authority and explicit human approval remain pending. Do not invent IDs. Canonical config append/regenerate both guides must use established exact ownership/pin/provenance route; return canonical substrate revision and full affected path inventory.",
+    "context_preflight": "Resolve every submitted source/locator/revision/hash against server registered roots and canonical snapshots before request_submit. No fabricated workspace_ref or candidate/pin IDs.",
+    "resume": "Manual only; consume canonical delivery, check both guides IMP434, reconcile custody/path inventory and reforecast readiness before concrete digest binding. No implementation/design/rebase/shared main changes authorized by preparation."
+  },
+  "cost_note": {
+    "current_declared_forecast_minutes": 293,
+    "historical_share_minutes": 124,
+    "declared_remaining_minutes": 169,
+    "new_preparation_minutes_estimate": "10–15 estimated active correction-packet effort, not transcript measured; distinguish from existing readiness work at final reassessment. If wholly incremental, indicative forecast303–308, not an approved budget or waiver. Do not silently change pending payload or stretch320 ceiling.",
+    "implementation_started": false
+  }
+}
