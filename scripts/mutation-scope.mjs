@@ -35,7 +35,7 @@ import {
   startShard,
   writePerformanceRecord,
 } from "./mutation-evidence/performance.mjs";
-import { loadApprovedOwnedScope, loadPlannedOwnedScope, resolveOwnedMutationScope } from "./mutation-evidence/owned-scope.mjs";
+import { assertOwnedExecutionUnchanged, loadApprovedOwnedScope, loadPlannedOwnedScope, resolveOwnedMutationScope } from "./mutation-evidence/owned-scope.mjs";
 import { validatePoolProjectionEvidence } from "./verify-pool-snapshot-projection.mjs";
 
 const BASE_CONFIG = "stryker.conf.json";
@@ -70,6 +70,11 @@ const MUTATION_RUNNER_STATIC_INPUTS = [
   "scripts/mutation-evidence/fingerprint.mjs",
   "scripts/mutation-evidence/cache.mjs",
   "scripts/mutation-evidence/performance.mjs",
+];
+const OWNED_SCOPE_STATIC_INPUTS = [
+  "scripts/mutation-evidence/owned-scope.mjs", "scripts/work-readiness/model.mjs", "scripts/work-readiness/git.mjs",
+  "scripts/work-readiness/delivery-policy.mjs", "docs/dev-guide/work-readiness.schema.json", "docs/dev-guide/feedback-vocabulary.json",
+  ".nous-feedback.jsonl",
 ];
 const POOL_PROJECTION_STATIC_INPUTS = [
   "scripts/verify-pool-snapshot-projection.mjs",
@@ -2290,7 +2295,7 @@ export async function runMutationScope(options = {}) {
     writeFileSync(shard.configPath, shard.configText, "utf8");
   }
   const manifestFor = () => ({
-    provenance: { base: resolvedBase, baseRef, head, worktreeHash },
+    provenance: { base: resolvedBase, baseRef, head, worktreeHash, ...(ownedMode ? { ownedScope: ownedResolution.ownedScope } : {}) },
     shards: shards.map(({ config, configText, ...shard }) => shard),
     toolVersions,
   });
@@ -2313,12 +2318,14 @@ export async function runMutationScope(options = {}) {
       sanitizedRuntimeProfile(await resolveRuntimeProfile(shard), isDatabaseBacked(shard));
     }
     const expected = ownedMode ? ownedAuthority.expectedMutationShards : expectedMutationShards(environment, options.expectedMutationShards);
+    if (ownedMode) assertOwnedExecutionUnchanged(ownedResolution.executionInputs, mutatable);
     const preflight = {
       expected_mutation_shards: expected,
       mismatch: expected !== null && expected !== mutationShardsActual,
       mutation_shards_actual: mutationShardsActual,
       shards: shards.map(({ id }) => id),
       ...(routingGaps.length > 0 ? { routing_gaps: routingGaps } : {}),
+      ...(ownedMode ? { ownedScope: ownedResolution.ownedScope } : {}),
     };
     console.log(JSON.stringify(preflight));
     return { authoritative: false, manifest: manifestFor(), performance: null, preflight };
@@ -2334,6 +2341,7 @@ export async function runMutationScope(options = {}) {
       head,
       base: resolvedBase,
       baseRef,
+      ...(ownedMode ? { ownedScope: ownedResolution.ownedScope } : {}),
     },
     cacheMode,
     machine: options.machine ?? {
@@ -2375,6 +2383,7 @@ export async function runMutationScope(options = {}) {
   persist();
   try {
   options.beforeEvidence?.();
+  if (ownedMode) assertOwnedExecutionUnchanged(ownedResolution.executionInputs, mutatable);
   if (signalShutdownPromise) {
     await signalShutdownPromise;
     return { authoritative, manifest: manifestFor(), performance: performanceRun, preflight: null };
@@ -2419,12 +2428,13 @@ export async function runMutationScope(options = {}) {
       .filter((file) => existsSync(file));
     const entryFiles = [...shard.sources, ...shard.testFiles, ...commandFiles]
       .filter((file) => existsSync(file));
-    const executionInputs = collectExecutionInputs({
+    const executionInputOptions = {
       root: process.cwd(),
       entryFiles,
       configurationFiles,
       staticFiles: [
         ...MUTATION_RUNNER_STATIC_INPUTS,
+        ...(ownedMode ? [...OWNED_SCOPE_STATIC_INPUTS, `docs/readiness/${ownedAuthority.governingWorkId}.json`, `docs/readiness/${ownedAuthority.scope.subject_work_id}.json`] : []),
         ...(shard.sources.includes(POOL_PROJECTION_SOURCE)
           ? POOL_PROJECTION_STATIC_INPUTS : []),
       ].filter((file) => existsSync(file)),
@@ -2433,7 +2443,8 @@ export async function runMutationScope(options = {}) {
       toolVersions,
       runtimeProfile,
       environment: controlledChildEnvironment({ ...process.env, ...environment }, runtimeProfile),
-    });
+    };
+    const executionInputs = collectExecutionInputs(executionInputOptions);
     shard.dependencyHashes = executionInputs.hashes;
     if (!executionInputs.reusable && shard.cacheDecision !== "rejected") {
       shard.cacheDecision = "rejected";
@@ -2449,8 +2460,9 @@ export async function runMutationScope(options = {}) {
       toolVersions,
       runtimeProfile,
       commandList,
+      ...(ownedMode ? { governingDigest: ownedAuthority.governingDigest, scopeDigest: ownedResolution.ownedScope.scopeDigest } : {}),
     });
-    executionContexts.set(shard.id, { commandList, executionInputs, runtimeProfile });
+    executionContexts.set(shard.id, { commandList, executionInputs, executionInputOptions, runtimeProfile });
   }
   performanceRun.provenance.campaignKey = sha256(
     shards.map((shard) => shard.evidenceKey).sort().join("\n"),
@@ -2745,6 +2757,19 @@ export async function runMutationScope(options = {}) {
         new Error(`mutation campaign failed in ${failures.length} shard stage(s):\n${summary}`),
         { failures, status: failures.find((failure) => failure.status !== 1)?.status ?? 1 },
       );
+    }
+    if (ownedMode) {
+      assertOwnedExecutionUnchanged(ownedResolution.executionInputs, mutatable);
+      // Rebuild both dependency bytes and live runtime profiles after the last
+      // child finishes, before any authoritative passed outcome is published.
+      const finalRuntimeProfile = createCampaignRuntimeProfileResolver(runtimeProfileProvider, environment);
+      for (const shard of shards) {
+        const initial = executionContexts.get(shard.id);
+        const currentProfile = sanitizedRuntimeProfile(await finalRuntimeProfile(shard), isDatabaseBacked(shard));
+        const currentInputs = collectExecutionInputs({ ...initial.executionInputOptions, runtimeProfile: currentProfile,
+          environment: controlledChildEnvironment({ ...process.env, ...environment }, currentProfile) });
+        if (canonicalJson(currentInputs.hashes) !== canonicalJson(initial.executionInputs.hashes)) throw new Error("owned execution dependency or runtime identity changed during the campaign");
+      }
     }
     finishPerformanceRun(performanceRun, "passed");
     persist();

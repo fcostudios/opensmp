@@ -136,7 +136,9 @@ export function resolveOwnedMutationScope({ root, authority, executionHead }, pa
   const scopeDigest = sha256(canonicalJson({ version: 1, base: scope.scope_base, head: scope.scope_head, sources }));
   const ownedScope = { version: 1, governingWorkId: authority.governingWorkId, governingDigest: authority.governingDigest,
     subjectWorkId: scope.subject_work_id, subjectDigest: authority.subjectDigest, scopeBase: scope.scope_base, scopeHead: scope.scope_head, sources, scopeDigest };
-  return { changedPaths: paths, targets, hunks, ownedScope, executionInputs };
+  return { changedPaths: paths, targets, hunks, ownedScope, executionInputs: { ...executionInputs,
+    governingWorkId: authority.governingWorkId, subjectWorkId: scope.subject_work_id,
+    governingDigest: authority.governingDigest, subjectDigest: authority.subjectDigest } };
 }
 
 export function loadPlannedOwnedScope({ root, governingWorkId }) {
@@ -148,4 +150,46 @@ export function loadPlannedOwnedScope({ root, governingWorkId }) {
   const scope = validateOwnedScopeShape(artifact.mutation_scope);
   if (artifact.work_id !== governingWorkId || artifact.kind !== "CHG" || artifact.work_type !== "technical" || scope.subject_work_id === governingWorkId) reject("$.mutation_scope", "Planning requires a technical governing CHG");
   return { scope, governingWorkId, governingDigest: artifact.readiness_payload_sha256, subjectDigest: scope.subject_readiness_sha256, expectedMutationShards: artifact.signals?.expected_mutation_shards };
+}
+
+function closedProvenanceObject(value, keys, path) {
+  if (!value || typeof value !== "object" || Array.isArray(value)
+    || ![Object.prototype, null].includes(Object.getPrototypeOf(value))
+    || Object.getOwnPropertySymbols(value).length
+    || Object.keys(value).sort().join("\0") !== [...keys].sort().join("\0")) reject(path, "Owned provenance requires the exact closed object shape");
+}
+
+export function validateOwnedScopeProvenance(value) {
+  closedProvenanceObject(value, ["version", "governingWorkId", "governingDigest", "subjectWorkId", "subjectDigest", "scopeBase", "scopeHead", "sources", "scopeDigest"], "$.ownedScope");
+  if (typeof value.governingWorkId !== "string" || !/^CHG-[0-9]{3,}$/u.test(value.governingWorkId)
+    || value.governingWorkId === value.subjectWorkId) reject("$.ownedScope.governingWorkId", "Owned provenance requires a distinct governing CHG");
+  for (const key of ["governingDigest", "subjectDigest", "scopeDigest"]) {
+    if (typeof value[key] !== "string" || !/^[0-9a-f]{64}$/u.test(value[key])) reject(`$.ownedScope.${key}`, "Owned provenance requires lowercase SHA-256");
+  }
+  if (!Array.isArray(value.sources)) reject("$.ownedScope.sources", "Owned provenance sources must be an array");
+  validateOwnedScopeShape({ version: value.version, subject_work_id: value.subjectWorkId, subject_readiness_sha256: value.subjectDigest,
+    scope_base: value.scopeBase, scope_head: value.scopeHead, sources: value.sources.map(source => {
+      closedProvenanceObject(source, ["path", "headBlob", "ranges"], "$.ownedScope.sources");
+      if (!Array.isArray(source.ranges) || !source.ranges.length) reject("$.ownedScope.sources.ranges", "Every source must retain nonempty ranges");
+      let previous = null;
+      for (const range of source.ranges) {
+        closedProvenanceObject(range, ["start", "end"], "$.ownedScope.sources.ranges");
+        if (!Number.isSafeInteger(range.start) || !Number.isSafeInteger(range.end) || range.start < 1 || range.end < range.start
+          || previous && (range.start < previous.start || range.start === previous.start && range.end <= previous.end)) reject("$.ownedScope.sources.ranges", "Ranges must be positive safe integers, sorted and unique");
+        previous = range;
+      }
+      return { path: source.path, head_blob: source.headBlob };
+    }) });
+  const computed = sha256(canonicalJson({ version: value.version, base: value.scopeBase, head: value.scopeHead, sources: value.sources }));
+  if (computed !== value.scopeDigest) reject("$.ownedScope.scopeDigest", "Owned provenance digest does not match complete source ranges");
+  return value;
+}
+
+export function assertOwnedExecutionUnchanged(snapshot, mutatable = paths => paths.filter(path => /\.[cm]?[jt]sx?$/u.test(path) && !/\.(?:test|spec)\./u.test(path))) {
+  const current = snapshotOwnedExecution(snapshot.root, snapshot.executionHead, mutatable);
+  if (canonicalJson(current.hashes) !== canonicalJson(snapshot.hashes)) reject("$.executionInputs", "Owned execution input identity changed during the run");
+  if (snapshot.governingWorkId) {
+    const authority = loadApprovedOwnedScope({ root: snapshot.root, governingWorkId: snapshot.governingWorkId, subjectWorkId: snapshot.subjectWorkId, executionHead: snapshot.executionHead });
+    if (authority.governingDigest !== snapshot.governingDigest || authority.subjectDigest !== snapshot.subjectDigest) reject("$.executionInputs", "Owned execution approval identity changed during the run");
+  }
 }

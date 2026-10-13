@@ -1,3 +1,4 @@
+import { validateOwnedScopeProvenance } from "./owned-scope.mjs";
 import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import os from "node:os";
@@ -95,11 +96,16 @@ function normalizeMachine(machine = {}) {
 function normalizeProvenance(provenance) {
   try {
     if (!provenance || typeof provenance !== "object" || Array.isArray(provenance)) throw new TypeError();
+    if (Object.hasOwn(provenance, "ownedScope")) {
+      const scope = validateOwnedScopeProvenance(provenance.ownedScope);
+      if (provenance.base !== scope.scopeBase || provenance.baseRef !== scope.scopeBase) throw new TypeError();
+    }
     return {
       campaignKey: requiredString(provenance.campaignKey, "provenance.campaignKey"),
       head: requiredString(provenance.head, "provenance.head"),
       base: requiredString(provenance.base, "provenance.base"),
       baseRef: requiredString(provenance.baseRef, "provenance.baseRef"),
+      ...(Object.hasOwn(provenance, "ownedScope") ? { ownedScope: structuredClone(validateOwnedScopeProvenance(provenance.ownedScope)) } : {}),
     };
   } catch {
     throw new TypeError(INVALID_PROVENANCE);

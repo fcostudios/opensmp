@@ -29,6 +29,8 @@ import {
   writePerformanceRecord,
 } from "./mutation-evidence/performance.mjs";
 
+import * as ownedScopeContract from "./mutation-evidence/owned-scope.mjs";
+
 assert.equal(EVIDENCE_SCHEMA_VERSION, 1);
 assert.equal(
   canonicalJson({ z: 1, a: { y: 2, b: 3 }, list: [{ z: true, a: null }] }),
@@ -1768,6 +1770,27 @@ const provenance = {
   base: "base-commit",
   baseRef: "main",
 };
+const ownedSources = [{ path: "packages/domain/src/owned.ts", headBlob: "a".repeat(40), ranges: [{ start: 2, end: 3 }, { start: 8, end: 8 }] }];
+const ownedProvenance = { version: 1, governingWorkId: "CHG-900", governingDigest: "b".repeat(64), subjectWorkId: "US-900", subjectDigest: "c".repeat(64),
+  scopeBase: "d".repeat(40), scopeHead: "e".repeat(40), sources: ownedSources,
+  scopeDigest: sha256(canonicalJson({ version: 1, base: "d".repeat(40), head: "e".repeat(40), sources: ownedSources })) };
+assert.equal(typeof ownedScopeContract.validateOwnedScopeProvenance, "function");
+assert.deepEqual(ownedScopeContract.validateOwnedScopeProvenance(ownedProvenance), ownedProvenance);
+for (const mutate of [value => { value.extra = true; }, value => { value.sources[0].ranges.pop(); }, value => { value.sources[0].ranges[0].start = 0; }, value => { value.sources[0].ranges[0].end = 1; }, value => { value.sources[0].ranges[0].extra = 1; }, value => { value.sources[0].headBlob = "main"; }, value => { value.scopeDigest = "f".repeat(64); }, value => { value.governingWorkId = value.subjectWorkId; }, value => { value.sources[0].ranges.push({ start: 2, end: 3 }); }]) {
+  const invalid = structuredClone(ownedProvenance); mutate(invalid);
+  assert.throws(() => ownedScopeContract.validateOwnedScopeProvenance(invalid));
+  assert.throws(() => createPerformanceRun({ provenance: { ...provenance, base: ownedProvenance.scopeBase, baseRef: ownedProvenance.scopeBase, ownedScope: invalid }, cacheMode: "bypass", machine }));
+}
+const ownedPerformanceProvenance = { ...provenance, base: ownedProvenance.scopeBase, baseRef: ownedProvenance.scopeBase, ownedScope: ownedProvenance };
+const ownedRoundtripRun = createPerformanceRun({ provenance: ownedPerformanceProvenance, cacheMode: "bypass", machine,
+  now: sequenceClock(0, 5), wallNow: sequenceValue("2026-10-13T12:00:00.000Z", "2026-10-13T12:00:00.005Z"), createRunId: sequenceValue("owned-roundtrip", "owned-write") });
+assert.deepEqual(ownedRoundtripRun.provenance.ownedScope, ownedProvenance);
+finishPerformanceRun(ownedRoundtripRun, "passed");
+assert.equal(Object.hasOwn(createPerformanceRun({ provenance, cacheMode: "enabled", machine }).provenance, "ownedScope"), false);
+const governedIdentity = { ...base, scopeDigest: ownedProvenance.scopeDigest, governingDigest: ownedProvenance.governingDigest };
+for (const changed of [{ ...governedIdentity, toolVersions: { node: "26.0.0" } }, { ...governedIdentity, runtimeProfile: { ...base.runtimeProfile, schemaFingerprint: "changed-schema" } }, { ...governedIdentity, executionInputs: { ...base.executionInputs, "pnpm-lock.yaml": "changed-lock" } }, { ...governedIdentity, governingDigest: "f".repeat(64) }]) {
+  assert.notEqual(createEvidenceKey(governedIdentity), createEvidenceKey(changed), "historical scope cannot mask current runtime/governing identity changes");
+}
 for (const invalidProvenance of [
   { ...provenance, head: "" },
   { ...provenance, base: undefined },
@@ -1987,6 +2010,11 @@ assert.equal(warmRun.wallClockDurationMs, 60);
 
 const performanceFixture = await mkdtemp(path.join(tmpdir(), "ledger-mutation-performance-"));
 try {
+  const ownedRecord = JSON.parse(await readFile(writePerformanceRecord(performanceFixture, ownedRoundtripRun), "utf8"));
+  assert.deepEqual(ownedRecord.provenance.ownedScope, ownedProvenance);
+  assert.equal(renderBenchmarkSummary(ownedRecord, ownedRecord), renderBenchmarkSummary(structuredClone(ownedRecord), structuredClone(ownedRecord)));
+  const tamperedRecord = structuredClone(ownedRecord); tamperedRecord.provenance.ownedScope.sources[0].ranges.pop();
+  assert.throws(() => renderBenchmarkSummary(tamperedRecord, tamperedRecord), "standalone ingestion refuses inconsistent historical ranges without needing Git");
   const unfinishedRun = createPerformanceRun({
     provenance,
     cacheMode: "enabled",

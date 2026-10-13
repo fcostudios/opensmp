@@ -57,6 +57,7 @@ import mutationVitestConfig from "../vitest.mutation.config.mjs";
 import * as ownedScope from "./mutation-evidence/owned-scope.mjs";
 import * as scopeRunner from "./mutation-scope.mjs";
 import { computeReadinessPayloadSha256 } from "./work-readiness/model.mjs";
+import { collectExecutionInputs, createEvidenceKey } from "./mutation-evidence/fingerprint.mjs";
 
 function makeOwnedMutationFixture() {
   const root = mkdtempSync(join(tmpdir(), "smp-owned-mutation-scope-"));
@@ -72,6 +73,7 @@ function makeOwnedMutationFixture() {
     ["stryker.conf.json", JSON.stringify({ testFiles: [] })], ["vitest.mutation.config.mjs", "export default {};\n"],
     ["scripts/mutation-scope.mjs", "export {};\n"], ["scripts/mutation-evidence/fingerprint.mjs", "export {};\n"],
     ["scripts/mutation-evidence/cache.mjs", "export {};\n"], ["scripts/mutation-evidence/performance.mjs", "export {};\n"],
+    ["docs/dev-guide/work-readiness.schema.json", "{\"fixture\":1}\n"],
     ["packages/db/src/migrations/V20261013000000__fixture.sql", "-- runtime A\n"], [".gitignore", ".tmp/\nreports/\n"]
   ]) write(path, contents);
   git("add", "."); git("commit", "--quiet", "-m", "fixture A"); const base = git("rev-parse", "HEAD");
@@ -125,6 +127,45 @@ function makeOwnedMutationFixture() {
     assert.equal(preflight.preflight.mismatch, false);
     assert.deepEqual(preflight.manifest.shards[0].mutate, [`${fixture.source}:2-3`]);
     assert.equal(preflight.manifest.provenance.head, fixture.executionHead);
+    assert.deepEqual(preflight.preflight.ownedScope, resolved.ownedScope);
+    assert.deepEqual(preflight.manifest.provenance.ownedScope, resolved.ownedScope);
+    assert.equal(typeof ownedScope.assertOwnedExecutionUnchanged, "function");
+    ownedScope.assertOwnedExecutionUnchanged(resolved.executionInputs);
+    const identity = () => createEvidenceKey({ governingDigest: authority.governingDigest, scopeDigest: resolved.ownedScope.scopeDigest,
+      dependencyHashes: collectExecutionInputs({ root: fixture.root, entryFiles: [fixture.source, fixture.testFile], configurationFiles: ["stryker.conf.json"],
+        migrationRoots: ["packages/db/src/migrations"], staticFiles: ["docs/dev-guide/work-readiness.schema.json", ".nous-feedback.jsonl", "docs/readiness/CHG-900.json", "docs/readiness/US-900.json"],
+        toolVersions: { node: "fixture" }, runtimeProfile: runtime, environment: {} }).hashes });
+    const originalIdentity = identity();
+    fixture.write("docs/dev-guide/work-readiness.schema.json", "{\"fixture\":2}\n");
+    assert.notEqual(identity(), originalIdentity, "current readiness schema bytes bind execution identity");
+    fixture.git("restore", "--", "docs/dev-guide/work-readiness.schema.json");
+    fixture.write(".nous-feedback.jsonl", readFileSync(join(fixture.root, ".nous-feedback.jsonl"), "utf8") + "\n");
+    assert.notEqual(identity(), originalIdentity, "raw ledger bytes bind execution identity");
+    fixture.git("restore", "--", ".nous-feedback.jsonl");
+    fixture.write("packages/db/src/migrations/V20261013000000__fixture.sql", "-- runtime changed during run\n");
+    assert.notEqual(identity(), originalIdentity, "current real migration bytes change identity with equal owned scope");
+    assert.throws(() => ownedScope.assertOwnedExecutionUnchanged(resolved.executionInputs));
+    fixture.git("restore", "--", "packages/db/src/migrations/V20261013000000__fixture.sql");
+    fixture.governing.approval.status = "pending"; fixture.saveAuthority();
+    assert.throws(() => ownedScope.assertOwnedExecutionUnchanged(resolved.executionInputs), "authority drift also prevents final success");
+    fixture.governing.approval.status = "approved"; fixture.saveAuthority();
+    let childCalls = 0;
+    await assert.rejects(() => runMutationScope({ cwd: fixture.root, env: { MUTATION_SCOPE_WORK_ID: "CHG-900", MUTATION_WORK_ID: "US-900", MUTATION_CACHE: "off" },
+      installSignalHandlers: false, toolVersions: { node: "fixture" }, runtimeProfileProvider: () => runtime,
+      beforeEvidence: () => fixture.write("packages/db/src/migrations/V20261013000000__fixture.sql", "-- mid-run drift\n"),
+      executeShard: () => { childCalls += 1; throw new Error("child must not execute after drift"); } }));
+    assert.equal(childCalls, 0);
+    const failedFiles = readdirSync(join(fixture.root, "reports/mutation-performance"));
+    assert.equal(failedFiles.length, 1);
+    const failedRecord = JSON.parse(readFileSync(join(fixture.root, "reports/mutation-performance", failedFiles[0]), "utf8"));
+    assert.equal(failedRecord.outcome, "failed", "preserve drift failure evidence instead of publishing success");
+    assert.deepEqual(failedRecord.provenance.ownedScope, resolved.ownedScope);
+    assert.equal(failedRecord.cacheMode, "bypass");
+    fixture.git("restore", "--", "packages/db/src/migrations/V20261013000000__fixture.sql");
+
+    fixture.git("commit", "--quiet", "--allow-empty", "-m", "fixture commit-only identity drift");
+    assert.throws(() => ownedScope.assertOwnedExecutionUnchanged(resolved.executionInputs), "commit-only HEAD drift prevents final success");
+
     fixture.governing.approval.status = "pending"; fixture.saveAuthority(); fixture.git("add", "."); fixture.git("commit", "--quiet", "-m", "fixture pending plan");
     const pendingPlan = await scopeRunner.planOwnedMutationScope({ root: fixture.root, governingWorkId: "CHG-900" });
     assert.equal(pendingPlan.authoritative, false); assert.equal(pendingPlan.scopeDigest, planned.scopeDigest);
