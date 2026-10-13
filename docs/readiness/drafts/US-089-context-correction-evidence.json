@@ -221,7 +221,15 @@
     "current_declared_forecast_minutes": 293,
     "historical_share_minutes": 124,
     "declared_remaining_minutes": 169,
-    "new_preparation_minutes_estimate": "10–15 estimated active correction-packet effort, not transcript measured; distinguish from existing readiness work at final reassessment. If wholly incremental, indicative forecast303–308, not an approved budget or waiver. Do not silently change pending payload or stretch320 ceiling.",
+    "new_preparation_minutes_estimate": "15–20 estimated active packet preparation including the source-contract correction, not transcript measured; distinguish from existing readiness work at final reassessment. If wholly incremental, indicative forecast308–313, not an approved budget or waiver. Do not silently change pending payload or stretch320 ceiling.",
     "implementation_started": false
+  },
+  "draft_context_contract_correction": {
+    "supersedes_request_id": "ee54839b-cbd3-4253-9767-f623e2b9f6cb",
+    "substrate_story_locator": "stories/r1_misc_us_089.md",
+    "decision_matrix": "Full local file attachment/citation only; no source=decision file path ref",
+    "child_refs": "Removed from draft refs pending actual registered workspace_ref; full b1 attachments retained",
+    "provisional_ref_count": 5,
+    "server_preflight": "UNPROVEN"
   }
 }

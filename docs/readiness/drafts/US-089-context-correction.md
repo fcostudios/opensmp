@@ -28,8 +28,12 @@ See `US-089-context-correction-evidence.json` for exact SHA-256 hashes, Git blob
 
 ## Cost disclosure
 
-The pending assessment declares293 minutes: historical124 once plus remaining169. This correction-packet preparation adds an estimated10–15 active minutes if wholly incremental; an indicative303–308 forecast is unapproved and must be reconciled against actual preparation at reassessment. Historical split is not measured billing, no US-088 cost/waiver is borrowed, and no new readiness payload or ceiling is silently changed. Stop for Nous if the verified full forecast exceeds320 or another hard cohesion limit.
+The pending assessment declares293 minutes: historical124 once plus remaining169. This correction-packet preparation adds an estimated15–20 active minutes including source-contract correction if wholly incremental; an indicative308–313 forecast is unapproved and must be reconciled against actual preparation at reassessment. Historical split is not measured billing, no US-088 cost/waiver is borrowed, and no new readiness payload or ceiling is silently changed. Stop for Nous if the verified full forecast exceeds320 or another hard cohesion limit.
 
 ## Rules causing the dependency
 
 `AGENTS.md` requires a same-PR §3 update when changing a critical path. `TESTING.md` lines8–9 states “This file is generated — do not hand-edit”; its §3 requires the config/regeneration route. The prior direct local amendment is therefore unauthorized. No change to that rule is requested.
+
+## Source-contract correction before submission
+
+The draft now carries five **provisional, not server-validated** references: four current-main tenant policy/guide files and `substrate_spec` locator `stories/r1_misc_us_089.md`, relative to the registered v1 root. Child readiness/request/story refs are omitted until an operator supplies the real registered `workspace_ref`; the exact full child bodies and hashes remain labeled attachments. The decision matrix remains a full local file attachment and citation, never a `source=decision` file-path/hash reference; that source requires a canonical artifact ID/digest resolved through IMP-444. No such ID is known or fabricated. The request body explicitly supersedes `ee54839b-cbd3-4253-9767-f623e2b9f6cb`.
