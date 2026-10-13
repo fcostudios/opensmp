@@ -35,6 +35,7 @@ import {
   startShard,
   writePerformanceRecord,
 } from "./mutation-evidence/performance.mjs";
+import { loadApprovedOwnedScope, loadPlannedOwnedScope, resolveOwnedMutationScope } from "./mutation-evidence/owned-scope.mjs";
 import { validatePoolProjectionEvidence } from "./verify-pool-snapshot-projection.mjs";
 
 const BASE_CONFIG = "stryker.conf.json";
@@ -2017,6 +2018,32 @@ function rehydrateCachedReport(cachedPath, destination, shard) {
   writeFileSync(destination, `${JSON.stringify(report)}\n`, "utf8");
 }
 
+const ownedParserPorts = { mutationTargetsFromPatch, mutationHunksFromPatch, mutatable };
+
+function discoverOwnedScope(resolved) {
+  const discovered = discoverMutationShardSpecs(resolved.changedPaths,
+    sources => resolved.targets.filter(target => sources.includes(target.replace(/:\d+-\d+$/u, ""))),
+    { requireCompleteRoutes: true });
+  if (discovered.routingGaps.length) throw new Error(`owned mutation scope has routing gaps: ${discovered.routingGaps.join("; ")}`);
+  const routed = [...new Set(discovered.shardSpecs.flatMap(shard => shard.mutate))].sort();
+  if (canonicalJson(routed) !== canonicalJson(resolved.targets)) throw new Error("owned mutation scope discovery omitted approved ranges");
+  return discovered;
+}
+
+export function planOwnedMutationScope({ root, governingWorkId }) {
+  const previousCwd = process.cwd();
+  try {
+    process.chdir(root);
+    const executionHead = git(["rev-parse", "HEAD"]);
+    const authority = loadPlannedOwnedScope({ root: resolve("."), governingWorkId });
+    const resolved = resolveOwnedMutationScope({ root: resolve("."), authority, executionHead }, ownedParserPorts);
+    const discovered = discoverOwnedScope(resolved);
+    return { authoritative: false, expected_changed_files: resolved.changedPaths.length,
+      expected_mutation_shards: discovered.shardSpecs.length, scopeDigest: resolved.ownedScope.scopeDigest,
+      sources: resolved.ownedScope.sources, shards: discovered.shardSpecs.map(shard => ({ kind: shard.kind, sources: shard.sources, testFiles: shard.testFiles, mutate: shard.mutate })) };
+  } finally { process.chdir(previousCwd); }
+}
+
 export async function runMutationScope(options = {}) {
   const previousCwd = process.cwd();
   const previousEnvironment = {};
@@ -2071,7 +2098,7 @@ export async function runMutationScope(options = {}) {
   if (options.cwd) process.chdir(options.cwd);
   for (const key of [
     "MUTATION_BASE", "MUTATION_CACHE", "MUTATION_CACHE_DISABLE", "MUTATION_SCOPE_DRY",
-    "MUTATION_SHARD", "MUTATION_WORK_ID",
+    "MUTATION_SHARD", "MUTATION_WORK_ID", "MUTATION_SCOPE_WORK_ID",
   ]) {
     previousEnvironment[key] = process.env[key];
     if (environment[key] === undefined) delete process.env[key];
@@ -2082,22 +2109,35 @@ export async function runMutationScope(options = {}) {
   // branch may lag by many stories and would turn this cheap prerequisite pass
   // into a historical campaign, so preflight defaults to the current HEAD.
   // Authoritative campaigns still require their explicit authority base.
-  const baseRef = mode === "preflight" && !environment.MUTATION_BASE
-    ? "HEAD"
-    : resolveBase();
-  const resolvedBase = mergeBaseFor(baseRef);
+  const ownedMode = Object.hasOwn(environment, "MUTATION_SCOPE_WORK_ID");
+  let ownedResolution = null;
+  let ownedAuthority = null;
   const head = git(["rev-parse", "HEAD"]);
-  const changed = changedFiles(baseRef);
+  if (ownedMode) {
+    for (const key of ["MUTATION_BASE", "MUTATION_SHARD", "MUTATION_SCOPE_DRY"]) {
+      if (Object.hasOwn(environment, key)) throw new Error(`${key} conflicts with MUTATION_SCOPE_WORK_ID`);
+    }
+    if (options.shardSelector !== undefined) throw new Error("shard selection conflicts with owned mutation scope");
+    if (mode === "campaign" && environment.MUTATION_CACHE !== "off" && environment.MUTATION_CACHE_DISABLE !== "1") throw new Error("owned mutation scope campaigns require cache bypass");
+    ownedAuthority = loadApprovedOwnedScope({ root: resolve("."), governingWorkId: environment.MUTATION_SCOPE_WORK_ID, subjectWorkId: environment.MUTATION_WORK_ID, executionHead: head });
+    ownedResolution = resolveOwnedMutationScope({ root: resolve("."), authority: ownedAuthority, executionHead: head }, ownedParserPorts);
+  }
+  const baseRef = ownedMode ? ownedAuthority.scope.scope_base : mode === "preflight" && !environment.MUTATION_BASE ? "HEAD" : resolveBase();
+  const resolvedBase = ownedMode ? ownedAuthority.scope.scope_base : mergeBaseFor(baseRef);
+  const changed = ownedMode ? ownedResolution.changedPaths : changedFiles(baseRef);
   const changedSources = mutatable(changed);
-  const allHunks = mutationHunks(baseRef, changedSources);
+  const allHunks = ownedMode ? ownedResolution.hunks : mutationHunks(baseRef, changedSources);
   let discovered;
-  try {
-    discovered = discoverMutationShardSpecs(
-      changed,
-      (sources) => mutationTargets(baseRef, sources),
-    );
-  } catch (error) {
-    fail(error.message, "add a conventional adjacent test or an explicit accountable route");
+  if (ownedMode) {
+    discovered = discoverOwnedScope(ownedResolution);
+    if (options.expectedMutationShards !== undefined && options.expectedMutationShards !== ownedAuthority.expectedMutationShards) throw new Error("owned scope expected shard count cannot override governing readiness");
+    if (discovered.shardSpecs.length !== ownedAuthority.expectedMutationShards) throw new Error("owned mutation shard count differs from governing readiness");
+  } else {
+    try {
+      discovered = discoverMutationShardSpecs(changed, (sources) => mutationTargets(baseRef, sources));
+    } catch (error) {
+      fail(error.message, "add a conventional adjacent test or an explicit accountable route");
+    }
   }
   const { allMutate, routingGaps, schemaStaticMutate, shardSpecs } = discovered;
   for (const gap of routingGaps) console.error(`mutation-scope: routing gap — ${gap}`);
@@ -2112,7 +2152,7 @@ export async function runMutationScope(options = {}) {
 
   if (allMutate.length === 0) {
     console.log("mutation-scope: no mutatable files in diff — nothing to mutate");
-    const expected = expectedMutationShards(environment, options.expectedMutationShards);
+    const expected = ownedMode ? ownedAuthority.expectedMutationShards : expectedMutationShards(environment, options.expectedMutationShards);
     const preflight = mode === "preflight" ? {
       expected_mutation_shards: expected,
       mismatch: expected !== null && expected !== 0,
@@ -2272,7 +2312,7 @@ export async function runMutationScope(options = {}) {
     for (const shard of shards) {
       sanitizedRuntimeProfile(await resolveRuntimeProfile(shard), isDatabaseBacked(shard));
     }
-    const expected = expectedMutationShards(environment, options.expectedMutationShards);
+    const expected = ownedMode ? ownedAuthority.expectedMutationShards : expectedMutationShards(environment, options.expectedMutationShards);
     const preflight = {
       expected_mutation_shards: expected,
       mismatch: expected !== null && expected !== mutationShardsActual,
@@ -2735,6 +2775,14 @@ export async function runMutationScope(options = {}) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const args = process.argv.slice(2);
+    if (args[0] === "--planned-owned-scope") {
+      if (args.length !== 2 || !/^CHG-[0-9]{3,}$/u.test(args[1])) throw new Error("usage: mutation-scope --planned-owned-scope <CHG-ID>");
+      for (const key of ["MUTATION_BASE", "MUTATION_SHARD", "MUTATION_SCOPE_DRY", "MUTATION_SCOPE_WORK_ID", "MUTATION_WORK_ID"]) {
+        if (Object.hasOwn(process.env, key)) throw new Error(`${key} conflicts with --planned-owned-scope`);
+      }
+      console.log(JSON.stringify(planOwnedMutationScope({ root: resolve("."), governingWorkId: args[1] })));
+      process.exit(0);
+    }
     if (args[0] === "--planned-scope") {
       const paths = args.slice(1);
       if (paths.length === 0) {
@@ -2742,7 +2790,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       }
       const flag = paths.find((path) => path.startsWith("-"));
       if (flag) throw new Error(`planned scope does not allow flags after paths: ${flag}`);
-      for (const key of ["MUTATION_SHARD", "MUTATION_SCOPE_DRY"]) {
+      for (const key of ["MUTATION_SHARD", "MUTATION_SCOPE_DRY", "MUTATION_SCOPE_WORK_ID"]) {
         if (process.env[key]) throw new Error(`${key} conflicts with --planned-scope`);
       }
       console.log(JSON.stringify(calculatePlannedMutationScope(paths)));
