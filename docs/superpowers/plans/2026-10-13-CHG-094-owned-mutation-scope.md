@@ -45,7 +45,7 @@ Interfaces: validateOwnedScopeProvenance(value) recomputes closed digest/ranges 
 - [ ] Wire identical preflight/manifest/performance scope/ranges and actual current head. Do not strip unknown fields or synthesize approvals.
 - [ ] Run focused three Node suites; one real shared-DB capability smoke using fixture-owned observation source and exact grants/tenant oracles, actual runner/Stryker not an executor mock. Record failure costs and owned report provenance.
 - [ ] Fresh independent canonical AC1–4 review; all bounded fixes committed before final normal gates.
-- [ ] Own lock with awake UTC profile: full pnpm check; stock own diff preflight/final native command (honest zero TS eligible); no US087 campaign. Capture migration/schema/app-grant and cleanup. Reassess rather than repair outside scope.
+- [ ] Own lock with awake ordinary local profile (TZ=America/Guayaquil): full pnpm check; stock own diff preflight/final native command with TZ=UTC (honest zero TS eligible); no US087 campaign. Capture migration/schema/app-grant and cleanup. Reassess rather than repair outside scope.
 - [ ] Record actuals, test evidence and nonzero estimated/measured done.cost, preview rounds/minutes (no fabricated historical cost transfer); close094 with ordinary readiness/range/guidance guards. Integrate onlyFF or report actual advancement.
 - [ ] Return094 capability and readonly planning command to093 controller;093 artifacts remain unchanged until its separately authorized reassessment.
 
