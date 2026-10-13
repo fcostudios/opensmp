@@ -208,19 +208,48 @@ function validateActualsShape(value, path) {
   string(value.root_cause, `${path}.root_cause`, { nullable: true });
 }
 
+export function validateOwnedScopeShape(value) {
+  const path = "$.mutation_scope";
+  object(value, path, ["version", "subject_work_id", "subject_readiness_sha256", "scope_base", "scope_head", "sources"]);
+  if (value.version !== 1) fail("WR_INVALID_VALUE", `${path}.version`, "Owned scope version must be 1");
+  validateWorkId(value.subject_work_id, `${path}.subject_work_id`);
+  for (const [key, length] of [["subject_readiness_sha256", 64], ["scope_base", 40], ["scope_head", 40]]) {
+    if (typeof value[key] !== "string" || !new RegExp(`^[0-9a-f]{${length}}$`, "u").test(value[key])) fail("WR_INVALID_VALUE", `${path}.${key}`, "Owned scope requires a full lowercase digest");
+  }
+  array(value.sources, `${path}.sources`, { min: 1 });
+  let previous = null;
+  value.sources.forEach((source, index) => {
+    const sourcePath = `${path}.sources[${index}]`;
+    object(source, sourcePath, ["path", "head_blob"]);
+    if (typeof source.path !== "string" || source.path.length === 0 || /[\u0000-\u001f\u007f\ufffd\\:]/u.test(source.path)
+      || source.path.split("/").some(segment => segment === "" || segment === "." || segment === "..")) {
+      fail("WR_INVALID_VALUE", `${sourcePath}.path`, "Owned source must be a canonical repository-relative POSIX path");
+    }
+    if (previous !== null && previous >= source.path) fail("WR_INVALID_VALUE", `${sourcePath}.path`, "Owned sources must be sorted and unique");
+    previous = source.path;
+    if (typeof source.head_blob !== "string" || !/^[0-9a-f]{40}$/u.test(source.head_blob)) fail("WR_INVALID_VALUE", `${sourcePath}.head_blob`, "Owned source requires a full lowercase blob digest");
+  });
+  return value;
+}
+
 function validateShape(value) {
   // CHG-037 §3: `checkpoints` is OPTIONAL — dropped from new artifacts, tolerated
   // where history already recorded it. Listing it keeps `object()`'s closed-key
   // check from rejecting the artifacts that still carry it.
   object(value, "$",
     value.policy_bootstrap === true ? TOP_LEVEL_KEYS : [...TOP_LEVEL_KEYS, "controlling_change"],
-    { optional: ["checkpoints"] });
+    { optional: ["checkpoints", "mutation_scope"] });
   if (value.schema_version !== 1) fail("WR_UNSUPPORTED_SCHEMA_VERSION", "$.schema_version", "Only schema version 1 is supported");
   if (typeof value.readiness_payload_sha256 !== "string" || !/^[0-9a-f]{64}$/u.test(value.readiness_payload_sha256)) fail("WR_INVALID_SHA256", "$.readiness_payload_sha256", "Root digest must be lowercase SHA-256");
   validateWorkId(value.work_id, "$.work_id");
   oneOf(value.kind, ["US", "CHG"], "$.kind");
   if (!value.work_id.startsWith(`${value.kind}-`)) fail("WR_WORK_KIND_MISMATCH", "$.kind", "kind must match the work_id prefix");
   oneOf(value.work_type, ["functional", "technical", "mixed"], "$.work_type");
+  if (Object.hasOwn(value, "mutation_scope")) {
+    validateOwnedScopeShape(value.mutation_scope);
+    if (value.kind !== "CHG" || value.work_type !== "technical") fail("WR_INVALID_VALUE", "$.mutation_scope", "Only technical governing CHGs may carry an owned scope");
+    if (value.mutation_scope.subject_work_id === value.work_id) fail("WR_INVALID_VALUE", "$.mutation_scope.subject_work_id", "Owned scope subject must differ from governing work");
+  }
   string(value.title, "$.title");
   string(value.source, "$.source");
 

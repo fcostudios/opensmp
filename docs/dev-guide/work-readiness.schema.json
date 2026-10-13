@@ -29,6 +29,7 @@
     "bootstrap_authorization"
   ],
   "properties": {
+    "mutation_scope": { "$ref": "#/$defs/mutation_scope" },
     "schema_version": {
       "const": 1
     },
@@ -140,6 +141,10 @@
     }
   },
   "allOf": [
+    {
+      "if": { "required": ["mutation_scope"] },
+      "then": { "properties": { "kind": { "const": "CHG" }, "work_type": { "const": "technical" } } }
+    },
     {
       "if": {
         "properties": {
@@ -411,6 +416,61 @@
     }
   ],
   "$defs": {
+    "mutation_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "subject_work_id",
+        "subject_readiness_sha256",
+        "scope_base",
+        "scope_head",
+        "sources"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "subject_work_id": {
+          "$ref": "#/$defs/work_id"
+        },
+        "subject_readiness_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "scope_base": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "scope_head": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "head_blob"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))[^/\\u0000-\\u001f\\u007f\\ufffd\\\\:]+(?:/[^/\\u0000-\\u001f\\u007f\\ufffd\\\\:]+)*$"
+              },
+              "head_blob": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              }
+            }
+          }
+        }
+      }
+    },
     "controlling_change": {
       "type": "object",
       "additionalProperties": false,

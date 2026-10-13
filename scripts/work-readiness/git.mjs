@@ -260,6 +260,24 @@ function readRevisionBytes(root, revision, path, { required = true } = {}) {
 function parseFeedback(text) {
   return parseFeedbackRecords(text);
 }
+// Shared committed authority context: historical completed subjects retain their
+// ordinary completion validation; callers decide whether active authority is needed.
+export function loadCommittedReadinessAuthority({ root, revision, workId }) {
+  root = repositoryRoot(root);
+  if (typeof revision !== "string" || !/^[0-9a-f]{40}$/u.test(revision)) fail("WR_GIT_ERROR", "$.revision", "Authority revision must be a full commit ID");
+  if (typeof workId !== "string" || !/^(?:US|CHG)-[0-9]{3,}$/u.test(workId)) fail("WR_INVALID_VALUE", "$.workId", "Authority work ID must be official");
+  revision = resolveCommit(root, revision, "$.revision");
+  const path = `docs/readiness/${workId}.json`;
+  if (revisionMode(root, revision, path) !== "100644") fail("WR_READINESS_MISSING", path, "Authority artifact must be a committed regular file");
+  const bytes = readRevisionBytes(root, revision, path);
+  const artifact = parseJson(bytes.toString("utf8"), path);
+  if (artifact.work_id !== workId) fail("WR_READINESS_WORK_ID_MISMATCH", path, "Authority artifact has a different work ID");
+  const feedbackText = readRevisionFile(root, revision, ".nous-feedback.jsonl", { required: false });
+  const feedbackRecords = parseFeedback(feedbackText);
+  const assessment = validateAssessment(artifact, { feedbackRecords, approvedReadinessAuthorities: annotationAuthorities(root, revision), deliveryPolicy: readinessDeliveryPolicy({ artifact }) });
+  return { root, revision, artifact, assessment, bytes, feedbackText, feedbackRecords };
+}
+
 export function annotationAuthorities(root, revision) {
   const text = readRevisionFile(root, revision, "docs/readiness/CHG-089.json", { required: false });
   return text === null ? new Map() : new Map([["CHG-089", { artifact: parseJson(text, "docs/readiness/CHG-089.json") }]]);

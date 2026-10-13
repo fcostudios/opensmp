@@ -37,6 +37,9 @@ import {
 } from "./work-readiness/git.mjs";
 import { calibrateAssessment, createAssessmentFile, readCanonicalMessageFile } from "./work-readiness.mjs";
 import * as readinessCli from "./work-readiness.mjs";
+import * as readinessModel from "./work-readiness/model.mjs";
+let ownedScopeModule;
+try { ownedScopeModule = await import("./mutation-evidence/owned-scope.mjs"); } catch (error) { if (error.code !== "ERR_MODULE_NOT_FOUND") throw error; }
 
 
 const bootstrap = JSON.parse(
@@ -2209,6 +2212,103 @@ function makeGitRepo() {
   git(root, ["commit", "-m", "chore(CHG-900): initialize fixture"]);
   return { root, base: git(root, ["rev-parse", "HEAD"]) };
 }
+
+function ownedScopeFixture({ completedSubject = false } = {}) {
+  const { root, base } = makeGitRepo();
+  const source = "packages/domain/src/owned.ts";
+  writeRepoFile(root, source, "export const value = 1;\n");
+  git(root, ["add", "."]);
+  git(root, ["commit", "-m", "fixture source"]);
+  const head = git(root, ["rev-parse", "HEAD"]);
+  const subject = normal({ work_id: "US-900", approval: { status: "approved", approved_by: "user", evidence: "SUBJECT-READY" } });
+  const scope = { version: 1, subject_work_id: subject.work_id, subject_readiness_sha256: subject.readiness_payload_sha256,
+    scope_base: base, scope_head: head, sources: [{ path: source, head_blob: git(root, ["rev-parse", `${head}:${source}`]) }] };
+  const governing = normal({ work_id: "CHG-900", kind: "CHG", work_type: "technical", mutation_scope: scope,
+    approval: { status: "approved", approved_by: "user", evidence: "GOVERNING-READY" } });
+  const feedback = [decisionFor(subject), decisionFor(governing)];
+  if (completedSubject) {
+    subject.actuals = completed().actuals;
+    feedback.push({ story: subject.work_id, event: "started", agent: "fixture" },
+      { story: subject.work_id, event: "build_pass", notes: "Fixture gate" }, { story: subject.work_id, event: "done" });
+  }
+  const save = () => {
+    writeRepoFile(root, "docs/readiness/US-900.json", JSON.stringify(subject));
+    writeRepoFile(root, "docs/readiness/CHG-900.json", JSON.stringify(governing));
+    writeRepoFile(root, ".nous-feedback.jsonl", feedback.map(record => JSON.stringify(record)).join("\n") + "\n");
+  };
+  save();
+  git(root, ["add", "."]); git(root, ["commit", "-m", "fixture committed authority"]);
+  return { root, subject, governing, feedback, scope, save, executionHead: git(root, ["rev-parse", "HEAD"]) };
+}
+
+test("owned scope optional contract preserves legacy digest and binds complete shape", () => {
+  const legacy = normal();
+  assert.equal(computeReadinessPayloadSha256(legacy), "104f8e723c8b929a8ec6917420911fde327ad8e954d86302f49088f779647537");
+  assert.equal(Object.hasOwn(JSON.parse(canonicalReadinessPayload(legacy)), "mutation_scope"), false);
+  assert.equal(typeof readinessModel.validateOwnedScopeShape, "function");
+  const scope = { version: 1, subject_work_id: "US-900", subject_readiness_sha256: "a".repeat(64), scope_base: "b".repeat(40), scope_head: "c".repeat(40), sources: [{ path: "packages/domain/src/owned.ts", head_blob: "d".repeat(40) }] };
+  assert.deepEqual(readinessModel.validateOwnedScopeShape(scope), scope);
+  assert.deepEqual(Object.keys(readinessSchema.$defs.mutation_scope.properties).sort(), Object.keys(scope).sort());
+  assert.deepEqual(Object.keys(readinessSchema.$defs.mutation_scope.properties.sources.items.properties).sort(), ["head_blob", "path"]);
+  for (const path of ["/absolute.ts", "a//b.ts", "a/./b.ts", "a/../b.ts", "a\\b.ts", "a:stream.ts", "a/", "a\u0000.ts"]) {
+    assert.throws(() => readinessModel.validateOwnedScopeShape({ ...scope, sources: [{ ...scope.sources[0], path }] }), WorkReadinessError);
+    assert.equal(new RegExp(readinessSchema.$defs.mutation_scope.properties.sources.items.properties.path.pattern, "u").test(path), false);
+  }
+  const governed = normal({ work_id: "CHG-900", kind: "CHG", work_type: "technical", mutation_scope: scope });
+  assert.notEqual(computeReadinessPayloadSha256(governed), computeReadinessPayloadSha256(Object.fromEntries(Object.entries(governed).filter(([key]) => key !== "mutation_scope"))));
+  for (const mutate of [s => { s.extra = true; }, s => { s.sources[0].ranges = []; }, s => { s.subject_work_id = "US-1"; }, s => { s.sources.push(clone(s.sources[0])); }, s => { s.sources[0].path = "../escape.ts"; }, s => { s.scope_head = "main"; }]) {
+    const invalid = clone(scope); mutate(invalid); assert.throws(() => readinessModel.validateOwnedScopeShape(invalid), WorkReadinessError);
+  }
+  assert.throws(() => classifyAssessment(normal({ mutation_scope: scope })), WorkReadinessError);
+  assert.throws(() => classifyAssessment(normal({ ...governed, mutation_scope: { ...scope, subject_work_id: "CHG-900" } })), WorkReadinessError);
+});
+
+test("owned scope committed authority rejects flags, tampering and mutable-only decisions", () => {
+  const fixture = ownedScopeFixture();
+  try {
+    assert.equal(typeof ownedScopeModule?.loadApprovedOwnedScope, "function");
+    const load = () => ownedScopeModule.loadApprovedOwnedScope({ root: fixture.root, governingWorkId: "CHG-900", subjectWorkId: "US-900", executionHead: fixture.executionHead });
+    const loaded = load();
+    assert.deepEqual(loaded.scope, fixture.scope);
+    assert.equal(loaded.governingDigest, fixture.governing.readiness_payload_sha256);
+    assert.equal(loaded.subjectDigest, fixture.subject.readiness_payload_sha256);
+    for (const mutate of [g => { g.approval.status = "pending"; }, g => { g.mutation_scope.sources = []; }, g => { g.mutation_scope.scope_head = fixture.scope.scope_base; }, g => { g.mutation_scope.subject_readiness_sha256 = "f".repeat(64); }]) {
+      const original = clone(fixture.governing); mutate(fixture.governing); fixture.save();
+      assert.throws(load, WorkReadinessError);
+      Object.assign(fixture.governing, original); fixture.save();
+    }
+    assert.throws(() => ownedScopeModule.loadApprovedOwnedScope({ root: fixture.root, governingWorkId: "CHG-900", subjectWorkId: "US-901", executionHead: fixture.executionHead }), WorkReadinessError);
+    fixture.feedback.pop(); fixture.save();
+    git(fixture.root, ["add", "."]); git(fixture.root, ["commit", "-m", "fixture remove committed decision"]);
+    fixture.executionHead = git(fixture.root, ["rev-parse", "HEAD"]);
+    fixture.feedback.push(decisionFor(fixture.governing)); fixture.save();
+    assert.throws(load, WorkReadinessError);
+  } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+});
+
+test("owned scope committed decisions bind full digest and allow closed subjects", () => {
+  for (const mode of ["closed", "pending", "blocked", "subject-digest", "omitted-source", "changed-head"]) {
+    const fixture = ownedScopeFixture({ completedSubject: mode === "closed" });
+    try {
+      if (mode === "pending") fixture.governing.approval.status = "pending";
+      if (mode === "blocked") {
+        fixture.governing.decision = "blocked";
+        fixture.governing.dependencies = [{ work_id: "US-901", type: "blocked_by", reason: "Fixture unresolved dependency" }];
+      }
+      if (mode === "subject-digest") fixture.governing.mutation_scope.subject_readiness_sha256 = "f".repeat(64);
+      // Removing/changing scope without the human decision must invalidate authority,
+      // even when a caller refreshes the artifact's self-asserted hashes.
+      if (mode === "omitted-source") fixture.governing.mutation_scope.sources = [];
+      if (mode === "changed-head") fixture.governing.mutation_scope.scope_head = fixture.scope.scope_base;
+      if (mode !== "closed") refreshDigest(fixture.governing);
+      if (["pending", "blocked", "subject-digest"].includes(mode)) fixture.feedback[1] = decisionFor(fixture.governing);
+      fixture.save(); git(fixture.root, ["add", "."]); git(fixture.root, ["commit", "--allow-empty", "-m", "fixture exact candidate"]);
+      const action = () => ownedScopeModule.loadApprovedOwnedScope({ root: fixture.root, governingWorkId: "CHG-900", subjectWorkId: "US-900", executionHead: git(fixture.root, ["rev-parse", "HEAD"]) });
+      if (mode === "closed") assert.equal(action().subjectDigest, fixture.subject.readiness_payload_sha256);
+      else assert.throws(action, WorkReadinessError, mode);
+    } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
 
 function writeExactNousSyncEnvelope(root, generatedPath, generated, {
   provenance: provenanceOverrides = {}, project: projectOverrides = {}, sync: syncOverrides = {}, mutate = () => {},
