@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "826b7112a0ffb272f88c4605378bd2a9c06b8b0a9dfc872194b36c5b9a4bd36e",
+  "work_id": "CHG-094",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Verify approved historical mutation scope against current runtime",
+  "source": "Canonical CHG-094_TECH_SPEC.md and CHG-094_IMPLEMENTATION_PLAN.md in Nous200c6427; Francisco preparation request in controller01a12c65-b3ae-77a3-8634-3e6bad11a40e. Preparation only; no future digest approval inferred.",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "One approval-bound historical owned scope drives real current-runtime preflight and complete campaign, with independently replayable provenance and unchanged legacy behavior.",
+      "demo": "Pending read-only planning has no runtime side effects; approved committed fixture scope derives exact historical ranges and current suites; real shared-DB campaign succeeds, current schema changes invalidate identity, bad authority/ranges/provenance fail closed.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "tooling",
+    "readiness-policy",
+    "verification"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 9,
+    "bookkeeping_files": 4,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 25,
+    "implementation": 110,
+    "focused_verification": 70,
+    "review": 45,
+    "integration": 45,
+    "total": 295
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Committed authority context must be shared without trusting working-tree flags or weakening closed-subject validation.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Include conditional git.mjs as ninth delivery path. Factor exported loadCommittedReadinessAuthority({root,revision,workId}) from existing shell-free committed revision readers and validateAssessment plus annotationAuthorities(root,revision). Match committed artifact/on-disk bytes and approval-record raw bytes at executionHEAD. Governing must ready/active, subject may valid complete; neither requires manufacturing approval. Keep existing callers/semantics unchanged and test real Git compatibility, including CHG089 annotation authority."
+    },
+    {
+      "id": "U2",
+      "statement": "The deliberate readiness JSON-schema extension could conflict with generated/provenance ownership.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Current .nous-sync.json has no claim for docs/dev-guide/work-readiness.schema.json, model.mjs or git.mjs; mutation-scope is tenant toolchain. Schema blobfa2e9203a53537aebb4e6fb22eff381f506be096. Generated-guidance currentlyGREEN and does not pin this schema. Extend optional mutation_scope only, model/schema parity and absent-field byte/digest parity; no null backfill, generated-guide body, sync envelope, package or routing changes. Ordinary ownership/range checks still apply."
+    },
+    {
+      "id": "U3",
+      "statement": "Required real campaign smoke must prove current database runtime without starting an unapproved US087 campaign.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "Focused70 contains Node regressions30, fixture real-campaign smoke30, one bounded repair allowance10. Use existing real-Git fixture machinery and committed fixture authority for fixture subjectUS900/governingCHG900 only inside temporary test repo; official-looking IDs there are test data, not allocated work. Fixture source in apps/web/src/modules/owned-scope-smoke/observation.ts queries real migrated Postgres membership-observation/catalog grants, existing shared CHG067 DB helpers and ledger_app, with adjacent integration suite asserting exact read/denied-write grants and tenant isolation. Candidate adds changed shared-runtime/schema input after historical source commit; both preflight and actual Stryker runner consume same ranges and current profiles. No executeShard mock for closure smoke, no private DB/container, no production US087 campaign or borrowed score. Invocation/report/wall time bound as capability evidence; routine rejection tests may use spies only to prove no expensive child invoked."
+    },
+    {
+      "id": "U4",
+      "statement": "Runner planning/authority/provenance work could exceed the assessed envelope.",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "Estimate295 has25 minutes below hard320, no stretched estimate. Implementation110=contract/loader35+shared resolver/readonly planner45+provenance/final identity30; review45=scoped30+fresh15; integration45=awake full gate10+own zero-eligible diff command2+custody/commit/closure18+handoff15. Readiness25; focused70 asU3. Uncertainty allowances are included, not added twice. One fix wave budgeted, no source/runtime repair or repeated real smoke/cold wave. Stop/reassess if actual work forecasts above295 or new paths/boundaries appear. All own delivery files mjs/JSON so native changed-source score expected0; real feature smoke is separate required behavior evidence, not fake own mutation score."
+    },
+    {
+      "id": "U5",
+      "statement": "Current checkout has unrelated CHG093 pending drafts and fixed integration source.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Preparation drafts remain onus024; no CHG093 edits/ledgerwrites/refupdates. Execution after approval uses isolated CHG094 worktree from assessed main2b3a4d8389279a32fec2e86727f1634c19d317bf, carrying only CHG094 three artifacts/approval. This avoids unrelated pending093 making whole-readiness gate red and preserves087closedref5e3553d. Integrate capability via normal FF if possible; CHG093 later reassesses target, supported mode andscope without altering historical artifacts. No blocked_by dependency on completed087 or blocked093: it is consumed context, not an active blocker."
+    },
+    {
+      "id": "U6",
+      "statement": "Standing authorization versus newly assessed technical digest.",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Earlier US024-child authorization applies each approved child digest and earlier bounded technical approvals. Canonical094 explicitly authorizes preparation only and reserves its own concrete readiness authority. Keep pending approval; no agent-authored decision or started. Return one295-minute nine-file packet. Routine design decisions are resolved here; no new operator choices."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG094-EXECUTION-APPROVAL-20261013",
+    "payload_sha256": "826b7112a0ffb272f88c4605378bd2a9c06b8b0a9dfc872194b36c5b9a4bd36e"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
