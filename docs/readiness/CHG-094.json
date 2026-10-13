@@ -118,7 +118,27 @@
     "evidence": "CHG094-EXECUTION-APPROVAL-20261013",
     "payload_sha256": "826b7112a0ffb272f88c4605378bd2a9c06b8b0a9dfc872194b36c5b9a4bd36e"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 25,
+      "implementation": 33,
+      "focused_verification": 44,
+      "review": 40,
+      "integration": 45
+    },
+    "total": 187,
+    "changed_files": 9,
+    "commits": 9,
+    "review_fix_loops": 1,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 1,
+    "mutation_shards_actual": 0,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": -108,
+    "root_cause": "Estimated active phase allocations, not billing: root45, consolidated implementer93, reused scoped reviewer23/fresh final17; idle waits excluded. Measured process walltime separately: UTC full gate179.982s RED unchanged worker local-DATE oracle; approved America/Guayaquil normal gate247.131s GREEN (aggregate427.113s, per-attempt ceil8min); final own UTC preflight0.872s/native0.549s ceil1min. All nine delivery files mjs/JSON, native0 eligible sources/shards/score; one native cold command, no previews. Six temporary fixture setup/campaign failures59.302s retained; final real shared-DB positive+negative experiment17.589s/each4killed0survived; fixture score is separate capability evidence. Focused44 includes Node20 and smoke24 INCLUDING repair11 (one minute reallocated from unused Node allowance), not double charged; handoff6 and custody/profile/closure10 in integration. Full standalone scope/evidence harness RED identically reproduced frozenbase and deferred outside094, default API exact differential GREEN. One review-to-assurance-fix cycle supplies real final-guard rejection evidence, no delivery repair. Source main2b3a4d8389279a32fec2e86727f1634c19d317bf; frozenbaseb5ae65c0cee13ca7dac1fdfa59618d932311b139; deliveredcode3dafc5fa80ee9a4a811ab45f85e2deeac2ba9dd4; finalverification6bac185ced68bb4d65b720b0aec06f61db1277d7. Nine reachable item commits including this closure; four bookkeeping files separate from9delivery. No historical last-five gate median available; no asserted multiplier/sleep loss. Full logs and commands retained in .superpowers/sdd/2026-10-13-CHG-094-owned-mutation-scope."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
