@@ -54,6 +54,11 @@ test("US-083 real catalog mapping and observation contract roundtrip", async () 
     hash:accepted!.contentHash,counts:[accepted!.memberCount,accepted!.licensedCount,accepted!.invitedCount],
     warnings:accepted!.warnings,correlation:accepted!.correlationId,actor:accepted!.acceptedBy})
     .toEqual({account:accountId,source:"api",time:now.toISOString(),hash:"a".repeat(64),counts:[0,0,0],warnings:[],correlation:null,actor:null});
+  const result=await acceptMemberObservation(db,await apiInput(),[],options);
+  expect(result.status).toBe("accepted");
+  const [receipt]=await db.select().from(schema.memberObservation).where(eq(schema.memberObservation.vendorAccountId,A));
+  expect([receipt!.memberCount,receipt!.licensedCount,receipt!.invitedCount,receipt!.contentHash]).toEqual([1,1,0,singleHash]);
+  expect((await db.select().from(schema.memberObservation).where(eq(schema.memberObservation.vendorAccountId,B)))).toEqual([]);
 });
 
 
@@ -445,6 +450,7 @@ test("complete receipts reject malformed boundaries without effects and accept e
   const input=await apiInput();if(input.completeness.kind!=="api")throw new Error("receipt");
   const receipt=input.completeness,second=await apiInput();if(second.completeness.kind!=="api")throw new Error("receipt");
   const extra=second.completeness.pages[0]!;
+  const callablePage=Object.assign(()=>undefined,receipt.pages[0]!);
   const incomplete:unknown[]=[
     {kind:"manual",complete:true,accountWide:true,recordCount:1},
     {...receipt,exhausted:["invitations"]},{...receipt,exhausted:[]},
@@ -453,9 +459,10 @@ test("complete receipts reject malformed boundaries without effects and accept e
     {...receipt,pages:null},{...receipt,pages:{}},{...receipt,exhausted:{}},
     {...receipt,pages:[null,receipt.pages[1]!]},{...receipt,pages:[42,receipt.pages[1]!]},{...receipt,pages:["page",receipt.pages[1]!]},
     {...receipt,pages:[receipt.pages[0]!] },
+    {...receipt,pages:[callablePage,receipt.pages[1]!] },
     {...receipt,pages:[{...receipt.pages[0]!,recordCount:0.5},{...extra,recordCount:0.5},receipt.pages[1]!] },
     {...receipt,pages:[{...receipt.pages[0]!,recordCount:-1},{...extra,recordCount:2},receipt.pages[1]!] },
-    ...[0,-1,0.5,Number.MAX_SAFE_INTEGER+1,"1"].map(terminalAttempt=>({...receipt,pages:[{...receipt.pages[0]!,terminalAttempt},receipt.pages[1]!] })),
+    ...[0,-1,-2147483649,0.5,Number.MAX_SAFE_INTEGER+1,"1"].map(terminalAttempt=>({...receipt,pages:[{...receipt.pages[0]!,terminalAttempt},receipt.pages[1]!] })),
     ...["prefix"+receipt.pages[0]!.correlationId,receipt.pages[0]!.correlationId+"suffix",42].map(correlationId=>({...receipt,pages:[{...receipt.pages[0]!,correlationId},receipt.pages[1]!] })),
     ...[null,[],42,"totals",{unexpected:undefined}].map(providerTotals=>({...receipt,providerTotals})),
   ];
@@ -481,7 +488,7 @@ test("complete receipts reject malformed boundaries without effects and accept e
 test("public malformed inputs and clocks preserve exact rejection semantics without effects",async()=>{
   const input=await apiInput();
   const malformed:unknown[]=[
-    ...[42,null,"invalid","prefix"+A,A+"suffix"].map(vendorAccountId=>({...input,vendorAccountId})),
+    ...[42,null,[A],"invalid","prefix"+A,A+"suffix"].map(vendorAccountId=>({...input,vendorAccountId})),
     ...[now.toISOString(),42,null,{getTime:()=>now.getTime()}].map(observedAt=>({...input,observedAt})),
     {...input,source:"other"},{...input,members:null},{...input,members:{}},
     {...input,members:[{...member(),email:"not an email"}]},{...input,members:[{...member(),membership_status:"other"}]},
