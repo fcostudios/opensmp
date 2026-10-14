@@ -156,7 +156,27 @@
     "evidence": "US089-READY-1C67BEB0",
     "payload_sha256": "1c67beb08b7686938781b836e61170395ee2da754d5189b0322f3e2f42f24d3c"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 53,
+      "implementation": 60,
+      "focused_verification": 86,
+      "review": 76,
+      "integration": 13
+    },
+    "total": 288,
+    "changed_files": 16,
+    "commits": 20,
+    "review_fix_loops": 3,
+    "cold_mutation_attempts": 2,
+    "mutation_invalidations": 1,
+    "mutation_minutes": 20,
+    "mutation_shards_actual": 2,
+    "preview_rounds": 3,
+    "preview_minutes": 14,
+    "estimate_variance_minutes": -10,
+    "root_cause": "Mixed active-phase estimates and native process wall, not billing: historical124 preserved once (18/31/32/35/8), fresh preparation35 once; implementation priorworker26+nativefix3; focused priorworker24 includes preview13.758878+preliminarygate6.538566, then both final gates and both colds retained once; review conservative41 active nonoverlap proxy incl fixes/restarts; closure5. Excludes foreign idle and parallel overlap. Test-only selection rounds2/3 had zero slow execution. No whole-set re-preview;1execution/13.758878min. Cold1 invalidated by committed real oracle fix; last cold2 restored6 native kills. Known process walls are comparable; last-five medians are not available/recomputed. Optional minute counters ceiling-rounded to integers required by validator; exact cold19.975222565983337min and preview13.75887843055min remain in raw receipts/phase ledger."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,

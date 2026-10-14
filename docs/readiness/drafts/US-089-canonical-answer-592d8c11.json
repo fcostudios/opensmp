@@ -259,6 +259,536 @@
       "measured": true,
       "tails_excluded": true,
       "identity_basis": "First physical-session metadata; inherited metadata ignored"
+    },
+    "closure_receipt": {
+      "pin": "00b2bdbf23886eb1b5bbe9b3f5570ccb2a3e60ec",
+      "actuals": {
+        "phase_minutes": {
+          "readiness": 53,
+          "implementation": 60,
+          "focused_verification": 86,
+          "review": 76,
+          "integration": 13
+        },
+        "total": 288,
+        "changed_files": 16,
+        "commits": 20,
+        "review_fix_loops": 3,
+        "cold_mutation_attempts": 2,
+        "mutation_invalidations": 1,
+        "mutation_minutes": 20,
+        "mutation_shards_actual": 2,
+        "preview_rounds": 3,
+        "preview_minutes": 14,
+        "estimate_variance_minutes": -10,
+        "root_cause": "Mixed active-phase estimates and native process wall, not billing: historical124 preserved once (18/31/32/35/8), fresh preparation35 once; implementation priorworker26+nativefix3; focused priorworker24 includes preview13.758878+preliminarygate6.538566, then both final gates and both colds retained once; review conservative41 active nonoverlap proxy incl fixes/restarts; closure5. Excludes foreign idle and parallel overlap. Test-only selection rounds2/3 had zero slow execution. No whole-set re-preview;1execution/13.758878min. Cold1 invalidated by committed real oracle fix; last cold2 restored6 native kills. Known process walls are comparable; last-five medians are not available/recomputed. Optional minute counters ceiling-rounded to integers required by validator; exact cold19.975222565983337min and preview13.75887843055min remain in raw receipts/phase ledger."
+      },
+      "gate": "/tmp/us089-final2-gate-report.md",
+      "cold": {
+        "pin": "00b2bdbf23886eb1b5bbe9b3f5570ccb2a3e60ec",
+        "base": "d217fe7689aebc660ba4ba9365186bcadefe720a",
+        "runtime": {
+          "node": "v26.11.1",
+          "v8": "14.6.202.34-node.37",
+          "executable": "/opt/homebrew/Cellar/node/26.11.1/bin/node",
+          "executableSha256": "f75a79e4c96954709a130427e452d6720b35c90318ca8293727a4c6376198453",
+          "time": "2026-10-14T04:59:06.691Z",
+          "versions": {
+            "node": "26.11.1",
+            "acorn": "8.18.0",
+            "ada": "4.0.0",
+            "amaro": "1.1.11",
+            "ares": "1.34.8",
+            "brotli": "1.2.0",
+            "cldr": "48.0",
+            "icu": "78.3",
+            "libffi": "3.8.0",
+            "llhttp": "9.4.3",
+            "merve": "1.2.2",
+            "modules": "147",
+            "napi": "10",
+            "nbytes": "0.1.4",
+            "ncrypto": "0.0.1",
+            "nghttp2": "1.70.0",
+            "nghttp3": "",
+            "ngtcp2": "",
+            "openssl": "4.0.3",
+            "simdjson": "5.0.3",
+            "simdutf": "9.2.1",
+            "sqlite": "3.53.4",
+            "tz": "2026a",
+            "undici": "8.11.2",
+            "unicode": "17.0",
+            "uv": "1.53.0",
+            "uvwasi": "0.0.23",
+            "v8": "14.6.202.34-node.37",
+            "zlib": "1.2.12",
+            "zstd": "1.5.7"
+          }
+        },
+        "attempt": 2,
+        "invalidations": 1,
+        "shards": [
+          {
+            "id": "vitest-cc81e9bd61ac",
+            "classification": "scored",
+            "mutantCount": 557,
+            "durationMs": 593523.283292,
+            "jsonReportPath": "reports/mutation/vitest-cc81e9bd61ac-67093-1791953947665-5f03fc596177.json",
+            "reportHash": "4343459f94366266bf38ef923d0a2aadd3059e2887e6f8e9116d16cc8ea87854",
+            "result": "passed",
+            "actualSha256": "4343459f94366266bf38ef923d0a2aadd3059e2887e6f8e9116d16cc8ea87854",
+            "perSourceCounts": {
+              "packages/db/src/member-observations.ts": {
+                "NoCoverage": 1,
+                "Killed": 531,
+                "Survived": 25
+              }
+            },
+            "score": 95.33213644524237
+          },
+          {
+            "id": "vitest-dc7ca0e05a00",
+            "classification": "verification-only",
+            "mutantCount": 0,
+            "durationMs": 3309.687082999968,
+            "jsonReportPath": "reports/mutation/vitest-dc7ca0e05a00-67093-1791953947665-5f03fc596177.json",
+            "reportHash": "916807cd1532c02d476fce48ac13cfedb329b03bfd0e975b2e31d35d126dd2e6",
+            "result": {
+              "audits": [
+                {
+                  "newFingerprint": "3122ec5a4f2f4fa01cbc4c437ad9fb1baa5cb8738064b7858240c5f000c625c9",
+                  "oldFingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "range": "packages/db/src/index.ts:25-25",
+                  "reason": "new-relative-export-stars",
+                  "resolvedTarget": [
+                    "packages/db/src/member-observations.ts"
+                  ]
+                }
+              ],
+              "commands": [
+                [
+                  "./apps/web/node_modules/.bin/vitest",
+                  "run",
+                  "--config",
+                  "vitest.mutation.config.mjs",
+                  "packages/db/src/index.test.ts"
+                ]
+              ],
+              "tests": [
+                "packages/db/src/index.test.ts"
+              ]
+            },
+            "actualSha256": "916807cd1532c02d476fce48ac13cfedb329b03bfd0e975b2e31d35d126dd2e6",
+            "perSourceCounts": {}
+          }
+        ],
+        "pinsMatch": true,
+        "namedStatuses": {
+          "0": "Killed",
+          "4": "Killed",
+          "19": "Killed",
+          "26": "Killed",
+          "91": "Killed",
+          "108": "Killed"
+        },
+        "residualCount": 26,
+        "coldSummedMinutes": 19.975222565983337,
+        "result": {
+          "exit": 0,
+          "cacheClearExit": 0,
+          "cold_seconds": 600.741536292,
+          "total_seconds": 601.916130917,
+          "pin": "00b2bdbf23886eb1b5bbe9b3f5570ccb2a3e60ec",
+          "base": "d217fe7689aebc660ba4ba9365186bcadefe720a",
+          "attempt": 2,
+          "invalidations": 1,
+          "time": "2026-10-14T05:09:07.876Z",
+          "fixture": "official unchanged CHG067 shared migrated cluster; native owner/app and clone-capable US089 pair",
+          "lock": "own token/device/inode cleanup; foreignwait60s neverdelete"
+        },
+        "packetSha256": "b91ad019eb097ec11b2468831f1609bb7085763c68b65b9555d7c040a0a5f868",
+        "lockAbsent": true
+      },
+      "native_reviewer": "/tmp/us089-final2-native-review.json",
+      "individual_annotations": [
+        "545 packages/db/src/member-observations.ts:136 @equivalent: Changes diagnostic text in the unreachable no-row branch; the existing real PostgreSQL single-row INSERT RETURNING supplies a row on success and rejects on database failure.",
+        "29 packages/db/src/member-observations.ts:28 @equivalent: Changes comparison only for equal strings; permuting identical serialized bytes cannot change the canonical hash.",
+        "32 packages/db/src/member-observations.ts:28 @equivalent: After left<right is false, forcing the second condition true changes only equal operands, whose serialized bytes are identical.",
+        "33 packages/db/src/member-observations.ts:28 @equivalent: On the reviewed Node26.11.1/V814.6.202.34-node.37 runtime only, removing positive results preserves every negative/nonnegative decision in insertion, run detection, galloping and merging, leaving both service sort permutations and hashes identical.",
+        "34 packages/db/src/member-observations.ts:28 @equivalent: Changing > to >= changes only equal operands; identical canonical strings cannot alter hash input.",
+        "35 packages/db/src/member-observations.ts:28 @equivalent: On the reviewed Node26.11.1/V814.6.202.34-node.37 runtime only, changing equality to positive and greater-than to zero preserves every negative/nonnegative sorting decision and both service sort permutations.",
+        "131 packages/db/src/member-observations.ts:48 @equivalent: Requested is used only for presence; the retained succeeded row and committed terminal/requested pairing constraints independently guarantee its requested partner.",
+        "133 packages/db/src/member-observations.ts:48 @equivalent: Selecting succeeded as requested remains truthy; committed pairing constraints independently guarantee the actual requested row.",
+        "145 packages/db/src/member-observations.ts:49 @equivalent: Committed terminal-before-insert validation requires requested, phase/terminal uniqueness caps the successful pair at two rows, and append-only protection preserves that pair.",
+        "146 packages/db/src/member-observations.ts:49 @equivalent: Changing the cardinality/requested disjunction to conjunction cannot admit a legal successful pair lacking requested; the retained succeeded guard rejects absent-success cases.",
+        "147 packages/db/src/member-observations.ts:49 @equivalent: Retained requested/succeeded presence checks and committed phase/terminal uniqueness already require exactly two legal journal rows.",
+        "151 packages/db/src/member-observations.ts:49 @equivalent: The committed connector_call_classification_check requires every stored succeeded row to have classification success.",
+        "172 packages/db/src/member-observations.ts:52 @equivalent: The committed connector_call_sync_action_check requires sync_members provisioning_action_id to be NULL.",
+        "229 packages/db/src/member-observations.ts:60 @equivalent: Retained strict equality to established nonnegative stream counts rejects invalid totals; unsupported names with valid numeric totals cannot match absent or standard prototype entries.",
+        "289 packages/db/src/member-observations.ts:78 @accepted: Changes only unspecified invalid-clock diagnostic wording; the same Error class, rejection and absence of transaction effects remain.",
+        "294 packages/db/src/member-observations.ts:83 @equivalent: PostgreSQL FOR SHARE without an OF list locks both joined tables, matching the explicitly named VendorAccount and Vendor tables.",
+        "362 packages/db/src/member-observations.ts:97 @equivalent: Counting null emails adds only a null map entry that the unchanged ambiguity guard excludes.",
+        "367 packages/db/src/member-observations.ts:98 @equivalent: Counting null provider identities adds only a null map entry that the unchanged ambiguity guard excludes.",
+        "385 packages/db/src/member-observations.ts:102 @equivalent: Unchanged email counting omits null keys, so removing this guard still cannot produce a duplicate-null ambiguity warning.",
+        "393 packages/db/src/member-observations.ts:102 @equivalent: Unchanged provider-identity counting omits null keys, so removing this guard still cannot produce a duplicate-null ambiguity warning.",
+        "436 packages/db/src/member-observations.ts:107 @equivalent: The replacement fallback also fails the anchored provider_field provenance regex, preserving unknown-seat behavior.",
+        "528 packages/db/src/member-observations.ts:134 @equivalent: The retained non-null license_type_id condition already implies normalized licensed-member status.",
+        "529 packages/db/src/member-observations.ts:134 @equivalent: A non-null license_type_id already implies both membership and licensed-seat predicates, making the changed disjunction redundant.",
+        "530 packages/db/src/member-observations.ts:134 @equivalent: license_type_id can become non-null only in the member branch; invitations retain null.",
+        "533 packages/db/src/member-observations.ts:134 @equivalent: license_type_id can become non-null only inside the normalized licensed-seat branch.",
+        "544 packages/db/src/member-observations.ts:136 @equivalent: The existing real PostgreSQL single-row INSERT RETURNING returns a row on success; database failure rejects before this guard."
+      ],
+      "done_cost_aggregate": {
+        "calls": 840,
+        "context_tokens": 123894067,
+        "output_tokens": 383597,
+        "model": "gpt-6.1-sol",
+        "window": 475000
+      },
+      "cost_basis": "Original carried controller1+latest scoped once, fixed controller2 once, final controller3 once, same worker final once, same fresh CLI final once, ROOT postapproval delta only; cumulative snapshots replace, cached input not added twice, closing tails explicitly excluded; retain role peak/context facts",
+      "controller_physical_sessions": 3,
+      "forced_same_item_restarts": 2,
+      "context_resource_variance": "Controller1 actual231242 (handoff216910), controller2 actual208297, controller3 actual204736 at05:16:43 cutoff; SAMEitem maximum3, no fourth/reset. ROOT postapproval peak282948 and same scoped235695 exceed default; fresh178610. Worker actualpeak supplied by final snapshot if available.",
+      "role_costs_and_cutoffs": {
+        "work_id": "US-089",
+        "roles_once": [
+          {
+            "agent_path": "/root/us089_readiness_controller",
+            "thread_id": "01a13277-cdc6-7ed0-8aa0-1f2e202e3650",
+            "rollout": "/Users/fcolomas/.codex/sessions/2026/10/12/rollout-2026-10-12T18-34-34-01a13277-cdc6-7ed0-8aa0-1f2e202e3650.jsonl",
+            "cutoff": "2026-10-14T02:26:59.551Z",
+            "total_token_usage": {
+              "input_tokens": 15274536,
+              "cached_input_tokens": 14733952,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 44455,
+              "reasoning_output_tokens": 8414,
+              "total_tokens": 15318991
+            },
+            "models": [
+              "gpt-6.1-sol"
+            ],
+            "window": 475000,
+            "input_peak": 231242,
+            "calls": {
+              "custom_tool_call": 62,
+              "function_call": 25
+            },
+            "total_calls": 87,
+            "all_same_US089_role": true,
+            "measured": true,
+            "tails_excluded": true,
+            "identity_basis": "first physical-session metadata; later inherited metadata ignored"
+          },
+          {
+            "agent_path": "/root/us089_execution_controller",
+            "physical_session": 2,
+            "same_item": "US-089",
+            "rollout": "/Users/fcolomas/.codex/sessions/2026/10/13/rollout-2026-10-13T21-30-20-01a1383f-1579-7fa0-9b22-a00668f29e59.jsonl",
+            "cutoff": "2026-10-14T04:03:07.860Z",
+            "total_token_usage": {
+              "input_tokens": 18445757,
+              "cached_input_tokens": 18194432,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 67642,
+              "reasoning_output_tokens": 33942,
+              "total_tokens": 18513399
+            },
+            "window": 475000,
+            "calls": {
+              "custom_tool_call": 44,
+              "function_call": 86
+            },
+            "total_calls": 130,
+            "models": [
+              "gpt-6.1-sol"
+            ],
+            "input_peak": 208297,
+            "measured": true,
+            "tails_excluded": true,
+            "identity_basis": "First physical-session metadata; inherited metadata ignored",
+            "snapshot_file": "/tmp/us089-controller-execution-cost.json"
+          },
+          {
+            "role": "controller3",
+            "physical_session": "01a13894-ede2-7621-b533-0e20ca24347a",
+            "rollout": "/Users/fcolomas/.codex/sessions/2026/10/13/rollout-2026-10-13T23-04-06-01a13894-ede2-7621-b533-0e20ca24347a.jsonl",
+            "cutoff": "2026-10-14T05:16:43.804Z",
+            "total_token_usage": {
+              "input_tokens": 20204149,
+              "cached_input_tokens": 19937280,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 58554,
+              "reasoning_output_tokens": 30899,
+              "total_tokens": 20262703
+            },
+            "calls": {
+              "custom_tool_call": 63,
+              "function_call": 84
+            },
+            "total_calls": 147,
+            "window": 475000,
+            "input_peak": 204736,
+            "models": [
+              "gpt-6.1-sol"
+            ],
+            "measured": true,
+            "tails_excluded": true,
+            "identity_basis": "First physical-session metadata; cumulative same role once, cached input included once, reasoning output subset",
+            "snapshot_file": "/tmp/us089-controller3-cost.json"
+          },
+          {
+            "role": "scoped",
+            "physical_session": "01a1327b-cc66-7203-9427-e9ccb13df9e3",
+            "rollout": "/Users/fcolomas/.codex/sessions/2026/10/12/rollout-2026-10-12T18-38-56-01a1327b-cc66-7203-9427-e9ccb13df9e3.jsonl",
+            "cutoff": "2026-10-14T04:47:02.788Z",
+            "total_token_usage": {
+              "input_tokens": 10576439,
+              "cached_input_tokens": 10016768,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 26061,
+              "reasoning_output_tokens": 3461,
+              "total_tokens": 10602500
+            },
+            "calls": {
+              "custom_tool_call": 46,
+              "function_call": 11
+            },
+            "total_calls": 57,
+            "window": 475000,
+            "input_peak": 235695,
+            "models": [
+              "gpt-6.1-sol"
+            ],
+            "measured": true,
+            "tails_excluded": true,
+            "identity_basis": "First physical-session metadata; cumulative same role once, cached input included once, reasoning output subset",
+            "snapshot_file": "/tmp/us089-scoped-final-cost.json"
+          },
+          {
+            "role": "fresh",
+            "physical_session": "01a1389e-b878-7f00-8942-337ab7701419",
+            "rollout": "/Users/fcolomas/.codex/sessions/2026/10/13/rollout-2026-10-13T23-14-48-01a1389e-b878-7f00-8942-337ab7701419.jsonl",
+            "cutoff": "2026-10-14T05:13:13.160Z",
+            "total_token_usage": {
+              "input_tokens": 3272938,
+              "cached_input_tokens": 3102336,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 22542,
+              "reasoning_output_tokens": 8739,
+              "total_tokens": 3295480
+            },
+            "calls": {
+              "custom_tool_call": 24
+            },
+            "total_calls": 24,
+            "window": 475000,
+            "input_peak": 178610,
+            "models": [
+              "gpt-6.1-sol"
+            ],
+            "measured": true,
+            "tails_excluded": true,
+            "identity_basis": "First physical-session metadata; cumulative same role once, cached input included once, reasoning output subset",
+            "snapshot_file": "/tmp/us089-final-ac-cost.json"
+          },
+          {
+            "role": "US-089-consolidated-implementer",
+            "physical_session": "01a13844-9dcd-7551-a860-2d4b000a9b51",
+            "rollout": "/Users/fcolomas/.codex/sessions/2026/10/13/rollout-2026-10-13T21-36-23-01a13844-9dcd-7551-a860-2d4b000a9b51.jsonl",
+            "cutoff": "2026-10-14T05:12:34.935Z",
+            "total_token_usage": {
+              "input_tokens": 29620180,
+              "cached_input_tokens": 29254144,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 107767,
+              "reasoning_output_tokens": 41905,
+              "total_tokens": 29727947
+            },
+            "calls": {
+              "custom_tool_call": 128,
+              "function_call": 54
+            },
+            "total_calls": 182,
+            "window": 475000,
+            "input_peak": 299898,
+            "models": [
+              "gpt-6.1-sol"
+            ],
+            "measured": true,
+            "tails_excluded": true,
+            "identity_basis": "First physical-session metadata; cumulative same role once, cached input included once, reasoning output subset",
+            "snapshot_file": "/tmp/us089-implementer-cost.json"
+          },
+          {
+            "role": "root US089 post-approval coordination only; excludes priorroot/otheritemusage",
+            "approval_timestamp": "2026-10-14T02:28:55.973Z",
+            "cutoff": "2026-10-14T05:11:59.640Z",
+            "baseline_total": {
+              "input_tokens": 129009457,
+              "cached_input_tokens": 126438272,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 268769,
+              "reasoning_output_tokens": 105288,
+              "total_tokens": 129278226
+            },
+            "cutoff_total": {
+              "input_tokens": 155509525,
+              "cached_input_tokens": 152740480,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 325345,
+              "reasoning_output_tokens": 140601,
+              "total_tokens": 155834870
+            },
+            "delta": {
+              "input_tokens": 26500068,
+              "cached_input_tokens": 26302208,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 56576,
+              "reasoning_output_tokens": 35313,
+              "total_tokens": 26556644
+            },
+            "calls": {
+              "custom_tool_call": 47,
+              "function_call": 166
+            },
+            "total_calls": 213,
+            "input_peak": 282948,
+            "models": [
+              "gpt-6.1-sol"
+            ],
+            "window": 475000,
+            "measured": true,
+            "tail_excluded": true,
+            "snapshot_file": "/tmp/us089-root-execution-cost.json"
+          }
+        ],
+        "aggregate_done_cost": {
+          "calls": 840,
+          "context_tokens": 123894067,
+          "output_tokens": 383597,
+          "model": "gpt-6.1-sol",
+          "window": 475000
+        },
+        "provenance": "Measured cumulative physical US089 roles once, latest scoped/worker/fresh snapshots replace old. ROOT approval-baseline delta only; cached input already inside input, reasoning already inside output. Cutoffs named per role; closing tails excluded. Historical parent124 phase allocation is retained separately without invented fractional token allocation.",
+        "controller_physical_sessions": 3,
+        "forced_same_item_restarts": 2,
+        "context_shape_default": 200000,
+        "resource_variance": "Controller1 actual231242 (handoff216910), controller2 actual208297, controller3 actual204736 at05:16:43 cutoff; SAMEitem maximum3, no fourth/reset. ROOT postapproval peak282948 and same scoped235695 exceed default; fresh178610. Worker actualpeak supplied by final snapshot if available."
+      },
+      "context_peaks": {
+        "controller3": 204736,
+        "root": 282948,
+        "scoped": 235695,
+        "same_worker": 299898,
+        "window": 475000,
+        "controller_default": 200000
+      },
+      "phase_cost_ledger": {
+        "actuals": {
+          "phase_minutes": {
+            "readiness": 53,
+            "implementation": 60,
+            "focused_verification": 86,
+            "review": 76,
+            "integration": 13
+          },
+          "total": 288,
+          "changed_files": 16,
+          "commits": 20,
+          "review_fix_loops": 3,
+          "cold_mutation_attempts": 2,
+          "mutation_invalidations": 1,
+          "mutation_minutes": 20,
+          "mutation_shards_actual": 2,
+          "preview_rounds": 3,
+          "preview_minutes": 14,
+          "estimate_variance_minutes": -10,
+          "root_cause": "Mixed active-phase estimates and native process wall, not billing: historical124 preserved once (18/31/32/35/8), fresh preparation35 once; implementation priorworker26+nativefix3; focused priorworker24 includes preview13.758878+preliminarygate6.538566, then both final gates and both colds retained once; review conservative41 active nonoverlap proxy incl fixes/restarts; closure5. Excludes foreign idle and parallel overlap. Test-only selection rounds2/3 had zero slow execution. No whole-set re-preview;1execution/13.758878min. Cold1 invalidated by committed real oracle fix; last cold2 restored6 native kills. Known process walls are comparable; last-five medians are not available/recomputed. Optional minute counters ceiling-rounded to integers required by validator; exact cold19.975222565983337min and preview13.75887843055min remain in raw receipts/phase ledger."
+        },
+        "formula": "readiness53; implementation60; focusedceil(32+24+4.804670554+9.962863628+4.835419012+10.012358938)=86; review76; integration13; total288 variance-10",
+        "basis": "Historical124 and freshprep35 once. Priorworker24 contains preview13.758878 and oldgate6.538566. Both final gates and both cold attempts retained once. Active proxies and native wall are mixed estimates, not billing; excludes foreign idle and parallel overlap.",
+        "phase_clock_markers": [
+          {
+            "phase": "implementation",
+            "ts": "2026-10-14T02:33:56.066402+00:00",
+            "notes": "Approved digest bound and readiness valid; design/plan recorded before source materialization. Frozen execution base will be this committed design/plan tree."
+          },
+          {
+            "phase": "focused_verification",
+            "ts": "2026-10-14T02:45:16.900497+00:00",
+            "notes": "Task1 implementer reports15/15 named controlled faults RED at intended oracle; restored service exact540e7e4; strengthened21/21 GREEN/typecheckPASS. Final restored run/nativefixturepreflight pending; no preview/cold."
+          },
+          {
+            "phase": "review",
+            "ts": "2026-10-14T02:49:19.468161+00:00",
+            "notes": "Consolidated implementer checkpoint167e582 source4 only; focused21GREEN/15controlledRED/nativepreflight2/no gaps; reused scopedreviewer dispatched on exactbase d217fe7..167e582."
+          },
+          {
+            "phase": "focused_verification",
+            "ts": "2026-10-14T02:52:39.041591+00:00",
+            "notes": "Task1 scopedPASS; Task2 touchedacceptancepreview plus fullgate launched by same implementer. One slowround\u226430min; no cold untilfreshACreview."
+          },
+          {
+            "phase": "review",
+            "ts": "2026-10-14T03:25:26.768481+00:00",
+            "notes": "Same implementer returned77calls11178118input45693output cumulativecutoff,46.404wall inclwaitoverlap; previoussnapshotnotdoubleadded. Same scoped reviewer dispatched99bounded candidates for observablecontract repairs beforefinalproof."
+          },
+          {
+            "phase": "implementation",
+            "ts": "2026-10-14T03:37:17.480145+00:00",
+            "notes": "Final bounded oracle fixwave delegated same consolidated implementer after preliminarygate completed. Any scoredsource/test change means priorgate nonfinal; owncold has notstarted, zero invalidations."
+          },
+          {
+            "phase": "review",
+            "ts": "2026-10-14T04:02:19.679452+00:00",
+            "notes": "Minimal deterministic default-clock test correction committed0d97466 focusedGREEN; narrow reusedscoped confirmation pending. Finalgate/freshAC/owncold remain, no terminal claim."
+          },
+          {
+            "phase": "focused_verification",
+            "ts": "2026-10-14T04:15:32.420907+00:00",
+            "notes": "NEW independent read-only finalAC session01a1389e-b878-7f00-8942-337ab7701419 launched after frozenfinalgateGREEN; scopeAC1-4/fourdeliveryfiles only, no source/testwrites, no cold until PASS."
+          },
+          {
+            "phase": "integration",
+            "ts": "2026-10-14T04:19:08.795372+00:00",
+            "notes": "Allsource/testrepaircommits complete0d97466 and finalstockgate+freshindependentAC1-4PASS. Sameworker released cacheclear then ONEordinarydiff cold frozenMUTATION_BASEd217... workUS089 allownsources includingindex seam; retainrawreport and individuallyreview residuals."
+          },
+          {
+            "phase": "implementation",
+            "ts": "2026-10-14T04:45:43.174230+00:00",
+            "notes": "Rootauthorizedboundedexisting-test nativegap repair within4pathscope and298, sameworker; no production/tooling/schemachange. Completed00b2bdb integrationonly9+/2-."
+          },
+          {
+            "phase": "integration",
+            "ts": "2026-10-14T04:58:26.417179+00:00",
+            "notes": "Allupdatedsource/testfixes committed00b2bdb, reusedscoped+SAMEfreshreviewsPASS/exactNodecomparatorproof, newfullgatePASS. Greenboundaryforecast288\u2013294/298 includesallhistory/priorinvalidatedcold/gates/repairs/closingcosts once, no waiver. ROOTauthorizedcacheclear+ordinaryfullowncold2 LAST d217/workUS089; cold1invalidatedbyactualtestdelta retained, attempts1/invalidations1 beforelaunch."
+          }
+        ],
+        "approval": {
+          "status": "approved",
+          "approved_by": "Francisco Lomas",
+          "evidence": "US089-READY-1C67BEB0",
+          "payload_sha256": "1c67beb08b7686938781b836e61170395ee2da754d5189b0322f3e2f42f24d3c"
+        },
+        "readiness_payload_sha256": "1c67beb08b7686938781b836e61170395ee2da754d5189b0322f3e2f42f24d3c",
+        "canonical_reference": "docs/readiness/drafts/US-089-canonical-answer-592d8c11.json",
+        "native_review_sha256": "384157adf5ab7c2eb59c159475282e10fc0f55c39249e79dfa20ec049093a94d",
+        "prior_forecast": "288\u2013294/298 at authorized green boundary; final conservative288",
+        "old_cold_retained": {
+          "attempt": 1,
+          "minutes": 9.962863627783333,
+          "invalidation": 1
+        }
+      },
+      "minute_counter_rounding": {
+        "rule": "ceil to valid integer counters; no phase-total addition",
+        "cold_exact_minutes": 19.975222565983337,
+        "preview_exact_minutes": 13.75887843055,
+        "cold_counter": 20,
+        "preview_counter": 14
+      }
     }
   },
   "interaction_evaluation": {
