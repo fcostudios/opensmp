@@ -3,7 +3,8 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { eq, sql, getTableName } from "drizzle-orm";
 import type { ConnectorMemberRecord } from "@smp/connectors";
-import { acceptMemberObservation, type MemberObservationInput, type MemberObservationConsumer } from "./index";
+import type { MemberObservationInput, MemberObservationConsumer } from "./index";
+let acceptMemberObservation: typeof import("./index")["acceptMemberObservation"];
 import * as schema from "./schema";
 import { createAnthropicConnectorObservationBridge } from "@smp/connectors/providers/anthropic/observation";
 import { createConnectorCallObservationSession } from "@smp/connectors/connector-call-observation";
@@ -57,12 +58,16 @@ test("US-083 real catalog mapping and observation contract roundtrip", async () 
 
 
 beforeEach(async () => {
+  // Load the real public service after runner setup/beforeAll hooks have activated.
+  // This also exposes module-initialized helpers to the ordinary mutation run.
+  ({acceptMemberObservation}=await import("./index"));
   const owner=await fixture.connectAsOwner();
   try {
     await owner.query("TRUNCATE member_observation,audit_log,connector_call_observation");
     await owner.query("UPDATE vendor_account SET ingestion_mode='api',status='active',default_license_type_id=$1,name=id::text WHERE id IN ($2,$3)",[L,A,B]);
     await owner.query("UPDATE vendor SET member_seat_evidence='all_members_licensed',member_license_identity='none',status='active' WHERE id=$1",[A]);
     await owner.query("UPDATE user_account SET status='active' WHERE id=$1",[ADMIN]);
+    await owner.query("UPDATE license_type SET status='active',provider_ref=NULL WHERE id=$1",[L]);
   } finally {await owner.end();}
 });
 const member=(overrides:Partial<ConnectorMemberRecord>={}):ConnectorMemberRecord=>({provider_member_ref:"u1",email:"USER@example.test",
@@ -79,13 +84,13 @@ const deterministicOptions=()=>{let id=600;return {...options,createId:()=>`bbbb
 const receiptAudit=(id:string,action:string,after:unknown,actorUserId:string|null=null)=>({id,actorUserId,action,
   entityType:"VendorAccount",entityId:A,companyId:null,note:null,before:null,after,occurredAt:options.now()});
 let receiptSequence=300;
-async function apiInput(members:readonly ConnectorMemberRecord[]=[member()],account=A,time=now,method="GET"):Promise<MemberObservationInput> {
+async function apiInput(members:readonly ConnectorMemberRecord[]=[member()],account=A,time=now,method="GET",endpointClasses:Partial<Record<"members"|"invitations",string>>={}):Promise<MemberObservationInput> {
   const pages=[];
   for (const stream of ["members","invitations"] as const) {
     const correlationId=`aaaaaaaa-0000-0000-0000-${String(receiptSequence++).padStart(12,"0")}`;
     for (const phase of ["requested","succeeded"] as const) await db.insert(schema.connectorCallObservation).values({vendorAccountId:account,
       correlationId,operation:"sync_members",attempt:1,phase,classification:phase==='requested'?null:'success',
-      summary:{endpoint_class:stream==='members'?'members':'invitations',method},occurredAt:time});
+      summary:{endpoint_class:endpointClasses[stream]??stream,method},occurredAt:time});
     pages.push({correlationId,terminalAttempt:1,stream,recordCount:members.filter(m=>m.membership_status===(stream==='members'?'member':'invited')).length});
   }
   return {vendorAccountId:account,source:"api",observedAt:time,members,evidence,actorUserAccountId:null,
@@ -108,7 +113,10 @@ test("canonical multiset hash replays across arrival order/source without consum
   const first=await acceptMemberObservation(db,input,[],options);
   const replay=await acceptMemberObservation(db,{...input,source:"csv_import",actorUserAccountId:ADMIN,members:[...input.members].reverse(),
     completeness:{kind:"csv_import",complete:true,accountWide:true,recordCount:2}},[async tx=>{await tx.execute(sql`SELECT 1/0`);}],options);
-  expect([first.status,replay.status]).toEqual(["accepted","replayed"]); expect(await snapshots()).toHaveLength(1);expect(await audits()).toHaveLength(1);
+  expect([first.status,replay.status]).toEqual(["accepted","replayed"]);
+  // Independently hand-serialized two-record fixture (not the service canonicalizer).
+  expect((await snapshots())[0]!.contentHash).toBe("ce4a1093eb141ec3fde54f9438f908bec1ec485d11646e4adff0cc2dad6be181");
+  expect(await snapshots()).toHaveLength(1);expect(await audits()).toHaveLength(1);
 });
 
 test("empty newer observation blocks stale reopen and immutable equal-time conflict",async()=>{
@@ -430,4 +438,142 @@ test("held account advisory lock blocks acceptance before catalog reads and isol
     if(!release)await holder.query("ROLLBACK");
     await waiting.end();await holder.end();
   }
+});
+
+
+test("complete receipts reject malformed boundaries without effects and accept each complete stream fixture",async()=>{
+  const input=await apiInput();if(input.completeness.kind!=="api")throw new Error("receipt");
+  const receipt=input.completeness,second=await apiInput();if(second.completeness.kind!=="api")throw new Error("receipt");
+  const extra=second.completeness.pages[0]!;
+  const incomplete:unknown[]=[
+    {kind:"manual",complete:true,accountWide:true,recordCount:1},
+    {...receipt,exhausted:["invitations"]},{...receipt,exhausted:[]},
+    {...receipt,exhausted:["members","invitations","members"]},
+    {...receipt,exhausted:["invitations","invitations"]},
+    {...receipt,pages:null},{...receipt,pages:{}},{...receipt,exhausted:{}},
+    {...receipt,pages:[null,receipt.pages[1]!]},{...receipt,pages:[42,receipt.pages[1]!]},{...receipt,pages:["page",receipt.pages[1]!]},
+    {...receipt,pages:[receipt.pages[0]!] },
+    {...receipt,pages:[{...receipt.pages[0]!,recordCount:0.5},{...extra,recordCount:0.5},receipt.pages[1]!] },
+    {...receipt,pages:[{...receipt.pages[0]!,recordCount:-1},{...extra,recordCount:2},receipt.pages[1]!] },
+    ...[0,-1,0.5,Number.MAX_SAFE_INTEGER+1,"1"].map(terminalAttempt=>({...receipt,pages:[{...receipt.pages[0]!,terminalAttempt},receipt.pages[1]!] })),
+    ...["prefix"+receipt.pages[0]!.correlationId,receipt.pages[0]!.correlationId+"suffix",42].map(correlationId=>({...receipt,pages:[{...receipt.pages[0]!,correlationId},receipt.pages[1]!] })),
+    ...[null,[],42,"totals",{unexpected:undefined}].map(providerTotals=>({...receipt,providerTotals})),
+  ];
+  const effect:MemberObservationConsumer=async tx=>{await tx.update(schema.vendorAccount).set({name:"incomplete consumer"}).where(eq(schema.vendorAccount.id,A));};
+  for(const completeness of incomplete)expect(await acceptMemberObservation(db,{...input,completeness} as MemberObservationInput,[effect],options)).toEqual({status:"incomplete"});
+  for(const endpointClasses of [{members:"invitations"},{invitations:"members"},{members:"unknown"}])
+    expect(await acceptMemberObservation(db,await apiInput(input.members,A,now,"GET",endpointClasses),[effect],options)).toEqual({status:"incomplete"});
+  expect(await snapshots()).toEqual([]);expect(await audits()).toEqual([]);
+  expect((await db.select().from(schema.vendorAccount)).filter(a=>[A,B].includes(a.id)).map(a=>[a.id,a.name]).sort()).toEqual([[A,A],[B,B]].sort());
+  const fixtures=[
+    {records:[],counts:[0,0,0]},
+    {records:[member({provider_member_ref:"invite",email:"invite@example.test",membership_status:"invited",seat_evidence:"licensed",seat_evidence_provenance:"provider_field:seat"})],counts:[0,0,1]},
+    {records:[member()],counts:[1,1,0]},
+  ];
+  for(const [offset,fixtureCase]of fixtures.entries()){
+    const valid=await apiInput(fixtureCase.records,A,new Date(now.getTime()+offset*1000));if(valid.completeness.kind!=="api")throw new Error("receipt");
+    expect((await acceptMemberObservation(db,{...valid,completeness:{...valid.completeness,providerTotals:{members:fixtureCase.counts[0]!,invitations:fixtureCase.counts[2]!}}},[],options)).status).toBe("accepted");
+  }
+  expect((await snapshots()).map(row=>[row.memberCount,row.licensedCount,row.invitedCount]).sort()).toEqual(fixtures.map(c=>c.counts).sort());
+  expect((await snapshots()).every(row=>row.vendorAccountId===A)).toBe(true);expect(await audits()).toHaveLength(3);
+});
+
+test("public malformed inputs and clocks preserve exact rejection semantics without effects",async()=>{
+  const input=await apiInput();
+  const malformed:unknown[]=[
+    ...[42,null,"invalid","prefix"+A,A+"suffix"].map(vendorAccountId=>({...input,vendorAccountId})),
+    ...[now.toISOString(),42,null,{getTime:()=>now.getTime()}].map(observedAt=>({...input,observedAt})),
+    {...input,source:"other"},{...input,members:null},{...input,members:{}},
+    {...input,members:[{...member(),email:"not an email"}]},{...input,members:[{...member(),membership_status:"other"}]},
+    {...input,members:[{...member(),seat_evidence:"other"}]},{...input,members:[{provider_member_ref:"only"}]},
+    ...[null,{},[],{member_seat_evidence:"other",member_license_identity:"none"},{member_seat_evidence:"all_members_licensed",member_license_identity:"other"}].map(evidence=>({...input,evidence})),
+  ];
+  const effect:MemberObservationConsumer=async tx=>{await tx.update(schema.vendorAccount).set({name:"invalid consumer"}).where(eq(schema.vendorAccount.id,A));};
+  for(const value of malformed)expect(await acceptMemberObservation(db,value as MemberObservationInput,[effect],options)).toEqual({status:"incomplete"});
+  for(const actorUserAccountId of ["not-a-uuid","prefix"+ADMIN,ADMIN+"suffix",42])
+    expect(await acceptMemberObservation(db,{...input,source:"manual",completeness:{kind:"manual",complete:true,accountWide:true,recordCount:1},actorUserAccountId} as MemberObservationInput,[effect],options)).toEqual({status:"forbidden"});
+  for(const value of [new Date("invalid"),42,{getTime:()=>0},{getTime:()=>Number.POSITIVE_INFINITY}]){
+    let rejection:unknown;
+    try{await acceptMemberObservation(db,input,[effect],{now:()=>value as Date});}catch(error){rejection=error;}
+    // Validation throws the ordinary Error class, before a database serializer's TypeError/RangeError.
+    expect(rejection).toBeInstanceOf(Error);expect((rejection as Error).constructor).toBe(Error);
+  }
+  expect(await snapshots()).toEqual([]);expect(await audits()).toEqual([]);
+  expect((await db.select().from(schema.vendorAccount)).filter(a=>[A,B].includes(a.id)).map(a=>[a.id,a.name]).sort()).toEqual([[A,A],[B,B]].sort());
+});
+
+test("default clock and consumer defaults accept with correlated real timestamp bounds",async()=>{
+  const input=await apiInput();let id=700;
+  const before=Date.now();
+  const result=await acceptMemberObservation(db,input,undefined,{createId:()=>`bbbbbbbb-0000-0000-0000-${String(id++).padStart(12,"0")}`});
+  const after=Date.now();expect(result.status).toBe("accepted");if(result.status!=="accepted")throw new Error("accepted fixture");
+  expect(result.observation.acceptedAt.getTime()).toBeGreaterThanOrEqual(before);
+  expect(result.observation.acceptedAt.getTime()).toBeLessThanOrEqual(after);
+  expect(result.observation.contentHash).toBe(singleHash);
+  const [audit]=await audits();expect(audit!.occurredAt).toEqual(result.observation.acceptedAt);
+  expect(audit).toEqual({...receiptAudit("bbbbbbbb-0000-0000-0000-000000000701","member_observation_accepted",{
+    vendor_account_id:A,observation_id:"bbbbbbbb-0000-0000-0000-000000000700",content_hash:singleHash,source:"api",pages:input.completeness.kind==='api'?input.completeness.pages:[]}),occurredAt:result.observation.acceptedAt});
+  expect((await snapshots()).map(row=>row.vendorAccountId)).toEqual([A]);
+});
+
+test("effective seat capability keeps contradictory valid records unknown and invitations normalized",async()=>{
+  const cases=[
+    {capability:"all_members_licensed",records:[member({seat_evidence:"unknown"}),member({provider_member_ref:"u2",email:"two@example.test",seat_evidence:"unlicensed"}),member({provider_member_ref:"u3",email:"three@example.test",seat_evidence_provenance:null}),member({provider_member_ref:"u4",email:"four@example.test",seat_evidence_provenance:"provider_field:seat"})]},
+    {capability:"provider_field",records:[member({seat_evidence:"unknown",seat_evidence_provenance:"provider_field:seat"}),member({provider_member_ref:"u2",email:"two@example.test",seat_evidence_provenance:"prefixprovider_field:seat"}),member({provider_member_ref:"u3",email:"three@example.test",seat_evidence_provenance:"provider_field:seat trailing"}),member({provider_member_ref:"u4",email:"four@example.test",seat_evidence_provenance:null})]},
+    {capability:"none",records:[member({seat_evidence_provenance:"provider_field:seat"})]},
+  ] as const;
+  for(const [offset,fixtureCase]of cases.entries()){
+    await db.update(schema.vendor).set({memberSeatEvidence:fixtureCase.capability,memberLicenseIdentity:"none"}).where(eq(schema.vendor.id,A));
+    const input=await apiInput(fixtureCase.records,A,new Date(now.getTime()+offset*1000));
+    const result=await acceptMemberObservation(db,{...input,evidence:{member_seat_evidence:fixtureCase.capability,member_license_identity:"none"}},[],options);
+    expect(result.status).toBe("accepted");if(result.status!=="accepted")throw new Error("accepted fixture");
+    const warnings=fixtureCase.records.map(record=>({kind:"unknown_seat_evidence",provider_member_ref:record.provider_member_ref,email:record.email!.trim().toLowerCase(),detail:"Seat evidence is not established by the vendor capability"}));
+    expect(result.members.map(record=>[record.provider_member_ref,record.seat_evidence,record.license_type_id])).toEqual(fixtureCase.records.map(record=>[record.provider_member_ref,"unknown",null]));
+    expect(result.warnings).toEqual(warnings);expect(result.observation.warnings).toEqual(warnings);
+    expect([result.observation.memberCount,result.observation.licensedCount,result.observation.invitedCount]).toEqual([fixtureCase.records.length,0,0]);
+  }
+  await db.update(schema.vendor).set({memberSeatEvidence:"all_members_licensed"}).where(eq(schema.vendor.id,A));
+  const invited=[member({provider_member_ref:"i1",email:"i1@example.test",membership_status:"invited",seat_evidence:"licensed",seat_evidence_provenance:"provider_field:seat"}),member({provider_member_ref:"i2",email:"i2@example.test",membership_status:"invited",seat_evidence:"unknown",seat_evidence_provenance:"capability:all_members_licensed"})];
+  const result=await acceptMemberObservation(db,await apiInput(invited,A,new Date(now.getTime()+3000)),[],options);
+  expect(result.status).toBe("accepted");if(result.status!=="accepted")throw new Error("accepted fixture");
+  expect(result.members.map(record=>[record.provider_member_ref,record.seat_evidence,record.seat_evidence_provenance,record.license_type_id])).toEqual([["i1","unlicensed",null,null],["i2","unlicensed",null,null]]);
+  expect([result.observation.memberCount,result.observation.licensedCount,result.observation.invitedCount,result.observation.warnings]).toEqual([0,0,2,[]]);
+  expect((await snapshots()).every(row=>row.vendorAccountId===A)).toBe(true);
+});
+
+test("null provider license identity never maps a NULL declaration and inactive mappings warn",async()=>{
+  await db.update(schema.vendor).set({memberSeatEvidence:"provider_field",memberLicenseIdentity:"provider_field"}).where(eq(schema.vendor.id,A));
+  const input=await apiInput([member({seat_evidence_provenance:"provider_field:seat",provider_license_ref:null})]);
+  const result=await acceptMemberObservation(db,{...input,evidence:{member_seat_evidence:"provider_field",member_license_identity:"provider_field"}},[],options);
+  expect(result.status).toBe("accepted");if(result.status!=="accepted")throw new Error("accepted fixture");
+  const warning={kind:"unmapped_license",provider_member_ref:"u1",email:"user@example.test",detail:"No unique active vendor license mapping"};
+  expect(result.members.map(record=>[record.seat_evidence,record.provider_license_ref,record.license_type_id])).toEqual([["licensed",null,null]]);
+  expect([result.observation.memberCount,result.observation.licensedCount,result.observation.warnings]).toEqual([1,0,[warning]]);
+  await db.update(schema.licenseType).set({providerRef:"PLAN",status:"inactive"}).where(eq(schema.licenseType.id,L));
+  const inactive=await apiInput([member({seat_evidence_provenance:"provider_field:seat",provider_license_ref:"PLAN"})],A,new Date(now.getTime()+1000));
+  const rejectedMapping=await acceptMemberObservation(db,{...inactive,evidence:{member_seat_evidence:"provider_field",member_license_identity:"provider_field"}},[],options);
+  expect(rejectedMapping.status).toBe("accepted");if(rejectedMapping.status!=="accepted")throw new Error("accepted fixture");
+  expect(rejectedMapping.members[0]!.license_type_id).toBeNull();expect(rejectedMapping.observation.warnings).toEqual([warning]);
+  expect(rejectedMapping.observation.licensedCount).toBe(0);expect((await snapshots()).every(row=>row.vendorAccountId===A)).toBe(true);
+});
+
+test("fresh manual and CSV observations persist exact actor receipts and transactional events",async()=>{
+  for(const [offset,source]of (["manual","csv_import"] as const).entries()){
+    const time=new Date(now.getTime()+offset*1000);const input:MemberObservationInput={vendorAccountId:A,source,observedAt:time,members:[member()],evidence,actorUserAccountId:ADMIN,
+      completeness:{kind:source,complete:true,accountWide:true,recordCount:1}};
+    let id=800+offset*2;const observationId=`bbbbbbbb-0000-0000-0000-${String(id).padStart(12,"0")}`,auditId=`bbbbbbbb-0000-0000-0000-${String(id+1).padStart(12,"0")}`;
+    const expectedObservation={id:observationId,vendorAccountId:A,source,observedAt:time,contentHash:singleHash,memberCount:1,licensedCount:1,invitedCount:0,
+      warnings:[],correlationId:null,acceptedAt:options.now(),acceptedBy:ADMIN};
+    const expectedAudit=receiptAudit(auditId,"member_observation_accepted",{vendor_account_id:A,observation_id:observationId,content_hash:singleHash,source,pages:[]},ADMIN);
+    const result=await acceptMemberObservation(db,input,[async(tx,event)=>{
+      expect(event).toEqual({type:"member_observation_accepted",observation:expectedObservation,members:[{...member(),email:"user@example.test",license_type_id:L}],warnings:[]});
+      expect((await tx.select().from(schema.auditLog)).find(row=>row.id===auditId)).toEqual(expectedAudit);
+      await tx.update(schema.vendorAccount).set({name:source}).where(eq(schema.vendorAccount.id,A));
+    }],{...options,createId:()=>`bbbbbbbb-0000-0000-0000-${String(id++).padStart(12,"0")}`});
+    expect(result.status).toBe("accepted");expect((await snapshots()).find(row=>row.id===observationId)).toEqual(expectedObservation);
+    expect((await audits()).find(row=>row.id===auditId)).toEqual(expectedAudit);
+    expect((await db.select().from(schema.vendorAccount).where(eq(schema.vendorAccount.id,A)))[0]!.name).toBe(source);
+    expect((await db.select().from(schema.vendorAccount).where(eq(schema.vendorAccount.id,B)))[0]!.name).toBe(B);
+  }
+  expect(await snapshots()).toHaveLength(2);expect(await audits()).toHaveLength(2);
 });
