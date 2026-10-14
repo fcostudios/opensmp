@@ -119,5 +119,16 @@
   ],
   "ledger_blob": "e19849bbea2494c9f945afc7e7ee4262ec71512c",
   "reassessed_total_minutes": 298,
-  "readiness_approval": "pending, no decision/start fabricated"
+  "readiness_approval": "pending, no decision/start fabricated",
+  "controller_handoff": {
+    "current_role": "same US-089 preparation controller, physical session1; stop at digest approval boundary",
+    "context_shape_excess": "Last observed context216910 exceeded approximate200K controller shape; disclose and preserve cost, do not extend this context into implementation",
+    "future_restart": "After digest approval root may resume SAME work item/controller role as physical session2 of at most3; forced restart recorded, no new work item and no retired checkpoint feedback event",
+    "authorization": "No execution restart now; readiness approval pending. Standing human authorization applies design/plan/implementation only after exact digest binding.",
+    "reused_scoped_reviewer": "/root/us089_readiness_controller/scoped_reviewer",
+    "implementer": "No US089 implementer yet; one future consolidated implementer after approval; controller does not source-edit",
+    "source_custody": "Four exact6191 artifacts preserved; mainae98 suppliesUS088schema andCHG094runtime; source not materialized",
+    "execution_base": "Record immutable execution base after approved entry design/plan; set explicit MUTATION_BASE for ordinary preflight and cold, no owned-scope shortcut",
+    "cost_reconciliation": "Freshreadiness35 contains observed21.847clusterproxy plus estimated8tail+5rootcoord; all spent wrong-blocker/packet/Ffacts retained once; earlier10-20/F3-5 rough estimates overlap and are not added again. Historical124once, total298."
+  }
 }
