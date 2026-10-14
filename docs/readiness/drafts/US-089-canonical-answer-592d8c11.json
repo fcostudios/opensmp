@@ -130,5 +130,49 @@
     "source_custody": "Four exact6191 artifacts preserved; mainae98 suppliesUS088schema andCHG094runtime; source not materialized",
     "execution_base": "Record immutable execution base after approved entry design/plan; set explicit MUTATION_BASE for ordinary preflight and cold, no owned-scope shortcut",
     "cost_reconciliation": "Freshreadiness35 contains observed21.847clusterproxy plus estimated8tail+5rootcoord; all spent wrong-blocker/packet/Ffacts retained once; earlier10-20/F3-5 rough estimates overlap and are not added again. Historical124once, total298."
+  },
+  "execution": {
+    "approved_digest": "1c67beb08b7686938781b836e61170395ee2da754d5189b0322f3e2f42f24d3c",
+    "approval_decision": "US089-READY-1C67BEB0",
+    "approval_binding_commits": [
+      "8606d11",
+      "92f043e"
+    ],
+    "design_plan_entry_commit": "d217fe7689aebc660ba4ba9365186bcadefe720a",
+    "mutation_base": "d217fe7689aebc660ba4ba9365186bcadefe720a",
+    "mutation_mode": "ordinary own diff; explicit same MUTATION_BASE for preflight and cold; no mutation_scope",
+    "controller_physical_sessions": 2,
+    "previous_controller_context_tokens": 216910,
+    "inherited_artifacts_commit": "6191fe834f940317cec7ecfa81eb43398815627d",
+    "inherited_artifacts": [
+      {
+        "path": "packages/db/src/member-observations.ts",
+        "mode": "100644",
+        "blob": "540e7e4db9a43db3761a0c6115e2699b509a37b3",
+        "verified_before_materialization": true,
+        "child_checkpoint": null
+      },
+      {
+        "path": "packages/db/src/member-observations.integration.test.ts",
+        "mode": "100644",
+        "blob": "208033352507f4e97aa72b0f3cf6a17c3cebd03f",
+        "verified_before_materialization": true,
+        "child_checkpoint": null
+      },
+      {
+        "path": "packages/db/src/index.ts",
+        "mode": "100644",
+        "blob": "89628359e441ef71c062606a67e8282141453b5f",
+        "verified_before_materialization": true,
+        "child_checkpoint": null
+      },
+      {
+        "path": "packages/db/src/index.test.ts",
+        "mode": "100644",
+        "blob": "3c5c7d886dfe8b4b77e58221392887a9609ca622",
+        "verified_before_materialization": true,
+        "child_checkpoint": null
+      }
+    ]
   }
 }
