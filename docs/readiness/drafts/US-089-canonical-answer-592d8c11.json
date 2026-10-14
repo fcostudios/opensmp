@@ -216,6 +216,49 @@
       "forecast_mismatch": false,
       "routing_gaps": [],
       "classification": "Native AST exportseam audit; execution classification pending; no preview/gate/cold yet"
+    },
+    "final_test_checkpoints": [
+      {
+        "commit": "53308ed89cbc868bf1417d191ff85e4c0e277ef1",
+        "integration_blob": "45d149a5000827da266050024037c2d417f41ba5",
+        "mode": "100644",
+        "reason": "Bounded A\u2013E oracle repairs; no original source defect"
+      },
+      {
+        "commit": "0d9746643725562a7890ba35f6f12de5db2ca4be",
+        "integration_blob": "d72c575230b4079980e3ce0805f15387d807815e",
+        "mode": "100644",
+        "reason": "One-case deterministic default-clock correction, 239/282 controlled RED, restored27GREEN"
+      }
+    ],
+    "controller2_measured_cost_cutoff": {
+      "agent_path": "/root/us089_execution_controller",
+      "physical_session": 2,
+      "same_item": "US-089",
+      "rollout": "/Users/fcolomas/.codex/sessions/2026/10/13/rollout-2026-10-13T21-30-20-01a1383f-1579-7fa0-9b22-a00668f29e59.jsonl",
+      "cutoff": "2026-10-14T04:00:40.717Z",
+      "total_token_usage": {
+        "input_tokens": 18032874,
+        "cached_input_tokens": 17786496,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 63123,
+        "reasoning_output_tokens": 33121,
+        "total_tokens": 18095997
+      },
+      "window": 475000,
+      "last_input": 203703,
+      "calls": {
+        "custom_tool_call": 42,
+        "function_call": 86
+      },
+      "total_calls": 128,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "input_peak": 203703,
+      "measured": true,
+      "tails_excluded": true,
+      "identity_basis": "First physical-session metadata; inherited metadata ignored"
     }
   },
   "interaction_evaluation": {
@@ -358,5 +401,68 @@
       "friction": "Initial unregisteredworktree pins, broad69Kpayload notreadablebydesigner tool, capability/credential refusals, nullresume makes registeredconsumer ack unavailable, response/question notice depended onhuman/controller prompts ratherthan channel.",
       "next": "Keep actual questions concise and pinned. Use proved registeredconsumer/session/workspace routing when routing needed; operatorregistration prerequisite, no fabricated descriptors."
     }
+  },
+  "bounded_execution_handoff": {
+    "status": "Same US-089 green checkpoint; controller physical2 ends, root explicitly arranges bounded physical3 of maximum3",
+    "worktree": "/Users/fcolomas/.codex/worktrees/us089-acceptance/smp",
+    "branch": "feature/observations/us089-acceptance",
+    "approval": "Francisco Approved exact1c67beb08b7686938781b836e61170395ee2da754d5189b0322f3e2f42f24d3c, decisionUS089-READY-1C67BEB0, ready298; standing design/plan/execution authorization",
+    "frozen_mutation_base": "d217fe7689aebc660ba4ba9365186bcadefe720a",
+    "final_source_commit": "0d9746643725562a7890ba35f6f12de5db2ca4be",
+    "source_status": "Service540e7e4/index8962835/index.test3c5c7d8 exact inherited6191fe8; integrationd72c575 modified only. No schema/migration/verifier/provider/tooling/guidance/config changes.",
+    "approved_inventory": "FOUR delivery files only;12 existing bookkeeping paths. Canonical592d8c11 existing guidance sufficient; no new row/regeneration/pin/CHG.",
+    "roles": {
+      "implementer": "/root/us089_execution_controller/implementer (SAME physical1, completed/free slot; resume all final proofs)",
+      "scoped_reviewer": "/root/us089_readiness_controller/scoped_reviewer (SAME physical1; report-file fallback; followup needs worker returned to avoid known threadlimit)",
+      "fresh_final_ac_reviewer": "Not yet spawned; fork_none bounded after worker return; can reuse fresh actor for native residual/final delta"
+    },
+    "current_proofs": {
+      "focused": "27/27 GREEN /tmp/us089-default-correction-green.log; DB type-check PASS from fix cohort",
+      "controlled": "Initial15 named RED and actualKilled in preview; extra25 B\u2013E RED;0/19/26 clean-process RED;239/282 correction RED",
+      "preview": "ONE actual runtime13.75887843055min raw82.23,458Killed89Survived10NoCoverage/557,0timeouts/errors,acceptance scored, non-authoritative",
+      "preliminary_gate": "PASS392.3139525s3010passed12existing skips at old test candidate167e582; obsolete for final gate after test fixes, retained cost",
+      "final_touched_preflight": "Previouspreview051a55d\u2192533 test-only delta ZEROmutatable sources/shards. Expected2 mismatch is scoped diagnostic, not authoritative count. ZEROadditionalpreview per exactWORK_READINESS315\u2013359, SCHEMA-STATIC exception only. Service unchanged.",
+      "whole_child_preflight": "Frozen d217 source comparison actual2candidates/no gaps; acceptance scored plus index verification seam pending ordinary fullrun",
+      "final_gate": "NOT RUN on final0d97466",
+      "fresh_ac": "NOT RUN",
+      "cold_attempts": 0,
+      "cold_invalidations": 0
+    },
+    "reviews": {
+      "design": "PASS /tmp/us089-design-plan-review.md",
+      "task1": "PASS /tmp/us089-task1-scoped-review.md",
+      "preview": "FINDINGS /tmp/us089-preview-scoped-review.md individually20equivalent+289accepteddiagnostic+545equivalent; A\u2013E repaired",
+      "fix": "/tmp/us089-fix-scoped-review.md otherwisePASS; minimal wall bounds correction now committed;145 individuallyequivalent via actual PG terminal/phase/append-only constraints",
+      "last_narrow_confirmation": "Dispatched existing reviewer for0d97466 vs533, expected /tmp/us089-default-correction-scoped-review.md; inspect fresh boundcommit/cutoff before using",
+      "unresolved": "33/35 positive comparator\u21920: finite fixedseed200\u00d790 no witness NOT universal equivalence; need honest individual actual runtime-adapter evidence or actual native outcome.0/19/26 native activation confirmation pending cold: ordinarybeforeAll/staticsetup-eval timing is HYPOTHESIS, controlledRED is not nativeKilled credit."
+    },
+    "forecast": "About279\u2013280/298 ACTIVE minutes, includes retained124once+freshprep35+~50non-overlapworker execution(includespreview/gate)+15scopedreview+remaining54(scoped4/freshAC5/finalgate7/cold33/closure5)+minimal correction1\u20132. Explicit estimate, not measured per-role billing; exclude idle/parallel overlap. At boundary above298 reassess/authority, above320/cohesion canonical repartition; no waiver or US088 cost borrowing.",
+    "remaining_sequence": [
+      "Accept actual tiny scoped confirmation; no further survivor exploration or packet ceremony",
+      "Same implementer frozen final0d97466 stock forced caffeinate -i pnpm check under own /tmp/smp-full-gate.lock; native owner/app fixture and TZAmerica/Guayaquil. Preserve foreign locks, wait\u226560s, owner-token/inode cleanup only. New gate proof required.",
+      "Fresh bounded adversarial AC1\u20134 reviewer after worker returns frees slot. No source/test writes during gate; root allows finalgate independently on frozen candidate.",
+      "After all review/fixes committed and AC review closes: same worker cache clear then ordinary explicit MUTATION_BASE=d217... MUTATION_WORK_ID=US-089 pnpm test:mutation ONCE, full own source scope, no core or historical-owned selectors. Actual index export verification proof, raw each scored>=80, per-ID residual reviewer signoff. Source/test/config/dependency changes invalidate cold and require honest reason/reproof.",
+      "Closure actuals+all append-only feedback in ONE evidence commit: phase timestamps, preview1/13.758878, own cold attempts/invalidations/minutes, actual2candidates, review_fix_loops, active estimated/measured phase provenance, real nonzero cost. No done before finalbuild/AC/cold proof.",
+      "Root integration decision: clean fast-forward into main ONLY if main remains ancestor; report SHA if nonFF, never hidden merge/rebase or remove untracked .codex/reports."
+    ],
+    "cost_files": {
+      "carried_ready_and_reviewer": "/tmp/us089-carried-role-costs.json",
+      "controller2": "/tmp/us089-controller-execution-cost.json",
+      "worker": "/tmp/us089-implementer-cost.json (latest99calls17236737input70477output; refresh tail/later turns, never add old cumulative snapshots)",
+      "root_execution": "/tmp/us089-root-execution-cost.json (ONLYpostapproval02:28:55.973baseline delta; root refresh)",
+      "prep_proxy": "/tmp/us089-controller-preparation-cost-proxy.json (clusters21.847+estimatedtail; wrong blocker/F packets retained)",
+      "rule": "Aggregate each US089 physical role once from firstmetadata. Input includescached once/outputincludesreasoning once. Oldready handoff216910 vs actualpeak231242 both retained. Parent124 is phase estimate, never fabricated fractional token allocation; old parent failure/history preserved."
+    },
+    "reports": [
+      "/tmp/us089-fix-report.md",
+      "/tmp/us089-preview-gate-report.md",
+      "/tmp/us089-controlled-results.json",
+      "/tmp/us089-fix-controlled-results.json",
+      "/tmp/us089-static-controlled-results.json",
+      "/tmp/us089-default-correction-green.log",
+      "/tmp/us089-fix-whole-preflight-manifest.json"
+    ],
+    "coordination": "Interaction eval embedded existing receipt; obsolete4604 resolvedrev6DEFERRED,592responsev1 consumed. Formalack NOTAPPLICABLE resume=null; no invented consumer/automaticresume. No current protocol blocker or new artificial request.",
+    "resource_root_cause": "Controller physical1 exceeded context231242 actualpeak (handoff216910); physical2 reaches~200K at green boundary after bounded repair. Resource-forced SAME-item physical3 authorized by root; carry all costs, no reset or fourth controller."
   }
 }
