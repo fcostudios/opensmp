@@ -153,7 +153,7 @@
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": ".nous-feedback.jsonl#US089-READY-1C67BEB0",
+    "evidence": "US089-READY-1C67BEB0",
     "payload_sha256": "1c67beb08b7686938781b836e61170395ee2da754d5189b0322f3e2f42f24d3c"
   },
   "actuals": null,
