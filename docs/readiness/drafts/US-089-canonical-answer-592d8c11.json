@@ -150,29 +150,213 @@
         "mode": "100644",
         "blob": "540e7e4db9a43db3761a0c6115e2699b509a37b3",
         "verified_before_materialization": true,
-        "child_checkpoint": null
+        "child_checkpoint": "167e58212c25a04f691a4a2187db6cfae1bd6537",
+        "child_mode": "100644",
+        "child_blob": "540e7e4db9a43db3761a0c6115e2699b509a37b3",
+        "exact_inherited_at_checkpoint": true,
+        "materialized_exact_before_oracle_repair": true
       },
       {
         "path": "packages/db/src/member-observations.integration.test.ts",
         "mode": "100644",
         "blob": "208033352507f4e97aa72b0f3cf6a17c3cebd03f",
         "verified_before_materialization": true,
-        "child_checkpoint": null
+        "child_checkpoint": "167e58212c25a04f691a4a2187db6cfae1bd6537",
+        "child_mode": "100644",
+        "child_blob": "6520fcfeaa2e434fa1036c3378e59106f59dec6d",
+        "exact_inherited_at_checkpoint": false,
+        "materialized_exact_before_oracle_repair": true
       },
       {
         "path": "packages/db/src/index.ts",
         "mode": "100644",
         "blob": "89628359e441ef71c062606a67e8282141453b5f",
         "verified_before_materialization": true,
-        "child_checkpoint": null
+        "child_checkpoint": "167e58212c25a04f691a4a2187db6cfae1bd6537",
+        "child_mode": "100644",
+        "child_blob": "89628359e441ef71c062606a67e8282141453b5f",
+        "exact_inherited_at_checkpoint": true,
+        "materialized_exact_before_oracle_repair": true
       },
       {
         "path": "packages/db/src/index.test.ts",
         "mode": "100644",
         "blob": "3c5c7d886dfe8b4b77e58221392887a9609ca622",
         "verified_before_materialization": true,
-        "child_checkpoint": null
+        "child_checkpoint": "167e58212c25a04f691a4a2187db6cfae1bd6537",
+        "child_mode": "100644",
+        "child_blob": "3c5c7d886dfe8b4b77e58221392887a9609ca622",
+        "exact_inherited_at_checkpoint": true,
+        "materialized_exact_before_oracle_repair": true
       }
-    ]
+    ],
+    "task1_checkpoint": "167e58212c25a04f691a4a2187db6cfae1bd6537",
+    "task1_proof": {
+      "report": "/tmp/us089-task1-report.md",
+      "controlled_results": "/tmp/us089-controlled-results.json",
+      "representatives": [
+        215,
+        225,
+        230,
+        231,
+        271,
+        291,
+        305,
+        353,
+        368,
+        369,
+        370,
+        490,
+        496,
+        547,
+        554
+      ],
+      "focused_green": 21,
+      "native_preflight_candidates": 2,
+      "forecast_mismatch": false,
+      "routing_gaps": [],
+      "classification": "Native AST exportseam audit; execution classification pending; no preview/gate/cold yet"
+    }
+  },
+  "interaction_evaluation": {
+    "schema_version": 1,
+    "work_id": "US-089",
+    "scope": "Supervised real implementer/designer coordination; no artificial requests or automatic resume",
+    "requests": [
+      {
+        "id": "ee54839b-cbd3-4253-9767-f623e2b9f6cb",
+        "created_at": "2026-10-12T23:45:32.387471+00:00",
+        "status": "resolved",
+        "revision": 3,
+        "supersedes_request_id": null,
+        "response": {
+          "version": 1,
+          "created_at": "2026-10-13T01:28:15.180738+00:00",
+          "outcome": "deferred",
+          "input_fingerprint": "142d39a5d4bd257fcad583fa73e71ed83f92aa58924cc2340af1d3ed92bab9dd"
+        },
+        "resume": {
+          "branch": "feature/observations/us089-acceptance",
+          "checkpoint_commit": "b1b48bc9613c8fb87709fb958d506123236a4cc4",
+          "consumer_id": "smp-us030-controller",
+          "harness": "manual",
+          "next_action": "Read canonical response and delivery; validate exact guide/pin ownership, recompute readiness, then obtain digest-bound child approval. Do not automatically resume implementation.",
+          "session_ref": "us089-readiness",
+          "work_id": "US-089",
+          "workspace_ref": "us089-acceptance"
+        }
+      },
+      {
+        "id": "4604fabb-825a-4665-b912-1ead0f819f53",
+        "created_at": "2026-10-14T01:51:18.731691+00:00",
+        "status": "resolved",
+        "revision": 6,
+        "supersedes_request_id": "ee54839b-cbd3-4253-9767-f623e2b9f6cb",
+        "response": {
+          "version": 1,
+          "created_at": "2026-10-14T02:44:56.090185+00:00",
+          "outcome": "deferred",
+          "input_fingerprint": "4844c09f12d3c7116f9af74770af4d41ff4989ebeb29cea35f0898d60bed2b87"
+        },
+        "resume": null
+      },
+      {
+        "id": "592d8c11-cf19-4e42-b473-28bca841aff3",
+        "created_at": "2026-10-14T02:05:20.967447+00:00",
+        "status": "resolved",
+        "revision": 3,
+        "supersedes_request_id": "4604fabb-825a-4665-b912-1ead0f819f53",
+        "response": {
+          "version": 1,
+          "created_at": "2026-10-14T02:06:31.654659+00:00",
+          "outcome": "answered",
+          "input_fingerprint": "52b1eb37d6596c15a94dd5c7510c9545de9cae7e3903307b585b02c7a8a7cb48"
+        },
+        "resume": null
+      }
+    ],
+    "discovery": {
+      "mechanism": "Explicit human prompt then ALL_TOOLS discovery and request_list success; later IMP443/444 schemas exposed",
+      "source": "Current root transcript; no automatic channel notification used"
+    },
+    "notices": [
+      {
+        "request_id": "ee54839b-cbd3-4253-9767-f623e2b9f6cb",
+        "trigger": "explicit user check",
+        "human_prompt_at": "2026-10-13T01:34:00.391Z",
+        "result": "deferred: missing/stale worktree pins; nothing delivered"
+      },
+      {
+        "request_id": "4604fabb-825a-4665-b912-1ead0f819f53",
+        "trigger": "explicit user check",
+        "human_prompt_at": "2026-10-14T01:59:01.863Z",
+        "question_id": "fb2891da-37d2-4e0d-ba69-dbf71eb40f4b",
+        "question_at": "2026-10-14T01:53:45.297162Z",
+        "result": "F1\u2013F5 required; bounded committed factual reply32744555 prepared"
+      },
+      {
+        "request_id": "592d8c11-cf19-4e42-b473-28bca841aff3",
+        "trigger": "explicit user check",
+        "human_prompt_at": "2026-10-14T02:16:37.980Z",
+        "result": "Canonical responsev1 answered existingguidance sufficient; subsequently consumed in readiness8355ad9/handoff0bba3eb"
+      },
+      {
+        "request_id": "4604fabb-825a-4665-b912-1ead0f819f53",
+        "trigger": "Nous-controller steering then supported requester reply and explicit status retrieval",
+        "reply_id": "cb466e3b (as referenced by canonical closure summary)",
+        "result": "Queuedrevision4, designerclosedresolvedrevision6/deferred with answered_in_replacement592d8c11"
+      }
+    ],
+    "approval": {
+      "human_quote": "Approved",
+      "human_prompt_at": "2026-10-14T02:28:55.973Z",
+      "digest": "1c67beb08b7686938781b836e61170395ee2da754d5189b0322f3e2f42f24d3c",
+      "binding_commit": "92f043e",
+      "implementation_authority": "Independent authentic human digest approval; neither answer nor predecessor closure grants approval"
+    },
+    "acknowledgment": {
+      "interface": "request_ack discovered",
+      "disposition": "not applicable; NOT called",
+      "reason": "Answered request592d8c11 has resume=null. Published request_consumer requires a registered consumer AND matching nonnull owned resume descriptor. No consumer invented, no descriptor/config/credential edited, no resumed claim.",
+      "local_receipt": "docs/readiness/drafts/US-089-canonical-answer-592d8c11.json",
+      "observation": "Canonical answer consumed and human approval applied separately."
+    },
+    "errors": [
+      {
+        "code": "invalid_contract",
+        "message": "Invalid context_ref.locator",
+        "context": "First submission used absolute locators; corrected to relative"
+      },
+      {
+        "code": "capability",
+        "message": "Request rejected by server",
+        "context": "Four knowledge searches US089/DEC043/044/045 and two direct snapshot reads; preserved, no credential inference"
+      },
+      {
+        "code": "credential",
+        "message": "Request rejected by server",
+        "context": "Corrected submission attempt after human ask; later explicit retry succeeded"
+      },
+      {
+        "code": "replacement_not_queued",
+        "context": "Designer-reported supersession tool refusal because replacement already resolved; used supported deferred closure, not fake queued replacement"
+      },
+      {
+        "context": "Root mistakenly interpreted mandatory guidance update despite CHG086 opposite ruling; acknowledged and retained preparation costs"
+      }
+    ],
+    "routing": {
+      "current_requests_resume": null,
+      "automatic_resume": false,
+      "registration": "Branch-only pins require operatorregistered package_roots workspace_ref. Unknown key was never invented. Registered main and substrate refs plus designercanonical snapshots resolved9refs."
+    },
+    "cost": {
+      "basis": "All preparation retained within approved298 estimate freshreadiness35 proxy; historical124 exactlyonce. Idle queue waiting excluded from active effort. Root postapproval execution window measured separately /tmp/us089-root-execution-cost.json; finalcutoff pending. No synthetic accounting reset."
+    },
+    "evaluation": {
+      "worked": "Supported typedrequests, pinned Git policy refs, canonical snapshots from designer, bounded8.3KB Ffacts replacement, explicithumanapproval boundary, requester replyclosedobsoletequestion withoutdomainwork.",
+      "friction": "Initial unregisteredworktree pins, broad69Kpayload notreadablebydesigner tool, capability/credential refusals, nullresume makes registeredconsumer ack unavailable, response/question notice depended onhuman/controller prompts ratherthan channel.",
+      "next": "Keep actual questions concise and pinned. Use proved registeredconsumer/session/workspace routing when routing needed; operatorregistration prerequisite, no fabricated descriptors."
+    }
   }
 }
