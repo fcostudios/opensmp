@@ -1,0 +1,23 @@
+# US-089 existing read-only facts — F1–F5
+
+No implementation, design, readiness rewrite, tests, gate, reconciler run, rebase or main change occurred. JSON sidecar contains exact hashes/blobs/modes and the full four file-derived operator rows, not a claimed live server config.
+
+**F1.** Exact minimal row remains in `docs/readiness/drafts/US-089-context-correction-evidence.json` at `c1a6c845f477682857a94026807d209b4d35eb70`; file SHA256 `8d6e716871cd4038668df13238ddcb37ed959904ab5490be8e908b368c7f3ed4`. The sidecar provides its unchanged text and proposed append-only value (four existing rows, then that row). Live config was not read. It asks only US-089 temporal/replay/account-lock/audit/ordered-consumer rollback assurance, not US-088 provider delivery.
+
+Requested row (unchanged):
+
+**Atomic member observation acceptance (US-089; DEC-SMP-044)** — complete account-wide observations are serialized by the account advisory lock: older observations are stale, equal-time identical canonical content is a no-op, equal-time contradictory content conflicts, and newer observations (including empty snapshots) are accepted. Exact audit receipts and the typed member_observation_accepted event share one transaction with ordered consumers; a later consumer failure rolls back the ledger, audits and earlier effects. Oracle: deterministic shared-PostgreSQL replay/empty/concurrent-lock and exact audit/event/rollback-retry assertions in packages/db/src/member-observations.integration.test.ts, plus exact package export proof in packages/db/src/index.test.ts.
+
+**F2.** No functional policy changed since CHG-086. The proposed operator addition originated our interpretation of AGENTS' same-PR TESTING §3 instruction. We had not accounted for the designer-reported canonical CHG-086 ruling: BR-24 noncritical, no guidance regeneration/no pin. Existing MemberObservation auth heuristic, tenant isolation, authorization and audit append-only rows, plus ordinary80% changed-source mutation threshold, may already gate the child. They do not individually name account-wide completeness/journal totals, temporal stale/equal-time replay/conflict/newer-empty rules, or ordered consumer transaction rollback/exact event/audit receipts. Those are existing US-089/DEC-044 behavior, not a new policy.
+
+Please decide whether the extra operator row is unnecessary under CHG-086. If unnecessary, U2 would be removed in a future reviewed readiness reassessment. If required, designer should propose an official human-approved technical CHG; none is allocated or authorized here.
+
+Retained parent acceptance shard report exists:74.15%,413Killed/133Survived/11NoCoverage,557mutants; campaign exit1. Sidecar hashes its raw runtime report/log/summary and representative missing-oracle inventory. These are uncommitted runtime artifacts, not Git-pinnable canonical evidence and not fresh US-089 proof.
+
+**F3.** Readiness at `b1b48bc9613c8fb87709fb958d506123236a4cc4` exists, blocked, pendingapproval, digest `01b79d134682886f71bd55c0a99b815b3f6e49c9b453f789b1c7334ece52238a`;293min/provisional12delivery paths includes unresolved U2 guides/pins. No plan/design exists. Child refs require operator registration of checkout `/Users/fcolomas/.codex/worktrees/us089-acceptance/smp` under actual package_roots key and source_roots with tenant_file project marker. The key is unknown; local file hashes are not server pins. No shared-main publication authorized.
+
+**F4.** Current main `ae98f9fd4206a2e933355ec438cf9970ac3579bf`. Latest actual guidance layer is CHG-085/167802b, pinning TESTING and critical-paths through CHG-080/d9d5d48. Latest overall reconciler layer is CHG-090/8a5c4fb, affecting only CLAUDE/DEFINITION_OF_DONE. `scripts/work-readiness/git.mjs` binds full reconciler SHA256 `8895f6ccbe38c1b9ad3828fad53f180b9d0fb5f0577cb363956217dda672ae8f`. Sidecar includes committed manifests/pin blobs and exact modes/hashes. No reconciliation or re-pin attempted.
+
+**F5.** Four root-reported knowledge searches (US-089, DEC-SMP-043/044/045) and two snapshot reads returned exactly `{"code":"capability","message":"Request rejected by server"}`; no validation field was returned. Sidecar identifies the two designer-provided CHG-086/080 snapshot tuples from message `fb2891da-37d2-4e0d-ba69-dbf71eb40f4b`. They are designer-provided references, not our independent canonical reads. Do not infer current credential settings from these errors: a later credential retry enabled submission; search was not retested. No further search/read or bypass is needed here.
+
+Cost:293 stays unapproved. This F-packet adds estimated3–5 active preparation minutes, subject to cumulative actuals reconciliation before future approval; no silent estimate change or waiver.
