@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "01b79d134682886f71bd55c0a99b815b3f6e49c9b453f789b1c7334ece52238a",
+  "readiness_payload_sha256": "1c67beb08b7686938781b836e61170395ee2da754d5189b0322f3e2f42f24d3c",
   "work_id": "US-089",
   "kind": "US",
   "work_type": "functional",
@@ -47,8 +47,8 @@
   "signals": {
     "routes_or_screens": 0,
     "acceptance_flows": 3,
-    "expected_changed_files": 12,
-    "bookkeeping_files": 5,
+    "expected_changed_files": 4,
+    "bookkeeping_files": 12,
     "expected_mutation_shards": 2,
     "lifecycle_or_concurrency_boundaries": 1,
     "external_integrations": 0,
@@ -57,12 +57,12 @@
     "tooling_change": false
   },
   "estimate_minutes": {
-    "readiness": 38,
+    "readiness": 53,
     "implementation": 71,
     "focused_verification": 111,
     "review": 50,
-    "integration": 23,
-    "total": 293
+    "integration": 13,
+    "total": 298
   },
   "uncertainties": [
     {
@@ -75,16 +75,16 @@
     {
       "id": "U2",
       "statement": "Which exact paths and inherited blobs are owned?",
-      "status": "unresolved",
-      "estimate_impact_minutes": 15,
-      "resolution": "Required canonical dependency: Nous must append an existing-US-089 acceptance/replay/transaction oracle entry to testing.critical_paths while preserving existing additions, regenerate docs/dev-guide/TESTING.md and testing/critical-paths.md, and deliver exact authorized pin/provenance records. No direct generated handedit and no new work ID. Provisional12delivery inventory: four owned DB source/test paths; both generated guides; .nous-provenance.json/.nous-project.json/.nous-sync.json if envelope changed; up to three pin paths (manifest plus exact copied guides) whose canonical owner/revision/path MUST be delivered by Nous and re-counted before approval. This is a bounded planning forecast, not authority to invent pin paths or change tooling. Five bookkeeping: readiness, design, plan, .nous-feedback.jsonl and docs/readiness/drafts/US-089-nous-request.md. Exact pin count/authority and final guide bytes remain unresolved; digest cannot be approved until delivery. Source candidate blobs/modes preserved in /tmp/us089-inherited-custody.json: service540e7e4db9a43db3761a0c6115e2699b509a37b3; integration208033352507f4e97aa72b0f3cf6a17c3cebd03f; index89628359e441ef71c062606a67e8282141453b5f; index.test3c5c7d886dfe8b4b77e58221392887a9609ca622; all100644. No route-data change required by current forecast. Whole immutable migration289e93cafc3478648ba406248b6b701bd8cc81e9 is deliveredUS088; no schema, verifier or runtime-tooling authority."
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Canonical request592d8c11 responsev1 rev3 outcomeanswered, fingerprint52b1eb37d6596c15a94dd5c7510c9545de9cae7e3903307b585b02c7a8a7cb48, confirms existing guidance sufficient for US-089 under CHG-086 BR-24 noncritical/no-regeneration. No new critical row, guide regeneration, reconciler pin or CHG is needed. Our earlier U2 arose from an overbroad local AGENTS §3 interpretation, not a changed functional policy. Existing MemberObservation heuristic, authorization/audit rows, ordinary changed-source80% mutation threshold and canonical AC4 oracles/own cold supply proof. Four exact delivery paths: packages/db/src/member-observations.ts; packages/db/src/member-observations.integration.test.ts; packages/db/src/index.ts; packages/db/src/index.test.ts. Twelve bookkeeping paths: this assessment; docs/readiness/drafts/US-089-nous-request.md; US-089-context-correction.md/evidence.json/submit-draft.json; US-089-nous-F1-F5.md/evidence.json; US-089-bookkeeping-rebase-map.json; US-089-canonical-answer-592d8c11.json (all drafts paths); future docs/superpowers/specs/2026-10-12-us089-design.md; docs/superpowers/plans/2026-10-12-us089-plan.md; .nous-feedback.jsonl. No testing guide, critical-path, sync envelope, pin, route-data, schema, migration, verifier or generic-tooling delivery. Exact inherited service540e7e4db9a43db3761a0c6115e2699b509a37b3/integration208033352507f4e97aa72b0f3cf6a17c3cebd03f/index89628359e441ef71c062606a67e8282141453b5f/index.test3c5c7d886dfe8b4b77e58221392887a9609ca622 blobs all100644 remain unchanged until authorized materialization."
     },
     {
       "id": "U3",
       "statement": "Can inherited mixed-branch commits be integrated or silently rewritten?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "No. Managed isolated /Users/fcolomas/.codex/worktrees/us089-acceptance/smp starts integrated main2b3a4d8; original mixed us-030 and original parent254minute history remain untouched. Before approved source materialization record exact old-source-to-child commit SHA map and blob/mode custody. Materialize only owned candidate artifacts, then repair reproduced gaps in own test/service. Preserve US-088 already-integrated files, original rejected a80 tree and all old histories. Check testing/critical-paths.md and docs/dev-guide/TESTING.md after sync/rebase; initial blobsb7b17fca49b087a195d71e0db16d039e3cbc9a6e/e36e93535158477d33719ba4af6c62dbfbb26645. No fake empty diff, moving HEAD base, synthetic historical authorization or tooling carve-out."
+      "resolution": "Bookkeeping-only child rebased from2b3a4d8389279a32fec2e86727f1634c19d317bf onto current mainae98f9fd4206a2e933355ec438cf9970ac3579bf using full recorded7commit SHA map in docs/readiness/drafts/US-089-bookkeeping-rebase-map.json. Every mapped owned bookkeeping tree matches original, old refs preserved; no mixed us-030 integration or source materialization. Before/after critical-pathsb7b17fca49b087a195d71e0db16d039e3cbc9a6e and TESTINGe36e93535158477d33719ba4af6c62dbfbb26645 exactly match target. Original inherited6191fe834f940317cec7ecfa81eb43398815627d, rejecteda80 tree and parentcost/history stay preserved. After approval record four source artifact-to-child checkpoint mappings and exactblob/modes, materialize only owned artifacts then repair reproduced gaps. No moving-HEAD baseline, fake empty-diff, historical synthetic approval or tooling carve-out. Freeze execution mutation base after entry approval/design/plan; readiness base ae98 is not a replacement for that recorded execution base."
     },
     {
       "id": "U4",
@@ -98,7 +98,7 @@
       "statement": "How is historical and remaining effort counted honestly?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Allocate parent estimated254minutes exactly once: US-088130 already closed, US-089124. Historical124 phase attribution18readiness/31implementation/32focused/35review/8integration is a planning proxy, not measured phase or token allocation. Original canonical remaining103=repair35+focused10+review15+gate5+cold33+closure5 omitted fresh child readiness/materialization and required preview. Re-assessed remaining154=readiness15+materialization5+repair35+focused10+preview30+scoped/fresh review15+forced gate6+cold33+closure5. Full phase33/71/111/50/13=278. Preview/cold/gate costs are inside focused111, not added again to total. No US-088 or technical CHG-088/089/091 tokens/cost borrowed. No approved budget waiver is needed for this fresh under320 assessment; task-boundary forecast above the final approved293 stops for assessment/authority review, above320 or cohesion fails to Nous. Canonical guidance regeneration adds5readiness and10integration/custody minutes; re-assessed remaining169/full293, phases38/71/111/50/23. The15increment is included once. Exact generated delivery inventory must be reconciled before approval; above320 or20paths returns to Nous."
+      "resolution": "Parent estimated254minutes allocated once: closed US-088130, US-089124. Historical124 proxy phases18readiness/31implementation/32focused/35review/8integration, not measured billing. Original103remaining=repair35+focused10+review15+gate5+cold33+closure5 omitted child preparation/materialization and requiredpreview. Initial honest278 included15freshreadiness+5materialization+35repair+10focused+30preview+15review+6gate+33cold+5closure=154new. Interim293 added unspent guidance-generation5readiness/10custody now canonically unnecessary: remove that future allowance, not spent preparation. Actual same-controller assistant/tool event activity cluster proxy at captured cutoff totals21.847minutes (7.755initialreadiness,8.785wrong-blocker/packet/semanticfix,3.487Ffacts,1.82currentreassessment); gaps>10minutes excluded, includes waits/overlap, not per-agent active billing. Carry all spent wrong-blocker investigation/packet/Ffacts inside these observed clusters instead of adding their earlier10-15/15-20/3-5 overlapping rough estimates again. Budget freshreadiness35=observed~21.85+estimated finalassessment/scopedreviewtail~8+root coordination~5 rounded35; root/reviewer overlap is not double charged. New remaining174=35readiness+40implementation(materialization5+repair35)+79focused(focused10+preview30+gate6+cold33)+15review+5integration. Full phases53/71/111/50/13=298. Cold/previews/gate insidefocused111, never extra. Old canonical records/sunk tokens remain preserved; no US088/technicalCHG tokens or waiver borrowed. Reconcile real role telemetry and estimated tails at closure; at any task boundary forecast above298 stops/reassesses, above320 or cohesion fails returns to Nous. Canonical answer removed dependency, not granted execution approval."
     },
     {
       "id": "U6",
@@ -112,7 +112,7 @@
       "statement": "Can parent gates or index forecast replace own mutation evidence?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "No. Retain parent failed fullcold1975.416s and prior invalidated553.020s in history; never child PASS/attempt. Side-effect-free planning helper over virtual inherited four owned paths returns2 full-file candidate shards (index and acceptance), existing test routes no gaps; this is forecast, not executable preflight. Exact added index export is an existing verification-only AST seam on real diff, so actual preflight may yield1scored acceptance shard plus exact zero-mutant export proof. Discover actual IDs/count/seam audits after approved committed task, never hardcode IDs or alter classifier. Final own cache-cleared full diff uses frozen approved integration base; if whole unrelated index logic is selected unexpectedly stop/review scope rather than invent exclusion."
+      "resolution": "Retained failed US-083 six-source campaign exit1 in1975.4162145s is historical diagnostic only; acceptance shard74.15%,413Killed/133Survived/11NoCoverage of557. Raw log/report retained and hashed in F1-F5 sidecar, uncommitted runtime evidence not Git-pinnable canonical artifact. Never report childPASS/attempt from it. Prior side-effect-free virtual four-artifact forecast returns2 routed candidates (acceptance with own integration suite, index with index.test.ts); actual diff contains exact added relative export, an existing ordinary verification-only seam. Expect2shards including acceptance scored and export verification seam, but discover exact count/classification after approved commit and record mismatch before execution; no hardcodedIDs/classifier changes or zero-score waiver. Current mainCHG094 supports OPTIONAL technical-governed historical owned scope on current runtime; it does not grant functional authority and is not needed here because source artifacts materialize as own four-file diff off integrated main. Keep mutation_scope absent; no MUTATION_SCOPE_WORK_ID or synthetic historical-source authorization. Ordinary default diff/preflight/cold uses frozen own execution base and current runtime identity; do not compare only movingHEAD."
     },
     {
       "id": "U8",
@@ -133,7 +133,7 @@
       "statement": "What authority and execution shape apply?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Approval pending for THIS digest. WORK_READINESS.md states every new US/CHG needs approved machine-valid readiness before production/test/migration/tooling, and approval.payload_sha256 must exactly equal readiness_payload_sha256. Existing human standing authorization covers subsequent design/plan/implementation within approved readiness; do not fabricate approval from parent digest or separately request stage approvals. Do not emit started before digest approval. Commit child design/plan bound to the finalized approved total (current forecast293minutes) after approval and freeze mutation base. One same implementer/reused scoped reviewer, fresh adversarial reviewer, bounded same controller; phase events ts and real nonzero done.cost, actual preview_rounds/minutes and cold attempts/invalidations. Future forced caffeinate -i pnpm check under owned /tmp/smp-full-gate.lock; wait foreign US-024/US-087 owners at least60seconds, never delete their lock. Shared official CHG-067 fixture, no private containers. Integrate main by fast-forward only after final proof; rebase with recorded SHA map if required."
+      "resolution": "THIS revised concrete digest is approvalpending; previous01b readiness was unapproved and obsolete, historical files preserved. WORK_READINESS §Approval evidence: approval.payload_sha256 must exactly equal readiness_payload_sha256; an agent may author an assessment but cannot claim user approval without matching digest-bound evidence. Standing human authorization covers subsequent design/plan/implementation within approved child readiness, so no separate stage asks. No started before this digest approval. Commit child design/plan bound298minutes after approval and freeze mutationbase; one same consolidated implementer/reused scoped reviewer, fresh adversarial reviewer; bounded same controller resume/restart recorded. Phase events ts, real nonzero done.cost and actual previews/cold attempts/invalidations. Future forced caffeinate -i pnpm check under own shared /tmp/smp-full-gate.lock, explicit ordinarylocal profile TZ=America/Guayaquil as current gate requires; shared officialCHG067 fixture/native runtime, no privatecontainers. Wait foreignlockowner >=60sec and neverremove it. CurrentCHG094 optionalowned-scope mode does not alter normal gate or source boundary. Rebase/integrate main sequentially after final proof, record SHAmap and testidentity invalidation where current source/test/runtime changes require it. Explicitly set MUTATION_BASE to the recorded frozen own execution base for BOTH ordinary mutation preflight and final cold, because ordinary preflight otherwise defaults HEAD; no empty HEAD-only scope may stand in for inherited delivery."
     }
   ],
   "dependencies": [
@@ -148,13 +148,13 @@
       "reason": "Shared drift diff consumes accepted normalized observations."
     }
   ],
-  "decision": "blocked",
+  "decision": "ready",
   "partitions": [],
   "approval": {
     "status": "pending",
     "approved_by": null,
     "evidence": null,
-    "payload_sha256": "01b79d134682886f71bd55c0a99b815b3f6e49c9b453f789b1c7334ece52238a"
+    "payload_sha256": "1c67beb08b7686938781b836e61170395ee2da754d5189b0322f3e2f42f24d3c"
   },
   "actuals": null,
   "policy_bootstrap": false,

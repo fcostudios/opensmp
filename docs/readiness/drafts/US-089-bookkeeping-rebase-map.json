@@ -1,0 +1,77 @@
+{
+  "source_base": "2b3a4d8389279a32fec2e86727f1634c19d317bf",
+  "source_head": "327445559d5ccf999dddfe2a13242a14ae007bae",
+  "target_base": "ae98f9fd4206a2e933355ec438cf9970ac3579bf",
+  "old_commits": [
+    "5ecd4965ebebdd3382e8fa77c1e9189a91278b89",
+    "8d036c65425d66f424fd77969f97b3d0cc4152f3",
+    "0efa9e2c7888a044b871ab9534e96400f7ef56f6",
+    "b1b48bc9613c8fb87709fb958d506123236a4cc4",
+    "8c3abbb28c904439651a72c062fb66e361790999",
+    "c1a6c845f477682857a94026807d209b4d35eb70",
+    "327445559d5ccf999dddfe2a13242a14ae007bae"
+  ],
+  "guides_before": {
+    "testing/critical-paths.md": {
+      "child_blob": "b7b17fca49b087a195d71e0db16d039e3cbc9a6e",
+      "target_blob": "b7b17fca49b087a195d71e0db16d039e3cbc9a6e"
+    },
+    "docs/dev-guide/TESTING.md": {
+      "child_blob": "e36e93535158477d33719ba4af6c62dbfbb26645",
+      "target_blob": "e36e93535158477d33719ba4af6c62dbfbb26645"
+    }
+  },
+  "scope": "bookkeeping-only rebase; no source/test or migration materialized; preserve old commits",
+  "sha_map": [
+    {
+      "old": "5ecd4965ebebdd3382e8fa77c1e9189a91278b89",
+      "rebased": "988392fde67478acb93971839056cb1fe7d1398b",
+      "owned_tree_equal": true
+    },
+    {
+      "old": "8d036c65425d66f424fd77969f97b3d0cc4152f3",
+      "rebased": "85d0683034e184b654bfc2d58b20b5f00fcd6364",
+      "owned_tree_equal": true
+    },
+    {
+      "old": "0efa9e2c7888a044b871ab9534e96400f7ef56f6",
+      "rebased": "ecb4474dbfde43ae786e655e4f785f19fd2ffd12",
+      "owned_tree_equal": true
+    },
+    {
+      "old": "b1b48bc9613c8fb87709fb958d506123236a4cc4",
+      "rebased": "6aab5afbc2ace947e787c637daff35b55049cdae",
+      "owned_tree_equal": true
+    },
+    {
+      "old": "8c3abbb28c904439651a72c062fb66e361790999",
+      "rebased": "676b772d03fbe4d1abf2f722f81eb94202d6f566",
+      "owned_tree_equal": true
+    },
+    {
+      "old": "c1a6c845f477682857a94026807d209b4d35eb70",
+      "rebased": "78a6bdcc78e4b012c080299ef9cd2d6f80795f37",
+      "owned_tree_equal": true
+    },
+    {
+      "old": "327445559d5ccf999dddfe2a13242a14ae007bae",
+      "rebased": "0ca437abfcb8e7e53aaef49484f9d3af305a3e4a",
+      "owned_tree_equal": true
+    }
+  ],
+  "rebased_head": "0ca437abfcb8e7e53aaef49484f9d3af305a3e4a",
+  "guides_after": {
+    "testing/critical-paths.md": "b7b17fca49b087a195d71e0db16d039e3cbc9a6e",
+    "docs/dev-guide/TESTING.md": "e36e93535158477d33719ba4af6c62dbfbb26645"
+  },
+  "source_changes": [
+    "docs/readiness/US-089.json",
+    "docs/readiness/drafts/US-089-context-correction-evidence.json",
+    "docs/readiness/drafts/US-089-context-correction-submit-draft.json",
+    "docs/readiness/drafts/US-089-context-correction.md",
+    "docs/readiness/drafts/US-089-nous-F1-F5-evidence.json",
+    "docs/readiness/drafts/US-089-nous-F1-F5.md",
+    "docs/readiness/drafts/US-089-nous-request.md"
+  ],
+  "rebase_authority": "Root explicitly authorized bookkeeping-only mapped rebase before final readiness; no main edits"
+}

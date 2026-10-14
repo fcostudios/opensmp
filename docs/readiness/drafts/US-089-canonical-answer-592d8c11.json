@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "project_id": "fcostudios__smp",
+  "work_id": "US-089",
+  "request_id_prefix": "592d8c11",
+  "request_revision": 3,
+  "response_version": 1,
+  "outcome": "answered",
+  "input_fingerprint": "52b1eb37d6596c15a94dd5c7510c9545de9cae7e3903307b585b02c7a8a7cb48",
+  "reported_by": "root controller canonical response receipt; this is concise owned bookkeeping, not a new generated guide or independent snapshot read",
+  "ruling": "Existing guidance sufficient for US-089. No new critical row, regeneration, reconciler pin or CHG. Applies CHG-086 BR-24 noncritical/no-regeneration allocation; not new execution approval. MemberObservation heuristic/auth/audit rows stay unchanged, ordinary changed-source80% threshold plus AC4 oracles and own cold provide required proof.",
+  "effect": "Resolves old readinessU2 mistaken guidance dependency. Reassess four owned DB files, preserve sunk effort/history, get concrete digest-bound readiness approval before implementation.",
+  "authority_limit": "No approval, started, design, code, tests, mutation/gate or guide ownership fabricated. Original packet/request files remain historical. Root reported exact request receipt; complete opaque UUID/nonce not supplied here and not invented.",
+  "preparation_cost_proxy": {
+    "method": "Observed assistant/tool event activity clusters with gaps>10min excluded; wall proxy, not per-agent active billing. Includes waits/overlap inside cluster; no sum over parallel actors.",
+    "clusters": [
+      {
+        "start": "2026-10-12T23:34:53.825000+00:00",
+        "end": "2026-10-12T23:42:39.132000+00:00",
+        "wall_minutes": 7.755,
+        "events": 74
+      },
+      {
+        "start": "2026-10-13T16:10:48.252000+00:00",
+        "end": "2026-10-13T16:19:35.344000+00:00",
+        "wall_minutes": 8.785,
+        "events": 55
+      },
+      {
+        "start": "2026-10-14T02:00:35.458000+00:00",
+        "end": "2026-10-14T02:04:04.662000+00:00",
+        "wall_minutes": 3.487,
+        "events": 18
+      },
+      {
+        "start": "2026-10-14T02:18:12.965000+00:00",
+        "end": "2026-10-14T02:20:02.163000+00:00",
+        "wall_minutes": 1.82,
+        "events": 12
+      }
+    ],
+    "calls": 74,
+    "observed_cluster_wall_minutes": 21.847,
+    "role": "sameUS089controller preparation only"
+  },
+  "prerequisites": [
+    {
+      "work_id": "US-056",
+      "ledger_revision": "ae98f9fd4206a2e933355ec438cf9970ac3579bf",
+      "ledger_line": 573,
+      "raw_line_sha256": "9286b79323751cb3e0fd3e5230ef75cd37c2ff8f98773e7ffc667670ad8c1299",
+      "event": {
+        "story": "US-056",
+        "event": "done"
+      }
+    },
+    {
+      "work_id": "US-057",
+      "ledger_revision": "ae98f9fd4206a2e933355ec438cf9970ac3579bf",
+      "ledger_line": 584,
+      "raw_line_sha256": "21744b7c039d6e684aff3831916832ca4632019efcf1311e3a9220f842f0d932",
+      "event": {
+        "story": "US-057",
+        "event": "done",
+        "source_commit": "8cd926e310cdaf3d784d2ef6dbe95deda16a36f1"
+      }
+    },
+    {
+      "work_id": "US-058",
+      "ledger_revision": "ae98f9fd4206a2e933355ec438cf9970ac3579bf",
+      "ledger_line": 647,
+      "raw_line_sha256": "e38347ddaa0244e3b7468a26f10a1c2ff770206150eaf46ee307d5f45b65498a",
+      "event": {
+        "story": "US-058",
+        "event": "done",
+        "source_commit": "3df8bbcbd3b30aab2475cdccc005dc5a321e2981",
+        "ts": "2026-09-07T07:26:49Z"
+      }
+    },
+    {
+      "work_id": "US-046",
+      "ledger_revision": "ae98f9fd4206a2e933355ec438cf9970ac3579bf",
+      "ledger_line": 82,
+      "raw_line_sha256": "c8ce87013e6210c0c74f530b622b712eb4c221502ca3294798bcdc8a0a00dfe8",
+      "event": {
+        "story": "US-046",
+        "event": "done"
+      }
+    },
+    {
+      "work_id": "US-042",
+      "ledger_revision": "ae98f9fd4206a2e933355ec438cf9970ac3579bf",
+      "ledger_line": 201,
+      "raw_line_sha256": "a4c4ad73f6f36422bd8b0d6fb8bea0d9528956ab8c55f5c94530b5b75d772e58",
+      "event": {
+        "story": "US-042",
+        "event": "done"
+      }
+    },
+    {
+      "work_id": "US-088",
+      "ledger_revision": "ae98f9fd4206a2e933355ec438cf9970ac3579bf",
+      "ledger_line": 1568,
+      "raw_line_sha256": "6983f50ec61fda8c0d329e8191f0447993c28e5f3d4d031ac91785099daf4161",
+      "event": {
+        "story": "US-088",
+        "event": "done",
+        "source_commit": "9baec959b764ada5bad563b2a9b8c9efc02aae27",
+        "cost": {
+          "calls": 720,
+          "context_tokens": 91385339,
+          "output_tokens": 226729,
+          "model": "gpt-6.1-sol",
+          "window": 258400
+        },
+        "ts": "2026-10-12T23:31:48.452111+00:00"
+      }
+    }
+  ],
+  "ledger_blob": "e19849bbea2494c9f945afc7e7ee4262ec71512c",
+  "reassessed_total_minutes": 298,
+  "readiness_approval": "pending, no decision/start fabricated"
+}
