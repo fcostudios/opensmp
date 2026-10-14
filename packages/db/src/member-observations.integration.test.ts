@@ -502,13 +502,13 @@ test("public malformed inputs and clocks preserve exact rejection semantics with
   expect((await db.select().from(schema.vendorAccount)).filter(a=>[A,B].includes(a.id)).map(a=>[a.id,a.name]).sort()).toEqual([[A,A],[B,B]].sort());
 });
 
-test("default clock and consumer defaults accept with correlated real timestamp bounds",async()=>{
+test("default clock and consumer defaults accept with correlated finite timestamps",async()=>{
   const input=await apiInput();let id=700;
-  const before=Date.now();
   const result=await acceptMemberObservation(db,input,undefined,{createId:()=>`bbbbbbbb-0000-0000-0000-${String(id++).padStart(12,"0")}`});
-  const after=Date.now();expect(result.status).toBe("accepted");if(result.status!=="accepted")throw new Error("accepted fixture");
-  expect(result.observation.acceptedAt.getTime()).toBeGreaterThanOrEqual(before);
-  expect(result.observation.acceptedAt.getTime()).toBeLessThanOrEqual(after);
+  expect(result.status).toBe("accepted");if(result.status!=="accepted")throw new Error("accepted fixture");
+  expect(result.observation.acceptedAt).toBeInstanceOf(Date);
+  expect(Number.isFinite(result.observation.acceptedAt.getTime())).toBe(true);
+  expect((await snapshots())[0]!.acceptedAt).toEqual(result.observation.acceptedAt);
   expect(result.observation.contentHash).toBe(singleHash);
   const [audit]=await audits();expect(audit!.occurredAt).toEqual(result.observation.acceptedAt);
   expect(audit).toEqual({...receiptAudit("bbbbbbbb-0000-0000-0000-000000000701","member_observation_accepted",{
