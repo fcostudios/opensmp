@@ -22,7 +22,7 @@ As a Group Admin (persona_01), I want Ledger to observe every API-connected org'
 | Server Actions | — |
 | Entities | MemberObservation (C via pipeline), ConnectorCallObservation (C), ProvisioningAction (U verification), VendorAccount (R, U members_refreshed_at via US-081), IntegrationCredential (R), AuditLog (C) |
 | Business Rules | BR-24 |
-| Blocked By | US-056, US-057, US-058, US-046, US-042, US-089 |
+| Blocked By | US-056, US-057, US-058, US-046, US-042, US-089, US-090, US-091 |
 
 ## Acceptance Criteria
 
@@ -33,6 +33,8 @@ As a Group Admin (persona_01), I want Ledger to observe every API-connected org'
 - [ ] AC5: Demo: with one API and one csv_import account, the real hourly tick observes only the API account, journals every page, and accepts the snapshot; a pending checklist provision whose member now appears is verified through the existing lifecycle with its audit entry, a mismatching one becomes `verification_failed`; a failed page leaves no observation and no verification; a repeated tick with an unchanged provider list is an idempotent no-op; a conflicting equal-timestamp replay is rejected.
 
 ## Notes
+
+- **CHG-095 (2026-10-14):** partitioned into **US-090** (accepted-provision-verification; AC2/AC3 and AC5 verification/rollback/replay) then **US-091** (hourly-api-observation; AC1/AC4 and AC5 hourly/API/paging/failure/replay/conflict). This story closes by parent-level verification after both children complete; original ACs remain the parent oracle. DEC-SMP-047 records state-change-only verification. P4(a) holds: isolated builds after child readiness, no main integration before CHG-093 integrates/formally closes.
 
 - **CHG-086 (2026-10-12):** US-083 was partitioned; this story consumes accepted observations and now depends on **US-089**.
 - Canonical child of **US-030** (parent AC1 — the production execution of the detection chain), minted by **CHG-077** on 2026-10-11 from the tenant's blocked US-078 readiness. Decisions DEC-SMP-044, DEC-SMP-046 (and DEC-SMP-041 for the stamp). Depends on US-083 (`Blocked By`). Nous allocation target ≈ 200 min; the tenant re-assesses. Parallel-safe with US-078 after US-083 subject to the tenant's file-boundary review (worker + verification extraction vs db/packages diff + web Deriva); when sequential, runs before US-078 so US-078's integrated demo can use the real hourly path.

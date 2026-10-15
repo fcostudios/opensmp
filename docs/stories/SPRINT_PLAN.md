@@ -1,7 +1,7 @@
 <!-- nous-sprint-stamp
-generated_at: 2026-10-12T18:14:45Z
+generated_at: 2026-10-15T16:46:27Z
 current_sprint: sprint-3
-sprints_hash: db87bd9c25fa6332
+sprints_hash: 92c71a19a366a85d
 -->
 # SMP — Sprint Execution Plan
 
@@ -37,7 +37,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | 7 | frontend | **US-006** ✅ | App shell: data-workspace chrome + bilingual i18n | 5SP | `apps/web/src/components/` | — | US-004 | — | 33b725b7-eb1 (push, exp 2026-08-02) | [r1_misc_us_006.md](sprint-1/r1_misc_us_006.md) |
 | 8 | full-stack | **US-007** ✅ | Seed: companies CSV + go-live register backfill | 3SP | `See story file` | CHG-001 | US-003 | →3 | 33b725b7-eb1 (push, exp 2026-08-02) | [r1_misc_us_007.md](sprint-1/r1_misc_us_007.md) |
 | 9 | full-stack | **US-008** ✅ | Immutable audit trail + viewer | 3SP | `See story file` | — | US-005 | — | 33b725b7-eb1 (push, exp 2026-08-02) | [r1_misc_us_008.md](sprint-1/r1_misc_us_008.md) |
-| 10 | full-stack | **US-046** ✅ | Job runner + schedules | 3SP | `See story file` | — | US-002 | →17 | — | [r1_misc_us_046.md](sprint-1/r1_misc_us_046.md) |
+| 10 | full-stack | **US-046** ✅ | Job runner + schedules | 3SP | `See story file` | — | US-002 | →20 | — | [r1_misc_us_046.md](sprint-1/r1_misc_us_046.md) |
 
 ### Parallel Tracks
 
@@ -64,7 +64,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | 1 | full-stack | **US-010** ✅ | Person records + edit + auto-create on request | 3SP | `See story file` | — | US-005 | →1 | — | [r1_misc_us_010.md](sprint-2/r1_misc_us_010.md) |
 | 2 | full-stack | **US-014** ✅ | Lifecycle state machine engine | 3SP | `See story file` | — | US-003 | →8 | — | [r1_misc_us_014.md](sprint-2/r1_misc_us_014.md) |
 | 3 | full-stack | **US-033** ✅ | The register surface + export | 3SP | `See story file` | — | US-007 | →1 | — | [r1_misc_us_033.md](sprint-2/r1_misc_us_033.md) |
-| 4 | full-stack | **US-042** ✅ | Alert engine: 10 P0 types | 3SP | `See story file` | — | US-046, US-003 | →21 | — | [r1_misc_us_042.md](sprint-2/r1_misc_us_042.md) |
+| 4 | full-stack | **US-042** ✅ | Alert engine: 10 P0 types | 3SP | `See story file` | — | US-046, US-003 | →25 | — | [r1_misc_us_042.md](sprint-2/r1_misc_us_042.md) |
 | 5 | full-stack | **US-045** ✅ | Connector interface + orchestration routing | 3SP | `See story file` | — | US-003 | →3 | — | [r1_misc_us_045.md](sprint-2/r1_misc_us_045.md) |
 | 6 | full-stack | **US-013** ✅ | My requests + request detail record | 3SP | `See story file` | — | US-012 | — | — | [r1_misc_us_013.md](sprint-2/r1_misc_us_013.md) |
 | 7 | full-stack | **US-015** ✅ | Approval queue: one-minute decisions | 3SP | `See story file` | — | US-014 | →1 | — | [r1_misc_us_015.md](sprint-2/r1_misc_us_015.md) |
@@ -84,7 +84,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 
 ## Sprint 3: Sprint 3
 
-**Stories:** 44 | **Points:** 72 SP
+**Stories:** 46 | **Points:** 74 SP
 
 ### Execution Order
 
@@ -95,8 +95,8 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | 3 | full-stack | **US-025** ✅ | Vendor accounts + capability descriptor | 3SP | `See story file` | — | US-005 | →3 | — | [r1_misc_us_025.md](sprint-3/r1_misc_us_025.md) |
 | 4 | full-stack | **US-043** ✅ | Alert log + acknowledgment | 2SP | `See story file` | — | US-042 | — | — | [r1_misc_us_043.md](sprint-3/r1_misc_us_043.md) |
 | 5 | frontend | **US-029** ⬜ | Freshness labels + staleness alert | 2SP | `apps/web/src/components/` | — | US-026, US-042 | — | — | [r1_misc_us_029.md](sprint-3/r1_misc_us_029.md) |
-| 6 | full-stack | **US-056** ✅ | Anthropic transport with separated credentials and bounded retry | 1SP | `See story file` | CHG-045 | US-003, US-025, US-045 | →16 | — | [r1_misc_us_056.md](sprint-3/r1_misc_us_056.md) |
-| 7 | full-stack | **US-057** ✅ | Append-only sanitized connector-call journal | 2SP | `See story file` | CHG-045 | US-056 | →15 | — | [r1_misc_us_057.md](sprint-3/r1_misc_us_057.md) |
+| 6 | full-stack | **US-056** ✅ | Anthropic transport with separated credentials and bounded retry | 1SP | `See story file` | CHG-045 | US-003, US-025, US-045 | →19 | — | [r1_misc_us_056.md](sprint-3/r1_misc_us_056.md) |
+| 7 | full-stack | **US-057** ✅ | Append-only sanitized connector-call journal | 2SP | `See story file` | CHG-045 | US-056 | →18 | — | [r1_misc_us_057.md](sprint-3/r1_misc_us_057.md) |
 | 8 | full-stack | **US-065** ✅ | Recover failed automated provisioning with an operator retry | 1SP | `See story file` | CHG-054 | US-063, US-042, US-014 | →1 | — | [r1_misc_us_065.md](sprint-3/r1_misc_us_065.md) |
 | 9 | full-stack | **US-066** ✅ | Activate accepted invitations from the 15-minute membership poll | 1SP | `See story file` | CHG-054 | US-063, US-046, US-014 | →1 | — | [r1_misc_us_066.md](sprint-3/r1_misc_us_066.md) |
 | 10 | full-stack | **US-067** ✅ | Surface overdue invitations with configurable alerts | 1SP | `See story file` | CHG-063 | US-019, US-042 | →2 | — | [r1_misc_us_067.md](sprint-3/r1_misc_us_067.md) |
@@ -104,7 +104,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | 12 | full-stack | **US-081** 🔨 | Refresh free capacity only after an accepted member observation | 1SP | `See story file` | CHG-076 | US-019, US-020 | →2 | — | [r1_misc_us_081.md](sprint-3/r1_misc_us_081.md) |
 | 13 | full-stack | **US-086** ✅ | Start anchored seat removal from both detail screens | 1SP | `See story file` | CHG-083 | US-019, US-020 | →5 | — | [r1_misc_us_086.md](sprint-3/r1_misc_us_086.md) |
 | 14 | full-stack | **US-028** ⬜ | Reclamation proposals: approve or dismiss | 3SP | `See story file` | — | US-027, US-024 | — | — | [r1_misc_us_028.md](sprint-3/r1_misc_us_028.md) |
-| 15 | full-stack | **US-058** ✅ | Anthropic connector conformance and Pact contracts | 1SP | `See story file` | CHG-045 | US-056, US-057 | →14 | — | [r1_misc_us_058.md](sprint-3/r1_misc_us_058.md) |
+| 15 | full-stack | **US-058** ✅ | Anthropic connector conformance and Pact contracts | 1SP | `See story file` | CHG-045 | US-056, US-057 | →17 | — | [r1_misc_us_058.md](sprint-3/r1_misc_us_058.md) |
 | 16 | full-stack | **US-064** ✅ | Route provider no-seat responses to the capacity workflow | 1SP | `See story file` | CHG-054 | US-063, US-023, US-014 | →1 | — | [r1_misc_us_064.md](sprint-3/r1_misc_us_064.md) |
 | 17 | full-stack | **US-068** ✅ | Withdraw a pending invitation safely from exceptions | 1SP | `See story file` | CHG-063 | US-019, US-042, US-067 | →2 | — | [r1_misc_us_068.md](sprint-3/r1_misc_us_068.md) |
 | 18 | full-stack | **US-069** ✅ | Expire stale invitations automatically and notify the requester | 1SP | `See story file` | CHG-063 | US-019, US-042, US-068 | →1 | — | [r1_misc_us_069.md](sprint-3/r1_misc_us_069.md) |
@@ -113,32 +113,34 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | 21 | full-stack | **US-076** ⬜ | Confirm person departure through the offboarding flow | 1SP | `See story file` | CHG-074 | US-019, US-020, US-086 | →1 | — | [r1_misc_us_076.md](sprint-3/r1_misc_us_076.md) |
 | 22 | full-stack | **US-082** ⬜ | Execute connector seat removal in the production worker | 1SP | `See story file` | CHG-076 | US-019, US-020, US-087 | →2 | — | [r1_misc_us_082.md](sprint-3/r1_misc_us_082.md) |
 | 23 | full-stack | **US-085** ⬜ | Show pending-refresh capacity on the pools and dashboard overview | 1SP | `See story file` | CHG-078 | US-019, US-020, US-081 | →1 | — | [r1_misc_us_085.md](sprint-3/r1_misc_us_085.md) |
-| 24 | full-stack | **US-087** ⬜ | Complete checklist seat removal and close the register atomically | 1SP | `See story file` | CHG-083 | US-019, US-020, US-086 | →3 | — | [r1_misc_us_087.md](sprint-3/r1_misc_us_087.md) |
+| 24 | full-stack | **US-087** 🔨 | Complete checklist seat removal and close the register atomically | 1SP | `See story file` | CHG-083 | US-019, US-020, US-086 | →3 | — | [r1_misc_us_087.md](sprint-3/r1_misc_us_087.md) |
 | 25 | full-stack | **US-055** ⬜ | API-less ingestion: member/usage CSV import + manual register upkeep | 3SP | `See story file` | — | US-003, US-025, US-026, US-030 | — | — | [r1_misc_us_055.md](sprint-3/r1_misc_us_055.md) |
 | 26 | full-stack | **US-063** ✅ | Deliver approved requests as vendor invitations within 15 minutes | 1SP | `See story file` | CHG-054 | US-056, US-057, US-058, US-014, US-046, US-042 | →4 | — | [r1_misc_us_063.md](sprint-3/r1_misc_us_063.md) |
 | 27 | full-stack | **US-070** ✅ | Ingest accurate daily person activity from API-enabled accounts | 1SP | `See story file` | CHG-068 | US-056, US-057, US-058, US-046 | →2 | — | [r1_misc_us_070.md](sprint-3/r1_misc_us_070.md) |
 | 28 | full-stack | **US-075** 🔨 | Start anchored seat removal from both detail screens and finalize the register atomically | 1SP | `See story file` | CHG-074 | US-019, US-020, US-086, US-087 | →1 | — | [r1_misc_us_075.md](sprint-3/r1_misc_us_075.md) |
 | 29 | full-stack | **US-077** ⬜ | Raise same-business-day departure deprovisioning alerts | 1SP | `See story file` | CHG-074 | US-019, US-020, US-082, US-086 | →1 | — | [r1_misc_us_077.md](sprint-3/r1_misc_us_077.md) |
-| 30 | full-stack | **US-088** 🔨 | Deliver authoritative member evidence and its persisted catalogue mapping | 1SP | `See story file` | CHG-086 | US-042, US-046, US-056, US-057, US-058 | →3 | — | [r1_misc_us_088.md](sprint-3/r1_misc_us_088.md) |
+| 30 | full-stack | **US-088** ✅ | Deliver authoritative member evidence and its persisted catalogue mapping | 1SP | `See story file` | CHG-086 | US-042, US-046, US-056, US-057, US-058 | →3 | — | [r1_misc_us_088.md](sprint-3/r1_misc_us_088.md) |
 | 31 | full-stack | **US-018** ✅ | Anthropic connector client | 4SP | `See story file` | — | US-045, US-056, US-057, US-058, US-003, US-025 | — | — | [r1_misc_us_018.md](sprint-3/r1_misc_us_018.md) |
 | 32 | full-stack | **US-021** ✅ | Invite hygiene | 2SP | `See story file` | — | US-019, US-042, US-067, US-068, US-069 | — | — | [r1_misc_us_021.md](sprint-3/r1_misc_us_021.md) |
 | 33 | full-stack | **US-027** ✅ | Inactivity flags + usage surface | 2SP | `See story file` | — | US-026, US-072, US-073, US-074 | →1 | — | [r1_misc_us_027.md](sprint-3/r1_misc_us_027.md) |
 | 34 | full-stack | **US-071** ✅ | Synchronize exact person costs within the 30-day revision window | 1SP | `See story file` | CHG-068 | US-056, US-057, US-058, US-046, US-070 | →1 | — | [r1_misc_us_071.md](sprint-3/r1_misc_us_071.md) |
-| 35 | full-stack | **US-078** ⬜ | Open, resolve and list drift episodes from accepted member observations | 1SP | `See story file` | CHG-075 | US-042, US-046, US-056, US-057, US-058, US-089 | →2 | — | [r1_misc_us_078.md](sprint-3/r1_misc_us_078.md) |
-| 36 | full-stack | **US-079** ⬜ | Claim a drift member retroactively with audit | 1SP | `See story file` | CHG-075 | US-042, US-046, US-056, US-057, US-058, US-078 | →2 | — | [r1_misc_us_079.md](sprint-3/r1_misc_us_079.md) |
-| 37 | full-stack | **US-080** ⬜ | Show the drift-to-zero metric on the dashboard | 1SP | `See story file` | CHG-075 | US-042, US-046, US-056, US-057, US-058, US-079 | →1 | — | [r1_misc_us_080.md](sprint-3/r1_misc_us_080.md) |
-| 38 | full-stack | **US-084** ⬜ | Run the hourly API member observation and verify confirmed provisions | 1SP | `See story file` | CHG-077 | US-042, US-046, US-056, US-057, US-058, US-089 | →1 | — | [r1_misc_us_084.md](sprint-3/r1_misc_us_084.md) |
-| 39 | full-stack | **US-089** ⬜ | Accept complete member observations atomically | 1SP | `See story file` | CHG-086 | US-042, US-046, US-056, US-057, US-058, US-088 | →4 | — | [r1_misc_us_089.md](sprint-3/r1_misc_us_089.md) |
-| 40 | full-stack | **US-026** ✅ | Analytics sync: activity + cost | 3SP | `See story file` | — | US-056, US-057, US-058, US-046, US-070, US-071 | →7 | — | [r1_misc_us_026.md](sprint-3/r1_misc_us_026.md) |
+| 35 | full-stack | **US-079** ⬜ | Claim a drift member retroactively with audit | 1SP | `See story file` | CHG-075 | US-042, US-046, US-056, US-057, US-058, US-078 | →2 | — | [r1_misc_us_079.md](sprint-3/r1_misc_us_079.md) |
+| 36 | full-stack | **US-080** ⬜ | Show the drift-to-zero metric on the dashboard | 1SP | `See story file` | CHG-075 | US-042, US-046, US-056, US-057, US-058, US-079 | →1 | — | [r1_misc_us_080.md](sprint-3/r1_misc_us_080.md) |
+| 37 | full-stack | **US-089** ✅ | Accept complete member observations atomically | 1SP | `See story file` | CHG-086 | US-042, US-046, US-056, US-057, US-058, US-088 | →7 | — | [r1_misc_us_089.md](sprint-3/r1_misc_us_089.md) |
+| 38 | full-stack | **US-090** 🔨 | Verify provisions atomically from every accepted member observation | 1SP | `See story file` | CHG-095 | US-042, US-046, US-056, US-057, US-058, US-089 | →4 | — | [r1_misc_us_090.md](sprint-3/r1_misc_us_090.md) |
+| 39 | full-stack | **US-026** ✅ | Analytics sync: activity + cost | 3SP | `See story file` | — | US-056, US-057, US-058, US-046, US-070, US-071 | →7 | — | [r1_misc_us_026.md](sprint-3/r1_misc_us_026.md) |
+| 40 | full-stack | **US-078** ⬜ | Open, resolve and list drift episodes from accepted member observations | 1SP | `See story file` | CHG-075 | US-042, US-046, US-056, US-057, US-058, US-090, US-092, US-093, US-089 | →2 | — | [r1_misc_us_078.md](sprint-3/r1_misc_us_078.md) |
 | 41 | full-stack | **US-083** 🔨 | Accept complete member observations with authoritative identity and license evidence | 1SP | `See story file` | CHG-077 | US-042, US-046, US-056, US-057, US-058, US-088, US-089 | →1 | — | [r1_misc_us_083.md](sprint-3/r1_misc_us_083.md) |
-| 42 | full-stack | **US-019** ✅ | Automated provisioning: invite ≤ 15 min → Active | 5SP | `See story file` | — | US-056, US-057, US-058, US-014, US-046, US-042, US-063, US-064, US-065, US-066 | →13 | — | [r1_misc_us_019.md](sprint-3/r1_misc_us_019.md) |
-| 43 | full-stack | **US-024** ⬜ | Offboarding + deprovisioning | 3SP | `See story file` | — | US-019, US-020, US-075, US-076, US-077, US-085, US-086, US-087, US-081, US-082 | →1 | — | [r1_misc_us_024.md](sprint-3/r1_misc_us_024.md) |
-| 44 | full-stack | **US-030** ⬜ | Drift detection + retroactive claim | 3SP | `See story file` | — | US-056, US-057, US-058, US-046, US-042, US-078, US-079, US-080, US-083, US-084, US-088, US-089 | →1 | — | [r1_misc_us_030.md](sprint-3/r1_misc_us_030.md) |
+| 42 | full-stack | **US-091** ⬜ | Observe API membership on the real hourly worker | 1SP | `See story file` | CHG-095 | US-042, US-046, US-056, US-057, US-058, US-089, US-090 | →1 | — | [r1_misc_us_091.md](sprint-3/r1_misc_us_091.md) |
+| 43 | full-stack | **US-084** ⬜ | Run the hourly API member observation and verify confirmed provisions | 1SP | `See story file` | CHG-077 | US-090, US-091, US-042, US-046, US-056, US-057, US-058, US-089 | →1 | — | [r1_misc_us_084.md](sprint-3/r1_misc_us_084.md) |
+| 44 | full-stack | **US-019** ✅ | Automated provisioning: invite ≤ 15 min → Active | 5SP | `See story file` | — | US-056, US-057, US-058, US-014, US-046, US-042, US-063, US-064, US-065, US-066 | →13 | — | [r1_misc_us_019.md](sprint-3/r1_misc_us_019.md) |
+| 45 | full-stack | **US-024** ⬜ | Offboarding + deprovisioning | 3SP | `See story file` | — | US-019, US-020, US-075, US-076, US-077, US-085, US-086, US-087, US-081, US-082 | →1 | — | [r1_misc_us_024.md](sprint-3/r1_misc_us_024.md) |
+| 46 | full-stack | **US-030** ⬜ | Drift detection + retroactive claim | 3SP | `See story file` | — | US-056, US-057, US-058, US-046, US-042, US-078, US-079, US-080, US-083, US-084, US-088, US-089 | →1 | — | [r1_misc_us_030.md](sprint-3/r1_misc_us_030.md) |
 
 ### Parallel Tracks
 
 **Frontend (1 stories):** US-029
-**Full-stack (43 stories):** US-011 → US-023 → US-025 → US-043 → US-056 → US-057 → US-065 → US-066 → US-067 → US-072 → US-081 → US-086 → US-028 → US-058 → US-064 → US-068 → US-069 → US-073 → US-074 → US-076 → US-082 → US-085 → US-087 → US-055 → US-063 → US-070 → US-075 → US-077 → US-088 → US-018 → US-021 → US-027 → US-071 → US-078 → US-079 → US-080 → US-084 → US-089 → US-026 → US-083 → US-019 → US-024 → US-030
+**Full-stack (45 stories):** US-011 → US-023 → US-025 → US-043 → US-056 → US-057 → US-065 → US-066 → US-067 → US-072 → US-081 → US-086 → US-028 → US-058 → US-064 → US-068 → US-069 → US-073 → US-074 → US-076 → US-082 → US-085 → US-087 → US-055 → US-063 → US-070 → US-075 → US-077 → US-088 → US-018 → US-021 → US-027 → US-071 → US-079 → US-080 → US-089 → US-090 → US-026 → US-078 → US-083 → US-091 → US-084 → US-019 → US-024 → US-030
 
 ### References
 

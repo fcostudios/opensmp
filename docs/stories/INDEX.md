@@ -70,6 +70,10 @@
 | sprint-3 | [r1_misc_us_087.md](sprint-3/r1_misc_us_087.md) | R1-MISC-US-087 |
 | sprint-3 | [r1_misc_us_088.md](sprint-3/r1_misc_us_088.md) | R1-MISC-US-088 |
 | sprint-3 | [r1_misc_us_089.md](sprint-3/r1_misc_us_089.md) | R1-MISC-US-089 |
+| sprint-3 | [r1_misc_us_090.md](sprint-3/r1_misc_us_090.md) | R1-MISC-US-090 |
+| sprint-3 | [r1_misc_us_091.md](sprint-3/r1_misc_us_091.md) | R1-MISC-US-091 |
+| sprint-3 | [r1_misc_us_092.md](sprint-3/r1_misc_us_092.md) | R1-MISC-US-092 |
+| sprint-3 | [r1_misc_us_093.md](sprint-3/r1_misc_us_093.md) | R1-MISC-US-093 |
 | sprint-4 | [r1_misc_us_009.md](sprint-4/r1_misc_us_009.md) | R1-MISC-US-009 |
 | sprint-4 | [r1_misc_us_031.md](sprint-4/r1_misc_us_031.md) | R1-MISC-US-031 |
 | sprint-4 | [r1_misc_us_032.md](sprint-4/r1_misc_us_032.md) | R1-MISC-US-032 |
