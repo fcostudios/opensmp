@@ -67,6 +67,8 @@ const failures = [
   ["escaped duplicate alias", bytes.replace('"schema_version": 1,', '"schema_version": 1, "schema_\\u0076ersion": 1,'), "duplicate-key"],
   ["nested decoded duplicate", bytes.replace('"columnName": "counters"', '"columnName": "counters", "column\\u004eame": "source"'), "duplicate-key"],
   ["duplicate before unknown", '{"unknown":1,"unknown":2}', "duplicate-key"],
+  ["deep unknown shape", '{"unknown":' + '['.repeat(10000) + '0' + ']'.repeat(10000) + '}', "shape"],
+  ["deep decoded duplicate before shape", '{"unknown":' + '['.repeat(10000) + '{"key":1,"\\u006bey":2}' + ']'.repeat(10000) + '}', "duplicate-key"],
   ["unknown top key", changed((v) => { v.extra = 1; }), "shape"],
   ["missing top key", changed((v) => { delete v.coreTableNames; }), "shape"],
   ["wrong version", changed((v) => { v.schema_version = 2; }), "shape"],

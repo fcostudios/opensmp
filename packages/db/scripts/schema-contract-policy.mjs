@@ -29,42 +29,30 @@ function rejectDuplicateKeys(text, path) {
     index++;
     return JSON.parse(text.slice(start, index));
   }
-  function value() {
-    whitespace();
-    if (text[index] === "{") {
+  // Valid JSON lets a following colon identify a key unambiguously. Keep
+  // container state on the heap so even wrong-shape deep values are scanned
+  // for decoded duplicates before the shape check, without recursive calls.
+  const containers = [];
+  while (index < text.length) {
+    const token = text[index];
+    if (token === "{" || token === "[") {
+      containers.push(token === "{" ? new Set() : null);
       index++;
+    } else if (token === "}" || token === "]") {
+      containers.pop();
+      index++;
+    } else if (token === '"') {
+      const key = string();
       whitespace();
-      const keys = new Set();
-      while (text[index] !== "}") {
-        const key = string();
+      if (text[index] === ":") {
+        const keys = containers.at(-1);
         if (keys.has(key)) reject("duplicate-key", path, `repeated decoded key ${JSON.stringify(key)}`);
         keys.add(key);
-        whitespace();
-        index++; // colon
-        value();
-        whitespace();
-        if (text[index] !== ",") break;
-        index++;
-        whitespace();
       }
-      index++;
-    } else if (text[index] === "[") {
-      index++;
-      whitespace();
-      while (text[index] !== "]") {
-        value();
-        whitespace();
-        if (text[index] !== ",") break;
-        index++;
-      }
-      index++;
-    } else if (text[index] === '"') {
-      string();
     } else {
-      while (index < text.length && !/[\s,}\]]/.test(text[index])) index++;
+      index++;
     }
   }
-  value();
 }
 
 function exactKeys(value, keys) {
