@@ -2,10 +2,13 @@ import { execFile, spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import {
   copyFile,
+  mkdir,
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -149,6 +152,24 @@ async function runNode(
       },
     );
   });
+}
+
+async function createVerifierBundle(): Promise<string> {
+  const directory = await realpath(await mkdtemp(join(tmpdir(), "ledger-release-contract-")));
+  try {
+    await mkdir(join(directory, "scripts"));
+    await mkdir(join(directory, "src"));
+    for (const filename of ["apply-migrations.mjs", "verify-schema.mjs", "schema-contract-policy.mjs"]) {
+      await copyFile(join(packageRoot, "scripts", filename), join(directory, "scripts", filename));
+    }
+    await copyFile(join(packageRoot, "schema-contract.json"), join(directory, "schema-contract.json"));
+    await symlink(committedMigrationsPath, join(directory, "src/migrations"), "dir");
+    await symlink(join(packageRoot, "node_modules"), join(directory, "node_modules"), "dir");
+    return directory;
+  } catch (error) {
+    await rm(directory, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 async function runCiBootstrap({
@@ -1391,6 +1412,106 @@ describe("committed migration release path", () => {
         "ledger_app has the exact least-privilege runtime grant matrix",
       );
     } finally {
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test("CHG-100 preserves the pinned old verifier results grants and diagnostics on one catalog", async () => {
+    const database = await createDatabase();
+    const bundle = await createVerifierBundle();
+    const owner = new pg.Client({ connectionString: database.ownerUrl });
+    try {
+      await migrate(database.ownerUrl);
+      const source = await readFile(join(bundle, "scripts/verify-schema.mjs"), "utf8");
+      // Reconstruct only the attestation delta, then cryptographically pin the
+      // immutable pre-change executable before using it as an independent oracle.
+      const entryAttestation = /  const schemaContractPath = [\s\S]*?(?=  if \(!databaseAdminUrl\))/u;
+      const oldSource = source
+        .replace('import { fileURLToPath, pathToFileURL }', 'import { pathToFileURL }')
+        .replace('import { parseSchemaContract, attestSchemaContract } from "./schema-contract-policy.mjs";\n', "")
+        .replace(entryAttestation, "");
+      expect(sha256(oldSource)).toBe("d927f78f95e192e6c5e96344859449a99894d59c8917363c950ac4b6e65bc767");
+      const oldPath = join(bundle, "scripts/old-verify-schema.mjs");
+      const currentPath = join(bundle, "scripts/verify-schema.mjs");
+      await writeFile(oldPath, oldSource);
+      const environment = { DATABASE_ADMIN_URL: database.ownerUrl, DATABASE_URL: database.appUrl };
+      const oldCli = await runNode(oldPath, environment);
+      const currentCli = await runNode(currentPath, environment);
+      expect(oldCli.code, oldCli.stderr).toBe(0);
+      expect(currentCli).toEqual(oldCli);
+      expect(currentCli.stdout).toBe(
+        "✓ 64 committed migration checksum(s) verified across 33 application table(s)\n" +
+        "✓ 6 append-only trigger(s) verified\n" +
+        "✓ ledger_app has the exact least-privilege runtime grant matrix\n",
+      );
+      for (const name of ["old-verify-schema", "verify-schema"]) {
+        await writeFile(join(bundle, `scripts/inspect-${name}.mjs`),
+          `import { verifyMigratedSchema } from "./${name}.mjs";\nprocess.stdout.write(JSON.stringify(await verifyMigratedSchema()));\n`);
+      }
+      const oldResult = await runNode(join(bundle, "scripts/inspect-old-verify-schema.mjs"), environment);
+      const currentResult = await runNode(join(bundle, "scripts/inspect-verify-schema.mjs"), environment);
+      expect(oldResult.code, oldResult.stderr).toBe(0);
+      expect(currentResult).toEqual(oldResult);
+      const result = JSON.parse(currentResult.stdout);
+      expect(result).toMatchObject({ ownerRole: "ledger_owner", tableCount: 33, migrationCount: 64, appendOnlyTriggerCount: 6,
+        applicationIntegrity: { role: "ledger_app", totalTables: 33 } });
+      expect(result.applicationIntegrity.tableGrants.length).toBeGreaterThan(33);
+      expect(result.applicationIntegrity.columnPrivileges.length).toBeGreaterThan(33);
+
+      // The old executable also pins a real specialized failure diagnostic,
+      // rather than comparing success status alone.
+      await owner.connect();
+      await owner.query("GRANT DELETE ON company TO ledger_app");
+      const oldFailure = await runNode(oldPath, environment);
+      const currentFailure = await runNode(currentPath, environment);
+      expect(oldFailure.code).toBe(1);
+      expect(oldFailure.stderr).toContain("ledger_app runtime table-grant matrix mismatch");
+      expect(currentFailure).toEqual(oldFailure);
+    } finally {
+      await owner.end().catch(() => undefined);
+      await rm(bundle, { recursive: true, force: true });
+      await dropDatabase(database.name);
+    }
+  }, 30_000);
+
+  test("CHG-100 rejects missing unsafe duplicate reordered and changed declarations before real release success", async () => {
+    const database = await createDatabase();
+    const bundle = await createVerifierBundle();
+    try {
+      await migrate(database.ownerUrl);
+      const declarationPath = join(bundle, "schema-contract.json");
+      const canonical = await readFile(declarationPath, "utf8");
+      const changed = JSON.parse(canonical);
+      changed.expectedAppendOnlyColumnUpdates[0].columnName = "wrong_column";
+      const reordered = JSON.parse(canonical);
+      reordered.coreTableNames.reverse();
+      const environment = { DATABASE_ADMIN_URL: database.ownerUrl, DATABASE_URL: database.appUrl };
+      const executable = join(bundle, "scripts/verify-schema.mjs");
+      const valid = await runNode(executable, environment);
+      expect(valid.code, valid.stderr).toBe(0);
+      expect(valid.stdout).toContain("33 application table(s)");
+      const faults: Array<[string, string | null, string]> = [
+        ["missing", null, "missing"],
+        ["escaped duplicate", canonical.replace('"schema_version": 1,', '"schema_version": 1, "schema_\\u0076ersion": 1,'), "duplicate-key"],
+        ["unsafe", canonical.replace('"activity_record"', '"public.activity_record"'), "invalid-identifier"],
+        ["noncanonical", canonical.replaceAll("\n", "\r\n"), "noncanonical"],
+        ["reordered", JSON.stringify(reordered, null, 2) + "\n", "baseline-mismatch"],
+        ["changed value", JSON.stringify(changed, null, 2) + "\n", "baseline-mismatch"],
+      ];
+      for (const [name, bytes, category] of faults) {
+        if (bytes === null) await rm(declarationPath);
+        else await writeFile(declarationPath, bytes);
+        const rejected = await runNode(executable, environment);
+        expect(rejected.code, name).toBe(1);
+        expect(rejected.stderr, name).toContain(`schema-contract/${category}`);
+        expect(rejected.stderr, name).toContain(declarationPath);
+        expect(rejected.stdout, name).toBe("");
+        await writeFile(declarationPath, canonical);
+        const restored = await runNode(executable, environment);
+        expect(restored, name).toEqual(valid);
+      }
+    } finally {
+      await rm(bundle, { recursive: true, force: true });
       await dropDatabase(database.name);
     }
   }, 30_000);
