@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "eb62f0cafa8d3d0334cac4f0ce1acd411f1904a3d36399b97f14f4c56ac9120b",
+  "work_id": "CHG-100",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Attest the closed baseline privilege declaration in real release verification",
+  "source": "/Users/fcolomas/Projects/nous/Nous/WorkControl/fcostudios/smp/CHG-100_TECH_SPEC.md @9d2c2e57; delivered docs/stories/CHANGES.md CHG100; DEC-SMP-049; actual custody073340a26062262c827d783e3b8c0d181e4a4706 over main31b50b2; Nous deabfb31 v1 fingerprint14ea3dc12e9fec2ca5563203bb8264240cd3323680d23569a4aeadb9e1d4b1b0",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Real release verification rejects absent, unsafe or nonidentical closed privilege declarations before the unchanged authoritative33table verifier; functional commits cannot introduce or edit contractdata.",
+      "demo": "Identical real PostgreSQL baseline passes old/current db:verify with exact ordered grants and diagnostics; declaration faults fail with categorized oracle; real staged/percommit/range functional edits reject while authorized technical delivery and preservedCHG088 history pass.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1-real-baseline-attestation",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2-closed-hostile-declaration",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3-functional-authority-denied",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4-release-and-differential-preservation",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "release-verifier-attestation",
+    "readiness-ownership-governance",
+    "verification-and-guidance"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 9,
+    "bookkeeping_files": 4,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 55,
+    "implementation": 80,
+    "focused_verification": 85,
+    "review": 65,
+    "integration": 25,
+    "total": 310
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Exact technical delivery ownership and current base custody",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Canonical CHG100 technical spec9d2c2e57; DEC-SMP-049. Main31b50b2f3e9ae8ab3da4a3bd241d17e9d7351982; custody073340a26062262c827d783e3b8c0d181e4a4706 carries normal immutable14path Nous envelope, distinct from future9path technical implementation. All11claims and14bytes/modes checked; staged ownership and ordinary commit PASS; no main mutation. IMP434 critical-paths and TESTING equal main. Exact9implementationpaths: packages/db/scripts/verify-schema.mjs=4b189bb3adc899d4ea6bc9767a8ee5b83a6aeef3; packages/db/schema-contract.json=new regular file100644; packages/db/scripts/schema-contract-policy.mjs=new regular file100644; scripts/work-readiness/delivery-policy.mjs=73542bc6056c23b4a6326fa9d3b5f4464006978f; scripts/work-readiness/git.mjs=9be6d0799ee279f87c3843e905e6de5e480b6b4c; scripts/test-work-readiness.mjs=fe6d35cf9c748d4a0737155f7435a174f0c77890; scripts/test-schema-contract.mjs=new regular file100644; packages/db/src/migration-release.integration.test.ts=3d513bf405db3531087414a931ed88785b08cb57; docs/dev-guide/WORK_READINESS.md=660f164c4d2856e86e7d8b3cf39bb92c9a5f2bac. Fourbookkeeping=this artifact, future design, future plan, append-only ledger. No extra release wiring path: execute new schema-contract harness directly; no package.json edit."
+    },
+    {
+      "id": "U2",
+      "statement": "Attestation must affect real db:verify while current constants remain authoritative",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "Only three literal ordered lists at verify-schema.mjs58-112 and130-149 admitted as attestation inputs; expectedRuntimeTableGrants114-128, INSERTexceptions and sorting stay verbatim, every specialized RLS/constraint/function/trigger/security query/check stays verbatim. Before/after old executable baseline both run against same real committed-migration catalog using proper owner/app. Compare exact derived ordered expectations, exit/result diagnostics with identical fixture environment. Valid33table declaration proceeds into unchanged verifier; missing/nonidentical/unsafe declaration rejects before success. Never parser-only delivery or broad extraction; single-source switch belongsCHG101."
+    },
+    {
+      "id": "U3",
+      "statement": "Closed parsing and hostile ownership coverage must fit selected helper and harness",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "Exact topkeys schema_version/coreTableNames/normallyUpdateableTableNames/expectedAppendOnlyColumnUpdates; version1; lowercase ASCII identifiers<=63; unique ordered arrays/pairs and validcrossrefs; decoded duplicatekeys including escaped aliases checked before JSON.parse; canonical UTF8 noBOM LF two-space serialization and keyorder; diagnostic ordering percanonical spec. No arbitrary SQL/module/framework. Real process faults each assert rejection category/path and absence of admission. Real temporary Git fixtures test initial introduction plus later edit, staged/percommit/historical-range functional rejection, deletion/mode/symlink/mixed/unowned/malformed contexts and preserve CHG088 exact historical authority. Narrow changes onlydelivery-policy/git and existing governanceharness. If this needs generic framework or tenth deliverypath, stop/reassess."
+    },
+    {
+      "id": "U4",
+      "statement": "All spent preparation and remaining gate/review work must fit320",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Conservative approved-estimate candidate310=55readiness+80implementation+85focused+65review+25integration; allocation base250 retained as reference, not executablebudget. Prior estimated33controller minutes and10reviewer minutes allocated here once, never siblings. This bounded custody/readiness pass estimated12additionalcontroller minutes: current estimatedspent55=45readiness+10review; remaining255=10/80/85/55/25. These are estimates, not harnessbilling; waits excluded. Readiness10remaining includes future bound design/plan afterapproval. Focused85 includes realbaseline differential, hostile parser/Git fixtures, realrelease fixtures and fix allowance; integration25 includes own awake fullgate, freshmigrations/verify/parity and normal integrationreceipt. Review65 includes reusedscoped and independentfresh adversarial reviews, inherited10included. At every task boundary actuals+remaining>310 stops for revised digest; >320 repartitions, no waiver/CHG087."
+    },
+    {
+      "id": "U5",
+      "statement": "Zero native mutation applicability is a forecast, not evidence",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "All nine deliverypaths are MJS/JSON/Markdown or an existing integrationtest; no productionTS/TSX forecasteligible. No mutation-scope/route changes. Afterapproved implementation freeze mutationbase; run MUTATION_BASE=<frozenbase> node scripts/mutation-scope.mjs --preflight and final awake ordinary campaign on actualcandidate. Discover shards;0 is only proved by real output, never fabricatedscore/nativekills/borrowedcampaign. Meaningful parser fault injections, realGit controls and DB differential remain mandatory. If any shard appears discoverresponsibletests, scoped previews<=30minutes, coldcampaignlast and reassess within310."
+    },
+    {
+      "id": "U6",
+      "statement": "Own gates and fixture setup exist but are not yet executed",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "This worktree currently has no node_modules; approved execution must pnpm install --frozen-lockfile without lockchange, reuse CHG067 shared PostgreSQL16 fixture (no privatecontainers), discover verified connection path without exposingcredentials, preserve ledger_owner/ledger_app. Focused commands node scripts/test-schema-contract.mjs; node scripts/test-work-readiness.mjs; pnpm --filter @smp/db exec vitest run src/migration-release.integration.test.ts. Beforefinal close acquire /tmp/smp-full-gate.lock for duration, wait for existingowner and never delete foreignlock; caffeinate -i pnpm check; pnpm --filter @smp/db db:migrate/db:verify/db:parity against disposable sharedfixture databases; exact ordinary commit plus historical percommit childrange checks and feedback-order check. No gate exception despite known broad strict driftred: retain baseline deviations as named evidence; any applicable own gate failure blocks completion until normal owner resolution. No live gate executed duringreadiness. Fixture/dependency setup costs included85focused/25integration."
+    },
+    {
+      "id": "U7",
+      "statement": "Controller/session/lifecycle and integration remain explicit",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "One dedicated CHG100controller, oneconsolidatedimplementer, onereusedscopedreviewer plusfresh adversarialreviewer afterapproval; bounded contexts/restarts recorded, controller briefs/decides, previews implementerbackground with>=60s waits. No started before exact digestready approval; phase markers with UTCts; closure real done.cost measured whereavailable otherwise honestlyestimated nonzero with sessioncounts and separateimplementer/reviewercost lines; actual preview_rounds/minutes and coldattempts. Freeze mutationbase afterentryapprovals. Mainintegration onlynormal fast-forward afterown requiredproof; ifmoved rebase isolatedbranch and recordSHAmap/recheck guides+affectedproof, never force/resetforeignwork. CHG093/P4(a), US084/090/091 ownedelsewhere, no new dependency invented. CHG101then102 and US093 consume separately; hourlyB parentobligation remains whoeverUS093/US091 integratessecond. No parentAC completion claimed."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "eb62f0cafa8d3d0334cac4f0ce1acd411f1904a3d36399b97f14f4c56ac9120b"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
