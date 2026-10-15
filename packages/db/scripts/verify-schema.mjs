@@ -1,9 +1,10 @@
 import { resolve } from "node:path";
 import { readFile } from "node:fs/promises";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { config } from "dotenv";
 import pg from "pg";
 import { committedMigrations } from "./apply-migrations.mjs";
+import { parseSchemaContract, attestSchemaContract } from "./schema-contract-policy.mjs";
 
 const explicitEnvironment = {
   DATABASE_ADMIN_URL: process.env.DATABASE_ADMIN_URL,
@@ -246,6 +247,19 @@ export async function verifyMigratedSchema({
   applicationUrl = process.env.DATABASE_URL,
   migrationsDirectory = process.env.MIGRATIONS_DIR,
 } = {}) {
+  const schemaContractPath = fileURLToPath(new URL("../schema-contract.json", import.meta.url));
+  const schemaContractBytes = await readFile(schemaContractPath).catch((error) => {
+    if (error.code === "ENOENT") {
+      throw new Error(`schema-contract/missing: ${schemaContractPath}: declaration is required`);
+    }
+    throw error;
+  });
+  attestSchemaContract(parseSchemaContract(schemaContractBytes, schemaContractPath), {
+    schema_version: 1,
+    coreTableNames,
+    normallyUpdateableTableNames,
+    expectedAppendOnlyColumnUpdates,
+  });
   if (!databaseAdminUrl) {
     throw new Error(
       "DATABASE_ADMIN_URL is required to verify committed migrations as ledger_owner",
