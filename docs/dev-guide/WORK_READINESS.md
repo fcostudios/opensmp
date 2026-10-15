@@ -70,6 +70,22 @@ integration line rebases their complete route table into the JSON data, records
 its original-to-rebased SHA map, and reruns the differential oracle over every
 predecessor entry.
 
+`packages/db/schema-contract.json` is technical-only from its first introduction
+(CHG-100; DEC-SMP-049). Functional delivery cannot add, edit, delete, change the
+mode of, or replace this exact path with a symlink, even when its JSON is safe.
+The denial applies to legacy inclusive-count and delivery-count assessments,
+ordinary staged commits, and every historical commit in a checked range. A later
+technical commit or matching aggregate endpoints cannot authorize an earlier
+functional change. Existing ready approval and readiness-bound plan requirements
+still govern technical delivery; the exact CHG-088 inherited-verifier exception
+is unchanged.
+
+Actual `db:verify` reads this fixed module-relative declaration, rejects unsafe
+or noncanonical data, and attests its exact ordered equality to the original
+literal privilege baseline before connecting to PostgreSQL. The literals and
+specialized catalog/security checks remain authoritative. This closed attestation
+does not admit new table or privilege declarations.
+
 The phase total must equal `readiness + implementation +
 focused_verification + review + integration`. Outcome and acceptance-criterion
 references must resolve exactly. Missing mappings, duplicate IDs, cyclic

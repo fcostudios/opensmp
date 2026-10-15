@@ -11,8 +11,10 @@ export function deliveryFileSignals(paths) {
   return { expected_changed_files: unique.length - bookkeeping_files, bookkeeping_files };
 }
 export const MUTATION_ROUTES_PATH = "scripts/mutation-routes.json";
+export const SCHEMA_CONTRACT_PATH = "packages/db/schema-contract.json";
 export function isToolingPath(path) {
-  return /(?:^|\/)(?:scripts|bin)\//u.test(path)
+  return path === SCHEMA_CONTRACT_PATH
+    || /(?:^|\/)(?:scripts|bin)\//u.test(path)
     || /^(?:\.githooks\/|testing\/|\.github\/workflows\/|packages\/config\/)/u.test(path)
     || /\.(?:mjs|cjs|sh|bash|zsh|py|ps1|bat|cmd|rb|pl|lua)$/u.test(path)
     || /(?:^|\/)(?:Taskfile\.ya?ml|Makefile|Dockerfile(?:\.[^/]+)?|(?:docker-)?compose[^/]*\.ya?ml)$/u.test(path)

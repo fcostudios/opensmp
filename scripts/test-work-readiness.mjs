@@ -5746,6 +5746,113 @@ test("CHG-088 copy-only delivery cannot export the bound candidate bytes elsewhe
   } finally { rmSync(fixture.root, { recursive: true, force: true }); }
 });
 
+const schemaContractPath = "packages/db/schema-contract.json";
+const schemaContractBytes = readFileSync(new URL("../packages/db/schema-contract.json", import.meta.url));
+function makeSchemaContractRepo({ existing = false, deliveryCounting = true, technicalPlan = true } = {}) {
+  const { root } = makeGitRepo();
+  git(root, ["config", "core.filemode", "true"]);
+  const functional = approvedArtifact("US-123");
+  if (deliveryCounting) functional.signals.bookkeeping_files = 0;
+  refreshDigest(functional);
+  approveAfterPolicyActivation(root, functional);
+  const technical = approvedArtifact("CHG-123");
+  technical.work_type = "technical";
+  technical.scopes = ["tooling"];
+  technical.signals.tooling_change = true;
+  technical.signals.bookkeeping_files = 0;
+  refreshDigest(technical);
+  writeRepoFile(root, "docs/readiness/CHG-123.json", JSON.stringify(technical));
+  const feedback = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+  writeRepoFile(root, ".nous-feedback.jsonl", feedback + JSON.stringify(decisionFor(technical)) + "\n");
+  const plan = (value) => `docs/superpowers/plans/${value.work_id}.md`;
+  writeRepoFile(root, plan(functional), implementationPlanHeader(functional));
+  if (technicalPlan) writeRepoFile(root, plan(technical), implementationPlanHeader(technical));
+  if (existing) writeRepoFile(root, schemaContractPath, schemaContractBytes);
+  const paths = ["docs/readiness/CHG-123.json", ".nous-feedback.jsonl", plan(functional),
+    ...(technicalPlan ? [plan(technical)] : []), ...(existing ? [schemaContractPath] : [])];
+  const base = commitRepo(root, "docs(CHG-123): commit contract fixture authority and plans", paths);
+  return { root, base, authority: base, workId: functional.work_id };
+}
+
+test("CHG-100 functional contract introduction edits and modes reject staged and per commit", () => {
+  for (const deliveryCounting of [true, false]) {
+    for (const variant of ["initial add", "edit", "delete", "mode", "symlink", "mixed"]) {
+      const fixture = makeSchemaContractRepo({ existing: !["initial add", "mixed"].includes(variant), deliveryCounting });
+      try {
+        const { root, base } = fixture;
+        if (["initial add", "mixed"].includes(variant)) writeRepoFile(root, schemaContractPath, schemaContractBytes);
+        if (variant === "edit") writeRepoFile(root, schemaContractPath, schemaContractBytes.toString("utf8") + "\n");
+        if (variant === "delete") rmSync(join(root, schemaContractPath));
+        if (variant === "mode") chmodSync(join(root, schemaContractPath), 0o755);
+        if (variant === "symlink") {
+          rmSync(join(root, schemaContractPath));
+          symlinkSync("other.json", join(root, schemaContractPath));
+        }
+        const paths = [schemaContractPath];
+        if (variant === "mixed") {
+          writeRepoFile(root, "apps/web/src/feature.ts", "export const feature = true;\n");
+          paths.push("apps/web/src/feature.ts");
+        }
+        const message = `feat(US-123${variant === "mixed" ? " CHG-123" : ""}): functional ${variant}`;
+        // Commit without a hook so historical validation must catch the same
+        // forbidden transition independently of ordinary staged enforcement.
+        const head = commitRepo(root, message, paths);
+        expectError("WR_MIXED_FUNCTIONAL_TOOLING", schemaContractPath, () => validateFunctionalDelivery({ ...fixture, head }));
+        expectError("WR_MIXED_FUNCTIONAL_TOOLING", schemaContractPath, () => validateRangeOwnership({ root, base, head }));
+        git(root, ["reset", "--soft", base]);
+        installReadinessHook(root);
+        const staged = runGit(root, ["commit", "-m", message]);
+        assert.equal(staged.status, 1, `${variant}/${deliveryCounting}: ${staged.stderr}`);
+        assert.match(staged.stderr, /WR_MIXED_FUNCTIONAL_TOOLING/u);
+        assert.ok(staged.stderr.includes(schemaContractPath), `${variant}/${deliveryCounting}: ${staged.stderr}`);
+        assert.equal(git(root, ["rev-parse", "HEAD"]), base);
+      } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+    }
+  }
+});
+
+test("CHG-100 later technical commits cannot launder functional contract history", () => {
+  for (const existing of [false, true]) {
+    const fixture = makeSchemaContractRepo({ existing });
+    try {
+      const { root, base } = fixture;
+      writeRepoFile(root, schemaContractPath, existing ? schemaContractBytes.toString("utf8") + "\n" : schemaContractBytes);
+      const first = commitRepo(root, "feat(US-123): forbidden historical contract change", [schemaContractPath]);
+      if (existing) writeRepoFile(root, schemaContractPath, schemaContractBytes);
+      else rmSync(join(root, schemaContractPath));
+      const head = commitRepo(root, "fix(CHG-123): technical restore of aggregate endpoints", [schemaContractPath]);
+      assert.deepEqual(listChangedPaths({ root, base, head }), [], "matching endpoints conceal the contract transition");
+      assert.deepEqual(validateRangeOwnership({ root, base: first, head }).workIds, ["CHG-123"]);
+      expectError("WR_MIXED_FUNCTIONAL_TOOLING", schemaContractPath, () => validateRangeOwnership({ root, base, head }));
+      expectError("WR_MIXED_FUNCTIONAL_TOOLING", schemaContractPath, () => validateRangeOwnership({ root, base, head, message: "CHG-123" }));
+    } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
+
+test("CHG-100 technical contract delivery requires committed ready authority and plan", () => {
+  for (const technicalPlan of [true, false]) {
+    const fixture = makeSchemaContractRepo({ technicalPlan });
+    try {
+      const { root, base } = fixture;
+      installReadinessHook(root);
+      writeRepoFile(root, schemaContractPath, schemaContractBytes);
+      git(root, ["add", schemaContractPath]);
+      const unowned = runGit(root, ["commit", "-m", "feat(CHG-999): unowned contract introduction"]);
+      assert.equal(unowned.status, 1);
+      assert.match(unowned.stderr, /WR_READINESS_MISSING/u);
+      const result = runGit(root, ["commit", "-m", "feat(CHG-123): technical contract introduction"]);
+      if (technicalPlan) {
+        assert.equal(result.status, 0, result.stderr);
+        assert.deepEqual(validateRangeOwnership({ root, base, head: "HEAD" }).workIds, ["CHG-123"]);
+        assert.equal(git(root, ["show", `HEAD:${schemaContractPath}`]), schemaContractBytes.toString("utf8").trim());
+      } else {
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /WR_IMPLEMENTATION_PLAN_MISSING/u);
+      }
+    } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
+
 assert.ok(process.env.READINESS_TEST_FILTER ? assertions > 0 : assertions >= 30);
 process.stdout.write(`work-readiness model: ${assertions} behavioral tests passed\n`);
 

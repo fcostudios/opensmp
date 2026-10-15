@@ -16,7 +16,7 @@ import {
   validateCompletionActuals,
 } from "./model.mjs";
 
-import { isBookkeepingPath, isToolingPath, MUTATION_ROUTES_PATH, validRouteTable } from "./delivery-policy.mjs";
+import { isBookkeepingPath, isToolingPath, MUTATION_ROUTES_PATH, SCHEMA_CONTRACT_PATH, validRouteTable } from "./delivery-policy.mjs";
 
 const MAX_GIT_OUTPUT_BYTES = 1024 * 1024;
 const MAX_CI_EVENT_BYTES = 1024 * 1024;
@@ -1262,6 +1262,9 @@ function exactInheritedReplay({ root, base, head, workId, authority }) {
 export function validateFunctionalDelivery({ root, base, head, workId, authority }) {
   const reject = (message) => fail("WR_MIXED_FUNCTIONAL_TOOLING", MUTATION_ROUTES_PATH, message);
   const changed = listChangedPaths({ root, base, head });
+  if (changed.includes(SCHEMA_CONTRACT_PATH)) {
+    fail("WR_MIXED_FUNCTIONAL_TOOLING", SCHEMA_CONTRACT_PATH, `Functional delivery cannot introduce, edit or remove ${SCHEMA_CONTRACT_PATH}`);
+  }
   const replay = changed.includes(INHERITED_REPLAY.path) && exactInheritedReplay({ root, base, head, workId, authority });
   const forbidden = changed.find((path) => {
     if (replay && path === INHERITED_REPLAY.path) return false;
@@ -1438,7 +1441,8 @@ function validateCommitOwnership({
       || candidateArtifact.approval.approved_by !== parentArtifact.approval.approved_by) {
       fail("WR_CANDIDATE_APPROVAL_CHANGED", readinessPath, `${workId} approval binding cannot change in its implementation commit`);
     }
-    if (parentArtifact.work_type === "functional" && readinessDeliveryPolicy({ root, revision: parent, artifact: parentArtifact })) {
+    if (parentArtifact.work_type === "functional" && (changedPaths.includes(SCHEMA_CONTRACT_PATH)
+      || readinessDeliveryPolicy({ root, revision: parent, artifact: parentArtifact }))) {
       validateFunctionalDelivery({ root, base: parent, head: commit, workId, authority: payloadAuthority(root, parent, parentArtifact) });
     }
     if (parentArtifact.policy_bootstrap) {
