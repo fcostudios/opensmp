@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "d6c6a31be86f31055944f44b497953fd3ec96e7a32c764db97074e3315d34a01",
+  "work_id": "CHG-103",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Recognize canonical managed decision delivery in immutable custody",
+  "source": "/Users/fcolomas/Projects/nous/Nous/WorkControl/fcostudios/smp/CHG-103_TECH_SPEC.md @f49717791de4; normal delivered docs/stories/CHANGES.md CHG-103; DEC-SMP-050 @5282898f; canonical3402bec0-ac8d-4c8e-8874-a2c746b604e1 responsev1 fingerprint8c5a4894b9e7a0c0cf3447416366a18e3c6f6f118ab0a990eef7c8da5b13a945",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Authentic canonical managed decision delivery passes immutable staged/per-commit/full-history ownership while every other authorization and provenance guard remains effective.",
+      "demo": "Real temporary Git positive and independent hostile controls pass, then the governed validator separately re-evaluates unchanged original073340a and full original31b50b2-to-composed history without losing original failures or original-parent authority.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1-canonical-managed-decision-delivery",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2-protected-ownership-and-parent-authority",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3-original-custody-and-complete-history-proof",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4-guidance-and-own-closure-evidence",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "immutable-sync-ownership",
+    "real-Git-regression-controls",
+    "tenant-guidance-and-release-proof"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 9,
+    "bookkeeping_files": 4,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 35,
+    "implementation": 65,
+    "focused_verification": 100,
+    "review": 65,
+    "integration": 45,
+    "total": 310
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Exact delivered-base custody and complete counted inventory",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Isolated worktree /Users/fcolomas/.codex/worktrees/chg103-readiness/smp starts at preserved CHG100 ba43ce74faa64dff4eb4561c70c52840cf05e620. Exact current six-path CHG103 delivery from main copied byte/mode-for-byte/mode after all SHA256, changed-claim completeness, absolute source equality and no-symlink checks; normal nous-sync-owns --staged PASS and ordinary custody commit fc6620d (not a historical validator PASS). All six included in nine counted paths, plus these three future technical paths: scripts/work-readiness/git.mjs; scripts/test-work-readiness.mjs; docs/dev-guide/WORK_READINESS.md. INDEX.md/ASSIGNMENTS.md unchanged and excluded; no other delivery path authorized. Four bookkeeping paths: docs/readiness/CHG-103.json; docs/superpowers/specs/CHG-103-design.md; docs/superpowers/plans/CHG-103-plan.md; .nous-feedback.jsonl. Actual custody blob/mode anchors: 100644 blob 5919cd64f14c56c0bba0675d122f84395f613a65\t.nous-project.json; 100644 blob 65f76b63a35017533d5b31b4858c02a5c7e874cd\t.nous-provenance.json; 100644 blob 61564c2c404e457fb896a42ebc3ae09a7ee66347\t.nous-sync.json; 100644 blob 53a4aedfd4425f5b3f4961558bcb907c1cf52b60\tdocs/decisions/DECISION_MATRIX.md; 100644 blob 17745e936eff70462856514b81487d96ae2ab73d\tdocs/dev-guide/WORK_READINESS.md; 100644 blob a098f6584b9c55339890688599636eebf2d4769c\tdocs/stories/CHANGES.md; 100644 blob 4f2dabcd1750f45217b7560682029c63e0f821bd\tdocs/stories/SPRINT_PLAN.md; 100644 blob f91a72018cbc65ee7845b3e1a5dee425cc06d7b0\tscripts/test-work-readiness.mjs; 100644 blob ae229ffa8217288e03a5807f950eee2ad6424d69\tscripts/work-readiness/git.mjs. IMP434 testing/critical-paths.md and docs/dev-guide/TESTING.md equal actual main and untouched. Shared main remains31b50b2f3e9ae8ab3da4a3bd241d17e9d7351982; foreign changes preserved."
+    },
+    {
+      "id": "U2",
+      "statement": "Authority for managed decision category and historical interpretation",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "DEC-SMP-050 settles substrate docs/decisions/ managed delivery precedence and narrow original-history interpretation; no policy reapproval. Correct only tenant git.mjs managed-category recognition and matching tenant guidance plus real regression harness. Scope does not amend timestamps/co-change/replay semantics, substrate emitter/scripts, global framework, thresholds, CHG088 exception or CHG100 contract-data denial. Substrate-spec lookup07 remains unavailable, explicitly disclosed; independently verified committed canonical packet SHA25684266c92dc7a03d79b87e0c9dfd925b5a956a266e762d52696ea663e022c3ed3 and actual delivered canonical specification bind authority, not a fabricated successful lookup. Strict global drift remains red; no broad clean claim or bypass."
+    },
+    {
+      "id": "U3",
+      "statement": "Real staged/per-commit/range controls preserve independent guards",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "After exact approval, extend existing scripts/test-work-readiness.mjs real temporary Git fixtures (owned code never mocked). First/changed/unchanged decision delivery positives through staged, per-commit and whole branch; independent forged/unclaimed/hash/source/path/mode/symlink/dirty/incomplete/replayed claims/wrong project/self-approval negatives, each with specific rejection and independent guard-removal controls proving its oracle. Preserve closed shapes/schema/project/org/namespace/checksum/provenance, exact bytes and semantic claim change, normalized sources/disjoint dirt, regular modes, actual immutable-parent activation/approval/digest/scope, full historical transition checks and CHG088 exact exception. Existing git.mjs34-38 managed roots and882-995 exactNousSyncOwns are primary anchors; validateCommitOwnership1321 onward remains governing authorization route. Read docs/dev-guide/TESTING.md before any future test edit. Additional path, generic policy framework or newly independent guard gap stops for owner resolution; no extra scope assumed."
+    },
+    {
+      "id": "U4",
+      "statement": "Original history cannot be replaced by a fresh custody proof",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "Retain original073340a26062262c827d783e3b8c0d181e4a4706, original main31b50b2 and all old blobs/modes/envelopes/raw feedback and original failed receipt. Governed CHG103 validator revision must separately evaluate original073 parent..073, full31b50b2..ba43ce74faa64dff4eb4561c70c52840cf05e620 and full31b50b2..final composed candidate, with exact dated command/revision receipts. No shortened range, alternate base, overlay exemption, rewrite/cherry-pick/re-copy of original custody or convention-PASS substitution. Every historical implementation transition must possess actual original-parent authority; later approval fills nothing. Own CHG103 mutation base freezes only after its entry approvals, distinct from CHG100 mutation base24fe and original historical bases. A newly discovered independent original-parent gap blocks rather than receiving an exception."
+    },
+    {
+      "id": "U5",
+      "statement": "Truthful complete cost and bounded readiness preparation",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Complete conservative310 =35 readiness+65 implementation+100 focused verification+65 review+45 integration; provisional190/260 was unapproved and excluded sufficient real Git fault controls, original-history replay and own fullgate/review contingency. Estimated sunk preparation27 = prior localroot5 + operator8 + current rootcoordination2 + this dedicated controller12, each counted once; no idle waits and no CHG100/sibling transfer. Remaining283=8 readiness+65 implementation+100 focused+65 review+45 integration. The remaining8 readiness minutes reserve final parent coordination and approval recording inside authorized35; design/plan after approval cost15 included in implementation65. Figures estimated, not harness billing. Focused100 includes existing baseline/harness comparison, staged/range fault controls, original immutable history proof, setup and fix allowance; review65 includes reused scoped review and fresh adversarial AC review; integration45 includes own uncached awake full gate, applicable shared PostgreSQL migrate/verify/parity proof, native final cold and fast-forward receipt. Reassess actual spent+remaining at every boundary; exceeding310 needs revised digest, exceeding320 requires outcome repartition. No budget waiver, cost transfer or reset."
+    },
+    {
+      "id": "U6",
+      "statement": "Own required commands and mutation applicability are not inherited evidence",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "No production tests/gates/campaign/DB invoked during readiness; only normal custody ownership and readiness validation. Approved worker installs locked dependencies without lock edit if needed; focused node scripts/test-work-readiness.mjs with real Git and independent controls, node scripts/work-readiness.mjs check-staged --messageFile <actual-message> and check-range exact original bases/heads plus own child range; node scripts/check-nous-feedback-order.mjs . . Preserve legacy baseline results and compare only intended category change with unrelated failures still rejected. Discover actual MUTATION_BASE=<new-postapproval-freeze> node scripts/mutation-scope.mjs --preflight; expected0 is a forecast because only MJS/Markdown/custody change, no invented mutation score or borrowed cold. One actual authoritative awake cold last via caffeinate -i pnpm test:mutation, with discovered touched previews <=30 minutes only if applicable. Acquire /tmp/smp-full-gate.lock without deleting foreign owner lock and hold for caffeinate -i pnpm check. Applicable committed-migration fresh proof uses existing shared PostgreSQL fixture and real ledger_owner/ledger_app: pnpm --filter @smp/db db:migrate, db:verify, db:parity; no private containers or exposed credentials. No migration/schema change authored. Own gate failures hold closure; no global drift waiver. Focused/fullgate/review final fixes precede final cold; later edits invalidate affected proof."
+    },
+    {
+      "id": "U7",
+      "statement": "Execution session, lifecycle and integration boundaries",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "After Francisco approves this exact CHG103 digest, standing authorization covers bounded design/plan/implementation; no started before approval. Same dedicated controller briefs one implementer, reused scoped reviewer and fresh adversarial reviewer, records restarts and costs, no controller implementation. Phase markers with ts, nonzero real done.cost measured where available otherwise explicitly estimated, implementer/reviewer cost and session count lines, actual preview_rounds/preview_minutes and cold attempts. No integration until CHG103 own gates and full original history pass; CHG100 approval/proofs/checkpoint210estimated minutes stay CHG100-owned and its final cold/integration remain held pending corrected proof. Main fast-forward only if ancestry holds; if moved coordinate actual rebase with SHA map and testing-guide checks, never force foreign work. CHG093/P4/US090/US091/US084 are separate owners and holds unchanged; no clock/co-change/cad8 correction here. Parent US030 B hourly proof obligation preserved. No parent/sibling closure inferred."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "d6c6a31be86f31055944f44b497953fd3ec96e7a32c764db97074e3315d34a01"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
