@@ -1,5 +1,5 @@
 <!-- nous-sprint-stamp
-generated_at: 2026-10-15T16:46:27Z
+generated_at: 2026-10-16T15:48:48Z
 current_sprint: sprint-3
 sprints_hash: 92c71a19a366a85d
 -->
@@ -113,7 +113,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | 21 | full-stack | **US-076** ⬜ | Confirm person departure through the offboarding flow | 1SP | `See story file` | CHG-074 | US-019, US-020, US-086 | →1 | — | [r1_misc_us_076.md](sprint-3/r1_misc_us_076.md) |
 | 22 | full-stack | **US-082** ⬜ | Execute connector seat removal in the production worker | 1SP | `See story file` | CHG-076 | US-019, US-020, US-087 | →2 | — | [r1_misc_us_082.md](sprint-3/r1_misc_us_082.md) |
 | 23 | full-stack | **US-085** ⬜ | Show pending-refresh capacity on the pools and dashboard overview | 1SP | `See story file` | CHG-078 | US-019, US-020, US-081 | →1 | — | [r1_misc_us_085.md](sprint-3/r1_misc_us_085.md) |
-| 24 | full-stack | **US-087** 🔨 | Complete checklist seat removal and close the register atomically | 1SP | `See story file` | CHG-083 | US-019, US-020, US-086 | →3 | — | [r1_misc_us_087.md](sprint-3/r1_misc_us_087.md) |
+| 24 | full-stack | **US-087** ✅ | Complete checklist seat removal and close the register atomically | 1SP | `See story file` | CHG-083 | US-019, US-020, US-086 | →3 | — | [r1_misc_us_087.md](sprint-3/r1_misc_us_087.md) |
 | 25 | full-stack | **US-055** ⬜ | API-less ingestion: member/usage CSV import + manual register upkeep | 3SP | `See story file` | — | US-003, US-025, US-026, US-030 | — | — | [r1_misc_us_055.md](sprint-3/r1_misc_us_055.md) |
 | 26 | full-stack | **US-063** ✅ | Deliver approved requests as vendor invitations within 15 minutes | 1SP | `See story file` | CHG-054 | US-056, US-057, US-058, US-014, US-046, US-042 | →4 | — | [r1_misc_us_063.md](sprint-3/r1_misc_us_063.md) |
 | 27 | full-stack | **US-070** ✅ | Ingest accurate daily person activity from API-enabled accounts | 1SP | `See story file` | CHG-068 | US-056, US-057, US-058, US-046 | →2 | — | [r1_misc_us_070.md](sprint-3/r1_misc_us_070.md) |
