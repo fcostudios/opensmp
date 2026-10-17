@@ -1,3 +1,9 @@
+import { createHash } from "node:crypto";
+
+// Immutable canonical baseline identity; declaration values have one runtime
+// source. This digest is never derived from caller-supplied approval data.
+const ORIGINAL_BASELINE_SHA256 = "0b755c2c2b71cf8065093608ae01c9353232da7eb196ea9da78f5445e59b6e7b";
+
 const topKeys = [
   "schema_version",
   "coreTableNames",
@@ -117,8 +123,9 @@ export function parseSchemaContract(bytes, path) {
   return candidate;
 }
 
-export function attestSchemaContract(candidate, baseline) {
-  if (JSON.stringify(candidate) !== JSON.stringify(baseline)) {
+export function attestSchemaContract(candidate) {
+  if (createHash("sha256").update(JSON.stringify(candidate, null, 2) + "\n").digest("hex") !== ORIGINAL_BASELINE_SHA256) {
     reject("baseline-mismatch", declarationPaths.get(candidate) ?? "schema-contract", "declaration must equal the original ordered literal baseline");
   }
+  return candidate;
 }

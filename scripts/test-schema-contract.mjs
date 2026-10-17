@@ -8,7 +8,8 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const contractPath = resolve(root, "packages/db/schema-contract.json");
 // Hand-checked original ordered privilege declaration; changes must still be
-// rejected by the real release consumer while the literals remain authority.
+// rejected by the real release consumer; this independent test oracle is not
+// another runtime declaration source.
 const baseline = {
   schema_version: 1,
   coreTableNames: [
@@ -135,6 +136,23 @@ try {
   assert.equal(valid.status, 1);
   assert.match(valid.stderr, /DATABASE_ADMIN_URL is required/);
   assert.equal(valid.stderr.includes("schema-contract/"), false);
+
+  // A deliberate returned-data fault in the real copied helper must be
+  // observed by the actual consumer before any database connection. Keeping
+  // runtime literal arrays while merely invoking attestation cannot pass.
+  const policyPath = resolve(fixture, "scripts/schema-contract-policy.mjs");
+  const policySource = await readFile(policyPath, "utf8");
+  await writeFile(policyPath, policySource.replace(
+    "export function attestSchemaContract(", "function originalAttestSchemaContract(",
+  ) + `\nexport function attestSchemaContract(candidate, ...legacyBaseline) {
+    originalAttestSchemaContract(candidate, ...legacyBaseline);
+    return { ...candidate, get coreTableNames() { throw new Error("CHG101-attested-data-consumed"); } };
+  }\n`);
+  const consumed = run();
+  assert.equal(consumed.status, 1);
+  assert.match(consumed.stderr, /CHG101-attested-data-consumed/u);
+  assert.equal(consumed.stderr.includes("DATABASE_ADMIN_URL is required"), false);
+  assert.equal(consumed.stdout, "");
 } finally {
   await rm(fixture, { recursive: true, force: true });
 }
@@ -145,11 +163,17 @@ assert.equal(actualBytes.toString("utf8"), bytes, "shipped declaration preserves
 const declaration = parseSchemaContract(actualBytes, contractPath);
 assert.deepEqual(declaration, baseline);
 assert.equal(declaration.coreTableNames.length, 33);
-attestSchemaContract(declaration, baseline);
+assert.equal(attestSchemaContract(declaration), declaration, "attestation returns the same parsed declaration for consumption");
+const selfApproved = parseSchemaContract(Buffer.from(changed(value => { value.coreTableNames.push("new_table"); })), contractPath);
+assert.throws(() => attestSchemaContract(selfApproved, selfApproved), error => {
+  assert.equal(error.category, "baseline-mismatch");
+  assert.equal(error.path, contractPath);
+  return true;
+}, "a caller-supplied matching baseline cannot grant new declaration authority");
 for (const [label, input, category] of failures) {
   assert.throws(() => {
     const candidate = parseSchemaContract(Buffer.from(input), contractPath);
-    attestSchemaContract(candidate, baseline);
+    attestSchemaContract(candidate);
   }, (error) => {
     assert.equal(error.category, category, label);
     assert.equal(error.path, contractPath, label);

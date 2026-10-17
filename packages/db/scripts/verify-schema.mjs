@@ -56,99 +56,6 @@ const expectedAppendOnlyTriggers = [
   },
 ].sort((left,right)=>left.tableName.localeCompare(right.tableName));
 
-const coreTableNames = [
-  "activity_record",
-  "alert_event",
-  "alert_notification_delivery",
-  "alert_rule",
-  "audit_log",
-  "close_run",
-  "capacity_recovery_work",
-  "company",
-  "company_role_assignment",
-  "connector_call_observation",
-  "cost_record",
-  "integration_credential",
-  "identity_provider_operation",
-  "license_assignment",
-  "license_request",
-  "license_type",
-  "lifecycle_notification",
-  "lifecycle_notification_delivery",
-  "member_observation",
-  "person",
-  "provisioning_action",
-  "rate_card",
-  "reclamation_proposal",
-  "reconciliation",
-  "reconciliation_variance_line",
-  "request_transition",
-  "statement",
-  "statement_line",
-  "system_setting",
-  "user_account",
-  "vendor",
-  "vendor_account",
-  "vendor_account_capacity",
-];
-
-const normallyUpdateableTableNames = [
-  "alert_rule",
-  "capacity_recovery_work",
-  "close_run",
-  "company",
-  "company_role_assignment",
-  "integration_credential",
-  "identity_provider_operation",
-  "license_request",
-  "license_type",
-  "person",
-  "reclamation_proposal",
-  "reconciliation",
-  "statement",
-  "system_setting",
-  "user_account",
-  "vendor",
-  "vendor_account",
-];
-
-const expectedRuntimeTableGrants = [
-  ...coreTableNames.flatMap((tableName) => [
-    ...(["alert_notification_delivery", "lifecycle_notification_delivery"].includes(tableName)
-      ? []
-      : [{ tableName, privilege: "INSERT" }]),
-    { tableName, privilege: "SELECT" },
-  ]),
-  ...normallyUpdateableTableNames.map((tableName) => ({
-    tableName,
-    privilege: "UPDATE",
-  })),
-].sort((left, right) =>
-  left.tableName.localeCompare(right.tableName) ||
-  left.privilege.localeCompare(right.privilege),
-);
-
-const expectedAppendOnlyColumnUpdates = [
-  { tableName: "activity_record", columnName: "counters" },
-  { tableName: "activity_record", columnName: "raw_payload" },
-  { tableName: "activity_record", columnName: "source" },
-  { tableName: "activity_record", columnName: "synced_at" },
-  { tableName: "cost_record", columnName: "amount_usd" },
-  { tableName: "cost_record", columnName: "raw_payload" },
-  { tableName: "cost_record", columnName: "source" },
-  { tableName: "cost_record", columnName: "synced_at" },
-  { tableName: "alert_event", columnName: "acknowledged_at" },
-  { tableName: "alert_event", columnName: "acknowledged_by" },
-  { tableName: "license_assignment", columnName: "end_reason" },
-  { tableName: "license_assignment", columnName: "ended_on" },
-  { tableName: "provisioning_action", columnName: "failure_reason" },
-  { tableName: "provisioning_action", columnName: "raw_response" },
-  { tableName: "provisioning_action", columnName: "resolved_at" },
-  { tableName: "provisioning_action", columnName: "sent_at" },
-  { tableName: "provisioning_action", columnName: "status" },
-  { tableName: "provisioning_action", columnName: "vendor_ref" },
-];
-
 const systemUserId = "00000000-0000-0000-0000-000000000001";
 
 function normalizeSqlDefinition(value) {
@@ -254,12 +161,25 @@ export async function verifyMigratedSchema({
     }
     throw error;
   });
-  attestSchemaContract(parseSchemaContract(schemaContractBytes, schemaContractPath), {
-    schema_version: 1,
-    coreTableNames,
-    normallyUpdateableTableNames,
-    expectedAppendOnlyColumnUpdates,
-  });
+  const { coreTableNames, normallyUpdateableTableNames, expectedAppendOnlyColumnUpdates } =
+    attestSchemaContract(parseSchemaContract(schemaContractBytes, schemaContractPath));
+
+const expectedRuntimeTableGrants = [
+  ...coreTableNames.flatMap((tableName) => [
+    ...(["alert_notification_delivery", "lifecycle_notification_delivery"].includes(tableName)
+      ? []
+      : [{ tableName, privilege: "INSERT" }]),
+    { tableName, privilege: "SELECT" },
+  ]),
+  ...normallyUpdateableTableNames.map((tableName) => ({
+    tableName,
+    privilege: "UPDATE",
+  })),
+].sort((left, right) =>
+  left.tableName.localeCompare(right.tableName) ||
+  left.privilege.localeCompare(right.privilege),
+);
+
   if (!databaseAdminUrl) {
     throw new Error(
       "DATABASE_ADMIN_URL is required to verify committed migrations as ledger_owner",

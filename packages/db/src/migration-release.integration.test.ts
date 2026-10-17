@@ -1416,6 +1416,103 @@ describe("committed migration release path", () => {
     }
   }, 30_000);
 
+  // Immutable pre-CHG100 Gitblob4b189bb... literal/derivation fixture, not
+  // candidate JSON. The complete reconstructed executable hash below is fixed.
+  const originalPrivilegeDeclarations = `const coreTableNames = [
+  "activity_record",
+  "alert_event",
+  "alert_notification_delivery",
+  "alert_rule",
+  "audit_log",
+  "close_run",
+  "capacity_recovery_work",
+  "company",
+  "company_role_assignment",
+  "connector_call_observation",
+  "cost_record",
+  "integration_credential",
+  "identity_provider_operation",
+  "license_assignment",
+  "license_request",
+  "license_type",
+  "lifecycle_notification",
+  "lifecycle_notification_delivery",
+  "member_observation",
+  "person",
+  "provisioning_action",
+  "rate_card",
+  "reclamation_proposal",
+  "reconciliation",
+  "reconciliation_variance_line",
+  "request_transition",
+  "statement",
+  "statement_line",
+  "system_setting",
+  "user_account",
+  "vendor",
+  "vendor_account",
+  "vendor_account_capacity",
+];
+
+const normallyUpdateableTableNames = [
+  "alert_rule",
+  "capacity_recovery_work",
+  "close_run",
+  "company",
+  "company_role_assignment",
+  "integration_credential",
+  "identity_provider_operation",
+  "license_request",
+  "license_type",
+  "person",
+  "reclamation_proposal",
+  "reconciliation",
+  "statement",
+  "system_setting",
+  "user_account",
+  "vendor",
+  "vendor_account",
+];
+
+const expectedRuntimeTableGrants = [
+  ...coreTableNames.flatMap((tableName) => [
+    ...(["alert_notification_delivery", "lifecycle_notification_delivery"].includes(tableName)
+      ? []
+      : [{ tableName, privilege: "INSERT" }]),
+    { tableName, privilege: "SELECT" },
+  ]),
+  ...normallyUpdateableTableNames.map((tableName) => ({
+    tableName,
+    privilege: "UPDATE",
+  })),
+].sort((left, right) =>
+  left.tableName.localeCompare(right.tableName) ||
+  left.privilege.localeCompare(right.privilege),
+);
+
+const expectedAppendOnlyColumnUpdates = [
+  { tableName: "activity_record", columnName: "counters" },
+  { tableName: "activity_record", columnName: "raw_payload" },
+  { tableName: "activity_record", columnName: "source" },
+  { tableName: "activity_record", columnName: "synced_at" },
+  { tableName: "cost_record", columnName: "amount_usd" },
+  { tableName: "cost_record", columnName: "raw_payload" },
+  { tableName: "cost_record", columnName: "source" },
+  { tableName: "cost_record", columnName: "synced_at" },
+  { tableName: "alert_event", columnName: "acknowledged_at" },
+  { tableName: "alert_event", columnName: "acknowledged_by" },
+  { tableName: "license_assignment", columnName: "end_reason" },
+  { tableName: "license_assignment", columnName: "ended_on" },
+  { tableName: "provisioning_action", columnName: "failure_reason" },
+  { tableName: "provisioning_action", columnName: "raw_response" },
+  { tableName: "provisioning_action", columnName: "resolved_at" },
+  { tableName: "provisioning_action", columnName: "sent_at" },
+  { tableName: "provisioning_action", columnName: "status" },
+  { tableName: "provisioning_action", columnName: "vendor_ref" },
+];
+
+`;
+
   test("CHG-100 preserves the pinned old verifier results grants and diagnostics on one catalog", async () => {
     const database = await createDatabase();
     const bundle = await createVerifierBundle();
@@ -1423,13 +1520,14 @@ describe("committed migration release path", () => {
     try {
       await migrate(database.ownerUrl);
       const source = await readFile(join(bundle, "scripts/verify-schema.mjs"), "utf8");
-      // Reconstruct only the attestation delta, then cryptographically pin the
-      // immutable pre-change executable before using it as an independent oracle.
+      // Restore the independent historical declaration/derivation placement,
+      // then pin the WHOLE old executable before executing the real oracle.
       const entryAttestation = /  const schemaContractPath = [\s\S]*?(?=  if \(!databaseAdminUrl\))/u;
       const oldSource = source
         .replace('import { fileURLToPath, pathToFileURL }', 'import { pathToFileURL }')
         .replace('import { parseSchemaContract, attestSchemaContract } from "./schema-contract-policy.mjs";\n', "")
-        .replace(entryAttestation, "");
+        .replace(entryAttestation, "")
+        .replace("const systemUserId =", originalPrivilegeDeclarations + "const systemUserId =");
       expect(sha256(oldSource)).toBe("d927f78f95e192e6c5e96344859449a99894d59c8917363c950ac4b6e65bc767");
       const oldPath = join(bundle, "scripts/old-verify-schema.mjs");
       const currentPath = join(bundle, "scripts/verify-schema.mjs");
@@ -1457,6 +1555,23 @@ describe("committed migration release path", () => {
         applicationIntegrity: { role: "ledger_app", totalTables: 33 } });
       expect(result.applicationIntegrity.tableGrants.length).toBeGreaterThan(33);
       expect(result.applicationIntegrity.columnPrivileges.length).toBeGreaterThan(33);
+
+      // Deliberate returned-data fault in the real copied helper: the actual
+      // catalog verifier must use attested declarations, not leftover literals.
+      const policyPath = join(bundle, "scripts/schema-contract-policy.mjs");
+      const policySource = await readFile(policyPath, "utf8");
+      const returnedDataFault = policySource.replace(/  return candidate;\n\}\s*$/u,
+        "  return { ...candidate, normallyUpdateableTableNames: [] };\n}\n");
+      expect(returnedDataFault).not.toBe(policySource);
+      try {
+        await writeFile(policyPath, returnedDataFault);
+        const consumed = await runNode(currentPath, environment);
+        expect(consumed.code).toBe(1);
+        expect(consumed.stdout).toBe("");
+        expect(consumed.stderr).toContain("ledger_app runtime table-grant matrix mismatch");
+      } finally {
+        await writeFile(policyPath, policySource);
+      }
 
       // The old executable also pins a real specialized failure diagnostic,
       // rather than comparing success status alone.

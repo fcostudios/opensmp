@@ -5924,7 +5924,13 @@ test("CHG-100 functional contract introduction edits and modes reject staged and
       try {
         const { root, base } = fixture;
         if (["initial add", "mixed"].includes(variant)) writeRepoFile(root, schemaContractPath, schemaContractBytes);
-        if (variant === "edit") writeRepoFile(root, schemaContractPath, schemaContractBytes.toString("utf8") + "\n");
+        if (variant === "edit") {
+          // CHG-101 consumes this data, but safe canonical existing-file edits
+          // still cannot acquire functional authority before CHG-102.
+          const changed = JSON.parse(schemaContractBytes.toString("utf8"));
+          changed.coreTableNames.push("new_table");
+          writeRepoFile(root, schemaContractPath, JSON.stringify(changed, null, 2) + "\n");
+        }
         if (variant === "delete") rmSync(join(root, schemaContractPath));
         if (variant === "mode") chmodSync(join(root, schemaContractPath), 0o755);
         if (variant === "symlink") {
