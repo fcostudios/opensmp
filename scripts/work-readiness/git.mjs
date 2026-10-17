@@ -18,7 +18,7 @@ import {
 
 import { isBookkeepingPath, isToolingPath, MUTATION_ROUTES_PATH, SCHEMA_CONTRACT_PATH, validRouteTable } from "./delivery-policy.mjs";
 
-const MAX_GIT_OUTPUT_BYTES = 1024 * 1024;
+const MAX_GIT_OUTPUT_BYTES = 2 * 1024 * 1024;
 const MAX_CI_EVENT_BYTES = 1024 * 1024;
 const WORK_ID_PATTERN = /(?<![A-Z0-9-])(?:US|CHG)-[0-9]{3,}(?![A-Z0-9-])/giu;
 
@@ -35,6 +35,7 @@ const PROVENANCE_MANAGED_PATHS = [
   /^docs\/stories\//u,
   /^docs\/sprints\//u,
   /^docs\/specs\//u,
+  /^docs\/decisions\//u,
 ];
 const MAX_NOUS_DIRTY_PATHS = 1024;
 const MAX_NOUS_SYNC_FILES = 1024;

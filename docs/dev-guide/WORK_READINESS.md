@@ -259,10 +259,20 @@ Generated Nous paths have exactly two authorization routes:
    three closed-shape documents must agree on project, substrate revision, and
    UTC sync second. The full manifest may retain unchanged entries and other
    categories, but it authorizes changed content only under `docs/stories/`,
-   `docs/sprints/`, and `docs/specs/`. Every affected entry must bind the exact
-   candidate blob through its SHA-256 prefix and be new or semantically changed
+   `docs/sprints/`, `docs/specs/`, and `docs/decisions/` (DEC-SMP-050). Every
+   affected entry must bind the exact candidate blob through its SHA-256 prefix
+   and be new or semantically changed
    from the immutable parent manifest; envelope reformatting or timestamp
    changes alone cannot replay an unchanged entry.
+
+DEC-SMP-050 gives the canonical substrate-managed decision category precedence
+in the unchanged CHG-100 custody history. A separately governed CHG-103 validator
+may evaluate the original custody and complete original-base history under this
+category. Record the named validator revision and dated results separately from
+the preserved original rejection. Every transition still requires its actual
+immutable-parent activation, readiness, approval, digest and source authority;
+a later approval cannot supply missing original authority. This changes no
+UTC-second, co-change, replay, hash, source, mode or other ownership guard.
 
 The sync provenance is consistency evidence for this repository's single-human
 threat model; it is not a cryptographic signature or an independent-party

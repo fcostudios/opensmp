@@ -4112,6 +4112,149 @@ test("an exact Nous sync envelope authorizes generated documentation", () => {
   }
 });
 
+// CHG-103 keeps the existing custody route and all predicates; the only new
+// category is canonical managed decisions. These are real Git/hook contracts.
+const managedDecisionPath = "docs/decisions/DECISION_MATRIX.md";
+const managedDecisionStory = "docs/stories/CHANGES.md";
+const managedDecisionSource = "/fixture/Nous/Specs/fixture/ledger/v1/decisions/DECISION_MATRIX.md";
+const decisionEnvelopePaths = [".nous-provenance.json", ".nous-project.json", ".nous-sync.json"];
+function writeManagedDecisionDelivery(root, version, { retainDecision = false, mutate = () => {} } = {}) {
+  const decisionBytes = `# Canonical decision version ${version}\n`;
+  const storyBytes = `# Canonical changes version ${version}\n`;
+  const priorDecision = retainDecision ? JSON.parse(readFileSync(join(root, ".nous-sync.json"), "utf8")).files[managedDecisionPath] : null;
+  if (!retainDecision) writeRepoFile(root, managedDecisionPath, decisionBytes);
+  writeExactNousSyncEnvelope(root, managedDecisionStory, storyBytes, {
+    provenance: { git_sha: version === 1 ? "11111111abcd" : version === 2 ? "22222222abcd" : "33333333abcd" },
+    project: { substrate_commit: version === 1 ? "11111111" : version === 2 ? "22222222" : "33333333" },
+    mutate: (envelope) => {
+      envelope.sync.files[managedDecisionPath] = priorDecision ?? {
+        hash: createHash("sha256").update(decisionBytes).digest("hex").slice(0, 16), source: managedDecisionSource,
+      };
+      mutate(envelope);
+    },
+  });
+  return [...decisionEnvelopePaths, managedDecisionStory, ...(retainDecision ? [] : [managedDecisionPath])];
+}
+
+test("CHG-103 managed decisions pass first changed and retained delivery through staged commit and complete history", () => {
+  const { root } = makeGitRepo();
+  try {
+    activateReadinessPolicy(root);
+    const base = git(root, ["rev-parse", "HEAD"]);
+    installReadinessHook(root);
+    let parent = base;
+    for (const version of [1, 2, 3]) {
+      const paths = writeManagedDecisionDelivery(root, version, { retainDecision: version === 3 });
+      git(root, ["add", "--", ...paths]);
+      const message = `docs(CHG-103): canonical managed decision delivery ${version}`;
+      const messagePath = writeGitMessage(root, message + "\n");
+      const staged = runCli(root, ["check-staged", "--message-file", messagePath, "--json"]);
+      assert.equal(staged.status, 0, `version ${version}: ${staged.stdout}${staged.stderr}`);
+      assert.equal(JSON.parse(staged.stdout).ok, true);
+      const ordinary = runGit(root, ["commit", "-m", message]);
+      assert.equal(ordinary.status, 0, ordinary.stderr);
+      const head = git(root, ["rev-parse", "HEAD"]);
+      assert.equal(validateRangeOwnership({ root, base: parent, head }).classification, "bootstrap-documentation");
+      assert.equal(validateRangeOwnership({ root, base, head }).classification, "bootstrap-documentation");
+      if (version === 3) assert.equal(listChangedPaths({ root, base: parent, head }).includes(managedDecisionPath), false);
+      parent = head;
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("CHG-103 managed decision custody rejects independent hostile claims", () => {
+  const variants = [
+    ["unclaimed decision", ({ sync }) => { delete sync.files[managedDecisionPath]; }],
+    ["forged hash", ({ sync }) => { sync.files[managedDecisionPath].hash = "0".repeat(16); }],
+    ["relative source", ({ sync }) => { sync.files[managedDecisionPath].source = "Nous/Specs/fixture/decision.md"; }],
+    ["dirty decision source", ({ provenance }) => { provenance.dirty = true; provenance.dirty_paths = ["Nous/Specs/fixture/ledger/v1/decisions/DECISION_MATRIX.md"]; }],
+    ["wrong project", ({ project }) => { project.project_id = "other__project"; }],
+    ["forged closed shape", ({ provenance }) => { provenance.forged = true; }],
+    ["mode", () => {}], ["symlink", () => {}], ["incomplete envelope", () => {}], ["unmanaged path", () => {}],
+  ];
+  for (const [name, mutate] of variants) {
+    const { root } = makeGitRepo();
+    let base = git(root, ["rev-parse", "HEAD"]);
+    try {
+      if (name === "incomplete envelope") {
+        writeManagedDecisionDelivery(root, 1);
+        base = commitRepo(root, "docs(CHG-103): seed unchanged project envelope fixture", [".nous-project.json"]);
+      }
+      let paths = writeManagedDecisionDelivery(root, 1, { mutate });
+      if (name === "unmanaged path") {
+        const path = "docs/other/unmanaged.md", bytes = "# Unmanaged category\n";
+        writeRepoFile(root, path, bytes); paths.push(path);
+        const sync = JSON.parse(readFileSync(join(root, ".nous-sync.json"), "utf8"));
+        sync.files[path] = { hash: createHash("sha256").update(bytes).digest("hex").slice(0, 16), source: "generated" };
+        writeRepoFile(root, ".nous-sync.json", JSON.stringify(sync) + "\n");
+      }
+      if (name === "mode") chmodSync(join(root, managedDecisionPath), 0o755);
+      if (name === "symlink") { rmSync(join(root, managedDecisionPath)); symlinkSync("../../README.md", join(root, managedDecisionPath)); }
+      if (name === "incomplete envelope") paths = paths.filter(path => path !== ".nous-project.json");
+      const head = commitRepo(root, `docs(CHG-103): hostile managed decision ${name}`, paths);
+      assert.throws(() => validateRangeOwnership({ root, base, head }),
+        error => error.code === "WR_GENERATED_NOUS_PATH" && error.path === managedDecisionStory, name);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  }
+  // Existing unchanged-claim replay guard must cover this additional category.
+  const { root } = makeGitRepo();
+  try {
+    writeManagedDecisionDelivery(root, 1);
+    writeRepoFile(root, managedDecisionPath, "# Parent bytes differ from stale decision claim\n");
+    const base = commitRepo(root, "docs(CHG-103): retain stale parent claim fixture", [...decisionEnvelopePaths, managedDecisionStory, managedDecisionPath]);
+    const paths = writeManagedDecisionDelivery(root, 1, {
+      mutate: ({ provenance, project, sync }) => {
+        provenance.git_sha = "44444444abcd"; project.substrate_commit = "44444444";
+        // The story entry changes independently, so only the decision guard
+        // can reject the unchanged decision hash/source replay.
+        sync.files[managedDecisionStory].hash = createHash("sha256").update("# New canonical changes\n").digest("hex").slice(0, 16);
+      },
+    });
+    writeRepoFile(root, managedDecisionStory, "# New canonical changes\n");
+    const head = commitRepo(root, "docs(CHG-103): reject unchanged decision claim replay", paths);
+    assert.throws(() => validateRangeOwnership({ root, base, head }),
+      error => error.code === "WR_GENERATED_NOUS_PATH" && error.path === managedDecisionStory, "unchanged decision claim");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("CHG-103 bounded Git reader accepts complete actual ledger above one MiB and refuses child output above two MiB", () => {
+  const { root } = makeGitRepo();
+  try {
+    assert.ok(Buffer.byteLength(repositoryFeedback) > 1024 * 1024, "actual complete project ledger exceeds old ceiling");
+    assert.ok(Buffer.byteLength(repositoryFeedback) < 2 * 1024 * 1024, "actual ledger fits the explicitly waived bound");
+    const paths = [".nous-feedback.jsonl"];
+    writeRepoFile(root, ".nous-feedback.jsonl", repositoryFeedback);
+    for (const name of readdirSync(new URL("../docs/readiness/", import.meta.url))) {
+      if (!name.endsWith(".json")) continue;
+      const path = `docs/readiness/${name}`;
+      writeRepoFile(root, path, readFileSync(new URL(`../${path}`, import.meta.url)));
+      paths.push(path);
+    }
+    const base = commitRepo(root, "docs(CHG-103): retain complete immutable ledger fixture", paths);
+    const annotation = { story: "CHG-103", event: "feedback", title: "Bounded reader contract", description: "Complete raw ledger retained", images: [], ts: "2026-10-17T01:00:00Z" };
+    const candidate = repositoryFeedback + JSON.stringify(annotation) + "\n";
+    writeRepoFile(root, ".nous-feedback.jsonl", candidate);
+    installReadinessHook(root);
+    const head = commitRepo(root, "docs(CHG-103): append valid evidence above old reader ceiling", [".nous-feedback.jsonl"]);
+    assert.equal(validateRangeOwnership({ root, base, head }).classification, "bootstrap-documentation");
+    const retained = spawnSync("git", ["show", `${head}:.nous-feedback.jsonl`], { cwd: root, encoding: "buffer", maxBuffer: 4 * 1024 * 1024 });
+    assert.equal(retained.status, 0); assert.equal(retained.stdout.equals(Buffer.from(candidate)), true);
+    annotation.description = "";
+    const emptyTail = JSON.stringify(annotation) + "\n";
+    annotation.description = "x".repeat(2 * 1024 * 1024 + 128 - Buffer.byteLength(candidate + emptyTail));
+    const oversized = candidate + JSON.stringify(annotation) + "\n";
+    assert.equal(Buffer.byteLength(oversized), 2 * 1024 * 1024 + 128);
+    writeRepoFile(root, ".nous-feedback.jsonl", oversized);
+    git(root, ["add", ".nous-feedback.jsonl"]);
+    const messagePath = writeGitMessage(root, "docs(CHG-103): oversized child output must fail closed\n");
+    const rejected = runCli(root, ["check-staged", "--message-file", messagePath, "--json"]);
+    assert.equal(rejected.status, 2, rejected.stdout + rejected.stderr);
+    assert.equal(JSON.parse(rejected.stdout).errors[0].code, "WR_GIT_ERROR");
+    assert.match(JSON.parse(rejected.stdout).errors[0].message, /Git output exceeds 2097152 bytes/u);
+    assert.equal(git(root, ["rev-parse", "HEAD"]), head);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
 test("a full Nous manifest retains unrelated entries and authorizes a generated source with unrelated dirtiness", () => {
   const { root } = makeGitRepo();
   try {
