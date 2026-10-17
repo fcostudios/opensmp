@@ -3547,6 +3547,27 @@ describe("release configuration", () => {
       for (const key of ["baselineProjectionSha256", "migrationSetSha256"]) expect(renamedBinding[key]).toBe(binding[key]);
       await owner.query("ALTER POLICY drift_episode_read ON drift_episode RENAME TO drift_episode_select");
       await writeFile(declarationPath, declaration);
+      // Legal identifiers whose codepoint and locale collation orders differ.
+      // Catalog comparison must be independent of PostgreSQL/JS locale order.
+      await owner.query(`ALTER POLICY drift_episode_select ON drift_episode RENAME TO a1;
+        ALTER POLICY drift_episode_insert ON drift_episode RENAME TO a_1;
+        ALTER TABLE drift_episode RENAME CONSTRAINT drift_episode_pkey TO c1;
+        ALTER TABLE drift_episode RENAME CONSTRAINT drift_episode_resolved_by_assignment_id_key TO c_1;
+        ALTER TABLE drift_episode RENAME CONSTRAINT drift_episode_vendor_account_id_fkey TO b1;
+        ALTER TABLE drift_episode RENAME CONSTRAINT drift_episode_license_type_id_fkey TO b_1`);
+      const legalNames = structuredClone(raw);
+      legalNames.newTables[0].policies[0].name = "a1";
+      legalNames.newTables[0].policies[1].name = "a_1";
+      legalNames.newTables[0].constraints[0].name = "c1";
+      legalNames.newTables[0].constraints[1].name = "b1";
+      legalNames.newTables[0].constraints[2].name = "b_1";
+      legalNames.newTables[0].constraints[5].name = "c_1";
+      await writeFile(declarationPath, JSON.stringify(legalNames, null, 2) + "\n");
+      const legalPair = await runNode(currentPath, environment);
+      expect(legalPair.code, "legal catalog names must not depend on collation: " + legalPair.stderr).toBe(0);
+      expect(JSON.parse(legalPair.stdout.trim().split("\n").at(-1)!).tableNames).toEqual(["drift_episode"]);
+      await owner.query("DROP TABLE drift_episode"); await owner.query(ddl);
+      await writeFile(declarationPath, declaration);
       const faults = [
         ["force", "ALTER TABLE drift_episode FORCE ROW LEVEL SECURITY", "rls"],
         ["disabled", "ALTER TABLE drift_episode DISABLE ROW LEVEL SECURITY", "rls"],
@@ -3598,9 +3619,9 @@ describe("release configuration", () => {
         ["omitted runtime call", currentPath, verifierSource.replace("catalogResult = await verifySchemaExtensionCatalog({ owner, newTables: declaration.newTables, baselineTableNames: declaration.coreTableNames });", "catalogResult = [];"), "ALTER TABLE drift_episode FORCE ROW LEVEL SECURITY", "rls"],
         ["table-set guard", catalogPath, catalogSource.replace('if (!same(tables.rows.map', 'if (false && !same(tables.rows.map'), "CREATE TABLE unlisted(id uuid)", "table-set"],
         ["rls guard", catalogPath, catalogSource.replace('if (relation.rows.length !== 1 ||', 'if (false && (relation.rows.length !== 1 ||').replace('table.rls)) mismatch("rls"', 'table.rls))) mismatch("rls"'), "ALTER TABLE drift_episode FORCE ROW LEVEL SECURITY", "rls"],
-        ["policy guard", catalogPath, catalogSource.replace('if (!same(actualPolicies, expectedPolicies))', 'if (false && !same(actualPolicies, expectedPolicies))'), "ALTER POLICY drift_episode_select ON drift_episode USING (true)", "policies"],
-        ["constraint guard", catalogPath, catalogSource.replace('if (!same(constraints.rows, expectedConstraints))', 'if (false && !same(constraints.rows, expectedConstraints))'), "ALTER TABLE drift_episode DROP CONSTRAINT drift_episode_person_id_fkey; ALTER TABLE drift_episode ADD CONSTRAINT drift_episode_person_id_fkey FOREIGN KEY(person_id) REFERENCES person(id) ON DELETE CASCADE", "constraints"],
-        ["index guard", catalogPath, catalogSource.replace('if (!same(indexes.rows, expectedIndexes))', 'if (false && !same(indexes.rows, expectedIndexes))'), "DROP INDEX drift_episode_open; CREATE UNIQUE INDEX drift_episode_open ON drift_episode(vendor_account_id,member_identity,license_type_id) WHERE resolved_at IS NOT NULL", "indexes"],
+        ["policy guard", catalogPath, catalogSource.replace('if (!same(sorted(actualPolicies), expectedPolicies))', 'if (false && !same(sorted(actualPolicies), expectedPolicies))'), "ALTER POLICY drift_episode_select ON drift_episode USING (true)", "policies"],
+        ["constraint guard", catalogPath, catalogSource.replace('if (!same(sorted(constraints.rows), expectedConstraints))', 'if (false && !same(sorted(constraints.rows), expectedConstraints))'), "ALTER TABLE drift_episode DROP CONSTRAINT drift_episode_person_id_fkey; ALTER TABLE drift_episode ADD CONSTRAINT drift_episode_person_id_fkey FOREIGN KEY(person_id) REFERENCES person(id) ON DELETE CASCADE", "constraints"],
+        ["index guard", catalogPath, catalogSource.replace('if (!same(sorted(indexes.rows), expectedIndexes))', 'if (false && !same(sorted(indexes.rows), expectedIndexes))'), "DROP INDEX drift_episode_open; CREATE UNIQUE INDEX drift_episode_open ON drift_episode(vendor_account_id,member_identity,license_type_id) WHERE resolved_at IS NOT NULL", "indexes"],
         ["nullability guard", catalogPath, catalogSource.replace('if (nullable.rows.length !== 1 || nullable.rows[0].required !== false)', 'if (false)'), "ALTER TABLE drift_episode ALTER COLUMN resolved_at SET NOT NULL", "nullable"],
       ];
       for (const [label, path, faultySource, sql, diagnostic] of guardFaults) {
