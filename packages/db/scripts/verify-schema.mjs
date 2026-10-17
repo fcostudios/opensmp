@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -5,6 +6,7 @@ import { config } from "dotenv";
 import pg from "pg";
 import { committedMigrations } from "./apply-migrations.mjs";
 import { parseSchemaContract, attestSchemaContract } from "./schema-contract-policy.mjs";
+import { verifySchemaExtensionCatalog } from "./schema-catalog-verifier.mjs";
 
 const explicitEnvironment = {
   DATABASE_ADMIN_URL: process.env.DATABASE_ADMIN_URL,
@@ -161,8 +163,9 @@ export async function verifyMigratedSchema({
     }
     throw error;
   });
+  const declaration = parseSchemaContract(schemaContractBytes, schemaContractPath);
   const { coreTableNames, normallyUpdateableTableNames, expectedAppendOnlyColumnUpdates } =
-    attestSchemaContract(parseSchemaContract(schemaContractBytes, schemaContractPath));
+    attestSchemaContract(declaration);
 
 const expectedRuntimeTableGrants = [
   ...coreTableNames.flatMap((tableName) => [
@@ -199,6 +202,11 @@ const expectedRuntimeTableGrants = [
   let ownerName;
   let tableCount;
   let migrationCount;
+  // CHG-104 begin binding state
+  let catalogResult;
+  let schemaExtension;
+  const digest = (value) => createHash("sha256").update(value).digest("hex");
+  // CHG-104 end binding state
   try {
     const identity = await owner.query("SELECT current_user");
     ownerName = identity.rows[0]?.current_user;
@@ -237,6 +245,11 @@ const expectedRuntimeTableGrants = [
       );
     }
 
+    // CHG-104 begin owner-phase catalog
+    if (declaration.schema_version === 2) {
+      catalogResult = await verifySchemaExtensionCatalog({ owner, newTables: declaration.newTables, baselineTableNames: declaration.coreTableNames });
+    }
+    // CHG-104 end owner-phase catalog
     const memberCapabilities = await owner.query(`SELECT table_name,column_name,udt_name,is_nullable,column_default
       FROM information_schema.columns WHERE table_schema='public' AND
         ((table_name='vendor' AND column_name IN ('member_seat_evidence','member_license_identity'))
@@ -508,6 +521,19 @@ const expectedRuntimeTableGrants = [
       );
     }
     migrationCount = expected.length;
+    // CHG-104 begin real-input binding
+    if (declaration.schema_version === 2) {
+      const { coreTableNames, normallyUpdateableTableNames, expectedAppendOnlyColumnUpdates } = declaration;
+      schemaExtension = {
+        declarationSha256: digest(schemaContractBytes),
+        baselineProjectionSha256: digest(JSON.stringify({ schema_version: 1, coreTableNames, normallyUpdateableTableNames, expectedAppendOnlyColumnUpdates }, null, 2) + "\n"),
+        extensionRowsSha256: digest(JSON.stringify(declaration.newTables)),
+        migrationSetSha256: digest(JSON.stringify(expected)),
+        catalogResultSha256: digest(JSON.stringify(catalogResult)),
+        tableNames: catalogResult.map(({ tableName }) => tableName),
+      };
+    }
+    // CHG-104 end real-input binding
 
     const triggers = await owner.query(`
       SELECT
@@ -1977,6 +2003,9 @@ const expectedRuntimeTableGrants = [
     migrationCount,
     appendOnlyTriggerCount: expectedAppendOnlyTriggers.length,
     applicationIntegrity,
+    // CHG-104 begin v2 result
+    ...(schemaExtension ? { schemaExtension } : {}),
+    // CHG-104 end v2 result
   };
 }
 
@@ -1992,6 +2021,9 @@ async function main() {
       "✓ ledger_app has the exact least-privilege runtime grant matrix",
     );
   }
+  // CHG-104 begin v2 CLI
+  if (result.schemaExtension) console.log(JSON.stringify(result.schemaExtension));
+  // CHG-104 end v2 CLI
 }
 
 if (

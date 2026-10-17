@@ -80,11 +80,40 @@ functional change. Existing ready approval and readiness-bound plan requirements
 still govern technical delivery; the exact CHG-088 inherited-verifier exception
 is unchanged.
 
-Actual `db:verify` reads this fixed module-relative declaration, rejects unsafe
-or noncanonical data, and attests its exact ordered equality to the original
-literal privilege baseline before connecting to PostgreSQL. The literals and
-specialized catalog/security checks remain authoritative. This closed attestation
-does not admit new table or privilege declarations.
+Actual `db:verify` reads this fixed module-relative declaration and rejects
+unsafe, duplicate-key or noncanonical data before connecting to PostgreSQL.
+Version 1 retains its exact immutable ordered baseline, attested-object identity,
+derived grants, diagnostics, result and CLI output. Version 2 retains that same
+baseline projection and permits only DEC-SMP-053's finite `drift-episode-v1`
+validation vocabulary: at most one `drift_episode`, the selected mutable/RLS
+flags, three `ledger_app` SELECT/INSERT/UPDATE account-reference policies, and
+the selected PK, four NO_ACTION FKs, unique assignment and nullable-column
+unique-open index. No declaration supplies SQL, modules or new roles.
+
+The pure attester derives effective extension privilege lists without changing
+old grants, INSERT exceptions, column privileges or ordering. The production
+verifier explicitly calls `schema-catalog-verifier.mjs` with its existing owner
+connection after identity and ownership validation. Actual public-table sets,
+RLS/force flags, policy roles/commands/USING/WITH_CHECK, validated constraints,
+FK actions, index definitions and nullability must match the finite profile.
+The existing application-client effective privilege matrix and every specialized
+baseline security check remain authoritative. Account-reference existence proves
+referential scope; functional US-093 retains human/service authorization duties.
+
+Only version 2 adds `schemaExtension` to the result and an additional JSON CLI
+line with the closed fields `declarationSha256`, `baselineProjectionSha256`,
+`extensionRowsSha256`, `migrationSetSha256`, `catalogResultSha256`, `tableNames`.
+These bind actual fixed-path declaration bytes, the immutable baseline projection,
+extension rows, sorted committed filename/checksum set and validated actual
+catalog projection. The migration ledger must independently match that set.
+Hashes and candidate PASS fields are not release authority: the real invocation
+receipt must identify reviewed source blobs/evaluated commit, exact declaration
+and migration inputs, fixture/run identity, exit/UTC/raw output and proof hashes;
+normal `build_pass` notes/source_commit and independent review carry that custody.
+Structural Git readiness checks do not execute PostgreSQL. Functional edits to
+`schema-contract.json` remain denied in every staged/historical range; CHG-104
+ships no product table, migration or declaration change. Later functional admission
+requires its own governed implementation after CHG-104 integration.
 
 The phase total must equal `readiness + implementation +
 focused_verification + review + integration`. Outcome and acceptance-criterion

@@ -52,6 +52,27 @@ const baseline = {
     { tableName: "provisioning_action", columnName: "vendor_ref" },
   ],
 };
+const predicate = { template: "account-reference-exists-v1", columnName: "vendor_account_id", referencedTable: "vendor_account", referencedColumn: "id" };
+const extension = {
+  tableName: "drift_episode", profile: "drift-episode-v1", mutable: true,
+  rls: { enabled: true, forced: false },
+  policies: [
+    { name: "drift_episode_select", command: "SELECT", role: "ledger_app", using: predicate, withCheck: null },
+    { name: "drift_episode_insert", command: "INSERT", role: "ledger_app", using: null, withCheck: predicate },
+    { name: "drift_episode_update", command: "UPDATE", role: "ledger_app", using: predicate, withCheck: predicate },
+  ],
+  constraints: [
+    { name: "drift_episode_pkey", kind: "PRIMARY_KEY", columns: ["id"] },
+    { name: "drift_episode_vendor_account_id_fkey", kind: "FOREIGN_KEY", columns: ["vendor_account_id"], referencedTable: "vendor_account", referencedColumns: ["id"], onUpdate: "NO_ACTION", onDelete: "NO_ACTION" },
+    { name: "drift_episode_license_type_id_fkey", kind: "FOREIGN_KEY", columns: ["license_type_id"], referencedTable: "license_type", referencedColumns: ["id"], onUpdate: "NO_ACTION", onDelete: "NO_ACTION" },
+    { name: "drift_episode_person_id_fkey", kind: "FOREIGN_KEY", columns: ["person_id"], referencedTable: "person", referencedColumns: ["id"], onUpdate: "NO_ACTION", onDelete: "NO_ACTION" },
+    { name: "drift_episode_resolved_by_assignment_id_fkey", kind: "FOREIGN_KEY", columns: ["resolved_by_assignment_id"], referencedTable: "license_assignment", referencedColumns: ["id"], onUpdate: "NO_ACTION", onDelete: "NO_ACTION" },
+    { name: "drift_episode_resolved_by_assignment_id_key", kind: "UNIQUE", columns: ["resolved_by_assignment_id"] },
+    { name: "drift_episode_open", kind: "UNIQUE_OPEN", columns: ["vendor_account_id", "member_identity", "license_type_id"], nullColumn: "resolved_at" },
+  ],
+};
+const version2 = { ...structuredClone(baseline), schema_version: 2, newTables: [extension] };
+
 const canonical = (value) => JSON.stringify(value, null, 2) + "\n";
 const bytes = canonical(baseline);
 const changed = (mutate) => {
@@ -105,6 +126,34 @@ const failures = [
   ["changed table", changed((v) => { v.coreTableNames.push("new_table"); }), "baseline-mismatch"],
 ];
 
+const v2Faults = [
+  ["extra descriptor", v => { v.newTables[0].sql = "SELECT 1"; }, "shape"],
+  ["extra rls field", v => { v.newTables[0].rls.owner = "ledger_app"; }, "shape"],
+  ["wrong table", v => { v.newTables[0].tableName = "company"; }, "profile"],
+  ["duplicate extension", v => { v.newTables.push(v.newTables[0]); }, "profile"],
+  ["unknown profile", v => { v.newTables[0].profile = "./arbitrary.mjs"; }, "profile"],
+  ["immutable new table", v => { v.newTables[0].mutable = false; }, "profile"],
+  ["forced declaration", v => { v.newTables[0].rls.forced = true; }, "profile"],
+  ["missing policy", v => { v.newTables[0].policies.pop(); }, "profile"],
+  ["policy role", v => { v.newTables[0].policies[0].role = "public"; }, "profile"],
+  ["policy command", v => { v.newTables[0].policies[0].command = "ALL"; }, "profile"],
+  ["predicate capability", v => { v.newTables[0].policies[0].using.template = "raw-sql"; }, "profile"],
+  ["wrong predicate argument", v => { v.newTables[0].policies[0].using.referencedTable = "company"; }, "profile"],
+  ["predicate null branch", v => { v.newTables[0].policies[1].using = predicate; }, "profile"],
+  ["unsafe policy identifier", v => { v.newTables[0].policies[0].name = "a;SELECT"; }, "invalid-identifier"],
+  ["duplicate names", v => { v.newTables[0].policies[1].name = v.newTables[0].policies[0].name; }, "duplicate-element"],
+  ["missing constraint", v => { v.newTables[0].constraints.pop(); }, "profile"],
+  ["wrong key order", v => { v.newTables[0].constraints[6].columns.reverse(); }, "profile"],
+  ["FK action", v => { v.newTables[0].constraints[1].onDelete = "CASCADE"; }, "profile"],
+  ["FK reference", v => { v.newTables[0].constraints[1].referencedTable = "company"; }, "profile"],
+  ["unknown constraint", v => { v.newTables[0].constraints[0].kind = "CHECK"; }, "shape"],
+  ["extra predicate", v => { v.newTables[0].constraints[6].where = "true"; }, "shape"],
+  ["wrong null column", v => { v.newTables[0].constraints[6].nullColumn = "id"; }, "profile"],
+  ["old prefix changed", v => { v.coreTableNames.reverse(); }, "baseline-mismatch"],
+  ["nested order", v => { v.newTables[0].rls = { forced: false, enabled: true }; }, "noncanonical"],
+].map(([label, mutate, category]) => { const v = structuredClone(version2); mutate(v); return [label, canonical(v), category]; });
+v2Faults.push(["nested decoded alias", canonical(version2).replace('"enabled": true,', '"enabled": true, "enab\\u006ced": true,'), "duplicate-key"]);
+
 // Missing invocation, wrong fixed path, or late-only validation must fail these
 // actual process oracles before the verifier can report catalog success.
 const fixture = await realpath(await mkdtemp(resolve(tmpdir(), "schema-contract-process-")));
@@ -136,6 +185,17 @@ try {
   assert.equal(valid.status, 1);
   assert.match(valid.stderr, /DATABASE_ADMIN_URL is required/);
   assert.equal(valid.stderr.includes("schema-contract/"), false);
+
+  await writeFile(fixedPath, canonical(version2));
+  const v2process = run();
+  assert.equal(v2process.status, 1);
+  assert.match(v2process.stderr, /DATABASE_ADMIN_URL is required/, "version2 reaches actual production entrypoint after pure validation");
+  assert.equal(v2process.stderr.includes("schema-contract/"), false);
+  for (const [label, input, category] of v2Faults) {
+    await writeFile(fixedPath, input);
+    rejectedProcess(category, "version2 " + label);
+  }
+  await writeFile(fixedPath, bytes);
 
   // A deliberate returned-data fault in the real copied helper must be
   // observed by the actual consumer before any database connection. Keeping
@@ -181,5 +241,16 @@ for (const [label, input, category] of failures) {
     assert.ok(error.message.includes(contractPath), label);
     return true;
   }, label);
+}
+const v2parsed = parseSchemaContract(Buffer.from(canonical(version2)), contractPath);
+const effective = attestSchemaContract(v2parsed);
+assert.deepEqual(effective.coreTableNames, [...baseline.coreTableNames, "drift_episode"]);
+assert.deepEqual(effective.normallyUpdateableTableNames, [...baseline.normallyUpdateableTableNames, "drift_episode"]);
+assert.deepEqual(effective.expectedAppendOnlyColumnUpdates, baseline.expectedAppendOnlyColumnUpdates);
+assert.deepEqual(v2parsed, version2, "effective derivation never mutates the baseline projection");
+const empty2 = { ...structuredClone(baseline), schema_version: 2, newTables: [] };
+assert.deepEqual(attestSchemaContract(parseSchemaContract(Buffer.from(canonical(empty2)), contractPath)).coreTableNames, baseline.coreTableNames);
+for (const [label, input, category] of v2Faults) {
+  assert.throws(() => attestSchemaContract(parseSchemaContract(Buffer.from(input), contractPath)), error => error.category === category && error.path === contractPath, "version2 " + label);
 }
 console.log(`schema contract: ${failures.length} categorized faults rejected by parser and real verifier; exact 33-table baseline admitted`);

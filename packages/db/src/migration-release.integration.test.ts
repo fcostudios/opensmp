@@ -154,12 +154,32 @@ async function runNode(
   });
 }
 
+const predicate = { template: "account-reference-exists-v1", columnName: "vendor_account_id", referencedTable: "vendor_account", referencedColumn: "id" };
+const extension = {
+  tableName: "drift_episode", profile: "drift-episode-v1", mutable: true,
+  rls: { enabled: true, forced: false },
+  policies: [
+    { name: "drift_episode_select", command: "SELECT", role: "ledger_app", using: predicate, withCheck: null },
+    { name: "drift_episode_insert", command: "INSERT", role: "ledger_app", using: null, withCheck: predicate },
+    { name: "drift_episode_update", command: "UPDATE", role: "ledger_app", using: predicate, withCheck: predicate },
+  ],
+  constraints: [
+    { name: "drift_episode_pkey", kind: "PRIMARY_KEY", columns: ["id"] },
+    { name: "drift_episode_vendor_account_id_fkey", kind: "FOREIGN_KEY", columns: ["vendor_account_id"], referencedTable: "vendor_account", referencedColumns: ["id"], onUpdate: "NO_ACTION", onDelete: "NO_ACTION" },
+    { name: "drift_episode_license_type_id_fkey", kind: "FOREIGN_KEY", columns: ["license_type_id"], referencedTable: "license_type", referencedColumns: ["id"], onUpdate: "NO_ACTION", onDelete: "NO_ACTION" },
+    { name: "drift_episode_person_id_fkey", kind: "FOREIGN_KEY", columns: ["person_id"], referencedTable: "person", referencedColumns: ["id"], onUpdate: "NO_ACTION", onDelete: "NO_ACTION" },
+    { name: "drift_episode_resolved_by_assignment_id_fkey", kind: "FOREIGN_KEY", columns: ["resolved_by_assignment_id"], referencedTable: "license_assignment", referencedColumns: ["id"], onUpdate: "NO_ACTION", onDelete: "NO_ACTION" },
+    { name: "drift_episode_resolved_by_assignment_id_key", kind: "UNIQUE", columns: ["resolved_by_assignment_id"] },
+    { name: "drift_episode_open", kind: "UNIQUE_OPEN", columns: ["vendor_account_id", "member_identity", "license_type_id"], nullColumn: "resolved_at" },
+  ],
+};
+
 async function createVerifierBundle(): Promise<string> {
   const directory = await realpath(await mkdtemp(join(tmpdir(), "ledger-release-contract-")));
   try {
     await mkdir(join(directory, "scripts"));
     await mkdir(join(directory, "src"));
-    for (const filename of ["apply-migrations.mjs", "verify-schema.mjs", "schema-contract-policy.mjs"]) {
+    for (const filename of ["apply-migrations.mjs", "verify-schema.mjs", "schema-contract-policy.mjs", "schema-catalog-verifier.mjs"]) {
       await copyFile(join(packageRoot, "scripts", filename), join(directory, "scripts", filename));
     }
     await copyFile(join(packageRoot, "schema-contract.json"), join(directory, "schema-contract.json"));
@@ -1524,6 +1544,9 @@ const expectedAppendOnlyColumnUpdates = [
       // then pin the WHOLE old executable before executing the real oracle.
       const entryAttestation = /  const schemaContractPath = [\s\S]*?(?=  if \(!databaseAdminUrl\))/u;
       const oldSource = source
+        .replace('import { createHash } from "node:crypto";\n', "")
+        .replace('import { verifySchemaExtensionCatalog } from "./schema-catalog-verifier.mjs";\n', "")
+        .replace(/^[ \t]*\/\/ CHG-104 begin[^\n]*\n[\s\S]*?^[ \t]*\/\/ CHG-104 end[^\n]*\n/gmu, "")
         .replace('import { fileURLToPath, pathToFileURL }', 'import { pathToFileURL }')
         .replace('import { parseSchemaContract, attestSchemaContract } from "./schema-contract-policy.mjs";\n', "")
         .replace(entryAttestation, "")
@@ -3449,6 +3472,173 @@ describe("migration parity", () => {
 });
 
 describe("release configuration", () => {
+  test("CHG-104 production finite catalog binds real declarations migrations and rejects independent catalog drift", async () => {
+    const database = await createDatabase();
+    const bundle = await createVerifierBundle();
+    const owner = new pg.Client({ connectionString: database.ownerUrl });
+    const declarationPath = join(bundle, "schema-contract.json");
+    const currentPath = join(bundle, "scripts/verify-schema.mjs");
+    const environment = { DATABASE_ADMIN_URL: database.ownerUrl, DATABASE_URL: database.appUrl };
+    const predicateSql = "EXISTS (SELECT 1 FROM public.vendor_account WHERE vendor_account.id = drift_episode.vendor_account_id)";
+    const ddl = `
+      CREATE TABLE drift_episode (
+        id uuid PRIMARY KEY,
+        vendor_account_id uuid REFERENCES vendor_account(id) ON UPDATE NO ACTION ON DELETE NO ACTION,
+        license_type_id uuid REFERENCES license_type(id) ON UPDATE NO ACTION ON DELETE NO ACTION,
+        person_id uuid REFERENCES person(id) ON UPDATE NO ACTION ON DELETE NO ACTION,
+        resolved_by_assignment_id uuid UNIQUE REFERENCES license_assignment(id) ON UPDATE NO ACTION ON DELETE NO ACTION,
+        member_identity text NOT NULL,
+        resolved_at timestamptz
+      );
+      CREATE UNIQUE INDEX drift_episode_open ON drift_episode(vendor_account_id,member_identity,license_type_id) WHERE resolved_at IS NULL;
+      ALTER TABLE drift_episode ENABLE ROW LEVEL SECURITY;
+      CREATE POLICY drift_episode_select ON drift_episode FOR SELECT TO ledger_app USING (${predicateSql});
+      CREATE POLICY drift_episode_insert ON drift_episode FOR INSERT TO ledger_app WITH CHECK (${predicateSql});
+      CREATE POLICY drift_episode_update ON drift_episode FOR UPDATE TO ledger_app USING (${predicateSql}) WITH CHECK (${predicateSql});
+      GRANT SELECT,INSERT,UPDATE ON drift_episode TO ledger_app;
+    `;
+    try {
+      await owner.connect();
+      await migrate(database.ownerUrl);
+      const original = await readFile(declarationPath, "utf8");
+      const raw = { ...JSON.parse(original), schema_version: 2, newTables: [extension] };
+      const declaration = JSON.stringify(raw, null, 2) + "\n";
+      await writeFile(declarationPath, declaration);
+      await owner.query(ddl);
+      const success = await runNode(currentPath, environment);
+      expect(success.code, success.stderr).toBe(0);
+      expect(success.stdout.trim().split("\n").at(-1), "production v2 must emit actual catalog binding").toMatch(/^\{/u);
+      const binding = JSON.parse(success.stdout.trim().split("\n").at(-1)!);
+      expect(Object.keys(binding)).toEqual(["declarationSha256", "baselineProjectionSha256", "extensionRowsSha256", "migrationSetSha256", "catalogResultSha256", "tableNames"]);
+      expect(binding.declarationSha256).toBe(sha256(declaration));
+      expect(binding.baselineProjectionSha256).toBe("0b755c2c2b71cf8065093608ae01c9353232da7eb196ea9da78f5445e59b6e7b");
+      expect(binding.extensionRowsSha256).toBe(sha256(JSON.stringify([extension])));
+      expect(binding.tableNames).toEqual(["drift_episode"]);
+      const migrations = await owner.query("SELECT filename,sha256 FROM ledger_schema_migrations ORDER BY filename");
+      expect(binding.migrationSetSha256).toBe(sha256(JSON.stringify(migrations.rows)));
+      await writeFile(join(bundle, "scripts/inspect.mjs"), 'import { verifyMigratedSchema } from "./verify-schema.mjs"; process.stdout.write(JSON.stringify(await verifyMigratedSchema()));');
+      const inspected = await runNode(join(bundle, "scripts/inspect.mjs"), environment);
+      expect(inspected.code, inspected.stderr).toBe(0);
+      const result = JSON.parse(inspected.stdout);
+      expect(result.schemaExtension).toEqual(binding);
+      expect(result.applicationIntegrity.tableGrants.filter((row: {tableName: string}) => row.tableName === "drift_episode")).toEqual([
+        { tableName: "drift_episode", privilege: "INSERT" }, { tableName: "drift_episode", privilege: "SELECT" }, { tableName: "drift_episode", privilege: "UPDATE" },
+      ]);
+      // An independently assembled normalized catalog oracle, not a candidate PASS field.
+      const expectedCatalog = [{ tableName: "drift_episode", rls: { enabled: true, forced: false }, policies: extension.policies, constraints: extension.constraints }];
+      expect(binding.catalogResultSha256).toBe(sha256(JSON.stringify(expectedCatalog)));
+      if (process.env.CHG104_EVIDENCE_DIR) {
+        const directory = process.env.CHG104_EVIDENCE_DIR;
+        await mkdir(directory, { recursive: true });
+        const policies = await owner.query("SELECT policyname,cmd,roles::text[],qual,with_check FROM pg_policies WHERE schemaname='public' AND tablename='drift_episode' ORDER BY policyname");
+        const constraints = await owner.query("SELECT conname,contype,convalidated,pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid='public.drift_episode'::regclass ORDER BY conname");
+        const indexes = await owner.query("SELECT indexname,indexdef FROM pg_indexes WHERE schemaname='public' AND tablename='drift_episode' ORDER BY indexname");
+        await writeFile(join(directory, "actual-v2-production.json"), JSON.stringify({ declaration, cli: success, result, independentExpectedCatalog: expectedCatalog, actualCatalog: { policies: policies.rows, constraints: constraints.rows, indexes: indexes.rows }, appliedMigrations: migrations.rows }, null, 2) + "\n");
+      }
+      // Rename a valid declared catalog identity: all three bound actual inputs
+      // change together; unrelated baseline/migration identities remain stable.
+      await owner.query("ALTER POLICY drift_episode_select ON drift_episode RENAME TO drift_episode_read");
+      const renamed = structuredClone(raw); renamed.newTables[0].policies[0].name = "drift_episode_read";
+      await writeFile(declarationPath, JSON.stringify(renamed, null, 2) + "\n");
+      const changed = await runNode(currentPath, environment);
+      expect(changed.code, changed.stderr).toBe(0);
+      const renamedBinding = JSON.parse(changed.stdout.trim().split("\n").at(-1)!);
+      for (const key of ["declarationSha256", "extensionRowsSha256", "catalogResultSha256"]) expect(renamedBinding[key]).not.toBe(binding[key]);
+      for (const key of ["baselineProjectionSha256", "migrationSetSha256"]) expect(renamedBinding[key]).toBe(binding[key]);
+      await owner.query("ALTER POLICY drift_episode_read ON drift_episode RENAME TO drift_episode_select");
+      await writeFile(declarationPath, declaration);
+      const faults = [
+        ["force", "ALTER TABLE drift_episode FORCE ROW LEVEL SECURITY", "rls"],
+        ["disabled", "ALTER TABLE drift_episode DISABLE ROW LEVEL SECURITY", "rls"],
+        ["missing policy", "DROP POLICY drift_episode_insert ON drift_episode", "policies"],
+        ["role", "ALTER POLICY drift_episode_select ON drift_episode TO PUBLIC", "policies"],
+        ["using", "ALTER POLICY drift_episode_select ON drift_episode USING (true)", "policies"],
+        ["with check", "ALTER POLICY drift_episode_insert ON drift_episode WITH CHECK (true)", "policies"],
+        ["restrictive", `DROP POLICY drift_episode_select ON drift_episode; CREATE POLICY drift_episode_select ON drift_episode AS RESTRICTIVE FOR SELECT TO ledger_app USING (${predicateSql})`, "policies"],
+        ["command", `DROP POLICY drift_episode_select ON drift_episode; CREATE POLICY drift_episode_select ON drift_episode FOR ALL TO ledger_app USING (${predicateSql}) WITH CHECK (${predicateSql})`, "policies"],
+        ["extra policy", "CREATE POLICY extra ON drift_episode TO ledger_app USING (true)", "policies"],
+        ["missing FK", "ALTER TABLE drift_episode DROP CONSTRAINT drift_episode_person_id_fkey", "constraints"],
+        ["FK action", "ALTER TABLE drift_episode DROP CONSTRAINT drift_episode_person_id_fkey; ALTER TABLE drift_episode ADD CONSTRAINT drift_episode_person_id_fkey FOREIGN KEY(person_id) REFERENCES person(id) ON DELETE CASCADE", "constraints"],
+        ["FK update action", "ALTER TABLE drift_episode DROP CONSTRAINT drift_episode_person_id_fkey; ALTER TABLE drift_episode ADD CONSTRAINT drift_episode_person_id_fkey FOREIGN KEY(person_id) REFERENCES person(id) ON UPDATE CASCADE", "constraints"],
+        ["missing PK", "ALTER TABLE drift_episode DROP CONSTRAINT drift_episode_pkey", "constraints"],
+        ["missing unique", "ALTER TABLE drift_episode DROP CONSTRAINT drift_episode_resolved_by_assignment_id_key", "constraints"],
+        ["FK target", "ALTER TABLE drift_episode DROP CONSTRAINT drift_episode_person_id_fkey; ALTER TABLE drift_episode ADD CONSTRAINT drift_episode_person_id_fkey FOREIGN KEY(person_id) REFERENCES company(id)", "constraints"],
+        ["unvalidated", "ALTER TABLE drift_episode DROP CONSTRAINT drift_episode_person_id_fkey; ALTER TABLE drift_episode ADD CONSTRAINT drift_episode_person_id_fkey FOREIGN KEY(person_id) REFERENCES person(id) NOT VALID", "constraints"],
+        ["deferrable", "ALTER TABLE drift_episode ALTER CONSTRAINT drift_episode_person_id_fkey DEFERRABLE INITIALLY DEFERRED", "constraints"],
+        ["extra constraint", "ALTER TABLE drift_episode ADD CONSTRAINT extra CHECK(member_identity <> '')", "constraints"],
+        ["missing open", "DROP INDEX drift_episode_open", "indexes"],
+        ["wrong open", "DROP INDEX drift_episode_open; CREATE UNIQUE INDEX drift_episode_open ON drift_episode(vendor_account_id,member_identity,license_type_id) WHERE resolved_at IS NOT NULL", "indexes"],
+        ["nonunique open", "DROP INDEX drift_episode_open; CREATE INDEX drift_episode_open ON drift_episode(vendor_account_id,member_identity,license_type_id) WHERE resolved_at IS NULL", "indexes"],
+        ["wrong columns", "DROP INDEX drift_episode_open; CREATE UNIQUE INDEX drift_episode_open ON drift_episode(member_identity,vendor_account_id,license_type_id) WHERE resolved_at IS NULL", "indexes"],
+        ["extra index", "CREATE INDEX extra ON drift_episode(member_identity)", "indexes"],
+        ["nullable", "ALTER TABLE drift_episode ALTER COLUMN resolved_at SET NOT NULL", "nullable"],
+        ["rights", "GRANT DELETE ON drift_episode TO ledger_app", "runtime table-grant matrix mismatch"],
+        ["old rights", "GRANT DELETE ON company TO ledger_app", "runtime table-grant matrix mismatch"],
+        ["checksum", "UPDATE ledger_schema_migrations SET sha256=repeat('0',64) WHERE filename=(SELECT min(filename) FROM ledger_schema_migrations)", "committed migration ledger mismatch"],
+        ["extra table", "CREATE TABLE unlisted(id uuid)", "table-set"],
+      ];
+      for (const [label, sql, diagnostic] of faults) {
+        // Committed changes must be visible to the real production process.
+        const restore = await owner.query("SELECT filename,sha256 FROM ledger_schema_migrations ORDER BY filename");
+        await owner.query(sql);
+        const rejected = await runNode(currentPath, environment);
+        expect(rejected.code, label + rejected.stderr).toBe(1);
+        expect(rejected.stderr, label).toContain(diagnostic);
+        expect(rejected.stdout, label).toBe("");
+        await owner.query("DROP TABLE drift_episode; DROP TABLE IF EXISTS unlisted; REVOKE DELETE ON company FROM ledger_app");
+        for (const row of restore.rows) await owner.query("UPDATE ledger_schema_migrations SET sha256=$2 WHERE filename=$1", [row.filename,row.sha256]);
+        await owner.query(ddl);
+      }
+      // Fault controls execute changed real source in this technical bundle.
+      // Each must fail the SAME code/category oracle used by hostile catalogs.
+      const catalogPath = join(bundle, "scripts/schema-catalog-verifier.mjs");
+      const catalogSource = await readFile(catalogPath, "utf8");
+      const verifierSource = await readFile(currentPath, "utf8");
+      const guardFaults = [
+        ["omitted runtime call", currentPath, verifierSource.replace("catalogResult = await verifySchemaExtensionCatalog({ owner, newTables: declaration.newTables, baselineTableNames: declaration.coreTableNames });", "catalogResult = [];"), "ALTER TABLE drift_episode FORCE ROW LEVEL SECURITY", "rls"],
+        ["table-set guard", catalogPath, catalogSource.replace('if (!same(tables.rows.map', 'if (false && !same(tables.rows.map'), "CREATE TABLE unlisted(id uuid)", "table-set"],
+        ["rls guard", catalogPath, catalogSource.replace('if (relation.rows.length !== 1 ||', 'if (false && (relation.rows.length !== 1 ||').replace('table.rls)) mismatch("rls"', 'table.rls))) mismatch("rls"'), "ALTER TABLE drift_episode FORCE ROW LEVEL SECURITY", "rls"],
+        ["policy guard", catalogPath, catalogSource.replace('if (!same(actualPolicies, expectedPolicies))', 'if (false && !same(actualPolicies, expectedPolicies))'), "ALTER POLICY drift_episode_select ON drift_episode USING (true)", "policies"],
+        ["constraint guard", catalogPath, catalogSource.replace('if (!same(constraints.rows, expectedConstraints))', 'if (false && !same(constraints.rows, expectedConstraints))'), "ALTER TABLE drift_episode DROP CONSTRAINT drift_episode_person_id_fkey; ALTER TABLE drift_episode ADD CONSTRAINT drift_episode_person_id_fkey FOREIGN KEY(person_id) REFERENCES person(id) ON DELETE CASCADE", "constraints"],
+        ["index guard", catalogPath, catalogSource.replace('if (!same(indexes.rows, expectedIndexes))', 'if (false && !same(indexes.rows, expectedIndexes))'), "DROP INDEX drift_episode_open; CREATE UNIQUE INDEX drift_episode_open ON drift_episode(vendor_account_id,member_identity,license_type_id) WHERE resolved_at IS NOT NULL", "indexes"],
+        ["nullability guard", catalogPath, catalogSource.replace('if (nullable.rows.length !== 1 || nullable.rows[0].required !== false)', 'if (false)'), "ALTER TABLE drift_episode ALTER COLUMN resolved_at SET NOT NULL", "nullable"],
+      ];
+      for (const [label, path, faultySource, sql, diagnostic] of guardFaults) {
+        expect(faultySource, label).not.toBe(path === currentPath ? verifierSource : catalogSource);
+        await writeFile(path, faultySource);
+        try {
+          await owner.query(sql);
+          const observed = await runNode(currentPath, environment);
+          // Prove execution reaches the intended oracle, not a setup error.
+          // The table-set control also retains a downstream independent refusal;
+          // it must still fail the stronger early diagnostic contract.
+          if (label === "table-set guard") {
+            expect(observed.code, label + observed.stderr).toBe(1);
+            expect(observed.stderr).toContain("runtime column-grant matrix mismatch");
+          } else expect(observed.code, label + observed.stderr).toBe(0);
+          expect(() => {
+            expect(observed.code, label).toBe(1);
+            expect(observed.stderr, label).toContain(diagnostic);
+          }, label).toThrow(/expected .* (?:to be|to contain)/u);
+        } finally {
+          await writeFile(path, path === currentPath ? verifierSource : catalogSource);
+          await owner.query("DROP TABLE drift_episode; DROP TABLE IF EXISTS unlisted"); await owner.query(ddl);
+        }
+      }
+
+      // Actual missing-table SQL must reject at the owner-phase catalog boundary.
+      await owner.query("DROP TABLE drift_episode");
+      const missing = await runNode(currentPath, environment);
+      expect(missing.code).toBe(1); expect(missing.stderr).toContain("table-set");
+      await writeFile(declarationPath, JSON.stringify({ ...raw, newTables: [] }, null, 2) + "\n");
+      const empty = await runNode(currentPath, environment);
+      expect(empty.code, empty.stderr).toBe(0);
+      expect(JSON.parse(empty.stdout.trim().split("\n").at(-1)!).tableNames).toEqual([]);
+    } finally {
+      await owner.end(); await rm(bundle, { recursive: true, force: true }); await dropDatabase(database.name);
+    }
+  }, 150_000);
+
   test("declares the exact database package commands", async () => {
     const packageJson = JSON.parse(
       await readFile(join(packageRoot, "package.json"), "utf8"),
