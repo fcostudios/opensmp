@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "53c5779f5fe73f64ff2b2fe69ca127eb3dbb67932728b8887605f23529258951",
+  "work_id": "CHG-101",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Consume the attested privilege contract as the single preserved release source",
+  "source": "/Users/fcolomas/Projects/nous/Nous/WorkControl/fcostudios/smp/CHG-101_TECH_SPEC.md @9d2c2e57; SHA256=2d82fdaaa1c4af8043eaa336699a83682f856c5d082417ffe4150ffd73889dd2; delivered docs/stories/CHANGES.md CHG-101; DEC-SMP-049",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Real release verification consumes attested baseline data as its single runtime declaration source, removes duplicate runtime literal arrays and preserves every old derived grant/column expectation, specialized check and diagnostic while functional contract edits remain denied.",
+      "demo": "Fresh real PostgreSQL owner/app release matches immutable old executable results and exact derived expectations/negative diagnostics; declaration faults reject before admission; real staged/historical/range functional declaration edits remain denied.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1-single-runtime-source",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2-exact-old-release-preservation",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3-closed-attestation-and-functional-denial",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4-own-real-release-and-governance-proof",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "release-contract-consumption",
+    "release-and-governance-verification"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 5,
+    "bookkeeping_files": 4,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 0,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 30,
+    "implementation": 55,
+    "focused_verification": 70,
+    "review": 60,
+    "integration": 25,
+    "total": 240
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Exact current delivery and independent source custody",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Native isolated readiness worktree rooted at integratedmaincf9a34dc2741238e8b7c5f6b70c916a8d3c270c3; no resync required because canonical101 source already delivered unchanged. Exact five100644 deliveryanchors: packages/db/scripts/verify-schema.mjs=3b2f17abf2827cfa9117dce669a55571e2986b94; packages/db/scripts/schema-contract-policy.mjs=aed72c56cbfda7ad5c0e7d4dc1a5cecfe92efba4; scripts/test-schema-contract.mjs=5226014910eac2e52d87c960472b6cfc8ca66968; packages/db/src/migration-release.integration.test.ts=79c7b184b3aeedc31e375681f949a390aceda6ed; scripts/test-work-readiness.mjs=37314a1de40c5893206183d707c5260921d5b8e4. Four bookkeeping: docs/readiness/CHG-101.json; docs/superpowers/specs/2026-10-16-chg101-design.md; docs/superpowers/plans/2026-10-16-chg101-plan.md; append-only.nous-feedback.jsonl. Runtime schema-contract.json remains unchanged53a4fd6b643fbea02c08c5b1d50f39d1f1656aac. No migration/schema/table, data admission, generic delivery-policy/git/model/routing/package/config change. No hidden fixture/sixthpath. More than5needed paths or material contract change triggers reassessment, never silently consumes hard20 slack."
+    },
+    {
+      "id": "U2",
+      "statement": "Single runtime data source must retain exact closed original attestation",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "Read currenthelper parseSchemaContract/attestSchemaContract and canonical101 closed policy. Current verifier three runtime literal arrays may be removed only while original baseline identity remains authority. Strictcanonical serialization makes immutable original canonicalbytes2834/SHA2560b755c2c2b71cf8065093608ae01c9353232da7eb196ea9da78f5445e59b6e7b a bounded nativecrypto attestation representation, not duplicate runtime declaration arrays or functional selfauthorization. This is a prospective implementation choice, not newpolicy approval or executedproof. Helper baselineparameter/test expectations need adaptation inside owned5paths. Parser validation/duplicate decoded keys/identifier/crossref/keyorder/category+path ordering remain exact; missing, unsafe and nonidentical canonicaldata must reject before connecting or successfulverifier. NativeSQL/module/import/code data remains prohibited. Budget10focused of70 for independent negative fault proof; cannot just parse unusedJSON or compare candidate against itself. If same observable rejection cannot be preserved, stopnormalreassessment before expandingcontract."
+    },
+    {
+      "id": "U3",
+      "statement": "Independent OLD executable oracle breaks if reconstruction assumes removed runtime arrays",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "Current releaseintegrationtest1426-1433 removes only CHG100 attestation import/entry to reconstruct oldsource. CHG101 must adapt this explicitly: immutable old verifier Gitblob4b189bb3adc899d4ea6bc9767a8ee5b83a6aeef3 has86666bytes SHA256d927f78f95e192e6c5e96344859449a99894d59c8917363c950ac4b6e65bc767. Restore original three declaration blocks from immutable independently pinned literal fixture within EXISTING integrationtest, undo only consumer delta, and assert identical WHOLEoldsource hash before running. Do not derive old expected constants/source from candidateJSON or alter expectedhash to blesscandidate. Independent test literals are old oracle, not a second runtime data source. No extra fixture artifact/path required; alternative immutable oldsource representation allowed onlyinside same5paths withsamewholehash. Budget10implementation within55. Preserve byte-identical grant derivation/INSERTexceptions alert_notification_delivery+lifecycle_notification_delivery/sorting and all RLS/constraint/function/trigger/securityqueries/checks. Exact real old/current returned grants/column arrays and deterministic stdout/stderr/negativecatalogdiagnostics required, not success-only."
+    },
+    {
+      "id": "U4",
+      "statement": "Prerequisite tenant evidence versus pending canonical status ingestion",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "CHG100 terminal tenantdone source143dab03f556785a1c026e0dac4a4c1c46d7619f and CHG103 terminal46efec4cb313a360a43642695303a5778a0d39e7 are integrated in frozenmaincf9; existing committed readiness/own gate/reviews/realDB evidence are provenance, not borrowed CHG101 proof. Canonical get_change reportedly remainsdelivered pending root normal terminalfeedback ingestion; no canonicaldev_done claim. Canonical101 dependsCHG100, whose concrete delivered runtime prerequisite is present and terminaltenantvalidated, so no unresolved local blocked_by dependency is invented from stale ingestion alone. Root reconciles separately; contradictory canonical dependency ruling or invalidatedprerequisite forces reassessment. No canonicalrecord/copy/regeneration here; DEC052 f007 ingestion2operator minutes belong CHG103postclosure only, not101. CHG102 alone can later admit narrowly owned functional declarationdata. US093/CHG093 runtimehold327/P4a and US084/090/091/clockcad8 remain outside; no manufactured upstream completion."
+    },
+    {
+      "id": "U5",
+      "statement": "Own fresh release/governance evidence and proof costs",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "Currentworktree no node_modules; after exactapproval pnpm install --frozen-lockfile withoutlockchange. Ownfocused node scripts/test-schema-contract.mjs; node scripts/test-work-readiness.mjs; real packages/db migration-release.integration.test.ts via workspaceVitest. Prove duplicate/unsafe/missing/nonidentical declarations and independentfaults, exactold/new grant/column/diagnostic bytecomparisons on same fresh PostgreSQL16 committedcatalog asledger_owner/ledger_app, normalmigrate/verify/parity. RealGit staged/first-introduction/percommit/historicalrange functionalDENY remains fromCHG100; approvedtechnical candidatepositive and old CHG088history controls required. No productionownedmocks/liveexternalnetwork/privatecontainers; officialCHG067sharedfixture/global/tmp/smp-full-gate.lock tokenownership, wait>=60s forforeignowner neverdeleteforeignlock. Beforefinalcold usecaffeinate-i own forced uncached unfilteredpnpmcheck. Focused70 includes setup, faults, realGit+freshDB and boundedfix; review60 includes scoped and freshadversarial and onefixwave. No tests/gates/fixtures ran duringthisreadiness, no borrowedCHG100PASS. Failed ownrequiredgates blockclosure; namedexternalbaseline deviation is not exemption."
+    },
+    {
+      "id": "U6",
+      "statement": "Native mutation applicability and preservation of emitted testing pins",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Five deliverypaths are productionMJS and testMJS/integrationTS only: forecast0eligibleproductionTS/TSX, not fabricated native score or applicability proof. Afterapprovedimplementation freeze actualcurrentbase; MUTATION_BASE=<frozenbase> node scripts/mutation-scope.mjs --preflight then final awake ordinarycampaignLAST afterreviews/fullgate provesactualrouting. If0 no test_report/nativekillscore; retain processfault/differential/realDB/realGit effectiveness. Ifshardsappear, discover tests, budget touchedpreviews<=30minutes/coldwithout filters or threshold/runner patches and reassess if240 insufficient. Source TESTING pin e36e93535158477d33719ba4af6c62dbfbb26645 and critical-paths b7b17fca49b087a195d71e0db16d039e3cbc9a6e identicalmainbase; IMP434 verify afterrebase/integration, never restoreforeigncopies/manuallyregenerate. No newcriticalpath or sourcepolicy asserted, declarations remainfinitebaseline-only."
+    },
+    {
+      "id": "U7",
+      "statement": "Complete spent and remaining estimate with bounded logical role custody",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Adopt conservative allocationUPPER240=30readiness+55implementation+70focused+60review+25integration; base185=25/40/55/45/20 preservedreference, not approval. Delta55 accommodates oldoracle+closedattestation adaptation, realDB/Git negatives, reviewfixallowance and integration. Current estimatedspent14=12boundedcontrollerprep+root2readycoord ONCE; remaining226=16readiness(bounddesign/plan+approvalintegration)+55implementation+70focused+60review+25integration. Preparation minuteestimates are activeeffort, not measured billing, no idlehours charged; one failed readonlyPythonformat command retained inside12, no source/test failurehidden. No33controller/10reviewerCHG100 preparation, CHG103f007operator2 or anyUS088 historicalcost transferred here. Actual ownlogicalwindowtelemetry starts after physicaloldUS088 cutoff2026-10-12T23:33:53.668Z362calls/input40626528/output112817; allpriorusage excluded. At boundary newactualspent+remaining>240 stops for normalreadinessreassessment, >320 or hardcohesion/pathfalsifier needs canonicalrepartition. No CHG087/budgetwaiver inherited."
+    },
+    {
+      "id": "U8",
+      "statement": "Session shape, lifecycle and approval boundary",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Harnessregistrylimit/no closecapability forced completedUS088physicalactorreuse for NEWlogicalCHG101readinesswindow; rootauthorized this deviation, notfreshphysicalcontextclaim. Initial lastinput107537<200K, no whole-reporead, no newagent/worktree. One logical CHG101controller now, consolidatedimplementer/reusedscoped plusfresh independentadversarial onlyafterexactdigestapproval; constrainedphysicalreuse/restarts ifforced must retainseparate numericbaseline/cost/window and disclosecontextshape. ThisassessmentREADY withpendingapproval permits onlyreadinesscommit/check/feedback; no started/design/plan/source/test/toolguidewrites now. Afterapproval normalboundthree-lineplan andphaseUTCmarkers. Futureownfullgate/campaign/reviews/integration included240, nonzerodone.cost actorwindows measuredwhereavailable otherwiseexplicitestimates, noUSD/fabricatedtokens. Mainmovement: cleanisolated rebase withold->newSHAmap+protectedguideproof+affectedfreshproof, no foreignreset/drop. NormalFF onlyafterowncompleteevidence; no parentUS030/productACcompletion claim."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "53c5779f5fe73f64ff2b2fe69ca127eb3dbb67932728b8887605f23529258951"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
