@@ -70,15 +70,35 @@ integration line rebases their complete route table into the JSON data, records
 its original-to-rebased SHA map, and reruns the differential oracle over every
 predecessor entry.
 
-`packages/db/schema-contract.json` is technical-only from its first introduction
-(CHG-100; DEC-SMP-049). Functional delivery cannot add, edit, delete, change the
-mode of, or replace this exact path with a symlink, even when its JSON is safe.
-The denial applies to legacy inclusive-count and delivery-count assessments,
-ordinary staged commits, and every historical commit in a checked range. A later
-technical commit or matching aggregate endpoints cannot authorize an earlier
-functional change. Existing ready approval and readiness-bound plan requirements
-still govern technical delivery; the exact CHG-088 inherited-verifier exception
-is unchanged.
+`packages/db/schema-contract.json` remains technical by default (CHG-100;
+DEC-SMP-049). CHG-105 permits one functional exception: this actually approved
+item's additive finite version-2 declaration, retaining the exact ordered old
+baseline and existing extension-row prefix. The actual current parent must bind
+the same readiness digest, approval and implementation plan before source
+introduction. The immutable authority root must lack the selected table; the
+candidate must introduce `drift_episode` as a direct exported `pgTable` with a
+literal table name and literal canonical columns from the real named
+`drizzle-orm/pg-core` imports, plus owned append-only regular timestamp migrations.
+
+The only supported old constant table names come from the immutable authority-root
+inventory: an existing non-target direct top-level exported `pgTable` call may
+use an Identifier uniquely bound to a local top-level `const` initialized directly
+by a canonical string literal. Resolve this before absence, and pin the exact
+identifier/literal/declaration/direct-call mapping through every historical
+snapshot, parent and candidate. Candidate-only constant calls, a prior constant
+target, changed/removed/reintroduced/restored mappings, duplicates, import
+collisions, shadowing, escapes, reassignment, destructuring, `let`/`var`, alias
+chains and unresolved/computed expressions reject. New `drift_episode` stays a
+direct literal. No source evaluation or general name-resolution framework runs.
+
+Actual staged Git objects, per-commit checks and complete source history must
+agree. Foreign/existing/unapproved/multi-item source, self/later approval, stale
+digest or plan, nonregular modes/symlinks, modified old migrations, declaration
+removal/replacement/version-1 edits and unsafe or changed old rows reject.
+Matching aggregate endpoints and candidate-written PASS fields confer no authority.
+All other tooling, mutation-route guards and the exact CHG-088 inherited-verifier
+exception remain unchanged. Ordinary technical readiness and bound-plan rules
+still apply outside this functional exception.
 
 Actual `db:verify` reads this fixed module-relative declaration and rejects
 unsafe, duplicate-key or noncanonical data before connecting to PostgreSQL.
@@ -110,10 +130,15 @@ Hashes and candidate PASS fields are not release authority: the real invocation
 receipt must identify reviewed source blobs/evaluated commit, exact declaration
 and migration inputs, fixture/run identity, exit/UTC/raw output and proof hashes;
 normal `build_pass` notes/source_commit and independent review carry that custody.
-Structural Git readiness checks do not execute PostgreSQL. Functional edits to
-`schema-contract.json` remain denied in every staged/historical range; CHG-104
-ships no product table, migration or declaration change. Later functional admission
-requires its own governed implementation after CHG-104 integration.
+Structural Git readiness checks do not execute PostgreSQL or establish SQL
+semantics. A structurally admitted declaration with wrong-table or no-table SQL
+must fail the real release catalog verifier. CHG-105's own release composition
+extracts exact admitted Git objects and checksums into the actual production
+applier/verifier/parity bundle, with fresh owner/app baseline and candidate
+checks, account-reference allowed/denied behavior and independent catalog,
+privilege, ledger/checksum and extraction-binding faults. This does not establish
+GroupAdmin or `company:write` authorization; functional US-093 retains that duty.
+CHG-104 and CHG-105 deliver no product table, migration or declaration change.
 
 The phase total must equal `readiness + implementation +
 focused_verification + review + integration`. Outcome and acceptance-criterion

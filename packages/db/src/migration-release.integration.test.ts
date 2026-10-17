@@ -174,6 +174,113 @@ const extension = {
   ],
 };
 
+const releaseSource = "15a037ed65551e09b7d196967f0413790819a293";
+const repositoryRoot = resolve(packageRoot, "../..");
+const ownedReleaseMigration = "src/migrations/V20990101000000__owned_drift_episode.sql";
+const ownedReleaseSchema = `
+export const driftEpisode = pgTable("drift_episode", {
+  id: uuid("id").primaryKey(),
+  vendorAccountId: uuid("vendor_account_id").references(() => vendorAccount.id),
+  licenseTypeId: uuid("license_type_id").references(() => licenseType.id),
+  personId: uuid("person_id").references(() => person.id),
+  resolvedByAssignmentId: uuid("resolved_by_assignment_id").references(() => licenseAssignment.id).unique(),
+  memberIdentity: text("member_identity").notNull(),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+}, table => ({ open: uniqueIndex("drift_episode_open").on(table.vendorAccountId, table.memberIdentity, table.licenseTypeId).where(sql\`\${table.resolvedAt} IS NULL\`) }));
+`;
+const ownedReleaseSql = `
+CREATE TABLE drift_episode (
+ id uuid PRIMARY KEY, vendor_account_id uuid REFERENCES vendor_account(id),
+ license_type_id uuid REFERENCES license_type(id), person_id uuid REFERENCES person(id),
+ resolved_by_assignment_id uuid UNIQUE REFERENCES license_assignment(id),
+ member_identity text NOT NULL, resolved_at timestamptz
+);
+CREATE UNIQUE INDEX drift_episode_open ON drift_episode(vendor_account_id,member_identity,license_type_id) WHERE resolved_at IS NULL;
+ALTER TABLE drift_episode ENABLE ROW LEVEL SECURITY;
+CREATE POLICY drift_episode_select ON drift_episode FOR SELECT TO ledger_app USING (EXISTS (SELECT 1 FROM public.vendor_account WHERE vendor_account.id=drift_episode.vendor_account_id));
+CREATE POLICY drift_episode_insert ON drift_episode FOR INSERT TO ledger_app WITH CHECK (EXISTS (SELECT 1 FROM public.vendor_account WHERE vendor_account.id=drift_episode.vendor_account_id));
+CREATE POLICY drift_episode_update ON drift_episode FOR UPDATE TO ledger_app USING (EXISTS (SELECT 1 FROM public.vendor_account WHERE vendor_account.id=drift_episode.vendor_account_id)) WITH CHECK (EXISTS (SELECT 1 FROM public.vendor_account WHERE vendor_account.id=drift_episode.vendor_account_id));
+GRANT SELECT,INSERT,UPDATE ON drift_episode TO ledger_app;
+`;
+type ReleaseFixture = { root: string; authority: string; parent: string; head: string; digest: string };
+type ReleaseInput = { path: string; blob: string; sha256: string };
+async function releaseGit(root: string, args: string[]): Promise<Buffer> {
+  const result = await execFileAsync("git", args, { cwd: root, encoding: "buffer", maxBuffer: 16 * 1024 * 1024 });
+  return result.stdout;
+}
+async function releaseWrite(root: string, path: string, bytes: string | Buffer): Promise<void> {
+  await mkdir(dirname(join(root, path)), { recursive: true }); await writeFile(join(root, path), bytes);
+}
+async function releaseCommit(root: string, message: string): Promise<string> {
+  await releaseGit(root, ["add", "."]); await releaseGit(root, ["commit", "-m", message]);
+  return (await releaseGit(root, ["rev-parse", "HEAD"])).toString().trim();
+}
+async function createOwnedReleaseFixture(variant: "valid" | "wrong-table" | "no-table" | "unsafe"): Promise<ReleaseFixture> {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "chg105-owned-release-git-")));
+  try {
+    await releaseGit(root, ["init", "--initial-branch=main"]);
+    await releaseGit(root, ["config", "user.name", "CHG105 release fixture"]);
+    await releaseGit(root, ["config", "user.email", "chg105-release@example.test"]);
+    const paths = (await releaseGit(repositoryRoot, ["ls-tree", "-r", "--name-only", releaseSource, "--", "packages/db/src/schema.ts", "packages/db/src/migrations", "packages/db/schema-contract.json", "packages/db/scripts", "packages/db/package.json", "packages/db/drizzle.config.ts"])).toString().trim().split("\n");
+    for (const path of paths) await releaseWrite(root, path, await releaseGit(repositoryRoot, ["show", `${releaseSource}:${path}`]));
+    await releaseWrite(root, "scripts/mutation-routes.json", "{}\n");
+    await releaseCommit(root, "chore(CHG-900): exact production release baseline");
+    const bootstrap = JSON.parse(await readFile(join(repositoryRoot, "docs/readiness/CHG-022.json"), "utf8"));
+    const activation = { story: "CHG-022", event: "decision", id: "CHG022-READINESS-V2-APPROVAL", text: `Decision ready for readiness payload SHA-256 ${bootstrap.readiness_payload_sha256} as the one-time, immutable, non-repeatable CHG-022 policy bootstrap, based on design commit ${bootstrap.bootstrap_authorization.design_commit} and refreshed authority plan commit ${bootstrap.bootstrap_authorization.plan_commit}. Exact authorized paths, in order: ${bootstrap.bootstrap_authorization.allowed_paths.join("; ")}. This authorization interval begins at this matching decision and expires on CHG-022's first valid terminal done event; every later implementation commit must be rejected and cannot reuse this or any earlier bootstrap approval.`, reason: "Policy activation" };
+    await releaseWrite(root, "docs/readiness/CHG-022.json", JSON.stringify(bootstrap, null, 2) + "\n");
+    await releaseWrite(root, ".nous-feedback.jsonl", JSON.stringify(activation) + "\n");
+    await releaseCommit(root, "docs(CHG-022): activate policy");
+    const model = await import(pathToFileURL(join(repositoryRoot, "scripts/work-readiness/model.mjs")).href);
+    const artifact = JSON.parse(await readFile(join(repositoryRoot, "docs/readiness/CHG-105.json"), "utf8"));
+    Object.assign(artifact, { work_id: "US-987", kind: "US", work_type: "functional", source: "docs/stories/US-987.md", uncertainties: [], scopes: ["database"], signals: { routes_or_screens: 0, acceptance_flows: 1, expected_changed_files: 3, bookkeeping_files: 0, expected_mutation_shards: 0, lifecycle_or_concurrency_boundaries: 0, external_integrations: 0, schema_or_migration_changes: 1, authorization_or_audit_boundaries: 0, tooling_change: false }, estimate_minutes: { readiness: 10, implementation: 55, focused_verification: 20, review: 10, integration: 5, total: 100 }, approval: { status: "approved", approved_by: "user", evidence: "US987-READY", payload_sha256: "0".repeat(64) } });
+    artifact.readiness_payload_sha256 = model.computeReadinessPayloadSha256(artifact); artifact.approval.payload_sha256 = artifact.readiness_payload_sha256;
+    const decision = { story: artifact.work_id, event: "decision", id: artifact.approval.evidence, text: `Decision ready for readiness payload SHA-256 ${artifact.readiness_payload_sha256}.`, reason: "Approved assessment", approved_by: "user", subject_work_id: artifact.work_id, relationship: "self" };
+    await releaseWrite(root, "docs/readiness/US-987.json", JSON.stringify(artifact, null, 2) + "\n");
+    await releaseWrite(root, ".nous-feedback.jsonl", JSON.stringify(activation) + "\n" + JSON.stringify(decision) + "\n");
+    const authority = await releaseCommit(root, "docs(US-987): approve exact digest");
+    await releaseWrite(root, "docs/superpowers/plans/US-987-plan.md", "**Work item:** US-987\n**Readiness assessment:** docs/readiness/US-987.json\n**Approved estimate:** 100 minutes\n\n# Exact release plan\n");
+    const parent = await releaseCommit(root, "docs(US-987): bind approved plan");
+    const schema = await readFile(join(root, "packages/db/src/schema.ts"));
+    await releaseWrite(root, "packages/db/src/schema.ts", Buffer.concat([schema, Buffer.from(ownedReleaseSchema)]));
+    const sql = variant === "wrong-table" ? ownedReleaseSql.replaceAll("drift_episode", "wrong_episode") : variant === "no-table" ? "SELECT 1;\n" : ownedReleaseSql;
+    await releaseWrite(root, `packages/db/${ownedReleaseMigration}`, sql);
+    const baseline = JSON.parse(await readFile(join(root, "packages/db/schema-contract.json"), "utf8"));
+    const row = structuredClone(extension); if (variant === "unsafe") row.policies[0].role = "public";
+    await releaseWrite(root, "packages/db/schema-contract.json", JSON.stringify({ ...baseline, schema_version: 2, newTables: [row] }, null, 2) + "\n");
+    const head = await releaseCommit(root, "feat(US-987): owned exact release source");
+    return { root, authority, parent, head, digest: artifact.readiness_payload_sha256 };
+  } catch (error) { await rm(root, { recursive: true, force: true }); throw error; }
+}
+async function assertReleaseInputs(bundle: string, inputs: ReleaseInput[]): Promise<void> {
+  for (const input of inputs) {
+    const bytes = await readFile(join(bundle, input.path));
+    if (createHash("sha256").update(bytes).digest("hex") !== input.sha256
+      || createHash("sha1").update(Buffer.from(`blob ${bytes.length}\0`)).update(bytes).digest("hex") !== input.blob) {
+      throw new Error(`Extracted Git object binding mismatch: ${input.path}`);
+    }
+  }
+}
+async function extractOwnedRelease(fixture: ReleaseFixture, revision: string): Promise<{ bundle: string; inputs: ReleaseInput[] }> {
+  const gate = await import(pathToFileURL(join(repositoryRoot, "scripts/work-readiness/git.mjs")).href);
+  // This call consumes actual immutable parent approval/plan/history, no PASS file.
+  expect(gate.validateRangeOwnership({ root: fixture.root, base: fixture.parent, head: fixture.head }).workIds).toEqual(["US-987"]);
+  const bundle = await realpath(await mkdtemp(join(tmpdir(), "chg105-admitted-release-")));
+  const inputs: ReleaseInput[] = [];
+  try {
+    const paths = (await releaseGit(fixture.root, ["ls-tree", "-r", "--name-only", revision, "--", "packages/db"])).toString().trim().split("\n");
+    for (const path of paths) {
+      const bytes = await releaseGit(fixture.root, ["show", `${revision}:${path}`]);
+      const relative = path.slice("packages/db/".length);
+      const blob = (await releaseGit(fixture.root, ["rev-parse", `${revision}:${path}`])).toString().trim();
+      expect(createHash("sha1").update(Buffer.from(`blob ${bytes.length}\0`)).update(bytes).digest("hex"), path).toBe(blob);
+      await releaseWrite(bundle, relative, bytes); inputs.push({ path: relative, blob, sha256: createHash("sha256").update(bytes).digest("hex") });
+    }
+    await symlink(join(packageRoot, "node_modules"), join(bundle, "node_modules"), "dir");
+    await assertReleaseInputs(bundle, inputs);
+    return { bundle, inputs };
+  } catch (error) { await rm(bundle, { recursive: true, force: true }); throw error; }
+}
+
 async function createVerifierBundle(): Promise<string> {
   const directory = await realpath(await mkdtemp(join(tmpdir(), "ledger-release-contract-")));
   try {
@@ -3472,6 +3579,120 @@ describe("migration parity", () => {
 });
 
 describe("release configuration", () => {
+  test("CHG-105 releases exact admitted Git objects through production owner app and parity", async () => {
+    const fixture = await createOwnedReleaseFixture("valid");
+    const extracted: string[] = [];
+    const receipts: unknown[] = [];
+    try {
+      const baseline = await extractOwnedRelease(fixture, fixture.parent); extracted.push(baseline.bundle);
+      const candidate = await extractOwnedRelease(fixture, fixture.head); extracted.push(candidate.bundle);
+      for (const input of baseline.inputs) {
+        expect((await releaseGit(repositoryRoot, ["rev-parse", `${releaseSource}:packages/db/${input.path}`])).toString().trim(), input.path).toBe(input.blob);
+        if (!["src/schema.ts", "schema-contract.json"].includes(input.path)) {
+          expect(candidate.inputs.find(entry => entry.path === input.path)?.blob, input.path).toBe(input.blob);
+        }
+      }
+      expect(candidate.inputs.length).toBe(baseline.inputs.length + 1);
+      const baseDeclaration = JSON.parse(await readFile(join(baseline.bundle, "schema-contract.json"), "utf8"));
+      for (const [label, release] of [["baseline", baseline], ["candidate", candidate]] as const) {
+        const database = await createDatabase();
+        const environment = { DATABASE_ADMIN_URL: database.ownerUrl, DATABASE_URL: database.appUrl };
+        const owner = new pg.Client({ connectionString: database.ownerUrl });
+        try {
+          await assertReleaseInputs(release.bundle, release.inputs);
+          const applied = await runNode(join(release.bundle, "scripts/apply-migrations.mjs"), environment);
+          expect(applied.code, applied.stderr).toBe(0);
+          const verified = await runNode(join(release.bundle, "scripts/verify-schema.mjs"), environment);
+          expect(verified.code, verified.stderr).toBe(0);
+          expect(await applicationTableCount(database.ownerUrl)).toBe(baseDeclaration.coreTableNames.length + Number(label === "candidate"));
+          await owner.connect();
+          const ledger = await owner.query("SELECT filename,sha256 FROM ledger_schema_migrations ORDER BY filename");
+          expect(ledger.rows).toEqual(release.inputs.filter(input => /^src\/migrations\/V.*\.sql$/u.test(input.path)).map(input => ({ filename: input.path.slice("src/migrations/".length), sha256: input.sha256 })));
+          const parity = await runNode(join(release.bundle, "scripts/check-migration-parity.mjs"), environment);
+          expect(parity.code, parity.stderr).toBe(0);
+          expect(parity.stdout).toContain(`${baseDeclaration.coreTableNames.length + Number(label === "candidate")} table(s)`);
+          if (label === "candidate") {
+            const declaration = await readFile(join(release.bundle, "schema-contract.json"), "utf8");
+            const binding = JSON.parse(verified.stdout.trim().split("\n").at(-1)!);
+            expect(binding.declarationSha256).toBe(sha256(declaration));
+            expect(binding.baselineProjectionSha256).toBe("0b755c2c2b71cf8065093608ae01c9353232da7eb196ea9da78f5445e59b6e7b");
+            expect(binding.extensionRowsSha256).toBe(sha256(JSON.stringify([extension])));
+            expect(binding.migrationSetSha256).toBe(sha256(JSON.stringify(ledger.rows)));
+            expect(binding.tableNames).toEqual(["drift_episode"]);
+            expect(binding.catalogResultSha256).toBe(sha256(JSON.stringify([{ tableName: "drift_episode", rls: extension.rls, policies: extension.policies, constraints: extension.constraints }])));
+            const app = new pg.Client({ connectionString: database.appUrl }); await app.connect();
+            try {
+              // Existing account-reference policies accept a real account, reject
+              // missing/null accounts, and do not grant DELETE/TRUNCATE. They are
+              // not a claim of company:write or GroupAdmin authorization.
+              const account = "10000000-0000-4000-8000-000000000001";
+              await owner.query("INSERT INTO user_account(id,email,status,created_at) VALUES ($1,'release@example.test','active','2026-01-01')", [account]);
+              await owner.query("INSERT INTO drift_episode(id,member_identity) VALUES ('20000000-0000-4000-8000-000000000003','owner-only-null-account')");
+              await owner.query(`INSERT INTO vendor(id,name,connector_type,provisioning_protocol,can_provision,can_deprovision,has_usage_data,has_cost_data,identity_matching,status,created_at,created_by) VALUES ($1,'release','manual','none',false,false,false,false,'email','active','2026-01-01',$1)`, [account]);
+              await owner.query(`INSERT INTO vendor_account(id,vendor_id,name,mode,low_pool_floor,status,created_at,created_by) VALUES ($1,$1,'release','orchestration',0,'active','2026-01-01',$1)`, [account]);
+              const inserted = await app.query("INSERT INTO drift_episode(id,vendor_account_id,member_identity) VALUES ('20000000-0000-4000-8000-000000000001',$1,'member-a') RETURNING member_identity", [account]);
+              expect(inserted.rows).toEqual([{ member_identity: "member-a" }]);
+              expect((await app.query("SELECT member_identity FROM drift_episode ORDER BY member_identity")).rows).toEqual(inserted.rows);
+              expect((await app.query("UPDATE drift_episode SET member_identity='member-b' RETURNING member_identity")).rows).toEqual([{ member_identity: "member-b" }]);
+              await expect(app.query("INSERT INTO drift_episode(id,vendor_account_id,member_identity) VALUES ('20000000-0000-4000-8000-000000000002',NULL,'denied')")).rejects.toMatchObject({ code: "42501" });
+              await expect(app.query("INSERT INTO drift_episode(id,vendor_account_id,member_identity) VALUES ('20000000-0000-4000-8000-000000000004','10000000-0000-4000-8000-000000000099','missing-account')")).rejects.toMatchObject({ code: "42501" });
+              await expect(app.query("UPDATE drift_episode SET vendor_account_id=NULL")).rejects.toMatchObject({ code: "42501" });
+              await expect(app.query("DELETE FROM drift_episode")).rejects.toMatchObject({ code: "42501" });
+              await expect(app.query("TRUNCATE drift_episode")).rejects.toMatchObject({ code: "42501" });
+            } finally { await app.end(); }
+            const faults = [
+              ["RLS", "ALTER TABLE drift_episode DISABLE ROW LEVEL SECURITY", "rls"],
+              ["grant", "GRANT DELETE ON drift_episode TO ledger_app", "runtime table-grant matrix mismatch"],
+              ["constraint", "ALTER TABLE drift_episode DROP CONSTRAINT drift_episode_person_id_fkey", "constraints"],
+              ["ledger", "DELETE FROM ledger_schema_migrations WHERE filename='V20990101000000__owned_drift_episode.sql'", "committed migration ledger mismatch"],
+              ["checksum", "UPDATE ledger_schema_migrations SET sha256=repeat('0',64) WHERE filename='V20990101000000__owned_drift_episode.sql'", "committed migration ledger mismatch"],
+            ];
+            for (const [name, sql, diagnostic] of faults) {
+              await owner.query(sql); const rejected = await runNode(join(release.bundle, "scripts/verify-schema.mjs"), environment);
+              expect(rejected.code, name + rejected.stderr).toBe(1); expect(rejected.stderr, name).toContain(diagnostic); expect(rejected.stdout, name).toBe("");
+              receipts.push({ fault: name, result: rejected });
+              await owner.query("DROP TABLE drift_episode"); await owner.query(ownedReleaseSql);
+              await owner.query("DELETE FROM ledger_schema_migrations WHERE filename='V20990101000000__owned_drift_episode.sql'");
+              await owner.query("INSERT INTO ledger_schema_migrations(filename,sha256) VALUES ($1,$2)", ["V20990101000000__owned_drift_episode.sql", release.inputs.find(input => input.path === ownedReleaseMigration)!.sha256]);
+            }
+          }
+          receipts.push({ label, database: database.name, inputs: release.inputs, applied, verified, ledger: ledger.rows, parity });
+        } finally { await owner.end(); await dropDatabase(database.name); }
+      }
+      // An extracted byte fault must be caught before any production process.
+      for (const path of ["src/schema.ts", "schema-contract.json", ownedReleaseMigration]) {
+        const original = await readFile(join(candidate.bundle, path));
+        await writeFile(join(candidate.bundle, path), Buffer.concat([original, Buffer.from("\n")]));
+        await expect(assertReleaseInputs(candidate.bundle, candidate.inputs)).rejects.toThrow(`Extracted Git object binding mismatch: ${path}`);
+        await writeFile(join(candidate.bundle, path), original);
+      }
+      for (const variant of ["wrong-table", "no-table", "unsafe"] as const) {
+        const hostile = await createOwnedReleaseFixture(variant);
+        try {
+          if (variant === "unsafe") {
+            await expect(extractOwnedRelease(hostile, hostile.head)).rejects.toMatchObject({ code: "WR_MIXED_FUNCTIONAL_TOOLING", path: "packages/db/schema-contract.json" });
+            continue;
+          }
+          const release = await extractOwnedRelease(hostile, hostile.head); extracted.push(release.bundle);
+          const database = await createDatabase();
+          const environment = { DATABASE_ADMIN_URL: database.ownerUrl, DATABASE_URL: database.appUrl };
+          try {
+            const applied = await runNode(join(release.bundle, "scripts/apply-migrations.mjs"), environment); expect(applied.code, applied.stderr).toBe(0);
+            const rejected = await runNode(join(release.bundle, "scripts/verify-schema.mjs"), environment); expect(rejected.code).toBe(1); expect(rejected.stderr).toContain("table-set"); expect(rejected.stdout).toBe("");
+            receipts.push({ variant, head: hostile.head, inputs: release.inputs, applied, rejected });
+          } finally { await dropDatabase(database.name); }
+        } finally { await rm(hostile.root, { recursive: true, force: true }); }
+      }
+      if (process.env.CHG105_EVIDENCE_DIR) {
+        await mkdir(process.env.CHG105_EVIDENCE_DIR, { recursive: true });
+        await writeFile(join(process.env.CHG105_EVIDENCE_DIR, "owned-release.json"), JSON.stringify({ reviewedSource: releaseSource, fixture: { authority: fixture.authority, parent: fixture.parent, head: fixture.head, digest: fixture.digest }, receipts }, null, 2) + "\n");
+      }
+    } finally {
+      for (const bundle of extracted) await rm(bundle, { recursive: true, force: true });
+      await rm(fixture.root, { recursive: true, force: true });
+    }
+  }, 180_000);
+
   test("CHG-104 production finite catalog binds real declarations migrations and rejects independent catalog drift", async () => {
     const database = await createDatabase();
     const bundle = await createVerifierBundle();
