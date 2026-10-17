@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "f4d2c9270687b794ca310eb9db770026eeaea621ede769b6ee07f02e83bb3f20",
+  "work_id": "CHG-105",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Admit owned additive finite declarations through real Git and release execution",
+  "source": "/Users/fcolomas/Projects/nous/Nous/WorkControl/fcostudios/smp/CHG-105_TECH_SPEC.md; DEC-SMP-053/056; immutable packet b79400ffcd31a2dc23ef558fb733a84202859fee SHA256 39c999e0b5614f20ecfc21cb2af0fa1b043811d9772b26325d707d816df98542 and addendum/review 4af1e44556525cfabe6c21b47d7fbc2617478b44. Own exact integrated CHG-104 base d2280c4e511812da72b82084e6ad2ec891375781; source integration 145450f6ce2c701ad6a14ed9507b0e7247eac319. No inherited execution approval.",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Real staged, per-commit and full-history readiness gates admit only a same-item owned additive finite schema declaration, and own release composition validates its exact Git-approved source and migrations through integrated production db:verify.",
+      "demo": "An actually approved functional fixture introduces its direct exported pgTable, append-only migration and finite declaration together or through prior approved same-item history; real Git admission passes, then fresh owner/app release validates actual catalog and parity. Independent hostile ownership/history faults reject in Git, and wrong/no-table SQL rejects in actual release execution.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1-exact-current-parent-owned-additive-admission",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2-staged-percommit-full-history-hostile-denials-and-baseline",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3-own-exact-Git-to-real-release-composition",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4-own-reviewed-gates-custody-and-FF-integration",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "finite-structural-schema-ownership",
+    "immutable-Git-authority-and-delivery-classification",
+    "real-release-composition-and-assurance"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 6,
+    "bookkeeping_files": 4,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 25,
+    "implementation": 110,
+    "focused_verification": 95,
+    "review": 55,
+    "integration": 30,
+    "total": 315
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Integrated prerequisite and actual custody cutoff",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Fresh native isolated worktree /Users/fcolomas/.codex/worktrees/chg105-readiness/smp begins at d2280c4e511812da72b82084e6ad2ec891375781. CHG104 has actual tenant done and integrated source145450f6ce2c701ad6a14ed9507b0e7247eac319. Its own99 estimated complete minutes remain104; parent10274.5known+U_prior retained separately. No current105 normal custody delta exists, no sync needed or assumed. Complete105 original range is d228..future candidate; no old parent history shortened or sibling proof adopted. Technical canonical status remains authoritative despite tenant projection. DEC051/P4/US084/090/091/CHG093/cad8 holds unchanged."
+    },
+    {
+      "id": "U2",
+      "statement": "Exact complete manifest and protected guidance",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Six technical paths ONLY: scripts/work-readiness/delivery-policy.mjs, scripts/work-readiness/git.mjs, scripts/work-readiness/schema-declaration-ownership.mjs, scripts/test-work-readiness.mjs, packages/db/src/migration-release.integration.test.ts, docs/dev-guide/WORK_READINESS.md. Four bookkeeping ONLY: docs/readiness/CHG-105.json, docs/superpowers/specs/CHG-105-design.md, docs/superpowers/plans/CHG-105-plan.md, .nous-feedback.jsonl. Six delivery plus four bookkeeping =10 actual planned paths. New helper absent, future100644. Current regular anchors: 100644 blob 439721825b825ce20e581d51e3067dbfd8379181\tdocs/dev-guide/WORK_READINESS.md\n100644 blob a8762fab54b8d3424116e0350727cb0d83a7a66d\tpackages/db/src/migration-release.integration.test.ts\n100644 blob 171884f792edc5b0544e55a9447b4899f42f96b7\tscripts/test-work-readiness.mjs\n100644 blob 4ed83f2a3073fdc58d2f955f9e340bc60033e44f\tscripts/work-readiness/delivery-policy.mjs\n100644 blob c9f68c6ae9993b053bd02834fc542d5b2d55490f\tscripts/work-readiness/git.mjs. No schema-contract data/schema.ts/product migration delivered; temporary fixtures stay existing test files. No testing/config/toolchain/agent-file changes. Any actual parent-owned normal delivery within105 interval counts once from closed8 (.nous-project/.nous-provenance/.nous-sync, SPRINT_PLAN,INDEX,CHANGES,ASSIGNMENTS,DECISION_MATRIX); all8 would total14delivery+4bookkeeping=18 but are NOT authorized by current6. Actual new delta requires normal current manifest/digest amendment before delivery. Critical-paths and TESTING unchanged from integratedbase, IMP434 checks repeated after any actual sync; no silent generated-guide edit."
+    },
+    {
+      "id": "U3",
+      "statement": "Bounded AST dependency and source ownership",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "Static ports found itemAuthorityPaths1180ff/payloadAuthority1214ff and validateFunctionalDelivery1280ff. Set-only current history is insufficient:105 explicitly owns exact path/blob/mode/parent introduction evidence upgrade in git.mjs. Existing locked TypeScript5.9.3 parser is already imported by scripts/mutation-scope.mjs; use same implementation, no package/config change. Pure new helper receives immutable snapshots/history, no reads/evaluation/network/DB/SQL parser. Accept only new direct exported pgTable literal from actual named drizzle-orm/pg-core import, literal canonical table/column identity and selected profile. Base AST must lack table; exact current digest-approved same-item introduction history required. Computed names, alias/re-export/dynamic unsupported shapes fail closed; unsupported framework/new path STOP current amendment. Real test fixture packaging explicitly copies new helper and resolves existing locked dependency within scripts/test-work-readiness.mjs, no extra path."
+    },
+    {
+      "id": "U4",
+      "statement": "Actual structural authority and history contract",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "git.mjs computes subject ID, immutable current-parent approved artifact/digest, bound plan and payload root; exact base/candidate schema.ts mode/blob/text; declaration mode/blob/version/ordered old-prefix/new-row canonical digest; complete sorted migration filename/Gitblob/SHA256 set and append-only prefix; every source introduction tied to single-item actually approved parent transition. Staged same candidate or prior approved SAME-item source only. Every historical transition validated, not aggregate endpoints or later approvals. Preserve old rows/order/security, version1 functional denial, all tooling/mutation-route guards and exact CHG088 inherited exception. Only closed additive selected declaration admission changes; candidate PASS/digest/report is never authority. New migrations regular timestamp files; reject modified/replaced/mode/symlink old migration or borrowed existing table history."
+    },
+    {
+      "id": "U5",
+      "statement": "Finite runtime boundary and own real composition",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Integrated104 exports parseSchemaContract/attestSchemaContract and production verifier explicitly calls catalog verifier after owner connection. Consume unchanged interface, no104source edits. Version2 retains exact immutable ordered baseline and only at-most-one drift_episode/drift-episode-v1 newTables; mutabletrue/RLSenabledtrue forcedfalse; ledger_app SELECT USING, INSERT WITH_CHECK, UPDATE both using only account-reference-exists-v1 vendor_account_id to vendor_account.id. PKid, four NO_ACTION FKs, unique assignment, unique-open selected columns WHERE nullable resolved_at IS NULL; no arbitrary SQL/roles/module/expression. Hook proves source ownership/append-only bytes, not SQL semantics. OWN migration-release composition builds actual real Git fixture then applies EXACT admitted source/declaration/migration set to fresh sharedPG16 via ledger_owner, invokes actual integrated104 production entrypoint and ledger_app rights/parity. Wrong/no-table SQL may pass structural stage but MUST fail actual release. Bind evaluated commits/reviewed blobs/declaration bytes/migration checksums/run fixture/UTC/exit/raw output+proof hashes into normal build_pass notes/source_commit and independent review; no trusted candidate receipt. US093 owns actual product schema/migration/RLS/GroupAdmin/company:write/system authorization."
+    },
+    {
+      "id": "U6",
+      "statement": "Complete adversarial evidence and exact falsifiers",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "After exact ready approval only: own real Git staged/percommit/full-history positives same-commit and prior-own-approved introduction. Independent negatives: old-prefix/security/row changes, stale/wrong digest/plan, self or later approval, missing/wrong AST, existing/copied/unapproved/multi-item history, missing/wrong path/blob/mode/symlink schema/migration, old migration edit, duplicate table/unsafe descriptor, mixed MJS edit, mutation-route removal/reorder and CHG088 expansion. Strong exact rejection oracles and independent predicate-removal controls. OWN real fresh baseline/candidate release with wrong/no-table SQL, RLS/grants/constraints/ledger faults and parity; never borrow104PASS. Existing readiness harness baseline differential and release suite own runs; no owned mocks. Scoped reviewer plus fresh independent adversarial final review, awake uncached fullgate under /tmp/smp-full-gate.lock without deleting foreign lock, official sharedPG fixture and owner/app migrate/verify/parity, actual own preflight and final own native cold after all fixes/reviews, full original d228 range and FF receipt. Expected0 native shards is forecast only: MJS source and TS test-only scope. Current preparation preflight is not future committed candidate evidence. Any actual shard/routing gap handled honestly; touched-only previews <=30minutes, actual final cold, zero-shard omission per WORK_READINESS only, never invented score. New test edit first requires full TESTING+TEST_EFFECTIVENESS_STANDARD read; no tests edited now."
+    },
+    {
+      "id": "U7",
+      "statement": "Five complete phases and all-role cost custody",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Base250=20readiness+85implementation+75focused+45review+25integration. Upper315=25+110+95+55+30, five minutes below hard320. Implementation110 covers AST/history snapshots45 + actual Git/classification45 + composition/guidance20. Focused95 covers real Git faults45 + own real release25 + differential/removal/parity25. Review55 includes builder/scoped/fresh independent AC and bounded fixes; integration30 includes own locked awake uncached fullgate/sharedPG/cold/normal fullrange/custody/FF. Readiness25 includes ALL controller/root/reviewer/setup/preflight/normalcommit/approval coordination, target21 controller<=15 reviewer<=4 root<=2; no free cycle. New logical105 controller is fresh physical actor, old104/102/103 costs excluded. Supported per-role model token counters unavailable, report estimates with actual metric limitations rather than old peak/counter. Each actual minute charged once; no transfer/reset. Spent+remaining>315 requires normal current digest reassessment; >320, new scope/path, unsupported AST/framework or missing proof STOP concrete amendment, never stretch. CHG10499 and parent10274.5known+U_prior separate, no unknown zeroed."
+    },
+    {
+      "id": "U8",
+      "statement": "Exact approval and execution ordering",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "This JSON is readiness preparation only, structural ready recommendation with PENDING approval. Francisco must approve exact current readiness digest before design/plan/source/test/started/runtime phases; old allocation/standing after-approval authority does not approve unseen digest. No design/plan/engineering tests/DB/gates emitted in preparation. Normal doc commit and readonly independent readiness review before request. After approval bound plan and phase markers precede implementation, one consolidated implementer and reviewers, this same105controller until closure. Shared guide/release test edited strictly after104integration. Mutation source base frozen after entry approvals. Future moved-main reconciliation requires honest SHA map/review or stop, no reset/autostash/force; normal FF with exact tracked/untracked custody checks. Existing functional/product/parent holds not released."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "f4d2c9270687b794ca310eb9db770026eeaea621ede769b6ee07f02e83bb3f20"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
