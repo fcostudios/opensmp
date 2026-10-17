@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "d3f911dfd16a9fc5d0dd1cb344ef6eaa40a1754db5090d71624cb72afa977c8a",
+  "work_id": "CHG-107",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Honor explicitly approved item-bound cumulative execution ceilings",
+  "source": "/Users/fcolomas/Projects/nous/Nous/WorkControl/fcostudios/smp/CHG-107_TECH_SPEC.md @163e49e71e2e11d1871c842a8f015d15dc3023d0; existing normal custody admission2faf34fcaa45e1282ede3ccd698a9b7c4bdcf9a3 parent43d6b8ac83095ae817cb195f17c25e6427cb4afc is ancestor of actual current FULL_CUSTODY_BASE c9925df037efb317d7458f5d3997cbf4c6945837. Operator07_CHG105_APPROVED_BASELINE_CLARIFICATION_CUSTODY.json and root trusted current-base handoff confirm reuse without another sync. Supersedes UNAPPROVED readiness65e8/addd delivery proposal; original04491/1963/2650/3104 and first derived65e8/addd remain immutable separate historical records.",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Honor the exact normally approved item-bound cumulative ceiling across readiness and immutable history while retaining default320, child limits, legacy digests and every ordinary execution guard.",
+      "demo": "Own schema/model and real-process/real-Git positive and hostile cases demonstrate CHG-093 exact DEC-SMP-059 tuple at380 only with prior admitted parent authority and exact readiness approval;381, foreign subjects/projects, altered authority and later backfill refuse.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1-closed-exact-cap-and-legacy-parity",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2-parent-authority-and-normal-execution-guards",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3-own-complete-proof-and-lawful-integration",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "readiness-contract-and-authority",
+    "immutable-Git-context-and-guard-oracles",
+    "tenant-guidance-and-own-integration-proof"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 12,
+    "bookkeeping_files": 4,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 50,
+    "implementation": 80,
+    "focused_verification": 70,
+    "review": 60,
+    "integration": 30,
+    "total": 290
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Official source, actual numeric decision and normal custody provenance",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Same official CHG-107 outcome, unchanged DEC-SMP-060 funding290 and DEC-SMP-059 CHG-093only380. Current canonical source163e49e71e2e11d1871c842a8f015d15dc3023d0 contains the official107 spec and unchanged decisions. Reuse ACTUAL normal custody admission2faf34fcaa45e1282ede3ccd698a9b7c4bdcf9a3, parent43d6b8ac83095ae817cb195f17c25e6427cb4afc, ancestor of actual integrated current-main base c9925df037efb317d7458f5d3997cbf4c6945837. Operator07 receipt records its six regular mode/hash entries and existing normal gates; no third canonical append/sync or rerun of those custody gates solely for this base change. Exact DEC059 UTF8 textSHA391a0e3545c948dd7082c2d17c9d12a6146c6e3f2d683545df7be8ce07db8433, whole matrix750a418ea935c82bab425d9762837a5f9188a7a188d0cab4c673e04c4931b01d, current identitySHA bcca6071137caff2034697b62532ac4212e9d9a95cda4742976b242a88fc032a and provenanceSHA4d0c7d25896df65deba86b73526921c92ae9958560af2631eda3c4e1e9b8550c bind this actual baseline. Existing d228/addd prospective source wording is historical, superseded operationally by this explicit current-base map. This payload is PENDING; neither original04491 approval nor unapproved65e8 nor policy funding approves this new exact digest. No derived source/design/plan/test/runtime before actual new exact-payload approval. Root authorized only routine pnpm install --frozen-lockfile setup to enable the current CHG105 normal loader/hooks after actual missing installed TypeScript failure; preserve tracked source/lock inputs, no borrowed/link dependencies or validation bypass. Setup is not implementation approval."
+    },
+    {
+      "id": "U2",
+      "statement": "Closed complete inventory including future normal delivery and bookkeeping",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Exactly12 delivery paths remain scripts/work-readiness/model.mjs; docs/dev-guide/work-readiness.schema.json; scripts/work-readiness.mjs; scripts/work-readiness/git.mjs; scripts/test-work-readiness.mjs; docs/dev-guide/WORK_READINESS.md; .nous-project.json; .nous-provenance.json; .nous-sync.json; docs/decisions/DECISION_MATRIX.md; docs/stories/CHANGES.md; docs/stories/SPRINT_PLAN.md. Exactly4 bookkeeping paths remain docs/readiness/CHG-107.json; docs/superpowers/specs/CHG-107-design.md; docs/superpowers/plans/CHG-107-plan.md; .nous-feedback.jsonl. Current-main CHG104 and CHG105 source/PG/catalog/policy/verifier/test bytes are foreign baseline and stay intact, including CHG105 schema-declaration ownership, fixed baseline inventory and actual Git-to-production release proof semantics. Shared WORK_READINESS guide receives additive107 material preserving104/105 sections, no blind old-six-blob overwrite. No seventh technical path/helper/framework/dependency/catalog/testing-guide/critical-set/global Nous change. Six custody paths count even already delivered; all original and derived actual delivery remains visible, never hidden by base movement."
+    },
+    {
+      "id": "U3",
+      "statement": "Concrete actual-parent authority admission and context propagation within six technical paths",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "Operative current source-to-DERIVED map: actual normal canonical admission2faf34fcaa45e1282ede3ccd698a9b7c4bdcf9a3 (parent43d6b8ac83095ae817cb195f17c25e6427cb4afc, source163e49e71e2e11d1871c842a8f015d15dc3023d0) is an ancestor of actual integrated FULL_CUSTODY_BASE c9925df037efb317d7458f5d3997cbf4c6945837; regular matrix wholeSHA750a418ea935c82bab425d9762837a5f9188a7a188d0cab4c673e04c4931b01d and exact DEC059 textSHA391a0e3545c948dd7082c2d17c9d12a6146c6e3f2d683545df7be8ce07db8433. Freeze a NEW pristine OWNED/code authority base only at the actual postapproval bound design/plan documentation commit BEFORE ANY derived107 source change; its future SHA is not invented in this payload. ORIGINAL FULL1963bbcee677f98b96a2c645bcb34067524ad45b/OWNED2650a0d1fc2528012e54f95bef714760d3afa9e5/admission1a0ecb68f4e78a8828df355699cc74c4967b0ceb/source3104 remain original audit/proof references, not ancestors relabeled into c992. First derived addd9de/a9cc/65e8 was never approved or implemented and is superseded, not relabeled. A closed validator-code admission map binds each real source/admission/pristine-parent/own-normal-approval lineage; no arbitrary capAuthorities/requester JSON/environment grant, guessed future implementation SHA, parent code execution, merge/rebase/cherry-pick/history replay or circular whole-history loader. Own107 stays normal default320 with no budget_exception. Future093 exception use requires actual prior admitted107 exact ready approval, unique bound plan and normally owned validator source at EACH actual authorization parent. Derive bounded cached private branded contexts using existing Git read/mode/parent/source/normal-owner surfaces; staged uses HEAD, history each true parent, candidate cannot self-admit. Frozen whole-matrix/source/hash/mode checks apply at the actual admission, while a later actual parent must prove normal provenance/identity continuity, regular files, exactly one unchanged DEC059 policy text and strict source ownership. Legitimate later canonical sync/105 must remain usable; do not freeze current envelopes byte-for-byte to the seed or lend later authority backward. Reject tampered/foreign/duplicate/stale source or policy and unsupported/nonlinear ancestry; if this cannot fit the six paths stop with specific interface/cost delta. Ten-minute source/replay forecast and bounded risk reserves below are inside290."
+    },
+    {
+      "id": "U4",
+      "statement": "Closed cap representation, schema parity and historical canonical compatibility",
+      "status": "budgeted",
+      "estimate_impact_minutes": 5,
+      "resolution": "Closed optional budget_exception has exactly project_id/work_id/ceiling_minutes/decision_id/decision_sha256 with exact types and finite integer380 matching only actual project fcostudios__smp, subject CHG-093, DEC-SMP-059/textSHA391a0e3545c948dd7082c2d17c9d12a6146c6e3f2d683545df7be8ce07db8433. Keep MAX_READINESS_MINUTES320, ordinary ready schema branch320 and every partition child320 without inheritance. Absent field preserves exact legacy canonical bytes/digests; explicit null is inert320 but newly present digest-covered bytes, never normalized away. Malformed/foreign/nonexact/extra fields refuse even total<=320. Only shape-valid EXACTtuple and no supplied context may make pure classifyAssessment return blocked/non-executable planning eligibility; never ready/default promotion/380 authority. Resolver/validateAssessment/all runtime/history retain strict actual branded-parent context and exact human approval; supplied invalid contexts or source/project/parent contradictions still throw. Catch only typed missing-authority pure-classification case, no ambient HEAD fallback/requested mode or self-JSON trust."
+    },
+    {
+      "id": "U5",
+      "statement": "Load-bearing verification oracles and ordinary approval/lifecycle invariants",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "Own original321+37 native/current11 directed-fault/source-bound original scoped re-review PASS remains valid ONLY for original3104/b5 inputs; do not relabel it as DERIVED/current-main proof. Postapproval own derived native baseline/intended RED/GREEN uses existing real Git/process harness and existing locked Stryker/Ajv8 Draft2020 for executable schema/model acceptance/refusal parity. Cover320/321, exact380/381, fixed absent/null digests, malformed/foreign/extra tuples below320, default/child/bootstrap guards, same093 full retained sunk+remaining381, ordinary missing/forged/duplicate/stale decision/digest/subject/approver/control and actuals immutability/corrections. Exercise authentic actual admission/pristine lineage, committed loader/calibrate/start/terminal/actuals and actual planned-owned-scope authoritative:false, staged/percommit/full ranges. Add future legitimate canonical-sync/105-like provenance positive and hostile identity/source/hash/mode/decision/old-parent/self-admission/continuity cases. Independent guard omission faults must kill load-bearing project/subject/decision/digest/ceiling/parent/schema/context/continuity omissions with exact refusal/acceptance oracles, no mocks owned code/log-only tests. Preserve all original failures and corrected receipts. Read TESTING before test edits; no new test framework/helper/critical-set path. All source-change invalidated proof is rerun minimally, byte-identical independent inputs may retain explicit source-bound evidence only."
+    },
+    {
+      "id": "U6",
+      "statement": "Own full engineering proof and actual mutation applicability",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "Current c992 includes integrated CHG104 catalog/policy/verifier and CHG105 readiness/schema-declaration ownership/native/guide and production-release verification inputs. Original own470.38570825s/3018pass12skip fullgate and original64-migration/PG role/parity PASS remain original input-bound evidence, NOT current composed-tree PASS; first derived65e8 performed no implementation or proof. No CHG105 cost or PASS is borrowed. After actual new exact approval and implementation, run OWN current derived forced-awake UNCACHED pnpm check (all type/lint/test/build), fresh realPG16 COMMITTED migrate/verify/parity with actual ledger_owner/ledger_app non-super/nonBYPASS runtime/grants and cleanup. Keep foreign104/105 bytes and mandatory CHG105 release-composition semantics intact. Exclusive regular /tmp/smp-full-gate.lock O_EXCL/O_NOFOLLOW0600/token+inode custody; never unlink foreign lock or disrupt030/105; bounded >=60s waits, no1s polls, no credentials read. Record full raw/source/runtime/lock bindings; existing supported postgres-container APIs only. Own actual preflight against NEW actual pristine pre-code base after approval, expected0TS shards from these six paths but actual result required. Actual eligible0 permits approved technical zero cold attempts/nullscore/no fabricated test_report; otherwise applicable previews/one final cold after fresh review must fit290 and authorized scope, no new campaign/framework/path. Additional focused forecast29=PG6/fullgate12/native4/fault4/preflight-source3 remains unchanged; affected-input risk allowance8 is unspent, no gratuitous reruns or borrowed104/105/106 PASS."
+    },
+    {
+      "id": "U7",
+      "statement": "Review, integration, cost reconciliation and remaining execution boundary",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "CUMULATIVE funding290 unchanged, not remaining-only/new-ID reset. Revised upper phases50readiness/80implementation/70focused/60review/30integration=290; concrete full projection271=50/77/62/52/30. Relative to unapproved65e8 concrete262, exactly9 additional paper minutes (operator1/controller-author4/fresh readiness reviewer2/root2), including1 additional author/setup minute for the proven installed-TypeScript prerequisite are included, no new code/proof scope or cost reset. Prior164 incurred retained ONCE, including original151 actual phases28readiness/67implementation/33focused/20review/3integration and first-derived preparation13; no original or first-derived phase costs transferred. New paper actual operator1/root2/controller-author4=7, reviewer2 remains forecast until completed: cumulative171 actual estimated active at author handoff,173 after reviewer if actual2. Readiness actual-to-date48, plus reviewer2 pending=50. Concrete remaining100 at author handoff includes that reviewer2 and all existing code10/focused29/final+amendment review32/integration27. Difference19 under290 is UNSPENT allowance only: implementation3 narrow provenance fixes, focused8 affected-input reproof, review8 exact fix/current-parent review. Nine previously unspent focused-risk minutes now explicitly fund necessary replacement paper, with unchanged mandatory own proof and unchanged concrete implementation/focused/review/integration forecasts; no actual charge transfer or reserve claimed spent. Original04491 and first-derived65e8 payload bytes remain untouched. One same-item controller and bounded consolidated worker/reused scoped reviewer/fresh final adversarial reviewer; proper postapproval design/plan/builder gates. Archive LOCAL raw source/full proof/reviews/ledger/SHA manifest, root independent byte verification then explicit root current-main integration release/actual source-range binding/terminal actuals+done.cost/FF tail. No sibling cost transfer; STOP full forecast>290 or concrete new interface/proof need outside current allowance. Root Ruling permits frozen declared dependency setup solely for normal readiness validation because current-main validator imports installed TypeScript. Cost if wrong: setup effort consumes remaining290 headroom or setup failure blocks validation; no weakened hook, source change or funding reset."
+    },
+    {
+      "id": "U8",
+      "statement": "Single stop-condition set and downstream CHG-093 adoption",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "STOP for whole support forecast>290, any delivery outside closed16 paths, new shared/generated owner/interface/framework/campaign need, absent actual current-parent project/source/approval/digest/plan/normal ownership, nonlinear history/rebase/merge/seed-SHA fiction, or unproved/failing own required native/schema/Git/fullgate/freshPG/preflight/review/archive/source-range proof. Actual CHG105 has integrated at c992 and its prior approval/order superseded the earlier conditional107-first proposal. There is NO107 integration hold while this packet is pending. Only after actual NEW exact approval obtain one explicit030 bounded integration-window acknowledgement and fresh actual-main checks; window ends107 FF or STOP, re-coordinate before another owner moves. No indefinite main hold or unilateral promise. Main movement requires specific new input/ancestry analysis, no primary mutation without root release. CHG093 original319 readiness/FAIL/costs/unknowna[0,1]/reserves/seven obligations remain with024; only AFTER actual107 integration may093 draft new current380 payload/cost fit and obtain its OWN new exact approval before runtime. No093 production/tooling repair, automatic resume, retroactive approval, cap forgiveness/global320 change/P4/US090/087/091 release; monitoring off."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "d3f911dfd16a9fc5d0dd1cb344ef6eaa40a1754db5090d71624cb72afa977c8a"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
