@@ -131,7 +131,27 @@
     "evidence": "CHG101-READY-445F316E",
     "payload_sha256": "445f316ebbc064b27ed682d1fed7f86be514bea70e24ba56579d5636b0021f7e"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 21,
+      "implementation": 10,
+      "focused_verification": 11,
+      "review": 15,
+      "integration": 9
+    },
+    "total": 66,
+    "changed_files": 9,
+    "commits": 6,
+    "review_fix_loops": 0,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 1,
+    "mutation_shards_actual": 0,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": -174,
+    "root_cause": "Conservative active-effort calibration66=21readiness+10implementation+11focused+15review+9integration; estimates, not billing or fabricated phase clocks. Readiness21=controller12prep+root3initial/correction+controller4approval/design+builder2. Implementation10=worker8+controller2dispatch/coordination. Focused11=worker4taskproof+5finalverification calibration+controller2bookkeeping; worker cumulative15=8implementation+4focused+3final ACTIVEestimate retained ONCE, finalverification bucket conservatively roundsup to5 to encompass measured4.09373894minute setup/fullgate rather than adding all runtime again. Review15=scoped5+independent8(includes earlier7+final1)+controller2. Integration9=controller4closure/FF+root5executioncoordination, root8total with initial3 retained exactlyonce. Samebuilder2 is includedin cumulative scoped7, not added twice. All initial failed readonlyPythonformat and ordinary precommitdecision/started-shape hook rejections corrected before successfulcommits are retained within controllerprep/design; worker0.901s Unicode-regex setupfailure precedes genuine asserted faultkills and is retained inside15. Idle/waitwall not charged as human activeeffort; nativegate240.190064792s/fullhelper245.624336583s and solecold0.519853584s overlap these calibrated phases, not separate additions. No trustworthy lastfive comparable median, no invented ratio or >2x assertion. Actualnative0eligibleMJS/testTS after own preflight/cold, zero previews/invalidations; mutation_minutes1 is ceil0.0086642264minute diagnostic only, never extra total. Exactly5delivery+4bookkeeping=9inclusivepaths,6reachableowncommits fromcf9. No newcustody/data/migration/genericframework/guide work or CHG102 admission. PhysicalcompletedcontrollerUS088/workerCHG100-103/scopedUS089-103/adversarialUS083-103 reused solely because harnessregistrylimit; no freshphysicalcontextclaim. Numericbaselines excludealloldcost; scopedpeak318135/worker351899 exceedapprox200Kguideline, controllerlast199656 nearboundary mayexceedin closuretail, adversarial187713; window475000, costlyforcedshape explicit. Contextandclosingtails unmeasured beyond namedcutoffs disclosed, no silent reset/costtransfer. Root8minutes and one80call/4.8Minput/6000outputproxy cover all101root once, no separateprep-tokencharge. TechnicalCHG100/103 normalcanonicalterminalingestioncomplete but canonicalstatusdelivered semantics retained, no dev_done/statusrepair claim. Ownclosure/normalFFtailinsidecontroller4; extra material postterminalwork requires separatelyrecordedaddendum, not rewritingfrozenactuals."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
