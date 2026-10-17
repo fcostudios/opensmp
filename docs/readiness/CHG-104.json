@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "d36c5e8f5011f92ec8dc997442493fbebee9d5498d91b2dac377807c23f9508f",
+  "work_id": "CHG-104",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Verify the closed new-table catalog in production release execution",
+  "source": "/Users/fcolomas/Projects/nous/Nous/WorkControl/fcostudios/smp/CHG-104_TECH_SPEC.md canonical1c09f2785127eeaa284994f55ed1f9b0c8a121b4 (originalc4b3b359 body preserved); DEC053/056; original immutableb794packet/4af1addendum-review; actualintegratedCHG101+106 main1963bbcee677f98b96a2c645bcb34067524ad45b; parentnormalcustody9c819892d3f666968811f85ed2930eacc81377c7; freshownreadiness no priorapproval inherited.",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Actual production db:verify validates the selected finite new-table catalog after real owner connection while preserving old baseline security/grants/results and functional contract-data denial.",
+      "demo": "Technically authorized nonempty temporary extension passes actual production verifier on migrated sharedPG; independent malformed declaration/catalog/grant/RLS/constraint/source-result faults reject. Version1 diagnostic and runtime-result differential stays exact; no product table or functional privilege delivered.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1-closed-finite-catalog-and-baseline-preservation",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2-real-after-connection-production-catalog-enforcement",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3-real-source-migration-result-binding-and-hostile-proof",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC4-own-reviewed-release-gates-and-integration",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "pure-closed-catalog-and-effective-lists",
+    "production-catalog-verifier",
+    "release-process-and-realDB-assurance"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 10,
+    "bookkeeping_files": 4,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 25,
+    "implementation": 100,
+    "focused_verification": 95,
+    "review": 55,
+    "integration": 30,
+    "total": 305
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Actual current custody and stronger historical gate",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Freshnativeisolatedline /Users/fcolomas/.codex/worktrees/chg104-readiness/smp startsatactualintegratedMAIN1963bbcee677f98b96a2c645bcb34067524ad45b, thennormalparentcustody9c819892d3f666968811f85ed2930eacc81377c7 (source1c09f278). CHG101actualdone andCHG106actualqualifieddone areinmain; ownreadinesscodebase9c819. Oldcheckout40a/af62/ce690 andoriginalFAILreceipt remain untouched andretained asGitobjects/refs, NOTancestorsofnew104line. No merge/rebase/cherry-pick/replay/rewrite or shorterrange substituted. OwnEXACT4af1e44556525cfabe6c21b47d7fbc2617478b44..ce690c51bdbd572f66faaf9235eb101e7424b144 normalreadinesscheckunderintegrated1963correctedconsumer PASS6paths, executedONCE: /tmp/chg104-original-range-corrected-consumer.json SHAcacac67bc98088b526c295ea067ce20120e2a27e5057c13ee35312993a176485. OldstrongFAIL /tmp/chg104-custody-readiness-receipts.json SHA419face71255958ff718e2da97c7d0d34e6c6a4b5d55abfd67fe67f8a325d4cb remains. Originalmergepreview6conflicts preserved separately, notresolvedbyhand. CHG106CURRENTCUSTODYUNKNOWN/DERIVED non-original-capture qualifications remain; ownnewPASSdoesnotrecoveroldrawcapture, upgradeattestation or releaseP4/siblings. Operatornormalnewcustody1963..9c819 strongPASS4receipt Nous/WorkControl/agent-requests-2026-10-17/03_CHG104_MAINBASED_CUSTODY_RECEIPT.json; ownstatichead/hash/mode/manifests/protectedguides checked, no borrowed106test/gate proof."
+    },
+    {
+      "id": "U2",
+      "statement": "Exact owned paths and inherited custody counting",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Sixownedtechnicalpaths unchanged: packages/db/scripts/schema-contract-policy.mjs, packages/db/scripts/verify-schema.mjs, packages/db/scripts/schema-catalog-verifier.mjs, scripts/test-schema-contract.mjs, packages/db/src/migration-release.integration.test.ts, docs/dev-guide/WORK_READINESS.md. Fourbookkeeping: docs/readiness/CHG-104.json; docs/superpowers/specs/CHG-104-design.md; docs/superpowers/plans/CHG-104-plan.md; .nous-feedback.jsonl. CurrentnewMAIN1963→custody9c819 actualparentdeliveryFOUR=.nous-project.json,.nous-provenance.json,.nous-sync.json,docs/stories/SPRINT_PLAN.md; DECISION_MATRIX/CHANGES/INDEX/ASSIGNMENTSNOOP. Conservativeartifactsignals expected_changed_files10=6futureownedtechnical+4ALREADYparent-ownedcustody infullmain-to-candidateinterval; bookkeeping4 separate, total14. Ownsource-mutationbaseafterapprovalstartsfrom9c819oritsbookkeepingdescendant, so actualownedcodeinterval6; parentcustodycostNOTtransferred to104. No permissiontore-editcanonicalfour orunchangedgeneratedfiles; anynewactualdelta/scopeoutsideknown10requiresreassessment. Exactregularmode/blobanchors 100644 blob 597aeb22616b474109809222f375d4d20d65a3a3\t.nous-project.json; 100644 blob 891b7277e41b196dc8df54d23dd7df1b3d1074d9\t.nous-provenance.json; 100644 blob 0434025f894b8f0559ec5ffe21bab8d2d0cbef85\t.nous-sync.json; 100644 blob 8d3f5ef298cfb3846a06998b3990998eee4c96d8\tdocs/dev-guide/WORK_READINESS.md; 100644 blob 7997b8d1d05fd188c875d9a2d8cc559d3c44c730\tdocs/stories/SPRINT_PLAN.md; 100644 blob a41d8413c7aea184cde0a4ff18b8205a528ca62c\tpackages/db/scripts/schema-contract-policy.mjs; 100644 blob 98cc11195f58954ef1f4a39459e6451f585e2616\tpackages/db/scripts/verify-schema.mjs; 100644 blob 6b9086e87c65208afbcd00eace599e6cb188e498\tpackages/db/src/migration-release.integration.test.ts; 100644 blob b744a451779a54f54e113ef3bbfad543ef08bf15\tscripts/test-schema-contract.mjs. Newcatalogmodule absent/new100644; no normalgenerateddatahandedit. Actualprotectedcritical-paths/TESTINGequal1963andremainunchanged (IMP434), correctedconsumerfileunchangedfromintegrated1963. Oldline40areadiness remains historicalblocked, not copiedapproval."
+    },
+    {
+      "id": "U3",
+      "statement": "Finite catalog policy and actual independent runtime",
+      "status": "budgeted",
+      "estimate_impact_minutes": 15,
+      "resolution": "DEC053/056 settlepolicy, no newruling. Version1 orderedbaseline values and hash/derivedgrants/diagnostics unchanged; version2 retains exactoldorderedarrays/rows and onlynewTables extension, initially atmostone drift_episode/drift-episode-v1 profile. Exactclosedrecord tableName/profile/mutable/rls/policies/constraints; rlsenabledtrue forcedfalse, mutabletrue; onlyledger_app SELECT USING/INSERTWITH_CHECK/UPDATEboth, singleaccount-reference-exists-v1 declared vendor_account_id→vendor_account.id template; no rawSQL/module/roles/expressions. PKid,4FK account/license/person/assignment eachNO_ACTIONupdate/delete, UNIQUEresolved_by_assignment_id and UNIQUE_OPEN(account,member_identity,license_type) WHEREresolved_atISNULL(nullable), exactidentifiernames/orderedcols; rejectextra/missing/unknown constraints/policies/duplicate aliases. Accountpredicateisreferentialscope ONLY, GroupAdmin/human/systemserviceauthorization remainsfunctionalUS093, no technicalAPI/auth/GUCidentityframework. Purehelperparses/attests/profile/effectivelists; explicitnewmodule calledfromverifyMigratedSchema afterownerconnection/identitybeforeownerclose, usingexistingownerclient; existingappconnection/grant/columnmatrix staysauthoritative. No SQLinattester, sideeffect/proxyor deadparser. Technicallyauthorizednonempty temporaryfixtureexercisesactualproductionentrypointwhilefunctionalJSONdenial stays; actualproducttable/schema/migration/RLS/grantsUS093only."
+    },
+    {
+      "id": "U4",
+      "statement": "Source/result binding does not become candidate-authored authority",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "Purehelper derives newtableeffectiveprivileges withoutalteringoldarrays/INSERTexceptions/sort; separatecatalogmodule comparesactualPG16relrowsecurity/force/pg_policies exactcmd-role-template andvalidatedconstraints/indexes, noarbitrarySQLparser. ExistingcommittedMigrations andverifierledgerchecks bindactualsortedfilename/SHA256set. Version2result+CLIclosedline derive actual declaration/baselineprojection/extensionrow/migrationset/catalogresult SHA256andtableNames; version1result/outputunchanged. Actualnormalrelease receipt binds evaluatedbase/candidate commit orpredeclaredsourceblobset, reviewedverifier+helperblobs/fixeddeclarationbytes/migrationchecksums/rawcatalogoutput+fixtureidentity/exit/time/rawproofhashlocation; existingbuild_pass.notes/source_commit andindependentreview/humanacceptance supplyexecutionauthority. CandidatePASSJSON/digestsnotproof; no signer/keyregistry/newproducer/DBcommit-hook/SQLparser. Existingimmutabletechnicalreadiness/parent/plan checks remain, functionaldataDENYthroughout104. Actualsame-itemfunctionalAST/migrationadmission belongs105 AFTER104integration, not uncounted104tooling."
+    },
+    {
+      "id": "U5",
+      "statement": "Complete own assurance and applicability",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "AfterEXACTreadyapproval only: own node scripts/test-schema-contract.mjs realprocessfixedpath/duplicatealias/unsafe/versionbaseline faults; existing node scripts/test-work-readiness.mjs actualrealGit/parent/fullrangecontrols provefunctionalDENYretained; pnpm --filter @smp/db exec vitest run src/migration-release.integration.test.ts with actualowner/appfreshbaseline+nonemptytemporaryprofile andwrong/missing/extraRLSforce-policyroles-qual-withcheck/FKactions/unique-open/rights/checksum/omittedruntimecall faults, strongspecificoracles+independentpredicate-removalcontrols. No ownedmocks. Version1exactderivedtuple/results/diagnostic differential. Fixturebundlecopiesthenewmodule, noextrahelper/package/runnerpath. Own awakeuncachedcaffeinate -i pnpm check, /tmp/smp-full-gate.lock ownerawarewait+no foreignlockdelete; officialsharedPG16fixture (CHG067), actualledger_owner/app migrateverifyparity, noprivatecontainers. Oneimplementer, reusedscopedreviewer+freshindependentACreview, allproofownnotborrowed. Freezeownmutationbaseafterentryapprovals; actualpreflightdiscoversshards/no gaps, forecast0MJS/test-onlynotnativeevidence. Actualnativecoldlast afterallfixes/reviews, ownscopeemptycachehandlingpreservesforeignentries; zeroactualshardsomittest_reportONLYexplicitWORK_READINESSclosure zero-shard omission, neverinventscore. Ifshardsappear recordactualpreview<=30minutes/touchedonly andactualcounts, reassessremaining within305."
+    },
+    {
+      "id": "U6",
+      "statement": "Complete budget and truthful new-item cost window",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Base250 retainedreference20/80/80/45/25. Conservativecomplete305=25readiness+100implementation+95focused+55review+30integration; everyrole/admin/adoptionpreparationincluded. Currentnew-itemestimatedspent21=controller19+rootreported2 (initialcontroller11/root1, adoptionpreview2, newroot1, exactoriginalrange1, finalfreshassessment/commit5); prior16 plusthiscontroller5 once. Remaining284=4readiness+100implementation+95focused+55review+30integration. Remainingreadiness4coversnormalapprovalcoordination only, not anotherrepaircycle; rootunreportednewtailmustbeaddedoncewithin25. ParentCHG10274.5known+U_prior (incllatestoperatorcustody2), allCHG103/101/106costs excluded, no childreset/transfer. Parentcustody4countedconservativelyinpathsbutitsactualcoststaysparent. Physicalactorforcedreuse duefullregistry, newlogical104baseline /tmp/chg104-readiness-baseline.json, supportedcounter/peakunavailable/no freshphysicalcontext oroldcounterborrow. Implementation100 coverspureprofile30/catalog40/explicitconsumer+guide30; focused95realprocess25/DB40/removal+differential+parity30; review55ownbuilder/reusedscope/freshAC+fixreview; integration30ownnormalcustody/ranges/uncachedfullgate/sharedPG/cold/FF. Actualnewready305has15hard320margin; trackedspent+remaining>305requiresnormaldigestreassessment; newpath/framework/missingproof orwholeforecast>320STOPnormaloutcomepartition. No extrabudgetauthority fromparentDEC056oroldbytewaiver."
+    },
+    {
+      "id": "U7",
+      "statement": "Entry approval, sequential integration and boundaries",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Onlyallocation/specdelivery andownreadinessauthorized. ActualCHG106adoptedonnewintegratedline, dependencycleared withoutreopeningpolicy oralteringoldcustody. FreshreadyassessmentneedsFranciscoEXACTnewdigestapproval BEFOREdesign/plan/source/tests/DB/runtimegates/started; no stale8396blocked-digestapproval inherited. Afterapprovalstandingauthorization coversboundedphases; normalstartedrequiredagent/ts afterapproval, phase markers, onecontroller/oneconsolidatedimplementer/reusedscope/freshindependentACreview withhonestrolecost/session/restart/contextdeviations andnonzerodone.cost. FreezeOWNmutationbaseafterentryapproval, keepold104historicalobjectsqualifiedseparately. Ownfuturefullnewmain1963→candidate andownbase9c819→candidate readiness/range/feedbackorder/normalcommit/sourceparityproofs; do notre-run106campaignorborrowitsPASS. NormalmainFFonlyifancestry/exactdirtycustody/protectedguidespermit; movedmainnormalreconcilewithSHAmaporstop, neverreset/autostash/force. CHG105after104ACTUALintegration, strictlysequentialsharedguide/DBtest. AllDEC051/P4/US084/090/091/CHG093/cad8holdsremainotherowners; no productstoryorparentclosureinferred."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "d36c5e8f5011f92ec8dc997442493fbebee9d5498d91b2dac377807c23f9508f"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
