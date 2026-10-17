@@ -6,7 +6,7 @@ Make staged, immutable per-commit and complete linear-history consumer classific
 
 Approved readiness: `docs/readiness/CHG-106.json`, payload `f914d7133d9461819ab558670d11db3330c963cd649d94f61791b0c0e7f2995f`, actual approval event `CHG106-READY-f914d713-20261017` committed normally at `7485c98`. Approval records the human's actual Proceed to the displayed digest, not an invented hash-inspection claim. Ordinary readiness and normal commit hook passed before this design. Root has standing authorization to review the concrete design and plan; production work remains held until root release.
 
-Frozen comparison base: `563036407641bc02443a1cf9a20502130c600525`; source delivery `65d9df3009ee2f43eff68f4a37d90252c8fbe44c..860ef94ec6ee85d1b426578e25dbb4d7d18ed44d` already passed pure and strong validation. No new status sync under the old consumer.
+Frozen owned-code/mutation base: `563036407641bc02443a1cf9a20502130c600525` (before all owned MJS). Full CHG106 custody/branch-review base: `65d9df3009ee2f43eff68f4a37d90252c8fbe44c` (before the normal generated delivery); full history reviews use `65d9df3009ee2f43eff68f4a37d90252c8fbe44c..HEAD`, including delivery860ef94, readiness5630364, approval7485c98 and later commits. Source delivery `65d9df3009ee2f43eff68f4a37d90252c8fbe44c..860ef94ec6ee85d1b426578e25dbb4d7d18ed44d` already passed pure and strong validation. No new status sync under the old consumer.
 
 ## Goals, non-goals and failure conditions
 
