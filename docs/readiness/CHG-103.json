@@ -125,7 +125,27 @@
     "evidence": "CHG103-READY-D6C6A31B",
     "payload_sha256": "d6c6a31be86f31055944f44b497953fd3ec96e7a32c764db97074e3315d34a01"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 33,
+      "implementation": 35,
+      "focused_verification": 7,
+      "review": 19,
+      "integration": 15
+    },
+    "total": 109,
+    "changed_files": 13,
+    "commits": 7,
+    "review_fix_loops": 0,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 1,
+    "mutation_shards_actual": 0,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": -201,
+    "root_cause": "Active phase minutes are conservative estimates, not billing or elapsed waits:109=33readiness+35implementation+7focused+19review+15integration/ownclosure. Prior root5/operator8/currentroot2 preparation carried once; later root3 and execution10 counted once. Worker22TOTAL, reviewer builder3+scope6+metrics1=10 and fresh7+0.2tail rounded8; controller/root/operator remainder69. Exact measured gate346.233896s/cold0.398129s overlap existing role estimates, never added twice. Readiness33 stays inside35, complete109 inside310. No trustworthy last-five median available, so no invented ratio; own gate uses uncached41tasks and official sharedPG16 fixture. Two uncommitted controller-entry metadata fixes and test fixture setup/CLI expectation fixes were not reviewer fix loops; none changed immutable history. Human byte-limit waiver permits bounded2MiB Git read only, full ledger/overflow refusal preserved; exactDEC050 category correction onlyotherproductiondelta. Original1MiB failure,073/main31b/ba43 and failedcustody receipts retained; dated corrected46ef/02b validator original/full/child rangesPASS. Native0shards actual1cold; no score or test_report per WORK_READINESS614, no previews. mutation_minutes1 is ceil0.398129/60, included in existing phase totals. Shared cache ownempty-setclear/noop preserves foreignUS089entryhashes; no cache hit or borrowedscore. All9delivery+4bookkeeping=13paths;7owncommits includes this evidencecommit fromba43. One logical controller, one implementer, one reused builder/scoped reviewer, one fresh-for-CHG103 adversarial reviewer. Harnessregistryforced reuse of existing physical actors, no fresh physical context or oldcost transfer; measured workerpeak245700/scopedpeak284704/freshpeak146219 with475000window disclose approximately200K context excess. No forced implementation restart; original physical history remains. Global strict drift remains baseline red, not a clean claim. CHG100 approval/checkpoint/proof/cost remain separate; its terminal and combined mainFF still pending, no CHG100/097/sibling completion claimed.\nImplementer cost: one CHG103 logical session on reused physical CHG091 actor;22estimatedactive minutes; measured newwindow70calls14779362input39431output inclreason at01:10:26.841Z, old8231329input23242output excluded; estimated reporttail2calls500000input2000output. /tmp/chg103-worker-cost.json.\nReviewer cost: one reused builder/scoped logical session10estimatedactive minutes and one independentfresh-for-CHG103 AC logical session8estimatedactive minutes; measured newwindows scoped20calls5959207input10229output at01:13:57.665Z, fresh12calls1518328input1947output at01:02:34.278Z; respective estimatedtails2calls500000input2000output and8calls1000000input4000output. Oldrole baselines excluded, scopedcontextexcess disclosed; no freshphysicalreset claim.\nDonecost combines measured actor windows and explicit estimated components: root100calls5000000input10000output, dedicatedcontroller150calls7500000input25000output, operator20calls500000input5000output, and the three stated reporttails. Estimates not measured billing, waits only count as invocation tokens/calls not active minutes. Exact actorproof/cost reports kept in/tmp; no zero placeholders."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
