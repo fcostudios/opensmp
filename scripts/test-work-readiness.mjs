@@ -6165,15 +6165,19 @@ export const driftEpisode = pgTable("drift_episode", {
   memberIdentity: text("member_identity"), resolvedAt: timestamp("resolved_at"),
 });\n`;
 const ownedDeclaration = JSON.stringify({ ...JSON.parse(schemaContractBytes), schema_version: 2, newTables: [ownedExtension] }, null, 2) + "\n";
-function makeOwnedDeclarationFixture({ prior = false, baselineSchema = "export {};\n", candidateSchema = ownedSchema, baselineRoutes = {}, mutate = () => {}, beforeSources = () => {}, afterSources = () => {}, beforeSourceCommit = () => {}, sourceMessage = "feat(US-123): own schema and append-only migration" } = {}) {
+function makeOwnedDeclarationFixture({ productionPaths = null, prior = false, baselineSchema = "export {};\n", candidateSchema = ownedSchema, baselineRoutes = {}, mutate = () => {}, beforeSources = () => {}, afterSources = () => {}, beforeSourceCommit = () => {}, sourceMessage = "feat(US-123): own schema and append-only migration" } = {}) {
   const { root } = makeGitRepo();
   writeRepoFile(root, ownedSchemaPath, baselineSchema);
   writeRepoFile(root, schemaContractPath, schemaContractBytes);
-  writeRepoFile(root, ownedOldMigrationPath, "SELECT 1;\n");
+  if (productionPaths) {
+    for (const path of productionPaths.filter(path => path.startsWith("packages/db/src/migrations/"))) {
+      writeRepoFile(root, path, spawnSync("git", ["show", `b0d5c1ece2154986d4581abdb19702f34cc577cc:${path}`], { cwd: sourceRoot }).stdout);
+    }
+  } else writeRepoFile(root, ownedOldMigrationPath, "SELECT 1;\n");
   writeRepoFile(root, "scripts/mutation-routes.json", JSON.stringify(baselineRoutes));
   const routeFiles = [...new Set(Object.entries(baselineRoutes).flatMap(([source, tests]) => [source, ...tests]))];
   for (const path of routeFiles) writeRepoFile(root, path, "export {};\n");
-  commitRepo(root, "chore(CHG-900): original schema and migrations", [ownedSchemaPath, schemaContractPath, ownedOldMigrationPath, "scripts/mutation-routes.json", ...routeFiles]);
+  commitRepo(root, "chore(CHG-900): original schema and migrations", [ownedSchemaPath, schemaContractPath, ...(productionPaths?.filter(path => path.startsWith("packages/db/src/migrations/")) ?? [ownedOldMigrationPath]), "scripts/mutation-routes.json", ...routeFiles]);
   const artifact = approvedArtifact("US-123");
   artifact.signals.bookkeeping_files = 0; refreshDigest(artifact);
   const authority = approveAfterPolicyActivation(root, artifact);
@@ -6200,6 +6204,77 @@ function validateOwned(fixture) {
   assert.equal(typeof schemaOwnership?.validateSchemaDeclarationOwnership, "function", "pure ownership helper is required");
   return schemaOwnership.validateSchemaDeclarationOwnership(ownedEvidence(fixture));
 }
+
+const pinnedConstSchema = 'const oldTableName = "legacy_table";\n' + ownedSchema.slice(0, ownedSchema.indexOf("\n") + 1)
+  + 'export const legacyTable = pgTable(oldTableName, { id: uuid("id") });\n';
+test("CHG-105 amended inventory admits exact production objects through actual staged percommit and history", () => {
+  const paths = git(sourceRoot, ["ls-tree", "-r", "--name-only", "b0d5c1ece2154986d4581abdb19702f34cc577cc", "--", "packages/db/src/migrations", ownedSchemaPath, schemaContractPath]).split("\n");
+  const schema = spawnSync("git", ["show", `b0d5c1ece2154986d4581abdb19702f34cc577cc:${ownedSchemaPath}`], { cwd: sourceRoot, encoding: "utf8" }).stdout;
+  const fixture = makeOwnedDeclarationFixture({ productionPaths: paths, baselineSchema: schema,
+    candidateSchema: schema + ownedSchema.slice(ownedSchema.indexOf("\n") + 1) });
+  try {
+    assert.equal(paths.length, 66);
+    for (const path of paths) assert.equal(git(fixture.root, ["rev-parse", `${fixture.authority}:${path}`]), git(sourceRoot, ["rev-parse", `b0d5c1ece2154986d4581abdb19702f34cc577cc:${path}`]), path);
+    assert.equal(validateFunctionalDelivery(fixture), true);
+    assert.deepEqual(validateRangeOwnership({ root: fixture.root, base: fixture.authority, head: fixture.head }).workIds, ["US-123"]);
+    const staged = stagedOwnedDeclaration(fixture); assert.equal(staged.status, 0, staged.stderr);
+  } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+});
+
+test("CHG-105 amended inventory rejects new computed calls and unsafe bindings", () => {
+  const candidates = [
+    ["candidate only mapping", pinnedConstSchema],
+    ["new target const", ownedSchema.replace('export const driftEpisode', 'const target = "drift_episode"; export const driftEpisode').replace('pgTable("drift_episode",', 'pgTable(target,')],
+  ];
+  for (const [name, prefix] of candidates) {
+    const fixture = makeOwnedDeclarationFixture({ candidateSchema: name === "candidate only mapping" ? prefix + ownedSchema.slice(ownedSchema.indexOf("\n") + 1) : prefix });
+    try { denyOwnedDeclarationEverywhere(fixture); }
+    catch (error) { throw new Error(`Inventory expansion failed: ${name}`, { cause: error }); }
+    finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+  const cases = [
+    ["prior target", pinnedConstSchema.replace('"legacy_table"', '"drift_episode"')],
+    ["duplicate", pinnedConstSchema + 'const oldTableName = "legacy_table";\n'],
+    ["import collision", pinnedConstSchema + 'import { oldTableName } from "./foreign";\n'],
+    ["shadow", pinnedConstSchema + 'function other(oldTableName) { return 1; }\n'],
+    ["escape", pinnedConstSchema + 'const escaped = oldTableName;\n'],
+    ["reassign", pinnedConstSchema + 'oldTableName = "other";\n'],
+    ["destructure", pinnedConstSchema.replace('const oldTableName = "legacy_table";', 'const { oldTableName } = source;')],
+    ["let", pinnedConstSchema.replace('const oldTableName', 'let oldTableName')],
+    ["var", pinnedConstSchema.replace('const oldTableName', 'var oldTableName')],
+    ["call", pinnedConstSchema.replace('"legacy_table";', 'name();')],
+    ["import", pinnedConstSchema.replace('"legacy_table";', 'import("./name");')],
+    ["concat", pinnedConstSchema.replace('"legacy_table";', '"legacy_" + "table";')],
+    ["interpolation", pinnedConstSchema.replace('"legacy_table";', '`legacy_${suffix}`;')],
+    ["nested", pinnedConstSchema.replace('const oldTableName = "legacy_table";', 'function nested() { const oldTableName = "legacy_table"; }')],
+    ["alias chain", pinnedConstSchema.replace('const oldTableName = "legacy_table";', 'const otherName = "legacy_table"; const oldTableName = otherName;')],
+    ["unknown", pinnedConstSchema.replace('const oldTableName = "legacy_table";', '')],
+  ];
+  for (const [name, baselineSchema] of cases) {
+    const fixture = makeOwnedDeclarationFixture({ baselineSchema, candidateSchema: baselineSchema + ownedSchema.slice(ownedSchema.indexOf("\n") + 1) });
+    try { denyOwnedDeclarationEverywhere(fixture); }
+    catch (error) { throw new Error(`Inventory binding failed: ${name}`, { cause: error }); }
+    finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
+
+test("CHG-105 amended inventory preserves every historical mapping and direct call", () => {
+  for (const variant of ["literal changed", "declaration removed", "call removed", "call changed"]) {
+    const fixture = makeOwnedDeclarationFixture({ baselineSchema: pinnedConstSchema, candidateSchema: pinnedConstSchema + ownedSchema.slice(ownedSchema.indexOf("\n") + 1), prior: true,
+      afterSources(root) {
+        const original = readFileSync(join(root, ownedSchemaPath), "utf8");
+        const altered = variant === "literal changed" ? original.replace('"legacy_table"', '"different_table"')
+          : variant === "declaration removed" ? original.replace('const oldTableName = "legacy_table";', '')
+          : variant === "call removed" ? original.replace('export const legacyTable = pgTable(oldTableName, { id: uuid("id") });', '')
+          : original.replace('legacyTable =', 'renamedLegacyTable =');
+        writeRepoFile(root, ownedSchemaPath, altered); commitRepo(root, "feat(US-123): alter old mapping", [ownedSchemaPath]);
+        writeRepoFile(root, ownedSchemaPath, original); commitRepo(root, "feat(US-123): restore old mapping endpoint", [ownedSchemaPath]);
+      } });
+    try { denyOwnedDeclarationEverywhere(fixture); }
+    catch (error) { throw new Error(`Inventory history failed: ${variant}`, { cause: error }); }
+    finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
 
 test("CHG-105 ownership helper admits exact same-candidate and prior approved introductions", () => {
   for (const prior of [false, true]) {

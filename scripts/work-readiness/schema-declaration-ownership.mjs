@@ -62,9 +62,51 @@ function rowPrefix(before, after) {
   }
 }
 
+// A finite inventory of old direct calls, not name evaluation. Each reference
+// must be the single local declaration name or its pinned table-name argument.
+function constTableInventory(source, tableImports, target) {
+  const entries = [];
+  const calls = new Map();
+  function visit(node) {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && tableImports.has(node.expression.text)
+      && node.arguments[0] && !ts.isStringLiteral(node.arguments[0])) {
+      const argument = node.arguments[0];
+      if (!ts.isIdentifier(argument)) reject("Computed table identities are unsupported");
+      const bindings = source.statements.filter(ts.isVariableStatement).flatMap(statement =>
+        statement.declarationList.declarations.map(declaration => ({ statement, declaration })))
+        .filter(({ declaration }) => ts.isIdentifier(declaration.name) && declaration.name.text === argument.text);
+      const binding = bindings[0];
+      if (bindings.length !== 1 || !(binding.statement.declarationList.flags & ts.NodeFlags.Const)
+        || binding.statement.declarationList.declarations.length !== 1 || binding.statement.modifiers?.length
+        || !binding.declaration.initializer || !ts.isStringLiteral(binding.declaration.initializer)
+        || !IDENTIFIER.test(binding.declaration.initializer.text)) reject("Existing table name requires one local top-level literal const");
+      const literal = binding.declaration.initializer.text;
+      if (literal === target) reject("Declared table already exists through an immutable base const");
+      const variable = node.parent;
+      const statement = variable?.parent?.parent;
+      if (node.expression.text !== "pgTable" || !ts.isVariableDeclaration(variable) || variable.initializer !== node
+        || !ts.isIdentifier(variable.name) || !ts.isVariableStatement(statement) || statement.parent !== source
+        || !(statement.declarationList.flags & ts.NodeFlags.Const)
+        || !statement.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)
+        || entries.some(entry => entry.identifier === argument.text)) reject("Existing const table requires one direct exported pgTable call");
+      function references(reference) {
+        if (ts.isIdentifier(reference) && reference.text === argument.text
+          && reference !== argument && reference !== binding.declaration.name) reject("Existing table-name binding is shadowed, colliding or escaped");
+        ts.forEachChild(reference, references);
+      }
+      references(source);
+      entries.push({ identifier: argument.text, literal, declaration: binding.statement.getText(source), call: statement.getText(source) });
+      calls.set(node, literal);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  return { entries, calls };
+}
+
 // This parser establishes literal source identity only. Catalog semantics and
 // authorization are checked by the actual release and functional application.
-function tableIdentity(file, target, required) {
+function tableIdentity(file, target, required, expectedInventory = []) {
   regular(file, SCHEMA_PATH);
   let text;
   try { text = new TextDecoder("utf-8", { fatal: true }).decode(file.bytes); }
@@ -94,6 +136,14 @@ function tableIdentity(file, target, required) {
       if (!element.propertyName && !element.isTypeOnly) columns.add(element.name.text);
     }
   }
+  const inventory = constTableInventory(source, tableImports, target);
+  if (required === "inventory") return inventory.entries;
+  if (inventory.entries.some(entry => !expectedInventory.some(old => old.identifier === entry.identifier))) {
+    reject("Candidate cannot expand the authority-base const-table inventory");
+  }
+  if (expectedInventory.some(old => !inventory.entries.some(entry => JSON.stringify(entry) === JSON.stringify(old)))) {
+    reject("Every snapshot must preserve the exact authority-base const binding and direct call");
+  }
   const matches = [];
   function visit(node) {
     if (ts.isIdentifier(node) && tableImports.has(node.text)) {
@@ -112,7 +162,7 @@ function tableIdentity(file, target, required) {
       reject("The selected table cannot be hidden behind an unsupported builder");
     }
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && tableImports.has(node.expression.text)) {
-      if (!node.arguments[0] || !ts.isStringLiteral(node.arguments[0])) reject("Computed table identities are unsupported");
+      if (!node.arguments[0] || (!ts.isStringLiteral(node.arguments[0]) && !inventory.calls.has(node))) reject("Computed table identities are unsupported");
       if (node.arguments[0].text === target) matches.push(node);
     }
     ts.forEachChild(node, visit);
@@ -163,8 +213,10 @@ export function validateSchemaDeclarationOwnership({ workId, digest, authorityBa
   rowPrefix(initial, next);
   rowPrefix(prior, next);
   if (next.schema_version !== 2 || next.newTables.length !== (prior.newTables?.length ?? 0) + 1) reject("Only an additive nonempty version2 declaration qualifies");
-  tableIdentity(authorityBase.schema, "drift_episode", false);
-  tableIdentity(candidate.schema, "drift_episode", true);
+  const inventory = tableIdentity(authorityBase.schema, "drift_episode", "inventory");
+  tableIdentity(authorityBase.schema, "drift_episode", false, inventory);
+  tableIdentity(parent.schema, "drift_episode", "optional", inventory);
+  tableIdentity(candidate.schema, "drift_episode", true, inventory);
   const originalMigrations = migrations(authorityBase);
   const finalMigrations = migrations(candidate);
   appendOnly(originalMigrations, finalMigrations);
@@ -175,6 +227,8 @@ export function validateSchemaDeclarationOwnership({ workId, digest, authorityBa
   const introducedMigrations = new Set();
   for (const transition of transitions) {
     const { before, after } = transition;
+    tableIdentity(before.schema, "drift_episode", "optional", inventory);
+    tableIdentity(after.schema, "drift_episode", "optional", inventory);
     const oldMigrations = migrations(before);
     const newMigrations = migrations(after);
     if (transition.parent !== previous.revision || before.revision !== previous.revision || after.revision !== transition.commit
@@ -193,7 +247,7 @@ export function validateSchemaDeclarationOwnership({ workId, digest, authorityBa
         reject("Source transition lacks this exact item's actually approved parent and plan");
       }
       if (schemaChanged) {
-        const hasTable = tableIdentity(after.schema, "drift_episode", "optional");
+        const hasTable = tableIdentity(after.schema, "drift_episode", "optional", inventory);
         if (schemaIntroduced && !hasTable) reject("Owned table cannot disappear from introduction history");
         schemaIntroduced ||= hasTable;
       }
