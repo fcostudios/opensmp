@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "f914d7133d9461819ab558670d11db3330c963cd649d94f61791b0c0e7f2995f",
+  "work_id": "CHG-106",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Consistent IMP410 consumer delivery snapshots",
+  "source": "/Users/fcolomas/Projects/nous/Nous/WorkControl/fcostudios/smp/CHG-106_TECH_SPEC.md @a291060cc5f2298e1becc5625c6ca6a37a299305; DEC-SMP-054 option A; DEC-SMP-057 funding; canonical custody Nous943e504:Nous/WorkControl/agent-requests-2026-10-16/09_US084_CHG106_ALLOCATION_CUSTODY_RECEIPT.json; tenant normal six-path delivery 65d9df3009ee2f43eff68f4a37d90252c8fbe44c..860ef94ec6ee85d1b426578e25dbb4d7d18ed44d",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Classify genuine IMP-410 delivery snapshots consistently in staged, immutable per-commit and full-history validation while rejecting tampering and retaining original-parent authorization.",
+      "demo": "Deterministic real-Git positive and independent hostile controls; separately governed evaluation of unchanged original cad8 and complete receiving history preserves original FAIL and rejects any absent original-parent guard.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1-consistent-delivery-snapshots",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2-independent-protected-guards",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3-governed-original-history-and-own-proof",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "consumer-classification",
+    "real-Git-regression-controls",
+    "tenant-guidance-and-custody-proof"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 9,
+    "bookkeeping_files": 9,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 55,
+    "implementation": 75,
+    "focused_verification": 90,
+    "review": 50,
+    "integration": 45,
+    "total": 315
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Exact official allocation, policy/funding and normal delivery custody",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Canonical source a291060 and receipt Nous943e504 confirm CHG-106/DEC-SMP-054/DEC-SMP-057. Normal single six-path sync and actual strong check-range 65d9..860ef94 PASS. No second status-sync, favorable timestamp retry or identity churn. Canonical delivered status was recorded after delivery; delivered CHANGES spec_applied snapshot remains the authentic cutoff. Funding315 cumulative/275 additional is approved; no unseen readiness digest is approved."
+    },
+    {
+      "id": "U2",
+      "statement": "Closed counted inventory",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Nine delivery paths: scripts/work-readiness/git.mjs; scripts/test-work-readiness.mjs; docs/dev-guide/WORK_READINESS.md; .nous-project.json; .nous-provenance.json; .nous-sync.json; docs/stories/CHANGES.md; docs/stories/SPRINT_PLAN.md; docs/decisions/DECISION_MATRIX.md. Nine bookkeeping paths: docs/readiness/CHG-106.json; docs/superpowers/specs/CHG-106-design.md; docs/superpowers/plans/CHG-106-plan.md; .nous-feedback.jsonl; docs/readiness/drafts/US-084-DEC054-funding-packet.md; docs/readiness/drafts/US-084-DEC054-evidence/us084-optiona-historical-readiness-20261017.md; docs/readiness/drafts/US-084-DEC054-evidence/us084-optiona-scope-cost-readiness-20261017.md; docs/readiness/drafts/US-084-DEC054-evidence/us084-optiona-packet-review-20261017.md; docs/readiness/drafts/US-084-DEC054-evidence/manifest.json. Approval packet appended to existing draft, no extra path. No producer/emitter, threshold/schema, critical-set or application changes. Extra outputs require scope reassessment before approval."
+    },
+    {
+      "id": "U3",
+      "statement": "Original failed-receipt custody and complete original receiving range",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "Controller classifies original custody as a bounded AC3 proof prerequisite, not authority supplied by new approval: obtain existing custodian confirmation of d502a34223612c9c6178a515ca3047dbb2691adb..2af42f33403b7ea4e34670dfa588fac5fd5ef215 and raw failed-receipt SHA256 BEFORE any new historical evaluation. Reserve10 minutes WITHIN focused90/integration45, not additional funding. Receipt path .superpowers/sdd/2026-10-13-CHG-093-us087-integration/chg097-application-20261015/e08a140-final-range-stop-receipt.json remains unrecovered in this session. No reconstruction, original FAIL replacement, later convenient base or current-custody PASS substitution. If absent, historical evaluation and closure STOP, original FAIL retained; no missing authority backfill. Canonical frozen proposal calls these readiness blockers while specifying before new historical evaluation; this assessment preserves that historical-evaluation hold and does not assert custody resolved."
+    },
+    {
+      "id": "U4",
+      "statement": "Applicable original-parent plan authority",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "Original cad8c2965ace0e39dd9c0f05b085a277d926e704 parent ae0ddfacfcc3aa2c229453fdb38ea627102b25b0 contains ready/approved e08a95ad8295972a7350da97452f2cefdf366a0018360cbec5d38d3379924f6d, raw decision row1652, nine-path scope and activation artifact. Original plan/design still state seven paths/120 versus readiness nine/140. Applicable bound-plan requirements have not been proved; generated-sync early return is not that proof. Neither future approval nor DEC054 can backfill absent original authority. Existing original bytes remain unchanged; a genuine missing guard remains FAIL. Reserve10 minutes WITHIN focused90 for actual original-parent bound-plan guard verification and explicit rejection if absent; not additional budget. This is an unproved AC3 condition, not new prospective approval backfill. No historical evaluation PASS or closure before guard proof. A genuine absent original guard remains FAIL; any broader authority remedy stops this scope."
+    },
+    {
+      "id": "U5",
+      "statement": "Prospective normal activation and eventual validator identity",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Normal lawful spec adoption now established by strong current custody PASS. Future executable work requires exact approved readiness plus matching raw decision evidence committed in its immediate parent, then bound design/plan under normal governance before implementation. Exact future committed validator revision/source hashes and dated evaluation receipt are future proof deliverables, not invented current IDs. No CHG022 bootstrap expansion, hidden bypass, self-authorization or original-parent rewrite. If normal entry fails, retain failure and stop."
+    },
+    {
+      "id": "U6",
+      "statement": "Bounded semantic and verification work",
+      "status": "budgeted",
+      "estimate_impact_minutes": 0,
+      "resolution": "Three flows only: cross-second/unchanged-identity valid snapshots; independent hostile guards; governed original history. Identity comparison excludes ONLY generated_at. Preserve closed shapes, strict UTC syntax, project/org/namespace, checksums, exact hashes/source, provenance, new/changed semantic claims, paths/modes/symlinks/dirty overlap, activation, immutable-parent approval/digest/scope and full lifecycle history. No same-second/monotonic/future-clock/all-envelope-change requirement. After valid entry use fixed real Git fixtures and independent rejection oracles, read TESTING before test edits. Own native harness, awake full gates and committed migrations/schema proof with owner/app roles remain required. Zero TS/TSX shards is forecast only: record actual preflight and applicable cold or approved zero-attempt technical skip, null score and no fabricated test_report. No borrowed CHG097/098/103 proof. Full90 focused/45 integration includes these obligations; newly independent gap stops rather than expanding scope."
+    },
+    {
+      "id": "U7",
+      "statement": "Truthful whole-outcome cost and unchanged holds",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "315=55 readiness+75 implementation+90 focused+50 review+45 integration. Prior37 incurred and prior3 unused remain distinct. Initial15 shared cap: operator5 spent once; root3/readiness author4/reviewer3 are respective bounds with final actuals reported honestly, never reservations billed as spent. Author4 estimated active minutes inclusive reads, artifact, check and handoff. Operator5 replaces earlier3, not3+5. Up to52 cumulative readiness if all15 used, leaving3 within55. No sibling transfer, clock reset, extra unfunded allowance or new assessment funding request. No design/implementation/test/tooling/full engineering gate authorized now. US024/087 separate owner and DEC051/P4/US084/090/091 holds remain; monitoring off."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "f914d7133d9461819ab558670d11db3330c963cd649d94f61791b0c0e7f2995f"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
