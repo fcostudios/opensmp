@@ -113,7 +113,7 @@
       "statement": "Five complete phases and all-role cost custody",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Complete phase upper remains315=25readiness+110implementation+95focused+55review+30integration; base250 remains20/85/75/45/25. Actual at amendment preparation cutoff: readiness24=initial21+controller amendment2+root amendment1; implementation72=worker59(T1 26,T2 27,Task3 RED6)+controller7+root6; review15=builder2.5+T1scope5+T2scope5+static amendment1.5+operator readonly authority1. Focused0/integration0, total111 estimated active minutes, waits/runtime excluded. Remaining204=readiness1+implementation38+focused95+review40+integration30. Bounded compatibility correction+regression/rebinding/scoped review estimated10–15 active across existing implementation/focused/review reserves; remaining Task3 worker14 plus at most9 implementation coordination/fix fits38 even if correction15 charged entirely implementation. This is a conditional honest forecast315, not new funding, free preparation or guarantee. Canonical normal delivery/approval/adoption tails must fit remaining phases once; initial readiness has only1minute left, further readiness cost needs explicit current packet reconsideration, no phase relabeling. Full original proof not reduced to fit. Forecast>315/newpath/framework/missing exact-source proof STOP current amendment; >320 or20 hard partition. Supported role metrics unavailable, active estimates explicit; parent10274.5known+U_prior and10499 unchanged excluded. Old f4 approval/prior receipts preserved, no cost reset or unknown zeroing."
+      "resolution": "Complete phase upper remains315=25readiness+110implementation+95focused+55review+30integration; base250 remains20/85/75/45/25. Actual at amendment preparation cutoff: readiness24=initial21+controller amendment2+root amendment1; implementation72=worker59(T1 26,T2 27,Task3 RED6)+controller7+root6; review15=builder2.5+T1scope5+T2scope5+static amendment1.5+operator readonly authority1. Focused0/integration0, total111 estimated active minutes, waits/runtime excluded. Remaining204=readiness1+implementation38+focused95+review40+integration30. Bounded compatibility correction+regression/rebinding/scoped review estimated10\u201315 active across existing implementation/focused/review reserves; remaining Task3 worker14 plus at most9 implementation coordination/fix fits38 even if correction15 charged entirely implementation. This is a conditional honest forecast315, not new funding, free preparation or guarantee. Canonical normal delivery/approval/adoption tails must fit remaining phases once; initial readiness has only1minute left, further readiness cost needs explicit current packet reconsideration, no phase relabeling. Full original proof not reduced to fit. Forecast>315/newpath/framework/missing exact-source proof STOP current amendment; >320 or20 hard partition. Supported role metrics unavailable, active estimates explicit; parent10274.5known+U_prior and10499 unchanged excluded. Old f4 approval/prior receipts preserved, no cost reset or unknown zeroing."
     },
     {
       "id": "U8",
@@ -134,9 +134,9 @@
   "decision": "ready",
   "partitions": [],
   "approval": {
-    "status": "pending",
-    "approved_by": null,
-    "evidence": null,
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG105-READY-18FCF484",
     "payload_sha256": "18fcf48488de3110ee8baf6110fa66eb19dc645da3e377baa9c423258ff7b60f"
   },
   "actuals": null,
