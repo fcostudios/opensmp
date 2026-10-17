@@ -16,7 +16,7 @@
 
 ## Global Constraints
 
-- Exact digest `f4d2c9270687b794ca310eb9db770026eeaea621ede769b6ee07f02e83bb3f20`; decision `CHG105-READY-F4D2C927`; no separate human stage repermission. Independent builder PASS before source/test changes.
+- Current exact digest `18fcf48488de3110ee8baf6110fa66eb19dc645da3e377baa9c423258ff7b60f`; decision `CHG105-READY-18FCF484` (original f4/4408 approval and reviewed source preserved); no separate human stage repermission. Independent builder PASS before source/test changes.
 - Six technical paths and four bookkeeping paths exactly as the design; no product schema/migration/declaration, API/auth, TESTING, config or toolchain changes.
 - Only finite drift_episode/drift-episode-v1 version2 additive newTables; immutable ordered old prefix; all tooling/mutation-route/CHG088 guards unchanged.
 - Existing TypeScript5.9.3 parser and integrated104 parse/attest/verifier unchanged. No arbitrary SQL parser, code evaluation, candidate PASS authority or owned mocks.
@@ -67,6 +67,19 @@ New helper export: `validateSchemaDeclarationOwnership({workId, digest, authorit
 - [ ] Add staged-vs-unstaged identity controls; old declaration baseline/security/new-row edit/reorder/version1 denial; mixed MJS denial; mutation-route remove/reorder denial and unchanged CHG088 expansion/copy denial. Retain old technical-owner admission behavior.
 - [ ] Run own current harness and integrated-base differential. Perform independent predicate-removal controls for AST absence, approved transition lineage, append-only migration identity and historical traversal; each removal must make its corresponding hostile case fail. Preserve raw outputs/hashes in ignored report workspace, restore every fault before commit.
 - [ ] Run focused GREEN, scope/diff check and actual preflight; touched-only preview only if warranted. Commit normally `CHG-105 admit owned finite declaration data`; submit report and complete checkpoint range to controller for spec+quality review. Reassess remaining budget before Task3.
+
+### Approved amendment checkpoint: exact production baseline compatibility
+
+Joint human approval binds readiness digest `18fcf48488de3110ee8baf6110fa66eb19dc645da3e377baa9c423258ff7b60f` and its exact U9 canonical AC3 append. Normal canonical source `163e49e7` and custody commit `2faf34fcaa45e1282ede3ccd698a9b7c4bdcf9a3` delivered that append (SHA256 `94f9abd65b270ecb4505f7c79bdb8180ccaa49480202d1adccd33e68522a0625`) before any fix. This finite amendment supersedes only the design/Task1 literal-only restriction for EXISTING non-target baseline identities; new target remains direct exported pgTable literal. Original f4/4408 and exact66-path source RED are preserved, not retroactively reclassified. Frozen mutation base remains `ef56be580b50964a3fe457d898b99db035f729e5`; complete original interval remains `d2280c4..candidate`. Actual custody is six paths, within the approved maximum eight (maximum14delivery+4bookkeeping=18; actual6technical+6custody+4bookkeeping=16).
+
+**Files:** only existing helper, git.mjs if required for immutable evidence, and existing test-work-readiness harness; no new path/framework/product normalization. Same helper signature and Git snapshots; same consolidated implementer and reused scoped reviewer. Correction/regression/rebinding/scoped review estimated10–15 active minutes from existing phase reserves, not new funding. Remaining original Task3 release proof is unchanged.
+
+- [ ] Record amended approval/canonical/plan pins; independently review this exact plan delta before source fixes.
+- [ ] Preserve the existing exact66-path real-Git RED and implement its strongest regression: unchanged production baseline const/call plus direct literal new target must pass real staged/percommit/full-history admission before real release composition.
+- [ ] Derive ONLY from immutable authority-BASE AST an inventory of existing non-target direct top-level exported pgTable calls whose first-argument Identifier has exactly one local top-level const DIRECT canonical StringLiteral initializer. Resolve BEFORE target absence. Pin identifier/literal/declaration/direct-call/non-target identity through EVERY historical snapshot, parent and candidate. Existing target resolution rejects; candidate cannot expand allowed inventory.
+- [ ] Add failing exact-category/path cases for prior const resolving to target; changed/removed/reintroduced mapping or call restored at endpoints; candidate-only const-table call; duplicate/import collision/shadow/escape/reassign/destructure/let/var/call/import/concat/interpolation/unknown expression; nonliteral NEW target. No alias chain, recursive resolution, symbolic/type/scope engine, evaluation, blanket computed-call skipping or rights/history weakening.
+- [ ] Implement only the finite approved rule, observe GREEN, independently remove BASE-derived mapping/identity and EVERY-snapshot preservation guards and prove corresponding hostile oracles fail; restore source exactly.
+- [ ] Rebind/rerun own affected real Git harness after helper changes; previous reviewed receipts remain historical, not current-source PASS. Actual preflight/touched preview rules unchanged. Normal green amendment checkpoint, exact report/package and reused scoped review before proceeding into Task3 release composition.
 
 ### Task 3: Exact admitted Git source to real release and documented boundary (implementation upper20)
 
