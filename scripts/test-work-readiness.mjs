@@ -38,6 +38,8 @@ import {
 import { calibrateAssessment, createAssessmentFile, readCanonicalMessageFile } from "./work-readiness.mjs";
 import * as readinessCli from "./work-readiness.mjs";
 import * as readinessModel from "./work-readiness/model.mjs";
+import * as readinessGit from "./work-readiness/git.mjs";
+import * as schemaOwnership from "./work-readiness/schema-declaration-ownership.mjs";
 let ownedScopeModule;
 try { ownedScopeModule = await import("./mutation-evidence/owned-scope.mjs"); } catch (error) { if (error.code !== "ERR_MODULE_NOT_FOUND") throw error; }
 
@@ -2382,9 +2384,18 @@ function installReadinessHook(root) {
     "scripts/work-readiness/model.mjs",
     "scripts/work-readiness/git.mjs",
     "scripts/work-readiness/delivery-policy.mjs",
+    "scripts/work-readiness/schema-declaration-ownership.mjs",
+    "packages/db/scripts/schema-contract-policy.mjs",
     "docs/dev-guide/feedback-vocabulary.json",
   ]) {
     writeRepoFile(root, path, readFileSync(new URL(path, sourceRoot), "utf8"));
+  }
+  const typescriptPath = join(root, "apps/web/node_modules/typescript");
+  if (!existsSync(typescriptPath)) {
+    mkdirSync(dirname(typescriptPath), { recursive: true });
+    symlinkSync(new URL("apps/web/node_modules/typescript", sourceRoot).pathname, typescriptPath, "dir");
+    const excludePath = join(root, ".git/info/exclude");
+    writeFileSync(excludePath, readFileSync(excludePath, "utf8") + "\nnode_modules/\n");
   }
   chmodSync(join(root, ".githooks/commit-msg"), 0o755);
   git(root, ["config", "core.hooksPath", ".githooks"]);
@@ -6123,6 +6134,178 @@ test("CHG-100 technical contract delivery requires committed ready authority and
         assert.match(result.stderr, /WR_IMPLEMENTATION_PLAN_MISSING/u);
       }
     } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
+
+
+// CHG-105: each case below names the ownership predicate it must protect.
+const ownedSchemaPath = "packages/db/src/schema.ts";
+const ownedMigrationPath = "packages/db/src/migrations/V20261017000000__owned_table.sql";
+const ownedOldMigrationPath = "packages/db/src/migrations/V20260101000000__baseline.sql";
+const ownedPredicate = { template: "account-reference-exists-v1", columnName: "vendor_account_id", referencedTable: "vendor_account", referencedColumn: "id" };
+const ownedExtension = {
+  tableName: "drift_episode", profile: "drift-episode-v1", mutable: true, rls: { enabled: true, forced: false },
+  policies: [
+    { name: "drift_episode_select", command: "SELECT", role: "ledger_app", using: ownedPredicate, withCheck: null },
+    { name: "drift_episode_insert", command: "INSERT", role: "ledger_app", using: null, withCheck: ownedPredicate },
+    { name: "drift_episode_update", command: "UPDATE", role: "ledger_app", using: ownedPredicate, withCheck: ownedPredicate },
+  ],
+  constraints: [
+    { name: "drift_episode_pkey", kind: "PRIMARY_KEY", columns: ["id"] },
+    ...[["vendor_account_id", "vendor_account"], ["license_type_id", "license_type"], ["person_id", "person"], ["resolved_by_assignment_id", "license_assignment"]].map(([column, table]) => ({ name: `drift_episode_${column}_fkey`, kind: "FOREIGN_KEY", columns: [column], referencedTable: table, referencedColumns: ["id"], onUpdate: "NO_ACTION", onDelete: "NO_ACTION" })),
+    { name: "drift_episode_assignment", kind: "UNIQUE", columns: ["resolved_by_assignment_id"] },
+    { name: "drift_episode_open", kind: "UNIQUE_OPEN", columns: ["vendor_account_id", "member_identity", "license_type_id"], nullColumn: "resolved_at" },
+  ],
+};
+const ownedSchema = `import { pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core";
+export const driftEpisode = pgTable("drift_episode", {
+  id: uuid("id").primaryKey(), vendorAccountId: uuid("vendor_account_id"),
+  licenseTypeId: uuid("license_type_id"), personId: uuid("person_id"),
+  resolvedByAssignmentId: uuid("resolved_by_assignment_id"),
+  memberIdentity: text("member_identity"), resolvedAt: timestamp("resolved_at"),
+});\n`;
+const ownedDeclaration = JSON.stringify({ ...JSON.parse(schemaContractBytes), schema_version: 2, newTables: [ownedExtension] }, null, 2) + "\n";
+function makeOwnedDeclarationFixture({ prior = false, baselineSchema = "export {};\n", mutate = () => {}, beforeSources = () => {}, afterSources = () => {} } = {}) {
+  const { root } = makeGitRepo();
+  writeRepoFile(root, ownedSchemaPath, baselineSchema);
+  writeRepoFile(root, schemaContractPath, schemaContractBytes);
+  writeRepoFile(root, ownedOldMigrationPath, "SELECT 1;\n");
+  commitRepo(root, "chore(CHG-900): original schema and migrations", [ownedSchemaPath, schemaContractPath, ownedOldMigrationPath]);
+  const artifact = approvedArtifact("US-123");
+  artifact.signals.bookkeeping_files = 0; refreshDigest(artifact);
+  const authority = approveAfterPolicyActivation(root, artifact);
+  const plan = "docs/superpowers/plans/US-123-plan.md";
+  writeRepoFile(root, plan, implementationPlanHeader(artifact));
+  const planHead = commitRepo(root, "docs(US-123): bind plan", [plan]);
+  beforeSources(root);
+  writeRepoFile(root, ownedSchemaPath, ownedSchema);
+  writeRepoFile(root, ownedMigrationPath, "SELECT 2;\n");
+  if (prior) commitRepo(root, "feat(US-123): own schema and append-only migration", [ownedSchemaPath, ownedMigrationPath]);
+  afterSources(root);
+  const base = git(root, ["rev-parse", "HEAD"]);
+  writeRepoFile(root, schemaContractPath, ownedDeclaration);
+  mutate(root);
+  const head = commitRepo(root, "feat(US-123): own additive declaration", ["packages/db"]);
+  return { root, base, head, authority, workId: artifact.work_id, artifact, planHead };
+}
+function ownedEvidence(fixture) {
+  assert.equal(typeof readinessGit.loadSchemaDeclarationEvidence, "function", "immutable Git evidence builder is required");
+  return readinessGit.loadSchemaDeclarationEvidence(fixture);
+}
+function validateOwned(fixture) {
+  assert.equal(typeof schemaOwnership?.validateSchemaDeclarationOwnership, "function", "pure ownership helper is required");
+  return schemaOwnership.validateSchemaDeclarationOwnership(ownedEvidence(fixture));
+}
+
+test("CHG-105 ownership helper admits exact same-candidate and prior approved introductions", () => {
+  for (const prior of [false, true]) {
+    const fixture = makeOwnedDeclarationFixture({ prior });
+    try {
+      assert.equal(validateOwned(fixture), true);
+      const evidence = ownedEvidence(fixture);
+      assert.equal(evidence.authorityBase.revision, fixture.authority);
+      assert.equal(evidence.candidate.schema.blob, git(fixture.root, ["rev-parse", `${fixture.head}:${ownedSchemaPath}`]));
+      assert.equal(evidence.candidate.declaration.schemaVersion, 2);
+      assert.equal(evidence.candidate.declaration.baselineProjectionSha256, "0b755c2c2b71cf8065093608ae01c9353232da7eb196ea9da78f5445e59b6e7b");
+      assert.deepEqual(evidence.candidate.declaration.newTableRowSha256, [createHash("sha256").update(JSON.stringify(ownedExtension)).digest("hex")]);
+      assert.equal(evidence.candidate.migrations.at(-1).sha256, createHash("sha256").update("SELECT 2;\n").digest("hex"));
+      assert.equal(evidence.transitions.at(-1).parentApproved, true);
+      assert.equal(evidence.transitions.at(-1).planBound, true);
+      assert.equal(evidence.transitions.at(-1).plan.mode, "100644");
+      assert.equal(evidence.transitions.at(-1).plan.blob, git(fixture.root, ["rev-parse", `${fixture.head}:docs/superpowers/plans/US-123-plan.md`]));
+    } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
+
+test("CHG-105 ownership packaged helper uses immutable Git bytes and locked parser", () => {
+  const fixture = makeOwnedDeclarationFixture();
+  try {
+    installReadinessHook(fixture.root);
+    writeRepoFile(fixture.root, ownedSchemaPath, "unstaged schema must never supply authority\n");
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", `
+      import { loadSchemaDeclarationEvidence } from "./scripts/work-readiness/git.mjs";
+      import { validateSchemaDeclarationOwnership } from "./scripts/work-readiness/schema-declaration-ownership.mjs";
+      const [base, head, authority] = process.argv.slice(1);
+      const evidence = loadSchemaDeclarationEvidence({ root: process.cwd(), base, head, authority, workId: "US-123" });
+      process.stdout.write(String(validateSchemaDeclarationOwnership(evidence)));
+    `, fixture.base, fixture.head, fixture.authority], { cwd: fixture.root, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "true");
+    assert.equal(git(fixture.root, ["ls-files", "--", "apps/web/node_modules"]), "", "dependency resolution adds no tracked fixture source");
+  } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+});
+
+test("CHG-105 ownership historical authority requires regular readiness feedback and plan", () => {
+  for (const path of ["docs/readiness/US-123.json", ".nous-feedback.jsonl", "docs/superpowers/plans/US-123-plan.md"]) {
+    const fixture = makeOwnedDeclarationFixture({ prior: true,
+      beforeSources(root) {
+        chmodSync(join(root, path), 0o755);
+        commitRepo(root, "docs(US-123): nonregular historical authority", [path]);
+      },
+      afterSources(root) {
+        chmodSync(join(root, path), 0o644);
+        commitRepo(root, "docs(US-123): restore current authority mode", [path]);
+      },
+    });
+    try { expectError("WR_MIXED_FUNCTIONAL_TOOLING", schemaContractPath, () => validateOwned(fixture)); }
+    finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
+
+test("CHG-105 ownership helper rejects borrowed table and unsupported AST identities", () => {
+  const cases = [
+    ["existing table", {}, { baselineSchema: ownedSchema + "// pre-existing foreign table, later edited by this item\n" }],
+    ["wrong table", { schema: ownedSchema.replace('"drift_episode"', '"other_table"') }],
+    ["computed table", { schema: ownedSchema.replace('"drift_episode"', 'tableName') }],
+    ["missing table argument", { schema: ownedSchema.replace('"drift_episode", {', '{') }],
+    ["missing columns", { schema: 'import { pgTable } from "drizzle-orm/pg-core"; export const driftEpisode = pgTable("drift_episode");\n' }],
+    ["spoofed import", { schema: ownedSchema.replace('"drizzle-orm/pg-core"', '"./fake"') }],
+    ["aliased import", { schema: ownedSchema.replace('pgTable, uuid', 'pgTable as table, uuid').replace('= pgTable(', '= table(') }],
+    ["re-export", { schema: ownedSchema.replace('export const driftEpisode', 'const driftEpisode') + 'export { driftEpisode };\n' }],
+    ["duplicate table", { schema: ownedSchema + 'export const duplicate = pgTable("drift_episode", {});\n' }],
+    ["nested export", { schema: ownedSchema.replace('export const driftEpisode', 'function nested() { export const driftEpisode') + '}\n' }],
+    ["missing column", { schema: ownedSchema.replace('memberIdentity: text("member_identity"), ', '') }],
+    ["wrong column", { schema: ownedSchema.replace('"member_identity"', '"another_identity"') }],
+    ["computed column", { schema: ownedSchema.replace('memberIdentity:', '[columnName]:') }],
+    ["spread columns", { schema: ownedSchema.replace('id: uuid', '...otherColumns, id: uuid') }],
+    ["dynamic column", { schema: ownedSchema.replace('text("member_identity")', 'text(columnName)') }],
+    ["missing column argument", { schema: ownedSchema.replace('text("member_identity")', 'text()') }],
+    ["duplicate column", { schema: ownedSchema.replace('id: uuid("id")', 'otherId: uuid("id"), id: uuid("id")') }],
+  ];
+  for (const [name, change, options] of cases) {
+    const fixture = makeOwnedDeclarationFixture({ ...options, mutate(root) { if (change.schema) writeRepoFile(root, ownedSchemaPath, change.schema); } });
+    try { expectError("WR_MIXED_FUNCTIONAL_TOOLING", schemaContractPath, () => validateOwned(fixture)); }
+    catch (error) { throw new Error(`Ownership case failed: ${name}`, { cause: error }); }
+    finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
+
+test("CHG-105 ownership helper rejects unsafe declaration and nonappend-only migration entries", () => {
+  const cases = [
+    ["old prefix", root => { const value = JSON.parse(ownedDeclaration); value.coreTableNames.reverse(); writeRepoFile(root, schemaContractPath, JSON.stringify(value, null, 2) + "\n"); }],
+    ["security broadening", root => { const value = JSON.parse(ownedDeclaration); value.newTables[0].rls.enabled = false; writeRepoFile(root, schemaContractPath, JSON.stringify(value, null, 2) + "\n"); }],
+    ["duplicate row", root => { const value = JSON.parse(ownedDeclaration); value.newTables.push(value.newTables[0]); writeRepoFile(root, schemaContractPath, JSON.stringify(value, null, 2) + "\n"); }],
+    ["duplicate key", root => writeRepoFile(root, schemaContractPath, ownedDeclaration.replace('"schema_version": 2', '"schema_version": 2,"schema_version": 2'))],
+    ["missing schema", root => rmSync(join(root, ownedSchemaPath))],
+    ["wrong schema path", root => renameSync(join(root, ownedSchemaPath), join(root, "packages/db/src/other.ts"))],
+    ["missing declaration", root => rmSync(join(root, schemaContractPath))],
+    ["schema executable", root => chmodSync(join(root, ownedSchemaPath), 0o755)],
+    ["schema symlink", root => { rmSync(join(root, ownedSchemaPath)); symlinkSync("other.ts", join(root, ownedSchemaPath)); }],
+    ["declaration executable", root => chmodSync(join(root, schemaContractPath), 0o755)],
+    ["declaration symlink", root => { rmSync(join(root, schemaContractPath)); symlinkSync("other.json", join(root, schemaContractPath)); }],
+    ["missing new migration", root => rmSync(join(root, ownedMigrationPath))],
+    ["old migration edit", root => writeRepoFile(root, ownedOldMigrationPath, "SELECT 3;\n")],
+    ["old migration removal", root => rmSync(join(root, ownedOldMigrationPath))],
+    ["old migration mode", root => chmodSync(join(root, ownedOldMigrationPath), 0o755)],
+    ["new migration executable", root => chmodSync(join(root, ownedMigrationPath), 0o755)],
+    ["migration symlink", root => { rmSync(join(root, ownedMigrationPath)); symlinkSync("other.sql", join(root, ownedMigrationPath)); }],
+    ["wrong timestamp path", root => { renameSync(join(root, ownedMigrationPath), join(root, "packages/db/src/migrations/wrong.sql")); }],
+  ];
+  for (const [name, mutate] of cases) {
+    const fixture = makeOwnedDeclarationFixture({ mutate });
+    try { expectError("WR_MIXED_FUNCTIONAL_TOOLING", schemaContractPath, () => validateOwned(fixture)); }
+    catch (error) { throw new Error(`Ownership case failed: ${name}`, { cause: error }); }
+    finally { rmSync(fixture.root, { recursive: true, force: true }); }
   }
 });
 

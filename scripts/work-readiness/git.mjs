@@ -1175,40 +1175,117 @@ export function readinessDeliveryPolicy({ artifact }) {
   return Object.hasOwn(artifact.signals, "bookkeeping_files");
 }
 
-function itemAuthorityPaths(root, authority, head, workId) {
-  const paths = new Set();
+function itemAuthorityTransitions(root, authority, head, workId, { snapshots = false } = {}) {
   const readinessPath = `docs/readiness/${workId}.json`;
   const authorityArtifact = parseJson(readRevisionFile(root, authority, readinessPath), readinessPath);
-  for (const entry of linearCommits(root, authority, head)) {
+  return linearCommits(root, authority, head).map((entry) => {
     const message = git(root, ["show", "-s", "--format=%B", entry.commit]).toString("utf8");
-    // A multi-item commit cannot silently lend a source to this work item.
     const ids = extractWorkIds(message);
-    if (ids.length === 1 && ids[0] === workId) {
-      // Owning a commit message is not authorization. Only source changes
-      // whose immutable parent already approved this exact payload contribute.
+    const transition = { ...entry, workId: ids.length === 1 ? ids[0] : null,
+      digest: null, parentApproved: false, planBound: false,
+      paths: listChangedPaths({ root, base: entry.parent, head: entry.commit }) };
+    if (snapshots) {
+      transition.readiness = { path: readinessPath, ...revisionBlobEntry(root, entry.parent, readinessPath) };
+      transition.feedback = { path: ".nous-feedback.jsonl", ...revisionBlobEntry(root, entry.parent, ".nous-feedback.jsonl") };
+    }
+    // Only the actual immutable parent can authorize a source transition.
+    if (transition.workId === workId) {
       const text = readRevisionFile(root, entry.parent, readinessPath, { required: false });
-      if (text === null) continue;
-      try {
-        const artifact = parseJson(text, readinessPath);
-        if (artifact.work_id !== workId || artifact.readiness_payload_sha256 !== authorityArtifact.readiness_payload_sha256) continue;
-        const feedback = parseFeedback(readRevisionFile(root, entry.parent, ".nous-feedback.jsonl", { required: false }));
-        const assessment = validateAssessment(artifact, {
-          feedbackRecords: feedback,
-          approvedReadinessAuthorities: annotationAuthorities(root, entry.parent),
-          deliveryPolicy: readinessDeliveryPolicy({ root, revision: entry.parent, artifact }),
-        });
-        if (assessment.decision !== "ready" || !assessment.active) continue;
-        if (validatedActivationIndex(root, entry.parent, feedback) >= 0 && !artifact.policy_bootstrap) {
-          requireImplementationPlan({ root, revision: entry.parent, feedback, workId });
+      if (text !== null) {
+        try {
+          const artifact = parseJson(text, readinessPath);
+          transition.digest = artifact.readiness_payload_sha256;
+          if (artifact.work_id === workId && artifact.readiness_payload_sha256 === authorityArtifact.readiness_payload_sha256) {
+            const feedback = parseFeedback(readRevisionFile(root, entry.parent, ".nous-feedback.jsonl", { required: false }));
+            const assessment = validateAssessment(artifact, {
+              feedbackRecords: feedback,
+              approvedReadinessAuthorities: annotationAuthorities(root, entry.parent),
+              deliveryPolicy: readinessDeliveryPolicy({ root, revision: entry.parent, artifact }),
+            });
+            transition.parentApproved = assessment.decision === "ready" && assessment.active
+              && (!snapshots || (transition.readiness.mode === "100644" && transition.feedback.mode === "100644"));
+            if (transition.parentApproved) {
+              if (snapshots || (validatedActivationIndex(root, entry.parent, feedback) >= 0 && !artifact.policy_bootstrap)) {
+                const binding = requireImplementationPlan({ root, revision: entry.parent, feedback, workId });
+                if (snapshots) {
+                  transition.plan = { path: binding.planPath, ...revisionBlobEntry(root, entry.parent, binding.planPath) };
+                  if (transition.plan.mode !== "100644") fail("WR_MIXED_FUNCTIONAL_TOOLING", SCHEMA_CONTRACT_PATH, "Declaration source plan must be regular");
+                }
+              }
+              transition.planBound = true;
+            }
+          }
+        } catch (error) {
+          if (!(error instanceof WorkReadinessError)) throw error;
         }
-        listChangedPaths({ root, base: entry.parent, head: entry.commit }).forEach((path) => paths.add(path));
-      } catch (error) {
-        if (error instanceof WorkReadinessError) continue;
-        throw error;
       }
     }
+    if (snapshots) {
+      transition.before = schemaDeclarationSnapshot(root, entry.parent);
+      transition.after = schemaDeclarationSnapshot(root, entry.commit);
+    }
+    return transition;
+  });
+}
+
+function itemAuthorityPaths(root, authority, head, workId) {
+  return new Set(itemAuthorityTransitions(root, authority, head, workId)
+    .filter((entry) => entry.parentApproved && entry.planBound).flatMap((entry) => entry.paths));
+}
+
+function schemaDeclarationSnapshot(root, revision) {
+  const snapshotFile = (path) => {
+    const entry = revisionBlobEntry(root, revision, path);
+    if (entry === null) return null;
+    const bytes = readRevisionBytes(root, revision, path);
+    const file = { path, ...entry, bytes, sha256: createHash("sha256").update(bytes).digest("hex") };
+    if (path === SCHEMA_CONTRACT_PATH) {
+      // These are observed byte/projection identities, never approval claims.
+      // The pure helper independently runs the integrated finite parser.
+      try {
+        const value = JSON.parse(bytes.toString("utf8"));
+        const projection = { schema_version: 1, coreTableNames: value.coreTableNames,
+          normallyUpdateableTableNames: value.normallyUpdateableTableNames,
+          expectedAppendOnlyColumnUpdates: value.expectedAppendOnlyColumnUpdates };
+        file.schemaVersion = value.schema_version;
+        file.baselineProjectionSha256 = createHash("sha256").update(JSON.stringify(projection, null, 2) + "\n").digest("hex");
+        file.newTableRowSha256 = (value.newTables ?? []).map((row) => createHash("sha256").update(JSON.stringify(row)).digest("hex"));
+      } catch {
+        // Invalid declaration syntax still reaches the helper's exact denial.
+        file.schemaVersion = null;
+      }
+    }
+    return file;
+  };
+  const records = git(root, ["ls-tree", "-r", "-z", revision, "--", "packages/db/src/migrations/"])
+    .toString("utf8").split("\0").filter(Boolean);
+  const paths = records.map((record) => {
+    const match = /^\d{6} (?:blob|commit) [0-9a-f]{40}\t(.+)$/u.exec(record);
+    if (!match) fail("WR_MIXED_FUNCTIONAL_TOOLING", SCHEMA_CONTRACT_PATH, "Unsupported migration tree entry");
+    return match[1];
+  }).sort();
+  return { revision, schema: snapshotFile("packages/db/src/schema.ts"),
+    declaration: snapshotFile(SCHEMA_CONTRACT_PATH), migrations: paths.map(snapshotFile) };
+}
+
+// Pure ownership analysis receives observations, never a candidate-written PASS.
+// This entry is prepared by CHG-105 Task1; functional admission remains denied
+// until the separately reviewed policy wiring in Task2.
+export function loadSchemaDeclarationEvidence({ root, base, head, workId, authority }) {
+  root = repositoryRoot(root);
+  const parent = resolveCommit(root, base, "$.base");
+  head = resolveCommit(root, head, "$.head");
+  const readinessPath = `docs/readiness/${workId}.json`;
+  if (revisionMode(root, parent, readinessPath) !== "100644") fail("WR_READINESS_MISSING", readinessPath, "Current parent readiness must be regular");
+  const artifact = parseJson(readRevisionFile(root, parent, readinessPath), readinessPath);
+  const actualAuthority = payloadAuthority(root, parent, artifact);
+  if (artifact.work_id !== workId || resolveCommit(root, authority, "$.authority") !== actualAuthority) {
+    fail("WR_MIXED_FUNCTIONAL_TOOLING", SCHEMA_CONTRACT_PATH, "Declaration authority must be the exact current payload root");
   }
-  return paths;
+  return { workId, digest: artifact.readiness_payload_sha256,
+    authorityBase: schemaDeclarationSnapshot(root, actualAuthority),
+    parent: schemaDeclarationSnapshot(root, parent), candidate: schemaDeclarationSnapshot(root, head),
+    transitions: itemAuthorityTransitions(root, actualAuthority, head, workId, { snapshots: true }) };
 }
 
 function payloadAuthority(root, revision, artifact) {
