@@ -125,7 +125,27 @@
     "evidence": "CHG104-READY-D36C5E8F",
     "payload_sha256": "d36c5e8f5011f92ec8dc997442493fbebee9d5498d91b2dac377807c23f9508f"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 23,
+      "implementation": 38,
+      "focused_verification": 8,
+      "review": 20,
+      "integration": 10
+    },
+    "total": 99,
+    "changed_files": 14,
+    "commits": 6,
+    "review_fix_loops": 1,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 1,
+    "mutation_shards_actual": 0,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": -206,
+    "root_cause": "ESTIMATED active effort, not billing or summed blocking wall time: readiness23, implementation38, focused8, review20, integration10, total99/305. Readiness includes root3 once; implementation includes design8, worker16, root execution coordination5 and controller bounded orchestration9. Focused worker8; review builder3 + scoped7 + one collation fix rereview2 + fresh AC7 + final binding1. Integration worker4 + controller6 for proof custody/source FF/normal closure; final bookkeeping FF receipt retained separately, no terminal actuals rewrite. Phase markers are actual UTC; focused/review interleaved, role estimates preserve them once. Fullgate329.516801s (fixture wrapper335.598916s), cold0.5546875s elapsed retained separately; no host-sleep/double-median exception. Mutation-base935297f7, own authority9c819 and fullmain1963; fullmain14paths=6technical+4parentcustody+4bookkeeping, parentcustody cost74.5+U_prior excluded. Six own commits from9c819 including this closure. One actual review/fix loop: real legal-name collation RED then deterministic both-side sorting. No whole-set previews; zero applicable TS/native sources discovered, preview rounds0/minutes0, ONE actual cold/no score/test_report. Both foreign cache hashes retained. Actual source first integrated1963->145450f via normal FF, tracked clean and all3foreign files unchanged. Original4af1..ce690 FAIL and corrected-consumer PASS/history capture qualifications retained, not upgraded.\nImplementer: ONE consolidated logical session, forced reused physical actor,28estimated active=implementation16+focused8+integration4; measured cutoff19:16:29.899Z85calls input13421162(cached13232000) output50206(reasoning14130 included), peak201950/window475000; old roles excluded, postcutoff tail unknown.\nReviewer: TWO logical sessions (one reused builder/scope; fresh-for104 adversarial),20estimated active=12+8; measured partial cutoffs scope10calls input3898922 output7971 peak370655, adversarial10calls input2093082 output3991 peak217590/window475000; reporting tails unmeasured; forced physical retained contexts >200K explicitly disclosed, no resets.\nController: SAME logical104 controller on forced physical reuse plus root coordination, at most2 controller sessions; old102/103 excluded. Controller/root usage estimated, actual token counters/context peaks unavailable; aggregate done.cost is a rounded mixed estimate, not exact measured billing. No sibling gates borrowed. Durable local Git-common evidence archive manifest9c3156e734a4994f5e9851905a55283b1ae144fbcf35450bda96e394606596ce;121 source/rawreceipt/report files, plus actual sourceintegration receipt. Mutation_minutes rounded up to1 integer minute; actual native elapsed0.5546875s retained, not added to phase total."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
