@@ -103,7 +103,7 @@
 | **CHG-103** | 📦 delivered | Recognize canonical managed decision delivery in immutable custody | — | — |
 | **CHG-104** | 📦 delivered | verified-closed-newtable-release | — | — |
 | **CHG-105** | 📦 delivered | owned-functional-declaration-admission | — | — |
-| **CHG-106** | 🔷 spec_applied | Classify consistent IMP410 delivery snapshots under original immutable authority | — | — |
+| **CHG-106** | 📦 delivered | Classify consistent IMP410 delivery snapshots under original immutable authority | — | — |
 
 ---
 
@@ -1367,7 +1367,7 @@ _No stories linked to this change yet._
 
 ### CHG-106: Classify consistent IMP410 delivery snapshots under original immutable authority
 
-**Status:** 🔷 `spec_applied`
+**Status:** 📦 `delivered`
 **Source:** client_review
 **Requested by:** Francisco Lomas
 **Notes:** # CHG-106 — Consistent IMP410 consumer delivery snapshots
