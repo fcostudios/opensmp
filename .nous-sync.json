@@ -1,13 +1,13 @@
 {
-  "synced_at": "2026-10-16T15:48:48.411465+00:00",
+  "synced_at": "2026-10-17T16:52:02.744404+00:00",
   "project_id": "fcostudios__smp",
   "files": {
     "docs/stories/SPRINT_PLAN.md": {
-      "hash": "afcbacd1cdc54d69",
+      "hash": "bb6a09bcc3008064",
       "source": "generated"
     },
     "docs/stories/CHANGES.md": {
-      "hash": "844ed464805ecef3",
+      "hash": "8827590fb58584bb",
       "source": "generated"
     },
     "docs/stories/ASSIGNMENTS.md": {
@@ -19,7 +19,7 @@
       "source": "generated"
     },
     ".nous-project.json": {
-      "hash": "973caf6ca0cb84a4",
+      "hash": "b5f98bb4d908cc9f",
       "source": "generated"
     },
     "docs/stories/INDEX.md": {
@@ -311,8 +311,8 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/14_legal.md"
     },
     "docs/decisions/DECISION_MATRIX.md": {
-      "hash": "5e174269d4f177af",
-      "source": "/Users/fcolomas/Projects/nous/Nous/WorkControl/fcostudios/smp/DECISION_MATRIX.md"
+      "hash": "b7311e49deff9382",
+      "source": "/Users/fcolomas/.codex/worktrees/smp-chg104-105-custody/nous/Nous/WorkControl/fcostudios/smp/DECISION_MATRIX.md"
     },
     "docs/dashboard.html": {
       "hash": "3eb9eabff875eac0",

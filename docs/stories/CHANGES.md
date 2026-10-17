@@ -100,7 +100,10 @@
 | **CHG-100** | 📦 delivered | Attest the closed baseline privilege declaration in real release verification | — | — |
 | **CHG-101** | 📦 delivered | Consume the attested privilege contract as the single preserved release source | — | — |
 | **CHG-102** | 📦 delivered | Admit only owned additive functional table declarations under closed release policy | — | — |
-| **CHG-103** | 🔷 spec_applied | Recognize canonical managed decision delivery in immutable custody | — | — |
+| **CHG-103** | 📦 delivered | Recognize canonical managed decision delivery in immutable custody | — | — |
+| **CHG-104** | 📦 delivered | verified-closed-newtable-release | — | — |
+| **CHG-105** | 📦 delivered | owned-functional-declaration-admission | — | — |
+| **CHG-106** | 🔷 spec_applied | Classify consistent IMP410 delivery snapshots under original immutable authority | — | — |
 
 ---
 
@@ -1323,12 +1326,55 @@ _No stories linked to this change yet._
 
 ### CHG-103: Recognize canonical managed decision delivery in immutable custody
 
-**Status:** 🔷 `spec_applied`
+**Status:** 📦 `delivered`
 **Source:** client_review
 **Requested by:** Francisco
 **Notes:** # CHG-103 — Canonical managed decision delivery in immutable custody
 
 Project: `fcostudios__smp`. Kind: **technical**. Canonical allocation request: `3402bec0-ac8d-4c8e-8874-a2c746b604e1`. Allocated by normal `change next --reserve`, after fresh duplicate check. No functional story or shared-subs...
+
+_No stories linked to this change yet._
+
+### CHG-104: verified-closed-newtable-release
+
+**Status:** 📦 `delivered`
+**Source:** client_review
+**Requested by:** Francisco Lomas
+**Notes:** # CHG-104 — verified-closed-newtable-release
+
+Project: fcostudios__smp. Kind: technical. Parent: CHG-102. Allocation authority: DEC-SMP-056. Existing030controller01a12b21-7810-74b2-b6e2-80caf02fa611 owns this outcome.
+
+## Result and dependency
+
+Actual production db:verify after owner connection v...
+
+_No stories linked to this change yet._
+
+### CHG-105: owned-functional-declaration-admission
+
+**Status:** 📦 `delivered`
+**Source:** client_review
+**Requested by:** Francisco Lomas
+**Notes:** # CHG-105 — owned-functional-declaration-admission
+
+Project: fcostudios__smp. Kind: technical. Parent: CHG-102. Allocation authority: DEC-SMP-056. Existing030controller01a12b21-7810-74b2-b6e2-80caf02fa611 owns this outcome.
+
+## Result and dependency
+
+Real staged/percommit/full-history gate admits...
+
+_No stories linked to this change yet._
+
+### CHG-106: Classify consistent IMP410 delivery snapshots under original immutable authority
+
+**Status:** 🔷 `spec_applied`
+**Source:** client_review
+**Requested by:** Francisco Lomas
+**Notes:** # CHG-106 — Consistent IMP410 consumer delivery snapshots
+
+Project: fcostudios__smp. Kind: technical. Owner: existing084controller01a13a18-5ada-76c0-8b07-3020f9887bb7. Policy DEC-SMP-054; actual funding/allocation DEC-SMP-057.
+
+Actual human funding approval01a14ac4-2427-7110-8bef-25124b5759c8 in ...
 
 _No stories linked to this change yet._
 
