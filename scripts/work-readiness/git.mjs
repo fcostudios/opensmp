@@ -930,7 +930,7 @@ function exactNousSyncOwns({ root, base, head, changedPaths }) {
   try {
     const changed = new Set(changedPaths);
     if (changed.size !== changedPaths.length
-      || [...NOUS_SYNC_ENVELOPE_PATHS].some((path) => !changed.has(path))) return false;
+      || !changed.has(".nous-sync.json")) return false;
     const generatedPaths = changedPaths.filter((path) => !NOUS_SYNC_ENVELOPE_PATHS.has(path));
     if (generatedPaths.length === 0 || generatedPaths.length > MAX_NOUS_SYNC_FILES
       || generatedPaths.some((path) => !isManagedPath(path)
@@ -966,22 +966,39 @@ function exactNousSyncOwns({ root, base, head, changedPaths }) {
     const generatedAt = parseUtcTimestamp(project.generated_at);
     const syncedAt = parseUtcTimestamp(sync.synced_at);
     if (generatedAt === null || syncedAt === null
-      || Math.trunc(generatedAt / 1000) !== Math.trunc(syncedAt / 1000)
       || !isPlainObject(sync.files)
       || Object.keys(sync.files).length > MAX_NOUS_SYNC_FILES) return false;
+
+    // Continuity concerns the whole closed identity except generated_at. A
+    // legitimate same-tenant revision/checksum transition still needs only a
+    // present, consistent candidate provenance, never artificial byte churn.
+    const parentProjectBytes = readRevisionFile(root, base, ".nous-project.json", { required: false });
+    if (parentProjectBytes !== null) {
+      const parentProject = parseJson(parentProjectBytes, ".nous-project.json");
+      if (revisionMode(root, base, ".nous-project.json") !== "100644"
+        || !isPlainObject(parentProject)
+        || ["project_id", "organization", "nous_namespace"].some((key) => parentProject[key] !== project[key])) return false;
+    }
 
     const parentSyncBytes = readRevisionFile(root, base, ".nous-sync.json", { required: false });
     const parentSync = parentSyncBytes === null ? null : parseJson(parentSyncBytes, ".nous-sync.json");
     if (parentSyncBytes !== null && (revisionMode(root, base, ".nous-sync.json") !== "100644"
       || !isPlainObject(parentSync) || !isPlainObject(parentSync.files))) return false;
 
-    for (const path of generatedPaths) {
+    const sameClaim = (left, right) => hasExactKeys(left, ["hash", "source"])
+      && hasExactKeys(right, ["hash", "source"])
+      && left.hash === right.hash && left.source === right.source;
+    const claimedPaths = new Set([...generatedPaths, ...Object.keys(sync.files)
+      .filter((path) => !sameClaim(parentSync?.files[path], sync.files[path]))]);
+    for (const path of claimedPaths) {
       validateRelativePath(path);
+      if ((!isManagedPath(path) && !NOUS_SYNC_ENVELOPE_PATHS.has(path))
+        || Buffer.byteLength(path, "utf8") > MAX_NOUS_PATH_BYTES
+        || revisionMode(root, head, path) !== "100644") return false;
       const entry = sync.files[path];
       if (!hasExactKeys(entry, ["hash", "source"]) || !/^[0-9a-f]{16}$/u.test(entry.hash)) return false;
       const parentEntry = parentSync?.files[path];
-      if (hasExactKeys(parentEntry, ["hash", "source"])
-        && parentEntry.hash === entry.hash && parentEntry.source === entry.source) return false;
+      if (generatedPaths.includes(path) && sameClaim(parentEntry, entry)) return false;
       const sourcePath = entry.source === "generated" ? null : normalizeNousSource(entry.source);
       if (entry.source !== "generated" && sourcePath === null) return false;
       if (provenance.dirty && sourcePath !== null

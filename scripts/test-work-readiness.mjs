@@ -4112,6 +4112,165 @@ test("an exact Nous sync envelope authorizes generated documentation", () => {
   }
 });
 
+// CHG-106: real index, ordinary hook, immutable transition and whole history
+// share one snapshot; these kill all-envelope and equal-second regressions.
+test("CHG-106 consistent snapshots pass staged committed and complete linear history", () => {
+  const { root } = makeGitRepo();
+  const generatedPath = "docs/stories/SPRINT_PLAN.md";
+  const paths = [".nous-provenance.json", ".nous-project.json", ".nous-sync.json", generatedPath];
+  try {
+    activateReadinessPolicy(root);
+    const base = git(root, ["rev-parse", "HEAD"]);
+    installReadinessHook(root);
+    let parent = base;
+    const variants = [
+      ["initial", {}],
+      ["cross-second identity", { project: { generated_at: "2026-09-05T21:40:54Z" }, sync: { synced_at: "2026-09-05T21:42:56Z" } }],
+      ["retained identity and provenance", { project: { generated_at: "2026-09-05T21:40:54Z" }, sync: { synced_at: "2026-09-05T21:43:00Z" } }],
+      ["future UTC", { project: { generated_at: "2099-12-31T23:59:59Z" }, sync: { synced_at: "2099-12-31T23:59:58+00:00" } }],
+      ["nonmonotonic UTC", { project: { generated_at: "2001-01-01T00:00:00Z" }, sync: { synced_at: "2000-01-01T00:00:00Z" } }],
+      ["checksum transition", { project: { checksum: "1122334455667788" }, sync: { synced_at: "2026-09-06T00:00:00Z" } }],
+      ["revision transition", { provenance: { git_sha: "12345678abcd" }, project: { substrate_commit: "12345678" } }],
+    ];
+    for (const [name, overrides] of variants) {
+      writeExactNousSyncEnvelope(root, generatedPath, `# Snapshot ${name}\n`, overrides);
+      git(root, ["add", "--", ...paths]);
+      if (name === "retained identity and provenance") {
+        assert.deepEqual(listChangedPaths({ root, staged: true }).sort(), [".nous-sync.json", generatedPath].sort());
+      }
+      const message = `docs(CHG-106): ${name}`;
+      const staged = runCli(root, ["check-staged", "--message-file", writeGitMessage(root, message + "\n"), "--json"]);
+      assert.equal(staged.status, 0, `${name}: ${staged.stdout}${staged.stderr}`);
+      assert.equal(JSON.parse(staged.stdout).ok, true);
+      const committed = runGit(root, ["commit", "-m", message]);
+      assert.equal(committed.status, 0, `${name}: ${committed.stderr}`);
+      const head = git(root, ["rev-parse", "HEAD"]);
+      assert.equal(validateRangeOwnership({ root, base: parent, head }).classification, "bootstrap-documentation");
+      assert.equal(validateRangeOwnership({ root, base, head }).classification, "bootstrap-documentation");
+      parent = head;
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("CHG-106 snapshot guards reject independent hostile state from passing controls", () => {
+  const path = "docs/stories/SPRINT_PLAN.md";
+  const source = "/fixture/Nous/Specs/fixture/ledger/v1/stories/SPRINT_PLAN.md";
+  const cases = [
+    ["identity shape", ({ project }) => { project.extra = true; }],
+    ["sync shape", ({ sync }) => { sync.extra = true; }],
+    ["provenance shape", ({ provenance }) => { provenance.extra = true; }],
+    ["calendar", ({ project }) => { project.generated_at = "2026-02-30T00:00:00Z"; }],
+    ["UTC syntax", ({ sync }) => { sync.synced_at = "2026-09-05T21:40:53"; }],
+    ["UTC offset", ({ sync }) => { sync.synced_at = "2026-09-05T16:40:53-05:00"; }],
+    ["project boundary", ({ project, provenance, sync }) => { project.project_id = provenance.project_id = sync.project_id = "other__tenant"; }],
+    ["organization boundary", ({ project }) => { project.organization = "other_org"; }],
+    ["namespace boundary", ({ project }) => { project.nous_namespace = "other/tenant"; }],
+    ["checksum", ({ project }) => { project.checksum = "invalid"; }],
+    ["revision", ({ project }) => { project.substrate_commit = "00000000"; }],
+    ["provenance project", ({ provenance }) => { provenance.project_id = "other__tenant"; }],
+    ["candidate hash", ({ sync }) => { sync.files[path].hash = "0".repeat(16); }],
+    ["candidate source", ({ sync }) => { sync.files[path].source = "Nous/relative.md"; }],
+    ["fresh extra claim", ({ sync }) => { sync.files["docs/specs/extra.md"] = { hash: "0".repeat(16), source: "generated" }; }],
+    ["changed extra claim", ({ sync }) => { sync.files["docs/specs/retained.md"] = { hash: "0".repeat(16), source: "generated" }; }],
+    ...["Nous/Specs/fixture/ledger/v1/stories/SPRINT_PLAN.md", "Nous/Specs/fixture/ledger/v1/stories", "Nous/Specs/fixture/ledger/v1/stories/SPRINT_PLAN.md/child"].map(dirty =>
+      [`dirty overlap ${dirty}`, ({ provenance }) => { provenance.dirty = true; provenance.dirty_paths = [dirty]; }]),
+    ["identity executable", () => {}], ["provenance executable", () => {}],
+    ["generated executable", () => {}], ["generated symlink", () => {}],
+    ["unmanaged path", () => {}],
+  ];
+  for (const [name, mutate] of cases) {
+    const { root } = makeGitRepo();
+    const paths = [".nous-provenance.json", ".nous-project.json", ".nous-sync.json", path, "docs/specs/retained.md"];
+    try {
+      writeRepoFile(root, "docs/specs/retained.md", "# Retained\n");
+      const retained = { hash: createHash("sha256").update("# Retained\n").digest("hex").slice(0, 16), source: "generated" };
+      const write = (text, change = () => {}) => writeExactNousSyncEnvelope(root, path, text, {
+        mutate: envelope => { envelope.sync.files[path].source = source; envelope.sync.files["docs/specs/retained.md"] = retained; change(envelope); },
+      });
+      write("# First\n");
+      const base = commitRepo(root, "docs(CHG-106): seed snapshot guard", paths);
+      write("# Second\n");
+      const good = commitRepo(root, "docs(CHG-106): passing guard control", paths);
+      assert.equal(validateRangeOwnership({ root, base, head: good }).classification, "bootstrap-documentation", name);
+      git(root, ["reset", "--hard", base]);
+      write("# Second\n", mutate);
+      if (name === "identity executable") chmodSync(join(root, ".nous-project.json"), 0o755);
+      if (name === "provenance executable") chmodSync(join(root, ".nous-provenance.json"), 0o755);
+      if (name === "generated executable") chmodSync(join(root, path), 0o755);
+      if (name === "generated symlink") { rmSync(join(root, path)); symlinkSync("../../README.md", join(root, path)); }
+      if (name === "unmanaged path") { writeRepoFile(root, "docs/unmanaged.md", "# Extra\n"); paths.push("docs/unmanaged.md"); }
+      const bad = commitRepo(root, `docs(CHG-106): hostile ${name}`, paths);
+      assert.throws(() => validateRangeOwnership({ root, base, head: bad }),
+        error => error instanceof WorkReadinessError && error.code === "WR_GENERATED_NOUS_PATH" && error.path === path, name);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  }
+});
+
+test("CHG-106 ordinary implementation retains independent parent authority", () => {
+  const variants = [
+    ["missing readiness", "WR_READINESS_MISSING", "docs/readiness/US-123.json"],
+    ["missing approval", "WR_APPROVAL_REQUIRED", "$.approval.status"],
+    ["digest", "WR_APPROVAL_DIGEST_MISMATCH", "$.readiness_payload_sha256"],
+    ["missing plan", "WR_IMPLEMENTATION_PLAN_MISSING", "docs/superpowers/plans/US-123.md"],
+    ["ambiguous plan", "WR_IMPLEMENTATION_PLAN_AMBIGUOUS", "docs/superpowers/plans"],
+    ["inactive", "WR_APPROVAL_INACTIVE", "$.approval.evidence"],
+    ["candidate self-approval", "WR_READINESS_MISSING", "docs/readiness/US-123.json"],
+    ["missing ownership", "WR_WORK_ID_MISSING", "$.message"],
+    ["feedback history", "WR_FEEDBACK_HISTORY_MUTATED", ".nous-feedback.jsonl"],
+  ];
+  for (const [name, code, errorPath] of variants) {
+    const { root } = makeGitRepo();
+    const path = "src/implementation.ts", readinessPath = "docs/readiness/US-123.json";
+    try {
+      const value = approvedArtifact("US-123");
+      approveAfterPolicyActivation(root, value);
+      writeRepoFile(root, "docs/superpowers/plans/US-123.md", implementationPlanHeader(value));
+      const base = commitRepo(root, "docs(US-123): bound authority control", ["docs/superpowers/plans/US-123.md"]);
+      writeExactNousSyncEnvelope(root, path, "export const implemented = true;\n");
+      const good = commitRepo(root, "feat(US-123): passing independent authority", [path, ".nous-project.json", ".nous-provenance.json", ".nous-sync.json"]);
+      assert.equal(validateRangeOwnership({ root, base, head: good }).classification, "implementation", name);
+      git(root, ["reset", "--hard", base]);
+      const records = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+      const parentPaths = [];
+      if (["missing readiness", "candidate self-approval"].includes(name)) { rmSync(join(root, readinessPath)); parentPaths.push(readinessPath); }
+      if (name === "missing approval") { const pending = pendingArtifact("US-123"); writeRepoFile(root, readinessPath, JSON.stringify(pending) + "\n"); parentPaths.push(readinessPath); }
+      if (name === "digest") { value.outcomes[0].statement = "Changed without fresh digest"; writeRepoFile(root, readinessPath, JSON.stringify(value) + "\n"); parentPaths.push(readinessPath); }
+      if (name === "missing plan") { rmSync(join(root, "docs/superpowers/plans/US-123.md")); parentPaths.push("docs/superpowers/plans/US-123.md"); }
+      if (name === "ambiguous plan") { writeRepoFile(root, "docs/superpowers/plans/duplicate.md", implementationPlanHeader(value)); parentPaths.push("docs/superpowers/plans/duplicate.md"); }
+      if (name === "inactive") { writeRepoFile(root, ".nous-feedback.jsonl", records + JSON.stringify({ story: "US-123", event: "blocker", reason: "Independent inactive control" }) + "\n"); parentPaths.push(".nous-feedback.jsonl"); }
+      const parent = parentPaths.length ? commitRepo(root, "docs(US-123): hostile parent fixture", parentPaths) : base;
+      const childPaths = [path, ".nous-project.json", ".nous-provenance.json", ".nous-sync.json"];
+      if (name === "candidate self-approval") { writeRepoFile(root, readinessPath, JSON.stringify(value) + "\n"); childPaths.push(readinessPath); }
+      if (name === "feedback history") { writeRepoFile(root, ".nous-feedback.jsonl", records.replace("Policy activation", "Rewritten activation")); childPaths.push(".nous-feedback.jsonl"); }
+      writeExactNousSyncEnvelope(root, path, "export const implemented = true;\n");
+      const head = commitRepo(root, name === "missing ownership" ? "feat: unowned implementation" : `feat(US-123): hostile ${name}`, childPaths);
+      assert.throws(() => validateRangeOwnership({ root, base: parent, head }),
+        error => error instanceof WorkReadinessError && error.code === code && error.path === errorPath, name);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  }
+});
+
+test("CHG-106 complete history rejects invalid middle snapshot after endpoint restoration", () => {
+  const { root } = makeGitRepo();
+  const path = "docs/stories/SPRINT_PLAN.md";
+  const paths = [path, ".nous-project.json", ".nous-provenance.json", ".nous-sync.json"];
+  try {
+    writeExactNousSyncEnvelope(root, path, "# First\n");
+    const base = commitRepo(root, "docs(CHG-106): valid history seed", paths);
+    writeExactNousSyncEnvelope(root, path, "# Second\n");
+    const good = commitRepo(root, "docs(CHG-106): valid history control", paths);
+    assert.equal(validateRangeOwnership({ root, base, head: good }).classification, "bootstrap-documentation");
+    writeExactNousSyncEnvelope(root, path, "# Invalid middle\n", { mutate: ({ sync }) => { sync.files[path].hash = "0".repeat(16); } });
+    commitRepo(root, "docs(CHG-106): invalid middle", paths);
+    writeExactNousSyncEnvelope(root, path, "# Third valid endpoint\n");
+    const head = commitRepo(root, "docs(CHG-106): restore valid endpoint", paths);
+    const middle = git(root, ["rev-parse", `${head}^`]);
+    assert.equal(validateRangeOwnership({ root, base: middle, head }).classification, "bootstrap-documentation");
+    assert.throws(() => validateRangeOwnership({ root, base, head }),
+      error => error instanceof WorkReadinessError && error.code === "WR_GENERATED_NOUS_PATH" && error.path === path);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
 // CHG-103 keeps the existing custody route and all predicates; the only new
 // category is canonical managed decisions. These are real Git/hook contracts.
 const managedDecisionPath = "docs/decisions/DECISION_MATRIX.md";
@@ -4170,16 +4329,12 @@ test("CHG-103 managed decision custody rejects independent hostile claims", () =
     ["dirty decision source", ({ provenance }) => { provenance.dirty = true; provenance.dirty_paths = ["Nous/Specs/fixture/ledger/v1/decisions/DECISION_MATRIX.md"]; }],
     ["wrong project", ({ project }) => { project.project_id = "other__project"; }],
     ["forged closed shape", ({ provenance }) => { provenance.forged = true; }],
-    ["mode", () => {}], ["symlink", () => {}], ["incomplete envelope", () => {}], ["unmanaged path", () => {}],
+    ["mode", () => {}], ["symlink", () => {}], ["missing identity", () => {}], ["unmanaged path", () => {}],
   ];
   for (const [name, mutate] of variants) {
     const { root } = makeGitRepo();
-    let base = git(root, ["rev-parse", "HEAD"]);
+    const base = git(root, ["rev-parse", "HEAD"]);
     try {
-      if (name === "incomplete envelope") {
-        writeManagedDecisionDelivery(root, 1);
-        base = commitRepo(root, "docs(CHG-103): seed unchanged project envelope fixture", [".nous-project.json"]);
-      }
       let paths = writeManagedDecisionDelivery(root, 1, { mutate });
       if (name === "unmanaged path") {
         const path = "docs/other/unmanaged.md", bytes = "# Unmanaged category\n";
@@ -4190,7 +4345,7 @@ test("CHG-103 managed decision custody rejects independent hostile claims", () =
       }
       if (name === "mode") chmodSync(join(root, managedDecisionPath), 0o755);
       if (name === "symlink") { rmSync(join(root, managedDecisionPath)); symlinkSync("../../README.md", join(root, managedDecisionPath)); }
-      if (name === "incomplete envelope") paths = paths.filter(path => path !== ".nous-project.json");
+      if (name === "missing identity") { rmSync(join(root, ".nous-project.json")); paths = paths.filter(path => path !== ".nous-project.json"); }
       const head = commitRepo(root, `docs(CHG-103): hostile managed decision ${name}`, paths);
       assert.throws(() => validateRangeOwnership({ root, base, head }),
         error => error.code === "WR_GENERATED_NOUS_PATH" && error.path === managedDecisionStory, name);
@@ -4379,41 +4534,6 @@ test("a full Nous manifest cannot authorize an implementation path", () => {
   }
 });
 
-test("a partial Nous sync envelope cannot authorize a generated edit", () => {
-  const { root } = makeGitRepo();
-  try {
-    const generatedPath = "docs/stories/SPRINT_PLAN.md";
-    writeExactNousSyncEnvelope(root, generatedPath, "# Sprint plan from Nous\n");
-    const synced = commitRepo(root, "docs(CHG-045): sync generated sprint", [
-      generatedPath, ".nous-provenance.json", ".nous-project.json", ".nous-sync.json",
-    ]);
-
-    const generated = "# Hand-edited sprint plan with partial provenance\n";
-    writeRepoFile(root, generatedPath, generated);
-    writeRepoFile(root, ".nous-sync.json", `${JSON.stringify({
-      synced_at: "2026-09-05T21:40:53.665778+00:00",
-      project_id: "fixture__ledger",
-      files: {
-        [generatedPath]: {
-          hash: createHash("sha256").update(generated).digest("hex").slice(0, 16),
-          source: "generated",
-        },
-      },
-    }, null, 2)}\n`);
-    const edited = commitRepo(root, "docs(CHG-045): partially sync generated sprint", [
-      generatedPath, ".nous-sync.json",
-    ]);
-
-    assert.throws(
-      () => validateRangeOwnership({ root, base: synced, head: edited }),
-      (error) => error.code === "WR_GENERATED_NOUS_PATH"
-        && error.path === generatedPath,
-    );
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
 test("forged Nous sync provenance cannot authorize generated documentation", () => {
   const generatedPath = "docs/stories/SPRINT_PLAN.md";
   const sourcePath = "/fixture/Nous/Specs/fixture/ledger/v1/stories/SPRINT_PLAN.md";
@@ -4566,7 +4686,7 @@ test("an exact Nous sync envelope requires an eight-hex substrate revision", () 
   }
 });
 
-test("an exact Nous sync envelope requires equal UTC-second timestamps", () => {
+test("an exact Nous sync envelope requires strict valid UTC timestamps", () => {
   const variants = [
     { project: { generated_at: "2026-09-05T21:40:53" } },
     { project: { generated_at: "2026-09-05T16:40:53-05:00" } },
@@ -4574,7 +4694,6 @@ test("an exact Nous sync envelope requires equal UTC-second timestamps", () => {
     { sync: { synced_at: "2026-09-05T21:40:53.665778" } },
     { sync: { synced_at: "2026-09-05T16:40:53.665778-05:00" } },
     { sync: { synced_at: "2026-09-05T21:40:53.1234567890+00:00" } },
-    { sync: { synced_at: "2026-09-05T21:40:54.000000+00:00" } },
   ];
   for (const envelopeOverrides of variants) {
     const { root, base } = makeGitRepo();
@@ -5325,6 +5444,11 @@ test("CHG-022 bootstrap authorizes only its exact manifest paths before done", (
     writeRepoFile(root, "scripts/work-readiness/git.mjs", "export {};\n");
     const head = commitRepo(root, "feat(CHG-022): implement authorized Git classifier", ["scripts/work-readiness/git.mjs"]);
     assert.equal(validateRangeOwnership({ root, base, head }).classification, "implementation");
+    writeRepoFile(root, "src/outside-bootstrap.ts", "export {};\n");
+    const unauthorized = commitRepo(root, "feat(CHG-022): unauthorized bootstrap path", ["src/outside-bootstrap.ts"]);
+    assert.throws(() => validateRangeOwnership({ root, base: head, head: unauthorized }),
+      error => error instanceof WorkReadinessError && error.code === "WR_BOOTSTRAP_PATH_UNAUTHORIZED"
+        && error.path === "src/outside-bootstrap.ts");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
