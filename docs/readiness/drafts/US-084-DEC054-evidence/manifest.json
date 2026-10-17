@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "purpose": "Exact archival copies of existing preparation reports; no new review or runtime proof.",
+  "records": [
+    {
+      "path": "docs/readiness/drafts/US-084-DEC054-evidence/us084-optiona-historical-readiness-20261017.md",
+      "original_path": "/tmp/us084-optiona-historical-readiness-20261017.md",
+      "sha256": "5ed51ab244275528be7ae2c7a0c302e97170a65524320a2c3ae6a1379abffa8e",
+      "bytes": 11031
+    },
+    {
+      "path": "docs/readiness/drafts/US-084-DEC054-evidence/us084-optiona-scope-cost-readiness-20261017.md",
+      "original_path": "/tmp/us084-optiona-scope-cost-readiness-20261017.md",
+      "sha256": "b292d8ba6182975421d40a311f0a8152ecef86a90c9e4031ec5277319ad6d034",
+      "bytes": 12251
+    },
+    {
+      "path": "docs/readiness/drafts/US-084-DEC054-evidence/us084-optiona-packet-review-20261017.md",
+      "original_path": "/tmp/us084-optiona-packet-review-20261017.md",
+      "sha256": "d4c59832cda86d6a8d677c34561b1135cdf43b83f82a82179275affc1d9cd32a",
+      "bytes": 4412
+    }
+  ]
+}
