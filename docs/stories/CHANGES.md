@@ -104,6 +104,7 @@
 | **CHG-104** | 📦 delivered | verified-closed-newtable-release | — | — |
 | **CHG-105** | 📦 delivered | owned-functional-declaration-admission | — | — |
 | **CHG-106** | 📦 delivered | Classify consistent IMP410 delivery snapshots under original immutable authority | — | — |
+| **CHG-107** | 📦 delivered | Honor explicitly approved item-bound cumulative execution ceilings | — | — |
 
 ---
 
@@ -1375,6 +1376,17 @@ _No stories linked to this change yet._
 Project: fcostudios__smp. Kind: technical. Owner: existing084controller01a13a18-5ada-76c0-8b07-3020f9887bb7. Policy DEC-SMP-054; actual funding/allocation DEC-SMP-057.
 
 Actual human funding approval01a14ac4-2427-7110-8bef-25124b5759c8 in ...
+
+_No stories linked to this change yet._
+
+### CHG-107: Honor explicitly approved item-bound cumulative execution ceilings
+
+**Status:** 📦 `delivered`
+**Source:** client_review
+**Requested by:** Francisco Lomas
+**Notes:** # CHG-107 — Item-bound cumulative execution ceilings
+
+Project: fcostudios__smp. Kind: technical. Owner: existing084controller01a13a18-5ada-76c0-8b07-3020f9887bb7 after actual106integration. Funding/allocation DEC-SMP-060; initialactualseed DEC-SMP-059 (CHG093only380). Exacthumanapproval01a14b34-d...
 
 _No stories linked to this change yet._
 
