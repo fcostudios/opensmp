@@ -109,3 +109,163 @@ Readiness author cost:4 estimated active minutes inclusive initial reads/artifac
 The missing original failed-receipt hash and stale original plan authority remain explicit bounded AC3 verification uncertainties, not resolved facts. Their two10-minute allowances are included within focused90/integration45. Rule9 permits explicit estimate impact; these do not presently require an additional outcome, capability or funding boundary because original rejection is a valid fail-closed result and any absent guard still stops historical evaluation/closure. No historical PASS or absent authority is supplied by this review. Current six-path strong custody PASS establishes lawful specification adoption; future validator revision/hash and normal immediate-parent approval/bound plan remain required future deliverables. No bootstrap or old-guard waiver is introduced.
 
 Independent reviewer cost: **3 estimated active minutes**, including targeted reads, review, digest/hash capture, this handoff and normal two-document commit; charged once to the NEW shared15, not prior preparation30. Together operator5+controller3+author4+reviewer3 uses15; cumulative readiness52=prior37+15, leaving3 unspent within55. These are conservative active estimates, not measured billing. No new research, design, implementation, tests, engineering gates, ledger decision or historical evaluation was performed. Normal documentation hook results and commit identity are reported in the controller handoff. Monitoring remains off.
+
+## PROSPECTIVE U3 custody amendment — exact future payload (2026-10-17)
+
+**Preparation only. No new custody choice, canonical amendment, readiness approval or historical audit is authorized by this packet.** The active artifact remains byte-identical and approved at `f914d7133d9461819ab558670d11db3330c963cd649d94f61791b0c0e7f2995f`; already committed code retains that actual authority. This packet does not amend its past authority or invent original receipt custody.
+
+Factual custodian reply: US024 turn `01a14ae1-1775-7c12-9a1a-e12d52fb4b06` reports no verified archive pointer/hash for the authentic original raw failure receipt and no verified receiving endpoints among retained records. Custody is **UNKNOWN**, not proven loss. The authentic canonical failure report/responsev1 `d9e12b14-0677-4afb-8a8b-9f3392965aa7` is retained as failure evidence, not substituted for raw receipt bytes/hash or original endpoint certification. The new range is explicitly **derived**, requiring explanation and verification against contemporaneous records/Git, never a claimed certified original capture.
+
+### Proposed owner choice — verbatim
+
+> For CHG-106 AC3 only, accept documented CURRENT CUSTODY UNKNOWN for the original e08a140 raw receipt and original receiving-range certificate. I acknowledge reduced assurance about the original captured output and endpoints. Retain the authentic canonical d9e12b14-0677-4afb-8a8b-9f3392965aa7 failure report/responsev1, all existing immutable Git objects and provenance, and the custodian’s actual unknown-status statement. Do not claim receipt bytes/hash recovered, proven lost, or original endpoint certification. Authorize a separately dated NEW audit of the explicitly DERIVED range d502a34223612c9c6178a515ca3047dbb2691adb..2af42f33403b7ea4e34670dfa588fac5fd5ef215 using the exact approved named DEC054 validator. Explain and verify range derivation from contemporaneous records/Git; do not label it independently certified original capture. Audit every commit against its actual immutable parent with ALL original execution/activation/approval/digest/plan/scope/source/hash/mode/history guards. Missing original authority, unexplained range gaps or evidence of omitted receiving commits still blocks acceptance; later approval cannot repair it. Preserve the original reported FAIL and distinguish the new result. Replace only the raw-receipt-recovery/original-capture-certificate acceptance conditions with this disclosed lower-assurance custody basis and the required new audit. No shortened known range, invented evidence, later authority backfill, P4release, budget expansion or unrelated scope change. Bind this amendment and the revised exact readiness payload through the normal approval workflow before affected historical evaluation/closure.
+
+### Disclosed assurance reduction and unchanged controls
+
+This would accept less assurance about the originally captured output and receiving endpoints. It does not declare the receipt recovered or lost; does not certify endpoints from the missing raw record; and does not predetermine a PASS. Every applicable original guard, complete derived range, gap/omitted-commit check, source-to-composed provenance and exact named validator audit remains required. Missing original authority or unexplained gaps still stop acceptance. Existing P4/dependency holds, monitoring-off policy, nine delivery/nine bookkeeping paths and total315=55/75/90/50/45 remain unchanged. U4 narrow plan applicability evidence does not establish the full original-parent historical audit.
+
+Only `uncertainties[id=U3].resolution` changes in the canonical readiness payload. Digest fields change derivatively; prospective approval is pending/null rather than copied from the active approval. All other payload fields remain byte-equivalent JSON values. Complete future artifact follows; it has NOT been written to `docs/readiness/CHG-106.json`.
+
+### Exact future readiness artifact
+
+```json
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "8fcaa6e03d0924147d9bc24307551d3ae69b648f66886dbc0a57c3cc0c8fb8f4",
+  "work_id": "CHG-106",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Consistent IMP410 consumer delivery snapshots",
+  "source": "/Users/fcolomas/Projects/nous/Nous/WorkControl/fcostudios/smp/CHG-106_TECH_SPEC.md @a291060cc5f2298e1becc5625c6ca6a37a299305; DEC-SMP-054 option A; DEC-SMP-057 funding; canonical custody Nous943e504:Nous/WorkControl/agent-requests-2026-10-16/09_US084_CHG106_ALLOCATION_CUSTODY_RECEIPT.json; tenant normal six-path delivery 65d9df3009ee2f43eff68f4a37d90252c8fbe44c..860ef94ec6ee85d1b426578e25dbb4d7d18ed44d",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Classify genuine IMP-410 delivery snapshots consistently in staged, immutable per-commit and full-history validation while rejecting tampering and retaining original-parent authorization.",
+      "demo": "Deterministic real-Git positive and independent hostile controls; separately governed evaluation of unchanged original cad8 and complete receiving history preserves original FAIL and rejects any absent original-parent guard.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1-consistent-delivery-snapshots",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2-independent-protected-guards",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3-governed-original-history-and-own-proof",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "consumer-classification",
+    "real-Git-regression-controls",
+    "tenant-guidance-and-custody-proof"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 9,
+    "bookkeeping_files": 9,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 55,
+    "implementation": 75,
+    "focused_verification": 90,
+    "review": 50,
+    "integration": 45,
+    "total": 315
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Exact official allocation, policy/funding and normal delivery custody",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Canonical source a291060 and receipt Nous943e504 confirm CHG-106/DEC-SMP-054/DEC-SMP-057. Normal single six-path sync and actual strong check-range 65d9..860ef94 PASS. No second status-sync, favorable timestamp retry or identity churn. Canonical delivered status was recorded after delivery; delivered CHANGES spec_applied snapshot remains the authentic cutoff. Funding315 cumulative/275 additional is approved; no unseen readiness digest is approved."
+    },
+    {
+      "id": "U2",
+      "statement": "Closed counted inventory",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Nine delivery paths: scripts/work-readiness/git.mjs; scripts/test-work-readiness.mjs; docs/dev-guide/WORK_READINESS.md; .nous-project.json; .nous-provenance.json; .nous-sync.json; docs/stories/CHANGES.md; docs/stories/SPRINT_PLAN.md; docs/decisions/DECISION_MATRIX.md. Nine bookkeeping paths: docs/readiness/CHG-106.json; docs/superpowers/specs/CHG-106-design.md; docs/superpowers/plans/CHG-106-plan.md; .nous-feedback.jsonl; docs/readiness/drafts/US-084-DEC054-funding-packet.md; docs/readiness/drafts/US-084-DEC054-evidence/us084-optiona-historical-readiness-20261017.md; docs/readiness/drafts/US-084-DEC054-evidence/us084-optiona-scope-cost-readiness-20261017.md; docs/readiness/drafts/US-084-DEC054-evidence/us084-optiona-packet-review-20261017.md; docs/readiness/drafts/US-084-DEC054-evidence/manifest.json. Approval packet appended to existing draft, no extra path. No producer/emitter, threshold/schema, critical-set or application changes. Extra outputs require scope reassessment before approval."
+    },
+    {
+      "id": "U3",
+      "statement": "Original failed-receipt custody and complete original receiving range",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "PROSPECTIVE ONLY; not approved or active. Custodian factual reply in US024 turn01a14ae1-1775-7c12-9a1a-e12d52fb4b06 states retained records contain no verified archive pointer/hash for the authentic original raw failure receipt and no verified receiving endpoints. Custody is CURRENTLY UNKNOWN, not proven lost. Original canonical d9e12b14-0677-4afb-8a8b-9f3392965aa7 failure report/responsev1 records original application2af and WR_GENERATED_NOUS_PATH for CHANGES; it is not the missing raw receipt or an original-range certificate. Proposed replacement acceptance, requiring actual new human choice plus normal canonical amendment and this exact future digest approval BEFORE historical evaluation/closure: For CHG-106 AC3 only, accept documented CURRENT CUSTODY UNKNOWN for the original e08a140 raw receipt and original receiving-range certificate. I acknowledge reduced assurance about the original captured output and endpoints. Retain the authentic canonical d9e12b14-0677-4afb-8a8b-9f3392965aa7 failure report/responsev1, all existing immutable Git objects and provenance, and the custodian’s actual unknown-status statement. Do not claim receipt bytes/hash recovered, proven lost, or original endpoint certification. Authorize a separately dated NEW audit of the explicitly DERIVED range d502a34223612c9c6178a515ca3047dbb2691adb..2af42f33403b7ea4e34670dfa588fac5fd5ef215 using the exact approved named DEC054 validator. Explain and verify range derivation from contemporaneous records/Git; do not label it independently certified original capture. Audit every commit against its actual immutable parent with ALL original execution/activation/approval/digest/plan/scope/source/hash/mode/history guards. Missing original authority, unexplained range gaps or evidence of omitted receiving commits still blocks acceptance; later approval cannot repair it. Preserve the original reported FAIL and distinguish the new result. Replace only the raw-receipt-recovery/original-capture-certificate acceptance conditions with this disclosed lower-assurance custody basis and the required new audit. No shortened known range, invented evidence, later authority backfill, P4release, budget expansion or unrelated scope change. Bind this amendment and the revised exact readiness payload through the normal approval workflow before affected historical evaluation/closure. U3 original ten-minute reserve: seven estimated active minutes spent (prior six plus root availability read one), three remain unspent; this amendment preparation belongs to existing integration45, not U3 or new funding. All other readiness fields, scopes, budgets and applicable original-authority/full historical-audit obligations remain unchanged; U4 narrow plan applicability alone does not establish all historical authority."
+    },
+    {
+      "id": "U4",
+      "statement": "Applicable original-parent plan authority",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "Original cad8c2965ace0e39dd9c0f05b085a277d926e704 parent ae0ddfacfcc3aa2c229453fdb38ea627102b25b0 contains ready/approved e08a95ad8295972a7350da97452f2cefdf366a0018360cbec5d38d3379924f6d, raw decision row1652, nine-path scope and activation artifact. Original plan/design still state seven paths/120 versus readiness nine/140. Applicable bound-plan requirements have not been proved; generated-sync early return is not that proof. Neither future approval nor DEC054 can backfill absent original authority. Existing original bytes remain unchanged; a genuine missing guard remains FAIL. Reserve10 minutes WITHIN focused90 for actual original-parent bound-plan guard verification and explicit rejection if absent; not additional budget. This is an unproved AC3 condition, not new prospective approval backfill. No historical evaluation PASS or closure before guard proof. A genuine absent original guard remains FAIL; any broader authority remedy stops this scope."
+    },
+    {
+      "id": "U5",
+      "statement": "Prospective normal activation and eventual validator identity",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Normal lawful spec adoption now established by strong current custody PASS. Future executable work requires exact approved readiness plus matching raw decision evidence committed in its immediate parent, then bound design/plan under normal governance before implementation. Exact future committed validator revision/source hashes and dated evaluation receipt are future proof deliverables, not invented current IDs. No CHG022 bootstrap expansion, hidden bypass, self-authorization or original-parent rewrite. If normal entry fails, retain failure and stop."
+    },
+    {
+      "id": "U6",
+      "statement": "Bounded semantic and verification work",
+      "status": "budgeted",
+      "estimate_impact_minutes": 0,
+      "resolution": "Three flows only: cross-second/unchanged-identity valid snapshots; independent hostile guards; governed original history. Identity comparison excludes ONLY generated_at. Preserve closed shapes, strict UTC syntax, project/org/namespace, checksums, exact hashes/source, provenance, new/changed semantic claims, paths/modes/symlinks/dirty overlap, activation, immutable-parent approval/digest/scope and full lifecycle history. No same-second/monotonic/future-clock/all-envelope-change requirement. After valid entry use fixed real Git fixtures and independent rejection oracles, read TESTING before test edits. Own native harness, awake full gates and committed migrations/schema proof with owner/app roles remain required. Zero TS/TSX shards is forecast only: record actual preflight and applicable cold or approved zero-attempt technical skip, null score and no fabricated test_report. No borrowed CHG097/098/103 proof. Full90 focused/45 integration includes these obligations; newly independent gap stops rather than expanding scope."
+    },
+    {
+      "id": "U7",
+      "statement": "Truthful whole-outcome cost and unchanged holds",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "315=55 readiness+75 implementation+90 focused+50 review+45 integration. Prior37 incurred and prior3 unused remain distinct. Initial15 shared cap: operator5 spent once; root3/readiness author4/reviewer3 are respective bounds with final actuals reported honestly, never reservations billed as spent. Author4 estimated active minutes inclusive reads, artifact, check and handoff. Operator5 replaces earlier3, not3+5. Up to52 cumulative readiness if all15 used, leaving3 within55. No sibling transfer, clock reset, extra unfunded allowance or new assessment funding request. No design/implementation/test/tooling/full engineering gate authorized now. US024/087 separate owner and DEC051/P4/US084/090/091 holds remain; monitoring off."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "8fcaa6e03d0924147d9bc24307551d3ae69b648f66886dbc0a57c3cc0c8fb8f4"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
+```
+
+Prospective canonical payload SHA-256: **`8fcaa6e03d0924147d9bc24307551d3ae69b648f66886dbc0a57c3cc0c8fb8f4`**. Computed with the repository normal `computeReadinessPayloadSha256`: exclude top-level readiness_payload_sha256/approval/actuals/checkpoints, recursively sort object keys, preserve array order, serialize JSON.stringify UTF-8 and SHA256. Pending approval fields supply no authority.
+
+### Normal route after actual human approval only
+
+Normal operator route is viable: record the actual owner decision and append-only CHG106 source amendment, deliver its bounded lawful custody delta, then bind the actual revised artifact to the exact new human-approved digest and pass ordinary readiness/parent checks before affected historical evaluation/closure. Do not record any such decision now. If the actual canonical delivery changes this future payload, compute and show that exact different digest before approval; this packet cannot authorize unseen bytes. Future approval cannot backfill old authority. No source/test/gate rerun was used to prepare this proposal.
+
+U3 recovery lookup accounting: seven of its original ten estimated active minutes spent; three unused. Amendment preparation/review/normal-route coordination belongs to existing integration45 only. Current cumulative146 includes root availability lookup1; this packet author2 + operator1 + root coordination1 + independent review up to2 gives at most152 before any separately reported monitor tail. These are estimated active effort, not billed measurements; no ceiling is treated as spent. Independent bookkeeping-amendment review is pending.
+
+### Single concrete approval question (pending review; not asked or answered yet)
+
+Do you approve the verbatim CHG106 AC3 custody-unknown amendment above, with its disclosed assurance reduction and mandatory full derived-range/original-parent audit, and the exact revised readiness payload SHA-256 `8fcaa6e03d0924147d9bc24307551d3ae69b648f66886dbc0a57c3cc0c8fb8f4`, under the unchanged315-minute budget and scope?
