@@ -75,10 +75,16 @@ function tableIdentity(file, target, required) {
   const columns = new Set();
   let realTableImports = 0;
   for (const statement of source.statements) {
+    if (ts.isExportDeclaration(statement) && !statement.isTypeOnly) {
+      const emptyModuleMarker = !statement.moduleSpecifier && statement.exportClause
+        && ts.isNamedExports(statement.exportClause) && statement.exportClause.elements.length === 0;
+      if (!emptyModuleMarker) reject("Runtime schema reexports cannot prove table absence or ownership");
+    }
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)
       || statement.moduleSpecifier.text !== "drizzle-orm/pg-core") continue;
     const clause = statement.importClause;
     const bindings = clause?.namedBindings;
+    if (!clause?.isTypeOnly && (clause?.name || (bindings && ts.isNamespaceImport(bindings)))) reject("Namespace or default schema builders are unsupported");
     if (clause?.isTypeOnly || !bindings || !ts.isNamedImports(bindings)) continue;
     for (const element of bindings.elements) {
       if ((element.propertyName ?? element.name).text === "pgTable") {
@@ -90,6 +96,21 @@ function tableIdentity(file, target, required) {
   }
   const matches = [];
   function visit(node) {
+    if (ts.isIdentifier(node) && tableImports.has(node.text)) {
+      const parent = node.parent;
+      const imported = ts.isImportSpecifier(parent);
+      const directCallee = ts.isCallExpression(parent) && parent.expression === node;
+      const propertyName = (ts.isPropertyAssignment(parent) && parent.name === node)
+        || (ts.isPropertyAccessExpression(parent) && parent.name === node);
+      if (!imported && !directCallee && !propertyName) reject("Aliased or escaped table builder identity is unsupported");
+    }
+    if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword
+      || (ts.isIdentifier(node.expression) && node.expression.text === "require"))) reject("Dynamic schema modules are unsupported");
+    if (ts.isCallExpression(node) && node.arguments[0] && ts.isStringLiteral(node.arguments[0])
+      && node.arguments[0].text === target && !(ts.isIdentifier(node.expression)
+        && (tableImports.has(node.expression.text) || columns.has(node.expression.text)))) {
+      reject("The selected table cannot be hidden behind an unsupported builder");
+    }
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && tableImports.has(node.expression.text)) {
       if (!node.arguments[0] || !ts.isStringLiteral(node.arguments[0])) reject("Computed table identities are unsupported");
       if (node.arguments[0].text === target) matches.push(node);

@@ -6165,12 +6165,15 @@ export const driftEpisode = pgTable("drift_episode", {
   memberIdentity: text("member_identity"), resolvedAt: timestamp("resolved_at"),
 });\n`;
 const ownedDeclaration = JSON.stringify({ ...JSON.parse(schemaContractBytes), schema_version: 2, newTables: [ownedExtension] }, null, 2) + "\n";
-function makeOwnedDeclarationFixture({ prior = false, baselineSchema = "export {};\n", mutate = () => {}, beforeSources = () => {}, afterSources = () => {} } = {}) {
+function makeOwnedDeclarationFixture({ prior = false, baselineSchema = "export {};\n", candidateSchema = ownedSchema, baselineRoutes = {}, mutate = () => {}, beforeSources = () => {}, afterSources = () => {}, beforeSourceCommit = () => {}, sourceMessage = "feat(US-123): own schema and append-only migration" } = {}) {
   const { root } = makeGitRepo();
   writeRepoFile(root, ownedSchemaPath, baselineSchema);
   writeRepoFile(root, schemaContractPath, schemaContractBytes);
   writeRepoFile(root, ownedOldMigrationPath, "SELECT 1;\n");
-  commitRepo(root, "chore(CHG-900): original schema and migrations", [ownedSchemaPath, schemaContractPath, ownedOldMigrationPath]);
+  writeRepoFile(root, "scripts/mutation-routes.json", JSON.stringify(baselineRoutes));
+  const routeFiles = [...new Set(Object.entries(baselineRoutes).flatMap(([source, tests]) => [source, ...tests]))];
+  for (const path of routeFiles) writeRepoFile(root, path, "export {};\n");
+  commitRepo(root, "chore(CHG-900): original schema and migrations", [ownedSchemaPath, schemaContractPath, ownedOldMigrationPath, "scripts/mutation-routes.json", ...routeFiles]);
   const artifact = approvedArtifact("US-123");
   artifact.signals.bookkeeping_files = 0; refreshDigest(artifact);
   const authority = approveAfterPolicyActivation(root, artifact);
@@ -6178,9 +6181,10 @@ function makeOwnedDeclarationFixture({ prior = false, baselineSchema = "export {
   writeRepoFile(root, plan, implementationPlanHeader(artifact));
   const planHead = commitRepo(root, "docs(US-123): bind plan", [plan]);
   beforeSources(root);
-  writeRepoFile(root, ownedSchemaPath, ownedSchema);
+  writeRepoFile(root, ownedSchemaPath, candidateSchema);
   writeRepoFile(root, ownedMigrationPath, "SELECT 2;\n");
-  if (prior) commitRepo(root, "feat(US-123): own schema and append-only migration", [ownedSchemaPath, ownedMigrationPath]);
+  beforeSourceCommit(root);
+  if (prior) commitRepo(root, sourceMessage, [ownedSchemaPath, ownedMigrationPath]);
   afterSources(root);
   const base = git(root, ["rev-parse", "HEAD"]);
   writeRepoFile(root, schemaContractPath, ownedDeclaration);
@@ -6307,6 +6311,340 @@ test("CHG-105 ownership helper rejects unsafe declaration and nonappend-only mig
     catch (error) { throw new Error(`Ownership case failed: ${name}`, { cause: error }); }
     finally { rmSync(fixture.root, { recursive: true, force: true }); }
   }
+});
+
+function stagedOwnedDeclaration(fixture, { unstaged = () => {}, message = "feat(US-123): own finite declaration" } = {}) {
+  git(fixture.root, ["reset", "--soft", fixture.base]);
+  installReadinessHook(fixture.root);
+  unstaged(fixture.root);
+  return runGit(fixture.root, ["commit", "-m", message]);
+}
+
+test("CHG-105 admission accepts actual staged percommit and whole-history owned declarations", () => {
+  for (const prior of [false, true]) {
+    const fixture = makeOwnedDeclarationFixture({ prior });
+    try {
+      assert.equal(validateFunctionalDelivery(fixture), true);
+      assert.deepEqual(validateRangeOwnership({ root: fixture.root, base: fixture.base, head: fixture.head }).workIds, ["US-123"]);
+      assert.deepEqual(validateRangeOwnership({ root: fixture.root, base: fixture.authority, head: fixture.head }).workIds, ["US-123"]);
+      const staged = stagedOwnedDeclaration(fixture);
+      assert.equal(staged.status, 0, staged.stderr);
+      const head = git(fixture.root, ["rev-parse", "HEAD"]);
+      assert.deepEqual(validateRangeOwnership({ root: fixture.root, base: fixture.authority, head }).workIds, ["US-123"]);
+    } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
+
+test("CHG-105 admission binds staged blobs independently of unstaged valid or invalid bytes", () => {
+  const valid = makeOwnedDeclarationFixture();
+  try {
+    const staged = stagedOwnedDeclaration(valid, { unstaged(root) {
+      writeRepoFile(root, ownedSchemaPath, "unstaged invalid schema\n");
+      writeRepoFile(root, schemaContractPath, "unstaged invalid declaration\n");
+    } });
+    assert.equal(staged.status, 0, staged.stderr);
+    assert.equal(git(valid.root, ["show", `HEAD:${schemaContractPath}`]), ownedDeclaration.trim());
+  } finally { rmSync(valid.root, { recursive: true, force: true }); }
+  const invalid = makeOwnedDeclarationFixture({ mutate(root) {
+    const value = JSON.parse(ownedDeclaration); value.newTables[0].rls.enabled = false;
+    writeRepoFile(root, schemaContractPath, JSON.stringify(value, null, 2) + "\n");
+  } });
+  try {
+    const staged = stagedOwnedDeclaration(invalid, { unstaged(root) { writeRepoFile(root, schemaContractPath, ownedDeclaration); } });
+    assert.equal(staged.status, 1, staged.stderr);
+    assert.match(staged.stderr, /WR_MIXED_FUNCTIONAL_TOOLING/u);
+    assert.ok(staged.stderr.includes(schemaContractPath));
+    assert.equal(git(invalid.root, ["rev-parse", "HEAD"]), invalid.base);
+  } finally { rmSync(invalid.root, { recursive: true, force: true }); }
+});
+
+function approveForeignDeclarationWork(root) {
+  const artifact = approvedArtifact("US-999"); artifact.signals.bookkeeping_files = 0; refreshDigest(artifact);
+  writeRepoFile(root, "docs/readiness/US-999.json", JSON.stringify(artifact));
+  const feedback = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+  writeRepoFile(root, ".nous-feedback.jsonl", feedback + JSON.stringify(decisionFor(artifact)) + "\n");
+  commitRepo(root, "docs(US-999): approved foreign work", ["docs/readiness/US-999.json", ".nous-feedback.jsonl"]);
+  const plan = "docs/superpowers/plans/US-999-plan.md";
+  writeRepoFile(root, plan, implementationPlanHeader(artifact));
+  commitRepo(root, "docs(US-999): bound foreign plan", [plan]);
+}
+function denyOwnedDeclarationEverywhere(fixture, { fullCode = "WR_MIXED_FUNCTIONAL_TOOLING", fullPath = schemaContractPath, path = schemaContractPath } = {}) {
+  expectError("WR_MIXED_FUNCTIONAL_TOOLING", path, () => validateFunctionalDelivery(fixture));
+  expectError("WR_MIXED_FUNCTIONAL_TOOLING", path, () => validateRangeOwnership({ root: fixture.root, base: fixture.base, head: fixture.head }));
+  expectError(fullCode, fullPath, () => validateRangeOwnership({ root: fixture.root, base: fixture.authority, head: fixture.head }));
+  const staged = stagedOwnedDeclaration(fixture);
+  assert.equal(staged.status, 1, staged.stderr);
+  assert.match(staged.stderr, /WR_MIXED_FUNCTIONAL_TOOLING/u);
+  const messagePath = writeGitMessage(fixture.root, "feat(US-123): own finite declaration\n");
+  const json = runCli(fixture.root, ["check-staged", "--message-file", messagePath, "--json"]);
+  assert.equal(json.status, 1, json.stdout);
+  const [error] = parseCliJson(json).errors;
+  assert.equal(error.code, "WR_MIXED_FUNCTIONAL_TOOLING");
+  assert.equal(error.path, path);
+  assert.equal(git(fixture.root, ["rev-parse", "HEAD"]), fixture.base);
+}
+
+test("CHG-105 admission rejects unsafe source declaration and migration at every real gate", () => {
+  const cases = [
+    ["old prefix", root => { const value = JSON.parse(ownedDeclaration); value.coreTableNames.reverse(); writeRepoFile(root, schemaContractPath, JSON.stringify(value, null, 2) + "\n"); }],
+    ["unsafe descriptor", root => { const value = JSON.parse(ownedDeclaration); value.newTables[0].policies[0].role = "public"; writeRepoFile(root, schemaContractPath, JSON.stringify(value, null, 2) + "\n"); }],
+    ["duplicate table", root => { const value = JSON.parse(ownedDeclaration); value.newTables.push(value.newTables[0]); writeRepoFile(root, schemaContractPath, JSON.stringify(value, null, 2) + "\n"); }],
+    ["empty extension", root => { const value = JSON.parse(ownedDeclaration); value.newTables = []; writeRepoFile(root, schemaContractPath, JSON.stringify(value, null, 2) + "\n"); }],
+    ["declaration mode", root => chmodSync(join(root, schemaContractPath), 0o755)],
+    ["declaration symlink", root => { rmSync(join(root, schemaContractPath)); symlinkSync("other.json", join(root, schemaContractPath)); }],
+    ["missing AST", root => writeRepoFile(root, ownedSchemaPath, "export {};\n")],
+    ["wrong AST", root => writeRepoFile(root, ownedSchemaPath, ownedSchema.replace('"drift_episode"', '"other_table"'))],
+    ["computed AST", root => writeRepoFile(root, ownedSchemaPath, ownedSchema.replace('"drift_episode"', 'tableName'))],
+    ["wrong schema path", root => renameSync(join(root, ownedSchemaPath), join(root, "packages/db/src/other.ts"))],
+    ["schema mode", root => chmodSync(join(root, ownedSchemaPath), 0o755)],
+    ["schema symlink", root => { rmSync(join(root, ownedSchemaPath)); symlinkSync("other.ts", join(root, ownedSchemaPath)); }],
+    ["missing migration", root => rmSync(join(root, ownedMigrationPath))],
+    ["wrong migration path", root => renameSync(join(root, ownedMigrationPath), join(root, "packages/db/src/migrations/wrong.sql"))],
+    ["migration mode", root => chmodSync(join(root, ownedMigrationPath), 0o755)],
+    ["migration symlink", root => { rmSync(join(root, ownedMigrationPath)); symlinkSync("other.sql", join(root, ownedMigrationPath)); }],
+    ["old migration blob", root => writeRepoFile(root, ownedOldMigrationPath, "SELECT 3;\n")],
+  ];
+  for (const [name, mutate] of cases) {
+    const fixture = makeOwnedDeclarationFixture({ mutate });
+    try { denyOwnedDeclarationEverywhere(fixture); }
+    catch (error) { throw new Error(`Admission case failed: ${name}`, { cause: error }); }
+    finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
+
+test("CHG-105 admission rejects existing foreign multi-item and restored source histories", () => {
+  const cases = [
+    ["existing table edited by current item", { baselineSchema: ownedSchema + "// foreign old table\n" }],
+    ["foreign owned introduction", { prior: true, beforeSources: approveForeignDeclarationWork, sourceMessage: "feat(US-999): foreign schema and migration" }],
+    ["forged candidate PASS cannot lend foreign source", { prior: true, beforeSources: approveForeignDeclarationWork, sourceMessage: "feat(US-999): foreign source with candidate claim", mutate(root) {
+      writeRepoFile(root, "packages/db/schema-declaration-ownership-proof.json", JSON.stringify({ pass: true, subject_work_id: "US-123", approved: true, schema_path: ownedSchemaPath, migration_path: ownedMigrationPath }));
+    } }],
+    ["multi-item introduction", { prior: true, beforeSources: approveForeignDeclarationWork, sourceMessage: "feat(US-123 US-999): shared schema introduction" }],
+    ["foreign edit restored", { prior: true, beforeSources: approveForeignDeclarationWork, afterSources(root) {
+      writeRepoFile(root, ownedSchemaPath, ownedSchema + "// foreign source edit\n");
+      commitRepo(root, "feat(US-999): foreign intervening schema edit", [ownedSchemaPath]);
+      writeRepoFile(root, ownedSchemaPath, ownedSchema);
+      commitRepo(root, "feat(US-123): restore matching schema endpoint", [ownedSchemaPath]);
+    } }],
+    ["schema deletion restored", { prior: true, afterSources(root) {
+      rmSync(join(root, ownedSchemaPath)); commitRepo(root, "feat(US-123): delete introduced schema", [ownedSchemaPath]);
+      writeRepoFile(root, ownedSchemaPath, ownedSchema); commitRepo(root, "feat(US-123): readd matching schema", [ownedSchemaPath]);
+    } }],
+    ["new migration blob restored", { prior: true, afterSources(root) {
+      writeRepoFile(root, ownedMigrationPath, "SELECT 3;\n"); commitRepo(root, "feat(US-123): edit committed migration", [ownedMigrationPath]);
+      writeRepoFile(root, ownedMigrationPath, "SELECT 2;\n"); commitRepo(root, "feat(US-123): restore migration endpoint", [ownedMigrationPath]);
+    } }],
+    ["migration removal restored", { prior: true, afterSources(root) {
+      rmSync(join(root, ownedMigrationPath)); commitRepo(root, "feat(US-123): remove committed migration", [ownedMigrationPath]);
+      writeRepoFile(root, ownedMigrationPath, "SELECT 2;\n"); commitRepo(root, "feat(US-123): restore removed migration", [ownedMigrationPath]);
+    } }],
+  ];
+  for (const [name, options] of cases) {
+    const fixture = makeOwnedDeclarationFixture(options);
+    try { denyOwnedDeclarationEverywhere(fixture); }
+    catch (error) { throw new Error(`Admission history failed: ${name}`, { cause: error }); }
+    finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
+
+test("CHG-105 admission cannot hide preexisting tables behind unsupported base aliases or reexports", () => {
+  const cases = [
+    ["local builder alias", ownedSchema.replace('export const driftEpisode = pgTable(', 'const table = pgTable; export const driftEpisode = table(')],
+    ["reexported table", 'export { driftEpisode } from "./foreign";\n'],
+    ["namespace table", ownedSchema.replace('import { pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core";', 'import * as pg from "drizzle-orm/pg-core"; import { uuid, text, timestamp } from "drizzle-orm/pg-core";').replace('= pgTable(', '= pg.pgTable(')],
+  ];
+  for (const [name, baselineSchema] of cases) {
+    const fixture = makeOwnedDeclarationFixture({ baselineSchema });
+    try { denyOwnedDeclarationEverywhere(fixture); }
+    catch (error) { throw new Error(`Unsupported base shape failed: ${name}`, { cause: error }); }
+    finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
+
+test("CHG-105 admission distinguishes existing literal columns from the new table identity", () => {
+  const baselineSchema = ownedSchema.slice(0, ownedSchema.indexOf("\n") + 1)
+    + 'export const prior = pgTable("prior", { id: uuid("id"), label: text("drift_episode") });\n';
+  const fixture = makeOwnedDeclarationFixture({ baselineSchema, candidateSchema: baselineSchema + ownedSchema.slice(ownedSchema.indexOf("\n") + 1) });
+  try {
+    assert.equal(validateFunctionalDelivery(fixture), true);
+    assert.deepEqual(validateRangeOwnership({ root: fixture.root, base: fixture.authority, head: fixture.head }).workIds, ["US-123"]);
+    assert.equal(stagedOwnedDeclaration(fixture).status, 0);
+  } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+});
+
+test("CHG-105 admission requires actual parent approval digest and plan at source introduction", () => {
+  for (const variant of ["unapproved then later approval", "self approval", "wrong current digest at introduction", "wrong bound plan"]) {
+    let original;
+    const fixture = makeOwnedDeclarationFixture({ prior: true,
+      beforeSources(root) {
+        const artifactPath = "docs/readiness/US-123.json";
+        original = JSON.parse(readFileSync(join(root, artifactPath), "utf8"));
+        const value = clone(original);
+        if (variant === "wrong bound plan") {
+          const plan = "docs/superpowers/plans/US-123-plan.md";
+          writeRepoFile(root, plan, implementationPlanHeader(value, { estimate: 9999 }));
+          commitRepo(root, "docs(US-123): over-budget source plan", [plan]);
+        } else {
+          if (variant === "wrong current digest at introduction") {
+            value.outcomes[0].statement = "A different actually approved payload"; refreshDigest(value);
+            value.approval.evidence = "DIFFERENT-DIGEST-READY";
+            const feedback = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+            writeRepoFile(root, ".nous-feedback.jsonl", feedback + JSON.stringify(decisionFor(value)) + "\n");
+          } else {
+            value.approval.status = "pending"; value.approval.approved_by = null; value.approval.evidence = null;
+          }
+          writeRepoFile(root, artifactPath, JSON.stringify(value));
+          commitRepo(root, "docs(US-123): historical source authority state", [artifactPath, ".nous-feedback.jsonl"]);
+        }
+      },
+      beforeSourceCommit(root) {
+        if (variant !== "self approval") return;
+        const value = clone(original); value.approval.evidence = "SELF-SOURCE-READY";
+        writeRepoFile(root, "docs/readiness/US-123.json", JSON.stringify(value));
+        const feedback = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+        writeRepoFile(root, ".nous-feedback.jsonl", feedback + JSON.stringify(decisionFor(value)) + "\n");
+        git(root, ["add", "docs/readiness/US-123.json", ".nous-feedback.jsonl"]);
+      },
+      afterSources(root) {
+        if (variant === "wrong bound plan") {
+          const plan = "docs/superpowers/plans/US-123-plan.md";
+          writeRepoFile(root, plan, implementationPlanHeader(original)); commitRepo(root, "docs(US-123): restore valid current plan", [plan]);
+        } else if (variant !== "self approval") {
+          const value = clone(original); value.approval.evidence = "LATER-SOURCE-READY";
+          writeRepoFile(root, "docs/readiness/US-123.json", JSON.stringify(value));
+          const feedback = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+          writeRepoFile(root, ".nous-feedback.jsonl", feedback + JSON.stringify(decisionFor(value)) + "\n");
+          commitRepo(root, "docs(US-123): actual later current approval", ["docs/readiness/US-123.json", ".nous-feedback.jsonl"]);
+        }
+      },
+    });
+    try {
+      const full = variant === "wrong bound plan" ? { fullCode: "WR_PLAN_ESTIMATE_OVER_BUDGET", fullPath: "docs/superpowers/plans/US-123-plan.md" }
+        : variant === "wrong current digest at introduction" ? {} : { fullCode: "WR_APPROVAL_REQUIRED", fullPath: "$.approval.status" };
+      denyOwnedDeclarationEverywhere(fixture, full);
+    } catch (error) { throw new Error(`Admission authority failed: ${variant}`, { cause: error }); }
+    finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
+
+test("CHG-105 admission preserves tooling routes and exact inherited verifier restrictions", () => {
+  const baselineRoutes = { "apps/web/src/prior.ts": ["apps/web/src/prior.test.ts", "apps/web/src/second.test.ts"] };
+  for (const variant of ["mixed MJS", "route removal", "route reorder", "inherited verifier copy"]) {
+    const fixture = makeOwnedDeclarationFixture({ baselineRoutes });
+    try {
+      let path;
+      if (variant === "mixed MJS") { path = "scripts/mixed.mjs"; writeRepoFile(fixture.root, path, "export const tooling = true;\n"); }
+      if (variant === "inherited verifier copy") { path = "apps/web/src/copied-verifier.ts"; writeRepoFile(fixture.root, path, replayNewBytes); }
+      if (variant.startsWith("route")) {
+        path = "scripts/mutation-routes.json";
+        writeRepoFile(fixture.root, path, JSON.stringify(variant === "route removal" ? {} : { "apps/web/src/prior.ts": [...baselineRoutes["apps/web/src/prior.ts"]].reverse() }));
+      }
+      fixture.head = commitRepo(fixture.root, "feat(US-123): hostile accompanying path", [path]);
+      denyOwnedDeclarationEverywhere(fixture, { path: "scripts/mutation-routes.json", fullPath: "scripts/mutation-routes.json" });
+    } catch (error) { throw new Error(`Outside exception guard failed: ${variant}`, { cause: error }); }
+    finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+  const fixture = makeOwnedDeclarationFixture({ baselineRoutes });
+  try {
+    const testPath = "packages/db/src/schema.test.ts";
+    writeRepoFile(fixture.root, testPath, "export {};\n");
+    writeRepoFile(fixture.root, "scripts/mutation-routes.json", JSON.stringify({ ...baselineRoutes, [ownedSchemaPath]: [testPath] }));
+    fixture.head = commitRepo(fixture.root, "feat(US-123): append owned responsible route", [testPath, "scripts/mutation-routes.json"]);
+    assert.equal(validateFunctionalDelivery(fixture), true);
+    assert.deepEqual(validateRangeOwnership({ root: fixture.root, base: fixture.authority, head: fixture.head }).workIds, ["US-123"]);
+    const staged = stagedOwnedDeclaration(fixture);
+    assert.equal(staged.status, 0, staged.stderr);
+  } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+});
+
+test("CHG-105 admission denies editing old declared rows version1 replacement and hidden declaration history", () => {
+  for (const variant of ["old declared row", "version1 replacement", "restored endpoint"]) {
+    const fixture = makeOwnedDeclarationFixture();
+    try {
+      const first = fixture.head;
+      const changed = JSON.parse(ownedDeclaration); changed.newTables[0].policies[0].name = "changed_policy";
+      writeRepoFile(fixture.root, schemaContractPath, variant === "version1 replacement" ? schemaContractBytes : JSON.stringify(changed, null, 2) + "\n");
+      const bad = commitRepo(fixture.root, "feat(US-123): forbidden old declaration edit", [schemaContractPath]);
+      if (variant === "restored endpoint") {
+        writeRepoFile(fixture.root, schemaContractPath, ownedDeclaration);
+        const restored = commitRepo(fixture.root, "feat(US-123): restore declaration endpoint", [schemaContractPath]);
+        assert.deepEqual(listChangedPaths({ root: fixture.root, base: first, head: restored }), []);
+        expectError("WR_MIXED_FUNCTIONAL_TOOLING", schemaContractPath, () => validateFunctionalDelivery({ ...fixture, base: first, head: restored }));
+        expectError("WR_MIXED_FUNCTIONAL_TOOLING", schemaContractPath, () => validateRangeOwnership({ root: fixture.root, base: fixture.authority, head: restored }));
+      } else {
+        fixture.base = first; fixture.head = bad;
+        denyOwnedDeclarationEverywhere(fixture);
+      }
+    } catch (error) { throw new Error(`Declaration history failed: ${variant}`, { cause: error }); }
+    finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
+
+test("CHG-105 admission does not bypass current parent digest approval or bound plan", () => {
+  for (const variant of ["stale payload", "wrong approval digest", "missing plan", "wrong plan"]) {
+    const fixture = makeOwnedDeclarationFixture({ beforeSources(root) {
+      const artifactPath = "docs/readiness/US-123.json";
+      if (variant.includes("plan")) {
+        const plan = "docs/superpowers/plans/US-123-plan.md";
+        if (variant === "missing plan") rmSync(join(root, plan));
+        else writeRepoFile(root, plan, implementationPlanHeader(JSON.parse(readFileSync(join(root, artifactPath), "utf8")), { estimate: 9999 }));
+        commitRepo(root, "docs(US-123): invalid current plan", [plan]);
+      } else {
+        const value = JSON.parse(readFileSync(join(root, artifactPath), "utf8"));
+        if (variant === "stale payload") value.readiness_payload_sha256 = "f".repeat(64);
+        else value.approval.payload_sha256 = "f".repeat(64);
+        writeRepoFile(root, artifactPath, JSON.stringify(value));
+        commitRepo(root, "docs(US-123): invalid current digest", [artifactPath]);
+      }
+    } });
+    try {
+      const code = variant === "missing plan" ? "WR_IMPLEMENTATION_PLAN_MISSING" : variant === "wrong plan" ? "WR_PLAN_ESTIMATE_OVER_BUDGET" : "WR_APPROVAL_DIGEST_MISMATCH";
+      const path = variant === "missing plan" ? "docs/superpowers/plans/US-123.md" : variant === "wrong plan" ? "docs/superpowers/plans/US-123-plan.md"
+        : variant === "stale payload" ? "$.readiness_payload_sha256" : "$.approval.payload_sha256";
+      expectError(code, path, () => validateRangeOwnership({ root: fixture.root, base: fixture.base, head: fixture.head }));
+      const staged = stagedOwnedDeclaration(fixture);
+      assert.equal(staged.status, 1, staged.stderr);
+      const messagePath = writeGitMessage(fixture.root, "feat(US-123): own finite declaration\n");
+      const json = runCli(fixture.root, ["check-staged", "--message-file", messagePath, "--json"]);
+      assert.equal(json.status, 1, json.stdout);
+      const [error] = parseCliJson(json).errors;
+      assert.equal(error.code, code); assert.equal(error.path, path);
+    } catch (error) { throw new Error(`Current parent gate failed: ${variant}`, { cause: error }); }
+    finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
+
+test("CHG-105 admission own integrated104 differential changes only owned additive admission", () => {
+  const baseline = mkdtempSync(join(tmpdir(), "readiness104-differential-"));
+  try {
+    for (const path of ["scripts/work-readiness/git.mjs", "scripts/work-readiness/model.mjs", "scripts/work-readiness/delivery-policy.mjs", "docs/dev-guide/feedback-vocabulary.json"]) {
+      const read = spawnSync("git", ["show", `d2280c4e511812da72b82084e6ad2ec891375781:${path}`], { cwd: sourceRoot, encoding: "buffer" });
+      assert.equal(read.status, 0, read.stderr?.toString());
+      writeRepoFile(baseline, path, read.stdout);
+      if (path.endsWith("/git.mjs")) {
+        const blob = createHash("sha1").update(`blob ${read.stdout.length}\0`).update(read.stdout).digest("hex");
+        assert.equal(blob, "c9f68c6ae9993b053bd02834fc542d5b2d55490f");
+      }
+    }
+    for (const variant of ["owned additive", "unsafe descriptor", "old migration edit"]) {
+      const fixture = makeOwnedDeclarationFixture({ mutate(root) {
+        if (variant === "unsafe descriptor") { const value = JSON.parse(ownedDeclaration); value.newTables[0].rls.enabled = false; writeRepoFile(root, schemaContractPath, JSON.stringify(value, null, 2) + "\n"); }
+        if (variant === "old migration edit") writeRepoFile(root, ownedOldMigrationPath, "SELECT 3;\n");
+      } });
+      try {
+        const old = spawnSync(process.execPath, ["--input-type=module", "-e", `
+          const [modulePath, root, base, head] = process.argv.slice(1);
+          const { validateRangeOwnership } = await import(modulePath);
+          try { validateRangeOwnership({ root, base, head }); process.stdout.write(JSON.stringify({ok:true})); }
+          catch(error) { process.stdout.write(JSON.stringify({ok:false,code:error.code,path:error.path})); }
+        `, pathToFileURL(join(baseline, "scripts/work-readiness/git.mjs")).href, fixture.root, fixture.authority, fixture.head], { encoding: "utf8" });
+        assert.equal(old.status, 0, old.stderr);
+        assert.deepEqual(JSON.parse(old.stdout), { ok: false, code: "WR_MIXED_FUNCTIONAL_TOOLING", path: schemaContractPath });
+        if (variant === "owned additive") assert.deepEqual(validateRangeOwnership({ root: fixture.root, base: fixture.authority, head: fixture.head }).workIds, ["US-123"]);
+        else expectError("WR_MIXED_FUNCTIONAL_TOOLING", schemaContractPath, () => validateRangeOwnership({ root: fixture.root, base: fixture.authority, head: fixture.head }));
+      } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+    }
+  } finally { rmSync(baseline, { recursive: true, force: true }); }
 });
 
 assert.ok(process.env.READINESS_TEST_FILTER ? assertions > 0 : assertions >= 30);

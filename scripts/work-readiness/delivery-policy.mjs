@@ -12,6 +12,11 @@ export function deliveryFileSignals(paths) {
 }
 export const MUTATION_ROUTES_PATH = "scripts/mutation-routes.json";
 export const SCHEMA_CONTRACT_PATH = "packages/db/schema-contract.json";
+// Classification stays technical by default. Only the Git ownership validator
+// can admit this exact data path after checking its finite immutable history.
+export function isFunctionalSchemaDeclarationPath(path) {
+  return path === SCHEMA_CONTRACT_PATH;
+}
 export function isToolingPath(path) {
   return path === SCHEMA_CONTRACT_PATH
     || /(?:^|\/)(?:scripts|bin)\//u.test(path)

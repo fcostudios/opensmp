@@ -16,7 +16,8 @@ import {
   validateCompletionActuals,
 } from "./model.mjs";
 
-import { isBookkeepingPath, isToolingPath, MUTATION_ROUTES_PATH, SCHEMA_CONTRACT_PATH, validRouteTable } from "./delivery-policy.mjs";
+import { isBookkeepingPath, isToolingPath, isFunctionalSchemaDeclarationPath, MUTATION_ROUTES_PATH, SCHEMA_CONTRACT_PATH, validRouteTable } from "./delivery-policy.mjs";
+import { validateSchemaDeclarationOwnership } from "./schema-declaration-ownership.mjs";
 
 const MAX_GIT_OUTPUT_BYTES = 2 * 1024 * 1024;
 const MAX_CI_EVENT_BYTES = 1024 * 1024;
@@ -1269,8 +1270,7 @@ function schemaDeclarationSnapshot(root, revision) {
 }
 
 // Pure ownership analysis receives observations, never a candidate-written PASS.
-// This entry is prepared by CHG-105 Task1; functional admission remains denied
-// until the separately reviewed policy wiring in Task2.
+// Ordinary staged and historical admission use this same immutable builder.
 export function loadSchemaDeclarationEvidence({ root, base, head, workId, authority }) {
   root = repositoryRoot(root);
   const parent = resolveCommit(root, base, "$.base");
@@ -1357,11 +1357,16 @@ function exactInheritedReplay({ root, base, head, workId, authority }) {
 export function validateFunctionalDelivery({ root, base, head, workId, authority }) {
   const reject = (message) => fail("WR_MIXED_FUNCTIONAL_TOOLING", MUTATION_ROUTES_PATH, message);
   const changed = listChangedPaths({ root, base, head });
-  if (changed.includes(SCHEMA_CONTRACT_PATH)) {
-    fail("WR_MIXED_FUNCTIONAL_TOOLING", SCHEMA_CONTRACT_PATH, `Functional delivery cannot introduce, edit or remove ${SCHEMA_CONTRACT_PATH}`);
+  // Inspect transitions even when aggregate endpoints match: a later restore
+  // cannot erase a forbidden declaration from a complete-history check.
+  const declarationTransitions = linearCommits(root, resolveCommit(root, base, "$.base"), resolveCommit(root, head, "$.head"))
+    .filter((entry) => listChangedPaths({ root, base: entry.parent, head: entry.commit }).some(isFunctionalSchemaDeclarationPath));
+  for (const entry of declarationTransitions) {
+    validateSchemaDeclarationOwnership(loadSchemaDeclarationEvidence({ root, base: entry.parent, head: entry.commit, workId, authority }));
   }
   const replay = changed.includes(INHERITED_REPLAY.path) && exactInheritedReplay({ root, base, head, workId, authority });
   const forbidden = changed.find((path) => {
+    if (isFunctionalSchemaDeclarationPath(path) && declarationTransitions.length > 0) return false;
     if (replay && path === INHERITED_REPLAY.path) return false;
     // The assigned bytes cannot be exported under another path, even alone.
     if (path !== INHERITED_REPLAY.path && revisionBlobEntry(root, head, path)?.blob === INHERITED_REPLAY.newBlob) return true;
