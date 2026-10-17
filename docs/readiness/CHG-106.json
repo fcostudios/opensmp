@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "f914d7133d9461819ab558670d11db3330c963cd649d94f61791b0c0e7f2995f",
+  "readiness_payload_sha256": "f2fc30376b67673db526f3cc8a515e70f156d6043297c57effdd7abf6743079c",
   "work_id": "CHG-106",
   "kind": "CHG",
   "work_type": "technical",
@@ -79,7 +79,7 @@
       "statement": "Original failed-receipt custody and complete original receiving range",
       "status": "budgeted",
       "estimate_impact_minutes": 10,
-      "resolution": "Controller classifies original custody as a bounded AC3 proof prerequisite, not authority supplied by new approval: obtain existing custodian confirmation of d502a34223612c9c6178a515ca3047dbb2691adb..2af42f33403b7ea4e34670dfa588fac5fd5ef215 and raw failed-receipt SHA256 BEFORE any new historical evaluation. Reserve10 minutes WITHIN focused90/integration45, not additional funding. Receipt path .superpowers/sdd/2026-10-13-CHG-093-us087-integration/chg097-application-20261015/e08a140-final-range-stop-receipt.json remains unrecovered in this session. No reconstruction, original FAIL replacement, later convenient base or current-custody PASS substitution. If absent, historical evaluation and closure STOP, original FAIL retained; no missing authority backfill. Canonical frozen proposal calls these readiness blockers while specifying before new historical evaluation; this assessment preserves that historical-evaluation hold and does not assert custody resolved."
+      "resolution": "Custodian factual reply in US024 turn01a14ae1-1775-7c12-9a1a-e12d52fb4b06 states retained records contain no verified archive pointer/hash for the authentic original raw failure receipt and no verified receiving endpoints. Custody is CURRENTLY UNKNOWN, not proven lost. Original canonical d9e12b14-0677-4afb-8a8b-9f3392965aa7 failure report/responsev1 records original application2af and WR_GENERATED_NOUS_PATH for CHANGES; it is not the missing raw receipt or an original-range certificate. Replacement acceptance, effective only after actual human choice, normal canonical amendment and exact payload digest approval BEFORE historical evaluation/closure: For CHG-106 AC3 only, accept documented CURRENT CUSTODY UNKNOWN for the original e08a140 raw receipt and original receiving-range certificate. I acknowledge reduced assurance about the original captured output and endpoints. Retain the authentic canonical d9e12b14-0677-4afb-8a8b-9f3392965aa7 failure report/responsev1, all existing immutable Git objects and provenance, and the custodian’s actual unknown-status statement. Do not claim receipt bytes/hash recovered, proven lost, or original endpoint certification. Authorize a separately dated NEW audit of the explicitly DERIVED range d502a34223612c9c6178a515ca3047dbb2691adb..2af42f33403b7ea4e34670dfa588fac5fd5ef215 using the exact approved named DEC054 validator. Explain and verify range derivation from contemporaneous records/Git; do not label it independently certified original capture. Audit every commit against its actual immutable parent with ALL original execution/activation/approval/digest/plan/scope/source/hash/mode/history guards. Missing original authority, unexplained range gaps or evidence of omitted receiving commits still blocks acceptance; later approval cannot repair it. Preserve the original reported FAIL and distinguish the new result. Replace only the raw-receipt-recovery/original-capture-certificate acceptance conditions with this disclosed lower-assurance custody basis and the required new audit. No shortened known range, invented evidence, later authority backfill, P4release, budget expansion or unrelated scope change. Bind this amendment and the revised exact readiness payload through the normal approval workflow before affected historical evaluation/closure. U3 original ten-minute reserve: seven estimated active minutes spent (prior six plus root availability read one), three remain unspent; this amendment preparation belongs to existing integration45, not U3 or new funding. All other readiness fields, scopes, budgets and applicable original-authority/full historical-audit obligations remain unchanged; U4 narrow plan applicability alone does not establish all historical authority."
     },
     {
       "id": "U4",
@@ -116,8 +116,8 @@
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "CHG106-READY-f914d713-20261017",
-    "payload_sha256": "f914d7133d9461819ab558670d11db3330c963cd649d94f61791b0c0e7f2995f"
+    "evidence": "CHG106-READY-f2fc3037-DEC058-20261017",
+    "payload_sha256": "f2fc30376b67673db526f3cc8a515e70f156d6043297c57effdd7abf6743079c"
   },
   "actuals": null,
   "policy_bootstrap": false,
