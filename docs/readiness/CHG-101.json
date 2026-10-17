@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "53c5779f5fe73f64ff2b2fe69ca127eb3dbb67932728b8887605f23529258951",
+  "readiness_payload_sha256": "445f316ebbc064b27ed682d1fed7f86be514bea70e24ba56579d5636b0021f7e",
   "work_id": "CHG-101",
   "kind": "CHG",
   "work_type": "technical",
@@ -91,7 +91,7 @@
       "statement": "Prerequisite tenant evidence versus pending canonical status ingestion",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "CHG100 terminal tenantdone source143dab03f556785a1c026e0dac4a4c1c46d7619f and CHG103 terminal46efec4cb313a360a43642695303a5778a0d39e7 are integrated in frozenmaincf9; existing committed readiness/own gate/reviews/realDB evidence are provenance, not borrowed CHG101 proof. Canonical get_change reportedly remainsdelivered pending root normal terminalfeedback ingestion; no canonicaldev_done claim. Canonical101 dependsCHG100, whose concrete delivered runtime prerequisite is present and terminaltenantvalidated, so no unresolved local blocked_by dependency is invented from stale ingestion alone. Root reconciles separately; contradictory canonical dependency ruling or invalidatedprerequisite forces reassessment. No canonicalrecord/copy/regeneration here; DEC052 f007 ingestion2operator minutes belong CHG103postclosure only, not101. CHG102 alone can later admit narrowly owned functional declarationdata. US093/CHG093 runtimehold327/P4a and US084/090/091/clockcad8 remain outside; no manufactured upstream completion."
+      "resolution": "CHG100 terminal tenantdone source143dab03f556785a1c026e0dac4a4c1c46d7619f and CHG103 terminal46efec4cb313a360a43642695303a5778a0d39e7 are integrated in frozenmaincf9; existing committed readiness/own gate/reviews/realDB evidence are provenance, not borrowed CHG101 proof. Canonical get_change reportedly remainsdelivered pending root normal terminalfeedback ingestion; no canonicaldev_done claim. Canonical101 dependsCHG100, whose concrete delivered runtime prerequisite is present and terminaltenantvalidated, so no unresolved local blocked_by dependency is invented from stale ingestion alone. Root reconciles separately; contradictory canonical dependency ruling or invalidatedprerequisite forces reassessment. No canonicalrecord/copy/regeneration here; DEC052 f007 ingestion2operator minutes belong CHG103postclosure only, not101. CHG102 alone can later admit narrowly owned functional declarationdata. CHG-093 existing non-delivery/P4(a) and US-084/090/091/cad8 holds remain unaffected. Future functional US-093 episode work retains its own canonical CHG-102/US-090 and other prerequisite bindings; no out-of-scope reassessment or manufactured upstream completion."
     },
     {
       "id": "U5",
@@ -112,7 +112,7 @@
       "statement": "Complete spent and remaining estimate with bounded logical role custody",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Adopt conservative allocationUPPER240=30readiness+55implementation+70focused+60review+25integration; base185=25/40/55/45/20 preservedreference, not approval. Delta55 accommodates oldoracle+closedattestation adaptation, realDB/Git negatives, reviewfixallowance and integration. Current estimatedspent14=12boundedcontrollerprep+root2readycoord ONCE; remaining226=16readiness(bounddesign/plan+approvalintegration)+55implementation+70focused+60review+25integration. Preparation minuteestimates are activeeffort, not measured billing, no idlehours charged; one failed readonlyPythonformat command retained inside12, no source/test failurehidden. No33controller/10reviewerCHG100 preparation, CHG103f007operator2 or anyUS088 historicalcost transferred here. Actual ownlogicalwindowtelemetry starts after physicaloldUS088 cutoff2026-10-12T23:33:53.668Z362calls/input40626528/output112817; allpriorusage excluded. At boundary newactualspent+remaining>240 stops for normalreadinessreassessment, >320 or hardcohesion/pathfalsifier needs canonicalrepartition. No CHG087/budgetwaiver inherited."
+      "resolution": "Adopt conservative allocationUPPER240=30readiness+55implementation+70focused+60review+25integration; base185=25/40/55/45/20 preservedreference, not approval. Delta55 accommodates oldoracle+closedattestation adaptation, realDB/Git negatives, reviewfixallowance and integration. Current estimatedspent15=12boundedcontrollerprep+root3readycoord ONCE (initial2 plus1inspection/correction coordination); remaining225=15readiness(bounddesign/plan+approvalintegration)+55implementation+70focused+60review+25integration. Preparation minuteestimates are activeeffort, not measured billing, no idlehours charged; one failed readonlyPythonformat command retained inside12, no source/test failurehidden. No33controller/10reviewerCHG100 preparation, CHG103f007operator2 or anyUS088 historicalcost transferred here. Actual ownlogicalwindowtelemetry starts after physicaloldUS088 cutoff2026-10-12T23:33:53.668Z362calls/input40626528/output112817; allpriorusage excluded. At boundary newactualspent+remaining>240 stops for normalreadinessreassessment, >320 or hardcohesion/pathfalsifier needs canonicalrepartition. No CHG087/budgetwaiver inherited."
     },
     {
       "id": "U8",
@@ -129,7 +129,7 @@
     "status": "pending",
     "approved_by": null,
     "evidence": null,
-    "payload_sha256": "53c5779f5fe73f64ff2b2fe69ca127eb3dbb67932728b8887605f23529258951"
+    "payload_sha256": "445f316ebbc064b27ed682d1fed7f86be514bea70e24ba56579d5636b0021f7e"
   },
   "actuals": null,
   "policy_bootstrap": false,
