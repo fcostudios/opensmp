@@ -125,7 +125,27 @@
     "evidence": "CHG100-READY-EB62F0CA",
     "payload_sha256": "eb62f0cafa8d3d0334cac4f0ce1acd411f1904a3d36399b97f14f4c56ac9120b"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 52,
+      "implementation": 42,
+      "focused_verification": 39,
+      "review": 53,
+      "integration": 39
+    },
+    "total": 225,
+    "changed_files": 27,
+    "commits": 22,
+    "review_fix_loops": 1,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 1,
+    "mutation_shards_actual": 0,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": -85,
+    "root_cause": "Conservative active estimates225=52readiness+42implementation+39focused+53review+39integration, not billing/idlewall. Retained210=202checkpoint+oldroot8once; newtail15=controller10+finalproofworker3+root2once. Prior33controller/10reviewer preparation preserved once; oldprospectiveroot2 belongs separately frozenCHG103 and is excluded here. Task1 phase split17implementation/18focused/3checkpoint is estimated because finer instrumentation unavailable; all later role estimates preserved. Measured own fullgate280.390s overlaps finalroletrace; no second addition. Cold0.617115s included within finalproof3min, mutation_minutes1 is ceil only. No trustworthy last-five median; no invented ratio. Exactly9technicaldelivery+4bookkeeping, separately normal14pathcustody=27owninclusivepaths; own22commits exclude7CHG103commits, wholecomposed30paths disclosed. One scopedP2 fixround (deepJSON recursion), green48schema faults/304plus37governance/117realrelease andfreshmigrate-verify-parity, ownuncachedgate3018PASS12existingskips retained. P3testbundle setupexception mayleave disposableDB until outerclusterteardown; namednonblockingdeferred, no newitem. Cold1actual original24fe base at566f,0nativeeligible/no score/test_report perguide;0previews/invalidations, foreigncachehashsame. Original073failure/history retained. SeparatelygovernedCHG1038c94/46ef fixesdecisioncategory+approvedbounded2MiBGitread; originalparent/fullhistory nowPASS; no CHG100scope/approval/historyrewrite, no borrowedCHG103gate/cold/cost. Runtime6blobs exact143/40f/ba43/566f,3overlaps preciselygoverned with byte-reconstruction proof. Finalsource143dab0; composition binding566f. MainFF normalreceipt expected afterthisclosure; small closure/FFtail inside conservativecontroller10, any additionalpostterminalreceiptcost separate ratherthan rewritingfrozenactuals. Globalstrictdrift remains knownbaseline red, no cleanclaim.\nImplementer cost: one original consolidated CHG100session96estimatedactive minutes plus one forced-reused physical CHG091/103 actor for CHG100final-proof-only3estimatedminutes;99total. Originalapproximately247toolinvocations proxy rounded250estimatedcalls/12500000input/60000output; no old token telemetry. Newrole measured6calls1350250input6226output at01:20:58.310Z, cached1286656alreadyincludedonce, start01:18:49.162Z; prior25804501input70251output all excluded. Peak275212/contextwindow475000 discloses approx200Kguideline excess due forcedregistryreuse, no freshcontextclaim; reportingtail excluded. CHG103109andpostproof2frozenexcluded.\nReviewer cost: one reusedcurrentbuilder/scoped session24estimatedminutes plus one freshadversarialAC session8estimatedminutes, plus10inheritedpreallocationonce=42minutes; two currentreviewersessions plus preservedearlierhistory. Estimated100calls6000000input30000output proxy (roundedcallcount times60000input/300output), no measuredoldbilling; no redundant suitesrerun. Controller/root all82minutes excludingnewroot2 estimated200calls12000000input40000output proxy; newroot2 separately estimated12calls600000input1500output once. All currentlogicalroles/costwindows kept distinct; no claimedphysicalreset or measurablecontextpeak for uninstrumentedroles."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
