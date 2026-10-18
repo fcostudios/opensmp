@@ -1897,14 +1897,22 @@ async function expectCompletionConflict(command: OffboardingConfirmation) {
   expect(await completionSnapshot()).toEqual(before);
 }
 
-describe("US-087 direct completion contracts", () => {
+describe.sequential("US-087 direct completion contracts", () => {
   it("rejects malformed portable identities from real loaded SQL facts with the exact conflict", async () => {
     const removal = await startIsolatedRemoval();
     const command = completionCommand(removal.actionId);
     const facts = await loadedCompletionFacts(removal.actionId);
     const context = facts.action.context as Record<string, unknown>;
     const snapshot = await completionSnapshot();
+    const callableContext = Object.assign(() => undefined, context);
     const malformed: OffboardingFacts[] = [
+      { ...facts, action: { ...facts.action, context: callableContext } },
+      ...[[removal.assignmentId, removal.assignmentId], [removal.assignmentId, 7]].map(assignmentIds => ({
+        ...facts, action: { ...facts.action, context: { ...context, assignmentIds } },
+        assignments: [facts.assignments[0]!, { ...facts.assignments[0]! }],
+      })),
+      { ...facts, request: { ...facts.request, companyId: ids.otherCompany },
+        assignments: facts.assignments.map(row => ({ ...row, companyId: ids.otherCompany })) },
       ...[null, false, "context", {}, { ...context, assignmentIds: null }, { ...context, assignmentIds: [] },
         { ...context, assignmentIds: [removal.assignmentId, 7] }, { ...context, assignmentIds: [removal.assignmentId, removal.assignmentId] },
         { ...context, endReason: "reallocated" }, { ...context, requestId: ids.failureRequest },
@@ -1943,6 +1951,65 @@ describe("US-087 direct completion contracts", () => {
       await owner.query("UPDATE provisioning_action SET raw_request=jsonb_set(raw_request,'{context}',$2::jsonb) WHERE id=$1", [removal.actionId, JSON.stringify(value)]);
       await expectCompletionConflict(completionCommand(removal.actionId));
     }
+  });
+
+  it("validates removal steps only for orchestration and refuses a null automated payload exactly", async () => {
+    const removal = await startIsolatedRemoval();
+    const raw = (await owner.query("SELECT raw_request FROM provisioning_action WHERE id=$1",[removal.actionId])).rows[0].raw_request;
+    await owner.query("UPDATE provisioning_action SET raw_request=jsonb_set(raw_request,'{checklistSteps}','[\"unsafe\"]') WHERE id=$1",[removal.actionId]);
+    const malformedBefore = await completionSnapshot();
+    await expect(invokeCompletion(completionCommand(removal.actionId))).rejects.toMatchObject({
+      name: "ZodError", issues: [{path:["checklistSteps",0],code:"invalid_type"}],
+    });
+    expect(await completionSnapshot()).toEqual(malformedBefore);
+    await owner.query("UPDATE provisioning_action SET mode='automated',raw_request='null'::jsonb WHERE id=$1",[removal.actionId]);
+    await expectCompletionConflict(completionCommand(removal.actionId));
+    const {checklistSteps: _steps, ...automatedPayload} = raw;
+    await owner.query("UPDATE provisioning_action SET raw_request=$2::jsonb WHERE id=$1",[removal.actionId,JSON.stringify(automatedPayload)]);
+    const before = (await completionSnapshot()).filter(value => ["person","vendor_account","vendor_account_capacity"].includes(value.table));
+    expect(await invokeCompletion(completionCommand(removal.actionId))).toEqual({requestId:ids.request,assignmentIds:[removal.assignmentId],
+      endedOn:"2026-07-29",endReason:"left_company",confirmedAt:"2026-07-29T05:00:00.000Z",confirmationId:"us087-confirmation",replayed:false});
+    expect((await completionSnapshot()).filter(value => ["person","vendor_account","vendor_account_capacity"].includes(value.table))).toEqual(before);
+  });
+
+  it("refuses a removal holder that legally moved to a foreign company", async () => {
+    const removal = await startIsolatedRemoval();
+    await owner.query("UPDATE person SET company_id=$2 WHERE id=$1",[ids.person,ids.otherCompany]);
+    expect((await owner.query("SELECT company_id::text FROM person WHERE id=$1",[ids.person])).rows).toEqual([{company_id:ids.otherCompany}]);
+    await expectCompletionConflict(completionCommand(removal.actionId));
+  });
+
+  it("refuses not-done attempts for incompatible request/status/original facts and accepts sent", async () => {
+    const removal = await startIsolatedRemoval();
+    const attempt = {actionId:removal.actionId,failureId:"direct-not-done",reason:"Still assigned"};
+    const expectRefusal = async () => {
+      const before = await completionSnapshot();
+      await expect(service.markChecklistNotDone(authorization,attempt)).rejects.toThrow(/^OFFBOARDING_CONFLICT$/);
+      expect(await completionSnapshot()).toEqual(before);
+    };
+    await owner.query("UPDATE license_request SET state='active' WHERE id=$1",[ids.request]);
+    await expectRefusal();
+    await owner.query("UPDATE license_request SET state='offboarding' WHERE id=$1",[ids.request]);
+    for (const status of ["failed","confirmed","verification_failed"]) {
+      await owner.query("UPDATE provisioning_action SET status=$2 WHERE id=$1",[removal.actionId,status]);
+      await expectRefusal();
+    }
+    await owner.query("UPDATE provisioning_action SET status='sent' WHERE id=$1",[removal.actionId]);
+    const acceptedBefore = await completionSnapshot();
+    expect(await service.markChecklistNotDone(authorization,attempt)).toEqual({requestId:ids.request,status:"offboarding"});
+    const acceptedAfter = await completionSnapshot();
+    expect(acceptedAfter.filter(value => !["provisioning_action","audit_log"].includes(value.table)))
+      .toEqual(acceptedBefore.filter(value => !["provisioning_action","audit_log"].includes(value.table)));
+    expect((await owner.query("SELECT status,failure_reason FROM provisioning_action WHERE id=$1",[removal.actionId])).rows)
+      .toEqual([{status:"sent",failure_reason:"Still assigned"}]);
+    expect((await owner.query("SELECT actor_user_id::text,entity_type,entity_id::text,company_id::text,after,occurred_at FROM audit_log WHERE action='offboarding.removal_unconfirmed' AND entity_id=$1",[removal.actionId])).rows)
+      .toEqual([{actor_user_id:ids.admin,entity_type:"ProvisioningAction",entity_id:removal.actionId,company_id:ids.company,
+        after:{failureId:"direct-not-done",reason:"Still assigned"},occurred_at:occurredAt}]);
+    await invokeCompletion(completionCommand(removal.actionId));
+    await owner.query("UPDATE license_request SET state='offboarding' WHERE id=$1",[ids.request]);
+    await owner.query("UPDATE provisioning_action SET status='pending' WHERE id=$1",[removal.actionId]);
+    await owner.query("UPDATE license_assignment SET ended_on=NULL,end_reason=NULL WHERE id=$1",[removal.assignmentId]);
+    await expectRefusal();
   });
 
   it("rejects invalid confirmation evidence and actor identity and accepts exactly 200 characters", async () => {
@@ -2003,6 +2070,10 @@ describe("US-087 direct completion contracts", () => {
     await owner.query("UPDATE provisioning_action SET raw_request=jsonb_set(raw_request,'{context,assignmentIds}',$2::jsonb) WHERE id=$1",
       [removal.actionId,JSON.stringify([removal.assignmentId,id("920")])]);
     await expectCompletionConflict(completionCommand(removal.actionId));
+    const before = await completionSnapshot();
+    await expect(service.markChecklistNotDone(authorization,{actionId:removal.actionId,failureId:"partial-not-done",reason:"Still assigned"}))
+      .rejects.toThrow(/^OFFBOARDING_CONFLICT$/);
+    expect(await completionSnapshot()).toEqual(before);
   });
 
   it.each(["left_company", "inactive"] as const)("pins seeded Ecuador boundaries and immutable %s replay evidence", async endReason => {
@@ -2010,26 +2081,34 @@ describe("US-087 direct completion contracts", () => {
     const database = drizzle(actionPool, { schema });
     const before = await completionSnapshot();
     const rollback = new Error("test transaction rollback");
-    await fc.assert(fc.asyncProperty(fc.integer({min:0,max:30}), fc.constantFrom(-1,0,1), async (days, offset) => {
-      const confirmedAt = new Date(Date.UTC(2026,6,29+days,5,0,0,offset));
-      const endedOn = new Date(confirmedAt.getTime()-5*60*60*1000).toISOString().slice(0,10);
-      const command = completionCommand(removal.actionId,{confirmedAt});
-      await expect(database.transaction(async tx => {
-        const port = createOffboardingTransactionPort(tx,authorization);
-        const first = await finalizeOffboarding(command,port);
-        expect(first).toEqual({requestId:ids.request,assignmentIds:[removal.assignmentId],endedOn,endReason,
-          confirmedAt:confirmedAt.toISOString(),confirmationId:command.confirmationId,replayed:false});
-        for (const confirmationId of [command.confirmationId,"later-id"]) {
-          expect(await finalizeOffboarding({...command,confirmationId,confirmedAt:new Date("2026-09-01T00:00:00Z")},port)).toEqual({...first,replayed:true});
-        }
-        const rows = await tx.execute(sql`SELECT ended_on::text AS ended_on, end_reason::text AS end_reason FROM license_assignment WHERE id=${removal.assignmentId}::uuid`);
-        expect(rows.rows).toEqual([{ended_on:endedOn,end_reason:endReason}]);
-        const events = await tx.execute(sql`SELECT from_state::text, to_state::text, occurred_at FROM request_transition WHERE request_id=${ids.request}::uuid AND to_state='deprovisioned'`);
-        expect(events.rows.map(event => ({...event,occurred_at:new Date(event.occurred_at as string).toISOString()}))).toEqual([{from_state:"offboarding",to_state:"deprovisioned",occurred_at:confirmedAt.toISOString()}]);
-        throw rollback;
-      })).rejects.toBe(rollback);
-      expect(await completionSnapshot()).toEqual(before);
-    }),{seed:870042,numRuns:8});
+    const previousTimezone = process.env.TZ;
+    process.env.TZ = "UTC";
+    try {
+      expect(new Intl.DateTimeFormat("en-CA").resolvedOptions().timeZone).toBe("UTC");
+      await fc.assert(fc.asyncProperty(fc.integer({min:0,max:30}), fc.constantFrom(-1,0,1), async (days, offset) => {
+        const confirmedAt = new Date(Date.UTC(2026,6,29+days,5,0,0,offset));
+        const endedOn = new Date(confirmedAt.getTime()-5*60*60*1000).toISOString().slice(0,10);
+        const command = completionCommand(removal.actionId,{confirmedAt});
+        await expect(database.transaction(async tx => {
+          const port = createOffboardingTransactionPort(tx,authorization);
+          const first = await finalizeOffboarding(command,port);
+          expect(first).toEqual({requestId:ids.request,assignmentIds:[removal.assignmentId],endedOn,endReason,
+            confirmedAt:confirmedAt.toISOString(),confirmationId:command.confirmationId,replayed:false});
+          for (const confirmationId of [command.confirmationId,"later-id"]) {
+            expect(await finalizeOffboarding({...command,confirmationId,confirmedAt:new Date("2026-09-01T00:00:00Z")},port)).toEqual({...first,replayed:true});
+          }
+          const rows = await tx.execute(sql`SELECT ended_on::text AS ended_on, end_reason::text AS end_reason FROM license_assignment WHERE id=${removal.assignmentId}::uuid`);
+          expect(rows.rows).toEqual([{ended_on:endedOn,end_reason:endReason}]);
+          const events = await tx.execute(sql`SELECT from_state::text, to_state::text, note, occurred_at FROM request_transition WHERE request_id=${ids.request}::uuid AND to_state='deprovisioned'`);
+          expect(events.rows.map(event => ({...event,occurred_at:new Date(event.occurred_at as string).toISOString()}))).toEqual([{from_state:"offboarding",to_state:"deprovisioned",note:"Anchored removal confirmed",occurred_at:confirmedAt.toISOString()}]);
+          throw rollback;
+        })).rejects.toBe(rollback);
+        expect(await completionSnapshot()).toEqual(before);
+      }),{seed:870042,numRuns:8});
+    } finally {
+      if (previousTimezone === undefined) delete process.env.TZ;
+      else process.env.TZ = previousTimezone;
+    }
     await expectCompletionConflict(completionCommand(removal.actionId,{confirmedAt:new Date("2026-07-28T04:59:59.999Z")}));
   });
 
@@ -2056,11 +2135,11 @@ describe("US-087 direct completion contracts", () => {
   });
 
 
-  it.each(["requestId", "endReason", "missingIds", "wrongIds"])("refuses replay of an append-only original completion with corrupt %s", async field => {
+  it.each(["requestId", "endReason", "missingIds", "wrongIds", "mixedRowDate"])("refuses replay of an append-only original completion with corrupt %s", async field => {
     const removal = await startIsolatedRemoval();
     const patch = field === "requestId" ? {requestId:ids.failureRequest}
       : field === "endReason" ? {endReason:"inactive"}
-      : {assignmentIds:field === "missingIds" ? [] : [id("911")]};
+      : {assignmentIds:field === "mixedRowDate" ? [removal.assignmentId,id("920")] : field === "missingIds" ? [] : [id("911")]};
     // A BEFORE INSERT fault creates malformed historical evidence without altering any committed audit.
     await owner.query(`CREATE FUNCTION corrupt_us087_receipt() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
       IF NEW.action='offboarding.removal_confirmed' THEN NEW.after=NEW.after || '${JSON.stringify(patch)}'::jsonb; END IF;
@@ -2068,6 +2147,14 @@ describe("US-087 direct completion contracts", () => {
     await owner.query("CREATE TRIGGER corrupt_us087_receipt BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION corrupt_us087_receipt()");
     try { await invokeCompletion(completionCommand(removal.actionId)); }
     finally { await owner.query("DROP TRIGGER corrupt_us087_receipt ON audit_log"); await owner.query("DROP FUNCTION corrupt_us087_receipt()"); }
+    if (field === "mixedRowDate") {
+      await owner.query(`INSERT INTO license_assignment(id,person_id,company_id,vendor_account_id,license_type_id,
+        started_on,ended_on,end_reason,source_request_id,source_kind,created_at,created_by)
+        VALUES($1,$2,$3,$4,$5,'2026-07-26','2026-07-27','left_company',$6,'request',$7,$8)`,
+        [id("920"),ids.person,ids.company,ids.account,ids.licenseType,ids.request,occurredAt,ids.admin]);
+      await owner.query("UPDATE provisioning_action SET raw_request=jsonb_set(raw_request,'{context,assignmentIds}',$2::jsonb) WHERE id=$1",
+        [removal.actionId,JSON.stringify([removal.assignmentId,id("920")])]);
+    }
     const original = (await loadedCompletionFacts(removal.actionId)).original!;
     expect(original).toMatchObject(patch);
     await expectCompletionConflict(completionCommand(removal.actionId,{confirmationId:"replayed"}));
