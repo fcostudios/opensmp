@@ -158,7 +158,27 @@
     "evidence": "CHG093-READY-750211-CURRENT450",
     "payload_sha256": "750211e732d46d36d7e4bc3902e576ca7d6051b540eebb4bf5f000a131736482"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 10,
+      "implementation": 219,
+      "focused_verification": 47,
+      "review": 53,
+      "integration": 65
+    },
+    "total": 394,
+    "changed_files": 20,
+    "commits": 50,
+    "review_fix_loops": 3,
+    "cold_mutation_attempts": 3,
+    "mutation_invalidations": 2,
+    "mutation_minutes": 58,
+    "mutation_shards_actual": 3,
+    "preview_rounds": 0,
+    "preview_minutes": 0,
+    "estimate_variance_minutes": -56,
+    "root_cause": "Conservative estimated accounting allocations, NOT measured wall partition or billing. Historical incurred279.3879115965+a retained, a in[0,1], upper1 is uncertainty bound not measurement. Supported historical Task1implementation15 and Task2focused18 from original rawfeedback, review32 from d97563fb retained finalreview feedback, historicalcold37.3879115965 from retained controller accounting: residual178=(279.3879115965+1)-15-18-32-37.3879115965 assigned implementation as ACCOUNTING residual, not observed duration; unobservable historical bucket zeros are included there, never calibrate residual as measured implementation. Current adoption10 readiness; implementation adds dualownerhandoff1, rootcoord8/operator.5, Task1reconstruction8 and singleplanreconstruction8; focused addsTask2oracles25, fullgate3, finalpreflight1; review addsTask1 2/source209 3/checkpoint5/freshAC4/gate.5/lock1/finalsurvivors3/accounting2 =20.5; integration adds currentcold20.2995667 and closure7estimatedactive. Currentcoldactive5 nested, notadded. Exact phases10/218.5/47/52.5/64.6874782632 sum392.6874782632; ceil each\u219210/219/47/53/65 total394, rounding surplus1.3125217368, variance-56vs450. Current original45coldforecast replaced by measured20.2995667; unused gate/preflight reserves removed; noforecast charged asactual. HistoricalUS087bc2 actual254 with3previewrounds/29ceilminutes/exact28.149683 unchanged separately; CHG093 itself no mutationpreviews, finite controls are diagnostics. CumulativeCHG0933coldattempts/2invalidations preserved; totalcold57.6874783min rounded58 informational already in phases. Fullgate200.9547s, finalpreflight6.193s; no lastfive median available, no unsupported2xclaim. Reviewfixloops3: historicalsevenfindingreview\u2192Task2neworacles, sourcebindingreview16306555\u2192portable209/204/230, checkpointadjudication13f34d70\u2192singleplanpathreconstruction. Authoring/schema retries are failures retained, not reviewloops. Original/current logical sameitem sessions retained, no costreset: one consolidated implementer logicalresume, reusedscopedreviewer, freshfinalreviewer and controllingroot; historical seat telemetry partial and current seatcounts not independently measured. Mainbasea8c7388; actuals count full reachable reconstructed delivery commits through this evidence commit, changedfiles diffbase to currentcandidate; original maps preserve replay provenance. Rawphase timestamps retained; idle/externalwait gaps excluded from activeestimates. Explicit Francisco Accept to packet6d1f2cf permits ONLY final14.177979s launchlockgap; absenceofhistoricalconcurrency remains unproven, gap not erased. Scoredinputunchanged; allrawarchives/failures preserved."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,

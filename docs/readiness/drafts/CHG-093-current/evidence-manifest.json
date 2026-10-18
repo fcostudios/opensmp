@@ -179,5 +179,21 @@
       "timezone": "America/Guayaquil",
       "candidate_source_hashes_match_diagnostic": true
     }
+  },
+  "final_closure": {
+    "frozen_scored_head": "63163d5989643ee4fe73a03081f55daf93bd0bbb",
+    "full_gate_head": "7812ac13e93d173a0fc85c416402540a6526cc6d",
+    "archive": "/Users/fcolomas/.codex/artifacts/smp/CHG-093/current-a8c7388/final-cold-evidence.tar.gz",
+    "archive_sha256": "64d5ff07bfcfe9ecb9ade6bd97639ffd48bf16a3fcbb64beb179de30fabfc7ef",
+    "scientific_review_sha256": "958909c6c992d6917eb8c76e3dde7c3db04c264eb46609e722f22cebaafa535c",
+    "exception_packet_sha256": "6d1f2cfe339cacff37f562627beb74531a58afa0987c869047602441315f914a",
+    "actual_human_reply": "Accept",
+    "trusted_relay_root": "01a12c65-b3ae-77a3-8634-3e6bad11a40e",
+    "human_message_id": null,
+    "lock_gap_seconds": 14.177979,
+    "whole_duration_lock_compliance": false,
+    "historical_concurrency_absence_proven": false,
+    "terminal_cutoff_accounting": "/Users/fcolomas/.codex/artifacts/smp/CHG-093/current-a8c7388/closure-packet/terminal-cutoff-accounting.json",
+    "no_postcold_scored_changes": true
   }
 }
