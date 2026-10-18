@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   alertRuleContractSchema,
+  alertEvaluationSchema,
+  alertSubjectForTypeSchema,
+  alertSubjectForReadTypeSchema,
+  alertSubjectRefSchema,
   approvalAgingThresholdSchema,
   inviteUnacceptedThresholdSchema,
 } from "./alerts.js";
@@ -151,5 +155,61 @@ describe("US-069 public validation issues", () => {
     expect(numeric.success).toBe(false);
     if (numeric.success) throw new Error("expected numeric threshold rejection");
     expect(numeric.error.issues).toEqual([{ code: "custom", message: "alert threshold values must be nonnegative finite numbers", path: ["threshold"] }]);
+  });
+});
+
+
+describe("US-092 new drift subjects and historical reads", () => {
+  const canonical = { drift_episode_id: "episode-1", vendor_account_id: "account-1" };
+
+  it("accepts only canonical new drift identity through both event boundaries", () => {
+    expect(alertSubjectForTypeSchema.parse({ type: "register_drift", subject: canonical }))
+      .toEqual({ type: "register_drift", subject: canonical });
+    expect(alertEvaluationSchema.parse({ type: "register_drift", subjectRef: canonical, dedupeKey: "drift-1" }))
+      .toEqual({ type: "register_drift", subjectRef: canonical, dedupeKey: "drift-1" });
+  });
+
+  it.each([
+    { reconciliationId: "recon-1" },
+    { drift_episode_id: "episode-1", vendor_account_id: "account-1", reconciliationId: "recon-1" },
+    { drift_episode_id: "episode-1" },
+    { vendor_account_id: "account-1" },
+    { drift_episode_id: "", vendor_account_id: "account-1" },
+    { drift_episode_id: "episode-1", vendor_account_id: "" },
+    { drift_episode_id: 1, vendor_account_id: "account-1" },
+    { drift_episode_id: "episode-1", vendor_account_id: null },
+    { drift_episode_id: "episode-1", vendor_account_id: "account-1", extra: "unexpected" },
+    { requestId: "request-1" },
+  ])("refuses a noncanonical new drift subject %j", (subject) => {
+    expect(alertSubjectForTypeSchema.safeParse({ type: "register_drift", subject }).success).toBe(false);
+    expect(alertEvaluationSchema.safeParse({ type: "register_drift", subjectRef: subject, dedupeKey: "drift-1" }).success).toBe(false);
+  });
+
+  it.each(["approval_aging", "low_pool", "credential_failure", "close_missed"])(
+    "refuses canonical drift identity paired with %s", (type) => {
+      expect(alertSubjectForTypeSchema.safeParse({ type, subject: canonical }).success).toBe(false);
+      expect(alertEvaluationSchema.safeParse({ type, subjectRef: canonical, dedupeKey: "wrong-type" }).success).toBe(false);
+      expect(alertSubjectForReadTypeSchema.safeParse({ type, subject: canonical }).success).toBe(false);
+    },
+  );
+
+  it("preserves strict historical read parsing without opening the write boundary", () => {
+    const historical = { reconciliationId: "recon-1" };
+    expect(alertSubjectRefSchema.parse(historical)).toEqual(historical);
+    expect(alertSubjectRefSchema.parse(canonical)).toEqual(canonical);
+    for (const subject of [historical, canonical]) {
+      expect(alertSubjectForReadTypeSchema.parse({ type: "register_drift", subject }))
+        .toEqual({ type: "register_drift", subject });
+    }
+    for (const subject of [
+      { reconciliationId: "" },
+      { reconciliationId: 1 },
+      { reconciliationId: "recon-1", extra: "unexpected" },
+      { ...canonical, reconciliationId: "recon-1" },
+      { requestId: "request-1" },
+      null,
+    ]) {
+      expect(alertSubjectForReadTypeSchema.safeParse({ type: "register_drift", subject }).success).toBe(false);
+    }
   });
 });

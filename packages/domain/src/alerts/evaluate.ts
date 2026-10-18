@@ -1,4 +1,4 @@
-import { alertSubjectForTypeSchema } from "@smp/contracts/alerts";
+import { alertSubjectForReadTypeSchema, alertSubjectForTypeSchema } from "@smp/contracts/alerts";
 
 import type {
   AlertEvaluation,
@@ -25,7 +25,7 @@ export function alertSubjectDestination(
   type: AlertType,
   subject: AlertSubjectRef,
 ): string {
-  const parsed = alertSubjectForTypeSchema.parse({ subject, type });
+  const parsed = alertSubjectForReadTypeSchema.parse({ subject, type });
   switch (parsed.type) {
     case "approval_aging":
     case "provisioning_failure":

@@ -98,7 +98,6 @@ describe("US-042 deterministic alert evaluation", () => {
     ["invite_unaccepted", { ageHours: 169 }, { hours: 168 }, { requestId: "invite_unaccepted-subject" }],
     ["sync_stale", { ageHours: 49 }, { hours: 48 }, { vendorAccountId: "sync_stale-subject" }],
     ["credential_failure", { failed: true }, { failures: 1 }, { vendorAccountId: "credential_failure-subject" }],
-    ["register_drift", { drifted: true }, { mismatches: 1 }, { reconciliationId: "register_drift-subject" }],
     ["deprovision_overdue", { deadlineExceeded: true }, { businessDays: 0 }, { requestId: "deprovision_overdue-subject" }],
     ["close_missed", { businessDaysElapsed: 4 }, { businessDays: 3 }, { period: "2026-06" }],
   ] as const)("evaluates %s with the canonical threshold measure", (type, measure, threshold, subject) => {
@@ -309,4 +308,31 @@ it("continues invitation alerts at hours when expiry is disabled and rejects nul
  expect(evaluateAlertRule(rule,{ageHours:24,subject:{requestId:"invitation"}},at)).toBeNull();
  expect(evaluateAlertRule(rule,{ageHours:25,subject:{requestId:"invitation"}},at)?.type).toBe("invite_unaccepted");
  expect(()=>evaluateAlertRule({...rule,threshold:{hours:null}},{ageHours:25,subject:{requestId:"invitation"}},at)).toThrow("invite_unaccepted threshold.hours must be finite");
+});
+
+
+describe("US-092 canonical drift evaluation", () => {
+  const rule = { enabled: true, threshold: { mismatches: 1 }, type: "register_drift" as const };
+  const subject = { vendor_account_id: "account-1", drift_episode_id: "episode-1" };
+
+  it("emits the exact canonical identity with deterministic key ordering", () => {
+    expect(evaluateAlertRule(rule, { drifted: true, subject }, at)).toEqual({
+      dedupeKey: "register_drift:episode-1:account-1:2026-07-27T15:00:00.000Z",
+      subjectRef: { drift_episode_id: "episode-1", vendor_account_id: "account-1" },
+      type: "register_drift",
+    });
+    expect(evaluateAlertRule({ ...rule, enabled: false }, { drifted: true, subject }, at)).toBeNull();
+    expect(evaluateAlertRule(rule, { drifted: false, subject }, at)).toBeNull();
+    expect(evaluateAlertRule({ ...rule, threshold: { mismatches: 2 } }, { drifted: true, subject }, at)).toBeNull();
+  });
+
+  it("refuses historical subjects for evaluation while preserving their destination", () => {
+    const historical = { reconciliationId: "recon-1" };
+    expect(() => evaluateAlertRule(rule, { drifted: true, subject: historical }, at))
+      .toThrow("subject does not match alert type register_drift");
+    expect(alertSubjectDestination("register_drift", historical)).toBe("/excepciones");
+    expect(alertSubjectDestination("register_drift", subject)).toBe("/excepciones");
+    expect(() => alertSubjectDestination("register_drift", { ...historical, ...subject }))
+      .toThrow();
+  });
 });

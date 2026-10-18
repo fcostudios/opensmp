@@ -29,6 +29,12 @@ const poolSubjectSchema = z
 const reconciliationSubjectSchema = z
   .object({ reconciliationId: z.string().min(1) })
   .strict();
+const driftEpisodeSubjectSchema = z
+  .object({
+    drift_episode_id: z.string().min(1),
+    vendor_account_id: z.string().min(1),
+  })
+  .strict();
 const periodSubjectSchema = z
   .object({ period: z.string().regex(/^\d{4}-(?:0[1-9]|1[0-2])$/) })
   .strict();
@@ -38,6 +44,7 @@ export const alertSubjectRefSchema = z.union([
   vendorAccountSubjectSchema,
   poolSubjectSchema,
   reconciliationSubjectSchema,
+  driftEpisodeSubjectSchema,
   periodSubjectSchema,
 ]);
 
@@ -52,8 +59,16 @@ export const alertSubjectForTypeSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("low_pool"), subject: poolSubjectSchema }),
   z.object({ type: z.literal("sync_stale"), subject: vendorAccountSubjectSchema }),
   z.object({ type: z.literal("credential_failure"), subject: vendorAccountSubjectSchema }),
-  z.object({ type: z.literal("register_drift"), subject: reconciliationSubjectSchema }),
+  z.object({ type: z.literal("register_drift"), subject: driftEpisodeSubjectSchema }),
   z.object({ type: z.literal("close_missed"), subject: periodSubjectSchema }),
+]);
+
+export type NewAlertSubjectRef = z.infer<typeof alertSubjectForTypeSchema>["subject"];
+
+/** Historical stored alerts retain their original reconciliation destination. */
+export const alertSubjectForReadTypeSchema = z.union([
+  alertSubjectForTypeSchema,
+  z.object({ type: z.literal("register_drift"), subject: reconciliationSubjectSchema }),
 ]);
 
 export const alertThresholdSchema = z.record(z.number().finite().nonnegative());
@@ -154,6 +169,17 @@ export const alertEvaluationSchema = z.object({
   dedupeKey: z.string().min(1),
   subjectRef: alertSubjectRefSchema,
   type: alertTypeSchema,
+}).superRefine((evaluation, context) => {
+  if (!alertSubjectForTypeSchema.safeParse({
+    type: evaluation.type,
+    subject: evaluation.subjectRef,
+  }).success) {
+    context.addIssue({
+      code: "custom",
+      message: "subject does not match alert type",
+      path: ["subjectRef"],
+    });
+  }
 });
 
 export type AlertEvaluation = z.infer<typeof alertEvaluationSchema>;

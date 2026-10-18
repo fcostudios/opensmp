@@ -195,5 +195,8 @@
   ],
   "apps/web/src/components/people/person-offboarding.tsx": [
     "apps/web/src/modules/org-registry/repository.integration.test.ts"
+  ],
+  "packages/domain/src/alerts/types.ts": [
+    "packages/domain/src/alerts/evaluate.test.ts"
   ]
 }

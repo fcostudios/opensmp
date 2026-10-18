@@ -3,9 +3,10 @@ import type {
   AlertRuleContract,
   AlertSubjectRef,
   AlertType,
+  NewAlertSubjectRef,
 } from "@smp/contracts/alerts";
 
-export type { AlertEvaluation, AlertRuleContract, AlertSubjectRef, AlertType };
+export type { AlertEvaluation, AlertRuleContract, AlertSubjectRef, AlertType, NewAlertSubjectRef };
 
 export type AlertFacts = {
   ageHours?: number;
