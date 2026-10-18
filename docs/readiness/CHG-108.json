@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "0a054b20d270964f5951e61897c712fbcb7376cead7105c8e7c7df57e9667e7c",
+  "work_id": "CHG-108",
+  "kind": "CHG",
+  "work_type": "technical",
+  "title": "Version explicitly approved CHG-093 ceiling authority",
+  "source": "/Users/fcolomas/Projects/nous/Nous/WorkControl/fcostudios/smp/CHG-108_TECH_SPEC.md @6df4f629563179bf406a3ed8a11dbbfa87fbab93 SHA256 85331354843f70969b928b22d38403d79687f85a35bf23d17a596d1caeb2089d; actual current normal canonical admission c532b741f773da5b16a240f83fd240bd6af408a6, immediate parent/FULL current-main base 746aecd727f00282463005e7f56d9f0560da892f. Official CHG-108 allocation, retained DEC-SMP-061/450 and additive DEC-SMP-063/191 approve scope/funding/custody, not this unseen exact readiness digest. Old a098471caef7970ba7ea4e1b37811b3e78213401/83f4f05722fd4bc975d15d2c769944fb6819c3952cef7025aed9a4adf195d577 was never human-approved or implemented and remains immutable on its separate historical line.",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Add exactly one approved CHG-093/450 policy version and legitimate CHG-108 validator source lineage while retaining historical 380 authority, ordinary/default and child320 behavior, legacy digests and every actual-parent execution guard.",
+      "demo": "Own executable model/schema and real-process/real-Git oracles accept each exact version only at its legitimate authorization parent; old380/381 and new450/451 boundaries, cross-version contexts, canonical continuity and ordinary execution refusals remain observable.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1-versioned-model-schema-and-legacy-parity",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2-actual-parent-version-source-and-ordinary-guards",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3-own-complete-proof-and-lawful-integration",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "closed-readiness-model-and-schema-contract",
+    "immutable-Git-version-source-authority-and-native-oracles",
+    "tenant-guidance-and-owned-integration-proof"
+  ],
+  "signals": {
+    "routes_or_screens": 0,
+    "acceptance_flows": 3,
+    "expected_changed_files": 11,
+    "bookkeeping_files": 4,
+    "expected_mutation_shards": 0,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 1,
+    "tooling_change": true
+  },
+  "estimate_minutes": {
+    "readiness": 51,
+    "implementation": 45,
+    "focused_verification": 35,
+    "review": 35,
+    "integration": 25,
+    "total": 191
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Actual official owner, canonical policy and current admission custody",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Nous official CHG-108 remains the same owner/outcome. Actual current source6df4f629563179bf406a3ed8a11dbbfa87fbab93 and normal admission c532b741f773da5b16a240f83fd240bd6af408a6 parent746aecd727f00282463005e7f56d9f0560da892f are actual. Root independently verified clean admission, all six custody paths mode100644, normal staged/range sync PASS3 claims and readiness range746..c532 PASS6, with all foreign746 bytes unchanged including mutation routes, feedback, TESTING and critical set. Admission SHA256: .nous-project.json 29914121a50f1839b05c41b6b3e24378f19ad26f9e75a523db4cc3f955bb56c9; .nous-provenance.json 591b479b961d860fee3a1ae1fc4a35c3a9c3fd4c41f315d13f3bdf2b69f4c4e5; .nous-sync.json a08b3a3e10b99c09af64465e9f8d3aa3d0808800e4f49b96f1497241fdf6ae42; whole DECISION_MATRIX.md 7e822c8566d69f365fabf557738e96f7a7c9ac1a0a33af86ece3538d37d98d7b. Additive actual DEC-SMP-063 funds191 cumulative with exact UTF8 textSHA47dbd60f72cd18a06fa678b49889cef7718ef67bfc605bfc3c6c30fc4c59d5fa, preserving DEC-SMP-062/180 textSHA238316f4cecdcfb24219b112132e6602cd0c280fae704dc64a5a16601f2c9172 as history. Exact policy remains DEC-SMP-061/450 textSHA99f4c21a82445c6f7c3649732f615d440592673b2c635ca0d8524719d20116bd alongside unchanged DEC-SMP-059/380 textSHA391a0e3545c948dd7082c2d17c9d12a6146c6e3f2d683545df7be8ce07db8433. Funding/custody never substitutes for actual human approval of this exact current pending payload. Current canonical custody receipt is /Users/fcolomas/Projects/nous/Nous/WorkControl/agent-requests-2026-10-18/07_CHG108_191_CURRENT_MAIN_CUSTODY.json; no unseen receipt commit SHA is invented."
+    },
+    {
+      "id": "U2",
+      "statement": "Complete closed path inventory and inherited CLI compatibility",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Exactly five technical delivery paths: scripts/work-readiness/model.mjs; scripts/work-readiness/git.mjs; docs/dev-guide/work-readiness.schema.json; scripts/test-work-readiness.mjs; docs/dev-guide/WORK_READINESS.md. Six normal custody paths: .nous-project.json; .nous-provenance.json; .nous-sync.json; docs/decisions/DECISION_MATRIX.md; docs/stories/CHANGES.md; docs/stories/SPRINT_PLAN.md. Four bookkeeping paths: docs/readiness/CHG-108.json; docs/superpowers/specs/CHG-108-design.md; docs/superpowers/plans/CHG-108-plan.md; .nous-feedback.jsonl. Total15=11delivery+4bookkeeping, including inherited custody. Existing scripts/work-readiness.mjs already propagates artifact/revision/context APIs and remains unchanged, retaining authentic latest old107 ownership in the four-policy-source proof. Preserve current105 release/schema machinery and all unrelated baseline bytes. No helper, framework, dependency, app/product/schema/migration, critical-set or TESTING-guide edit. A concrete sixth technical callsite/interface requirement is STOP before edit, with named path/interface/cost delta."
+    },
+    {
+      "id": "U3",
+      "statement": "Closed additive version selection and executable model/schema parity",
+      "status": "budgeted",
+      "estimate_impact_minutes": 5,
+      "resolution": "Add only exact project fcostudios__smp/work CHG-093/ceiling450/DEC-SMP-061/textSHA99f4c21a82445c6f7c3649732f615d440592673b2c635ca0d8524719d20116bd. Preserve exact old059/380 tuple and every existing digest. Model/schema must retain separate old380/381 versus new450/451 branches; raising a shared maximum is invalid. Absent/null use320 with unchanged legacy canonical semantics; explicit null remains digest-covered; every partition child320 and all cohesion limits unchanged. Malformed/foreign/extra/nonexact tuples refuse even below320. Context-less shape-valid pure planning stays blocked/non-executable; resolver, validation and runtime/history remain strict. No environment/requester/config authority or global cap change. Five minutes of implementation risk inside45, not additional funding."
+    },
+    {
+      "id": "U4",
+      "statement": "Actual-parent version context, canonical continuity and closed source lineage",
+      "status": "budgeted",
+      "estimate_impact_minutes": 8,
+      "resolution": "Retain immutable old107 exact readiness d3f911dfd16a9fc5d0dd1cb344ef6eaa40a1754db5090d71624cb72afa977c8a and its actual old2faf admission/c992 custody/e506 pristine/fabb source history without relabeling. Add only actual new108 admission c532b741f773da5b16a240f83fd240bd6af408a6/source6df4f629563179bf406a3ed8a11dbbfa87fbab93 at actual746aecd727f00282463005e7f56d9f0560da892f parent plus this NEW actual readiness approval/unique normal bound plan and real parent-code ownership. Freeze NEW OWNED pristine pre-code base only at actual postapproval design/plan documentation commit before code; no future SHA invented here. Closed per-source lineage admits old107 or new108 solely at its own actual approved parent; unchanged CLI latest old107 bytes remain valid. Private branded context binds selected exact tuple/version; finite cache key binds immutable root/revision AND version. Every canonical custody touch and endpoint uses true immediate parent and complete changed paths, strict identity/source/regular-mode/matrix claims and unique unchanged old+new decisions. Retain bounded64/query65 fail-closed history, nonlinear refusal, in-progress protection and strict correction origin; candidate/later source or decision never backfills an older parent. No parent-code execution or recursive whole-history classifier. Eight-minute authority risk is inside implementation45."
+    },
+    {
+      "id": "U5",
+      "statement": "Owned native/schema/Git oracles and independent guard omission faults",
+      "status": "budgeted",
+      "estimate_impact_minutes": 6,
+      "resolution": "After exact approval, use existing real-process/real-Git and locked Ajv executable schema harness, no owned mocks/new dependencies. Own baseline/intended RED/GREEN and immutable source bindings cover absent/null digest goldens/default+child320; old380/381 and new450/451; malformed/foreign/extra/belowcap; authentic old/current/new parent positives; unavailable-before-admission/source; cross-version contexts/cache; legitimate future canonical sync; mode/identity/claim/source/hash/intermediate restoration/duplicate decisions/old-origin/self-admission/65-transition hostiles. Independently kill selected tuple/version/source/parent/ordinary approval/schema/context/cache/continuity/origin omissions. Preserve current105 release cases and normal approval/digest/plan/lifecycle/actuals/correction guards. Read TESTING.md before any test edit. Six-minute fault allowance is inside focused35. No old107 PASS is relabeled as108 proof."
+    },
+    {
+      "id": "U6",
+      "statement": "Own complete engineering and runtime proof with actual mutation applicability",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "Own fresh realPG16 applies committed migrations and verifies/parity with actual ledger_owner/ledger_app non-super/nonBYPASS roles and runtime grants, cleanup and exact journal/source bindings. Own forced-awake UNCACHED pnpm check covers type/lint/test/build with complete raw/output/input/lock evidence; use existing supported fixture APIs and never disrupt foreign lock/runtime. Own actual preflight against newly frozen actual pre-code base determines applicability. Expected0 TS shards from MJS/JSON/docs is a forecast, not borrowed107 zero: only actual eligible technical0 supports zero cold attempts/null score by omission and no fabricated test_report. Nonzero applicability or expanded runtime/proof scope is STOP for concrete reassessment inside191, never scope camouflage. Baseline/RED5, immutable native8, faults6, freshPG/fullgate10 and final preflight/source6 total focused35; ten-minute PG/fullgate estimate is included, no extra allowance. All foreign current746 US092/routing inputs remain intact and are part of this own future evaluated-tree proof; neither US092 nor107 PASS is borrowed. Old pending83f4 has no engineering evidence to carry forward."
+    },
+    {
+      "id": "U7",
+      "statement": "All-role cumulative cost, readiness earmark and controller/reviewer custody",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Actual Francisco-approved cumulative191 REPLACES180 through DEC-SMP-063: readiness51 REPLACES40; implementation45/focused35/review35/integration25 remain unchanged, preserving all140 future delivery/proof minutes. Ordinary default320, no budget_exception/bootstrap. Readiness snapshotREV21 SHA1ff5913a366037f0ddc02dbe4399fb764580cc9bc0add1847e70510298b90eb1 records actual39.5/remaining11.5 once, including original33 plus pending3.5 imported once=36.5, root fresh-target setup1 and new operator custody2 actual settled reservationfd17396a-9328-402a-aafd-ba7c8823e6d7. This bounded replacement author adds2 estimated active minutes ONCE, cutoff41.5; waiting excluded. Remaining priced9=independent review2/root final preflight2/operator final2/presentation1/actual approval binding2, complete readiness forecast50.5/51 and full190.5/191, headroom0.5. Root final pin work1 is part of its preflight2, not extra; whole preflight2 will be reconciled by root after current packet verification. Mandatory4 reserves are already included, not extra funding. Actual REPLACING51 allowance40c17598-299a-430f-aea7-6a12267f5dfc has parentffc08fd9-d58f-417b-aace-a57294dd3a04 in same workflow chg108-policy-version-readiness-20261018; old40 entries and first prospective snapshot remain historical, never40+51 or new-item reset. Old author6/review2 and prior preparation remain inside incurred cutoff, not repeated or erased. All-role cumulative estimate, not metered billing; no cost transfer/donor/closed107 budget. Same retained controller, postapproval one bounded consolidated worker and required builder/scoped/fresh broad reviews. Implementation45=docs/base6+worker34+controller5; focused35=baseline/RED5+native8+faults6+PG/fullgate10+preflight/source6; review35=builder5+scoped6+fresh16+unspent fix/re-review8; integration25=archive/independentbytes8+binding/FF4+actuals/terminal6+handoff/cleanup7. STOP fullforecast>191 or actual new interface/proof need; no force-fitting or free authorship."
+    },
+    {
+      "id": "U8",
+      "statement": "Normal approval, integration window, archive and downstream adoption boundaries",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "This is ONE current PENDING readiness replacement only; no old83f4 human approval was received or inferred. Preserve old a098471caef7970ba7ea4e1b37811b3e78213401/digest83f4f05722fd4bc975d15d2c769944fb6819c3952cef7025aed9a4adf195d577, old e08d admission and old independent review unchanged on their separate historical line. Root current-main applicability report /Users/fcolomas/.codex/artifacts/smp/CHG-108/current-main-746aecd-applicability.json SHAc318cd8fe123f34f4b602dff26e3cf13ce130573616f96dab3396d0200a140ff found12 foreign US092 paths, zero own five-technical/six-custody overlap, but old line diverged at7bc and was not directly fast-forwardable; old admission is not relabeled an ancestor of746. This current line uses actual fresh native746 plus normal c532 custody only, no merge/rebase/replay. Current forced-own native/schema/Git/fullgate/PG/preflight proof must bind actual746 foreign routing/source inputs, no borrowed092/107 PASS or engineering-ready claim. No design/plan/source/test/baseline/DB/fullgate/preview/runtime before actual exact NEW current digest approval. Root obtains scoped independent readiness delta review and actual human exact approval; later bound design/plan and real pristine pre-code commit precede source. Freeze OWNED base only then, no future SHA. Own scoped+fresh broad adversarial reviews, affected-input reproof, complete raw/source/receipt archive, independent root bytes, explicit actual current-main integration window/release, exact source binding, normal linear FF/range and valid actuals/done.cost terminal remain required. No108 main hold while pending; further main/input movement stops for specific current-base/approval analysis. All roles count inside191. Only after actual108 integration may093 owner obtain its own NEW current450 readiness/exact approval retaining384.3879115965 upper/full103/adoption10/coordination6 and every original failure/recovery/seven obligations. No lifecycle/duplicate-start exception repair, automatic093 resume, P4/US090/US091 release or monitoring restart. STOP missing actual authority, required own proof failure, scope/path/interface expansion or fullforecast>191."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "0a054b20d270964f5951e61897c712fbcb7376cead7105c8e7c7df57e9667e7c"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
