@@ -1,11 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   alertRuleContractSchema,
-  alertEvaluationSchema,
-  alertSubjectForTypeSchema,
-  alertSubjectForReadTypeSchema,
-  alertSubjectRefSchema,
   approvalAgingThresholdSchema,
   inviteUnacceptedThresholdSchema,
 } from "./alerts.js";
@@ -160,12 +156,17 @@ describe("US-069 public validation issues", () => {
 
 
 describe("US-092 new drift subjects and historical reads", () => {
+  let schemas: typeof import("./alerts.js");
+  beforeEach(async () => {
+    vi.resetModules();
+    schemas = await import("./alerts.js");
+  });
   const canonical = { drift_episode_id: "episode-1", vendor_account_id: "account-1" };
 
   it("accepts only canonical new drift identity through both event boundaries", () => {
-    expect(alertSubjectForTypeSchema.parse({ type: "register_drift", subject: canonical }))
+    expect(schemas.alertSubjectForTypeSchema.parse({ type: "register_drift", subject: canonical }))
       .toEqual({ type: "register_drift", subject: canonical });
-    expect(alertEvaluationSchema.parse({ type: "register_drift", subjectRef: canonical, dedupeKey: "drift-1" }))
+    expect(schemas.alertEvaluationSchema.parse({ type: "register_drift", subjectRef: canonical, dedupeKey: "drift-1" }))
       .toEqual({ type: "register_drift", subjectRef: canonical, dedupeKey: "drift-1" });
   });
 
@@ -181,24 +182,39 @@ describe("US-092 new drift subjects and historical reads", () => {
     { drift_episode_id: "episode-1", vendor_account_id: "account-1", extra: "unexpected" },
     { requestId: "request-1" },
   ])("refuses a noncanonical new drift subject %j", (subject) => {
-    expect(alertSubjectForTypeSchema.safeParse({ type: "register_drift", subject }).success).toBe(false);
-    expect(alertEvaluationSchema.safeParse({ type: "register_drift", subjectRef: subject, dedupeKey: "drift-1" }).success).toBe(false);
+    expect(schemas.alertSubjectForTypeSchema.safeParse({ type: "register_drift", subject }).success).toBe(false);
+    expect(schemas.alertEvaluationSchema.safeParse({ type: "register_drift", subjectRef: subject, dedupeKey: "drift-1" }).success).toBe(false);
   });
 
   it.each(["approval_aging", "low_pool", "credential_failure", "close_missed"])(
     "refuses canonical drift identity paired with %s", (type) => {
-      expect(alertSubjectForTypeSchema.safeParse({ type, subject: canonical }).success).toBe(false);
-      expect(alertEvaluationSchema.safeParse({ type, subjectRef: canonical, dedupeKey: "wrong-type" }).success).toBe(false);
-      expect(alertSubjectForReadTypeSchema.safeParse({ type, subject: canonical }).success).toBe(false);
+      expect(schemas.alertSubjectForTypeSchema.safeParse({ type, subject: canonical }).success).toBe(false);
+      expect(schemas.alertEvaluationSchema.safeParse({ type, subjectRef: canonical, dedupeKey: "wrong-type" }).success).toBe(false);
+      expect(schemas.alertSubjectForReadTypeSchema.safeParse({ type, subject: canonical }).success).toBe(false);
     },
   );
 
+  it("reports rejected new-event identity at the exact public issue path", () => {
+    const result = schemas.alertEvaluationSchema.safeParse({
+      dedupeKey: "historical-is-not-new",
+      type: "register_drift",
+      subjectRef: { reconciliationId: "recon-1" },
+    });
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error("expected new-event identity rejection");
+    expect(result.error.issues).toEqual([{
+      code: "custom",
+      message: "subject does not match alert type",
+      path: ["subjectRef"],
+    }]);
+  });
+
   it("preserves strict historical read parsing without opening the write boundary", () => {
     const historical = { reconciliationId: "recon-1" };
-    expect(alertSubjectRefSchema.parse(historical)).toEqual(historical);
-    expect(alertSubjectRefSchema.parse(canonical)).toEqual(canonical);
+    expect(schemas.alertSubjectRefSchema.parse(historical)).toEqual(historical);
+    expect(schemas.alertSubjectRefSchema.parse(canonical)).toEqual(canonical);
     for (const subject of [historical, canonical]) {
-      expect(alertSubjectForReadTypeSchema.parse({ type: "register_drift", subject }))
+      expect(schemas.alertSubjectForReadTypeSchema.parse({ type: "register_drift", subject }))
         .toEqual({ type: "register_drift", subject });
     }
     for (const subject of [
@@ -209,7 +225,7 @@ describe("US-092 new drift subjects and historical reads", () => {
       { requestId: "request-1" },
       null,
     ]) {
-      expect(alertSubjectForReadTypeSchema.safeParse({ type: "register_drift", subject }).success).toBe(false);
+      expect(schemas.alertSubjectForReadTypeSchema.safeParse({ type: "register_drift", subject }).success).toBe(false);
     }
   });
 });
