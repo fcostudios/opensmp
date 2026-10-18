@@ -1,5 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
+import fc from "fast-check";
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -8,7 +10,7 @@ import {
 } from "@smp/db/testing/postgres-container";
 import * as schema from "@smp/db/schema";
 
-import { finalizeOffboarding } from "../../../../../packages/domain/src/request-workflow/lifecycle";
+import { finalizeOffboarding, validateOffboardingFacts, type OffboardingConfirmation, type OffboardingFacts } from "../../../../../packages/domain/src/request-workflow/lifecycle";
 import { createPeopleRepository } from "../org-registry/repository";
 import type { LedgerAuthorization } from "../identity-access/authorization";
 import {
@@ -1816,7 +1818,7 @@ describe("US-075 shared offboarding finalization",()=>{
   });
 
   it("rejects wrong tenant and close-before-start, and rolls every write back on completion audit failure",async()=>{
-    const removal=await startRemoval();
+    const removal=await startIsolatedRemoval();
     const database=drizzle(actionPool,{schema});
     const command={actionId:removal.actionId,requestId:ids.request,companyId:ids.company,actorUserId:ids.admin,confirmationId:"rollback-confirm",confirmedAt:new Date("2026-07-29T05:00:00Z")};
     const invoke=(value=command)=>database.transaction(tx=>finalizeOffboarding(value,createOffboardingTransactionPort(tx,authorization)));
@@ -1828,7 +1830,8 @@ describe("US-075 shared offboarding finalization",()=>{
     await expect(invoke({...command,confirmedAt:new Date("2026-07-27T04:59:59Z")})).rejects.toThrow("OFFBOARDING_CONFLICT");
     await owner.query(`CREATE FUNCTION reject_us075_completion() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='offboarding.removal_confirmed' THEN RAISE EXCEPTION 'forced completion audit failure'; END IF; RETURN NEW; END $$`);
     await owner.query("CREATE TRIGGER reject_us075_completion BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION reject_us075_completion()");
-    try{await expect(invoke()).rejects.toThrow("forced completion audit failure");}finally{await owner.query("DROP TRIGGER reject_us075_completion ON audit_log");await owner.query("DROP FUNCTION reject_us075_completion()");}
+    const beforeAuditFailure=await completionSnapshot();
+    try{await expect(invoke()).rejects.toThrow("forced completion audit failure");expect(await completionSnapshot()).toEqual(beforeAuditFailure);}finally{await owner.query("DROP TRIGGER reject_us075_completion ON audit_log");await owner.query("DROP FUNCTION reject_us075_completion()");}
     expect(await removalFacts(removal.actionId)).toEqual([{state:"offboarding",status:"pending",failure_reason:null,ended_on:null,end_reason:null,transitions:0,completions:0}]);
     expect(await invoke()).toMatchObject({endedOn:"2026-07-29",replayed:false});
   });
@@ -1847,5 +1850,267 @@ describe("US-075 shared offboarding finalization",()=>{
     expect((await removalFacts(removal.actionId))[0]).toMatchObject({state:"deprovisioned",status:"confirmed",failure_reason:null,transitions:1,completions:1});
     expect((await owner.query("SELECT count(*)::int AS count FROM audit_log WHERE entity_id=$1 AND action IN ('server_action.confirmChecklistDone','server_action.markChecklistNotDone') AND after->>'accepted'='true'",[removal.actionId])).rows).toEqual([{count:0}]);
     expect((await owner.query("SELECT action,after FROM audit_log WHERE entity_id=$1 AND action LIKE 'server_action.%' AND after->>'accepted'='false'",[removal.actionId])).rows).toEqual([{action:"server_action.markChecklistNotDone",after:{accepted:false,errorCode:"conflict"}}]);
+  });
+});
+
+
+// These snapshots cover every accepted write and the foreign/unrelated register facts.
+async function completionSnapshot() {
+  const tables = ["license_assignment", "provisioning_action", "license_request", "request_transition", "audit_log", "person", "vendor_account", "vendor_account_capacity"];
+  const result = [];
+  for (const table of tables) result.push({table, rows: (await owner.query(`SELECT to_jsonb(record) AS fact FROM ${table} record ORDER BY to_jsonb(record)::text`)).rows});
+  return result;
+}
+
+function completionCommand(actionId: string, overrides: Partial<OffboardingConfirmation> = {}): OffboardingConfirmation {
+  return { actionId, requestId: ids.request, companyId: ids.company, actorUserId: ids.admin,
+    confirmationId: "us087-confirmation", confirmedAt: new Date("2026-07-29T05:00:00.000Z"), ...overrides };
+}
+
+function invokeCompletion(command: OffboardingConfirmation) {
+  return drizzle(actionPool, { schema }).transaction(tx =>
+    finalizeOffboarding(command, createOffboardingTransactionPort(tx, authorization)));
+}
+
+async function startIsolatedRemoval(reason: "left_company" | "inactive" = "left_company") {
+  const removal = await startRemoval(reason);
+  for (const [personId, companyId, assignmentId] of [
+    [id("901"), ids.company, id("911")],
+    [id("902"), ids.otherCompany, id("912")],
+  ]) {
+    await owner.query(`INSERT INTO person(id,email,full_name,company_id,status,created_at,created_by)
+      VALUES($1,$2,'Unrelated holder',$3,'active',$4,$5)`, [personId, `${personId}@isolation.test`, companyId, occurredAt, ids.admin]);
+    await owner.query(`INSERT INTO license_assignment(id,person_id,company_id,vendor_account_id,license_type_id,started_on,source_kind,created_at,created_by)
+      VALUES($1,$2,$3,$4,$5,'2026-07-28','import',$6,$7)`, [assignmentId,personId,companyId,ids.account,ids.licenseType,occurredAt,ids.admin]);
+  }
+  return removal;
+}
+
+async function loadedCompletionFacts(actionId: string) {
+  return drizzle(actionPool, { schema }).transaction(tx =>
+    createOffboardingTransactionPort(tx, authorization).runAtomic(port => port.loadFacts(actionId)));
+}
+
+async function expectCompletionConflict(command: OffboardingConfirmation) {
+  const before = await completionSnapshot();
+  await expect(invokeCompletion(command)).rejects.toThrow(/^OFFBOARDING_CONFLICT$/);
+  expect(await completionSnapshot()).toEqual(before);
+}
+
+describe("US-087 direct completion contracts", () => {
+  it("rejects malformed portable identities from real loaded SQL facts with the exact conflict", async () => {
+    const removal = await startIsolatedRemoval();
+    const command = completionCommand(removal.actionId);
+    const facts = await loadedCompletionFacts(removal.actionId);
+    const context = facts.action.context as Record<string, unknown>;
+    const snapshot = await completionSnapshot();
+    const malformed: OffboardingFacts[] = [
+      ...[null, false, "context", {}, { ...context, assignmentIds: null }, { ...context, assignmentIds: [] },
+        { ...context, assignmentIds: [removal.assignmentId, 7] }, { ...context, assignmentIds: [removal.assignmentId, removal.assignmentId] },
+        { ...context, endReason: "reallocated" }, { ...context, requestId: ids.failureRequest },
+        { ...context, personId: id("901") }, { ...context, vendorAccountId: id("999") },
+        { ...context, assignmentIds: [id("911")] }, { ...context, assignmentIds: [removal.assignmentId, id("911")] }]
+        .map(context => ({ ...facts, action: { ...facts.action, context } })),
+      ...[{ id: ids.failureAction }, { requestId: ids.failureRequest }, { vendorAccountId: id("999") },
+        { operation: "provision" }, { kind: "invite" }, { mode: "invalid" }, { kind: "checklist", mode: "automated" }]
+        .map(change => ({ ...facts, action: { ...facts.action, ...change } })),
+      ...[{ id: ids.failureRequest }, { companyId: ids.otherCompany }, { assignmentId: null }]
+        .map(change => ({ ...facts, request: { ...facts.request, ...change } })),
+      { ...facts, assignments: [] },
+      ...[{ id: id("911") }, { requestId: ids.failureRequest }, { companyId: ids.otherCompany },
+        { personId: id("901") }, { vendorAccountId: id("999") }, { licenseTypeId: id("999") }]
+        .map(change => ({ ...facts, assignments: [{ ...facts.assignments[0]!, ...change }] })),
+      // A mixed valid/invalid row distinguishes some() from every() without weakening SQL constraints.
+      { ...facts, action: { ...facts.action, context: { ...context, assignmentIds: [removal.assignmentId, id("911")] } },
+        assignments: [...facts.assignments, { ...facts.assignments[0]!, id: id("911"), personId: id("901") }] },
+    ];
+    for (const value of malformed) expect(() => validateOffboardingFacts(command, value)).toThrow(/^OFFBOARDING_CONFLICT$/);
+    expect(validateOffboardingFacts(command, facts)).toBe("left_company");
+    expect(validateOffboardingFacts(command, { ...facts, action: { ...facts.action, kind: "checklist" } })).toBe("left_company");
+    expect(validateOffboardingFacts(command, { ...facts, action: { ...facts.action, mode: "automated" } })).toBe("left_company");
+    expect(await completionSnapshot()).toEqual(snapshot);
+  });
+
+  it("refuses SQL-permitted context corruption before any accepted write", async () => {
+    const removal = await startIsolatedRemoval();
+    const facts = await loadedCompletionFacts(removal.actionId);
+    const context = facts.action.context as Record<string, unknown>;
+    for (const value of [null, 0, "context", {}, { ...context, assignmentIds: "ids" }, { ...context, assignmentIds: [] },
+      { ...context, assignmentIds: [removal.assignmentId, false] }, { ...context, assignmentIds: [removal.assignmentId, removal.assignmentId] },
+      { ...context, endReason: "invalid" }, { ...context, requestId: ids.failureRequest },
+      { ...context, personId: id("901") }, { ...context, vendorAccountId: id("999") },
+      { ...context, assignmentIds: [id("911")] }, { ...context, assignmentIds: [removal.assignmentId, id("911")] }]) {
+      await owner.query("UPDATE provisioning_action SET raw_request=jsonb_set(raw_request,'{context}',$2::jsonb) WHERE id=$1", [removal.actionId, JSON.stringify(value)]);
+      await expectCompletionConflict(completionCommand(removal.actionId));
+    }
+  });
+
+  it("rejects invalid confirmation evidence and actor identity and accepts exactly 200 characters", async () => {
+    const removal = await startIsolatedRemoval();
+    const command = completionCommand(removal.actionId);
+    for (const change of [{ confirmationId: "" }, { confirmationId: "   " }, { confirmationId: "x".repeat(201) },
+      { confirmedAt: new Date(NaN) }, { actorUserId: null }, { actorUserId: id("901") },
+      { companyId: ids.otherCompany }, { requestId: ids.failureRequest }]) {
+      await expectCompletionConflict({ ...command, ...change });
+    }
+    const result = await invokeCompletion({ ...command, confirmationId: "x".repeat(200) });
+    expect(result.confirmationId).toBe("x".repeat(200));
+    expect(result.replayed).toBe(false);
+    const missing = completionCommand(id("999"));
+    await expectCompletionConflict(missing);
+  });
+
+  it.each(["pending", "sent", "failed"])("accepts retryable %s status and clears the prior failure", async status => {
+    const removal = await startIsolatedRemoval("inactive");
+    await owner.query("UPDATE provisioning_action SET status=$2, failure_reason='previous attempt' WHERE id=$1", [removal.actionId, status]);
+    const unrelatedBefore = (await completionSnapshot()).filter(value => ["person", "vendor_account", "vendor_account_capacity"].includes(value.table));
+    const result = await invokeCompletion(completionCommand(removal.actionId));
+    expect((await completionSnapshot()).filter(value => ["person", "vendor_account", "vendor_account_capacity"].includes(value.table))).toEqual(unrelatedBefore);
+    expect(result).toEqual({ requestId: ids.request, assignmentIds: [removal.assignmentId], endedOn: "2026-07-29", endReason: "inactive",
+      confirmedAt: "2026-07-29T05:00:00.000Z", confirmationId: "us087-confirmation", replayed: false });
+    expect(await removalFacts(removal.actionId)).toEqual([{ state: "deprovisioned", status: "confirmed", failure_reason: null,
+      ended_on: "2026-07-29", end_reason: "inactive", transitions: 1, completions: 1 }]);
+    const audits = (await owner.query("SELECT actor_user_id::text, company_id::text, before, after, occurred_at FROM audit_log WHERE entity_id=$1 AND action='offboarding.removal_confirmed'", [removal.actionId])).rows;
+    expect(audits).toEqual([{ actor_user_id: ids.admin, company_id: ids.company, before: null, after: result, occurred_at: new Date(result.confirmedAt) }]);
+    expect((await owner.query("SELECT id::text, ended_on, end_reason FROM license_assignment WHERE id IN ($1,$2) ORDER BY id", [id("911"),id("912")])).rows)
+      .toEqual([{id:id("911"),ended_on:null,end_reason:null},{id:id("912"),ended_on:null,end_reason:null}]);
+  });
+
+  it("refuses incompatible request/action states and contradictory open-row reasons", async () => {
+    const removal = await startIsolatedRemoval();
+    const command = completionCommand(removal.actionId);
+    await owner.query("UPDATE license_request SET state='active' WHERE id=$1", [ids.request]);
+    await expectCompletionConflict(command);
+    await owner.query("UPDATE license_request SET state='offboarding' WHERE id=$1", [ids.request]);
+    for (const status of ["confirmed", "verification_failed"]) {
+      await owner.query("UPDATE provisioning_action SET status=$2 WHERE id=$1", [removal.actionId,status]);
+      await expectCompletionConflict(command);
+    }
+    await owner.query("UPDATE provisioning_action SET status='pending' WHERE id=$1", [removal.actionId]);
+    await owner.query("UPDATE license_assignment SET end_reason='inactive' WHERE id=$1", [removal.assignmentId]);
+    await expectCompletionConflict(command);
+    await owner.query("UPDATE license_assignment SET ended_on='2026-07-28', end_reason=NULL WHERE id=$1", [removal.assignmentId]);
+    await expectCompletionConflict(command);
+  });
+
+
+  it("rejects a partial multi-row closure instead of confirming its remaining open row", async () => {
+    const removal = await startIsolatedRemoval();
+    await owner.query(`INSERT INTO license_assignment(id,person_id,company_id,vendor_account_id,license_type_id,
+      started_on,ended_on,end_reason,source_request_id,source_kind,created_at,created_by)
+      VALUES($1,$2,$3,$4,$5,'2026-07-26','2026-07-27','left_company',$6,'request',$7,$8)`,
+      [id("920"),ids.person,ids.company,ids.account,ids.licenseType,ids.request,occurredAt,ids.admin]);
+    await owner.query("UPDATE provisioning_action SET raw_request=jsonb_set(raw_request,'{context,assignmentIds}',$2::jsonb) WHERE id=$1",
+      [removal.actionId,JSON.stringify([removal.assignmentId,id("920")])]);
+    await expectCompletionConflict(completionCommand(removal.actionId));
+  });
+
+  it.each(["left_company", "inactive"] as const)("pins seeded Ecuador boundaries and immutable %s replay evidence", async endReason => {
+    const removal = await startIsolatedRemoval(endReason);
+    const database = drizzle(actionPool, { schema });
+    const before = await completionSnapshot();
+    const rollback = new Error("test transaction rollback");
+    await fc.assert(fc.asyncProperty(fc.integer({min:0,max:30}), fc.constantFrom(-1,0,1), async (days, offset) => {
+      const confirmedAt = new Date(Date.UTC(2026,6,29+days,5,0,0,offset));
+      const endedOn = new Date(confirmedAt.getTime()-5*60*60*1000).toISOString().slice(0,10);
+      const command = completionCommand(removal.actionId,{confirmedAt});
+      await expect(database.transaction(async tx => {
+        const port = createOffboardingTransactionPort(tx,authorization);
+        const first = await finalizeOffboarding(command,port);
+        expect(first).toEqual({requestId:ids.request,assignmentIds:[removal.assignmentId],endedOn,endReason,
+          confirmedAt:confirmedAt.toISOString(),confirmationId:command.confirmationId,replayed:false});
+        for (const confirmationId of [command.confirmationId,"later-id"]) {
+          expect(await finalizeOffboarding({...command,confirmationId,confirmedAt:new Date("2026-09-01T00:00:00Z")},port)).toEqual({...first,replayed:true});
+        }
+        const rows = await tx.execute(sql`SELECT ended_on::text AS ended_on, end_reason::text AS end_reason FROM license_assignment WHERE id=${removal.assignmentId}::uuid`);
+        expect(rows.rows).toEqual([{ended_on:endedOn,end_reason:endReason}]);
+        const events = await tx.execute(sql`SELECT from_state::text, to_state::text, occurred_at FROM request_transition WHERE request_id=${ids.request}::uuid AND to_state='deprovisioned'`);
+        expect(events.rows.map(event => ({...event,occurred_at:new Date(event.occurred_at as string).toISOString()}))).toEqual([{from_state:"offboarding",to_state:"deprovisioned",occurred_at:confirmedAt.toISOString()}]);
+        throw rollback;
+      })).rejects.toBe(rollback);
+      expect(await completionSnapshot()).toEqual(before);
+    }),{seed:870042,numRuns:8});
+    await expectCompletionConflict(completionCommand(removal.actionId,{confirmedAt:new Date("2026-07-28T04:59:59.999Z")}));
+  });
+
+  it("refuses completed replay when durable state, context, date or reason contradicts the original", async () => {
+    const removal = await startIsolatedRemoval();
+    const command = completionCommand(removal.actionId);
+    const first = await invokeCompletion(command);
+    const raw = (await owner.query("SELECT raw_request FROM provisioning_action WHERE id=$1",[removal.actionId])).rows[0].raw_request;
+    const mutations = [
+      ["UPDATE license_request SET state='offboarding' WHERE id=$1",[ids.request],"UPDATE license_request SET state='deprovisioned' WHERE id=$1",[ids.request]],
+      ["UPDATE provisioning_action SET status='sent' WHERE id=$1",[removal.actionId],"UPDATE provisioning_action SET status='confirmed' WHERE id=$1",[removal.actionId]],
+      ["UPDATE provisioning_action SET raw_request=jsonb_set(raw_request,'{context,endReason}','\"inactive\"') WHERE id=$1",[removal.actionId],"UPDATE provisioning_action SET raw_request=$2 WHERE id=$1",[removal.actionId,raw]],
+      ["UPDATE license_assignment SET ended_on='2026-07-30' WHERE id=$1",[removal.assignmentId],"UPDATE license_assignment SET ended_on='2026-07-29' WHERE id=$1",[removal.assignmentId]],
+      ["UPDATE license_assignment SET end_reason='inactive' WHERE id=$1",[removal.assignmentId],"UPDATE license_assignment SET end_reason='left_company' WHERE id=$1",[removal.assignmentId]],
+    ] as const;
+    for (const [mutate,params,restore,restoreParams] of mutations) {
+      await owner.query(mutate,[...params]);
+      await expectCompletionConflict(command);
+      await owner.query(restore,[...restoreParams]);
+    }
+    const before = await completionSnapshot();
+    expect(await invokeCompletion({...command,confirmationId:"different",confirmedAt:new Date("2026-08-01T00:00:00Z")})).toEqual({...first,replayed:true});
+    expect(await completionSnapshot()).toEqual(before);
+  });
+
+
+  it.each(["requestId", "endReason", "missingIds", "wrongIds"])("refuses replay of an append-only original completion with corrupt %s", async field => {
+    const removal = await startIsolatedRemoval();
+    const patch = field === "requestId" ? {requestId:ids.failureRequest}
+      : field === "endReason" ? {endReason:"inactive"}
+      : {assignmentIds:field === "missingIds" ? [] : [id("911")]};
+    // A BEFORE INSERT fault creates malformed historical evidence without altering any committed audit.
+    await owner.query(`CREATE FUNCTION corrupt_us087_receipt() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+      IF NEW.action='offboarding.removal_confirmed' THEN NEW.after=NEW.after || '${JSON.stringify(patch)}'::jsonb; END IF;
+      RETURN NEW; END $$`);
+    await owner.query("CREATE TRIGGER corrupt_us087_receipt BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION corrupt_us087_receipt()");
+    try { await invokeCompletion(completionCommand(removal.actionId)); }
+    finally { await owner.query("DROP TRIGGER corrupt_us087_receipt ON audit_log"); await owner.query("DROP FUNCTION corrupt_us087_receipt()"); }
+    const original = (await loadedCompletionFacts(removal.actionId)).original!;
+    expect(original).toMatchObject(patch);
+    await expectCompletionConflict(completionCommand(removal.actionId,{confirmationId:"replayed"}));
+  });
+
+  it.each(["license_assignment", "provisioning_action"])("rolls back every accepted write when guarded %s update skips its row", async table => {
+    const removal = await startIsolatedRemoval();
+    await owner.query(`CREATE FUNCTION skip_us087_update() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$`);
+    await owner.query(`CREATE TRIGGER skip_us087_update BEFORE UPDATE ON ${table} FOR EACH ROW EXECUTE FUNCTION skip_us087_update()`);
+    try { await expectCompletionConflict(completionCommand(removal.actionId)); }
+    finally {
+      await owner.query(`DROP TRIGGER skip_us087_update ON ${table}`);
+      await owner.query("DROP FUNCTION skip_us087_update()");
+    }
+  });
+
+  it("serializes simultaneous confirmations behind a held request lock and emits only the first completion", async () => {
+    const removal = await startIsolatedRemoval();
+    const database = drizzle(actionPool,{schema});
+    let locked!: () => void;
+    let release!: () => void;
+    const hasLock = new Promise<void>(resolve => { locked=resolve; });
+    const barrier = new Promise<void>(resolve => { release=resolve; });
+    const command = completionCommand(removal.actionId);
+    const first = database.transaction(async tx => {
+      await tx.execute(sql`SELECT id FROM license_request WHERE id=${ids.request}::uuid FOR UPDATE`);
+      locked();
+      await barrier;
+      return finalizeOffboarding(command,createOffboardingTransactionPort(tx,authorization));
+    });
+    await hasLock;
+    let secondEntered!: () => void;
+    const secondReady = new Promise<void>(resolve => { secondEntered=resolve; });
+    const second = database.transaction(tx => {
+      secondEntered();
+      return finalizeOffboarding({...command,confirmationId:"competing-id"},createOffboardingTransactionPort(tx,authorization));
+    });
+    await secondReady;
+    release();
+    const results = await Promise.all([first,second]);
+    expect(results[0].replayed).toBe(false);
+    expect(results[1]).toEqual({...results[0],replayed:true});
+    expect(await removalFacts(removal.actionId)).toEqual([{state:"deprovisioned",status:"confirmed",failure_reason:null,
+      ended_on:"2026-07-29",end_reason:"left_company",transitions:1,completions:1}]);
   });
 });
