@@ -1,0 +1,105 @@
+{
+  "final_review": "NOT PASS",
+  "numeric_score_only_pass": true,
+  "denominator": 414,
+  "accepted_scoped_defenses": 9,
+  "unresolved": [
+    {
+      "shard": "vitest-5224445ac963",
+      "file": "packages/domain/src/request-workflow/lifecycle.ts",
+      "id": "134",
+      "line": 102,
+      "status": "Survived",
+      "testsCompleted": 0,
+      "coverage_link_count": 13,
+      "provisional_classification": "unconfirmed, pending approval-required phase1",
+      "review_verdict": "UNRESOLVED_NOT_ACCEPTED",
+      "raw_fact_reference": "task3-seven-blocker-raw-diagnosis.json",
+      "root_cause_confirmed": false
+    },
+    {
+      "shard": "vitest-5224445ac963",
+      "file": "packages/domain/src/request-workflow/lifecycle.ts",
+      "id": "177",
+      "line": 110,
+      "status": "Survived",
+      "testsCompleted": 8,
+      "coverage_link_count": 8,
+      "provisional_classification": "unconfirmed, pending approval-required phase1",
+      "review_verdict": "UNRESOLVED_NOT_ACCEPTED",
+      "raw_fact_reference": "task3-seven-blocker-raw-diagnosis.json",
+      "root_cause_confirmed": false
+    },
+    {
+      "shard": "vitest-5224445ac963",
+      "file": "packages/domain/src/request-workflow/lifecycle.ts",
+      "id": "204",
+      "line": 113,
+      "status": "Survived",
+      "testsCompleted": 22,
+      "coverage_link_count": 22,
+      "provisional_classification": "unconfirmed, pending approval-required phase1",
+      "review_verdict": "UNRESOLVED_NOT_ACCEPTED",
+      "raw_fact_reference": "task3-seven-blocker-raw-diagnosis.json",
+      "root_cause_confirmed": false
+    },
+    {
+      "shard": "vitest-5224445ac963",
+      "file": "packages/domain/src/request-workflow/lifecycle.ts",
+      "id": "209",
+      "line": 113,
+      "status": "Survived",
+      "testsCompleted": 22,
+      "coverage_link_count": 22,
+      "provisional_classification": "unconfirmed, pending approval-required phase1",
+      "review_verdict": "UNRESOLVED_NOT_ACCEPTED",
+      "raw_fact_reference": "task3-seven-blocker-raw-diagnosis.json",
+      "root_cause_confirmed": false
+    },
+    {
+      "shard": "vitest-5224445ac963",
+      "file": "packages/domain/src/request-workflow/lifecycle.ts",
+      "id": "230",
+      "line": 117,
+      "status": "Survived",
+      "testsCompleted": 20,
+      "coverage_link_count": 20,
+      "provisional_classification": "unconfirmed, pending approval-required phase1",
+      "review_verdict": "UNRESOLVED_NOT_ACCEPTED",
+      "raw_fact_reference": "task3-seven-blocker-raw-diagnosis.json",
+      "root_cause_confirmed": false
+    },
+    {
+      "shard": "vitest-86d14021ac87",
+      "file": "apps/web/src/modules/request-workflow/orchestration.ts",
+      "id": "46",
+      "line": 64,
+      "status": "Survived",
+      "testsCompleted": 21,
+      "coverage_link_count": 21,
+      "provisional_classification": "unconfirmed, pending approval-required phase1",
+      "review_verdict": "UNRESOLVED_NOT_ACCEPTED",
+      "raw_fact_reference": "task3-seven-blocker-raw-diagnosis.json",
+      "root_cause_confirmed": false
+    },
+    {
+      "shard": "vitest-86d14021ac87",
+      "file": "apps/web/src/modules/request-workflow/orchestration.ts",
+      "id": "84",
+      "line": 681,
+      "status": "Survived",
+      "testsCompleted": 0,
+      "coverage_link_count": 3,
+      "provisional_classification": "unconfirmed, pending approval-required phase1",
+      "review_verdict": "UNRESOLVED_NOT_ACCEPTED",
+      "raw_fact_reference": "task3-seven-blocker-raw-diagnosis.json",
+      "root_cause_confirmed": false
+    }
+  ],
+  "current_migration": {
+    "path": "packages/db/src/migrations/V20260727093000__allow_fast_track_multi_assignment.sql",
+    "sha256": "ed68299b00af20a5c80d053c48abe0953890a85230e7b835f2f57de53ad02a19",
+    "drops_singleton_constraint": true
+  },
+  "new_runtime_reproduction_performed": false
+}

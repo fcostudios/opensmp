@@ -1,0 +1,887 @@
+{
+  "facts": [
+    {
+      "shard": "vitest-5224445ac963",
+      "file": "packages/domain/src/request-workflow/lifecycle.ts",
+      "mutant": {
+        "id": "134",
+        "mutatorName": "BlockStatement",
+        "replacement": "{}",
+        "status": "Survived",
+        "static": false,
+        "testsCompleted": 0,
+        "coveredBy": [
+          "464",
+          "466",
+          "473",
+          "477",
+          "478",
+          "479",
+          "480",
+          "481",
+          "482",
+          "483",
+          "484",
+          "485",
+          "486"
+        ],
+        "location": {
+          "end": {
+            "column": 70,
+            "line": 102
+          },
+          "start": {
+            "column": 26,
+            "line": 102
+          }
+        }
+      },
+      "report_source_equals_current": true,
+      "routed_suite_files": [
+        "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+        "packages/domain/src/request-workflow/lifecycle.test.ts"
+      ],
+      "covered_test_id_names": [
+        {
+          "id": "464",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-075 shared offboarding finalization closes left_company only on confirmed Ecuador date and preserves original evidence on concurrent replay"
+        },
+        {
+          "id": "466",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-075 shared offboarding finalization rejects wrong tenant and close-before-start, and rolls every write back on completion audit failure"
+        },
+        {
+          "id": "473",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts rejects invalid confirmation evidence and actor identity and accepts exactly 200 characters"
+        },
+        {
+          "id": "477",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses incompatible request/action states and contradictory open-row reasons"
+        },
+        {
+          "id": "478",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts rejects a partial multi-row closure instead of confirming its remaining open row"
+        },
+        {
+          "id": "479",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts pins seeded Ecuador boundaries and immutable left_company replay evidence"
+        },
+        {
+          "id": "480",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts pins seeded Ecuador boundaries and immutable inactive replay evidence"
+        },
+        {
+          "id": "481",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses completed replay when durable state, context, date or reason contradicts the original"
+        },
+        {
+          "id": "482",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt requestId"
+        },
+        {
+          "id": "483",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt endReason"
+        },
+        {
+          "id": "484",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt missingIds"
+        },
+        {
+          "id": "485",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt wrongIds"
+        },
+        {
+          "id": "486",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt mixedRowDate"
+        }
+      ]
+    },
+    {
+      "shard": "vitest-5224445ac963",
+      "file": "packages/domain/src/request-workflow/lifecycle.ts",
+      "mutant": {
+        "id": "177",
+        "mutatorName": "MethodExpression",
+        "replacement": "original.assignmentIds.every(id => !ids.includes(id))",
+        "status": "Survived",
+        "static": false,
+        "testsCompleted": 8,
+        "coveredBy": [
+          "464",
+          "465",
+          "479",
+          "480",
+          "481",
+          "485",
+          "486",
+          "489"
+        ],
+        "location": {
+          "end": {
+            "column": 251,
+            "line": 110
+          },
+          "start": {
+            "column": 199,
+            "line": 110
+          }
+        }
+      },
+      "report_source_equals_current": true,
+      "routed_suite_files": [
+        "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+        "packages/domain/src/request-workflow/lifecycle.test.ts"
+      ],
+      "covered_test_id_names": [
+        {
+          "id": "464",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-075 shared offboarding finalization closes left_company only on confirmed Ecuador date and preserves original evidence on concurrent replay"
+        },
+        {
+          "id": "465",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-075 shared offboarding finalization closes inactive only on confirmed Ecuador date and preserves original evidence on concurrent replay"
+        },
+        {
+          "id": "479",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts pins seeded Ecuador boundaries and immutable left_company replay evidence"
+        },
+        {
+          "id": "480",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts pins seeded Ecuador boundaries and immutable inactive replay evidence"
+        },
+        {
+          "id": "481",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses completed replay when durable state, context, date or reason contradicts the original"
+        },
+        {
+          "id": "485",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt wrongIds"
+        },
+        {
+          "id": "486",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt mixedRowDate"
+        },
+        {
+          "id": "489",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts serializes simultaneous confirmations behind a held request lock and emits only the first completion"
+        }
+      ]
+    },
+    {
+      "shard": "vitest-5224445ac963",
+      "file": "packages/domain/src/request-workflow/lifecycle.ts",
+      "mutant": {
+        "id": "204",
+        "mutatorName": "MethodExpression",
+        "replacement": "assignments.every(row => row.endedOn !== null || row.endReason !== null)",
+        "status": "Survived",
+        "static": false,
+        "testsCompleted": 22,
+        "coveredBy": [
+          "464",
+          "465",
+          "466",
+          "470",
+          "472",
+          "473",
+          "474",
+          "475",
+          "476",
+          "477",
+          "478",
+          "479",
+          "480",
+          "481",
+          "482",
+          "483",
+          "484",
+          "485",
+          "486",
+          "487",
+          "488",
+          "489"
+        ],
+        "location": {
+          "end": {
+            "column": 173,
+            "line": 113
+          },
+          "start": {
+            "column": 102,
+            "line": 113
+          }
+        }
+      },
+      "report_source_equals_current": true,
+      "routed_suite_files": [
+        "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+        "packages/domain/src/request-workflow/lifecycle.test.ts"
+      ],
+      "covered_test_id_names": [
+        {
+          "id": "464",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-075 shared offboarding finalization closes left_company only on confirmed Ecuador date and preserves original evidence on concurrent replay"
+        },
+        {
+          "id": "465",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-075 shared offboarding finalization closes inactive only on confirmed Ecuador date and preserves original evidence on concurrent replay"
+        },
+        {
+          "id": "466",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-075 shared offboarding finalization rejects wrong tenant and close-before-start, and rolls every write back on completion audit failure"
+        },
+        {
+          "id": "470",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts validates removal steps only for orchestration and refuses a null automated payload exactly"
+        },
+        {
+          "id": "472",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses not-done attempts for incompatible request/status/original facts and accepts sent"
+        },
+        {
+          "id": "473",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts rejects invalid confirmation evidence and actor identity and accepts exactly 200 characters"
+        },
+        {
+          "id": "474",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts accepts retryable pending status and clears the prior failure"
+        },
+        {
+          "id": "475",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts accepts retryable sent status and clears the prior failure"
+        },
+        {
+          "id": "476",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts accepts retryable failed status and clears the prior failure"
+        },
+        {
+          "id": "477",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses incompatible request/action states and contradictory open-row reasons"
+        },
+        {
+          "id": "478",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts rejects a partial multi-row closure instead of confirming its remaining open row"
+        },
+        {
+          "id": "479",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts pins seeded Ecuador boundaries and immutable left_company replay evidence"
+        },
+        {
+          "id": "480",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts pins seeded Ecuador boundaries and immutable inactive replay evidence"
+        },
+        {
+          "id": "481",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses completed replay when durable state, context, date or reason contradicts the original"
+        },
+        {
+          "id": "482",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt requestId"
+        },
+        {
+          "id": "483",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt endReason"
+        },
+        {
+          "id": "484",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt missingIds"
+        },
+        {
+          "id": "485",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt wrongIds"
+        },
+        {
+          "id": "486",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt mixedRowDate"
+        },
+        {
+          "id": "487",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts rolls back every accepted write when guarded license_assignment update skips its row"
+        },
+        {
+          "id": "488",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts rolls back every accepted write when guarded provisioning_action update skips its row"
+        },
+        {
+          "id": "489",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts serializes simultaneous confirmations behind a held request lock and emits only the first completion"
+        }
+      ]
+    },
+    {
+      "shard": "vitest-5224445ac963",
+      "file": "packages/domain/src/request-workflow/lifecycle.ts",
+      "mutant": {
+        "id": "209",
+        "mutatorName": "ConditionalExpression",
+        "replacement": "false",
+        "status": "Survived",
+        "static": false,
+        "testsCompleted": 22,
+        "coveredBy": [
+          "464",
+          "465",
+          "466",
+          "470",
+          "472",
+          "473",
+          "474",
+          "475",
+          "476",
+          "477",
+          "478",
+          "479",
+          "480",
+          "481",
+          "482",
+          "483",
+          "484",
+          "485",
+          "486",
+          "487",
+          "488",
+          "489"
+        ],
+        "location": {
+          "end": {
+            "column": 146,
+            "line": 113
+          },
+          "start": {
+            "column": 126,
+            "line": 113
+          }
+        }
+      },
+      "report_source_equals_current": true,
+      "routed_suite_files": [
+        "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+        "packages/domain/src/request-workflow/lifecycle.test.ts"
+      ],
+      "covered_test_id_names": [
+        {
+          "id": "464",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-075 shared offboarding finalization closes left_company only on confirmed Ecuador date and preserves original evidence on concurrent replay"
+        },
+        {
+          "id": "465",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-075 shared offboarding finalization closes inactive only on confirmed Ecuador date and preserves original evidence on concurrent replay"
+        },
+        {
+          "id": "466",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-075 shared offboarding finalization rejects wrong tenant and close-before-start, and rolls every write back on completion audit failure"
+        },
+        {
+          "id": "470",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts validates removal steps only for orchestration and refuses a null automated payload exactly"
+        },
+        {
+          "id": "472",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses not-done attempts for incompatible request/status/original facts and accepts sent"
+        },
+        {
+          "id": "473",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts rejects invalid confirmation evidence and actor identity and accepts exactly 200 characters"
+        },
+        {
+          "id": "474",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts accepts retryable pending status and clears the prior failure"
+        },
+        {
+          "id": "475",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts accepts retryable sent status and clears the prior failure"
+        },
+        {
+          "id": "476",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts accepts retryable failed status and clears the prior failure"
+        },
+        {
+          "id": "477",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses incompatible request/action states and contradictory open-row reasons"
+        },
+        {
+          "id": "478",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts rejects a partial multi-row closure instead of confirming its remaining open row"
+        },
+        {
+          "id": "479",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts pins seeded Ecuador boundaries and immutable left_company replay evidence"
+        },
+        {
+          "id": "480",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts pins seeded Ecuador boundaries and immutable inactive replay evidence"
+        },
+        {
+          "id": "481",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses completed replay when durable state, context, date or reason contradicts the original"
+        },
+        {
+          "id": "482",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt requestId"
+        },
+        {
+          "id": "483",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt endReason"
+        },
+        {
+          "id": "484",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt missingIds"
+        },
+        {
+          "id": "485",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt wrongIds"
+        },
+        {
+          "id": "486",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt mixedRowDate"
+        },
+        {
+          "id": "487",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts rolls back every accepted write when guarded license_assignment update skips its row"
+        },
+        {
+          "id": "488",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts rolls back every accepted write when guarded provisioning_action update skips its row"
+        },
+        {
+          "id": "489",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts serializes simultaneous confirmations behind a held request lock and emits only the first completion"
+        }
+      ]
+    },
+    {
+      "shard": "vitest-5224445ac963",
+      "file": "packages/domain/src/request-workflow/lifecycle.ts",
+      "mutant": {
+        "id": "230",
+        "mutatorName": "MethodExpression",
+        "replacement": "assignments.every(row => row.startedOn > endedOn)",
+        "status": "Survived",
+        "static": false,
+        "testsCompleted": 20,
+        "coveredBy": [
+          "464",
+          "465",
+          "466",
+          "470",
+          "472",
+          "473",
+          "474",
+          "475",
+          "476",
+          "479",
+          "480",
+          "481",
+          "482",
+          "483",
+          "484",
+          "485",
+          "486",
+          "487",
+          "488",
+          "489"
+        ],
+        "location": {
+          "end": {
+            "column": 57,
+            "line": 117
+          },
+          "start": {
+            "column": 9,
+            "line": 117
+          }
+        }
+      },
+      "report_source_equals_current": true,
+      "routed_suite_files": [
+        "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+        "packages/domain/src/request-workflow/lifecycle.test.ts"
+      ],
+      "covered_test_id_names": [
+        {
+          "id": "464",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-075 shared offboarding finalization closes left_company only on confirmed Ecuador date and preserves original evidence on concurrent replay"
+        },
+        {
+          "id": "465",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-075 shared offboarding finalization closes inactive only on confirmed Ecuador date and preserves original evidence on concurrent replay"
+        },
+        {
+          "id": "466",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-075 shared offboarding finalization rejects wrong tenant and close-before-start, and rolls every write back on completion audit failure"
+        },
+        {
+          "id": "470",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts validates removal steps only for orchestration and refuses a null automated payload exactly"
+        },
+        {
+          "id": "472",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses not-done attempts for incompatible request/status/original facts and accepts sent"
+        },
+        {
+          "id": "473",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts rejects invalid confirmation evidence and actor identity and accepts exactly 200 characters"
+        },
+        {
+          "id": "474",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts accepts retryable pending status and clears the prior failure"
+        },
+        {
+          "id": "475",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts accepts retryable sent status and clears the prior failure"
+        },
+        {
+          "id": "476",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts accepts retryable failed status and clears the prior failure"
+        },
+        {
+          "id": "479",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts pins seeded Ecuador boundaries and immutable left_company replay evidence"
+        },
+        {
+          "id": "480",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts pins seeded Ecuador boundaries and immutable inactive replay evidence"
+        },
+        {
+          "id": "481",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses completed replay when durable state, context, date or reason contradicts the original"
+        },
+        {
+          "id": "482",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt requestId"
+        },
+        {
+          "id": "483",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt endReason"
+        },
+        {
+          "id": "484",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt missingIds"
+        },
+        {
+          "id": "485",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt wrongIds"
+        },
+        {
+          "id": "486",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt mixedRowDate"
+        },
+        {
+          "id": "487",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts rolls back every accepted write when guarded license_assignment update skips its row"
+        },
+        {
+          "id": "488",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts rolls back every accepted write when guarded provisioning_action update skips its row"
+        },
+        {
+          "id": "489",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts serializes simultaneous confirmations behind a held request lock and emits only the first completion"
+        }
+      ]
+    },
+    {
+      "shard": "vitest-86d14021ac87",
+      "file": "apps/web/src/modules/request-workflow/orchestration.ts",
+      "mutant": {
+        "id": "46",
+        "mutatorName": "StringLiteral",
+        "replacement": "``",
+        "status": "Survived",
+        "static": false,
+        "testsCompleted": 21,
+        "coveredBy": [
+          "30",
+          "31",
+          "32",
+          "33",
+          "36",
+          "38",
+          "39",
+          "40",
+          "41",
+          "42",
+          "45",
+          "46",
+          "47",
+          "48",
+          "49",
+          "50",
+          "51",
+          "52",
+          "53",
+          "54",
+          "55"
+        ],
+        "location": {
+          "end": {
+            "column": 222,
+            "line": 64
+          },
+          "start": {
+            "column": 218,
+            "line": 64
+          }
+        }
+      },
+      "report_source_equals_current": true,
+      "routed_suite_files": [
+        "apps/web/src/modules/request-workflow/orchestration.integration.test.ts"
+      ],
+      "covered_test_id_names": [
+        {
+          "id": "30",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-075 shared offboarding finalization closes left_company only on confirmed Ecuador date and preserves original evidence on concurrent replay"
+        },
+        {
+          "id": "31",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-075 shared offboarding finalization closes inactive only on confirmed Ecuador date and preserves original evidence on concurrent replay"
+        },
+        {
+          "id": "32",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-075 shared offboarding finalization rejects wrong tenant and close-before-start, and rolls every write back on completion audit failure"
+        },
+        {
+          "id": "33",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-075 shared offboarding finalization confirms and records unconfirmed attempts through the real wrappers without duplicate replay audits"
+        },
+        {
+          "id": "36",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts validates removal steps only for orchestration and refuses a null automated payload exactly"
+        },
+        {
+          "id": "38",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses not-done attempts for incompatible request/status/original facts and accepts sent"
+        },
+        {
+          "id": "39",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts rejects invalid confirmation evidence and actor identity and accepts exactly 200 characters"
+        },
+        {
+          "id": "40",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts accepts retryable pending status and clears the prior failure"
+        },
+        {
+          "id": "41",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts accepts retryable sent status and clears the prior failure"
+        },
+        {
+          "id": "42",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts accepts retryable failed status and clears the prior failure"
+        },
+        {
+          "id": "45",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts pins seeded Ecuador boundaries and immutable left_company replay evidence"
+        },
+        {
+          "id": "46",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts pins seeded Ecuador boundaries and immutable inactive replay evidence"
+        },
+        {
+          "id": "47",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses completed replay when durable state, context, date or reason contradicts the original"
+        },
+        {
+          "id": "48",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt requestId"
+        },
+        {
+          "id": "49",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt endReason"
+        },
+        {
+          "id": "50",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt missingIds"
+        },
+        {
+          "id": "51",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt wrongIds"
+        },
+        {
+          "id": "52",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses replay of an append-only original completion with corrupt mixedRowDate"
+        },
+        {
+          "id": "53",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts rolls back every accepted write when guarded license_assignment update skips its row"
+        },
+        {
+          "id": "54",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts rolls back every accepted write when guarded provisioning_action update skips its row"
+        },
+        {
+          "id": "55",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts serializes simultaneous confirmations behind a held request lock and emits only the first completion"
+        }
+      ]
+    },
+    {
+      "shard": "vitest-86d14021ac87",
+      "file": "apps/web/src/modules/request-workflow/orchestration.ts",
+      "mutant": {
+        "id": "84",
+        "mutatorName": "ObjectLiteral",
+        "replacement": "{}",
+        "status": "Survived",
+        "static": false,
+        "testsCompleted": 0,
+        "coveredBy": [
+          "33",
+          "38",
+          "44"
+        ],
+        "location": {
+          "end": {
+            "column": 220,
+            "line": 681
+          },
+          "start": {
+            "column": 38,
+            "line": 681
+          }
+        }
+      },
+      "report_source_equals_current": true,
+      "routed_suite_files": [
+        "apps/web/src/modules/request-workflow/orchestration.integration.test.ts"
+      ],
+      "covered_test_id_names": [
+        {
+          "id": "33",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-075 shared offboarding finalization confirms and records unconfirmed attempts through the real wrappers without duplicate replay audits"
+        },
+        {
+          "id": "38",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts refuses not-done attempts for incompatible request/status/original facts and accepts sent"
+        },
+        {
+          "id": "44",
+          "file": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+          "name": "US-087 direct completion contracts rejects a partial multi-row closure instead of confirming its remaining open row"
+        }
+      ]
+    }
+  ],
+  "tools": {
+    "node": "26.11.1",
+    "pnpm": "9.15.0",
+    "stryker": "9.6.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  },
+  "current_migration": {
+    "path": "packages/db/src/migrations/V20260727093000__allow_fast_track_multi_assignment.sql",
+    "sha256": "ed68299b00af20a5c80d053c48abe0953890a85230e7b835f2f57de53ad02a19",
+    "drops_singleton_constraint": true
+  },
+  "read_only": true,
+  "new_runtime_reproduction_performed": false
+}

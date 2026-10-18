@@ -1,0 +1,394 @@
+{
+  "created_at": "2026-10-14T11:22:33.594240+00:00",
+  "refs_at_start": {
+    "HEAD": "2e7dae68a393fbc669c21e8a22289e93e2b76fb3",
+    "main": "31b50b2f3e9ae8ab3da4a3bd241d17e9d7351982",
+    "us-024": "5e3553d93adb36fcfa0e6316dc2a9f0a91ed0ecc",
+    "backup/us087-closed-chg093-20261013": "5e3553d93adb36fcfa0e6316dc2a9f0a91ed0ecc"
+  },
+  "cold_execution_head": "2e7dae68a393fbc669c21e8a22289e93e2b76fb3",
+  "local_custody_only": true,
+  "files": [
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/final-ac-review.md",
+      "sha256": "33f62180665ddcc8043490c8b0077f1520c370b191a2ee6b61ec0d716be7644b",
+      "bytes": 10524
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/progress.md",
+      "sha256": "2f89d211c098516e407927c35993ee1185ed4fef2a578da90c835ea58e130a4d",
+      "bytes": 7906
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task-1-report.md",
+      "sha256": "10728f7093a083babf1abd4e750287e54248abb583c2227fddffa5a5155a4768",
+      "bytes": 9642
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task-2-report.md",
+      "sha256": "5b6bb9a588e6ba6c2fa82470a992cf323fd952b5207a4aae956d65a421d2bd97",
+      "bytes": 8916
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task-3-report.md",
+      "sha256": "6d797db9584b2a24bc770f4adc32cd22fa50eb92edd871c5e3050ab66877c44e",
+      "bytes": 6977
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task2-first-failed-attempt/generated-shards/manifest.json",
+      "sha256": "d9696511edbec053670a355278a0257c622f0f3b86f00e4a60f00b4e53645f40",
+      "bytes": 7053
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task2-first-failed-attempt/generated-shards/vitest-0d9d477c30ff-12341-1791943631749-47ff849d5819f.json",
+      "sha256": "dd35167b0bf22674c91ba61958777c5e907322222f224e0de32f5d239b8c0bf9",
+      "bytes": 1583
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task2-first-failed-attempt/generated-shards/vitest-5224445ac963-12341-1791943631749-47ff849d5819f.json",
+      "sha256": "e486b31dfe1fc3d32904fa9029cf6d9cba1886fcd963c4c6bc1c821dbd8f41fb",
+      "bytes": 1254
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task2-first-failed-attempt/generated-shards/vitest-86d14021ac87-12341-1791943631749-47ff849d5819f.json",
+      "sha256": "bb786ad62ba06e27ba7f01e1d838baa8c378b2b3f69aafc81e0049332b657d6b",
+      "bytes": 1472
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task2-first-failed-attempt/migration-schema.log",
+      "sha256": "87166f2467fe6f5e845151109c4ccd3e0965d196eb4f96587cce8c684d56ce62",
+      "bytes": 278
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task2-first-failed-attempt/ordinary-fullgate-manifest.json",
+      "sha256": "d9696511edbec053670a355278a0257c622f0f3b86f00e4a60f00b4e53645f40",
+      "bytes": 7053
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task2-first-failed-attempt/ordinary-fullgate.log",
+      "sha256": "3d05fee437e51162be82a9af726a0bdc0da9ab90fa07d1303b2334a5a3f93146",
+      "bytes": 837
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task2-first-failed-attempt/task2-checks.py",
+      "sha256": "eacc3d1b81d5f2503786021112c12e77577050c9a4f05d48b85cb4e6b187a8d1",
+      "bytes": 1757
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task2-first-failed-attempt/task2-commands.jsonl",
+      "sha256": "d73b24a9eeaaccaad01d407d5cc54bf7dbf8dd53c48c232d779a0c2a504884a0",
+      "bytes": 830
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task2-first-failed-attempt/task2-lock.json",
+      "sha256": "abd183e5c518c9a0fd295a0547b51fcae161b58f746199f631f1a53f3de05043",
+      "bytes": 366
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task2-first-failed-attempt/task2-migrate-verify.ts",
+      "sha256": "1546c6a8ef5e20e3eb00b1b2e51d1f6602d7c2eaf942b885fb109a59c47b1be1",
+      "bytes": 890
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task2-first-failed-attempt/task2-own-lock.py",
+      "sha256": "503e14585c6153bf58818d9450f58896f81ba8081eee5a636e688394ce248a01",
+      "bytes": 1984
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task2-first-failed-attempt/task2-shared-wrapper.log",
+      "sha256": "13bb0c11d01a8e47a8f99a38de909020881764c7807b289561156a3f99a2c55a",
+      "bytes": 190
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-corrected-cold-raw/vitest-0d9d477c30ff-configPath.json",
+      "sha256": "86ed3351a40a71f31eea39dcfef8f15c8173fae1449e5e6606b02a894d55b3fb",
+      "bytes": 1583
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-corrected-cold-raw/vitest-0d9d477c30ff-jsonReportPath.json",
+      "sha256": "0ecdfcaf3d9fb37fe783c011adff0e239bddbe73766e9e5abeda4f6fe1fea223",
+      "bytes": 162899
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-corrected-cold-raw/vitest-0d9d477c30ff-reportPath.html",
+      "sha256": "a2505a5ece916ee32e9fac8efc149248563e052fc6d869e5d009abcd39158ca6",
+      "bytes": 394877
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-corrected-cold-raw/vitest-5224445ac963-configPath.json",
+      "sha256": "2582ab2ae6bb350317c5baef67347b3a9d0d590ba4c68ddd7b982bd0c14b13a8",
+      "bytes": 1254
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-corrected-cold-raw/vitest-5224445ac963-jsonReportPath.json",
+      "sha256": "f991d34f5164be46f3cf157ceb9fa80a36a3a5028e6964911aae7569114b4ce0",
+      "bytes": 271806
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-corrected-cold-raw/vitest-5224445ac963-reportPath.html",
+      "sha256": "68df5e9e1897025a9630dddbb8a29a2d61e45e5f34f5f98d9b0942e92407ce50",
+      "bytes": 503775
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-corrected-cold-raw/vitest-86d14021ac87-configPath.json",
+      "sha256": "830e3192561bbf09d6e040a91220986a0ce53bb7f0f488d193f57ed87576e4ee",
+      "bytes": 1472
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-corrected-cold-raw/vitest-86d14021ac87-jsonReportPath.json",
+      "sha256": "f688b09e378724b82e9b97f07bece716eb357b57a1a44f307e84b2608d8867dd",
+      "bytes": 198621
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-corrected-cold-raw/vitest-86d14021ac87-reportPath.html",
+      "sha256": "daf64f158951611c7f85e16d97714473064494e54dd97fa375cdec265538d2cf",
+      "bytes": 430701
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-corrected-commands.jsonl",
+      "sha256": "4360090786510ff4b87122e02adf40ad6977aff5ded699a809a777493f89f184",
+      "bytes": 1813
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-corrected-frozen-candidate.json",
+      "sha256": "b1983e20a3f995073f922d275fdfdda4a6487992fb5dc90149a4c7fb8a2b8ca4",
+      "bytes": 1029
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-corrected-frozen-preflight-proof.json",
+      "sha256": "bdac9e323a4092af6ef8cf84704ae334dc0b183a1683e291aaaf1eed3f34e37e",
+      "bytes": 2670
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-corrected-lock.json",
+      "sha256": "63db6bc203fef51de8490f9ba582d0bf1a2c36f235845f971b58dad55cfc941f",
+      "bytes": 628
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-corrected-one-cold-manifest.json",
+      "sha256": "776e94592afd00cb4e5e3726ea311a896126649f8aac1894569bc0606406b4cd",
+      "bytes": 12651710
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-corrected-one-cold.log",
+      "sha256": "d150e32e867d473a77a7a575449779d42b8b899571e184334ad77f674fb10fae",
+      "bytes": 107494
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-corrected-runner-performance.json",
+      "sha256": "cf86e5ecd22429fc844135d913ed7c14c8299bac9a236016b5dd22955b41904a",
+      "bytes": 3957
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-corrected-utc-runtime-profile.json",
+      "sha256": "dde3f9436d863a42f80fcb7b41765a2638d16516cc6622c69ffa20749c70b09b",
+      "bytes": 378663
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-correction-shape.json",
+      "sha256": "3ce58eebcc302ea8dd248a5483ddb16634d0585f1e544f1a7ff929415b239513",
+      "bytes": 9270
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-custody-relocation.json",
+      "sha256": "e4d64f737a07cdd6318b089190aef6107ef334565b193f302ba2a70470ad8862",
+      "bytes": 705
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/generated-shards/manifest.json",
+      "sha256": "e94d3339ee77df07e4187369339b5dcd2b1e0611c1a6a7168fddcc3eba53d5da",
+      "bytes": 12652220
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/generated-shards/vitest-0d9d477c30ff-12341-1791943631749-47ff849d5819f.json",
+      "sha256": "dd35167b0bf22674c91ba61958777c5e907322222f224e0de32f5d239b8c0bf9",
+      "bytes": 1583
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/generated-shards/vitest-0d9d477c30ff-16369-1791943843450-6ca82ba547776.json",
+      "sha256": "a5a864aee832bdb8f2cffa91dccb5468775b2443df5fff10a6a91e0d9c212fac",
+      "bytes": 1583
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/generated-shards/vitest-0d9d477c30ff-18824-1791943959713-7312701702b0a8.json",
+      "sha256": "64caf595fb8211d47aeb3fe513cd9e2a60a93b92c0ffed338f0860be05530a04",
+      "bytes": 1586
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/generated-shards/vitest-0d9d477c30ff-40983-1791944827146-71c8c141b45e1.json",
+      "sha256": "9142057784fba9c46a75321993771d3e0cd47dc9dd7b3baa9278771e78923185",
+      "bytes": 1583
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/generated-shards/vitest-0d9d477c30ff-42469-1791944828568-a55ee90e3871a.json",
+      "sha256": "a3a193cb3b2d25604e2e204b73963b0b93aa819327acc1c19ab35fbec131addb",
+      "bytes": 1583
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/generated-shards/vitest-5224445ac963-12341-1791943631749-47ff849d5819f.json",
+      "sha256": "e486b31dfe1fc3d32904fa9029cf6d9cba1886fcd963c4c6bc1c821dbd8f41fb",
+      "bytes": 1254
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/generated-shards/vitest-5224445ac963-16369-1791943843450-6ca82ba547776.json",
+      "sha256": "ec0d25cd47046ea05afb9db99217db4732e4ca1fe2f906510328e97fd7a95733",
+      "bytes": 1254
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/generated-shards/vitest-5224445ac963-18824-1791943959713-7312701702b0a8.json",
+      "sha256": "3aecec23d53795cafdf8dae0c8960de9854946e8b1f78a2c7ccc189d01acc02d",
+      "bytes": 1257
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/generated-shards/vitest-5224445ac963-40983-1791944827146-71c8c141b45e1.json",
+      "sha256": "988e4d0be8567573ca48a8f98a1bc1f5817cb2379dcccc3ff87dac61abf7d8bd",
+      "bytes": 1254
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/generated-shards/vitest-5224445ac963-42469-1791944828568-a55ee90e3871a.json",
+      "sha256": "1e91c53797aa8edd9c23338e6b9c24814329d33d09c82a51116bfce7880f4532",
+      "bytes": 1254
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/generated-shards/vitest-86d14021ac87-12341-1791943631749-47ff849d5819f.json",
+      "sha256": "bb786ad62ba06e27ba7f01e1d838baa8c378b2b3f69aafc81e0049332b657d6b",
+      "bytes": 1472
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/generated-shards/vitest-86d14021ac87-16369-1791943843450-6ca82ba547776.json",
+      "sha256": "869240a6c67b1ab0ab20dc876d45c5747f3118fcd00d68ded3d0f8063e2c955d",
+      "bytes": 1472
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/generated-shards/vitest-86d14021ac87-18824-1791943959713-7312701702b0a8.json",
+      "sha256": "073b9c4bd957950cb42ecf89bcf19b70f94c7b8fa1ce0d741f06ee38d7989e7f",
+      "bytes": 1475
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/generated-shards/vitest-86d14021ac87-40983-1791944827146-71c8c141b45e1.json",
+      "sha256": "b044754337b1b36c43aed18b1c24f1e5e6822b9f14a7f0884774de0ba5510030",
+      "bytes": 1472
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/generated-shards/vitest-86d14021ac87-42469-1791944828568-a55ee90e3871a.json",
+      "sha256": "8823612f11dbb4f77c5fdb113a53045f5978a9e274cf4a66b634f8d4d30e0dc1",
+      "bytes": 1472
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/runner-performance.json",
+      "sha256": "1be708dd49817b33c41c4806985c65d7d0caf223fc5b411834117345a10eff96",
+      "bytes": 3604
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/task3-commands.jsonl",
+      "sha256": "9834cd192e0bcaeae960f1e6a68df3076750b56e4c379b5658bf4bcdfb044784",
+      "bytes": 1764
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/task3-correction-shape.json",
+      "sha256": "3ce58eebcc302ea8dd248a5483ddb16634d0585f1e544f1a7ff929415b239513",
+      "bytes": 9270
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/task3-frozen-owned-preflight-manifest.json",
+      "sha256": "ff9a91e9a44c238e4958b286a7baa18920d3548a00d568b7f02fa5c215bf90d5",
+      "bytes": 7053
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/task3-frozen-owned-preflight.log",
+      "sha256": "3884c7d0e62a167fb30aab97381f9eaaabe866713d60b4498841b3be1de11102",
+      "bytes": 1562
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/task3-frozen-preflight-proof.json",
+      "sha256": "9e87bc6d8e9b0f975ed719bba0a93a233c67409d0ee68154b4ce77e254e6b547",
+      "bytes": 2670
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/task3-lock.json",
+      "sha256": "53148db188efeb5dd56e1c51bbd0e2c310acd70c53fa9bbf5e4bdf5cc334b6f4",
+      "bytes": 368
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/task3-one-cold-manifest.json",
+      "sha256": "e94d3339ee77df07e4187369339b5dcd2b1e0611c1a6a7168fddcc3eba53d5da",
+      "bytes": 12652220
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/task3-one-cold.log",
+      "sha256": "8d9346803c97d45efa5a167e719f334207688799a1cb4576c0f41e78d95edd81",
+      "bytes": 13045
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/task3-shared-wrapper.log",
+      "sha256": "91995737c17403de808cd2f02b068a7d760733d66b794058ae182968a00de662",
+      "bytes": 830
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-failed-cold/task3-utc-runtime-profile.json",
+      "sha256": "dde3f9436d863a42f80fcb7b41765a2638d16516cc6622c69ffa20749c70b09b",
+      "bytes": 378663
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-final-review-package.md",
+      "sha256": "a096fd9ab82c85e51ddd37639df8ab88e7466563bc10a4fc317ee5a633bf6763",
+      "bytes": 8325
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-raw-non-killed.json",
+      "sha256": "e1487afca89243050f86208cbea671bdd208c566918b0a3a3da173f6953761c4",
+      "bytes": 6691
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-raw-score-counts.json",
+      "sha256": "35f355df69c0a61355aea816707c9b1b7b859ca2ae218ca44c9c3ccd917b807d",
+      "bytes": 1170
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-seven-blocker-raw-diagnosis.json",
+      "sha256": "5a7d32c95e5664b54322e8c3ae3c53fde5349968097539f1f2350ba575c71a72",
+      "bytes": 38167
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-seven-blocker-reassessment.md",
+      "sha256": "ed612e3b40380daa08244c6b27777483a717016cae37f0a1c957d08ec124a155",
+      "bytes": 9181
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.superpowers/sdd/2026-10-13-CHG-093-us087-integration/task3-survivor-review-proposals.json",
+      "sha256": "7058cd5fa48912fb9eda30c5d2338baab3b98b111ebc2128f8e7afed72ea8d20",
+      "bytes": 11005
+    }
+  ],
+  "immutable_originals": [
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/docs/readiness/CHG-093.json",
+      "sha256": "150ab24ed42c37dd7c358d5fc77a96fa9c1b286ea8ca5df2b98ec925fde43441",
+      "bytes": 8913
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/docs/readiness/US-087.json",
+      "sha256": "2c901f9996044d1b12b6bb4425b92cd051c7e1ea64f5bfdfe12fee2b936dad10",
+      "bytes": 23867
+    },
+    {
+      "path": "/Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp/.nous-feedback.jsonl",
+      "sha256": "4955a91e6078ba5ecef04f9ff6cc6a11e57d73e5d2b982b61304add238842e26",
+      "bytes": 1041935
+    }
+  ],
+  "main_static_categories": {
+    "migration": 0,
+    "db": 4,
+    "connector": 0,
+    "runtime/tooling": 0,
+    "other": 12
+  },
+  "review_verbatim_snapshot": {
+    "path": "docs/readiness/drafts/CHG-093-reassessment/final-review-verbatim.json",
+    "sha256": "da548e4a74648c582b0a56785ad5a1e9ea3785b63ce569bba9a51f705b10273a",
+    "bytes": 2150,
+    "source": "/Users/fcolomas/.codex/sessions/2026/10/13/rollout-2026-10-13T21-05-20-01a13828-3039-7f71-871a-c218c8727853.jsonl",
+    "verbatim_sha256": "a742da858d78ceb16a54826d11bc66e2880f986813bae1e546b7f3d74dac08e2"
+  }
+}
