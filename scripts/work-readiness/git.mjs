@@ -210,7 +210,7 @@ function proveReadinessCeilingAdmission(root, revision, version) {
   const ancestor = (base, head) => git(root, ["merge-base", "--is-ancestor", base, head], { allowMissing: true }) !== null;
   proveCeilingCustody(root, revision, version);
   require(ancestor(CEILING_OWNED_BASE, revision));
-  const provenOwners = new Set([version]);
+  const ownerCustodyProofs = new Map([[version, revision]]);
   const sourceHistory = git(root, ["log", "--full-history", `--max-count=${MAX_CEILING_SOURCE_TRANSITIONS + 1}`,
     "--format=%H", `${CEILING_OWNED_BASE}..${revision}`, "--", ...CEILING_POLICY_PATHS]).toString("utf8").trim();
   const transitions = sourceHistory === "" ? [] : sourceHistory.split("\n");
@@ -230,7 +230,13 @@ function proveReadinessCeilingAdmission(root, revision, version) {
     const workIds = extractWorkIds(message);
     const owner = workIds.length === 1 ? CEILING_VERSIONS.find(candidate => candidate.workId === workIds[0]) : null;
     require(owner && ancestor(owner.ownedBase, parent));
-    if (!provenOwners.has(owner)) { proveCeilingCustody(root, revision, owner); provenOwners.add(owner); }
+    // A selected policy endpoint cannot supersede another version's historical
+    // source authority. Reuse custody only when it covers this actual parent.
+    const coveredRevision = ownerCustodyProofs.get(owner);
+    if (!coveredRevision || !ancestor(parent, coveredRevision)) {
+      proveCeilingCustody(root, parent, owner);
+      ownerCustodyProofs.set(owner, parent);
+    }
     const path = `docs/readiness/${owner.workId}.json`;
     require(revisionMode(root, parent, path) === "100644" && revisionMode(root, parent, ".nous-feedback.jsonl") === "100644");
     const artifact = parseJson(readRevisionFile(root, parent, path), path);

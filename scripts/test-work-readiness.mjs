@@ -7373,6 +7373,28 @@ test("CHG-108 correction projection refuses450 at its pre-source origin despite 
   } finally { rmSync(f.root, { recursive: true, force: true }); }
 });
 
+// Removing parent-local custody improperly lets an unrelated061 endpoint supersede059.
+test("CHG-108 source-parent custody retains380 when a lawful later sync replaces061", () => {
+  const f = authenticCeilingFixture(450);
+  try {
+    const old = scopedAssessment();
+    const contextAt = (revision, artifact) => readinessGit.loadReadinessCeilingContext({ root: f.root, revision, artifact });
+    assert.equal(readinessModel.resolveReadinessCeiling(old, contextAt(f.approval, old)).minutes, 380);
+    for (const kind of ["changed", "removed"]) {
+      git(f.root, ["reset", "--hard", f.approval]);
+      const matrixPath = "docs/decisions/DECISION_MATRIX.md";
+      const matrix = readFileSync(join(f.root, matrixPath), "utf8");
+      const row = matrix.split("\n").find(line => line.startsWith("| DEC-SMP-061 |")); assert.ok(row);
+      writeRepoFile(f.root, matrixPath, matrix.replace(row, kind === "removed" ? "" : row.replace("CHG-093", "CHG-094")));
+      const synced = canonicalCeilingSync(f.root);
+      assert.equal(validateRangeOwnership({ root: f.root, base: f.approval, head: synced }).classification, "bootstrap-documentation");
+      assert.equal(readinessModel.resolveReadinessCeiling(old, contextAt(synced, old)).minutes, 380,
+        "old059 authority survives a later unrelated061 policy amendment");
+      expectError("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", () => contextAt(synced, f.value));
+    }
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
 assert.ok(process.env.READINESS_TEST_FILTER ? assertions > 0 : assertions >= 30);
 process.stdout.write(`work-readiness model: ${assertions} behavioral tests passed\n`);
 
