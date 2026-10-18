@@ -61,3 +61,7 @@ Integrate by fast-forward only after correction/lifecycle/readiness/guidance gat
 Actual preparation results: classifier `ready`; pending planner exit0; `pnpm readiness:check -- CHG-093` exits1 only with `WR_APPROVAL_REQUIRED`. No `started`, preserved ref creation, rebase, DB setup, campaign, correction or integration has occurred. The assessment is committed separately. This plan/design are reviewable preparation; the implementation-plan commit gate requires prior genuine readiness approval, so no approval bypass is used.
 
 Self-review: canonical acceptance conditions map to preservation/replay, current verification, and correction/integration tasks; scope includes the full previewed inventory; all ranges and exact authority identifiers are stated; the pending planner does not authorize execution. Sole entry blocker is this assessment's human digest approval.
+
+## Recorded execution approval
+
+Francisco directly replied approved to the complete205-minute packet in this conversation. Exact digest366ca764bc92faaf564673c2105ffbc0714e12117f5a2395c3b7307597ba786a is now bound by signed decision CHG093-EXECUTION-APPROVAL-SIGNED-20261013 and pnpm readiness:check passes. Earlier preparation results remain described above as history; this entry authorizes the unchanged assessed plan, not US081 or unassessed future-main work.
