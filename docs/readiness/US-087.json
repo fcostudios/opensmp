@@ -146,7 +146,27 @@
     "evidence": "US087-CHG092-EXPLICIT-READY-20261012",
     "payload_sha256": "bc2bf6a955559d8be0e3f63ddcd5eb311d741bba21c0e374373acefa485bc7ef"
   },
-  "actuals": null,
+  "actuals": {
+    "phase_minutes": {
+      "readiness": 45,
+      "implementation": 44,
+      "focused_verification": 34,
+      "review": 63,
+      "integration": 68
+    },
+    "total": 254,
+    "changed_files": 5,
+    "commits": 23,
+    "review_fix_loops": 1,
+    "cold_mutation_attempts": 1,
+    "mutation_invalidations": 0,
+    "mutation_minutes": 43,
+    "mutation_shards_actual": 7,
+    "preview_rounds": 3,
+    "preview_minutes": 29,
+    "estimate_variance_minutes": -9,
+    "root_cause": "Conservative active-role estimates plus measured processes, not billing telemetry or calendar elapsed. Original historical parent US075255.0026 and US086 diagnostic40.9258 excluded; same US087 sessions retained once. Readiness45 includes36 prior+3 read-only resume+6 amended assessment. Worker54=44 implementation+2 mapped preflight+4 gate+4 cold launch/report (cold report +2 reserve variance); reused reviewer43.5, fresh9, Astra5, bounded root-child decision5 make review62.5. Integration67.727867=historical plan/handoff8+controller mapped2+worker mapped2+worker gate4+measured whole gate83.626s/60+worker cold report4+controller closure4+whole final cold2540046ms/60000; cold setup/teardown included once. Focused33.149683=preview28.149683+retained conservative check/setup5; ten focused attempts82.00s and mapped/pre-existing preflights included, not added twice. Phase markers identify boundaries; long external/idle gaps excluded rather than billed: known foreign gate wait660.075s once, first interrupted wait unmeasured/unknown, cold lock wait0. Preview3 rounds/5 CLI stages includes failed22.479s UTC startup control; whole cold1 attempt, no invalidation/reuse. Startup TZ=UTC fixes worker initialization; source restored byte-exact after retained reachable fault-seed RED. Initial orchestration preview76.27 red repaired; pre-fix wrapper/domain remain diagnostics. Cold49 forecast actual42.3341; fresh15 forecast actual9 estimate; final scoped4 forecast4.5. Gate79.825s inner/83.626s whole; no last-five median exposed, no unsupported 2x claim. Actual changed_files5 counts two test files+readiness+plan+ledger only; canonical CHG092/story and unrelated technical main edits excluded. Commits23 counts22 reachable US087-title commits before cutoff d06c2a6 plus this evidence closure, excluding CHG092 sync, CHG083 allocation, foreign CHGs and mapped duplicates. One consolidated reviewed final repair loop. Main advanced567af31 to2b3a4d8 during cold; non-FF integration separately held, no post-cold rebase/repeat. Parent periodic status/lock coordination is retained separately under US024, not zero or US087 double charge. Exact non-rounded phase sum252.37755; schema integer-minute fields conservatively ceiling phases individually to254 (45/44/34/63/68), variance -9 vs263. Informational cold43 andpreview29 are ceilings only; exact measured42.3341 and28.149683 preserved above/raw. First normal closure hook rejected fractional phase fields WR_INVALID_INTEGER; corrected serialization only, no source/harness/test changes."
+  },
   "policy_bootstrap": false,
   "bootstrap_exemption_rationale": null,
   "bootstrap_authorization": null,
