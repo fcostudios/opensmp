@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "97f0f1800289069346dc2244bbdbff6083ae717ab2907c5fff95f098c455666d",
+  "readiness_payload_sha256": "750211e732d46d36d7e4bc3902e576ca7d6051b540eebb4bf5f000a131736482",
   "work_id": "CHG-093",
   "kind": "CHG",
   "work_type": "technical",
-  "title": "CHG-093 current-runtime verification and integration under DEC-SMP-059",
-  "source": "Canonical CHG-093 technical scope and DEC-SMP-051 preserved; Francisco approved consolidated proposal3392c93 and DEC-SMP-059 cumulative380. Actual integrated CHG-107 main7bc42fa74cb198677817a011fd19c3e924a19ecd; sourcefabbce23e51b76ccc8ab7f1962cf7b15e30927ab. This is NEW pending current-payload readiness, not reuse of205/319 approvals. Current base is frozen7bc42fa; any later main delta requires assessment before execution.",
+  "title": "CHG-093 current450 recovery, verification and integration",
+  "source": "Canonical CHG-093 and DEC-SMP-061; Francisco approved complete5ddafae450 cumulative proposal. Actual CHG108 integrated main a8c7388a53b686a0b5151b5e125f498a95554c2d, source9e3523dd9ba606ce73270427f9d18c7c936a0fe9, canonical admissionc532b741f773da5b16a240f83fd240bd6af408a6/source6df4f629563179bf406a3ed8a11dbbfa87fbab93. Root explicit finish093 instruction authorizes this adoption/readiness preparation only. New exact digest approval required before recovery/runtime; old97f0/380,319 and205 remain immutable historical approvals.",
   "outcomes": [
     {
       "id": "O1",
@@ -70,12 +70,12 @@
     "tooling_change": true
   },
   "estimate_minutes": {
-    "readiness": 90,
-    "implementation": 70,
-    "focused_verification": 70,
-    "review": 40,
-    "integration": 110,
-    "total": 380
+    "readiness": 110,
+    "implementation": 80,
+    "focused_verification": 80,
+    "review": 50,
+    "integration": 130,
+    "total": 450
   },
   "uncertainties": [
     {
@@ -83,14 +83,14 @@
       "statement": "Current authority and prior evidence must not be conflated.",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Actual normal CHG107 authority integrated at7bc42fa, exact tuple above; normal loader must prove immutable actual-parent admission2faf34fcaa45e1282ede3ccd698a9b7c4bdcf9a3/source163e49e71e2e11d1871c842a8f015d15dc3023d0 and source ownership. Root postcheck SHA5aa7fc04b7f09eb7483bd30be3a87ac4eaa1a29d633c725be139c3aed63a21c8 verified locally. No support proof borrowed for093. DEC059 supplies ceiling only; no runtime until this exact new payload has normal human approval and bound plan. Old205/366ca and319/d422, US087bc2/254, failed cold and final NOT PASS remain immutable. Historical raw reports currently unavailable at retained paths; committed extracted facts are not raw replacements. Fresh raw evidence must be archived durably."
+      "resolution": "Actual CHG108 integration a8c7388, exact DEC061450 tuple, normal loader proves current immutable admissionc532/source6df4 and owned108source lineage, retained107380 separately. Root postintegration receipt /Users/fcolomas/.codex/artifacts/smp/CHG-108/root-postintegration-verification.json SHAffd453b3572bc4bd656552842132bc4b0e0284847b2c9f7a01254a918d793655 verified locally. Own107/108 proofs are prerequisites only, never borrowed for093. No runtime until this exactNEWpayload normal human approval and bound plan. Preserve all old205/319/380 payloads/approvals/costs, US087bc2/254, failedsetup/cold/NOTPASS. Full raw historicalreports remain unavailable at retainedpaths; committed extractions are not substitutes. Fresh proof must be durably archived."
     },
     {
       "id": "U2",
-      "statement": "Candidate reconstruction must retain current authority and original history.",
+      "statement": "Ordinary recovery must correct the unintegrated duplicate-start sequence without erasing history or borrowing authority.",
       "status": "budgeted",
-      "estimate_impact_minutes": 20,
-      "resolution": "Budget20 includes this new readiness/adoption, isolated candidate reconstruction, original-to-new SHA map and normal custody checks; it is part of remaining120, not additional allowance. Base7bc42fa; sourcebackup5e3553d93adb36fcfa0e6316dc2a9f0a91ed0ecc; reviewed core2e7dae68a393fbc669c21e8a22289e93e2b76fb3; revised319 approval470e8f2. Three mutation_scope production blobs match current main exactly. Current two acceptance suites differ from2e7 by14insertions/437deletions; restore their original assertions preserving any separately owned current changes, after approval only. Current domain suite and US087 story equal frozen core. Current US087 readiness is older9aeeb1/noactuals; original closedbc2/254 must be restored with authentic raw decisions/ledger via approved replay. Preserve current main ledger exact raw prefix, original unique rows byte-identical ordered, original refs and new actual SHA map; no fabricated future SHA, no copying new approval backward. Keep current107/105/106 source/custody; do not overwrite current canonical envelopes with old ones. Normal per-parent/history/owned-scope validation is mandatory; unresolved conflict, CHG097 custody failure or extra replay burden beyond20 is STOP, not waived by107. No rebase or restoration has occurred at readiness."
+      "estimate_impact_minutes": 6,
+      "resolution": "Approved currentbasea8c7388; sourcebackup5e3553d93adb36fcfa0e6316dc2a9f0a91ed0ecc, reviewed2e7dae68a393fbc669c21e8a22289e93e2b76fb3, old319470e8f2/d97563fb preserved. Independent Astra3minute scopedreview found normal reconstruction permissible: original authentic rows/importeddecision history BEFORE authentic currentapproval/controlrows, preserving rawbyteorder and source refs plus actualSHAmap. Currentbase main ledger stays exactprefix; nofutureapproval lent tooldcommits. Root mistake04056e6 redundantNEWstarted remains immutableaudit/ref/rawcandidate; omit ONLY that new duplicate from correctedcandidate ancestry, truthfully annotate and retainallcosts. Neither actualpostapprovalstart qualifies for lifecycle_corrected; do not invent it. Rejectedtree7c6570a2ac998415bfe7fa0f104bce3c176dceee, refs/archive/CHG-093-current/rejected-staged-tree and exactbinarypatch preserved. Existingreport task1-stop-report.json SHA9502c31c7648c8240065a667aa52107bbc5a6f832970436c35114ed946e73d9c; feasibility task1-replay-feasibility.json SHAbefdd6da0408bc026150abd668dcfe582edf8eda8b5c3f490814dad862b441f7 under /Users/fcolomas/.codex/artifacts/smp/CHG-093/current-7bc42fa. Worker9estimated spent already; remaining6 for authority-preserving checkpoints/reconstruction/currentcustody/guards/actualmap. 38divergent historicalcommits require provenance, not blindforeigncanonicalcherry-pick. Current threeproductionblobs match frozen, twoacceptancesuites need originalassertions; restore closedbc2/254 with genuinerawdecisions. Preserve new108/107/105/106sources and canonicalclaims. New450approval is currentruntimeauthority, never copied into olderparent to excuse oldwork. Reconstruct history in separate candidate preserving this readiness/approval branch and alloriginalrefs. Currentpendingartifact must not preempt originalimports; record realold→newmap once created. No newSHAmap claimed now. Normal staged/perparent/fullcurrentdeliveryrange must pass; use a8..candidate deliverybase, not783mutationbase forunrelatedmainhistory. If anotherguardneeds toolingrepair or custody conflicts expand scope STOP with exact evidence; sixminute forecast notproof of feasibility."
     },
     {
       "id": "U3",
@@ -110,8 +110,8 @@
       "id": "U5",
       "statement": "Current complete verification and final cold must fit without shortcuts.",
       "status": "budgeted",
-      "estimate_impact_minutes": 75,
-      "resolution": "Remaining fullgate/preflight10 + independentreview10 + ONEcold45 + closure10 =75. Shared PG16, private inherited cluster URL, no private containers/incompatible mutation DB pairs. Existing stock fixture with committed migrate/verify and owner/app separation. Shared /tmp/smp-full-gate.lock exclusive token/PID/device/inode ownership, wait for foreign lock and remove only ours; caffeinate -i. Ordinary focused/fullgate TZ=America/Guayaquil, final preflight/cold TZ=UTC. Fresh acceptance/fullgate/final independent AC review before ONE cache-off owned cold; any later scored-input change invalidates it and requires stop, no second campaign. Commands use MUTATION_SCOPE_WORK_ID=CHG-093 MUTATION_WORK_ID=US-087 with pnpm check, mutation:preflight, test:mutation and MUTATION_CACHE=off for cold. Existing owned scope remains exact three sources/ten historical ranges; actual discovery must confirm, never prune to fit. Final score threshold and every survivor annotations require actual independent acceptance; zero executed tests or route gaps never accepted. All seven findings and previous nine accepted conditions retained."
+      "estimate_impact_minutes": 72,
+      "resolution": "Remaining fullgate/preflight10 + independentreview7 + ONEcold45 + closure10 =72. Shared PG16, private inherited cluster URL, no private containers/incompatible mutation DB pairs. Existing stock fixture with committed migrate/verify and owner/app separation. Shared /tmp/smp-full-gate.lock exclusive token/PID/device/inode ownership, wait for foreign lock and remove only ours; caffeinate -i. Ordinary focused/fullgate TZ=America/Guayaquil, final preflight/cold TZ=UTC. Fresh acceptance/fullgate/final independent AC review before ONE cache-off owned cold; any later scored-input change invalidates it and requires stop, no second campaign. Commands use MUTATION_SCOPE_WORK_ID=CHG-093 MUTATION_WORK_ID=US-087 with pnpm check, mutation:preflight, test:mutation and MUTATION_CACHE=off for cold. Existing owned scope remains exact three sources/ten historical ranges; actual discovery must confirm, never prune to fit. Final score threshold and every survivor annotations require actual independent acceptance; zero executed tests or route gaps never accepted. All seven findings and previous nine accepted conditions retained."
     },
     {
       "id": "U6",
@@ -122,24 +122,24 @@
     },
     {
       "id": "U7",
-      "statement": "Cumulative accounting mixes estimates and measured elapsed and has bounded unknowns.",
+      "statement": "Cumulative450 funding retains full historical mixed costs and bounded adoption/coordination projections.",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Complete allocation380 is cumulative, not remaining-only. Phase fields90/70/70/40/110 are prospective allocation estimates, NOT newly asserted historical phase actuals; historical role-based receipts remain their original units. Historical184 estimatedactive +37.3879115965 measured nativeelapsed retained once; later19 +root3 +operator3 +root-tail3 =249.3879115965 before requesteradmin a in[0,1]. Operator capdecision1 already charged ONCE from coordreserve3: incurred250.3879115965+a, nominal coordreserve2. Prior unspentreserve5 retained. Complete upper =250.3879115965 + a(max1) +5 + remaining120 +coord2 =378.3879115965, rounded379;1.6120884035 under approved380. Remaining120=20readiness/reconstruction+15diagnostics+10DB/oracle+10gate+10review+45cold+10closure. New readiness consumes that20, not added again. Current-author entry/read/adoption/draft/setup/check/commit and this approval handoff are conservatively estimated12 active minutes, not stopwatch measured. Allocate10 from the20 readiness/reconstruction envelope and2 from existing unspentreserve5, leaving10 reconstruction and3 priorreserve. This consumes real readiness work once and preserves every remaining runtime phase; any reconstruction beyond10 uses only explicitly remainingreserve and recosts completeforecast. Remaining coordreserve2 remains distinct. New readiness incurred262.3879115965+a; future runtime/reconstruction110 +priorreserve3 +coordreserve2 =>377.3879115965+a, max378.3879115965 unchanged. Installation4.3seconds elapsed nested within readiness estimate, not charged again; optional cpu-features node-gyp missing warning preserved, install exit0 and trackedlock unchanged. No test/runtime executed. Pending actor coordination must be reconciled within remaining2, not silently zeroed; historical a remains unknown and fully reserved1. Support267/290 and its latest operator closing1 are107-only, not093. All estimates distinguish active vs elapsed and are not billing. Stop completeforecast>380, unknown tail exceeds reserve, new repair/path/framework or extra campaign."
+      "resolution": "Approved cumulativeceiling450, not450remaining. Phasefields110/80/80/50/130 are planningallocations, not rewritten historicalphaseactuals. FrozenSTOP incurred279.3879115965+a, a∈[0,1] unresolved reservedupper1, plusremaining103 =>383.3879115965upper. Later dualownerhandoff1 estimatedactive ONCE =>incurred280.3879115965+a and upper384.3879115965. This preserves original184estimatedactive +37.3879115965measurednativewall once, everylaterroleestimate, rootduplicate-start/errorcost, workerTask1actual9/review3 and allnegativeevidence. Approved combinedpacket adds adoption/readiness10 andcoordinationforecast6 =>completeprojection400.3879115965, with49.6120884035 UNSPENTsame-scopeheadroom to450, never claimedspent or automaticnewscope. Adoption10 includes currentauthor/staticbinding/setup/packet6 +independentreadinessreview3 +normalbinding/commit1; record actuals once as these occur. Extra pendingactor tails reconcile incoord6 then explicitheadroom, neverzeroed or borrowed107/108; actual108operatorhandoff1 remains108-only. Remaining103 unchanged: reconstruction6, threeactivationdiagnostics15, liveDB/17710, ownfullgate/preflight10, independentruntime review7, ONEcold45, closure10. New independentreadinessreview is adoption3, not borrowing alreadyreducedruntime7. Native historicalwall remains mixedconservativefootprint not billing; current setupwall nested inactualactive. Stop completeforecast>450, unboundedunknowncost, newrepair/path/framework/productscope or extracampaign. Headroom may cover actualsame-scope variance/guardedreconstruction without silentlydropping obligations; it cannot authorize toolrepair orsecondcold."
     },
     {
       "id": "U8",
       "statement": "Scope inventory must include delivery and diagnostic custody without silent deferral.",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Conservative retained11 delivery-path envelope: .nous-project.json,.nous-provenance.json,.nous-sync.json; docs/stories/CHANGES.md,SPRINT_PLAN.md,sprint-3/r1_misc_us_087.md; three conditional test paths apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts, apps/web/src/modules/request-workflow/orchestration.integration.test.ts, packages/domain/src/request-workflow/lifecycle.test.ts; testing/critical-paths.md and docs/dev-guide/TESTING.md only if authentic historical canonical replay requires unchanged governed content, never manual edits. Current guides inspected unchanged since60eb8a3; no new canonical publication requested. Repo tooling/production/migration edits forbidden. Diagnostic harness is explicitly scoped external artifact /Users/fcolomas/.codex/artifacts/smp/CHG-093/current-7bc42fa/diagnostics/native-control.mjs, isolated disposable fault copies of only the3existing production sources, retained manifests/logs/bundles there; not a production tooling delivery. tooling_change=true conservatively reflects this diagnostic authoring. Up to20 bookkeeping paths in closed allowed directories, including current readiness, approval packet, inventory/SHAmap/evidence manifest, copies of historical assessments/review/diagnosis, bound design/plan, original US087 readiness/plan and append-only ledger. Frozen inventory names appear in companion packet. Any new technical delivery path stops."
+      "resolution": "Conservative retained11 delivery-path envelope: .nous-project.json,.nous-provenance.json,.nous-sync.json; docs/stories/CHANGES.md,SPRINT_PLAN.md,sprint-3/r1_misc_us_087.md; three conditional test paths apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts, apps/web/src/modules/request-workflow/orchestration.integration.test.ts, packages/domain/src/request-workflow/lifecycle.test.ts; testing/critical-paths.md and docs/dev-guide/TESTING.md only if authentic historical canonical replay requires unchanged governed content, never manual edits. Current guides inspected unchanged from7bc42fa througha8c7388; no new canonical publication requested. Repo tooling/production/migration edits forbidden. Diagnostic harness is explicitly scoped external artifact /Users/fcolomas/.codex/artifacts/smp/CHG-093/current-a8c7388/diagnostics/native-control.mjs, isolated disposable fault copies of only the3existing production sources, retained manifests/logs/bundles there; not a production tooling delivery. tooling_change=true conservatively reflects this diagnostic authoring. Up to20 bookkeeping paths in closed allowed directories, including current readiness, approval packet, inventory/SHAmap/evidence manifest, copies of historical assessments/review/diagnosis, bound design/plan, original US087 readiness/plan and append-only ledger. Frozen inventory names appear in companion packet. Any new technical delivery path stops."
     },
     {
       "id": "U9",
       "statement": "Correction and final delivery must preserve all original lifecycle records.",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Normal existing evidence_superseded -> genuine named CHG093 decision -> revalidated with replacement build before replacementterminal. Preserve original raw historical US087bc2/254 evidence and costs; no new fabricated user approval, backdating or reserialization. Store candidate/base/source/report hashes, all raw failures and independent reviews, actual measured/estimated role costs and preview counters. Report CHG093 actuals/done only after own gates/cold/review pass and current-parent full history validates. Fast-forward main only when still possible and specifically released under existing coordination; otherwise stop and report. P4/DEC051 release timing is not granted by380 or107."
+      "resolution": "Normal existing evidence_superseded -> genuine named CHG093 decision -> revalidated with replacement build before replacementterminal. Preserve original raw historical US087bc2/254 evidence and costs; no new fabricated user approval, backdating or reserialization. Store candidate/base/source/report hashes, all raw failures and independent reviews, actual measured/estimated role costs and preview counters. Report CHG093 actuals/done only after own gates/cold/review pass and current-parent full history validates. Fast-forward main only when still possible and specifically released under existing coordination; otherwise stop and report. P4/DEC051 release timing is not granted by450 or108."
     },
     {
       "id": "U10",
@@ -153,10 +153,10 @@
   "decision": "ready",
   "partitions": [],
   "approval": {
-    "status": "approved",
-    "approved_by": "Francisco Lomas",
-    "evidence": "CHG093-READY-97f0f180-CURRENT-380",
-    "payload_sha256": "97f0f1800289069346dc2244bbdbff6083ae717ab2907c5fff95f098c455666d"
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "750211e732d46d36d7e4bc3902e576ca7d6051b540eebb4bf5f000a131736482"
   },
   "actuals": null,
   "policy_bootstrap": false,
@@ -187,8 +187,8 @@
   "budget_exception": {
     "project_id": "fcostudios__smp",
     "work_id": "CHG-093",
-    "ceiling_minutes": 380,
-    "decision_id": "DEC-SMP-059",
-    "decision_sha256": "391a0e3545c948dd7082c2d17c9d12a6146c6e3f2d683545df7be8ce07db8433"
+    "ceiling_minutes": 450,
+    "decision_id": "DEC-SMP-061",
+    "decision_sha256": "99f4c21a82445c6f7c3649732f615d440592673b2c635ca0d8524719d20116bd"
   }
 }

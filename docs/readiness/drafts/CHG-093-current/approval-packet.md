@@ -1,65 +1,37 @@
-# CHG-093 — current readiness approval packet
+# CHG-093 — current450 exact approval packet
 
-Status: pending exact digest approval; no runtime, replay, tests or campaign performed.
+Pending exact readiness approval. No recovery/runtime authorized by funding alone.
 
-- Current base: `7bc42fa74cb198677817a011fd19c3e924a19ecd` (integrated CHG-107).
-- Exact new readiness digest: `97f0f1800289069346dc2244bbdbff6083ae717ab2907c5fff95f098c455666d`.
-- Requested cumulative allocation: **380 minutes**, already funded by DEC-SMP-059. Detailed upper forecast **378.3879115965 minutes**, not measured billing.
-- Original205/366ca and319/d422 approvals remain historical; neither approves this payload. US-087bc2/254 unchanged.
-- Integrated authority: DEC-SMP-059 exact text SHA391a0e3545c948dd7082c2d17c9d12a6146c6e3f2d683545df7be8ce07db8433; actual implemented closed `budget_exception` schema and current-parent proof, not the earlier proposed API.
+**Digest:** `750211e732d46d36d7e4bc3902e576ca7d6051b540eebb4bf5f000a131736482`  
+**Current base:** `a8c7388a53b686a0b5151b5e125f498a95554c2d`  
+**Cumulative ceiling:**450, already approved DEC-SMP-061. **Complete projection:**400.3879115965; unspent same-scope headroom49.6120884035, not spent or permission for more scope.
 
-## Exact approval requested
+## Approval requested
 
-Approve CHG-093 readiness digest `97f0f1800289069346dc2244bbdbff6083ae717ab2907c5fff95f098c455666d` at cumulative380 minutes for its recorded current-base reconstruction, three finite physical/native activation diagnostics, live database invariant proof and required177 oracle, own full gate, independent AC review, ONE final UTC cache-off owned campaign, append-only evidence correction and closure/integration subject to existing release holds. This approves the recorded scope and prospective bound design/plan; it does not approve repair of production/tooling, another campaign, expanded paths, relaxed mutation acceptance, altered history or P4 release. Stop if complete forecast exceeds380 or a material scope changes.
+Approve this exact CHG-093 readiness digest at cumulative450 for the unchanged full recovery/verification/integration outcome: normal authority-preserving history reconstruction, three finite physical/native activation diagnostics, real database invariant/177 oracle, own fullgate, independentreview, ONE final UTC cold, ordered correction, closure and integration under existing release holds. All old approvals/costs/unknowns/rawfailedstart remain. No new product/toolrepair, additionalcampaign, relaxedguards or P4release. This is exact current payload approval, not repeat funding approval.
 
-## Current facts and reconstruction
+## Verified prerequisite and base
 
-The three production blobs match frozen2e7dae68 exactly. Main differs in two acceptance suites by14insertions/437deletions; current domain suite and US087 story are unchanged. Main still has the earlier US0879aeeb1/noactuals artifact. Postapproval reconstruction must restore original closedbc2/254 authority and all authentic raw historical rows, retain current main ledger as exact prefix, preserve every original source reference and record actual old-to-new SHA map. **No SHA map is claimed before replay.** New current policy/code/envelopes must stay intact; ordinary parent/history gates decide each replay. An unresolved CHG097/ownership failure stops; CHG107 does not waive it.
+Actual CHG108 terminal/main a8c7388, source9e3523dd9ba606ce73270427f9d18c7c936a0fe9. Exact current supported tuple: projectfcostudios__smp/workCHG-093/ceiling450/DEC-SMP-061/decisionSHA99f4c21a82445c6f7c3649732f615d440592673b2c635ca0d8524719d20116bd. Actual admissionc532b741f773da5b16a240f83fd240bd6af408a6/source6df4f629563179bf406a3ed8a11dbbfa87fbab93, pristineed73f12e6334820c548ad093552d1edfcc1f5850, approved108payload0a054b20d270964f5951e61897c712fbcb7376cead7105c8e7c7df57e9667e7c. Own normal loader verifies immutableauthority; no invented tuple field.
 
-`source-bindings.json` binds every relevant current/frozen source/test/guide blob and SHA256. `astra-assessment.md` is retained technical analysis, not proof or survivor sign-off. The actual root CHG107 postcheck JSON SHA5aa7fc04b7f09eb7483bd30be3a87ac4eaa1a29d633c725be139c3aed63a21c8 was independently hashed; its PASS is prerequisite evidence only.
+Root finalpostintegrationreceipt SHAffd453b3572bc4bd656552842132bc4b0e0284847b2c9f7a01254a918d793655 independentlyhashed. Full108proof not borrowed. Current ownedworkflow source/tests, guides andlock unchanged from7bc42fa; `source-bindings.json` binds current/frozen bytes. Current oldUS0879aeeb1/noactuals needs authenticclosedbc2/254 restoration. No108activegate/window; coordinate newsharedlock/mainmovement withowners. Nous qualification:109/110 readiness/design may proceed in parallel. Default110 policy-file integration waits093completion unless its owner first proves actual108/093authority survives that foreign policy commit and records the resolution. No blanket main freeze or assumed exception proof;093doesnotwait109. Coordinate actualinputmoves, do not duplicate108work.
 
-## Seven findings
+## Recovery sequencing, not new lifecycle policy
 
-| Finding | Required proof |
-|---|---|
-| lifecycle134/209, orchestration84 | Exact baseline/fault/restoration and native activation controls on existing real-DB oracles; record module/hash/test execution, no zero-test acceptance. |
-| lifecycle177 | Current real-PG empty-range history acceptance followed by exact rejection and rollback oracle; if impossible, stop with actual constraint. |
-| lifecycle204/230, orchestration46 | Live enforced exclusion catalog, real rollback and independent explicit production/public-port boundary review. Equivalence remains unconfirmed. |
+Preserve old04056 commit and fourstagedfiles untouched in priorworktree, rejectedtree7c6570a2ac998415bfe7fa0f104bce3c176dceee/archive/binarypatch, original5e3553d/2e7/470/d975. Root's redundantNEWpostapprovalstarted before originalstarted import caused normalduplicate-start rejection. IndependentAstrareview permits ordinaryreconstruction: preserve immutableaudit/cost, exclude onlyredundantNEWstart from correctedancestry, import authenticoldhistory BEFORE authenticcurrentapproval/controlrows; olddecisions otherwise stalecurrentapproval. No lifecycle_corrected or guardrelaxation. Existing main rawprefix, originaluniquerows/order and trueparentauthority must pass each normalguard; actualSHAmap only afterrealreplay. This branch's newpendingapproval is preparation evidence, not retroactiveauthority for oldexecution. Reconstruct separatecandidate with authentic checkpoints, carry currentnewapproval AFTERoldhistory. Sixremainingminutes is a forecast; same-scope reconstruction variance uses explicitheadroom, never unsupportedtoolrepair. Route not executed/proven yet.
 
-All previous nine accepted conditions and full US087 ACs, including negative no-capacity/watermark/projection-write, remain required. Final independent AC review precedes final cold; survivor review accepts only source-bound final evidence. Raw reports no longer found at retained historical paths are not claimed recovered; committed extractions preserve negative facts. New raw custody must be durably archived.
+Stopreport SHA9502c31c7648c8240065a667aa52107bbc5a6f832970436c35114ed946e73d9c and feasibility SHAbefdd6da0408bc026150abd668dcfe582edf8eda8b5c3f490814dad862b441f7 are retained under `/Users/fcolomas/.codex/artifacts/smp/CHG-093/current-7bc42fa/`. Initial783wrong-range failure is retained as diagnostic, not claimed deliveryblocker. Deliverybase iscurrenta8, historicalmutationbase remains783 withscopehead d06 and3ownedpaths unchanged.
 
-## Accounting and remaining work
+## Full proof and cost
 
-Retained incurred before current readiness:250.3879115965 + a, where a∈[0,1] remains pending and upper1 reserved. This combines estimated active role receipts with37.3879115965 measured historical native wall, explicitly not billing. Current readiness/setup/binding/check/commit/approval-handoff:12 conservative estimated active minutes, charged once, consuming10 reconstruction/readiness allocation and2 of priorreserve5. Installation4.3seconds is nested, not additional. Remaining reconstruction10; diagnostics15; DB/oracle10; fullgate/preflight10; independentreview10; ONEcold45; closure10 =110. Remaining priorreserve3 and coordinationreserve2. Therefore262.3879115965+a+110+3+2 ≤378.3879115965. Phase fields90/70/70/40/110=380 are planning allocations, not retroactive phase actuals. Any pending actor tails consume coordreserve explicitly, never zeroed. All historical cost/FAIL/preview28.15/30 preserved. No CHG107 cost transferred.
+All7findings retained:134/209/84 actualactivation controls,177 realSQLacceptedmalformedhistory+rejection/rollback,204/230/46 liveexclusion/persisted/publicport boundary review. Nineprioracceptedconditions/fullUS087AC1–3 retained. No capacity/watermark/projection writes. RealsharedPG16/appowner/committedmigrations/verify, ownedsharedlock, awakeownfullgate Guayaquil; freshfinalACreview then finalUTCpreflight/ONEcacheoffownedcold, every survivor independentlyaccepted or killed. Zeroexecutedtest outcomes invalidassurance. Historicalpreview28.15/30 retained; diagnosticpreviewcost explicit. No secondcampaign afterscoredinputchange.
 
-## Exact inventory
+FrozenSTOP upper383.3879115965 =279.3879115965+a incurred +103remaining withamax1. Laterdualownerhandoff1 estimatedonce gives384.3879115965. Approvedadoption10 andcoordforecast6 give400.3879115965. Adoption10 covers author6/readinessreview3/normalbindingcommit1; actual costreplacesforecastonce. Remaining103 stays6reconstruction+15diagnostics+10liveDB+10gate+7runtimereview+45ONEcold+10closure. Historical184estimatedactive/37.3879115965measurednativewall, allroles/errors andunknowna remainqualified, not billing. Any lateractor tails reconciled withincoordforecast/headroom, neverassumedzero. Phasefields110/80/80/50/130=450 are allocations, not rewrittenactuals. No107/108 costtransfer. Same-scopeheadroom49.6121 is unused contingency, not claimallrunssucceed.
 
-Conservative retained delivery envelope11: `.nous-project.json`, `.nous-provenance.json`, `.nous-sync.json`, `docs/stories/CHANGES.md`, `docs/stories/SPRINT_PLAN.md`, `docs/stories/sprint-3/r1_misc_us_087.md`, `apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts`, `apps/web/src/modules/request-workflow/orchestration.integration.test.ts`, `packages/domain/src/request-workflow/lifecycle.test.ts`, `testing/critical-paths.md`, `docs/dev-guide/TESTING.md`. Canonical/guide entries authorize only authentic required historical custody preserving current107 authority, never hand editing generated content. Current guides unchanged since60eb8a3. No production/migration/repository-tool source repair.
+## Inventory and session
 
-Bookkeeping envelope20 (closed readiness/spec/plan/ledger categories):
-1. docs/readiness/CHG-093.json
-2. docs/readiness/US-087.json (original closed bytes only)
-3. docs/readiness/drafts/CHG-093-current/approval-packet.md
-4. docs/readiness/drafts/CHG-093-current/astra-assessment.md
-5. docs/readiness/drafts/CHG-093-current/source-bindings.json
-6. docs/readiness/drafts/CHG-093-current/reconstruction-sha-map.json
-7. docs/readiness/drafts/CHG-093-current/evidence-manifest.json
-8. docs/readiness/drafts/CHG-093-current/cost-ledger.json
-9. docs/readiness/drafts/CHG-093-current/acceptance-review.md
-10. docs/readiness/drafts/CHG-093-current/survivors.md
-11. docs/readiness/drafts/CHG-093-current/validation-receipt.json
-12. docs/readiness/drafts/CHG-093-current/historical-205.json
-13. docs/readiness/drafts/CHG-093-current/historical-319.json
-14. docs/readiness/drafts/CHG-093-reassessment/seven-findings.json
-15. docs/readiness/drafts/CHG-093-reassessment/task3-seven-blocker-raw-diagnosis.json
-16. docs/readiness/drafts/CHG-093-reassessment/final-review-verbatim.json
-17. docs/readiness/drafts/CHG-093-reassessment/retained-evidence-manifest.json
-18. docs/superpowers/specs/CHG-093-current-design.md
-19. docs/superpowers/plans/CHG-093-current-plan.md
-20. .nous-feedback.jsonl
+ReadinessU8 declares conservative11delivery/20bookkeeping envelope; no new production/migration/repositorytoolrepair. Externaldiagnosticharness `/Users/fcolomas/.codex/artifacts/smp/CHG-093/current-a8c7388/diagnostics/native-control.mjs` and disposable exact3faultsourcecopies explicitlyincluded, not authoritativecampaign substitute. Existing original design/plan refs staypreserved; new bounddesign/plan afterthisexactapproval. Same logicalcontroller/implementer, reusedscopedreviewer, freshfinalACreviewer. STOP scope/guard/toolrepair requiringexpansion, extracampaign, unboundedcostunknown orfullforecast>450. No dev_done untilallcurrentproofpasses. DEC051/P4holds andmonitoringoff remain.
 
-Original US087 plan remains retained at immutable source references; if actual validator requires another bookkeeping import, record the inventory correction before execution. No invented new implementation source. External diagnostic harness exact path `/Users/fcolomas/.codex/artifacts/smp/CHG-093/current-7bc42fa/diagnostics/native-control.mjs`; finite temporary fault copies of the3already-owned source files, raw output/manifests/bundles at that same artifact root. Harness authoring included15minutes, not unallocated tooling repair. It is not an authoritative campaign replacement.
+## Independent readiness review
 
-## Gates and stops
-
-Own shared PG16 fixture, normal migrate/verify, owned token/inode shared lock, awake full `pnpm check` in America/Guayaquil; final owned preflight and cache-off cold UTC with frozen source inputs. Preserve preview28.15/30 and explicitly attribute diagnostic preview time if applicable; no whole-set reruns. Full actual-parent readiness/ownership/feedback-order/correction checks remain required. Do not rebase/integrate or mark done on approval alone. If source conflict, invalid activation, wider contract, unbudgeted tooling/product repair, new path or extra campaign appears, stop and present one concrete scoped amendment. Monitoring and automatic resume remain off.
+PASS, no Important findings. Review `/Users/fcolomas/.codex/artifacts/smp/CHG-093/current-a8c7388/readiness-review.md`, SHA256 `a389453d39bf4bf1e6eec8485f01535ad561bf2c787b278ec77f72459e3fca28`. Exact750211digest/base/sourcebindings/receipt/costarithmetic reviewed. Reviewer3estimatedactive insideadoption10; runtime review7 untouched. Author/staticsetup/draft6 +review3 +normalcommit/handoff1 =adoption10 estimatedtotal, replacingitsforecastonce. Remainingruntime103 unchanged; coordforecast6 reserved/pendingactorreconciliation; no costs silentlyzeroed.

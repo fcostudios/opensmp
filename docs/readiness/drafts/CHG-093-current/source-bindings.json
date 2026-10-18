@@ -1,7 +1,7 @@
 {
-  "base": "7bc42fa74cb198677817a011fd19c3e924a19ecd",
+  "base": "a8c7388a53b686a0b5151b5e125f498a95554c2d",
   "frozen": "2e7dae68a393fbc669c21e8a22289e93e2b76fb3",
-  "replay_status": "NOT_PERFORMED; actual per-commit SHA map only after approval",
+  "replay_status": "NOT_PERFORMED; original04056 and rejectedstagedtree retained; actualSHAmap afterapproval",
   "paths": [
     {
       "path": "apps/web/src/modules/request-workflow/actions/checklist-action-transaction.ts",
