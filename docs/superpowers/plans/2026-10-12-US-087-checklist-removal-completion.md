@@ -1,6 +1,6 @@
 **Work item:** US-087
 **Readiness assessment:** docs/readiness/US-087.json
-**Approved estimate:** 260 minutes
+**Approved estimate:** 263 minutes
 
 # US-087 checklist removal completion implementation plan
 
@@ -90,3 +90,11 @@ Prior250 approval remains in Git. Changed full260 allocation: readiness36 (prior
 Final wave uses the same existing two test paths only, no production refactor: reachable pure-validator semantic copies, legal SQL historical receipt, deterministic UTC-host Ecuador dates, exact wrapper audit entity_type, orchestration mode/null payload/transition note and actual not-done refusal/sent contracts. Holder28/29 require exact applied tenant-FK proof or legal coherent foreign-person fixture. Reviewer accepts portable177/204/209/230 only as explicit current SQL deployment risk with genuine survivors retained; no global equivalence or skipped AC. Intact production guards/constraints remain.
 
 After exact assessment/plan scoped approval and new delegated digest-bound decision, release conservative15-minute same-worker wave. Focused fault seed reproduces exact reachable raw mutant; restore exact source hash before checkpoint. Previews21.6851 incurred,8.3149 remaining under30: only orchestration final diagnostic after focused GREEN/scoped review, terminate at remaining cap including partial time. No wrapper/domain repreview or whole-set rerun; their pre-fix diagnostics plus focused RED/review remain evidence, with no post-fix mutation score claim until final complete native cold. No final capacity acceptance/cold/done before realUS081 proof.
+
+## CHG-092 amended AC3 assessment — explicit digest approval pending
+
+CHG-092 sync15bad159 supersedes the historical US-081 composite capacity hold in this plan; only AC3 changes to completion writing no capacity/watermark/projection data. AC1/AC2 and six delivery paths remain unchanged. Independent source review confirms existing7b41ddc full vendor_account/capacity SQL invariance assertions plus the real completion write footprint suffice: no new production/tests. Absence of a watermark column is not a runtime oracle on that future column; freshness staysUS081/085. Fresh AC review maps this precise negative proof.
+
+Full263 =45readiness(prior36+audit3+this6 estimate),44worker actualroleestimate,34focused(processpreview28.149683+retainedchecks5 rounded),64review(prior37+newassessment2+Astra5+rootdecision5+fresh15),76integration(controller8+gate5+cold49+mappedidentity/rebase/report/closure14). Prior250/260 and raw28.1497 are retained; old composite8 removed by canonical amendment and existing proof, not invented implementation savings. No more previews. FinalcoldTZ=UTC49 forecast remains48.1615 measuredreference plus reserves, not actualcold.
+
+Sequencing after explicit new full-digest approval: commit approval authority before plan263; no newstarted. Root-authorized one mapped rebase onto main567af31 before finalcandidate/freshAC/gate/cold, preserve SHA map/rawledger authority/cost and approved artifact bytes; verify source/suite/guidance identity and stock native discovery, reassess material deltas. Fresh independent AC1–3 over amended canonicalstory and existingnegative proof; awake owned-lock fullgate/migrations/grants; one complete native cache-clearedcold last; exact allsurvivor review/actuals/closure/rootFF. No currentrebase/execution/gate/cold/done or stale standingapproval.
