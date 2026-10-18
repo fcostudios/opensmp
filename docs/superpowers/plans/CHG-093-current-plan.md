@@ -1,6 +1,6 @@
 **Work item:** CHG-093
 **Readiness assessment:** docs/readiness/CHG-093.json
-**Approved estimate:** 380 minutes
+**Approved estimate:** 450 minutes
 
 # CHG-093 Current Integration Implementation Plan
 
@@ -10,11 +10,11 @@
 **Architecture:** Existing frozen production functions unchanged. Restore original stronger suites and authentic ledger/authority through normal approved reconstruction; finite isolated diagnostic controls explain seven findings before final proof.
 **Tech Stack:** TypeScript/Vitest4.1.10/Stryker9.6.1/shared PostgreSQL16, existing node/pnpm tooling.
 **Spec:** docs/superpowers/specs/CHG-093-current-design.md
-**Bound digest:** 97f0f1800289069346dc2244bbdbff6083ae717ab2907c5fff95f098c455666d
+**Bound digest:** 750211e732d46d36d7e4bc3902e576ca7d6051b540eebb4bf5f000a131736482
 
 ## Global Constraints
 
-- Exact approved cumulative380; full accounting/unknowna/reserves in readiness; no newclock or borrowed107proof/cost.
+- Exact approved cumulative450; full accounting/unknowna/reserves in readiness; no newclock or borrowed107proof/cost.
 - No production/tooling repair, migration, routing/threshold/config/dependency change or second campaign.
 - Preserve original source/ledger/approval/actuals and all seven unresolved findings; no force-equivalence.
 - Own shared lock/PG16, ordinaryGuayaquil/fullgateawake, finalUTC/cacheoff; no foreignlock deletion or privatecontainer.
@@ -29,15 +29,15 @@
 4. Partial closure/replay/failure: real transactional snapshots, tenant isolation and no capacity/watermark/projection writes.
 5. Costs/custody after source movement: retain raw failures/durable archive, unknown attribution and all required phases once.
 
-### Task 1: Current candidate reconstruction and custody (10 estimated active minutes remaining)
+### Task 1: Current candidate reconstruction and custody (6 estimated active minutes remaining)
 
-**Files:** Only readiness inventory's historical control/test/bookkeeping paths. Preserve all current canonical107authority. No new product edits.
+**Files:** Only readiness inventory's historical control/test/bookkeeping paths. Preserve all current canonical107authority. No new product edits. Preserve rejected04056 and stagedtree7c6570a as audit; never modify its originalworktree.
 **Consumes:** Current design/plan entry, old5e3553d/2e7dae68/470e8f2/d97563fb refs and source-bindings.json.
 **Produces:** actual candidate, complete old-to-new SHA map, raw-line prefix/uniqueness proof, restored closedbc2/254 and two stronger suites, immutable owned-source confirmation.
 - [ ] Preserve refs; inspect exact replay delta and write proposed per-commit map without inventing output SHAs.
-- [ ] Reconstruct within isolated candidate using real ancestry and normal per-parent hooks. Restore original unique ledger rows byte-for-byte in order after current exact prefix. Preserve current approval/plan and later canonical source claims.
+- [ ] Reconstruct within isolated candidate from actuala8 main using real originalauthority checkpoints and normal per-parent hooks. Main rawprefix stays exact; import original unique historicalrows/decisions unchanged FIRST, then authentic new750211 approval/controlrows. Preserve preparedapproval/plan branch as immutable reference; do not append olddecisions after currentapproval or use futureapproval for oldsource. Exclude only redundantNEW04056started from finalancestry with originalcommit/rawfailedcandidate preserved. No NEWstarted before originalhistory, no lifecycle_corrected. Add truthful phase/resume annotation only after restoredhistory and currentapproval are valid.
 - [ ] Check original/current owned blobs and all source/test/guide hashes. No historical raw reports claimed recovered unless exact bytes/hash actually recovered.
-- [ ] Run normal readiness/history/ledger/source checks; record exact original failures if any. STOP any unexpected ownership failure/production conflict or forecast over380; no alternatebase bypass.
+- [ ] Run normal readiness/history/ledger/source checks; record exact original failures if any. STOP any unexpected ownership failure/production conflict or forecast over450; no alternatebase bypass.
 - [ ] Commit green checkpoint under CHG-093 and return actual diff/range/report for scoped review.
 
 ### Task 2: Three finite activation controls and persisted invariant/oracle (15+10)
@@ -51,9 +51,9 @@
 - [ ] Review204/230/46 against production and public-port contract. Any required tool/productrepair or wider scope STOP; return exact evidence, not claim all tests passed.
 - [ ] Run only affected focused suites, record previews explicitly if applicable, commit test checkpoint and hand exact diff/evidence to reused reviewer.
 
-### Task 3: Acceptance, fullgate and final cold (10+10+45)
+### Task 3: Acceptance, fullgate and final cold (10+7+45)
 
-**Consumes:** scoped-reviewed source-bound candidate, all7dispositions proposed and complete cost within380.
+**Consumes:** scoped-reviewed source-bound candidate, all7dispositions proposed and complete cost within450.
 **Produces:** fresh own fullgate/AC review, one authoritative owned cold and final source-bound survivor verdicts.
 - [ ] Own `rtk proxy env TZ=America/Guayaquil MUTATION_SCOPE_WORK_ID=CHG-093 MUTATION_WORK_ID=US-087 caffeinate -i pnpm check` with shared lock held whole duration; real migrations/verify/app access and focused AC evidence.
 - [ ] Fresh independent finalACreview allUS087ACs, native validity and all7/9conditions; no author selfreview substituted. AllImportant gaps resolved before cold, otherwise STOP.
@@ -74,3 +74,7 @@
 ## Preflight interface check
 
 Task1 candidate/blob/closedauthority is required by Task2diagnostics and Task3ownedmutation; task2reports cannot authorizecold beforeTask3review. Task4 requires actualPASS and currentauthority, not task3numeric score alone. No task consumes an unproduced API or introduces a product change.
+
+## Current cost and entry binding
+
+Readiness exact750211 authorizes thisplan, cumulative450; completeprojection400.3879115965. Fullremaining103=Task1 6 +Task2 25 +Task3 62 +Task4 10, withall7/nineconditions/fullACs. Adoption10 alreadyincurred (6author+3independentreadinessreview+1commit/handoff), coord6 containsoperator.25 andcurrentcontrollerbinding/plan/dispatch estimated2 once, remainder3.75 subjectactualtailreconciliation. Same-scopeheadroom49.6121 unspent; no new product/toolrepair or extra campaign. Useactualcosts/forecasts rather than mechanicallyadding spenttaskcost toitsentirefutureallocation. Gate source/base fields must beactual, no placeholders. IndependentreadinessreviewPASS is not runtimesignoff.
