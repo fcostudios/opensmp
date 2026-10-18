@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "dfc0f38e994531b430873fba5355ab2383016a5fb2db1ca549d2f396fde36d18",
+  "readiness_payload_sha256": "34e583f736fcb441394e2ddc5f815697bbc962154d42844e15decfb5d86c609a",
   "work_id": "US-087",
   "kind": "US",
   "work_type": "functional",
@@ -51,12 +51,12 @@
     "tooling_change": false
   },
   "estimate_minutes": {
-    "readiness": 30,
-    "implementation": 50,
+    "readiness": 36,
+    "implementation": 43,
     "focused_verification": 35,
-    "review": 55,
-    "integration": 80,
-    "total": 250
+    "review": 62,
+    "integration": 84,
+    "total": 260
   },
   "uncertainties": [
     {
@@ -77,8 +77,8 @@
       "id": "U3",
       "statement": "What real completion assurance deficit remains?",
       "status": "budgeted",
-      "estimate_impact_minutes": 70,
-      "resolution": "Reuse diagnostic only: .superpowers/sdd/2026-10-12-us086-anchored-removal-start-plan/cold-proof.json at candidate a73050acb2b46f2601ffeac344f21355389b6890, manifest hash ee3d8d9acfe32e554a2ef49eff5a439b4b8c92af5ca094b98e57cebc967e8437. Owned lifecycle vitest-5224445ac963:119 killed/113 survived/7 no coverage of239=49.79%; orchestration vitest-86d14021ac87:81/28/9 of118=68.64%; wrapper vitest-0d9d477c30ff:48/6/3 of57=84.21%. These are unfinished US-087 completion shards, not acceptable inherited closure. Nonkilled clusters: lifecycle90-117 validator/confirmation/replay/date rules; orchestration47-68 SQL loading/row-count/actor/transition guards and474 identity,682 unconfirmed state guards; wrapper93-95/236/243-244 identity/result validation. Implementation70 reserves meaningful direct finalizer/validator and real wrapper/SQL oracle repair, not blanket equivalence or guard deletion. Any larger repair forecast is reassessed, not hidden behind inherited production."
+      "estimate_impact_minutes": 15,
+      "resolution": "Current source-unchanged d41df91 native completion previews retain exact raw reports: lifecycle222K/17S/0NC of239=92.89%, SHA2563d3668771a9f0d9b7115e334a27c5810c279bf0963f726944f69113e5b9b8f39; wrapper54K/2S/1NC of57=94.74%, SHA256be5c3c753e328dae12ab9a68113e086891a5a9467508cfe7a8d1947231ae41c1; orchestration90K/23S/5NC of118=76.27%, threshold RED exit1, SHA25656b4c50c56e6497e73961400b6d35d683389a7ab90f7737eca5c5568adae5927. All report source bytes match; these are diagnostics, never authoritative closure. Reused independent classifier32 estimated cumulative minutes signs only precise equivalents and identifies reachable oracle gaps. Final test-only repair wave15 conservative active minutes covers wrapper rejected-audit entity_type42; callable context7, duplicate/mixed-type loaded-row semantic copies13/14/15/16/19/20/22/25 and coherent foreign company61; legal historical contradictory receipt180 and deterministic UTC-host Ecuador date214; real orchestration mode/null payload21-24/34-35, exact transition note59, not-done original/state/status/partial-closure refusals86-104 and sent acceptance98; holder28/29 require applied tenant-FK proof or legal coherent foreign-person fixture before annotation. Direct pure validator facts derive from real SQL, not owned mocks. Portable domain177/204/209/230 remain distinguishable and retained as genuine survivors in denominator: reviewer accepts only current SQL deployment risk, exact exclusion and guarded closure count evidence, with intact production guards and no present canonical AC/safety defect; never global equivalence. No production extraction solely to expose mutation branches, guard deletion or owned-port stub. Larger actual burden triggers reassessment before affected work."
     },
     {
       "id": "U4",
@@ -105,15 +105,15 @@
       "id": "U7",
       "statement": "Can the full prospective work including the actual cold runtime fit250 minutes?",
       "status": "budgeted",
-      "estimate_impact_minutes": 8,
-      "resolution": "Reassessed full prospective forecast remains250, not a reset of incurred cost: readiness30 comprises prior same-controller22 estimated plus new bounded reassessment8; implementation50 comprises Task1 estimated20 actual role labor plus Task2 core25 and bounded fixes5; focused35 comprises prior measured checks conservatively1 plus remaining focused/runtime4 and touched previews≤30; review55 comprises reused reviewer14 already estimated, independent canonical interpretation5 estimated (4 active +0.5 bookkeeping conservatively rounded; eight visible tools counted, context/output unavailable), remaining scoped10, fresh adversarial15 and survivor/controller/root-decision reserve11; integration80 comprises controller plan/handoff8 estimated, real US-081 composite integration proof8, owned-lock awake gate/migration/grant5, full native cold45 from prior actual40.9258, identity/report/closure14. Every component is disjoint; process waiting is not active-role labor. Technical/US-081 implementation and idle integration waits are not charged here. Previous250 forecast20/70/40/50/70 is preserved in Git; observed Task1 completion20 against its40 cap frees real implementation margin for assessment/integration, not arbitrary estimate stretching. No automatic authorization beyond250/hard320; any material repair/path/boundary or integrated native discovery/runtime increase requires fresh reassessment before affected work. One consolidated worker, reused scoped reviewer, fresh AC reviewer; no owned mocks/private containers, stock shared fixture only. Previews≤30 touched only, slow once finally unless touched; final cache-cleared complete native cold only after real capacity proof and final AC/reviews settle."
+      "estimate_impact_minutes": 10,
+      "resolution": "New full current-plus-remaining forecast260 explicitly replaces, rather than relabels, prior approved250 retained in Git. Readiness36 = prior same-controller30 estimate plus this6 estimated reassessment; implementation43 = Task1 actual-role estimate20 +Task2 actual-role estimate8 +final test-only repair15 conservative. Task2 real17-minute saving versus25, together with original5 fix reserve, funds15 repair and leaves7; no imagined review saving. Focused35 = measured prior checks/runtime rounded1 +remaining process checks/runtime4 +hard previewcap30, distinct from active-role launch/check labor. Review62 = reused reviewer32 cumulative estimated after all48 classifications +independent Astra5 retained once +remaining scoped5 +fresh adversarial15 +bounded controller/root decision5. Integration84 = controller plan/handoff8 +realUS081 composite proof8 +awake gate/migration/grant5 +native cold49 +identity/report/closure14. Measured owned previews202.709+738.155+360.240 seconds=21.6851 minutes; unchanged foreign reference1163.429 seconds=19.3905, summed campaign41.0756; setup/teardown reserve3 and added-oracle growth reserve4 yield48.0756, conservatively cold49. This is a forecast, not a cold measurement; actual US081 integration requires native discovery/runtime reforecast before final cold if material. Previewcap remains30:21.6851 incurred leaves8.3149. Only orchestration final diagnostic after focused GREEN/scoped review, bounded by remaining cap; no wrapper/domain rerun, their pre-fix raw evidence remains diagnostic and no post-fix score claim until mandatory complete native cold. Fault seeds exactly match reachable retained mutants and restore exact source bytes before checkpoint. Total260 is below hard320 with same six delivery/four bookkeeping scope; no automatic further budget/path/boundary expansion. No idle integration wait or separately owned implementation charge."
     },
     {
       "id": "U8",
       "statement": "How are historical and sibling actuals counted?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Preserve US-075 historical255.0026minutes once without reset/recount or invented per-child split, including prior invalid cold and repaired whole cold. Preserve US-086 own actuals and diagnostic full cold40.9258minutes once on US-086, never charge its reused reports to US-087. New250 covers only prospective US-087 readiness/controller/implementer/reviewer/test/gate/cold/evidence costs counted once. Current readiness phase will be reported as active-role estimate if precise labor telemetry is unavailable, not fabricated billing. Closure actuals include preview_rounds/minutes and deviations; done.cost uses available measured values or explicitly estimated nonzero aggregate, no invented model/window metrics. Same readiness controller resumed for this prerequisite-resolution refresh; combined readiness active-role labor estimate is22minutes (prior18 plus refresh4), rather than an invented measured value or reset. This is a current readiness phase variance+2 against20 within full250 estimate; root must carry it honestly in final actuals and remaining forecast. New material capacity-availability reassessment is carried prospectively in readiness30 as prior22+bounded8, never erasing original+2 phase variance/history. Task1 worker estimated20 active minutes and reviewer14 cumulative are retained; focused Vitest34.91seconds across four attempts and native paired preflight0.897seconds are measured separately, not claimed whole wrapper setup timings or fabricated newkills. Original failed fixture/oracle checks are retained."
+      "resolution": "Preserve US-075 historical255.0026minutes once without reset/recount or invented per-child split, including prior invalid cold and repaired whole cold. Preserve US-086 own actuals and diagnostic full cold40.9258minutes once on US-086, never charge its reused reports to US-087. New250 covers only prospective US-087 readiness/controller/implementer/reviewer/test/gate/cold/evidence costs counted once. Current readiness phase will be reported as active-role estimate if precise labor telemetry is unavailable, not fabricated billing. Closure actuals include preview_rounds/minutes and deviations; done.cost uses available measured values or explicitly estimated nonzero aggregate, no invented model/window metrics. Same readiness controller resumed for this prerequisite-resolution refresh; combined readiness active-role labor estimate is22minutes (prior18 plus refresh4), rather than an invented measured value or reset. This is a current readiness phase variance+2 against20 within full250 estimate; root must carry it honestly in final actuals and remaining forecast. New material capacity-availability reassessment is carried prospectively in readiness30 as prior22+bounded8, never erasing original+2 phase variance/history. Task1 worker estimated20 active minutes and reviewer14 cumulative are retained; focused Vitest34.91seconds across four attempts and native paired preflight0.897seconds are measured separately, not claimed whole wrapper setup timings or fabricated newkills. Original failed fixture/oracle checks are retained. Current Task2 worker8 estimated active minutes and reused reviewer32 cumulative are preserved, not reset; current previews21.6851 measured minutes include orchestration threshold failure. Task1/Task2 measured focused Vitest58.34seconds and paired preflights1.657seconds are distinct from uninstrumented whole wrapper setup. New assessment6 estimated readiness minutes updates current readiness36 honestly; no invented billing telemetry."
     },
     {
       "id": "U9",
@@ -134,7 +134,7 @@
       "statement": "How is standing authorization recorded without fabricated new human approval?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Francisco standing operator request dbf03c249f9f04ee83968d4bf87450c26acb0887 and US-024 controller delegation authorize this exact250-minute same-six-delivery/four-bookkeeping reassessment and all next stages. Priorready9aeeb1af, originalblockeda587591, plan0de7931 approval/starte21446f and greenTask1d79c810 remain immutable in Git/ledger. CHG-089/090 technical closures and root joint gate are complete, so their former release hold is discharged. Independently reviewed canonical interpretation permits core US-087 work in parallel with existing US-081; full AC3/finalfreshacceptance/finalnativecold/done are held until actual US-081 integration and composite proof. Record a new digest-bound delegated decision without fabricating an explicit new user digest reply; reused scoped reviewer approves corrected assessment/plan before the same worker resumes Task2. No code/test/tooling changes or owner expansion in this reassessment; no routine human approval pause."
+      "resolution": "Francisco standing operator request dbf03c249f9f04ee83968d4bf87450c26acb0887 and US-024 controller delegation authorize this corrected in-scope260-minute reassessment and all next stages after independent exact-payload/plan scoped review. This is a changed budget from prior250, never unchanged approval replay; original250 artifact/decision and all earlier history remain immutable. Record new digest-bound delegated decision after review without fabricating explicit new user digest reply. Only test-only final repair wave and orchestration bounded diagnostic are released; realUS081 composite proof/fullAC3/fresh final acceptance/nativecold/done remain held. Reassess actual integrated native discovery/runtime if material. No Nous allocation/product ruling, owner expansion or human permission loop."
     }
   ],
   "dependencies": [],
@@ -143,8 +143,8 @@
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "US087-READY-PARALLEL-CORE-20261012",
-    "payload_sha256": "dfc0f38e994531b430873fba5355ab2383016a5fb2db1ca549d2f396fde36d18"
+    "evidence": "US087-READY-FINAL-ORACLES-20261012",
+    "payload_sha256": "34e583f736fcb441394e2ddc5f815697bbc962154d42844e15decfb5d86c609a"
   },
   "actuals": null,
   "policy_bootstrap": false,
