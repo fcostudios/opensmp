@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "9aeeb1afd4100c7f9bf17b3107907942c3560e14fff77218f44720d7351e451e",
+  "readiness_payload_sha256": "dfc0f38e994531b430873fba5355ab2383016a5fb2db1ca549d2f396fde36d18",
   "work_id": "US-087",
   "kind": "US",
   "work_type": "functional",
@@ -51,11 +51,11 @@
     "tooling_change": false
   },
   "estimate_minutes": {
-    "readiness": 20,
-    "implementation": 70,
-    "focused_verification": 40,
-    "review": 50,
-    "integration": 70,
+    "readiness": 30,
+    "implementation": 50,
+    "focused_verification": 35,
+    "review": 55,
+    "integration": 80,
     "total": 250
   },
   "uncertainties": [
@@ -71,7 +71,7 @@
       "statement": "Which prior behavior, dependencies and design authority are inherited?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "US-019, US-020 and US-086 are effectively dev_done; no functional blocking dependency remains. US-075 stays a partition/verification parent, never a dev_done claim. Its approved design and plan Completion/atomic finalization, Checkpoint2, Verified audit receipt consumption and Delegated direct-primitive oracle repair sections cover this child interface, tenant/role boundary, one transaction lifecycle, non-goals and verification strategy. A child plan must cite those exact sections if design inheritance is used; otherwise prepare a bounded child design after technical gates clear. US-082 owns connector dispatch/retry and consumes this primitive; US-076 departure confirmation, US-077 business calendar/job, US-028 reclamation approval, US-068/069 invitation-only deprovision transitions, US-081/085 capacity projection remain adjacent allocations. Existing invitation deprovision path is not removal completion. Preserve person status, quantities and refresh watermark; no provider call."
+      "resolution": "US-019, US-020 and US-086 are effectively dev_done; no execution-blocking dependency remains. US-081 AC2/AC4 owns the accepted-observation producer and projection, and its Notes explicitly allow parallel-safe finalization. That implementation is not integrated in this head; it is a named composite verification dependency for full US-087 AC3/closure, not an artificial execution blocked_by. US-085 overview is not needed for shared projection proof. US-075 stays a partition/verification parent, never a dev_done claim. Its approved design and plan Completion/atomic finalization, Checkpoint2, Verified audit receipt consumption and Delegated direct-primitive oracle repair sections cover this child interface, tenant/role boundary, one transaction lifecycle, non-goals and verification strategy. A child plan must cite those exact sections if design inheritance is used; otherwise prepare a bounded child design after technical gates clear. US-082 owns connector dispatch/retry and consumes this primitive; US-076 departure confirmation, US-077 business calendar/job, US-028 reclamation approval, US-068/069 invitation-only deprovision transitions, US-081/085 capacity projection remain adjacent allocations. Existing invitation deprovision path is not removal completion. Preserve person status, quantities and refresh watermark; no provider call."
     },
     {
       "id": "U3",
@@ -89,31 +89,31 @@
     },
     {
       "id": "U5",
-      "statement": "Which end-to-end behaviors and inherited fixture must finish together?",
+      "statement": "Which core behaviors are demonstrable now, and which full AC3 proof needs the existing US-081 integration?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Real authorization repository and actual checklist wrapper must prove both removal reasons, pendingChecklist visibility, not-done trimmed reason/failure ID replay and conflict, distinct attempts, retryability and zero closure while unconfirmed, successful retry clearing failure_reason, exact request/action/assignment/audit identity, no accepted:true wrapper duplicate audit, permitted denial/failed-attempt audit only, original receipt/date/reason retained across same/different confirmation IDs/admins and concurrent confirmations. Force completion-audit and independently expected receipt failure through real SQL triggers and assert rollback of every accepted write. Seed unrelated seat/second tenant and assert no mutation or data leak; no Person.status/capacity/watermark write. Legacy alert fixture already has request assignment pointer and kind remove at assessed head; retain its ownership and prove inherited repair plus exact Ecuador same-business-day deadline, rather than manufacture edits. Use existing US-081 real projection to prove closure remains pending_refresh until a strictly later accepted observation; consume adjacent implementation without changing it."
+      "resolution": "Real authorization repository and actual checklist wrapper must prove both removal reasons, pendingChecklist visibility, not-done trimmed reason/failure ID replay and conflict, distinct attempts, retryability and zero closure while unconfirmed, successful retry clearing failure_reason, exact request/action/assignment/audit identity, no accepted:true wrapper duplicate audit, permitted denial/failed-attempt audit only, original receipt/date/reason retained across same/different confirmation IDs/admins and concurrent confirmations. Force completion-audit and independently expected receipt failure through real SQL triggers and assert rollback of every accepted write. Seed unrelated seat/second tenant and assert no mutation or data leak; no Person.status/capacity/watermark write. Legacy alert fixture already has request assignment pointer and kind remove at assessed head; retain its ownership and prove inherited repair plus exact Ecuador same-business-day deadline, rather than manufacture edits. Current packages/db/src/pool-snapshots.ts still uses calendar ended_on counts and this head has no recordAcceptedMemberSnapshot or pending_refresh; do not invent an available projection or fake/mock pass. Core Task2 proves exact no removal write to quantities/watermark and actual wrapper behavior now. Full canonical AC3 remains intact and cannot pass until real US-081 AC2/AC4 producer/projection integrates: absent, equal and earlier observation leave the closed seat pending/unfree, then a strictly later validated COMPLETE account-wide observation frees it. US-087 consumes that separately delivered implementation read-only in one of its six existing test paths; it does not implement US-081 or US-085. Hold final fresh AC acceptance, final native cold and done for this real composite proof. No canonical product ruling, orphaned AC or narrower stored-capacity substitute."
     },
     {
       "id": "U6",
       "statement": "How is mutation authority preserved after inherited code landed on main?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Freeze MUTATION_BASE=783d09df4467e27462dec440cc64ac4855d02e02, the accepted mapping of original US-075 base37666528d03a50e2529cad4382f2a5ae146dca63 in docs/readiness/drafts/CHG-082-us024-main-integration.md (all88 commits mapped). Native initial discovery is7 shards/8 sources/48 ranges; do not use current main to hide inherited completion. US-087 owns exactly wrapper/lifecycle/orchestration three shards; the three US-086 entry shards and separately closed CHG-081 audit shard remain discovered. No source filter or harness threshold/instrumentation/routing edits. Record any native discovery delta. Each owned shard must independently reach80% and every nonkilled mutant gets reviewed one-line annotation; no borrowed foreign score. US-086 owns301K/6S/2NC of309=97.411% and its one accepted low-risk stale UI affordance remains explicit, not equivalent. Retain all reports/manifests/content and suite hashes/exit statuses."
+      "resolution": "Freeze MUTATION_BASE=783d09df4467e27462dec440cc64ac4855d02e02, the accepted mapping of original US-075 base37666528d03a50e2529cad4382f2a5ae146dca63 in docs/readiness/drafts/CHG-082-us024-main-integration.md (all88 commits mapped). Native initial discovery is7 shards/8 sources/48 ranges; do not use current main to hide inherited completion. US-087 owns exactly wrapper/lifecycle/orchestration three shards; the three US-086 entry shards and separately closed CHG-081 audit shard remain discovered. No source filter or harness threshold/instrumentation/routing edits. Record any native discovery delta. Each owned shard must independently reach80% and every nonkilled mutant gets reviewed one-line annotation; no borrowed foreign score. US-086 owns301K/6S/2NC of309=97.411% and its one accepted low-risk stale UI affordance remains explicit, not equivalent. Retain all reports/manifests/content and suite hashes/exit statuses. Current7/8/48 was proved at Task1d79c810 via stock paired runtime preflight with no gaps. Future US-081 integration can change discovered shards/ranges/runtime; record the exact new head/SHA map and native preflight, reassess materially changed forecast before final cold. Do not filter out adjacent integrated sources or promise unchanged seven discovery after that merge."
     },
     {
       "id": "U7",
       "statement": "Can the full prospective work including the actual cold runtime fit250 minutes?",
       "status": "budgeted",
-      "estimate_impact_minutes": 0,
-      "resolution": "New allocation250 is a full prospective envelope: readiness20 includes this bounded assessment; implementation70 includes inherited completion conformance and all meaningful oracle repairs; focused40 includes focused tests10 and touched previews up to30; review50 includes reused scoped review15, fresh adversarial AC1-3 review20 and bounded survivor/fix review15; integration70 includes final native cold45 (measured prior2455.548s=40.9258min plus setup reserve), owned-lock awake stock gate/migration/grant proof5 and evidence/identity/actuals/integration20. Sum250, hard cap320 leaves70 risk margin, not automatic permission to expand250. One consolidated implementer, one reused scoped reviewer and fresh adversarial reviewer; controller plans/briefs/reviews. At most one preview per task plus final fix round and30minutes; slow shards once finally unless touched; no whole-set preview without named cause. Domain/orchestration prior failed performance entries have null duration, so budget uses whole measured run, not fabricated shard times. Real shared CHG-067 PG fixture only, no private containers/owned mocks. Acquire/release only owned token+inode /tmp/smp-full-gate.lock for caffeinate -i pnpm check. Final one cache-cleared native whole7 cold last after code/test/review settle; failed repair reruns preserve cost/evidence and trigger forecast reassessment."
+      "estimate_impact_minutes": 8,
+      "resolution": "Reassessed full prospective forecast remains250, not a reset of incurred cost: readiness30 comprises prior same-controller22 estimated plus new bounded reassessment8; implementation50 comprises Task1 estimated20 actual role labor plus Task2 core25 and bounded fixes5; focused35 comprises prior measured checks conservatively1 plus remaining focused/runtime4 and touched previews≤30; review55 comprises reused reviewer14 already estimated, independent canonical interpretation5 estimated (4 active +0.5 bookkeeping conservatively rounded; eight visible tools counted, context/output unavailable), remaining scoped10, fresh adversarial15 and survivor/controller/root-decision reserve11; integration80 comprises controller plan/handoff8 estimated, real US-081 composite integration proof8, owned-lock awake gate/migration/grant5, full native cold45 from prior actual40.9258, identity/report/closure14. Every component is disjoint; process waiting is not active-role labor. Technical/US-081 implementation and idle integration waits are not charged here. Previous250 forecast20/70/40/50/70 is preserved in Git; observed Task1 completion20 against its40 cap frees real implementation margin for assessment/integration, not arbitrary estimate stretching. No automatic authorization beyond250/hard320; any material repair/path/boundary or integrated native discovery/runtime increase requires fresh reassessment before affected work. One consolidated worker, reused scoped reviewer, fresh AC reviewer; no owned mocks/private containers, stock shared fixture only. Previews≤30 touched only, slow once finally unless touched; final cache-cleared complete native cold only after real capacity proof and final AC/reviews settle."
     },
     {
       "id": "U8",
       "statement": "How are historical and sibling actuals counted?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Preserve US-075 historical255.0026minutes once without reset/recount or invented per-child split, including prior invalid cold and repaired whole cold. Preserve US-086 own actuals and diagnostic full cold40.9258minutes once on US-086, never charge its reused reports to US-087. New250 covers only prospective US-087 readiness/controller/implementer/reviewer/test/gate/cold/evidence costs counted once. Current readiness phase will be reported as active-role estimate if precise labor telemetry is unavailable, not fabricated billing. Closure actuals include preview_rounds/minutes and deviations; done.cost uses available measured values or explicitly estimated nonzero aggregate, no invented model/window metrics. Same readiness controller resumed for this prerequisite-resolution refresh; combined readiness active-role labor estimate is22minutes (prior18 plus refresh4), rather than an invented measured value or reset. This is a current readiness phase variance+2 against20 within full250 estimate; root must carry it honestly in final actuals and remaining forecast."
+      "resolution": "Preserve US-075 historical255.0026minutes once without reset/recount or invented per-child split, including prior invalid cold and repaired whole cold. Preserve US-086 own actuals and diagnostic full cold40.9258minutes once on US-086, never charge its reused reports to US-087. New250 covers only prospective US-087 readiness/controller/implementer/reviewer/test/gate/cold/evidence costs counted once. Current readiness phase will be reported as active-role estimate if precise labor telemetry is unavailable, not fabricated billing. Closure actuals include preview_rounds/minutes and deviations; done.cost uses available measured values or explicitly estimated nonzero aggregate, no invented model/window metrics. Same readiness controller resumed for this prerequisite-resolution refresh; combined readiness active-role labor estimate is22minutes (prior18 plus refresh4), rather than an invented measured value or reset. This is a current readiness phase variance+2 against20 within full250 estimate; root must carry it honestly in final actuals and remaining forecast. New material capacity-availability reassessment is carried prospectively in readiness30 as prior22+bounded8, never erasing original+2 phase variance/history. Task1 worker estimated20 active minutes and reviewer14 cumulative are retained; focused Vitest34.91seconds across four attempts and native paired preflight0.897seconds are measured separately, not claimed whole wrapper setup timings or fabricated newkills. Original failed fixture/oracle checks are retained."
     },
     {
       "id": "U9",
@@ -134,7 +134,7 @@
       "statement": "How is standing authorization recorded without fabricated new human approval?",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Francisco authorized canonical US-087 and all next approvals through US-024 controller delegation, standing operator request dbf03c249f9f04ee83968d4bf87450c26acb0887. With CHG-089/090 independently source-verified and generated-guidance passing, this exact refreshed250-minute/6delivery/4bookkeeping assessment receives a delegated digest-bound ready decision under that existing authority; no fabricated explicit new user digest reply. Original blockeda587591 artifact/digest remain in Git. Ready describes assessed functional execution suitability, not completed technical stories or completed global gate. Root retains the additional release condition: no execution/design/started until joint owned-lock awake fullgate passes and CHG-089/090 technical closures are recorded. Root then releases the single implementer and serializes lifecycle/ledger; no routine human design approval pause within this unchanged scope. No code/test/tooling change in this refresh."
+      "resolution": "Francisco standing operator request dbf03c249f9f04ee83968d4bf87450c26acb0887 and US-024 controller delegation authorize this exact250-minute same-six-delivery/four-bookkeeping reassessment and all next stages. Priorready9aeeb1af, originalblockeda587591, plan0de7931 approval/starte21446f and greenTask1d79c810 remain immutable in Git/ledger. CHG-089/090 technical closures and root joint gate are complete, so their former release hold is discharged. Independently reviewed canonical interpretation permits core US-087 work in parallel with existing US-081; full AC3/finalfreshacceptance/finalnativecold/done are held until actual US-081 integration and composite proof. Record a new digest-bound delegated decision without fabricating an explicit new user digest reply; reused scoped reviewer approves corrected assessment/plan before the same worker resumes Task2. No code/test/tooling changes or owner expansion in this reassessment; no routine human approval pause."
     }
   ],
   "dependencies": [],
@@ -143,8 +143,8 @@
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "US087-READY-STANDING-20261012",
-    "payload_sha256": "9aeeb1afd4100c7f9bf17b3107907942c3560e14fff77218f44720d7351e451e"
+    "evidence": "US087-READY-PARALLEL-CORE-20261012",
+    "payload_sha256": "dfc0f38e994531b430873fba5355ab2383016a5fb2db1ca549d2f396fde36d18"
   },
   "actuals": null,
   "policy_bootstrap": false,
