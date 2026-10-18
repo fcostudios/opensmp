@@ -1,0 +1,31 @@
+{
+  "base": "7bc42fa74cb198677817a011fd19c3e924a19ecd",
+  "digest": "97f0f1800289069346dc2244bbdbff6083ae717ab2907c5fff95f098c455666d",
+  "classification": "ready",
+  "normal_check": {
+    "command": "node scripts/work-readiness.mjs check CHG-093",
+    "exit_code": 1,
+    "result": "WR_APPROVAL_REQUIRED: The declared decision requires approved evidence"
+  },
+  "diff_check": {
+    "exit_code": 0
+  },
+  "setup": {
+    "command": "pnpm install --frozen-lockfile",
+    "exit_code": 0,
+    "elapsed_seconds": 4.3,
+    "tracked_lock_changed": false,
+    "warning": "Optional cpu-features install reported node-gyp missing; no runtime test executed."
+  },
+  "not_performed": [
+    "replay",
+    "implementation",
+    "diagnostics",
+    "database proof",
+    "tests",
+    "full gate",
+    "cold campaign",
+    "independent final AC review",
+    "integration"
+  ]
+}

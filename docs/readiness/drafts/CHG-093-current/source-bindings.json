@@ -1,0 +1,95 @@
+{
+  "base": "7bc42fa74cb198677817a011fd19c3e924a19ecd",
+  "frozen": "2e7dae68a393fbc669c21e8a22289e93e2b76fb3",
+  "replay_status": "NOT_PERFORMED; actual per-commit SHA map only after approval",
+  "paths": [
+    {
+      "path": "apps/web/src/modules/request-workflow/actions/checklist-action-transaction.ts",
+      "current": {
+        "blob": "1aaf9e6dd6fdacb2f1afc64555d261cf2304d14e",
+        "sha256": "273c68a6d5d100960d7023be0bcdaa0106b57a944f3ecd0a8052c6e5c8fcdebf"
+      },
+      "frozen": {
+        "blob": "1aaf9e6dd6fdacb2f1afc64555d261cf2304d14e",
+        "sha256": "273c68a6d5d100960d7023be0bcdaa0106b57a944f3ecd0a8052c6e5c8fcdebf"
+      }
+    },
+    {
+      "path": "apps/web/src/modules/request-workflow/orchestration.ts",
+      "current": {
+        "blob": "4b05e835f6b54d89eeb22c01e3c77d379c116dab",
+        "sha256": "a52eea8b74fe170e824f30d082d0fd8b7db010250388c2e29773ecc7fb53c6cd"
+      },
+      "frozen": {
+        "blob": "4b05e835f6b54d89eeb22c01e3c77d379c116dab",
+        "sha256": "a52eea8b74fe170e824f30d082d0fd8b7db010250388c2e29773ecc7fb53c6cd"
+      }
+    },
+    {
+      "path": "packages/domain/src/request-workflow/lifecycle.ts",
+      "current": {
+        "blob": "5952c428f906766ad0936595f9296c7024cda321",
+        "sha256": "cc59f730742bf233ebf8aa64d9e6bbd885b7353285c1db9606187ee65393a1a6"
+      },
+      "frozen": {
+        "blob": "5952c428f906766ad0936595f9296c7024cda321",
+        "sha256": "cc59f730742bf233ebf8aa64d9e6bbd885b7353285c1db9606187ee65393a1a6"
+      }
+    },
+    {
+      "path": "apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts",
+      "current": {
+        "blob": "b20b221e5b424632cae19276d8499b431d182efe",
+        "sha256": "40b3351ad1abf53d8b5435397d27b988208c210c1ea54c21be42d3c843743615"
+      },
+      "frozen": {
+        "blob": "b72f6d07bc7c88b257eb49782566af71bb0d76ee",
+        "sha256": "1559a286e4332bc460a7068a6f9e81d82ad36ceefe8a5d17fe6016523866489b"
+      }
+    },
+    {
+      "path": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+      "current": {
+        "blob": "4d5267f142057669eaccad8812803c316a418b99",
+        "sha256": "887bab9aa89c8d7335d441013cb0254194cf8c29e1e31ed9f51bf6183e3baa67"
+      },
+      "frozen": {
+        "blob": "7ba1d563c65ddce2e21e275b5ff8dded1a17a539",
+        "sha256": "c6ceb9eb6ba287f8356e02146a9a942c961a67ef62d950ece143061a7d976611"
+      }
+    },
+    {
+      "path": "packages/domain/src/request-workflow/lifecycle.test.ts",
+      "current": {
+        "blob": "61cbb3f2c6b7a8833904a0d7e2c8385b14cf26e7",
+        "sha256": "6496f9660ccacd3dae5c6f9dc9c4c490bbe4c58189b3ed5c419b9f8f59faa3c7"
+      },
+      "frozen": {
+        "blob": "61cbb3f2c6b7a8833904a0d7e2c8385b14cf26e7",
+        "sha256": "6496f9660ccacd3dae5c6f9dc9c4c490bbe4c58189b3ed5c419b9f8f59faa3c7"
+      }
+    },
+    {
+      "path": "testing/critical-paths.md",
+      "current": {
+        "blob": "b7b17fca49b087a195d71e0db16d039e3cbc9a6e",
+        "sha256": "d2324d079cabb4c69caad11ca5b6d3bd4aa9527e5a6021e735e3b4810595b817"
+      },
+      "frozen": {
+        "blob": "b7b17fca49b087a195d71e0db16d039e3cbc9a6e",
+        "sha256": "d2324d079cabb4c69caad11ca5b6d3bd4aa9527e5a6021e735e3b4810595b817"
+      }
+    },
+    {
+      "path": "docs/dev-guide/TESTING.md",
+      "current": {
+        "blob": "e36e93535158477d33719ba4af6c62dbfbb26645",
+        "sha256": "db3923afa3c6342621dfe6b9f96c64abb72fd83762f58dfa09965b56bbacf72b"
+      },
+      "frozen": {
+        "blob": "e36e93535158477d33719ba4af6c62dbfbb26645",
+        "sha256": "db3923afa3c6342621dfe6b9f96c64abb72fd83762f58dfa09965b56bbacf72b"
+      }
+    }
+  ]
+}
