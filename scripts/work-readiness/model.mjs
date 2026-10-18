@@ -409,23 +409,26 @@ export function computeReadinessPayloadSha256(value) {
   return createHash("sha256").update(canonicalReadinessPayload(value), "utf8").digest("hex");
 }
 
-const SCOPED_CEILING = Object.freeze({
-  project_id: "fcostudios__smp", work_id: "CHG-093", ceiling_minutes: 380,
-  decision_id: "DEC-SMP-059", decision_sha256: "391a0e3545c948dd7082c2d17c9d12a6146c6e3f2d683545df7be8ce07db8433",
-});
+const SCOPED_CEILINGS = Object.freeze([
+  Object.freeze({ project_id: "fcostudios__smp", work_id: "CHG-093", ceiling_minutes: 380,
+    decision_id: "DEC-SMP-059", decision_sha256: "391a0e3545c948dd7082c2d17c9d12a6146c6e3f2d683545df7be8ce07db8433" }),
+  Object.freeze({ project_id: "fcostudios__smp", work_id: "CHG-093", ceiling_minutes: 450,
+    decision_id: "DEC-SMP-061", decision_sha256: "99f4c21a82445c6f7c3649732f615d440592673b2c635ca0d8524719d20116bd" }),
+]);
 
 export function resolveReadinessCeiling(value, context = {}) {
   if (value.budget_exception == null) return { minutes: MAX_READINESS_MINUTES, authority: null };
   const requested = value.budget_exception;
-  if (!isPlainObject(requested) || Object.keys(requested).length !== Object.keys(SCOPED_CEILING).length
-    || Object.keys(SCOPED_CEILING).some((key) => !Object.hasOwn(requested, key) || requested[key] !== SCOPED_CEILING[key])
-    || value.work_id !== SCOPED_CEILING.work_id || value.policy_bootstrap === true) {
+  const selected = isPlainObject(requested) && SCOPED_CEILINGS.find(exact =>
+    Object.keys(requested).length === Object.keys(exact).length
+    && Object.keys(exact).every(key => Object.hasOwn(requested, key) && requested[key] === exact[key]));
+  if (!selected || value.work_id !== selected.work_id || value.policy_bootstrap === true) {
     fail("WR_BUDGET_EXCEPTION_INVALID", "$.budget_exception", "Only the exact project, subject, ceiling and decision tuple is supported");
   }
   if (!isReadinessCeilingContext(context, value)) {
     fail("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", "Scoped ceiling requires admitted policy and custody at the actual authorization revision");
   }
-  return { minutes: SCOPED_CEILING.ceiling_minutes, authority: SCOPED_CEILING };
+  return { minutes: selected.ceiling_minutes, authority: selected };
 }
 
 function hardLimitViolation(value, context = {}) {

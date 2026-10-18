@@ -29,7 +29,9 @@
     "bootstrap_authorization"
   ],
   "properties": {
-    "mutation_scope": { "$ref": "#/$defs/mutation_scope" },
+    "mutation_scope": {
+      "$ref": "#/$defs/mutation_scope"
+    },
     "schema_version": {
       "const": 1
     },
@@ -40,10 +42,17 @@
       "$ref": "#/$defs/work_id"
     },
     "kind": {
-      "enum": ["US", "CHG"]
+      "enum": [
+        "US",
+        "CHG"
+      ]
     },
     "work_type": {
-      "enum": ["functional", "technical", "mixed"]
+      "enum": [
+        "functional",
+        "technical",
+        "mixed"
+      ]
     },
     "title": {
       "$ref": "#/$defs/nonempty_string"
@@ -92,7 +101,11 @@
       }
     },
     "decision": {
-      "enum": ["ready", "partition_required", "blocked"]
+      "enum": [
+        "ready",
+        "partition_required",
+        "blocked"
+      ]
     },
     "partitions": {
       "type": "array",
@@ -135,8 +148,12 @@
     },
     "controlling_change": {
       "oneOf": [
-        { "type": "null" },
-        { "$ref": "#/$defs/controlling_change" }
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/controlling_change"
+        }
       ]
     },
     "budget_exception": {
@@ -174,8 +191,21 @@
       }
     },
     {
-      "if": { "required": ["mutation_scope"] },
-      "then": { "properties": { "kind": { "const": "CHG" }, "work_type": { "const": "technical" } } }
+      "if": {
+        "required": [
+          "mutation_scope"
+        ]
+      },
+      "then": {
+        "properties": {
+          "kind": {
+            "const": "CHG"
+          },
+          "work_type": {
+            "const": "technical"
+          }
+        }
+      }
     },
     {
       "if": {
@@ -184,7 +214,9 @@
             "const": "US"
           }
         },
-        "required": ["kind"]
+        "required": [
+          "kind"
+        ]
       },
       "then": {
         "properties": {
@@ -203,7 +235,9 @@
     },
     {
       "if": {
-        "required": ["policy_bootstrap"],
+        "required": [
+          "policy_bootstrap"
+        ],
         "properties": {
           "policy_bootstrap": {
             "const": true
@@ -228,7 +262,11 @@
             "const": "docs/superpowers/specs/2026-08-13-work-readiness-and-partitioning-design.md"
           },
           "scopes": {
-            "const": ["policy", "repository-tooling", "generator-guidance"]
+            "const": [
+              "policy",
+              "repository-tooling",
+              "generator-guidance"
+            ]
           },
           "estimate_minutes": {
             "const": {
@@ -297,7 +335,9 @@
         }
       },
       "else": {
-        "required": ["controlling_change"],
+        "required": [
+          "controlling_change"
+        ],
         "properties": {
           "bootstrap_exemption_rationale": {
             "type": "null"
@@ -317,7 +357,9 @@
                 "const": "ready"
               }
             },
-            "required": ["decision"]
+            "required": [
+              "decision"
+            ]
           },
           {
             "not": {
@@ -326,7 +368,9 @@
                   "const": true
                 }
               },
-              "required": ["policy_bootstrap"]
+              "required": [
+                "policy_bootstrap"
+              ]
             }
           }
         ]
@@ -334,12 +378,17 @@
       "then": {
         "properties": {
           "work_type": {
-            "enum": ["functional", "technical"]
+            "enum": [
+              "functional",
+              "technical"
+            ]
           },
           "outcomes": {
             "contains": {
               "type": "object",
-              "required": ["primary"],
+              "required": [
+                "primary"
+              ],
               "properties": {
                 "primary": {
                   "const": true
@@ -398,10 +447,15 @@
                       "const": true
                     }
                   },
-                  "required": ["tooling_change"]
+                  "required": [
+                    "tooling_change"
+                  ]
                 }
               },
-              "required": ["work_type", "signals"]
+              "required": [
+                "work_type",
+                "signals"
+              ]
             }
           },
           {
@@ -416,7 +470,10 @@
                   }
                 }
               },
-              "required": ["work_type", "scopes"]
+              "required": [
+                "work_type",
+                "scopes"
+              ]
             }
           },
           {
@@ -426,7 +483,7 @@
               ],
               "properties": {
                 "budget_exception": {
-                  "type": "object"
+                  "$ref": "#/$defs/budget_exception/oneOf/0"
                 }
               }
             },
@@ -442,11 +499,34 @@
               }
             },
             "else": {
-              "properties": {
-                "estimate_minutes": {
-                  "properties": {
-                    "total": {
-                      "maximum": 320
+              "if": {
+                "required": [
+                  "budget_exception"
+                ],
+                "properties": {
+                  "budget_exception": {
+                    "$ref": "#/$defs/budget_exception/oneOf/1"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "estimate_minutes": {
+                    "properties": {
+                      "total": {
+                        "maximum": 450
+                      }
+                    }
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "estimate_minutes": {
+                    "properties": {
+                      "total": {
+                        "maximum": 320
+                      }
                     }
                   }
                 }
@@ -463,7 +543,9 @@
             "const": "partition_required"
           }
         },
-        "required": ["decision"]
+        "required": [
+          "decision"
+        ]
       },
       "then": {
         "properties": {
@@ -533,10 +615,19 @@
     "controlling_change": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["work_id", "relationship", "reason"],
+      "required": [
+        "work_id",
+        "relationship",
+        "reason"
+      ],
       "properties": {
-        "work_id": { "pattern": "^CHG-[0-9]{3,}$", "type": "string" },
-        "relationship": { "const": "readiness_governance" },
+        "work_id": {
+          "pattern": "^CHG-[0-9]{3,}$",
+          "type": "string"
+        },
+        "relationship": {
+          "const": "readiness_governance"
+        },
         "reason": {
           "$ref": "#/$defs/nonempty_string"
         }
@@ -560,21 +651,35 @@
       "minimum": 0
     },
     "nullable_nonnegative_integer": {
-      "type": ["integer", "null"],
+      "type": [
+        "integer",
+        "null"
+      ],
       "minimum": 0
     },
     "nullable_integer": {
-      "type": ["integer", "null"]
+      "type": [
+        "integer",
+        "null"
+      ]
     },
     "nullable_string": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "minLength": 1,
       "pattern": "\\S"
     },
     "outcome": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "statement", "demo", "primary"],
+      "required": [
+        "id",
+        "statement",
+        "demo",
+        "primary"
+      ],
       "properties": {
         "id": {
           "$ref": "#/$defs/nonempty_string"
@@ -593,7 +698,10 @@
     "acceptance_criterion": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "outcome_ids"],
+      "required": [
+        "id",
+        "outcome_ids"
+      ],
       "properties": {
         "id": {
           "$ref": "#/$defs/nonempty_string"
@@ -705,10 +813,17 @@
           "$ref": "#/$defs/nonempty_string"
         },
         "status": {
-          "enum": ["resolved", "budgeted", "unresolved"]
+          "enum": [
+            "resolved",
+            "budgeted",
+            "unresolved"
+          ]
         },
         "estimate_impact_minutes": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 0
         },
         "resolution": {
@@ -719,13 +834,20 @@
     "dependency": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["work_id", "type", "reason"],
+      "required": [
+        "work_id",
+        "type",
+        "reason"
+      ],
       "properties": {
         "work_id": {
           "$ref": "#/$defs/work_id"
         },
         "type": {
-          "enum": ["blocks", "blocked_by"]
+          "enum": [
+            "blocks",
+            "blocked_by"
+          ]
         },
         "reason": {
           "$ref": "#/$defs/nonempty_string"
@@ -782,7 +904,10 @@
           }
         },
         "work_type": {
-          "enum": ["functional", "technical"]
+          "enum": [
+            "functional",
+            "technical"
+          ]
         },
         "scopes": {
           "type": "array",
@@ -860,10 +985,15 @@
                     "const": true
                   }
                 },
-                "required": ["tooling_change"]
+                "required": [
+                  "tooling_change"
+                ]
               }
             },
-            "required": ["work_type", "signals"]
+            "required": [
+              "work_type",
+              "signals"
+            ]
           }
         },
         {
@@ -878,7 +1008,10 @@
                 }
               }
             },
-            "required": ["work_type", "scopes"]
+            "required": [
+              "work_type",
+              "scopes"
+            ]
           }
         }
       ]
@@ -886,10 +1019,19 @@
     "approval": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status", "approved_by", "evidence", "payload_sha256"],
+      "required": [
+        "status",
+        "approved_by",
+        "evidence",
+        "payload_sha256"
+      ],
       "properties": {
         "status": {
-          "enum": ["pending", "approved", "rejected"]
+          "enum": [
+            "pending",
+            "approved",
+            "rejected"
+          ]
         },
         "approved_by": {
           "$ref": "#/$defs/nullable_string"
@@ -1024,37 +1166,74 @@
       }
     },
     "budget_exception": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "project_id",
-        "work_id",
-        "ceiling_minutes",
-        "decision_id",
-        "decision_sha256"
-      ],
-      "properties": {
-        "project_id": {
-          "type": "string",
-          "const": "fcostudios__smp"
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "project_id",
+            "work_id",
+            "ceiling_minutes",
+            "decision_id",
+            "decision_sha256"
+          ],
+          "properties": {
+            "project_id": {
+              "type": "string",
+              "const": "fcostudios__smp"
+            },
+            "work_id": {
+              "type": "string",
+              "const": "CHG-093"
+            },
+            "ceiling_minutes": {
+              "type": "integer",
+              "const": 380
+            },
+            "decision_id": {
+              "type": "string",
+              "const": "DEC-SMP-059"
+            },
+            "decision_sha256": {
+              "type": "string",
+              "const": "391a0e3545c948dd7082c2d17c9d12a6146c6e3f2d683545df7be8ce07db8433"
+            }
+          }
         },
-        "work_id": {
-          "type": "string",
-          "const": "CHG-093"
-        },
-        "ceiling_minutes": {
-          "type": "integer",
-          "const": 380
-        },
-        "decision_id": {
-          "type": "string",
-          "const": "DEC-SMP-059"
-        },
-        "decision_sha256": {
-          "type": "string",
-          "const": "391a0e3545c948dd7082c2d17c9d12a6146c6e3f2d683545df7be8ce07db8433"
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "project_id",
+            "work_id",
+            "ceiling_minutes",
+            "decision_id",
+            "decision_sha256"
+          ],
+          "properties": {
+            "project_id": {
+              "type": "string",
+              "const": "fcostudios__smp"
+            },
+            "work_id": {
+              "type": "string",
+              "const": "CHG-093"
+            },
+            "ceiling_minutes": {
+              "type": "integer",
+              "const": 450
+            },
+            "decision_id": {
+              "type": "string",
+              "const": "DEC-SMP-061"
+            },
+            "decision_sha256": {
+              "type": "string",
+              "const": "99f4c21a82445c6f7c3649732f615d440592673b2c635ca0d8524719d20116bd"
+            }
+          }
         }
-      }
+      ]
     }
   }
 }

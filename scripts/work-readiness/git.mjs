@@ -66,6 +66,38 @@ const CEILING_DECISION_SHA256 = "391a0e3545c948dd7082c2d17c9d12a6146c6e3f2d68354
 const CEILING_SOURCE = "163e49e71e2e11d1871c842a8f015d15dc3023d0";
 const CEILING_POLICY_PATHS = ["scripts/work-readiness/model.mjs", "docs/dev-guide/work-readiness.schema.json",
   "scripts/work-readiness.mjs", "scripts/work-readiness/git.mjs"];
+// Each version retains its own immutable admission. The historical 107 line is
+// never relabeled as the current 108 source lineage.
+const CEILING_VERSIONS = Object.freeze([
+  Object.freeze({ workId: "CHG-107", minutes: 380, decision: "DEC-SMP-059", decisionHash: CEILING_DECISION_SHA256,
+    admission: CEILING_ADMISSION, parent: "43d6b8ac83095ae817cb195f17c25e6427cb4afc", custodyBase: CEILING_CUSTODY_BASE,
+    ownedBase: CEILING_OWNED_BASE, source: CEILING_SOURCE,
+    readiness: "d3f911dfd16a9fc5d0dd1cb344ef6eaa40a1754db5090d71624cb72afa977c8a",
+    hashes: Object.freeze({ ".nous-project.json": "bcca6071137caff2034697b62532ac4212e9d9a95cda4742976b242a88fc032a",
+      ".nous-provenance.json": "4d0c7d25896df65deba86b73526921c92ae9958560af2631eda3c4e1e9b8550c",
+      ".nous-sync.json": "eb2f12becb368b7e6fdfb507425e12383741805424d41960f2ca6289a3a15575",
+      "docs/decisions/DECISION_MATRIX.md": CEILING_MATRIX_SHA256 }) }),
+  Object.freeze({ workId: "CHG-108", minutes: 450, decision: "DEC-SMP-061",
+    decisionHash: "99f4c21a82445c6f7c3649732f615d440592673b2c635ca0d8524719d20116bd",
+    admission: "c532b741f773da5b16a240f83fd240bd6af408a6", parent: "746aecd727f00282463005e7f56d9f0560da892f",
+    custodyBase: "c532b741f773da5b16a240f83fd240bd6af408a6", ownedBase: "ed73f12e6334820c548ad093552d1edfcc1f5850",
+    source: "6df4f629563179bf406a3ed8a11dbbfa87fbab93",
+    readiness: "0a054b20d270964f5951e61897c712fbcb7376cead7105c8e7c7df57e9667e7c",
+    hashes: Object.freeze({ ".nous-project.json": "29914121a50f1839b05c41b6b3e24378f19ad26f9e75a523db4cc3f955bb56c9",
+      ".nous-provenance.json": "591b479b961d860fee3a1ae1fc4a35c3a9c3fd4c41f315d13f3bdf2b69f4c4e5",
+      ".nous-sync.json": "a08b3a3e10b99c09af64465e9f8d3aa3d0808800e4f49b96f1497241fdf6ae42",
+      "docs/decisions/DECISION_MATRIX.md": "7e822c8566d69f365fabf557738e96f7a7c9ac1a0a33af86ece3538d37d98d7b" }) }),
+]);
+function selectedCeilingVersion(artifact) {
+  const requested = artifact.budget_exception;
+  if (requested === null || typeof requested !== "object" || Array.isArray(requested)
+    || Object.keys(requested).length !== 5 || artifact.work_id !== "CHG-093" || artifact.policy_bootstrap === true) return null;
+  return CEILING_VERSIONS.find(version => {
+    const exact = { project_id: "fcostudios__smp", work_id: "CHG-093", ceiling_minutes: version.minutes,
+      decision_id: version.decision, decision_sha256: version.decisionHash };
+    return Object.keys(exact).every(key => Object.hasOwn(requested, key) && requested[key] === exact[key]);
+  }) ?? null;
+}
 const MAX_CEILING_SOURCE_TRANSITIONS = 64;
 const ceilingContexts = new WeakMap();
 const ceilingAdmissionCache = new Map();
@@ -74,37 +106,33 @@ const ceilingAdmissionInProgress = new Set();
 // Read-only bridge: serializable lookalikes and copied contexts have no membership.
 export function isReadinessCeilingContext(context, artifact) {
   const admitted = context !== null && typeof context === "object" ? ceilingContexts.get(context) : null;
-  return admitted?.workId === artifact.work_id && artifact.work_id === "CHG-093";
+  return admitted?.workId === artifact.work_id && artifact.work_id === "CHG-093"
+    && admitted.version === selectedCeilingVersion(artifact);
 }
 
 export function loadReadinessCeilingContext({ root, revision, artifact }) {
   // Ordinary work neither reads Git nor recursively proves policy availability.
   if (artifact.budget_exception == null) return Object.freeze({});
-  const requested = artifact.budget_exception;
-  const exact = { project_id: "fcostudios__smp", work_id: "CHG-093", ceiling_minutes: 380,
-    decision_id: "DEC-SMP-059", decision_sha256: CEILING_DECISION_SHA256 };
-  if (requested === null || typeof requested !== "object" || Array.isArray(requested)
-    || Object.keys(requested).length !== Object.keys(exact).length
-    || Object.keys(exact).some((key) => requested[key] !== exact[key])
-    || artifact.work_id !== "CHG-093" || artifact.policy_bootstrap === true) {
+  const version = selectedCeilingVersion(artifact);
+  if (!version) {
     fail("WR_BUDGET_EXCEPTION_INVALID", "$.budget_exception", "Only the exact scoped ceiling tuple and subject are supported");
   }
   const unavailable = () => fail("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", "Scoped policy is unavailable at the actual authorization revision");
   try {
     root = repositoryRoot(root);
     revision = resolveCommit(root, revision, "$.revision");
-    const key = `${root}\0${revision}`;
+    const key = `${root}\0${revision}\0${version.decision}`;
     if (ceilingAdmissionInProgress.has(key)) unavailable();
     if (!ceilingAdmissionCache.has(key)) {
       ceilingAdmissionInProgress.add(key);
       try {
-        proveReadinessCeilingAdmission(root, revision);
+        proveReadinessCeilingAdmission(root, revision, version);
         if (ceilingAdmissionCache.size >= 64) ceilingAdmissionCache.delete(ceilingAdmissionCache.keys().next().value);
         ceilingAdmissionCache.set(key, true);
       } finally { ceilingAdmissionInProgress.delete(key); }
     }
     const context = Object.freeze({ revision });
-    ceilingContexts.set(context, { root, revision, workId: artifact.work_id });
+    ceilingContexts.set(context, { root, revision, workId: artifact.work_id, version });
     return context;
   } catch (error) {
     if (error instanceof WorkReadinessError) unavailable();
@@ -112,30 +140,25 @@ export function loadReadinessCeilingContext({ root, revision, artifact }) {
   }
 }
 
-function proveReadinessCeilingAdmission(root, revision) {
+function proveCeilingCustody(root, revision, version) {
   const require = (condition) => {
     if (!condition) fail("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", "Immutable scoped policy admission failed");
   };
   const ancestor = (base, head) => git(root, ["merge-base", "--is-ancestor", base, head], { allowMissing: true }) !== null;
-  require(ancestor(CEILING_ADMISSION, CEILING_CUSTODY_BASE) && ancestor(CEILING_CUSTODY_BASE, CEILING_OWNED_BASE) && ancestor(CEILING_ADMISSION, revision)
-    && ancestor(CEILING_OWNED_BASE, revision));
-  const admissionParents = git(root, ["show", "-s", "--format=%P", CEILING_ADMISSION]).toString("utf8").trim().split(/\s+/u);
-  require(admissionParents.length === 1 && admissionParents[0] === "43d6b8ac83095ae817cb195f17c25e6427cb4afc"
-    && exactNousSyncOwns({ root, base: admissionParents[0], head: CEILING_ADMISSION,
-      changedPaths: listChangedPaths({ root, base: admissionParents[0], head: CEILING_ADMISSION }) }));
+  require(ancestor(version.admission, version.custodyBase) && ancestor(version.custodyBase, version.ownedBase) && ancestor(version.admission, revision)
+    && ancestor(version.ownedBase, revision));
+  const admissionParents = git(root, ["show", "-s", "--format=%P", version.admission]).toString("utf8").trim().split(/\s+/u);
+  require(admissionParents.length === 1 && admissionParents[0] === version.parent
+    && exactNousSyncOwns({ root, base: admissionParents[0], head: version.admission,
+      changedPaths: listChangedPaths({ root, base: admissionParents[0], head: version.admission }) }));
   const matrixPath = "docs/decisions/DECISION_MATRIX.md";
   const custodyPaths = [...NOUS_SYNC_ENVELOPE_PATHS, matrixPath];
-  const admissionHashes = {
-    ".nous-project.json": "bcca6071137caff2034697b62532ac4212e9d9a95cda4742976b242a88fc032a",
-    ".nous-provenance.json": "4d0c7d25896df65deba86b73526921c92ae9958560af2631eda3c4e1e9b8550c",
-    ".nous-sync.json": "eb2f12becb368b7e6fdfb507425e12383741805424d41960f2ca6289a3a15575",
-    [matrixPath]: CEILING_MATRIX_SHA256,
-  };
-  for (const path of custodyPaths) require(revisionMode(root, CEILING_ADMISSION, path) === "100644"
-    && createHash("sha256").update(readRevisionBytes(root, CEILING_ADMISSION, path)).digest("hex") === admissionHashes[path]);
-  const seedProject = parseJson(readRevisionFile(root, CEILING_ADMISSION, ".nous-project.json"), ".nous-project.json");
-  const seedProvenance = parseJson(readRevisionFile(root, CEILING_ADMISSION, ".nous-provenance.json"), ".nous-provenance.json");
-  require(seedProvenance.git_sha === CEILING_SOURCE.slice(0, 12) && seedProject.substrate_commit === CEILING_SOURCE.slice(0, 8));
+  const admissionHashes = version.hashes;
+  for (const path of custodyPaths) require(revisionMode(root, version.admission, path) === "100644"
+    && createHash("sha256").update(readRevisionBytes(root, version.admission, path)).digest("hex") === admissionHashes[path]);
+  const seedProject = parseJson(readRevisionFile(root, version.admission, ".nous-project.json"), ".nous-project.json");
+  const seedProvenance = parseJson(readRevisionFile(root, version.admission, ".nous-provenance.json"), ".nous-provenance.json");
+  require(seedProvenance.git_sha === version.source.slice(0, 12) && seedProject.substrate_commit === version.source.slice(0, 8));
   const endpoint = (at) => {
     for (const path of custodyPaths) require(revisionMode(root, at, path) === "100644");
     const project = parseJson(readRevisionFile(root, at, ".nous-project.json"), ".nous-project.json");
@@ -151,9 +174,11 @@ function proveReadinessCeilingAdmission(root, revision) {
       && project.substrate_commit === provenance.git_sha.slice(0, 8)
       && provenance.dirty === false && Array.isArray(provenance.dirty_paths) && provenance.dirty_paths.length === 0);
     const matrix = readRevisionFile(root, at, matrixPath);
-    const rows = matrix.split(/\r?\n/u).map((line) => line.split("|").slice(1, -1).map((cell) => cell.trim()))
-      .filter((cells) => cells[0] === "DEC-SMP-059");
-    require(rows.length === 1 && createHash("sha256").update(rows[0][2] ?? "", "utf8").digest("hex") === CEILING_DECISION_SHA256);
+    for (const selected of CEILING_VERSIONS.filter(candidate => candidate.minutes <= version.minutes)) {
+      const rows = matrix.split(/\r?\n/u).map(line => line.split("|").slice(1, -1).map(cell => cell.trim()))
+        .filter(cells => cells[0] === selected.decision);
+      require(rows.length === 1 && createHash("sha256").update(rows[0][2] ?? "", "utf8").digest("hex") === selected.decisionHash);
+    }
     const claim = sync.files?.[matrixPath];
     require(closedKeys(claim, ["hash", "source"])
       && claim.hash === createHash("sha256").update(matrix, "utf8").digest("hex").slice(0, 16));
@@ -165,12 +190,12 @@ function proveReadinessCeilingAdmission(root, revision) {
       && source.slice(source.indexOf("/Nous/") + 1) === "Nous/WorkControl/fcostudios/smp/DECISION_MATRIX.md");
   };
   // A restored endpoint cannot erase an unauthorized intermediate custody edit.
-  require(git(root, ["rev-list", "--merges", "--max-count=1", `${CEILING_ADMISSION}..${revision}`]).length === 0);
+  require(git(root, ["rev-list", "--merges", "--max-count=1", `${version.admission}..${revision}`]).length === 0);
   const custodyHistory = git(root, ["log", "--full-history", "--max-count=65", "--format=%H",
-    `${CEILING_ADMISSION}..${revision}`, "--", ...custodyPaths]).toString("utf8").trim();
+    `${version.admission}..${revision}`, "--", ...custodyPaths]).toString("utf8").trim();
   const custodyTransitions = custodyHistory === "" ? [] : custodyHistory.split("\n");
   require(custodyTransitions.length <= 64);
-  endpoint(CEILING_ADMISSION);
+  endpoint(version.admission);
   for (const commit of custodyTransitions) {
     const parents = git(root, ["show", "-s", "--format=%P", commit]).toString("utf8").trim().split(/\s+/u);
     require(parents.length === 1 && exactNousSyncOwns({ root, base: parents[0], head: commit,
@@ -178,11 +203,20 @@ function proveReadinessCeilingAdmission(root, revision) {
     endpoint(parents[0]); endpoint(commit);
   }
   endpoint(revision);
+}
+
+function proveReadinessCeilingAdmission(root, revision, version) {
+  const require = condition => { if (!condition) fail("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", "Immutable scoped source admission failed"); };
+  const ancestor = (base, head) => git(root, ["merge-base", "--is-ancestor", base, head], { allowMissing: true }) !== null;
+  proveCeilingCustody(root, revision, version);
+  require(ancestor(CEILING_OWNED_BASE, revision));
+  const provenOwners = new Set([version]);
   const sourceHistory = git(root, ["log", "--full-history", `--max-count=${MAX_CEILING_SOURCE_TRANSITIONS + 1}`,
     "--format=%H", `${CEILING_OWNED_BASE}..${revision}`, "--", ...CEILING_POLICY_PATHS]).toString("utf8").trim();
   const transitions = sourceHistory === "" ? [] : sourceHistory.split("\n");
   require(transitions.length > 0 && transitions.length <= MAX_CEILING_SOURCE_TRANSITIONS);
   const latest = new Map();
+  const latestOwners = new Map();
   for (const commit of transitions) {
     // Path-limited history may rewrite displayed parents. Read the commit object
     // itself so intervening metadata commits cannot be skipped as authority.
@@ -192,28 +226,33 @@ function proveReadinessCeilingAdmission(root, revision) {
     const changed = listChangedPaths({ root, base: parent, head: commit });
     const policyChanges = changed.filter((path) => CEILING_POLICY_PATHS.includes(path));
     require(policyChanges.length > 0);
-    const path = "docs/readiness/CHG-107.json";
+    const message = git(root, ["show", "-s", "--format=%B", commit]).toString("utf8");
+    const workIds = extractWorkIds(message);
+    const owner = workIds.length === 1 ? CEILING_VERSIONS.find(candidate => candidate.workId === workIds[0]) : null;
+    require(owner && ancestor(owner.ownedBase, parent));
+    if (!provenOwners.has(owner)) { proveCeilingCustody(root, revision, owner); provenOwners.add(owner); }
+    const path = `docs/readiness/${owner.workId}.json`;
     require(revisionMode(root, parent, path) === "100644" && revisionMode(root, parent, ".nous-feedback.jsonl") === "100644");
     const artifact = parseJson(readRevisionFile(root, parent, path), path);
-    require(artifact.work_id === "CHG-107" && artifact.kind === "CHG" && artifact.work_type === "technical"
+    require(artifact.work_id === owner.workId && artifact.kind === "CHG" && artifact.work_type === "technical"
       && artifact.policy_bootstrap === false && artifact.budget_exception == null && artifact.controlling_change === null
-      && artifact.readiness_payload_sha256 === "d3f911dfd16a9fc5d0dd1cb344ef6eaa40a1754db5090d71624cb72afa977c8a"
+      && artifact.readiness_payload_sha256 === owner.readiness
       && artifact.estimate_minutes.total <= 320);
     const feedback = parseFeedback(readRevisionFile(root, parent, ".nous-feedback.jsonl"));
     const assessment = validateAssessment(artifact, { context: loadReadinessCeilingContext({ root, revision: parent, artifact }), feedbackRecords: feedback, approvedReadinessAuthorities: annotationAuthorities(root, parent) });
     require(assessment.decision === "ready" && assessment.active && !assessment.complete);
-    const boundPlan = requireImplementationPlan({ root, revision: parent, feedback, workId: "CHG-107" });
+    const boundPlan = requireImplementationPlan({ root, revision: parent, feedback, workId: owner.workId });
     require(revisionMode(root, parent, boundPlan.planPath) === "100644");
-    const message = git(root, ["show", "-s", "--format=%B", commit]).toString("utf8");
     const ownership = validateCommitOwnership({ root, parent, commit, message });
-    require(ownership.classification === "implementation" && ownership.workIds.length === 1 && ownership.workIds[0] === "CHG-107");
+    require(ownership.classification === "implementation" && ownership.workIds.length === 1 && ownership.workIds[0] === owner.workId);
     for (const source of policyChanges) {
       require(revisionMode(root, parent, source) === "100644" && revisionMode(root, commit, source) === "100644");
-      if (!latest.has(source)) latest.set(source, revisionBlobEntry(root, commit, source)?.blob);
+      if (!latest.has(source)) { latest.set(source, revisionBlobEntry(root, commit, source)?.blob); latestOwners.set(source, owner); }
     }
   }
   for (const path of CEILING_POLICY_PATHS) require(latest.has(path)
-    && revisionMode(root, revision, path) === "100644" && revisionBlobEntry(root, revision, path)?.blob === latest.get(path));
+    && revisionMode(root, revision, path) === "100644" && revisionBlobEntry(root, revision, path)?.blob === latest.get(path)
+    && (version.minutes === 380 || path === "scripts/work-readiness.mjs" || latestOwners.get(path) === version));
 }
 
 function isTerminalEvent(event) {

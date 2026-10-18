@@ -57,12 +57,12 @@ non-repeatable exception; changing or copying it does not create another one.
 9. An uncertainty lacks a resolution or explicit estimate impact.
 10. The implementation requires an unofficial or unresolved work-item ID.
 
-### Item-bound cumulative ceiling (CHG-107 / DEC-SMP-059)
+### Item-bound cumulative ceiling versions (CHG-107 / CHG-108)
 
 Optional `budget_exception` may be absent or explicit `null`; both use 320.
 Absence preserves historical canonical bytes. Explicit null is retained in the
-canonical payload and therefore needs a new digest-bound approval. The only
-supported nonnull object is closed and exact:
+canonical payload and therefore needs a new digest-bound approval. The historical
+380 nonnull object remains closed and exact:
 
 ```json
 {
@@ -74,17 +74,35 @@ supported nonnull object is closed and exact:
 }
 ```
 
+CHG-108 adds exactly one further closed tuple, retaining the historical version:
+
+```json
+{
+  "project_id": "fcostudios__smp",
+  "work_id": "CHG-093",
+  "ceiling_minutes": 450,
+  "decision_id": "DEC-SMP-061",
+  "decision_sha256": "99f4c21a82445c6f7c3649732f615d440592673b2c635ca0d8524719d20116bd"
+}
+```
+
+The schema selects separate exact 380 and 450 branches: 381 refuses under059,
+451 refuses under061, and hybrid tuples refuse even below320. There is no
+configurable maximum. A branded380 context cannot authorize450 or conversely;
+immutable proof cache and in-progress keys include repository, revision and
+selected policy version.
+
 The assessment subject must also be CHG-093. Malformed or nonexact objects
 refuse even below 320 or on blocked work. Every partition child remains capped
 at 320, and every other cohesion limit still applies. CHG-107 itself is normal
-work under 320.
+work under 320. CHG-108 is also ordinary default320 work.
 
 This tuple supplies cap eligibility only. CHG-093 still needs its own new exact
 current readiness digest, unique normal human decision, active lifecycle and
 bound implementation plan before execution. Keep the same CHG-093 and include
 all retained sunk work, remaining work, pending attribution, reserves, review,
 verification, integration and closure; a remaining-only estimate cannot reset
-the cumulative total. Stop if the full forecast exceeds 380, pending attribution
+the cumulative total. Stop if the full forecast exceeds the selected version ceiling, pending attribution
 cannot fit its reserve, or new tool, repair, campaign, path or framework scope
 needs approval.
 
@@ -99,12 +117,25 @@ whole matrix SHA256 `750a418ea935c82bab425d9762837a5f9188a7a188d0cab4c673e04c493
 are frozen at admission only. The separate decision hash covers the trimmed
 DEC-SMP-059 UTF-8 text cell without a newline.
 
+The additive450 admission is actual `c532b741f773da5b16a240f83fd240bd6af408a6`,
+true parent `746aecd727f00282463005e7f56d9f0560da892f`, source
+`6df4f629563179bf406a3ed8a11dbbfa87fbab93`. Its admission-only whole matrix
+SHA256 is `7e822c8566d69f365fabf557738e96f7a7c9ac1a0a33af86ece3538d37d98d7b`;
+its three exact envelope hashes are separately pinned in the private version
+map. The new pristine source base is actual
+`ed73f12e6334820c548ad093552d1edfcc1f5850`, after approval of exact CHG-108
+readiness `0a054b20d270964f5951e61897c712fbcb7376cead7105c8e7c7df57e9667e7c`
+and the unique normal bound plan. This current lineage does not relabel the
+separate unimplemented old108 pending line or alter any old107 pin.
+
 Every touch of the three custody envelopes and decision matrix from admission
 to the actual authorization revision must pass normal canonical-sync ownership
 using its true immediate parent and complete changed-path list. Admission,
 every transition endpoint and final endpoint require regular files, the same
 project/organization/namespace, clean coherent provenance, an actual matrix hash
-claim and canonical normalized source, and exactly one unchanged DEC-SMP-059.
+claim and canonical normalized source, and exactly one unchanged DEC-SMP-059. The450 version additionally requires
+exactly one unchanged DEC-SMP-061 at every endpoint in its own admission range;
+historical380 parents before061 legitimately lack that row.
 Normal future source revisions, source filesystem prefixes, generated envelope
 metadata and unrelated matrix rows may change. An unauthorized intermediate
 edit followed by restoration refuses. SPRINT_PLAN/CHANGES-only ordinary closure
@@ -113,18 +144,22 @@ transitions (query65 and reject overflow); merges/nonlinear admission history
 refuse.
 
 Model, schema, CLI and Git must each have a regular source transition after the
-pristine base owned solely by normal CHG-107. Every actual source parent needs
-its exact normal default320 readiness `d3f911dfd16a9fc5d0dd1cb344ef6eaa40a1754db5090d71624cb72afa977c8a`,
-active approval and unique bound plan. Source history separately permits at
+historical pristine base owned solely by normal CHG-107. Later source touches
+may be owned solely by explicit CHG-107 or explicit CHG-108, each after its own
+pristine base with its own exact default320 readiness, active approval and unique
+plan at the actual source parent. The old107 readiness remains
+`d3f911dfd16a9fc5d0dd1cb344ef6eaa40a1754db5090d71624cb72afa977c8a`. New450 requires CHG-108 introductions
+for model/schema/Git; the unchanged CLI retains its latest authentic old107
+source. Source history separately permits at
 most64 transitions, inspects all touches and verifies latest blobs; restoring
 bytes cannot launder unapproved edits. No parent-code execution or recursive
-whole-history classification occurs. Successful immutable root/revision proofs
+whole-history classification occurs. Successful immutable root/revision/version proofs
 use a finite64-entry cache and in-progress guard. Ordinary absent/null paths
 need no source admission.
 
 Pure context-less `classifyAssessment` calls used by existing shape/digest
 planning return `blocked` for a shape-valid exact tuple. This is a non-executable
-planning result: it grants neither default320 promotion nor380 authority. A
+planning result: it grants neither default320 promotion nor380/450 authority. A
 supplied untrusted context, a malformed/nonexact object or an explicit
 contradiction still refuses. `resolveReadinessCeiling`, `validateAssessment` and
 all runtime/history entrypoints remain strict. The existing mutation
@@ -134,7 +169,9 @@ CLI checks use committed HEAD for cap authority. Staged, per-commit and range
 checks use each actual immediate parent, including when validating candidate
 artifacts and plans. A candidate policy, decision or source cannot authorize
 itself or backfill an older parent. After policy integration, CHG-093 still waits
-for its own new normal approval before runtime. DEC-SMP-051/P4 holds remain.
+for its own new normal approval before runtime. CHG-108 integration is only the
+policy adoption prerequisite; it cannot resume093, repair its lifecycle or relax
+its full cumulative obligations. DEC-SMP-051/P4 holds remain.
 
 
 CHG-084 makes counting explicit: absence of `signals.bookkeeping_files` preserves
