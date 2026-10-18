@@ -2200,4 +2200,35 @@ describe.sequential("US-087 direct completion contracts", () => {
     expect(await removalFacts(removal.actionId)).toEqual([{state:"deprovisioned",status:"confirmed",failure_reason:null,
       ended_on:"2026-07-29",end_reason:"left_company",transitions:1,completions:1}]);
   });
+  it.each([false, true])("checks replay identity with a SQL-accepted empty period (foreign original ID: %s)", async foreignOriginal => {
+    const removal = await startIsolatedRemoval();
+    const secondId = id("920");
+    const originalIds = [removal.assignmentId, foreignOriginal ? id("912") : secondId];
+    await owner.query(`CREATE FUNCTION corrupt_us087_empty_period_receipt() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+      IF NEW.action='offboarding.removal_confirmed' THEN NEW.after=NEW.after || '${JSON.stringify({assignmentIds:originalIds})}'::jsonb; END IF;
+      RETURN NEW; END $$`);
+    await owner.query("CREATE TRIGGER corrupt_us087_empty_period_receipt BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION corrupt_us087_empty_period_receipt()");
+    try { await invokeCompletion(completionCommand(removal.actionId)); }
+    finally {
+      await owner.query("DROP TRIGGER corrupt_us087_empty_period_receipt ON audit_log");
+      await owner.query("DROP FUNCTION corrupt_us087_empty_period_receipt()");
+    }
+    await owner.query(`INSERT INTO license_assignment(id,person_id,company_id,vendor_account_id,license_type_id,
+      started_on,ended_on,end_reason,source_request_id,source_kind,created_at,created_by)
+      VALUES($1,$2,$3,$4,$5,'2026-07-30','2026-07-29','left_company',$6,'request',$7,$8)`,
+      [secondId,ids.person,ids.company,ids.account,ids.licenseType,ids.request,occurredAt,ids.admin]);
+    expect((await owner.query("SELECT isempty(daterange(started_on,ended_on+1,'[)')) AS empty FROM license_assignment WHERE id=$1",[secondId])).rows)
+      .toEqual([{empty:true}]);
+    await owner.query("UPDATE provisioning_action SET raw_request=jsonb_set(raw_request,'{context,assignmentIds}',$2::jsonb) WHERE id=$1",
+      [removal.actionId,JSON.stringify([removal.assignmentId,secondId])]);
+    const facts = await loadedCompletionFacts(removal.actionId);
+    expect(facts.original!.assignmentIds).toEqual(originalIds);
+    expect(facts.assignments.map(row => row.id)).toEqual([removal.assignmentId,secondId].sort());
+    const before = await completionSnapshot();
+    const command = completionCommand(removal.actionId,{confirmationId:"empty-period-replay"});
+    if (foreignOriginal) await expect(invokeCompletion(command)).rejects.toThrow(/^OFFBOARDING_CONFLICT$/);
+    else expect(await invokeCompletion(command)).toEqual({...facts.original!,replayed:true});
+    expect(await completionSnapshot()).toEqual(before);
+  });
+
 });

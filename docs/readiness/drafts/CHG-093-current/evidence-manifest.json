@@ -152,5 +152,32 @@
         "candidate_and_copy_restored": true
       }
     ]
+  },
+  "task2_current": {
+    "report": "/Users/fcolomas/.codex/artifacts/smp/CHG-093/current-a8c7388/task2-diagnostic-report.json",
+    "sha256": "e49ffa7793a28678c708ee8a2dba7408d6ce34b5df4e30ab4b533a3e2a62e42d",
+    "bundle": "/Users/fcolomas/.codex/artifacts/smp/CHG-093/current-a8c7388/task2-diagnostics.tar.gz",
+    "bundle_sha256": "dd288fbc2267cbb3003e6c6203ebd07707bd64e0c0db03387d2e9da9a135182d",
+    "scope": "two approved test files only; production unchanged",
+    "status": "pending scoped review",
+    "cost": {
+      "task2_active_minutes_estimated": 25,
+      "prior_stop_minutes_included": 12,
+      "this_resume_minutes_included": 13,
+      "task2_remaining_forecast": 0,
+      "projection_before_review_forecast_adjustment": 402.3879115965,
+      "recommended_remaining_review_forecast": 10,
+      "previous_remaining_review_forecast": 2,
+      "recommended_projection_with_review_delta": 410.3879115965,
+      "note": "Estimated active, not billing. All elapsed driver times retained separately/nested, not added again; controller owns review and tail reconciliation."
+    },
+    "focused": {
+      "receipt": "/Users/fcolomas/.codex/artifacts/smp/CHG-093/current-a8c7388/task2-focused.vitest.json",
+      "sha256": "1f51b477a61241c9721bb944d5d6ad2dad9f48e8c3b2061476928ee2f75a8763",
+      "tests": 500,
+      "passed": 499,
+      "timezone": "America/Guayaquil",
+      "candidate_source_hashes_match_diagnostic": true
+    }
   }
 }

@@ -461,5 +461,768 @@
       "new": "2b0ff121be9d8ee5801d3ef9838505a7f2c26a14"
     }
   ],
-  "note": "Actual source-to-new mappings, not invented future SHAs. Original canonical1b2c39d already present; current envelopes preserved. Original04056 audit immutable; only redundant newstarted omitted from reconstructed rows. Historical expanded extracts outside approved delivery inventory retained externally in immutable source refs. Original US0875e source has same closed artifact/suites as replayed8bd; its raw unique rows are all preserved in order."
+  "note": "Actual source-to-new mappings, not invented future SHAs. Original canonical1b2c39d already present; current envelopes preserved. Original04056 audit immutable; only redundant newstarted omitted from reconstructed rows. Historical expanded extracts outside approved delivery inventory retained externally in immutable source refs. Original US0875e source has same closed artifact/suites as replayed8bd; its raw unique rows are all preserved in order.",
+  "single_plan_reconstruction": {
+    "started_epoch": 1792348685.40094,
+    "wall_seconds": 51.98504614830017,
+    "records": [
+      {
+        "previous_candidate": "68bdbbe5504a0b1c1a502f2eeba46e0d9dccfd84",
+        "parent": "a8c7388a53b686a0b5151b5e125f498a95554c2d",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": "docs/readiness/CHG-093.json",
+            "destination": "docs/readiness/CHG-093.json",
+            "blob": "933b56c69756ae3a89ab4233f0bac51b1198fa08"
+          }
+        ],
+        "new": "277ecb9311a3e64ae2e732d76186736cd2998379"
+      },
+      {
+        "previous_candidate": "47fce852c92dde13f82153439401b90a45aa43ae",
+        "parent": "277ecb9311a3e64ae2e732d76186736cd2998379",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": "docs/superpowers/specs/2026-10-13-CHG-093-us087-integration.md",
+            "destination": "docs/superpowers/specs/2026-10-13-CHG-093-us087-integration.md",
+            "blob": "c122ef0b87ad44c223da63c83cee5a5b1a349bfa"
+          }
+        ],
+        "new": "51b3d87a59f4d4d75dcccc4c2d92096f12cd43b1"
+      },
+      {
+        "previous_candidate": "01146668c0f41367daba306b1519203778d8e961",
+        "parent": "51b3d87a59f4d4d75dcccc4c2d92096f12cd43b1",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "1730a3a9718a283a116a3564d07fb62ea182f789"
+          },
+          {
+            "source_path": "docs/readiness/CHG-093.json",
+            "destination": "docs/readiness/CHG-093.json",
+            "blob": "3fc67923a24bdb8f3ff759333fddf902748beb0f"
+          }
+        ],
+        "new": "3068c138eef0aa9f35dd55a81ea8c529b02fdfc5"
+      },
+      {
+        "previous_candidate": "2692c35896342b8a4c45552f97cf8fbebd758bc2",
+        "parent": "3068c138eef0aa9f35dd55a81ea8c529b02fdfc5",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "72653f1cfd66baba020c2ad7f3f25feaad8fb653"
+          },
+          {
+            "source_path": "docs/readiness/CHG-093.json",
+            "destination": "docs/readiness/CHG-093.json",
+            "blob": "43cbd23ef94ca2499062719f82e25c427fa0c0ea"
+          }
+        ],
+        "new": "4bc8cc40251e5d02f457654d2703ac9931f45b0e"
+      },
+      {
+        "previous_candidate": "fa3621c15d9b08830f1a4617ffce1cad453fc5c6",
+        "parent": "4bc8cc40251e5d02f457654d2703ac9931f45b0e",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": "docs/superpowers/plans/2026-10-13-CHG-093-us087-integration.md",
+            "destination": "docs/superpowers/plans/CHG-093-current-plan.md",
+            "blob": "1ebe982850a0e09b5f1a742b830f84f023abd6d0"
+          },
+          {
+            "source_path": "docs/superpowers/specs/2026-10-13-CHG-093-us087-integration.md",
+            "destination": "docs/superpowers/specs/2026-10-13-CHG-093-us087-integration.md",
+            "blob": "a33b6068369d7c76ec3bd326e79a97334d8d5752"
+          }
+        ],
+        "new": "086573797cb6fb1ec9592819cd72fe8a99ede34e"
+      },
+      {
+        "previous_candidate": "6d20b41bbffa860175647a9421e11a114b3dcfa8",
+        "parent": "086573797cb6fb1ec9592819cd72fe8a99ede34e",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "05bcb2faae8f8364ce588330466a519cfe5e705c"
+          }
+        ],
+        "new": "31623e582941a93f126029a29743a9ea02d2ad9d"
+      },
+      {
+        "previous_candidate": "f3c1163fdfb1087dc4117ded88b4da0e2b71b86f",
+        "parent": "31623e582941a93f126029a29743a9ea02d2ad9d",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": "docs/superpowers/plans/2026-10-12-US-087-checklist-removal-completion.md",
+            "destination": "docs/superpowers/plans/2026-10-12-US-087-checklist-removal-completion.md",
+            "blob": "014b85afc61d9542e8e4a3dfb337eeff74cf4a6c"
+          }
+        ],
+        "new": "d819a2625463473bca52fbecff2b66247e1c74d7"
+      },
+      {
+        "previous_candidate": "d6dff0768d44aa755914d6afa4cf3755e6afec7b",
+        "parent": "d819a2625463473bca52fbecff2b66247e1c74d7",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "d901dfb2b07be47dc9d2bfcf93d4f749c120e1bb"
+          }
+        ],
+        "new": "7b820d9fdb8a6835ba7f9c75a6d3cef63a3918ba"
+      },
+      {
+        "previous_candidate": "4982c3dcae6c69f5db7bfa7180c7ed6680069656",
+        "parent": "7b820d9fdb8a6835ba7f9c75a6d3cef63a3918ba",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "95041737897c17ca3c741f655b4153a2fd8745b7"
+          }
+        ],
+        "new": "c098278cb016399884cb783550a4fe1cd3c297ba"
+      },
+      {
+        "previous_candidate": "4161405289572670a062c79cadfb0c683f0c13dc",
+        "parent": "c098278cb016399884cb783550a4fe1cd3c297ba",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+            "destination": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+            "blob": "05ca5da748083c6d88b038d1550a6c778d190c7f"
+          }
+        ],
+        "new": "0c8a6915e38a277094ed65c16a9f6a71e86fb589"
+      },
+      {
+        "previous_candidate": "99d6c388aa384f4c79dcd9a1c2e73c031dc2c733",
+        "parent": "0c8a6915e38a277094ed65c16a9f6a71e86fb589",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "681c6b088af6b7ca88f2c9a00a337d92b249111d"
+          }
+        ],
+        "new": "24f0a6b725dc21224813679927fb6bd46557691e"
+      },
+      {
+        "previous_candidate": "b1d31f6e7461b0fa887e50fa529a335ebfe97336",
+        "parent": "24f0a6b725dc21224813679927fb6bd46557691e",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "5e96b94083ec3956b587d54107a82d7e7dd9bcec"
+          },
+          {
+            "source_path": "docs/readiness/US-087.json",
+            "destination": "docs/readiness/US-087.json",
+            "blob": "3446ee91bb1d29abd60edbb2efc5306fff6fcac7"
+          },
+          {
+            "source_path": "docs/superpowers/plans/2026-10-12-US-087-checklist-removal-completion.md",
+            "destination": "docs/superpowers/plans/2026-10-12-US-087-checklist-removal-completion.md",
+            "blob": "1bed5bf5645424b4142b1cbd9c1840b9b23cbde0"
+          }
+        ],
+        "new": "68dd491f37bc67beeaf81b60cd2436537e139810"
+      },
+      {
+        "previous_candidate": "cf7b4f187285bb432f8cdd996f9438373c156675",
+        "parent": "68dd491f37bc67beeaf81b60cd2436537e139810",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": "apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts",
+            "destination": "apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts",
+            "blob": "8c1380bad8737ce53f0bd3f2f8a3598ef336f524"
+          }
+        ],
+        "new": "6bc2f1dadb91518a2dcfb38463bb080d4e750568"
+      },
+      {
+        "previous_candidate": "2181454e01505779b6f013910a0958ce007ac975",
+        "parent": "6bc2f1dadb91518a2dcfb38463bb080d4e750568",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "4dcab83fb5c01d9ab2bb57653417d36f8f2a1d99"
+          }
+        ],
+        "new": "b47293983693fcdc2a46f78558fd87e1e14e3c05"
+      },
+      {
+        "previous_candidate": "7e27198730cc35aca5ccd8bde762a8d69ed75bd6",
+        "parent": "b47293983693fcdc2a46f78558fd87e1e14e3c05",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "e329881a7808dc37715931d08859873052ff7c23"
+          },
+          {
+            "source_path": "docs/readiness/US-087.json",
+            "destination": "docs/readiness/US-087.json",
+            "blob": "1c2ead98ebb4c1509fe3e43274245f3b27218c96"
+          }
+        ],
+        "new": "ff2014f1619776068fb011556ed0b24725206fa2"
+      },
+      {
+        "previous_candidate": "eb259552e1eea1355f0d96c1c14a341e9a0c39f6",
+        "parent": "ff2014f1619776068fb011556ed0b24725206fa2",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "f7044d1a8d64eb0ef81e5ab60e85488f3d523679"
+          },
+          {
+            "source_path": "docs/superpowers/plans/2026-10-12-US-087-checklist-removal-completion.md",
+            "destination": "docs/superpowers/plans/2026-10-12-US-087-checklist-removal-completion.md",
+            "blob": "4e630bf8b22b6495a827ecf66ca482618f9e8233"
+          }
+        ],
+        "new": "a2786b11217b614a3917d417d82d676ad557738f"
+      },
+      {
+        "previous_candidate": "9363afeb69f6a85106094f6b3e6de8a5c70485a0",
+        "parent": "a2786b11217b614a3917d417d82d676ad557738f",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": "apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts",
+            "destination": "apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts",
+            "blob": "b72f6d07bc7c88b257eb49782566af71bb0d76ee"
+          },
+          {
+            "source_path": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+            "destination": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+            "blob": "7ba1d563c65ddce2e21e275b5ff8dded1a17a539"
+          }
+        ],
+        "new": "4d0637c3c9204333a120fa91fd3e39a2f9a736cd"
+      },
+      {
+        "previous_candidate": "75355ae05b617ec6e8e5a37bdf93eea74d3e4b33",
+        "parent": "4d0637c3c9204333a120fa91fd3e39a2f9a736cd",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "88e40478e7f60339b0ba114b76edfc1e1fc7fef0"
+          }
+        ],
+        "new": "8bff7024ef8319d632f086825aad0977005d5c43"
+      },
+      {
+        "previous_candidate": "25aabaa9eb58caaa0b0a21659adb29c36b7e67df",
+        "parent": "8bff7024ef8319d632f086825aad0977005d5c43",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "d3a9cde1e17c8c56c6d42a64e9bbff69ce60197f"
+          }
+        ],
+        "new": "fb1134a2250c2b6c219cf10b10aa2152a1da4bb5"
+      },
+      {
+        "previous_candidate": "e1e1349d8a706ffa305b25820d172cdf4efd48a3",
+        "parent": "fb1134a2250c2b6c219cf10b10aa2152a1da4bb5",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "611fcebade78c69e08b346b8ff8bd84f2f1c6b83"
+          }
+        ],
+        "new": "5363513cc2f1c591d0d7576e3194dec9a9d85951"
+      },
+      {
+        "previous_candidate": "7630dfd0f081bcb905a35abb2a66114660ec1b39",
+        "parent": "5363513cc2f1c591d0d7576e3194dec9a9d85951",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": "docs/readiness/US-087.json",
+            "destination": "docs/readiness/US-087.json",
+            "blob": "3917dae2b915dee12ca62a72fa9f9a6fce79a4bd"
+          }
+        ],
+        "new": "383dcdb15bb08196fd21906f6bb847daa8a98fa9"
+      },
+      {
+        "previous_candidate": "bf014fb579bd078d6c5d293425c96213af6f5903",
+        "parent": "383dcdb15bb08196fd21906f6bb847daa8a98fa9",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "fa3e2c3e4c2997bdb4c36b9e73381242bafbb824"
+          },
+          {
+            "source_path": "docs/readiness/US-087.json",
+            "destination": "docs/readiness/US-087.json",
+            "blob": "af205878be0ed6221ecc1f63a6f08dabc0e35a64"
+          }
+        ],
+        "new": "f02b6316398dce9e5d30076aa82d4f266f204dee"
+      },
+      {
+        "previous_candidate": "9a124acdde6ae4f722b16f20f8dd05faf1035bdc",
+        "parent": "f02b6316398dce9e5d30076aa82d4f266f204dee",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": "docs/superpowers/plans/2026-10-12-US-087-checklist-removal-completion.md",
+            "destination": "docs/superpowers/plans/2026-10-12-US-087-checklist-removal-completion.md",
+            "blob": "81de3178aa735eb58a2666eff37994f38dee73f0"
+          }
+        ],
+        "new": "30fbe8f8e6d2feffd8a35560b24e6569eb5bbb30"
+      },
+      {
+        "previous_candidate": "ea97972688889e078527fcf615cfc86aa019971e",
+        "parent": "30fbe8f8e6d2feffd8a35560b24e6569eb5bbb30",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "4ced110eb13d48b254244cec241c12f378846b72"
+          }
+        ],
+        "new": "65c038457afffe010167f999bcf50de998619fe3"
+      },
+      {
+        "previous_candidate": "9b3b60c75848e31843c5f8482f5a3c94be1d4f0a",
+        "parent": "65c038457afffe010167f999bcf50de998619fe3",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "da4b2a1e4393408bfd95cc0ba301a442a98f03eb"
+          }
+        ],
+        "new": "a32c98641a018c17fb1a633a1f24f02a008aebab"
+      },
+      {
+        "previous_candidate": "188a4f63eeec93b75a59e8f0d27a8d2980219e36",
+        "parent": "a32c98641a018c17fb1a633a1f24f02a008aebab",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "7b4df24cf62e4d930de0cfdcdecfea48dc7c7a17"
+          }
+        ],
+        "new": "aa33da91c9650ae2a8a92bac1d769c057fccb02e"
+      },
+      {
+        "previous_candidate": "565ba73b953b60afe22cf2dae54945bb71294743",
+        "parent": "aa33da91c9650ae2a8a92bac1d769c057fccb02e",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "2fd3fc215352e118c32fa051e4b39d5b8ce2349e"
+          },
+          {
+            "source_path": "docs/readiness/US-087.json",
+            "destination": "docs/readiness/US-087.json",
+            "blob": "40966a498b315b8d8361f25518fad4bee5a601e1"
+          }
+        ],
+        "new": "7e41df1ee23bde2ea99a987f5518d079158317d6"
+      },
+      {
+        "previous_candidate": "816d26bbe3feadd78c08dcffa3b979fdc70c4cb4",
+        "parent": "7e41df1ee23bde2ea99a987f5518d079158317d6",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "c15aa0e9e4cf909a9da9a2bbef8b79d9d53a672b"
+          }
+        ],
+        "new": "1ed56e23d94c5f91962c7f867def849334d72e1b"
+      },
+      {
+        "previous_candidate": "1e0386501fb319ebab61a4b55688c45b64471068",
+        "parent": "1ed56e23d94c5f91962c7f867def849334d72e1b",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "34b108a6cc8eaaf26269ab80e6bb851cf2ec674b"
+          }
+        ],
+        "new": "08f7c6e7f785f4184816430bc8a58d08c88a5fb4"
+      },
+      {
+        "previous_candidate": "a58228bbe8ac7bb6412dc7f34bd9c84fc94c221b",
+        "parent": "08f7c6e7f785f4184816430bc8a58d08c88a5fb4",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "9a095ab79c19db1e0a26c22739719eb8b9f9ffe5"
+          }
+        ],
+        "new": "80f9f80e8e205a8ed4ef7fb50997bc8f94dddfbf"
+      },
+      {
+        "previous_candidate": "9b3002d155f86ae05093b5fd8071a596dd8061d0",
+        "parent": "80f9f80e8e205a8ed4ef7fb50997bc8f94dddfbf",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "3512ae26837d02aef9b0ff652b8bfe916f38c47e"
+          }
+        ],
+        "new": "93b30a95d0f90a7e19e9c129d6cd91da7f89a7a6"
+      },
+      {
+        "previous_candidate": "51bdcab6b26a86cab67dfda511149176ddcc6d6c",
+        "parent": "93b30a95d0f90a7e19e9c129d6cd91da7f89a7a6",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "7193c9bf4f664b9b5e0ae3a77d328f06dad42300"
+          }
+        ],
+        "new": "f0e764d0a2204509e2952a405ef68bd818245c85"
+      },
+      {
+        "previous_candidate": "f2c3e8fa9ccfadeabd8f2b7b9284d23435a005a0",
+        "parent": "f0e764d0a2204509e2952a405ef68bd818245c85",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "fa7cd10f461257545d5dca7a8f9f47d8bb8b2b47"
+          }
+        ],
+        "new": "de1c9e98210cb5c07a3726b10d7d6798173e3238"
+      },
+      {
+        "previous_candidate": "459c1afaaf742f62d685c7cd6351d9facd77bcc6",
+        "parent": "de1c9e98210cb5c07a3726b10d7d6798173e3238",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "ab45dba474533d43104bfbc832777fc7698b3ec8"
+          }
+        ],
+        "new": "4ec7fe9b767a43690f4696e17b2dd029457345db"
+      },
+      {
+        "previous_candidate": "590b17432c374a35ccdd3d5572febda48bc16806",
+        "parent": "4ec7fe9b767a43690f4696e17b2dd029457345db",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "09756b19ab4d79c016042793ebba49a67cb3efd9"
+          },
+          {
+            "source_path": "docs/readiness/drafts/CHG-093-reassessment/final-review-verbatim.json",
+            "destination": "docs/readiness/drafts/CHG-093-reassessment/final-review-verbatim.json",
+            "blob": "3c10d31fe13a30dbb0fc0da73cb4710229f89023"
+          },
+          {
+            "source_path": "docs/readiness/drafts/CHG-093-reassessment/retained-evidence-manifest.json",
+            "destination": "docs/readiness/drafts/CHG-093-reassessment/retained-evidence-manifest.json",
+            "blob": "5cdbc47fe79b44bbc13ab6680fb24f2323adfe43"
+          },
+          {
+            "source_path": "docs/readiness/drafts/CHG-093-reassessment/seven-findings.json",
+            "destination": "docs/readiness/drafts/CHG-093-reassessment/seven-findings.json",
+            "blob": "d1e01b3e4a05ebf8c55abc0267ef6b87b994d740"
+          },
+          {
+            "source_path": "docs/readiness/drafts/CHG-093-reassessment/task3-seven-blocker-raw-diagnosis.json",
+            "destination": "docs/readiness/drafts/CHG-093-reassessment/task3-seven-blocker-raw-diagnosis.json",
+            "blob": "c050db667120799e805425bcacab5e12c3862045"
+          }
+        ],
+        "new": "63ede9e7f2f89f581c610de2432a8239a48dc8b9"
+      },
+      {
+        "previous_candidate": "879917ab89cc57a85b512924c5c5c84cc61f9e88",
+        "parent": "63ede9e7f2f89f581c610de2432a8239a48dc8b9",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "ca73299cf66ab6eb88ae92d01b4f767dd6d53e8d"
+          }
+        ],
+        "new": "b17d9d7f6c5349a9c1a70830f98adea771f865d9"
+      },
+      {
+        "previous_candidate": "609a5f553b323998c026fe59ce54f5d97c0a2beb",
+        "parent": "b17d9d7f6c5349a9c1a70830f98adea771f865d9",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "958e642d4bab809f775b859b9bdd340d0f069404"
+          },
+          {
+            "source_path": "docs/readiness/CHG-093.json",
+            "destination": "docs/readiness/CHG-093.json",
+            "blob": "1cf4ac7198af1f42962e289bcaa665c204c681d8"
+          }
+        ],
+        "new": "23361f42b7a65b46c9d0177accfdf4b81a613733"
+      },
+      {
+        "previous_candidate": "2d39360a0af9fe11f9cfdad27dfc6dda502fbf08",
+        "parent": "23361f42b7a65b46c9d0177accfdf4b81a613733",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": "docs/readiness/CHG-093.json",
+            "destination": "docs/readiness/CHG-093.json",
+            "blob": "8e43cf843a4f6e112fff6e718140f91404c4ab85"
+          },
+          {
+            "source_path": "docs/readiness/drafts/CHG-093-current/approval-packet.md",
+            "destination": "docs/readiness/drafts/CHG-093-current/approval-packet.md",
+            "blob": "4d25ede92b994f92034328e19abcf4a43621c178"
+          },
+          {
+            "source_path": "docs/readiness/drafts/CHG-093-current/astra-assessment.md",
+            "destination": "docs/readiness/drafts/CHG-093-current/astra-assessment.md",
+            "blob": "888a7ffb88718b4905cb5d78f03845c264a35c8b"
+          },
+          {
+            "source_path": "docs/readiness/drafts/CHG-093-current/source-bindings.json",
+            "destination": "docs/readiness/drafts/CHG-093-current/source-bindings.json",
+            "blob": "9f0bf7955f57fa933f3e2c4ca12b375d597331f2"
+          },
+          {
+            "source_path": "docs/readiness/drafts/CHG-093-current/validation-receipt.json",
+            "destination": "docs/readiness/drafts/CHG-093-current/validation-receipt.json",
+            "blob": "5075a2c4800cc07c487e945e7fdeccb127591b18"
+          }
+        ],
+        "new": "1d7e315913f1f7be28e7ced4bef729568f78e787"
+      },
+      {
+        "previous_candidate": "bf94c917003f8e21680e425872dd921a796923dc",
+        "parent": "1d7e315913f1f7be28e7ced4bef729568f78e787",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "35819840755575d71ba238d9f1d0a1b912108629"
+          },
+          {
+            "source_path": "docs/readiness/CHG-093.json",
+            "destination": "docs/readiness/CHG-093.json",
+            "blob": "3dc84b76bf3a717462d450e4dcdee693568df571"
+          }
+        ],
+        "new": "1bb10831b76c7a52604417fd5411ad1402b1082e"
+      },
+      {
+        "previous_candidate": "943df8d1b092b771876f3551af80fe18895733f4",
+        "parent": "1bb10831b76c7a52604417fd5411ad1402b1082e",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": "docs/superpowers/plans/CHG-093-current-plan.md",
+            "destination": "docs/superpowers/plans/CHG-093-current-plan.md",
+            "blob": "17414b2e7c8b430b333a6e527018b07f786ddd25"
+          },
+          {
+            "source_path": "docs/superpowers/specs/CHG-093-current-design.md",
+            "destination": "docs/superpowers/specs/CHG-093-current-design.md",
+            "blob": "11d9bf5997ce98a44f99f3e3389765d9c164e0cd"
+          }
+        ],
+        "new": "58a3d3ad6518f6dffe97e00b315a4a05960576ce"
+      },
+      {
+        "previous_candidate": "cf95f395dc0037f5a4ed1630d6f12b1c889407d7",
+        "parent": "58a3d3ad6518f6dffe97e00b315a4a05960576ce",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "a98d1d8efbe87b7552692623d2eb82e64b17a08f"
+          }
+        ],
+        "new": "dd50ce70bdaee32c7e0b4f98900468c969e88837"
+      },
+      {
+        "previous_candidate": "9f4013a8174ef9c81dc9be69559331eeacf5dc40",
+        "parent": "dd50ce70bdaee32c7e0b4f98900468c969e88837",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": "docs/readiness/CHG-093.json",
+            "destination": "docs/readiness/CHG-093.json",
+            "blob": "25c5759202cda186fe7a50740c0493a149b59d3c"
+          },
+          {
+            "source_path": "docs/readiness/drafts/CHG-093-current/approval-packet.md",
+            "destination": "docs/readiness/drafts/CHG-093-current/approval-packet.md",
+            "blob": "20457aa289b9049643f541cee645569cfc52e930"
+          },
+          {
+            "source_path": "docs/readiness/drafts/CHG-093-current/source-bindings.json",
+            "destination": "docs/readiness/drafts/CHG-093-current/source-bindings.json",
+            "blob": "c55060d2c6732bca724aa92ce76b9633846249b7"
+          },
+          {
+            "source_path": "docs/readiness/drafts/CHG-093-current/validation-receipt.json",
+            "destination": "docs/readiness/drafts/CHG-093-current/validation-receipt.json",
+            "blob": "092507f49f27cd63b8b893eb89e6f549e023935e"
+          }
+        ],
+        "new": "3de512c0b6937fae93aa47db644b328f131eaa4d"
+      },
+      {
+        "previous_candidate": "d2d5f20b308ff61d0899eb008ab46d387d21c677",
+        "parent": "3de512c0b6937fae93aa47db644b328f131eaa4d",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "5cf88e66266c6079abcb26f9e932d473354c7afe"
+          },
+          {
+            "source_path": "docs/readiness/CHG-093.json",
+            "destination": "docs/readiness/CHG-093.json",
+            "blob": "4f7b48495793057d421af9516bce035300a6bca4"
+          }
+        ],
+        "new": "29157323e26f0b0a26da7b0391d84c79937a4e48"
+      },
+      {
+        "previous_candidate": "2b0ff121be9d8ee5801d3ef9838505a7f2c26a14",
+        "parent": "29157323e26f0b0a26da7b0391d84c79937a4e48",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": "docs/superpowers/plans/CHG-093-current-plan.md",
+            "destination": "docs/superpowers/plans/CHG-093-current-plan.md",
+            "blob": "efdcb742ca749f809a0ca9741ce00192f19f349c"
+          },
+          {
+            "source_path": "docs/superpowers/specs/CHG-093-current-design.md",
+            "destination": "docs/superpowers/specs/CHG-093-current-design.md",
+            "blob": "dcf15e399f12fdebfecd9099b8681dbb9ec171ac"
+          }
+        ],
+        "new": "16a796245674a239106c1fcee74afdaa247f6501"
+      },
+      {
+        "previous_candidate": "54d05505c08748a7afbc39e470f207a15fd87d9f",
+        "parent": "16a796245674a239106c1fcee74afdaa247f6501",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "40a934ee21fb6d4d48e4d3e6084e9bb0338a7b8d"
+          },
+          {
+            "source_path": "docs/readiness/drafts/CHG-093-current/evidence-manifest.json",
+            "destination": "docs/readiness/drafts/CHG-093-current/evidence-manifest.json",
+            "blob": "d621204345520670c5031b1ba2e9a87f11ec704f"
+          },
+          {
+            "source_path": "docs/readiness/drafts/CHG-093-current/reconstruction-sha-map.json",
+            "destination": "docs/readiness/drafts/CHG-093-current/reconstruction-sha-map.json",
+            "blob": "5ed315030e30bdbfe3583b253276e846729857f1"
+          }
+        ],
+        "new": "fc59c9deb1123d57e15d836fa8b7d88778ab37d3"
+      },
+      {
+        "previous_candidate": "532066bca010e1c9489b7f6e3ffb7db84fc019cb",
+        "parent": "fc59c9deb1123d57e15d836fa8b7d88778ab37d3",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "b0e5733fef5697579563bbab64529d048786a94b"
+          }
+        ],
+        "new": "19500b6b8acf7cd4296e849d04b236337ac0e41c"
+      },
+      {
+        "previous_candidate": "857de86241eb2df78e0b1228fc03bd3dc347f84f",
+        "parent": "19500b6b8acf7cd4296e849d04b236337ac0e41c",
+        "exit": 0,
+        "paths": [
+          {
+            "source_path": ".nous-feedback.jsonl",
+            "destination": ".nous-feedback.jsonl",
+            "blob": "5ea881f67d786bcf52fc8d58625b32edc2a9f4f3"
+          },
+          {
+            "source_path": "docs/readiness/drafts/CHG-093-current/evidence-manifest.json",
+            "destination": "docs/readiness/drafts/CHG-093-current/evidence-manifest.json",
+            "blob": "e3945247bb7a1e2f968dca68f1d7135e638845f6"
+          }
+        ],
+        "new": "777e42088583fee88202100629039bd37bb5e581"
+      }
+    ],
+    "adjudication_sha256": "13f34d7053881c7942a60bfb44934b17b3853ee758c6cf8f17d88e970e7d1c31"
+  }
 }
