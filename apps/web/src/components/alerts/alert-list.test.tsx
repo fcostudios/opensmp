@@ -47,7 +47,10 @@ describe("alertDestination", () => {
     );
   });
 
-  it("maps raw subjects into organism destinations", () => {
+  it.each([
+    ["approval_aging", { requestId: "request-1" }, "request-1", "/solicitudes/request-1"],
+    ["register_drift", { reconciliationId: "historical-reconciliation-1" }, "historical-reconciliation-1", "/excepciones"],
+  ] as const)("renders %s raw historical subjects through the actual organism", (rawType, rawSubject, subject, href) => {
     const html = renderToStaticMarkup(
       <AlertList
         activeFilter="unacknowledged"
@@ -59,11 +62,11 @@ describe("alertDestination", () => {
           firedAt: "2026-07-29T12:00:00.000Z",
           id: "event-1",
           notified: "Pending",
-          rawSubject: { requestId: "request-1" },
-          rawType: "approval_aging",
+          rawSubject,
+          rawType,
           scope: "Company A",
-          subject: "request-1",
-          type: "Approval aging",
+          subject,
+          type: rawType,
         }]}
         labels={{
           acknowledgedAt: "Acknowledged at",
@@ -83,7 +86,8 @@ describe("alertDestination", () => {
         unacknowledgedHref="?filter=unacknowledged"
       />,
     );
-    expect(html).toContain('href="/solicitudes/request-1"');
+    expect(html).toContain(`href="${href}"`);
+    expect(html).toContain(subject);
     expect(html).not.toContain("rawSubject");
   });
 

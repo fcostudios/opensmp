@@ -1138,3 +1138,142 @@ describe("US-042 alert evaluation worker", () => {
     }
   }, 30_000);
 });
+
+
+it("US-092 retires financial drift with enabled rules while preserving real delivery and financial evidence", async () => {
+  const financial = await createPostgresFixture();
+  await financial.migrate();
+  const owner = await financial.connectAsOwner();
+  const messages: string[] = [];
+  const smtp = new SMTPServer({
+    authOptional: true,
+    disabledCommands: ["AUTH", "STARTTLS"],
+    onData(stream, _session, callback) {
+      let message = "";
+      stream.setEncoding("utf8");
+      stream.on("data", (chunk: string) => { message += chunk; });
+      stream.on("end", () => { messages.push(message); callback(); });
+    },
+  });
+  smtp.listen(0, "127.0.0.1");
+  await once(smtp.server, "listening");
+  const address = smtp.server.address();
+  if (!address || typeof address === "string") throw new Error("SMTP port unavailable");
+  const job = createAlertEvaluationJob({
+    connectionString: financial.appUrl,
+    mailer: createSmtpMailer(`smtp://127.0.0.1:${address.port}`),
+    workerId: "worker-us-092-financial",
+  });
+  const id = (suffix: string) => `00000000-0000-4000-8000-00000000${suffix}`;
+  const account = id("9202");
+  const otherAccount = id("9203");
+  const at = new Date("2026-10-15T15:07:00.000Z");
+  try {
+    await owner.query("UPDATE alert_rule SET enabled = false");
+    await owner.query(
+      `INSERT INTO vendor (id,name,connector_type,provisioning_protocol,can_provision,
+       can_deprovision,has_usage_data,has_cost_data,identity_matching,status,created_at,created_by)
+       VALUES ($1,'US092 vendor','orchestration','none',false,false,false,false,'email','active',$2,
+       '00000000-0000-0000-0000-000000000001')`, [id("9201"), at]);
+    await owner.query(
+      `INSERT INTO vendor_account (id,vendor_id,name,mode,low_pool_floor,status,created_at,created_by)
+       VALUES ($1,$3,'US092 financial','orchestration',2,'active',$4,'00000000-0000-0000-0000-000000000001'),
+       ($2,$3,'US092 other account','orchestration',0,'active',$4,'00000000-0000-0000-0000-000000000001')`,
+      [account, otherAccount, id("9201"), at]);
+    await owner.query(
+      `INSERT INTO license_type (id,vendor_id,name,unit,status,created_at,created_by)
+       VALUES ($1,$2,'US092 seat','seat','active',$3,'00000000-0000-0000-0000-000000000001')`,
+      [id("9204"), id("9201"), at]);
+    await owner.query(
+      `INSERT INTO vendor_account_capacity (id,vendor_account_id,license_type_id,purchased_qty,effective_from,created_at,created_by)
+       VALUES ($1,$2,$3,1,'2026-10-01',$4,'00000000-0000-0000-0000-000000000001')`,
+      [id("9205"), account, id("9204"), new Date("2026-10-01T00:00:00Z")]);
+    await owner.query(
+      `INSERT INTO company (id,name,code,type,status,created_at,created_by)
+       VALUES ($1,'US092 A','US092-A','internal','active',$3,'00000000-0000-0000-0000-000000000001'),
+       ($2,'US092 B','US092-B','external','active',$3,'00000000-0000-0000-0000-000000000001')`,
+      [id("9209"), id("9210"), at]);
+    await owner.query(
+      `INSERT INTO reconciliation (id,period,vendor_account_id,invoice_amount_usd,rollup_amount_usd,variance_usd,status,notes,created_at)
+       VALUES ($1,'2026-09',$3,117.25,100.00,17.25,'open','US092 nonzero evidence',$5),
+       ($2,'2026-09',$4,25.00,25.00,0.00,'open','US092 account negative',$5)`,
+      [id("9206"), id("9207"), account, otherAccount, at]);
+    await owner.query(
+      `INSERT INTO reconciliation_variance_line (id,reconciliation_id,cause,detail,register_amount_usd,
+       invoice_amount_usd,difference_usd,created_at,created_by)
+       VALUES ($1,$2,'rate_mismatch','US092 preserved variance',100.00,117.25,17.25,$3,
+       '00000000-0000-0000-0000-000000000001')`, [id("9208"), id("9206"), at]);
+    await owner.query(
+      `UPDATE alert_rule SET enabled = true WHERE type = 'register_drift' AND scope_kind = 'global'`);
+    await owner.query(
+      `INSERT INTO alert_rule (id,type,scope_kind,vendor_account_id,company_id,threshold,channel,enabled,created_at,created_by)
+       VALUES ($1,'register_drift','vendor_account',$6,NULL,'{"mismatches":1}','email',true,$10,'00000000-0000-0000-0000-000000000001'),
+       ($2,'register_drift','vendor_account',$7,NULL,'{"mismatches":1}','email',true,$10,'00000000-0000-0000-0000-000000000001'),
+       ($3,'register_drift','company',NULL,$8,'{"mismatches":1}','email',true,$10,'00000000-0000-0000-0000-000000000001'),
+       ($4,'register_drift','company',NULL,$9,'{"mismatches":1}','email',true,$10,'00000000-0000-0000-0000-000000000001'),
+       ($5,'low_pool','vendor_account',$6,NULL,'{"floor":2}','email',true,$10,'00000000-0000-0000-0000-000000000001')`,
+      [id("9211"),id("9212"),id("9213"),id("9214"),id("9215"),account,otherAccount,id("9209"),id("9210"),at]);
+    await owner.query(
+      `INSERT INTO alert_rule (id,type,scope_kind,company_id,threshold,channel,enabled,created_at,created_by)
+       VALUES ($1,'low_pool','company',$3,'{"floor":2}','email',true,$5,'00000000-0000-0000-0000-000000000001'),
+       ($2,'low_pool','company',$4,'{"floor":2}','email',true,$5,'00000000-0000-0000-0000-000000000001')`,
+      [id("9216"),id("9217"),id("9209"),id("9210"),at]);
+    await owner.query(
+      `INSERT INTO alert_event (id,alert_rule_id,fired_at,subject_ref,notified,dedupe_key)
+       SELECT $1,id,'2026-10-14T15:00:00Z',$2::jsonb,'{"status":"pending"}','US092-historical'
+       FROM alert_rule WHERE type = 'register_drift' AND scope_kind = 'global'`,
+      [id("9218"),JSON.stringify({ reconciliationId: id("9206") })]);
+    const financialRows = () => owner.query(
+      `SELECT id, vendor_account_id, status, invoice_amount_usd,rollup_amount_usd,variance_usd,notes
+       FROM reconciliation ORDER BY id`);
+    const varianceRows = () => owner.query(
+      `SELECT id,reconciliation_id,cause,detail,register_amount_usd,invoice_amount_usd,difference_usd
+       FROM reconciliation_variance_line ORDER BY id`);
+    const before = await financialRows();
+    const varianceBefore = await varianceRows();
+    expect(before.rows.map(({status,variance_usd}) => ({status,variance_usd}))).toEqual([
+      { status: "open", variance_usd: "17.25" }, { status: "open", variance_usd: "0.00" },
+    ]);
+    const enabled = await owner.query(
+      `SELECT scope_kind,company_id,vendor_account_id FROM alert_rule
+       WHERE type = 'register_drift' AND enabled ORDER BY scope_kind,company_id,vendor_account_id`);
+    expect(enabled.rows).toEqual([
+      {scope_kind:"global",company_id:null,vendor_account_id:null},
+      {scope_kind:"company",company_id:id("9209"),vendor_account_id:null},
+      {scope_kind:"company",company_id:id("9210"),vendor_account_id:null},
+      {scope_kind:"vendor_account",company_id:null,vendor_account_id:account},
+      {scope_kind:"vendor_account",company_id:null,vendor_account_id:otherAccount},
+    ]);
+
+    expect(await job.run(at)).toEqual({ processed: 1, status: "succeeded" });
+    expect(await job.run(new Date("2026-10-15T15:08:00Z"))).toEqual({ processed: 0, status: "succeeded" });
+    const drift = await owner.query(
+      `SELECT event.id,event.subject_ref FROM alert_event event JOIN alert_rule rule ON rule.id=event.alert_rule_id
+       WHERE rule.type='register_drift' ORDER BY event.id`);
+    expect(drift.rows).toEqual([{id:id("9218"),subject_ref:{reconciliationId:id("9206")}}]);
+    const deliveries = await owner.query(
+      `SELECT rule.type,event.subject_ref,array_agg(delivery.phase::text ORDER BY delivery.attempt,delivery.phase) AS phases
+       FROM alert_event event JOIN alert_rule rule ON rule.id=event.alert_rule_id
+       JOIN alert_notification_delivery delivery ON delivery.alert_event_id=event.id
+       GROUP BY rule.type,event.id ORDER BY rule.type,event.id`);
+    expect(deliveries.rows).toEqual([{
+      type:"low_pool",subject_ref:{licenseTypeId:id("9204"),vendorAccountId:account},
+      phases:["pending","claimed","succeeded"],
+    }]);
+    const companyEvents = await owner.query(
+      `SELECT rule.company_id,count(event.id)::int AS events FROM alert_rule rule
+       LEFT JOIN alert_event event ON event.alert_rule_id=rule.id WHERE rule.company_id=ANY($1::uuid[])
+       GROUP BY rule.company_id ORDER BY rule.company_id`, [[id("9209"),id("9210")]]);
+    expect(companyEvents.rows).toEqual([{company_id:id("9209"),events:0},{company_id:id("9210"),events:0}]);
+    expect((await financialRows()).rows).toEqual(before.rows);
+    expect((await varianceRows()).rows).toEqual(varianceBefore.rows);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain("Subject: Alerta de Ledger: low_pool");
+    expect(messages.join("\n")).not.toContain("register_drift");
+  } finally {
+    await job.close();
+    await owner.end();
+    await new Promise<void>((resolve,reject) => smtp.close(error => error ? reject(error) : resolve()));
+    await financial.stop();
+  }
+}, 120_000);

@@ -24,7 +24,8 @@
     "apps/web/src/modules/request-workflow/read-repository.integration.test.ts"
   ],
   "apps/worker/src/alerts/evaluate-alerts.ts": [
-    "apps/worker/src/alerts/overdue-invitations.integration.test.ts"
+    "apps/worker/src/alerts/overdue-invitations.integration.test.ts",
+    "apps/worker/src/alerts/evaluate-alerts.integration.test.ts"
   ],
   "apps/web/src/app/(authenticated)/excepciones/page.tsx": [
     "apps/web/src/components/exceptions/exception-page-boundaries.test.ts"

@@ -706,18 +706,7 @@ async function gatherFacts(
         "vendorAccountId",
       );
     case "register_drift":
-      return await booleanSubjectFacts(
-        pool,
-        rule,
-        `SELECT reconciliation.id AS subject_id
-         FROM reconciliation
-         WHERE reconciliation.status = 'open'
-           AND reconciliation.variance_usd IS DISTINCT FROM 0
-           AND $1::uuid IS NULL
-           AND ($2::uuid IS NULL OR reconciliation.vendor_account_id = $2)`,
-        "drifted",
-        "reconciliationId",
-      );
+      return [];
     case "sync_stale":
       return await staleSyncFacts(pool, rule, at);
     case "close_missed":
