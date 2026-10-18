@@ -83,7 +83,7 @@
       "statement": "Historical source selection must exclude unrelated US088/US086 files while retaining all approved same-file hunks.",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Use delivered CHG094 optional mutation_scope: exact783d09df4467e27462dec440cc64ac4855d02e02→d06c2a62b43843a1c06b15b35eb85385d119ff77; three canonical owned paths/blobs, complete ten ranges. Pending readonly planner reassessed on currentmainae98; expected3shards, not historical7. Full ranges conservatively include earlier US075 same-file hunks, never pruned or author-exclusive. Campaign independently revalidates committed CHG093 approval and closed subject digestbc2bf6a955559d8be0e3f63ddcd5eb311d741bba21c0e374373acefa485bc7ef."
+      "resolution": "Use delivered CHG094 optional mutation_scope: exact783d09df4467e27462dec440cc64ac4855d02e02\u2192d06c2a62b43843a1c06b15b35eb85385d119ff77; three canonical owned paths/blobs, complete ten ranges. Pending readonly planner reassessed on currentmainae98; expected3shards, not historical7. Full ranges conservatively include earlier US075 same-file hunks, never pruned or author-exclusive. Campaign independently revalidates committed CHG093 approval and closed subject digestbc2bf6a955559d8be0e3f63ddcd5eb311d741bba21c0e374373acefa485bc7ef."
     },
     {
       "id": "U2",
@@ -111,7 +111,7 @@
       "statement": "Append-only correction must preserve historical US087 evidence and cost while replacing current applicability.",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Supersede uniquely identified US087 build_pass, AC1–3 and done through existing closed evidence_superseded→CHG093 decision→revalidated protocol. Replacement build must precede replacement terminal; actual candidate/base/ownedScope references in feedback/build/AC notes; terminal projection has no cost/source_commit additions. Named correction decision cites already-recorded genuine human CHG093 approval, not new fabricated approval. Original done/cost/raw records/approvedpayload/254 actuals byte-identical; all additional work and reports charged once toCHG093."
+      "resolution": "Supersede uniquely identified US087 build_pass, AC1\u20133 and done through existing closed evidence_superseded\u2192CHG093 decision\u2192revalidated protocol. Replacement build must precede replacement terminal; actual candidate/base/ownedScope references in feedback/build/AC notes; terminal projection has no cost/source_commit additions. Named correction decision cites already-recorded genuine human CHG093 approval, not new fabricated approval. Original done/cost/raw records/approvedpayload/254 actuals byte-identical; all additional work and reports charged once toCHG093."
     },
     {
       "id": "U6",
@@ -125,9 +125,9 @@
   "decision": "ready",
   "partitions": [],
   "approval": {
-    "status": "pending",
-    "approved_by": null,
-    "evidence": null,
+    "status": "approved",
+    "approved_by": "Francisco Lomas",
+    "evidence": "CHG093-EXECUTION-APPROVAL-20261013",
     "payload_sha256": "366ca764bc92faaf564673c2105ffbc0714e12117f5a2395c3b7307597ba786a"
   },
   "actuals": null,
