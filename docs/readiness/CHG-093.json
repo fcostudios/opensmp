@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "readiness_payload_sha256": "366ca764bc92faaf564673c2105ffbc0714e12117f5a2395c3b7307597ba786a",
+  "readiness_payload_sha256": "d4227881873a209f3aee5a37bef0211c7cdcc8cded522d94dde34003cae84f1c",
   "work_id": "CHG-093",
   "kind": "CHG",
   "work_type": "technical",
-  "title": "Integrate closed US-087 with fresh verification on changed shared inputs",
-  "source": "Canonical CHG-093_TECH_SPEC.md Nous6ecb4638, Francisco policy approval in controller01a12c65-b3ae-77a3-8634-3e6bad11a40e; explicit preparation instruction2026-10-13. CHG094 integrated mainae98f9fd4206a2e933355ec438cf9970ac3579bf. Prior deferred response662ec87d remains immutable; new digest execution approval pending.",
+  "title": "Pending CHG-093 ordinary-suite diagnosis and conditional test-only reassessment",
+  "source": "Static preparation authorized only; alternative from canonical0779cc5b rev6 responsev1. Original executed205 remains immutable. Proposed319 and conditional three-test deviation require new digest-bound human approval.",
   "outcomes": [
     {
       "id": "O1",
@@ -60,8 +60,8 @@
   "signals": {
     "routes_or_screens": 0,
     "acceptance_flows": 3,
-    "expected_changed_files": 8,
-    "bookkeeping_files": 6,
+    "expected_changed_files": 11,
+    "bookkeeping_files": 17,
     "expected_mutation_shards": 3,
     "lifecycle_or_concurrency_boundaries": 1,
     "external_integrations": 0,
@@ -70,55 +70,27 @@
     "tooling_change": false
   },
   "estimate_minutes": {
-    "readiness": 25,
-    "implementation": 40,
-    "focused_verification": 30,
-    "review": 30,
-    "integration": 80,
-    "total": 205
+    "readiness": 38,
+    "implementation": 75,
+    "focused_verification": 40,
+    "review": 42,
+    "integration": 124,
+    "total": 319
   },
   "uncertainties": [
     {
       "id": "U1",
-      "statement": "Historical source selection must exclude unrelated US088/US086 files while retaining all approved same-file hunks.",
+      "statement": "Historical owned mutation scope and closed US087 authority must remain immutable.",
       "status": "resolved",
       "estimate_impact_minutes": 0,
-      "resolution": "Use delivered CHG094 optional mutation_scope: exact783d09df4467e27462dec440cc64ac4855d02e02→d06c2a62b43843a1c06b15b35eb85385d119ff77; three canonical owned paths/blobs, complete ten ranges. Pending readonly planner reassessed on currentmainae98; expected3shards, not historical7. Full ranges conservatively include earlier US075 same-file hunks, never pruned or author-exclusive. Campaign independently revalidates committed CHG093 approval and closed subject digestbc2bf6a955559d8be0e3f63ddcd5eb311d741bba21c0e374373acefa485bc7ef."
+      "resolution": "Original mutation_scope retained exactly; source/backup5e3553d, subjectbc2/254, original approved205 and raw ledger prefix retained."
     },
     {
       "id": "U2",
-      "statement": "Current main has US087 production blobs but older readiness and incomplete acceptance suites.",
+      "statement": "Bounded ordinary-suite diagnosis, conditional three-test correction and one owned cold have concrete stop rules; findings remain runtime-unconfirmed.",
       "status": "resolved",
-      "estimate_impact_minutes": 0,
-      "resolution": "Mainae98 has older subject digest9aeeb1afd4100c7f9bf17b3107907942c3560e14fff77218f44720d7351e451e; pending planner requires no subject execution authority. Approval precedes the approved replay, then activation requires restored closed US087 readiness/raw decisions from5e3553d, exactbc2bf... payload and254-minute actuals. No circular requirement to integrate before CHG093 approval. Dry merge69c9ee931f26b8c7d31689c9e739070c81cd5f15 has only ledger conflict, unchanged production blobs, and inherited changes in2test suites/6control-story paths; import existing delivery byte-exact, no new product repair."
-    },
-    {
-      "id": "U3",
-      "statement": "Replaying22 source-only commits must preserve main prefix and historical authority without making future terminal rows visible prematurely.",
-      "status": "budgeted",
-      "estimate_impact_minutes": 10,
-      "resolution": "Implementation40 includes30 preserved-ref/22-commit rebase/SHA-map/per-step ledger resolution plus10 correction preparation. Create backup exact5e3553d only after approval; fork its existing history in isolated candidate branch, rebase onto CHG093 approved entry descending assessedmainae98. At each conflict retain entry ledger exact byte prefix and only original source unique rows through that replayed original commit, ordered byte-identically; do not inject final done before original implementation commits. At final cutoff mainae98 ledger remains exact prefix and all original unique rows preserved. New bookkeeping rows append separately. No fixed approvals/counting based on rebase position; source main remains untouched until finalFF."
-    },
-    {
-      "id": "U4",
-      "statement": "Current real runtime and inherited suites may change performance, survivors, gates or discovery.",
-      "status": "budgeted",
-      "estimate_impact_minutes": 15,
-      "resolution": "Integration80 includes one complete60-minute cache-off UTC owned campaign plus10 full ordinary gate and10 closure/FF custody. Historical entire cold42.3341min atd06 is timing evidence only; no score reused. CHG094 real current capability passed, ordinarymain gate247.131s; forcedUTCfullgate179.982s failed an unchanged worker DATE timezone oracle. Fullgate uses explicitAmerica/Guayaquil, finalpreflight/coldUTC; profiles/source hashes separately bound. Focused30=AC10+real preflight10+identity/fixture10; review30=scoped10+freshAC15+survivor5. No repeat cold/product/fixture/routing/threshold repair included; new failure or totalforecast>205 stops for concrete reassessment."
-    },
-    {
-      "id": "U5",
-      "statement": "Append-only correction must preserve historical US087 evidence and cost while replacing current applicability.",
-      "status": "resolved",
-      "estimate_impact_minutes": 0,
-      "resolution": "Supersede uniquely identified US087 build_pass, AC1–3 and done through existing closed evidence_superseded→CHG093 decision→revalidated protocol. Replacement build must precede replacement terminal; actual candidate/base/ownedScope references in feedback/build/AC notes; terminal projection has no cost/source_commit additions. Named correction decision cites already-recorded genuine human CHG093 approval, not new fabricated approval. Original done/cost/raw records/approvedpayload/254 actuals byte-identical; all additional work and reports charged once toCHG093."
-    },
-    {
-      "id": "U6",
-      "statement": "Exact inventory and concrete approval must remain within the technical scope.",
-      "status": "resolved",
-      "estimate_impact_minutes": 0,
-      "resolution": "Eight replayed nonbookkeeping paths: .nous-project.json,.nous-provenance.json,.nous-sync.json; checklist-action-transaction.test.ts,orchestration.integration.test.ts; docs/stories/CHANGES.md,SPRINT_PLAN.md,sprint-3/r1_misc_us_087.md. Six bookkeeping: CHG093 readiness/design/plan, US087 readiness/original plan, .nous-feedback.jsonl. No production/tooling/migration/generated-guidance edits. Check both pinned guides after replay, preserve as generated; original Nous sync envelopes run scripts/nous-sync-owns.mjs --staged where applicable. Completed US087/CHG094 are consumed context, not active blocked_by edges (schema permits only blocks/blocked_by). Existing child standing authorization is not new technical digest approval; ready classification, pending human execution approval, no started/rebase/campaign now."
+      "estimate_impact_minutes": 110,
+      "resolution": "Alternative contract resolved statically after canonical0779cc5b rev6 ANSWERED11:56:26.331410UTC responsev1 fingerprint964b36a2c38cf694df63927372fdffcd8af34759d5d544f8b9e59316041cb827; this supplies no execution approval. Diagnosis15 runs ordinary existing routed suites, not fault seeds: rtk proxy env TZ=America/Guayaquil caffeinate -i apps/web/node_modules/.bin/vitest run --root packages/domain --config vitest.config.ts src/request-workflow/lifecycle.test.ts --reporter=verbose; rtk proxy env TZ=America/Guayaquil caffeinate -i pnpm exec tsx packages/db/src/testing/run-with-shared-postgres.ts rtk proxy apps/web/node_modules/.bin/vitest run --root apps/web --config vitest.config.ts src/modules/request-workflow/orchestration.integration.test.ts src/modules/request-workflow/actions/checklist-action-transaction.test.ts --reporter=verbose. Cwd /Users/fcolomas/.codex/worktrees/chg093-integration-readiness/smp. Existing SMP_TEST_POSTGRES_CLUSTER_URL must be privately inherited and nonempty; no US*_MUTATION_DATABASE_(ADMIN_)?URL pair may be inherited. Stock run-with-shared-postgres.ts reuses this existing cluster; suite fixture hooks create private owner/app databases, apply committed migrations, and clean up; no hardcoded historical cold wrapper. Controller owns /tmp/smp-full-gate.lock via exclusive0600 create, UUID token/PID/device/inode; never delete foreign lock, wait>=60s, release only matching identity; host awake through caffeinate. Retain verbose suite/test execution names and outcomes at unique new custody paths, compare exact coveredBy names; PASS/positive executed counts required, skips never prove a targeted case. Normal suite PASS does not prove mutant kills. Seven findings remain unconfirmed; static analysis plus ordinary realDB oracles can identify a test-gap, equivalent, product/tool defect, or explicitly unconfirmed exit. Conditional20 test-only correction limited to packages/domain/src/request-workflow/lifecycle.test.ts, apps/web/src/modules/request-workflow/orchestration.integration.test.ts, apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts; only explicit scoped test-gap cases, no test/tool/production approval yet. ONE45min complete owned cache-off cold after correction supplies per-mutant testsCompleted/coveredBy/activation evidence; match IDs by source/location/replacement because inputs change. Remaining unresolved or failed review stops for further proposal; never force equivalence. Product/tool repair needs separately allocated named authority. Future110 caps15/20/10focused fullgate/preflight/10review/45cold/10closure; no automatic retry/overrun, no selector/preview-budget increase. US084 childA US090/CHG095P4a cannot integrate before093 integrates and formally closes due overlapping production and lifecycle/orchestration test paths."
     }
   ],
   "dependencies": [],
@@ -127,8 +99,8 @@
   "approval": {
     "status": "approved",
     "approved_by": "Francisco Lomas",
-    "evidence": "CHG093-EXECUTION-APPROVAL-SIGNED-20261013",
-    "payload_sha256": "366ca764bc92faaf564673c2105ffbc0714e12117f5a2395c3b7307597ba786a"
+    "evidence": "CHG093-READY-319-D4227881-20261015",
+    "payload_sha256": "d4227881873a209f3aee5a37bef0211c7cdcc8cded522d94dde34003cae84f1c"
   },
   "actuals": null,
   "policy_bootstrap": false,
