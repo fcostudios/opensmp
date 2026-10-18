@@ -1,0 +1,79 @@
+**Work item:** US-087
+**Readiness assessment:** docs/readiness/US-087.json
+**Approved estimate:** 250 minutes
+
+# US-087 checklist removal completion implementation plan
+
+> Use subagent-driven-development with the CHG-070 project override: one consolidated implementer, one reused scoped reviewer, one fresh adversarial reviewer. Standing human authority covers design/plan approval after independent scoped review.
+
+**Goal:** Complete confirmed removal exactly once through the shared finalizer and preserve open, retryable removal on every unsuccessful attempt.
+**Architecture:** Retain the inherited portable domain primitive and caller-owned SQL transaction port. The real checklist wrapper consumes the independently expected existing audit receipt inside the same outer transaction; successful replay adds no audit. Existing detail UI consumes the shipped pending-checklist APIs without new surface work.
+**Tech Stack:** TypeScript, Drizzle, PostgreSQL, Vitest and fast-check, native Stryker routing.
+**Spec:** `docs/stories/sprint-3/r1_misc_us_087.md` AC1–3; `docs/superpowers/specs/2026-10-11-us-075-anchored-removal-design.md` §§ Domain finalization primitive, Web transaction adapter and concurrency, Checklist confirmation and unconfirmed removal, Verification and acceptance evidence; `docs/superpowers/plans/2026-10-11-us-075-anchored-removal.md` §§ Checkpoint2, Verified audit receipt consumption — current release contract, Delegated direct-primitive oracle repair. The parent entry replay description is superseded by canonical US-086 refusal; completion replay remains the allocated US-087 behavior.
+
+## Global constraints
+
+- Exact six delivery paths: `packages/domain/src/request-workflow/lifecycle.ts`; `apps/web/src/modules/request-workflow/orchestration.ts`; `apps/web/src/modules/request-workflow/orchestration.integration.test.ts`; `apps/web/src/modules/request-workflow/actions/checklist-action-transaction.ts`; `apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts`; `apps/web/src/modules/alerts/offboarding-workflow.integration.test.ts`. Do not edit lifecycle.test.ts, entry/UI/projection/worker/connector/schema/grant/tooling/routing/generated-guide files. Readiness, plan, optional child spec and ledger are the four bookkeeping paths.
+- Full prospective allocation250 minutes: readiness20 (current active-role estimate22, variance+2), implementation70, focused40, review50, integration70. Remaining228 estimated. Integration reserves45 for final full native cold from actual40.9258 plus setup5 and evidence/closure20; no historical parent255.0026 or sibling US-086 cold charge. Report real measured process time and honest estimated role labor once. Reassess material repair burden/new path/boundary or forecast beyond250 before expanding; hard320 remains unchanged.
+- Freeze `MUTATION_BASE=783d09df4467e27462dec440cc64ac4855d02e02`, the accepted mapping of original37666528; record execution entry HEAD separately. Native7shards/8sources/48ranges includes inherited code. No source filter, synthetic baseline, private mutation config, relay, threshold change or score borrowing. Three owned completion sources are lifecycle, orchestration and checklist wrapper. Each owes≥80% and independently reviewed one-line nonkilled annotations.
+- Read RTK.md, AGENTS/CLAUDE/local WORK_READINESS and TESTING before work; prefix every shell command `rtk`. All tenant data uses real company_id predicates; only table-declared soft delete. Use injected clock/seed and real authorization/event/SQL implementations, no owned mocks. Real SQL failure triggers may force rollback; never remove constraints for coverage.
+- Shared CHG-067 PostgreSQL via shipped package test wrapper; no private containers. Scoped commands run `rtk pnpm --dir apps/web test -- <existing files>`. Mutation environment uses shipped paired runtime fixture and stock runner, credentials never output. Gate owns token+inode `/tmp/smp-full-gate.lock` for `caffeinate -i pnpm check`, waits on foreign lock and deletes only its own matching lock. Wait/yield background work≥60s; no1s polling.
+- One implementer does all production/tests/checkpoints/previews, reused scoped reviewer reviews each task. Controller never implements. Fresh independent AC1–3 reviewer after scoped GREEN. Only root/controller appends lifecycle ledger. Technical CHG-089/090 are closed with independent evidence and root fullgate; no remaining prerequisite release hold.
+- Previews≤30minutes total: touched shards only, one round per task plus one final fix round; slow DB/domain shards once finally unless touched after their last run. One final cache-cleared native whole7 cold runs last after all source/test/review changes; scored changes invalidate it and require preserved cost plus reassessment. Do not claim previous failed completion reports as closure proof.
+
+## Review focus
+
+1. JSON context has semantic malformations not constrained by SQL: reject before accepted writes, with exact OFFBOARDING_CONFLICT.
+2. Committed evidence inconsistent with anchor/closure: refuse without rewriting original first identity/date/reason.
+3. Failure or missing independently expected receipt after nested completion: every accepted write rolls back, not merely wrapper return false.
+4. Concurrent confirmation and distinct unconfirmed attempts: exactly one completion, permitted attempts only, no duplicate wrapper success audits.
+5. Capacity remains pending_refresh until a strictly later accepted observation; unrelated tenant/seat/person and watermark stay unchanged.
+
+### Task 1: Strengthen direct completion aggregate and real SQL contracts
+
+**Files:** lifecycle.ts, orchestration.ts, orchestration.integration.test.ts.
+**Interfaces:** Retain `validateOffboardingFacts(command: OffboardingConfirmation, facts: OffboardingFacts): "left_company" | "inactive"`, `finalizeOffboarding(command, port): Promise<OffboardingCompletion>`, `createOffboardingTransactionPort(transaction, authorization)` and `finalizeOffboardingInTransaction`. Tests import the actual domain source directly through the existing CHG-081 route and execute the real transaction adapter. No new port mock or package export.
+
+- [ ] Read inherited diagnostic only: US-086 cold-proof.json and the three completion reports it references. Lifecycle119K/113S/7NC, orchestration81K/28S/9NC, wrapper48K/6S/3NC; known nonkilled clusters lifecycle90–117, orchestration47–68/474/682 and wrapper93–95/236/243–244. List concrete new tests and their candidate mutants; no test merely for coverage.
+- [ ] Extend existing realSQL removal fixture/helpers, given actual provisioning and anchored start events when finalize command then exact completion/transition/closure or rejection. Use sql-permitted context cases: null/non-object, missing/non-array/empty/non-string/duplicate ids, invalid reason, request/person/account mismatch, anchor omission and extra/missing assignments. After each refusal assert OFFBOARDING_CONFLICT and unchanged accepted action/register/request/transition/audit facts including foreign tenant and unrelated seat. For guards made unreachable by constraints, call real validator with deliberately malformed copies of real loaded SQL facts as pure function inputs; do not mock persistence or disable constraints. This distinguishes portable validator semantics while SQL oracles prove the adapter independently.
+- [ ] Pin confirmation evidence: blank/oversize ID and invalid instant; valid pending/sent/failed statuses; incompatible request/action states; partially closed or wrong-reason rows. Generate deterministic Ecuador boundary dates with fast-check seed and injected clock, assert endedOn corresponds to America/Guayaquil, never before startedOn, original first date/reason/identity retained on same/different-ID replay.
+- [ ] Pin original completion validation against mutated context, request/action status, original request/reason/id set and row date/reason. Real append-only SQL audit prevents some corruptions: use pure validator for its own malformed identity guards and directly test the real finalizer with a real in-memory aggregate implementation only if needed and explicitly reviewed (never mocked owned store). Prefer SQL-permitted action/context/row mutations and exact unchanged writes.
+- [ ] Add deterministic lock/barrier concurrency, actor mismatch, forced completion audit failure and guarded closure/action count proof where actual SQL constraints permit; all accepted writes roll back. Preserve legacy checklist/deprovision compatibility, invitation deprovision behavior, provisioning tests and request→action→sorted assignment locks.
+- [ ] Run focused suite to expose existing contract failures; implement only necessary completion repair in the named production sources. For tests that strengthen already correct guards, record prior raw mutant as RED counterexample instead of intentionally breaking production. Never delete guards or add blanket disable/equivalent comments to raise score.
+- [ ] Run `rtk pnpm --dir apps/web test -- src/modules/request-workflow/orchestration.integration.test.ts`, web/domain type checks and mutation preflights. Commit `test(US-087): prove direct finalizer and atomic completion contracts` (or fix if changed logic). Report checkpoint/commands/role estimate to controller; scoped reviewer checks both compliance and quality before next task. Slow lifecycle/orchestration preview is deferred to final round unless justified by changed source after a run.
+
+### Task 2: Complete wrapper retry/replay and inherited end-to-end evidence
+
+**Files:** checklist-action-transaction.ts/.test.ts, orchestration.ts/.integration.test.ts if completion predicates require it; offboarding-workflow.integration.test.ts.
+**Interfaces:** Actual `createChecklistActionService(database,{loadAuthorization,now})`, real authorization repository, pendingChecklist/confirmChecklistDone/markChecklistNotDone; retained completion result/receipt contract from Task1. No UI/controller/action signature change.
+
+- [ ] Strengthen wrapper realDB fixture for both left_company and inactive, canonical remove and coherent legacy checklist/deprovision. Assert forbidden/invalid/conflicting inputs, exact accepted and rejected audit shapes, original company/action/assignment identity, pendingChecklist visibility and later confirmed disappearance.
+- [ ] Assert trim-bound failureId/reason replay, conflicting reuse and different-ID distinct attempt; failures leave request offboarding/action retryable/assignment open, no offboarding→failed/provisioning_failure. Confirmation clears failure_reason, completes once and replays across IDs/admins without accepted:true wrapper duplication.
+- [ ] Force real nested completion-audit or expected-receipt failure inside the wrapper outer transaction, inspect exact unchanged register/action/request/transition/success audit facts. Independently derive expected receipt fields from authoritative request/result; no echoed database audit payload. Observable rejection may record only its permitted attempted-command audit, not accepted state.
+- [ ] Prove no unrelated tenant/seat/Person.status/capacity/watermark mutation. Use existing `pool-snapshots` projection/`recordAcceptedMemberSnapshot` implementation from US-081 in an existing authorized test file (no source/test edit outside six): closure remains pending_refresh on absent/equal watermark and frees only after strictly later accepted observation. No optimistic capacity write or new provider dispatch.
+- [ ] In inherited alert test, assignment pointer and kind remove are already repaired: preserve them and prove real persisted context plus exact Ecuador deadline with the existing focused suite; no unnecessary edit or alert production change.
+- [ ] Run focused orchestration/wrapper/alert suites and relevant type/lint; fix only named sources if actual failures. Commit checkpoint for changed oracle/logic; report inherited unchanged fixture evidence explicitly. Scoped review before final verification. Run stock accountable preflight and actual mutation preflight to verify native routing; launch final touched completion previews in background ≤30 total, collect at review boundary, preserve reports/counts/time and routing gaps.
+
+### Task 3: Final review, gates, native cold and closure
+
+**Files:** only remaining bounded fixes to the same six delivery paths; controller owns readiness actuals/ledger.
+**Interfaces:** Task1 and2 completed, reused scoped reviewer GREEN, native reports tied to frozen base and final candidate.
+
+- [ ] Controller dispatches fresh adversarial AC1–3 reviewer over all inherited completion + child repair source, exact checkpoints and focused commands. If needed send one bounded consolidated fix wave to the same implementer, then scoped re-review and final touched preview only for sources changed since last preview. No unexplained whole-set preview.
+- [ ] Implementer reports per-survivor one-line draft classification, reviewed independently; genuine observable gaps repaired within forecast. Narrow constraint-backed equivalences require exact proof; observable accepted risk remains in denominator and needs reviewer rationale. No inherited failed score waiver.
+- [ ] Acquire owned fullgate lock; run awake stock `pnpm check` and committed migration apply/verify+ledger_app grant proof through shared stock fixture. Record timings, full statuses and gate environment; no dbpush/privatecontainers. No extra tests once gate clean without new change/failure.
+- [ ] Cache-clear stock mutation and run one complete native cold campaign last using fixed783d09df and actual7 discovered shards, no filters. Retain raw reports, manifest/performance hashes, source/suite identities, final candidate/checkpoint and exit. Each owned completion shard≥80 plus all nonkilled reviewed. Report sibling entry/audit results separately, never borrow them or falsely call foreign-failing run whole green.
+- [ ] Reused scoped reviewer and fresh reviewer verify final immutable proof/annotations without new source edits; controller records ac_verify/test_report/build_pass/actuals/cost honestly. Source/test edit after cold invalidates effectiveness; preserve attempt and forecast first. Check readiness/guidance and complete story lifecycle under root handoff, then root reviews/FFmain. No push/merge performed by implementer/controller.
+
+## Controller preflight and budget self-review
+
+| Pair | Producer/consumer | Assessment |
+| --- | --- | --- |
+| Task1 | Real direct decision and SQL oracle / existing signatures | Preserves portable primitive and atomic interface; no mock or export change. |
+| Task2 | Actual wrapper / independently expected Task1 receipt | Uses existing types; rejected attempts distinct from accepted completion. |
+| Task3 | Final proof / unchanged Task1–2 candidate | No scored edit after cold. |
+| Task1↔2 | Shared orchestration source/suite | One worker serializes; Task2 cannot weaken Task1 guards. |
+| Task1↔3 | Domain+SQL evidence / mutation reports | Fixed original mapped base retains inherited guards and body. |
+| Task2↔3 | Wrapper/alert/capacity evidence / AC review | Existing adjacent capacity implementation consumed, not modified. |
+
+AC1 maps Task1, AC2 Task2, AC3 both plus Task3 fresh demo. No acceptance gap, second lifecycle or tooling change. New design omitted under partition-child design inheritance: canonical child+approved parent design+resolved assessment+exact section-bound Spec satisfy four conditions. Bound phase total remains250, readiness22 estimate produces+2 variance to carry honestly; risk forecast is reassessed before exceeding allocation. Independent scoped plan review and controller approval under Francisco standing authority precede started/implementation.
