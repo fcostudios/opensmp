@@ -1,0 +1,125 @@
+{
+  "head": "2b0ff121be9d8ee5801d3ef9838505a7f2c26a14",
+  "base": "a8c7388a53b686a0b5151b5e125f498a95554c2d",
+  "approved_entry": "d5a6b5249111380a92587e40ae669211d721f200",
+  "current_payload_byte_equal_approved": true,
+  "main_prefix_sha256": "b85757cdc69d5a052b928e9e8409bca189862c088368eab371475b2dea572aa8",
+  "candidate_ledger_sha256": "5a6abac2fa881e3e944d6760da05847cd3ee8037a477a1ba60d641e0ba785695",
+  "main_prefix_exact": true,
+  "raw_source_custody": [
+    {
+      "source": "5e3553d93adb36fcfa0e6316dc2a9f0a91ed0ecc",
+      "unique_rows": 32,
+      "missing": [],
+      "original_relative_order": true,
+      "raw_sha256": "0e51a168d4ccb1e16bfebd17582656449b9cd0a1213d942ca698d0ce5763b797"
+    },
+    {
+      "source": "2e7dae68a393fbc669c21e8a22289e93e2b76fb3",
+      "unique_rows": 44,
+      "missing": [],
+      "original_relative_order": true,
+      "raw_sha256": "4955a91e6078ba5ecef04f9ff6cc6a11e57d73e5d2b982b61304add238842e26"
+    },
+    {
+      "source": "d97563fbceb03189d129893ca959493b6d89eb04",
+      "unique_rows": 45,
+      "missing": [],
+      "original_relative_order": true,
+      "raw_sha256": "9f67ecf0abc03326cc752341beb3bcf9dba379119370e18b3129a4eed617bb63"
+    },
+    {
+      "source": "470e8f26f1a5b39c00f95c76972abbf632cf88c0",
+      "unique_rows": 48,
+      "missing": [],
+      "original_relative_order": true,
+      "raw_sha256": "9ec998b21b843b331c41ba5a853d2d992ae8354cf3a04be3c4e886b9f68b0c59"
+    }
+  ],
+  "source_proof": [
+    {
+      "path": "apps/web/src/modules/request-workflow/actions/checklist-action-transaction.ts",
+      "sha256": "273c68a6d5d100960d7023be0bcdaa0106b57a944f3ecd0a8052c6e5c8fcdebf",
+      "equal_frozen": true
+    },
+    {
+      "path": "apps/web/src/modules/request-workflow/orchestration.ts",
+      "sha256": "a52eea8b74fe170e824f30d082d0fd8b7db010250388c2e29773ecc7fb53c6cd",
+      "equal_frozen": true
+    },
+    {
+      "path": "packages/domain/src/request-workflow/lifecycle.ts",
+      "sha256": "cc59f730742bf233ebf8aa64d9e6bbd885b7353285c1db9606187ee65393a1a6",
+      "equal_frozen": true
+    },
+    {
+      "path": "apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts",
+      "sha256": "1559a286e4332bc460a7068a6f9e81d82ad36ceefe8a5d17fe6016523866489b",
+      "equal_frozen": true
+    },
+    {
+      "path": "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+      "sha256": "c6ceb9eb6ba287f8356e02146a9a942c961a67ef62d950ece143061a7d976611",
+      "equal_frozen": true
+    },
+    {
+      "path": "packages/domain/src/request-workflow/lifecycle.test.ts",
+      "sha256": "6496f9660ccacd3dae5c6f9dc9c4c490bbe4c58189b3ed5c419b9f8f59faa3c7",
+      "equal_frozen": true
+    },
+    {
+      "path": "testing/critical-paths.md",
+      "sha256": "d2324d079cabb4c69caad11ca5b6d3bd4aa9527e5a6021e735e3b4810595b817",
+      "equal_frozen": true
+    },
+    {
+      "path": "docs/dev-guide/TESTING.md",
+      "sha256": "db3923afa3c6342621dfe6b9f96c64abb72fd83762f58dfa09965b56bbacf72b",
+      "equal_frozen": true
+    }
+  ],
+  "closed_US087_byte_exact": true,
+  "current_canonical_custody_equal_base": true,
+  "changed_files": [
+    ".nous-feedback.jsonl",
+    "apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts",
+    "apps/web/src/modules/request-workflow/orchestration.integration.test.ts",
+    "docs/readiness/CHG-093.json",
+    "docs/readiness/US-087.json",
+    "docs/readiness/drafts/CHG-093-current/approval-packet.md",
+    "docs/readiness/drafts/CHG-093-current/astra-assessment.md",
+    "docs/readiness/drafts/CHG-093-current/source-bindings.json",
+    "docs/readiness/drafts/CHG-093-current/validation-receipt.json",
+    "docs/readiness/drafts/CHG-093-reassessment/final-review-verbatim.json",
+    "docs/readiness/drafts/CHG-093-reassessment/retained-evidence-manifest.json",
+    "docs/readiness/drafts/CHG-093-reassessment/seven-findings.json",
+    "docs/readiness/drafts/CHG-093-reassessment/task3-seven-blocker-raw-diagnosis.json",
+    "docs/superpowers/plans/2026-10-12-US-087-checklist-removal-completion.md",
+    "docs/superpowers/plans/2026-10-13-CHG-093-us087-integration.md",
+    "docs/superpowers/plans/CHG-093-current-plan.md",
+    "docs/superpowers/specs/2026-10-13-CHG-093-us087-integration.md",
+    "docs/superpowers/specs/CHG-093-current-design.md"
+  ],
+  "runtime_performed": false,
+  "original_runtime_raw_reports_recovered": false,
+  "checks": [
+    {
+      "name": "current-readiness",
+      "exit": 0,
+      "stdout_sha256": "f44a55add89530e7edcad1fd12d6e9347e03a756d1857df0336b6732cb9731e4"
+    },
+    {
+      "name": "full-delivery-range",
+      "exit": 0,
+      "stdout_sha256": "9bc17f5e81e1ea5d635b6619a773229da317aef6e0e8a3af51f6dd2d98fe5b81"
+    },
+    {
+      "name": "feedback-order",
+      "exit": 0,
+      "stdout_sha256": "372493d2d038938579370bc8ab7386670f9e1b18629c20c9e4a6d16ce3b696f5"
+    }
+  ],
+  "active_minutes_estimated_this_reconstruction": 8,
+  "accounting": "Replaces six future reconstruction minutes; delta+2, complete projection402.3879115965 before further controller/review actual variance. Historical worker9 remains already incurred. Future97 includes all diagnostics25/fullgate10/runtimereview7/ONEcold45/closure10. No runtime performed.",
+  "inventory_correction": "Three authentic original authority documents replayed to preserve true-parent checkpoints: original US087 plan and historical CHG093 plan/spec. Closed bookkeeping categories; total18 paths before map/evidence,20 after. No new technical delivery path. Other original assessment extracts archived externally rather than expanding repository inventory."
+}

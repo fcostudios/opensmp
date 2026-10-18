@@ -1,0 +1,465 @@
+{
+  "approved_entry": "d5a6b5249111380a92587e40ae669211d721f200",
+  "delivery_base": "a8c7388a53b686a0b5151b5e125f498a95554c2d",
+  "records": [
+    {
+      "source": "d63c1e98e33613196a131d8e80358cda8c908d02",
+      "exit": 0,
+      "paths": [
+        "docs/readiness/CHG-093.json"
+      ],
+      "parent": "a8c7388a53b686a0b5151b5e125f498a95554c2d",
+      "new": "68bdbbe5504a0b1c1a502f2eeba46e0d9dccfd84"
+    },
+    {
+      "source": "437f43b44eb9dfd6bcd5891d41a1ce0f31430996",
+      "exit": 0,
+      "paths": [
+        "docs/superpowers/specs/2026-10-13-CHG-093-us087-integration.md"
+      ],
+      "parent": "68bdbbe5504a0b1c1a502f2eeba46e0d9dccfd84",
+      "new": "47fce852c92dde13f82153439401b90a45aa43ae"
+    },
+    {
+      "source": "fab417bfdc7719b3cf56730c6879cdb44f8dd9be",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl",
+        "docs/readiness/CHG-093.json"
+      ],
+      "parent": "47fce852c92dde13f82153439401b90a45aa43ae",
+      "new": "01146668c0f41367daba306b1519203778d8e961"
+    },
+    {
+      "source": "dd42a29997b1ae5551131899290bd28af6498a1c",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl",
+        "docs/readiness/CHG-093.json"
+      ],
+      "parent": "01146668c0f41367daba306b1519203778d8e961",
+      "new": "2692c35896342b8a4c45552f97cf8fbebd758bc2"
+    },
+    {
+      "source": "87dcd8b23fae05a236a43330888387e419f3a821",
+      "exit": 0,
+      "paths": [
+        "docs/superpowers/plans/2026-10-13-CHG-093-us087-integration.md",
+        "docs/superpowers/specs/2026-10-13-CHG-093-us087-integration.md"
+      ],
+      "parent": "2692c35896342b8a4c45552f97cf8fbebd758bc2",
+      "new": "fa3621c15d9b08830f1a4617ffce1cad453fc5c6"
+    },
+    {
+      "source": "cabc5fbd6cf5709f52f0f650f5e97a7e7eee8f84",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "parent": "fa3621c15d9b08830f1a4617ffce1cad453fc5c6",
+      "new": "6d20b41bbffa860175647a9421e11a114b3dcfa8"
+    },
+    {
+      "source": "06e6845c89ef36d7f89c7ca6b972cf6dfaa6b3c3",
+      "exit": 0,
+      "paths": [
+        "docs/superpowers/plans/2026-10-12-US-087-checklist-removal-completion.md"
+      ],
+      "parent": "6d20b41bbffa860175647a9421e11a114b3dcfa8",
+      "new": "f3c1163fdfb1087dc4117ded88b4da0e2b71b86f"
+    },
+    {
+      "source": "52da67e783440664f144e35be817a46e55f02fe1",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "parent": "f3c1163fdfb1087dc4117ded88b4da0e2b71b86f",
+      "new": "d6dff0768d44aa755914d6afa4cf3755e6afec7b"
+    },
+    {
+      "source": "87b3c81bc96f29f466fc42d06a405d96f16527f2",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "parent": "d6dff0768d44aa755914d6afa4cf3755e6afec7b",
+      "new": "4982c3dcae6c69f5db7bfa7180c7ed6680069656"
+    },
+    {
+      "source": "a4e3a907f768992618f89b286cbae207f3022f08",
+      "exit": 0,
+      "paths": [
+        "apps/web/src/modules/request-workflow/orchestration.integration.test.ts"
+      ],
+      "parent": "4982c3dcae6c69f5db7bfa7180c7ed6680069656",
+      "new": "4161405289572670a062c79cadfb0c683f0c13dc"
+    },
+    {
+      "source": "4b89a700e7fb415efec47fa824b3131fcb51f329",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "parent": "4161405289572670a062c79cadfb0c683f0c13dc",
+      "new": "99d6c388aa384f4c79dcd9a1c2e73c031dc2c733"
+    },
+    {
+      "source": "952585d6cfef3e3aadbadebcfc8a350448856f0b",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl",
+        "docs/readiness/US-087.json",
+        "docs/superpowers/plans/2026-10-12-US-087-checklist-removal-completion.md"
+      ],
+      "parent": "99d6c388aa384f4c79dcd9a1c2e73c031dc2c733",
+      "new": "b1d31f6e7461b0fa887e50fa529a335ebfe97336"
+    },
+    {
+      "source": "2a0afc54782c3d63ecc06248b17bca1554fea919",
+      "exit": 0,
+      "paths": [
+        "apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts"
+      ],
+      "parent": "b1d31f6e7461b0fa887e50fa529a335ebfe97336",
+      "new": "cf7b4f187285bb432f8cdd996f9438373c156675"
+    },
+    {
+      "source": "08e986eca556df7b2f382245cb27dc7b41196a5b",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "parent": "cf7b4f187285bb432f8cdd996f9438373c156675",
+      "new": "2181454e01505779b6f013910a0958ce007ac975"
+    },
+    {
+      "source": "70756d530b1192ca91bd60cefcc46d6e2eea82b3",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl",
+        "docs/readiness/US-087.json"
+      ],
+      "parent": "2181454e01505779b6f013910a0958ce007ac975",
+      "new": "7e27198730cc35aca5ccd8bde762a8d69ed75bd6"
+    },
+    {
+      "source": "f0030e6ae1b1fbd5bf7f8ac915357cb072fd1844",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl",
+        "docs/superpowers/plans/2026-10-12-US-087-checklist-removal-completion.md"
+      ],
+      "parent": "7e27198730cc35aca5ccd8bde762a8d69ed75bd6",
+      "new": "eb259552e1eea1355f0d96c1c14a341e9a0c39f6"
+    },
+    {
+      "source": "7267f7bbdf8880b23329d13a242027b27e88752f",
+      "exit": 0,
+      "paths": [
+        "apps/web/src/modules/request-workflow/actions/checklist-action-transaction.test.ts",
+        "apps/web/src/modules/request-workflow/orchestration.integration.test.ts"
+      ],
+      "parent": "eb259552e1eea1355f0d96c1c14a341e9a0c39f6",
+      "new": "9363afeb69f6a85106094f6b3e6de8a5c70485a0"
+    },
+    {
+      "source": "32f6cf21d494ad657dc6036244b3476e74735434",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "parent": "9363afeb69f6a85106094f6b3e6de8a5c70485a0",
+      "new": "75355ae05b617ec6e8e5a37bdf93eea74d3e4b33"
+    },
+    {
+      "source": "5c6c7b6c0e33ed66acb0fb0cbcba6cb980bb19ab",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "parent": "75355ae05b617ec6e8e5a37bdf93eea74d3e4b33",
+      "new": "25aabaa9eb58caaa0b0a21659adb29c36b7e67df"
+    },
+    {
+      "source": "9bd6555573dff93129c25d89fd645ccd44afd48d",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "parent": "25aabaa9eb58caaa0b0a21659adb29c36b7e67df",
+      "new": "e1e1349d8a706ffa305b25820d172cdf4efd48a3"
+    },
+    {
+      "source": "1b2c39d962bfcc4bdb81c4df42c80f418e3aa78f",
+      "new": null,
+      "disposition": "Already-present canonical story byte-exact; current108/107/105/106 delivery envelopes and broader CHANGES/SPRINT_PLAN retained. No foreign canonical replay.",
+      "current_base": "a8c7388a53b686a0b5151b5e125f498a95554c2d"
+    },
+    {
+      "source": "fea98f73093ee5dcdc3a6dbb2533d38dd92ae3ea",
+      "exit": 0,
+      "paths": [
+        "docs/readiness/US-087.json"
+      ],
+      "parent": "e1e1349d8a706ffa305b25820d172cdf4efd48a3",
+      "new": "7630dfd0f081bcb905a35abb2a66114660ec1b39"
+    },
+    {
+      "source": "f444de287b3d85a66d76e8878927b8c2f99ff05a",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl",
+        "docs/readiness/US-087.json"
+      ],
+      "parent": "7630dfd0f081bcb905a35abb2a66114660ec1b39",
+      "new": "bf014fb579bd078d6c5d293425c96213af6f5903"
+    },
+    {
+      "source": "d853003f2482407f3613d6e45dfb172f2b4e9e1c",
+      "exit": 0,
+      "paths": [
+        "docs/superpowers/plans/2026-10-12-US-087-checklist-removal-completion.md"
+      ],
+      "parent": "bf014fb579bd078d6c5d293425c96213af6f5903",
+      "new": "9a124acdde6ae4f722b16f20f8dd05faf1035bdc"
+    },
+    {
+      "source": "e0339487553338202cd2aae6ba0012f088731b6c",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "parent": "9a124acdde6ae4f722b16f20f8dd05faf1035bdc",
+      "new": "ea97972688889e078527fcf615cfc86aa019971e"
+    },
+    {
+      "source": "89cd9967f5217e5311708bbe5d03131749e2e9c4",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "parent": "ea97972688889e078527fcf615cfc86aa019971e",
+      "new": "9b3b60c75848e31843c5f8482f5a3c94be1d4f0a"
+    },
+    {
+      "source": "158fc8936bcf299364c37ee42b01f622934bdda8",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "parent": "9b3b60c75848e31843c5f8482f5a3c94be1d4f0a",
+      "new": "188a4f63eeec93b75a59e8f0d27a8d2980219e36"
+    },
+    {
+      "source": "8bd084f3138b1bb5054edb80809876efa64be30a",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl",
+        "docs/readiness/US-087.json"
+      ],
+      "parent": "188a4f63eeec93b75a59e8f0d27a8d2980219e36",
+      "new": "565ba73b953b60afe22cf2dae54945bb71294743"
+    },
+    {
+      "source": "1fd528eda40e61aa800c0e12e62b60511032b88a",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "parent": "565ba73b953b60afe22cf2dae54945bb71294743",
+      "new": "816d26bbe3feadd78c08dcffa3b979fdc70c4cb4"
+    },
+    {
+      "source": "b914eeceb4dd7cedc856439bb1305fd4e06d3717",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "parent": "816d26bbe3feadd78c08dcffa3b979fdc70c4cb4",
+      "new": "1e0386501fb319ebab61a4b55688c45b64471068"
+    },
+    {
+      "source": "67e972bd203d4e71724998a4dd50d99b80b90fb7",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "parent": "1e0386501fb319ebab61a4b55688c45b64471068",
+      "new": "a58228bbe8ac7bb6412dc7f34bd9c84fc94c221b"
+    },
+    {
+      "source": "80c228bb1d010f0c724c84899057ab84fc407793",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "parent": "a58228bbe8ac7bb6412dc7f34bd9c84fc94c221b",
+      "new": "9b3002d155f86ae05093b5fd8071a596dd8061d0"
+    },
+    {
+      "source": "8c5fc8e9307e1c0f3b655c87a4c3d16c7c482c5a",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "parent": "9b3002d155f86ae05093b5fd8071a596dd8061d0",
+      "new": "51bdcab6b26a86cab67dfda511149176ddcc6d6c"
+    },
+    {
+      "source": "12feb8d48bacaf6d591f32e31aa6ed4a4a757de0",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "parent": "51bdcab6b26a86cab67dfda511149176ddcc6d6c",
+      "new": "f2c3e8fa9ccfadeabd8f2b7b9284d23435a005a0"
+    },
+    {
+      "source": "2e7dae68a393fbc669c21e8a22289e93e2b76fb3",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "parent": "f2c3e8fa9ccfadeabd8f2b7b9284d23435a005a0",
+      "new": "459c1afaaf742f62d685c7cd6351d9facd77bcc6"
+    },
+    {
+      "source": "d97563fbceb03189d129893ca959493b6d89eb04",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl",
+        "docs/readiness/drafts/CHG-093-reassessment/final-review-verbatim.json",
+        "docs/readiness/drafts/CHG-093-reassessment/retained-evidence-manifest.json",
+        "docs/readiness/drafts/CHG-093-reassessment/seven-findings.json",
+        "docs/readiness/drafts/CHG-093-reassessment/task3-seven-blocker-raw-diagnosis.json"
+      ],
+      "external_retained_paths": [
+        "docs/readiness/drafts/CHG-093-reassessment/canonical-response.json",
+        "docs/readiness/drafts/CHG-093-reassessment/model-proof.json",
+        "docs/readiness/drafts/CHG-093-reassessment/moved-main-static.json",
+        "docs/readiness/drafts/CHG-093-reassessment/pending-CHG-093.json",
+        "docs/readiness/drafts/CHG-093-reassessment/reassessment.md",
+        "docs/readiness/drafts/CHG-093-reassessment/task3-nine-accepted-lines.txt",
+        "docs/readiness/drafts/CHG-093-reassessment/task3-survivor-review-proposals.json",
+        "docs/readiness/drafts/CHG-093-reassessment/worker-telemetry-cutoff.json"
+      ],
+      "parent": "459c1afaaf742f62d685c7cd6351d9facd77bcc6",
+      "new": "590b17432c374a35ccdd3d5572febda48bc16806"
+    },
+    {
+      "source": "74c8a63cd7ef44c5f3c42209a97fc1cf9f2490dd",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "external_retained_paths": [
+        "docs/readiness/drafts/CHG-093-reassessment/model-proof.json",
+        "docs/readiness/drafts/CHG-093-reassessment/pending-CHG-093.json",
+        "docs/readiness/drafts/CHG-093-reassessment/reassessment.md",
+        "docs/readiness/drafts/CHG-093-reassessment/static-phase1-command-report.md"
+      ],
+      "parent": "590b17432c374a35ccdd3d5572febda48bc16806",
+      "new": "879917ab89cc57a85b512924c5c5c84cc61f9e88"
+    },
+    {
+      "source": "470e8f26f1a5b39c00f95c76972abbf632cf88c0",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl",
+        "docs/readiness/CHG-093.json"
+      ],
+      "external_retained_paths": [
+        "docs/readiness/drafts/CHG-093-reassessment/approval-binding-receipt.json",
+        "docs/readiness/drafts/CHG-093-reassessment/executed-205-CHG-093.json"
+      ],
+      "parent": "879917ab89cc57a85b512924c5c5c84cc61f9e88",
+      "new": "609a5f553b323998c026fe59ce54f5d97c0a2beb"
+    },
+    {
+      "source": "3c1ae6513b74b30a80c4a2be6017bdfe1635b92b",
+      "exit": 0,
+      "paths": [
+        "docs/readiness/CHG-093.json",
+        "docs/readiness/drafts/CHG-093-current/approval-packet.md",
+        "docs/readiness/drafts/CHG-093-current/astra-assessment.md",
+        "docs/readiness/drafts/CHG-093-current/source-bindings.json",
+        "docs/readiness/drafts/CHG-093-current/validation-receipt.json"
+      ],
+      "excluded_redundant_new_started": [],
+      "parent": "609a5f553b323998c026fe59ce54f5d97c0a2beb",
+      "new": "2d39360a0af9fe11f9cfdad27dfc6dda502fbf08"
+    },
+    {
+      "source": "f5be0b99a662f3fca36c4fbae3e2dc0d25dd2b9f",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl",
+        "docs/readiness/CHG-093.json"
+      ],
+      "excluded_redundant_new_started": [],
+      "parent": "2d39360a0af9fe11f9cfdad27dfc6dda502fbf08",
+      "new": "bf94c917003f8e21680e425872dd921a796923dc"
+    },
+    {
+      "source": "cf4cb5be25186cff5dc5bad21a16e6af67ced5fe",
+      "exit": 0,
+      "paths": [
+        "docs/superpowers/plans/CHG-093-current-plan.md",
+        "docs/superpowers/specs/CHG-093-current-design.md"
+      ],
+      "excluded_redundant_new_started": [],
+      "parent": "bf94c917003f8e21680e425872dd921a796923dc",
+      "new": "943df8d1b092b771876f3551af80fe18895733f4"
+    },
+    {
+      "source": "04056e6a4661450115e3baf556be0b44d94ed417",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl"
+      ],
+      "excluded_redundant_new_started": [
+        "{\"story\":\"CHG-093\",\"event\":\"started\",\"agent\":\"codex-us024-controller\",\"ts\":\"2026-10-18T00:52:38.265214Z\"}\n"
+      ],
+      "parent": "943df8d1b092b771876f3551af80fe18895733f4",
+      "new": "cf95f395dc0037f5a4ed1630d6f12b1c889407d7"
+    },
+    {
+      "source": "e9f511159a23e0cd58f9308eca3bb8e58d966b1a",
+      "exit": 0,
+      "paths": [
+        "docs/readiness/CHG-093.json",
+        "docs/readiness/drafts/CHG-093-current/approval-packet.md",
+        "docs/readiness/drafts/CHG-093-current/astra-assessment.md",
+        "docs/readiness/drafts/CHG-093-current/source-bindings.json",
+        "docs/readiness/drafts/CHG-093-current/validation-receipt.json"
+      ],
+      "excluded_redundant_new_started": [],
+      "parent": "cf95f395dc0037f5a4ed1630d6f12b1c889407d7",
+      "new": "9f4013a8174ef9c81dc9be69559331eeacf5dc40"
+    },
+    {
+      "source": "3576778aafd7450089a0560f1bfc20d2ad62af8d",
+      "exit": 0,
+      "paths": [
+        ".nous-feedback.jsonl",
+        "docs/readiness/CHG-093.json"
+      ],
+      "excluded_redundant_new_started": [],
+      "parent": "9f4013a8174ef9c81dc9be69559331eeacf5dc40",
+      "new": "d2d5f20b308ff61d0899eb008ab46d387d21c677"
+    },
+    {
+      "source": "d5a6b5249111380a92587e40ae669211d721f200",
+      "exit": 0,
+      "paths": [
+        "docs/superpowers/plans/CHG-093-current-plan.md",
+        "docs/superpowers/specs/CHG-093-current-design.md"
+      ],
+      "excluded_redundant_new_started": [],
+      "parent": "d2d5f20b308ff61d0899eb008ab46d387d21c677",
+      "new": "2b0ff121be9d8ee5801d3ef9838505a7f2c26a14"
+    }
+  ],
+  "note": "Actual source-to-new mappings, not invented future SHAs. Original canonical1b2c39d already present; current envelopes preserved. Original04056 audit immutable; only redundant newstarted omitted from reconstructed rows. Historical expanded extracts outside approved delivery inventory retained externally in immutable source refs. Original US0875e source has same closed artifact/suites as replayed8bd; its raw unique rows are all preserved in order."
+}
