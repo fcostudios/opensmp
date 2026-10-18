@@ -121,5 +121,36 @@
   ],
   "active_minutes_estimated_this_reconstruction": 8,
   "accounting": "Replaces six future reconstruction minutes; delta+2, complete projection402.3879115965 before further controller/review actual variance. Historical worker9 remains already incurred. Future97 includes all diagnostics25/fullgate10/runtimereview7/ONEcold45/closure10. No runtime performed.",
-  "inventory_correction": "Three authentic original authority documents replayed to preserve true-parent checkpoints: original US087 plan and historical CHG093 plan/spec. Closed bookkeeping categories; total18 paths before map/evidence,20 after. No new technical delivery path. Other original assessment extracts archived externally rather than expanding repository inventory."
+  "inventory_correction": "Three authentic original authority documents replayed to preserve true-parent checkpoints: original US087 plan and historical CHG093 plan/spec. Closed bookkeeping categories; total18 paths before map/evidence,20 after. No new technical delivery path. Other original assessment extracts archived externally rather than expanding repository inventory.",
+  "task2_diagnostic_stop": {
+    "report_path": "/Users/fcolomas/.codex/artifacts/smp/CHG-093/current-a8c7388/task2-stop-report.json",
+    "sha256": "c4e16429e880418c8137b940f4ec60045d3e9b40ced8d94ec3e6b4cf7efa203a",
+    "status": "STOP_SOURCE_BINDING_MISMATCH_REVIEW_REQUIRED",
+    "source_head": "532066bca010e1c9489b7f6e3ffb7db84fc019cb",
+    "cost": {
+      "task2_active_minutes_estimated": 12,
+      "allocation_diagnostics": 10,
+      "allocation_db_invariant": 2,
+      "remaining_task2_forecast_minutes": 13,
+      "complete_projection_minutes": 402.3879115965,
+      "note": "12 replaces12of approved25future, not double-added. Current wrapper elapsed separately retained in driver receipts; nested in estimated phase footprint, not extra billing."
+    },
+    "restoration": [
+      {
+        "path": "packages/domain/src/request-workflow/lifecycle.ts",
+        "sha256": "cc59f730742bf233ebf8aa64d9e6bbd885b7353285c1db9606187ee65393a1a6",
+        "candidate_and_copy_restored": true
+      },
+      {
+        "path": "apps/web/src/modules/request-workflow/orchestration.ts",
+        "sha256": "a52eea8b74fe170e824f30d082d0fd8b7db010250388c2e29773ecc7fb53c6cd",
+        "candidate_and_copy_restored": true
+      },
+      {
+        "path": "apps/web/src/modules/request-workflow/actions/checklist-action-transaction.ts",
+        "sha256": "273c68a6d5d100960d7023be0bcdaa0106b57a944f3ecd0a8052c6e5c8fcdebf",
+        "candidate_and_copy_restored": true
+      }
+    ]
+  }
 }
