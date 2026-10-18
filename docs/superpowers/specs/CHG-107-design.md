@@ -46,6 +46,8 @@ Own actual mutation preflight uses actual new pristine OWNED base. Expected0TS s
 
 ## Cost, window and closure
 
+This paragraph records the planning-freeze forecast; later actuals are reconciled in the current plan ledger and gate receipts without rewriting approved readiness bytes.
+
 Prior173 incurred at new approval, normal binding/read-in2 readiness and operator bounded-window1 integration => known176 before current planning. Controller preparation/documentation4 implementation and fresh builder6 review now yield known186. Concrete285=52readiness/85implementation/62focused/55review/31integration. Approved payload phases50/80/70/60/30 remain byte-identical; honest readiness+2/integration+1 variance is not new funding, actual transfer or a digest change. Remaining99 includes worker implementation14, own focused29, review29 (scoped amendment3 + fresh broad18 + unspent exact-fix8), integration27. Five minutes headroom to290 is unspent. Source/design/replay is now18 total (controller4 actual + worker14 forecast), replacing optimistic10; fresh builder6 replaces3 forecast, all actual variances visible. Fresh builder calibrates bounded source work before code; if full forecast>290 or new path/framework/proof need STOP specific delta. No waiting charged.
 
 Actual030 window acknowledgement via authorizedNous: no030 implementation/test/gate/lock/main move active/planned,107 owns NEXT normalFF opportunity after entry checks; coordinate any030 main move before mutation. Window ends actual107FF handoff or STOP, no indefinite hold. Root fresh mainc992 confirmed. Root released implementation sequence after binding/design/plan/builder/precode freeze; primary/main FF still needs separate concrete final evidence release.

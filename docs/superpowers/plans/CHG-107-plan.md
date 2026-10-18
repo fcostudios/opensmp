@@ -19,7 +19,7 @@
 - Closed exact projectfcostudios__smp/workCHG093/integer380/DEC059/text391a only; malformed even<=320 refuses, absent legacy digests exact, null default/digest-covered, pure contextless exact classification BLOCKED only. Runtime/history strict,107default320.
 - Original04491/1963/2650/3104 proof and first-derived65e8/addd remain immutable separate history. No rebase/merge/cherry-pick/replay/old-base advance/borrowed105PASS or cost.
 - Preserve foreign104/105 source/native cases/release semantics; additive guide. No owned mocks/weak oracles; TESTING read before test edits.
-- Cumulative290 hard STOP; known176/concrete274 before this priced preparation,17 unspent headroom. Source/design/replay10 includes controller prep; focused29/review32/integration27 pending. Report actual work once, reserve not spent, reforecast every natural boundary.
+- Cumulative290 hard STOP. At current Task1 scopedPASS and Task2 preparation: known221/concrete288,2 unspent headroom; remaining67=Task2focused16/freshbroad18/exactfix8/integration25. All original/current actuals count once; preparation2 focused is inside Task2forecast18, not additional. Historical planning checkpoints below remain labeled history, current progress ledger controls actual reconciliation. Report actual work once, reserve not spent, reforecast every natural boundary.
 - Actual bounded030nextFF window acknowledged; root entry release after approved binding/design/plan/builder/freeze. No primary/mainFF without later explicit concrete root release.
 
 ## Task 1: Compose the closed authority feature on current source and verify it
@@ -50,6 +50,8 @@
 - [ ] Root performs normalmainFF onlyafter explicit release; independentlybind actual integratedbytes/originalcurrentrange, honest AC/build/actuals/costprovenance/done.cost andordinaryterminalbookkeepingFF tail. Refresharchive/verify; final exhaustiveRulings with cost-if-wrong.093 ownnewdigest onlyafteractual107integration, allotherholdsremain.
 
 ## Reconciliation and rulings
+
+The following is the historical planning-freeze reconciliation; later actuals are recorded in the current ledger and scoped/proof receipts.
 
 Approved payload phase bytes50/80/70/60/30 stayunchanged. Actual binding/read-in2 readiness and operatorwindow1 integration produced274; builder6 replacing3 (+3), worker14 replacing7 (+7), and controllerfinaldocumentation1 (+1) yield honestforecast285=52/85/62/55/31 fromprior271; notextra funding/costtransfer/digestreset. Readiness52/integration31 variance is visible; total290 remainshard. Allprior173costs countonce; waitingexcluded. Controllercurrent4 and builder6 actual yieldknown186. Worker14/focused29/review29/integration27 remain99;5headroomunspent. Properbuilder/scoped/freshfinal gates and allcontingencies retained. Controller preparation actual reportedat docboundary, builder reports its actual/boundedsource forecast beforeworker. No arbitrary estimates forceddown tofit. Exhaustiveledger Rulings retainedthrougharchive; root finalbyteverification/release stayswithinpricedintegrationtail.
 
