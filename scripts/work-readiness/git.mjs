@@ -57,6 +57,165 @@ const CHG022_EXECUTABLE_BOUNDARY = "72f5e8545ea5d98795e2a5f19e62f6ba5e7ae7cb";
 // test-work-readiness.mjs asserts this constant against the file on disk.
 const REVIEWED_RECONCILER_SHA256 = "8895f6ccbe38c1b9ad3828fad53f180b9d0fb5f0577cb363956217dda672ae8f";
 
+// Closed immutable admission, independent of the caller's working tree or payload claims.
+const CEILING_ADMISSION = "2faf34fcaa45e1282ede3ccd698a9b7c4bdcf9a3";
+const CEILING_CUSTODY_BASE = "c9925df037efb317d7458f5d3997cbf4c6945837";
+const CEILING_OWNED_BASE = "e506f729502554b10693f3bee37f0fe095970953";
+const CEILING_MATRIX_SHA256 = "750a418ea935c82bab425d9762837a5f9188a7a188d0cab4c673e04c4931b01d";
+const CEILING_DECISION_SHA256 = "391a0e3545c948dd7082c2d17c9d12a6146c6e3f2d683545df7be8ce07db8433";
+const CEILING_SOURCE = "163e49e71e2e11d1871c842a8f015d15dc3023d0";
+const CEILING_POLICY_PATHS = ["scripts/work-readiness/model.mjs", "docs/dev-guide/work-readiness.schema.json",
+  "scripts/work-readiness.mjs", "scripts/work-readiness/git.mjs"];
+const MAX_CEILING_SOURCE_TRANSITIONS = 64;
+const ceilingContexts = new WeakMap();
+const ceilingAdmissionCache = new Map();
+const ceilingAdmissionInProgress = new Set();
+
+// Read-only bridge: serializable lookalikes and copied contexts have no membership.
+export function isReadinessCeilingContext(context, artifact) {
+  const admitted = context !== null && typeof context === "object" ? ceilingContexts.get(context) : null;
+  return admitted?.workId === artifact.work_id && artifact.work_id === "CHG-093";
+}
+
+export function loadReadinessCeilingContext({ root, revision, artifact }) {
+  // Ordinary work neither reads Git nor recursively proves policy availability.
+  if (artifact.budget_exception == null) return Object.freeze({});
+  const requested = artifact.budget_exception;
+  const exact = { project_id: "fcostudios__smp", work_id: "CHG-093", ceiling_minutes: 380,
+    decision_id: "DEC-SMP-059", decision_sha256: CEILING_DECISION_SHA256 };
+  if (requested === null || typeof requested !== "object" || Array.isArray(requested)
+    || Object.keys(requested).length !== Object.keys(exact).length
+    || Object.keys(exact).some((key) => requested[key] !== exact[key])
+    || artifact.work_id !== "CHG-093" || artifact.policy_bootstrap === true) {
+    fail("WR_BUDGET_EXCEPTION_INVALID", "$.budget_exception", "Only the exact scoped ceiling tuple and subject are supported");
+  }
+  const unavailable = () => fail("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", "Scoped policy is unavailable at the actual authorization revision");
+  try {
+    root = repositoryRoot(root);
+    revision = resolveCommit(root, revision, "$.revision");
+    const key = `${root}\0${revision}`;
+    if (ceilingAdmissionInProgress.has(key)) unavailable();
+    if (!ceilingAdmissionCache.has(key)) {
+      ceilingAdmissionInProgress.add(key);
+      try {
+        proveReadinessCeilingAdmission(root, revision);
+        if (ceilingAdmissionCache.size >= 64) ceilingAdmissionCache.delete(ceilingAdmissionCache.keys().next().value);
+        ceilingAdmissionCache.set(key, true);
+      } finally { ceilingAdmissionInProgress.delete(key); }
+    }
+    const context = Object.freeze({ revision });
+    ceilingContexts.set(context, { root, revision, workId: artifact.work_id });
+    return context;
+  } catch (error) {
+    if (error instanceof WorkReadinessError) unavailable();
+    throw error;
+  }
+}
+
+function proveReadinessCeilingAdmission(root, revision) {
+  const require = (condition) => {
+    if (!condition) fail("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", "Immutable scoped policy admission failed");
+  };
+  const ancestor = (base, head) => git(root, ["merge-base", "--is-ancestor", base, head], { allowMissing: true }) !== null;
+  require(ancestor(CEILING_ADMISSION, CEILING_CUSTODY_BASE) && ancestor(CEILING_CUSTODY_BASE, CEILING_OWNED_BASE) && ancestor(CEILING_ADMISSION, revision)
+    && ancestor(CEILING_OWNED_BASE, revision));
+  const admissionParents = git(root, ["show", "-s", "--format=%P", CEILING_ADMISSION]).toString("utf8").trim().split(/\s+/u);
+  require(admissionParents.length === 1 && admissionParents[0] === "43d6b8ac83095ae817cb195f17c25e6427cb4afc"
+    && exactNousSyncOwns({ root, base: admissionParents[0], head: CEILING_ADMISSION,
+      changedPaths: listChangedPaths({ root, base: admissionParents[0], head: CEILING_ADMISSION }) }));
+  const matrixPath = "docs/decisions/DECISION_MATRIX.md";
+  const custodyPaths = [...NOUS_SYNC_ENVELOPE_PATHS, matrixPath];
+  const admissionHashes = {
+    ".nous-project.json": "bcca6071137caff2034697b62532ac4212e9d9a95cda4742976b242a88fc032a",
+    ".nous-provenance.json": "4d0c7d25896df65deba86b73526921c92ae9958560af2631eda3c4e1e9b8550c",
+    ".nous-sync.json": "eb2f12becb368b7e6fdfb507425e12383741805424d41960f2ca6289a3a15575",
+    [matrixPath]: CEILING_MATRIX_SHA256,
+  };
+  for (const path of custodyPaths) require(revisionMode(root, CEILING_ADMISSION, path) === "100644"
+    && createHash("sha256").update(readRevisionBytes(root, CEILING_ADMISSION, path)).digest("hex") === admissionHashes[path]);
+  const seedProject = parseJson(readRevisionFile(root, CEILING_ADMISSION, ".nous-project.json"), ".nous-project.json");
+  const seedProvenance = parseJson(readRevisionFile(root, CEILING_ADMISSION, ".nous-provenance.json"), ".nous-provenance.json");
+  require(seedProvenance.git_sha === CEILING_SOURCE.slice(0, 12) && seedProject.substrate_commit === CEILING_SOURCE.slice(0, 8));
+  const endpoint = (at) => {
+    for (const path of custodyPaths) require(revisionMode(root, at, path) === "100644");
+    const project = parseJson(readRevisionFile(root, at, ".nous-project.json"), ".nous-project.json");
+    const provenance = parseJson(readRevisionFile(root, at, ".nous-provenance.json"), ".nous-provenance.json");
+    const sync = parseJson(readRevisionFile(root, at, ".nous-sync.json"), ".nous-sync.json");
+    require(closedKeys(project, ["schema_version", "project_id", "organization", "nous_namespace", "generated_at", "substrate_commit", "checksum"])
+      && closedKeys(provenance, ["schema_version", "project_id", "git_sha", "dirty", "dirty_paths"])
+      && closedKeys(sync, ["synced_at", "project_id", "files"])
+      && project.schema_version === 1 && provenance.schema_version === 1
+      && project.project_id === "fcostudios__smp" && provenance.project_id === project.project_id && sync.project_id === project.project_id
+      && project.organization === seedProject.organization && project.nous_namespace === seedProject.nous_namespace
+      && typeof provenance.git_sha === "string" && /^[0-9a-f]{12}$/u.test(provenance.git_sha)
+      && project.substrate_commit === provenance.git_sha.slice(0, 8)
+      && provenance.dirty === false && Array.isArray(provenance.dirty_paths) && provenance.dirty_paths.length === 0);
+    const matrix = readRevisionFile(root, at, matrixPath);
+    const rows = matrix.split(/\r?\n/u).map((line) => line.split("|").slice(1, -1).map((cell) => cell.trim()))
+      .filter((cells) => cells[0] === "DEC-SMP-059");
+    require(rows.length === 1 && createHash("sha256").update(rows[0][2] ?? "", "utf8").digest("hex") === CEILING_DECISION_SHA256);
+    const claim = sync.files?.[matrixPath];
+    require(closedKeys(claim, ["hash", "source"])
+      && claim.hash === createHash("sha256").update(matrix, "utf8").digest("hex").slice(0, 16));
+    const source = claim.source;
+    require(typeof source === "string" && isAbsolute(source) && Buffer.byteLength(source, "utf8") <= MAX_NOUS_PATH_BYTES
+      && !/[\\\u0000-\u001f\u007f\ufffd]/u.test(source)
+      && !source.split("/").slice(1).some((part) => part === "" || part === "." || part === "..")
+      && source.indexOf("/Nous/") >= 0 && source.indexOf("/Nous/") === source.lastIndexOf("/Nous/")
+      && source.slice(source.indexOf("/Nous/") + 1) === "Nous/WorkControl/fcostudios/smp/DECISION_MATRIX.md");
+  };
+  // A restored endpoint cannot erase an unauthorized intermediate custody edit.
+  require(git(root, ["rev-list", "--merges", "--max-count=1", `${CEILING_ADMISSION}..${revision}`]).length === 0);
+  const custodyHistory = git(root, ["log", "--full-history", "--max-count=65", "--format=%H",
+    `${CEILING_ADMISSION}..${revision}`, "--", ...custodyPaths]).toString("utf8").trim();
+  const custodyTransitions = custodyHistory === "" ? [] : custodyHistory.split("\n");
+  require(custodyTransitions.length <= 64);
+  endpoint(CEILING_ADMISSION);
+  for (const commit of custodyTransitions) {
+    const parents = git(root, ["show", "-s", "--format=%P", commit]).toString("utf8").trim().split(/\s+/u);
+    require(parents.length === 1 && exactNousSyncOwns({ root, base: parents[0], head: commit,
+      changedPaths: listChangedPaths({ root, base: parents[0], head: commit }) }));
+    endpoint(parents[0]); endpoint(commit);
+  }
+  endpoint(revision);
+  const sourceHistory = git(root, ["log", "--full-history", `--max-count=${MAX_CEILING_SOURCE_TRANSITIONS + 1}`,
+    "--format=%H", `${CEILING_OWNED_BASE}..${revision}`, "--", ...CEILING_POLICY_PATHS]).toString("utf8").trim();
+  const transitions = sourceHistory === "" ? [] : sourceHistory.split("\n");
+  require(transitions.length > 0 && transitions.length <= MAX_CEILING_SOURCE_TRANSITIONS);
+  const latest = new Map();
+  for (const commit of transitions) {
+    // Path-limited history may rewrite displayed parents. Read the commit object
+    // itself so intervening metadata commits cannot be skipped as authority.
+    const parents = git(root, ["show", "-s", "--format=%P", commit]).toString("utf8").trim().split(/\s+/u);
+    require(parents.length === 1);
+    const [parent] = parents;
+    const changed = listChangedPaths({ root, base: parent, head: commit });
+    const policyChanges = changed.filter((path) => CEILING_POLICY_PATHS.includes(path));
+    require(policyChanges.length > 0);
+    const path = "docs/readiness/CHG-107.json";
+    require(revisionMode(root, parent, path) === "100644" && revisionMode(root, parent, ".nous-feedback.jsonl") === "100644");
+    const artifact = parseJson(readRevisionFile(root, parent, path), path);
+    require(artifact.work_id === "CHG-107" && artifact.kind === "CHG" && artifact.work_type === "technical"
+      && artifact.policy_bootstrap === false && artifact.budget_exception == null && artifact.controlling_change === null
+      && artifact.readiness_payload_sha256 === "d3f911dfd16a9fc5d0dd1cb344ef6eaa40a1754db5090d71624cb72afa977c8a"
+      && artifact.estimate_minutes.total <= 320);
+    const feedback = parseFeedback(readRevisionFile(root, parent, ".nous-feedback.jsonl"));
+    const assessment = validateAssessment(artifact, { context: loadReadinessCeilingContext({ root, revision: parent, artifact }), feedbackRecords: feedback, approvedReadinessAuthorities: annotationAuthorities(root, parent) });
+    require(assessment.decision === "ready" && assessment.active && !assessment.complete);
+    const boundPlan = requireImplementationPlan({ root, revision: parent, feedback, workId: "CHG-107" });
+    require(revisionMode(root, parent, boundPlan.planPath) === "100644");
+    const message = git(root, ["show", "-s", "--format=%B", commit]).toString("utf8");
+    const ownership = validateCommitOwnership({ root, parent, commit, message });
+    require(ownership.classification === "implementation" && ownership.workIds.length === 1 && ownership.workIds[0] === "CHG-107");
+    for (const source of policyChanges) {
+      require(revisionMode(root, parent, source) === "100644" && revisionMode(root, commit, source) === "100644");
+      if (!latest.has(source)) latest.set(source, revisionBlobEntry(root, commit, source)?.blob);
+    }
+  }
+  for (const path of CEILING_POLICY_PATHS) require(latest.has(path)
+    && revisionMode(root, revision, path) === "100644" && revisionBlobEntry(root, revision, path)?.blob === latest.get(path));
+}
+
 function isTerminalEvent(event) {
   return event === "done" || event === "verified"
     || (typeof event === "string" && /^done_with_[a-z0-9_]+$/u.test(event));
@@ -276,25 +435,34 @@ export function loadCommittedReadinessAuthority({ root, revision, workId }) {
   if (artifact.work_id !== workId) fail("WR_READINESS_WORK_ID_MISMATCH", path, "Authority artifact has a different work ID");
   const feedbackText = readRevisionFile(root, revision, ".nous-feedback.jsonl", { required: false });
   const feedbackRecords = parseFeedback(feedbackText);
-  const assessment = validateAssessment(artifact, { feedbackRecords, approvedReadinessAuthorities: annotationAuthorities(root, revision), deliveryPolicy: readinessDeliveryPolicy({ artifact }) });
+  const approvedReadinessAuthorities = actualsReadinessAuthorities(root, revision, feedbackRecords, new Set([workId]));
+  for (const [changeId, authority] of annotationAuthorities(root, revision)) {
+    approvedReadinessAuthorities.set(changeId, { ...approvedReadinessAuthorities.get(changeId), ...authority });
+  }
+  const assessment = validateAssessment(artifact, { context: loadReadinessCeilingContext({ root, revision, artifact }), feedbackRecords, approvedReadinessAuthorities, deliveryPolicy: readinessDeliveryPolicy({ artifact }) });
   return { root, revision, artifact, assessment, bytes, feedbackText, feedbackRecords };
 }
 
 export function annotationAuthorities(root, revision) {
   const text = readRevisionFile(root, revision, "docs/readiness/CHG-089.json", { required: false });
-  return text === null ? new Map() : new Map([["CHG-089", { artifact: parseJson(text, "docs/readiness/CHG-089.json") }]]);
+  if (text === null) return new Map();
+  const artifact = parseJson(text, "docs/readiness/CHG-089.json");
+  return new Map([["CHG-089", { artifact, revision, context: loadReadinessCeilingContext({ root, revision, artifact }) }]]);
 }
 
-const KNOWN_FEEDBACK_EVENTS = new Set([
-  "started", "done", "verified", "done_with_deferral", "done_with_external_deferral", "ac_pass", "ac_verify",
-  "blocked", "blocker", "deviation", "ac_fail", "ac_unverifiable", "test_report", "feedback", "nav_gap",
-  "evidence_superseded", "revalidated", "decision", "build_pass", "closed_with_deferrals", "adversarial_review",
-  "deferred_memory_saved", "closure_hygiene", "implemented_with_external_verification", "mutation_invalidation",
-  "checkpoint", "actuals_corrected",
-  // CHG-062: plus every canonical name in the delivered feedback vocabulary.
-  ...DELIVERED_CANONICAL_EVENTS,
-  ...DELIVERED_LOCAL_EVENTS,
-]);
+let feedbackEventNames;
+function knownFeedbackEvents() {
+  return feedbackEventNames ??= new Set([
+    "started", "done", "verified", "done_with_deferral", "done_with_external_deferral", "ac_pass", "ac_verify",
+    "blocked", "blocker", "deviation", "ac_fail", "ac_unverifiable", "test_report", "feedback", "nav_gap",
+    "evidence_superseded", "revalidated", "decision", "build_pass", "closed_with_deferrals", "adversarial_review",
+    "deferred_memory_saved", "closure_hygiene", "implemented_with_external_verification", "mutation_invalidation",
+    "checkpoint", "actuals_corrected",
+    // CHG-062: plus every canonical name in the delivered feedback vocabulary.
+    ...DELIVERED_CANONICAL_EVENTS,
+    ...DELIVERED_LOCAL_EVENTS,
+  ]);
+}
 
 function validateFeedbackStructure(records) {
   const lifecycle = new Map();
@@ -303,7 +471,7 @@ function validateFeedbackStructure(records) {
     const terminal = record.event === "done" || record.event === "verified"
       || (typeof record.event === "string" && /^done_with_[a-z0-9_]+$/u.test(record.event));
     if (typeof record.story !== "string" || !/\S/u.test(record.story)
-      || typeof record.event !== "string" || (!KNOWN_FEEDBACK_EVENTS.has(record.event) && !terminal)) {
+      || typeof record.event !== "string" || (!knownFeedbackEvents().has(record.event) && !terminal)) {
       fail("WR_FEEDBACK_INVALID", path, "Feedback record requires a non-empty story and known event");
     }
     if (record.ts !== undefined && (typeof record.ts !== "string" || Number.isNaN(Date.parse(record.ts)))) {
@@ -420,7 +588,7 @@ function validatePlanBinding({ root, revision, authorizationRevision, feedback, 
   if (artifactText === null) fail("WR_READINESS_MISSING", expectedPath, `Implementation plan for ${header.workId} requires prior readiness approval`);
   const assessment = parseJson(artifactText, expectedPath);
   if (assessment.work_id !== header.workId) fail("WR_READINESS_WORK_ID_MISMATCH", expectedPath, `Artifact work_id does not match ${header.workId}`);
-  const validated = validateAssessment(assessment, { feedbackRecords: feedback, approvedReadinessAuthorities: annotationAuthorities(root, authorizationRevision), deliveryPolicy: readinessDeliveryPolicy({ root, revision: authorizationRevision, artifact: assessment }) });
+  const validated = validateAssessment(assessment, { context: loadReadinessCeilingContext({ root, revision: authorizationRevision, artifact: assessment }), feedbackRecords: feedback, approvedReadinessAuthorities: annotationAuthorities(root, authorizationRevision), deliveryPolicy: readinessDeliveryPolicy({ root, revision: authorizationRevision, artifact: assessment }) });
   if (assessment.decision !== "ready") fail("WR_WORK_NOT_READY", expectedPath, `${header.workId} is ${String(assessment.decision)}, not ready`);
   if (!validated.active) fail("WR_APPROVAL_INACTIVE", expectedPath, `${header.workId} readiness authorization is inactive`);
   if (header.estimate > assessment.estimate_minutes.total) {
@@ -456,27 +624,34 @@ function requireImplementationPlan({ root, revision, feedback, workId }) {
 // a pure byte-prefix append-only guard on .nous-feedback.jsonl and never reads the
 // artifact side — it is what makes the ONE surviving ledger trustworthy.
 // validateAllActualTransitions survives too; actuals are not checkpoints.
-function validateAllActualTransitions({ root, parent, commit, changedPaths, parentFeedback, candidateFeedback }) {
-  const appendedFeedback = candidateFeedback.slice(parentFeedback.length);
+function actualsReadinessAuthorities(root, revision, feedbackRecords, workIds) {
   const approvedReadinessAuthorities = new Map();
-  for (const changeId of new Set(candidateFeedback
-    .filter((record) => record.event === "actuals_corrected" && typeof record.change === "string")
+  for (const changeId of new Set(feedbackRecords
+    .filter((record) => record.event === "actuals_corrected" && workIds.has(record.story) && typeof record.change === "string")
     .map((record) => record.change))) {
     const authorityPath = `docs/readiness/${changeId}.json`;
-    const authorityText = readRevisionFile(root, commit, authorityPath, { required: false });
+    const authorityText = readRevisionFile(root, revision, authorityPath, { required: false });
     if (authorityText === null) continue;
     const authority = parseJson(authorityText, authorityPath);
+    const context = loadReadinessCeilingContext({ root, revision, artifact: authority });
+    if (authority.budget_exception != null) classifyAssessment(authority, context);
     if (authority.work_id === changeId
       && authority.approval?.status === "approved"
       && authority.approval.payload_sha256 === authority.readiness_payload_sha256
       && computeReadinessPayloadSha256(authority) === authority.readiness_payload_sha256) {
       approvedReadinessAuthorities.set(changeId, {
+        artifact: authority, context, revision,
         digest: authority.readiness_payload_sha256,
         evidence: authority.approval.evidence,
         approvedBy: authority.approval.approved_by,
       });
     }
   }
+  return approvedReadinessAuthorities;
+}
+
+function validateAllActualTransitions({ root, parent, commit, changedPaths, parentFeedback, candidateFeedback }) {
+  const appendedFeedback = candidateFeedback.slice(parentFeedback.length);
   const workIds = new Set();
   changedPaths.forEach((path) => {
     const match = /^docs\/readiness\/((?:US|CHG)-[0-9]{3,})\.json$/u.exec(path);
@@ -486,6 +661,9 @@ function validateAllActualTransitions({ root, parent, commit, changedPaths, pare
     if ((isTerminalEvent(record.event) || ["evidence_superseded", "revalidated", "actuals_corrected"].includes(record.event))
       && typeof record.story === "string" && /^(?:US|CHG)-[0-9]{3,}$/u.test(record.story)) workIds.add(record.story);
   });
+  // Limit extraction by correction SUBJECT, not its independent authority ID.
+  // Unrelated scoped corrections cannot recurse into normal107 source admission.
+  const approvedReadinessAuthorities = actualsReadinessAuthorities(root, commit, candidateFeedback, workIds);
   for (const workId of workIds) {
     const readinessPath = `docs/readiness/${workId}.json`;
     const parentText = readRevisionFile(root, parent, readinessPath, { required: false });
@@ -506,7 +684,7 @@ function validateAllActualTransitions({ root, parent, commit, changedPaths, pare
   }
 }
 
-function validateChangedMachineArtifacts(root, revision, changedPaths) {
+function validateChangedMachineArtifacts(root, revision, authorizationRevision, changedPaths) {
   if (changedPaths.includes(".nous-feedback.jsonl")) {
     const records = parseFeedback(readRevisionFile(root, revision, ".nous-feedback.jsonl"));
     validateFeedbackStructure(records);
@@ -514,7 +692,7 @@ function validateChangedMachineArtifacts(root, revision, changedPaths) {
   for (const path of changedPaths.filter((candidate) => /^docs\/readiness\/(?:US|CHG)-[0-9]{3,}\.json$/u.test(candidate))) {
     const assessment = parseJson(readRevisionFile(root, revision, path), path);
     const expectedWorkId = path.slice("docs/readiness/".length, -".json".length);
-    classifyAssessment(assessment);
+    classifyAssessment(assessment, loadReadinessCeilingContext({ root, revision: authorizationRevision, artifact: assessment }));
     if (assessment.work_id !== expectedWorkId) fail("WR_READINESS_WORK_ID_MISMATCH", path, `Artifact work_id does not match ${expectedWorkId}`);
   }
 }
@@ -539,7 +717,7 @@ function validatedActivationIndex(root, base, feedback) {
   if (artifactText === null) return -1;
   try {
     const artifact = parseJson(artifactText, artifactPath);
-    validateAssessment(artifact, { feedbackRecords: feedback.slice(0, candidates[0].index + 1) });
+    validateAssessment(artifact, { context: loadReadinessCeilingContext({ root, revision: base, artifact }), feedbackRecords: feedback.slice(0, candidates[0].index + 1) });
     return candidates[0].index;
   } catch {
     return -1;
@@ -1199,6 +1377,7 @@ function itemAuthorityTransitions(root, authority, head, workId, { snapshots = f
           if (artifact.work_id === workId && artifact.readiness_payload_sha256 === authorityArtifact.readiness_payload_sha256) {
             const feedback = parseFeedback(readRevisionFile(root, entry.parent, ".nous-feedback.jsonl", { required: false }));
             const assessment = validateAssessment(artifact, {
+              context: loadReadinessCeilingContext({ root, revision: entry.parent, artifact }),
               feedbackRecords: feedback,
               approvedReadinessAuthorities: annotationAuthorities(root, entry.parent),
               deliveryPolicy: readinessDeliveryPolicy({ root, revision: entry.parent, artifact }),
@@ -1330,7 +1509,7 @@ function exactInheritedReplay({ root, base, head, workId, authority }) {
         || artifact.readiness_payload_sha256 !== INHERITED_REPLAY.digest
         || computeReadinessPayloadSha256(artifact) !== INHERITED_REPLAY.digest) return false;
       const feedback = parseFeedback(readRevisionFile(root, revision, ".nous-feedback.jsonl", { required: false }));
-      const validated = validateAssessment(artifact, { feedbackRecords: feedback, approvedReadinessAuthorities: annotationAuthorities(root, revision), deliveryPolicy: readinessDeliveryPolicy({ artifact }) });
+      const validated = validateAssessment(artifact, { context: loadReadinessCeilingContext({ root, revision, artifact }), feedbackRecords: feedback, approvedReadinessAuthorities: annotationAuthorities(root, revision), deliveryPolicy: readinessDeliveryPolicy({ artifact }) });
       if (validated.decision !== "ready" || !validated.active) return false;
       parentArtifact = artifact;
     }
@@ -1442,7 +1621,7 @@ function validateCommitOwnership({
       const authorities = annotationAuthorities(root, parent);
       const artifact = authorities.get("CHG-089")?.artifact;
       if (!artifact) fail("WR_CORRECTION_INVALID", "$.approval.evidence", "Correction authority must exist in the immutable parent tree");
-      const prior = validateAssessment(artifact, { feedbackRecords: parentFeedbackRecords, independentAuthority: true });
+      const prior = validateAssessment(artifact, { context: loadReadinessCeilingContext({ root, revision: parent, artifact }), feedbackRecords: parentFeedbackRecords, independentAuthority: true });
       if (!prior.active || prior.complete) fail("WR_CORRECTION_INVALID", "$.approval.evidence", "Prior committed technical authority must be active");
       validateLifecycleCorrections(candidateFeedback, correction.story, { approvedReadinessAuthorities: authorities });
       validateLifecycleCorrections(candidateFeedback, correction.story, { approvedReadinessAuthorities: annotationAuthorities(root, commit) });
@@ -1461,7 +1640,7 @@ function validateCommitOwnership({
     parentFeedback: authorizationFeedback,
     candidateFeedback,
   });
-  validateChangedMachineArtifacts(root, commit, changedPaths);
+  validateChangedMachineArtifacts(root, commit, parent, changedPaths);
   if (policyActive) {
     for (const planPath of changedPaths.filter((path) => IMPLEMENTATION_PLAN_PATTERN.test(path))) {
       const planPathWorkIds = extractWorkIds(planPath);
@@ -1508,7 +1687,7 @@ function validateCommitOwnership({
     }
     const parentArtifact = parseJson(artifactText, readinessPath);
     if (parentArtifact.work_id !== workId) fail("WR_READINESS_WORK_ID_MISMATCH", readinessPath, `Artifact work_id does not match ${workId}`);
-    const parentAssessment = validateAssessment(parentArtifact, { feedbackRecords: authorizationFeedback, approvedReadinessAuthorities: annotationAuthorities(root, parent), deliveryPolicy: readinessDeliveryPolicy({ root, revision: parent, artifact: parentArtifact }) });
+    const parentAssessment = validateAssessment(parentArtifact, { context: loadReadinessCeilingContext({ root, revision: parent, artifact: parentArtifact }), feedbackRecords: authorizationFeedback, approvedReadinessAuthorities: annotationAuthorities(root, parent), deliveryPolicy: readinessDeliveryPolicy({ root, revision: parent, artifact: parentArtifact }) });
     if (parentArtifact.decision !== "ready") fail("WR_WORK_NOT_READY", readinessPath, `${workId} is ${String(parentArtifact.decision)}, not ready`);
     if (!parentAssessment.active) {
       if (parentArtifact.policy_bootstrap && parentAssessment.complete) {
@@ -1524,7 +1703,7 @@ function validateCommitOwnership({
     if (candidateArtifactText === null) fail("WR_READINESS_MISSING", readinessPath, `Candidate implementation removes readiness for ${workId}`);
     const candidateArtifact = parseJson(candidateArtifactText, readinessPath);
     if (candidateArtifact.work_id !== workId) fail("WR_READINESS_WORK_ID_MISMATCH", readinessPath, `Candidate artifact work_id does not match ${workId}`);
-    const candidateAssessment = validateAssessment(candidateArtifact, { feedbackRecords: candidateFeedback, approvedReadinessAuthorities: annotationAuthorities(root, commit), deliveryPolicy: readinessDeliveryPolicy({ root, revision: commit, artifact: candidateArtifact }) });
+    const candidateAssessment = validateAssessment(candidateArtifact, { context: loadReadinessCeilingContext({ root, revision: parent, artifact: candidateArtifact }), feedbackRecords: candidateFeedback, approvedReadinessAuthorities: annotationAuthorities(root, commit), deliveryPolicy: readinessDeliveryPolicy({ root, revision: commit, artifact: candidateArtifact }) });
     if (candidateArtifact.decision !== "ready") fail("WR_WORK_NOT_READY", readinessPath, `${workId} candidate state is ${String(candidateArtifact.decision)}, not ready`);
     if (!candidateAssessment.active) {
       if (candidateArtifact.policy_bootstrap && candidateAssessment.complete) {

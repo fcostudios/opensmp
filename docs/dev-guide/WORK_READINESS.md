@@ -28,7 +28,7 @@ For every normal work item, a `ready` decision is invalid when any of these
 conditions is true. CHG-022's exact, const-bound activation payload is the sole
 non-repeatable exception; changing or copying it does not create another one.
 
-1. The total estimate exceeds 320 minutes.
+1. The cumulative total estimate exceeds the admitted ceiling (ordinary work: 320 minutes; the exact item-bound exception below: 380 minutes).
 2. More than one primary outcome exists.
 3. More than three major technical scopes are touched.
 4. More than two routes or screens are changed.
@@ -56,6 +56,86 @@ non-repeatable exception; changing or copying it does not create another one.
    fail functional ownership with `WR_MIXED_FUNCTIONAL_TOOLING`.
 9. An uncertainty lacks a resolution or explicit estimate impact.
 10. The implementation requires an unofficial or unresolved work-item ID.
+
+### Item-bound cumulative ceiling (CHG-107 / DEC-SMP-059)
+
+Optional `budget_exception` may be absent or explicit `null`; both use 320.
+Absence preserves historical canonical bytes. Explicit null is retained in the
+canonical payload and therefore needs a new digest-bound approval. The only
+supported nonnull object is closed and exact:
+
+```json
+{
+  "project_id": "fcostudios__smp",
+  "work_id": "CHG-093",
+  "ceiling_minutes": 380,
+  "decision_id": "DEC-SMP-059",
+  "decision_sha256": "391a0e3545c948dd7082c2d17c9d12a6146c6e3f2d683545df7be8ce07db8433"
+}
+```
+
+The assessment subject must also be CHG-093. Malformed or nonexact objects
+refuse even below 320 or on blocked work. Every partition child remains capped
+at 320, and every other cohesion limit still applies. CHG-107 itself is normal
+work under 320.
+
+This tuple supplies cap eligibility only. CHG-093 still needs its own new exact
+current readiness digest, unique normal human decision, active lifecycle and
+bound implementation plan before execution. Keep the same CHG-093 and include
+all retained sunk work, remaining work, pending attribution, reserves, review,
+verification, integration and closure; a remaining-only estimate cannot reset
+the cumulative total. Stop if the full forecast exceeds 380, pending attribution
+cannot fit its reserve, or new tool, repair, campaign, path or framework scope
+needs approval.
+
+The Git reader derives authority from immutable objects, never payload flags,
+environment variables, mutable working-tree policy or a supplied authority list.
+It requires actual normal admission `2faf34fcaa45e1282ede3ccd698a9b7c4bdcf9a3`,
+parent `43d6b8ac83095ae817cb195f17c25e6427cb4afc`, source
+`163e49e71e2e11d1871c842a8f015d15dc3023d0`, ancestor of full custody base
+`c9925df037efb317d7458f5d3997cbf4c6945837` and pristine source base
+`e506f729502554b10693f3bee37f0fe095970953`. Exact admission envelope hashes and
+whole matrix SHA256 `750a418ea935c82bab425d9762837a5f9188a7a188d0cab4c673e04c4931b01d`
+are frozen at admission only. The separate decision hash covers the trimmed
+DEC-SMP-059 UTF-8 text cell without a newline.
+
+Every touch of the three custody envelopes and decision matrix from admission
+to the actual authorization revision must pass normal canonical-sync ownership
+using its true immediate parent and complete changed-path list. Admission,
+every transition endpoint and final endpoint require regular files, the same
+project/organization/namespace, clean coherent provenance, an actual matrix hash
+claim and canonical normalized source, and exactly one unchanged DEC-SMP-059.
+Normal future source revisions, source filesystem prefixes, generated envelope
+metadata and unrelated matrix rows may change. An unauthorized intermediate
+edit followed by restoration refuses. SPRINT_PLAN/CHANGES-only ordinary closure
+does not pin policy source. Custody history has its own limit of64 relevant
+transitions (query65 and reject overflow); merges/nonlinear admission history
+refuse.
+
+Model, schema, CLI and Git must each have a regular source transition after the
+pristine base owned solely by normal CHG-107. Every actual source parent needs
+its exact normal default320 readiness `d3f911dfd16a9fc5d0dd1cb344ef6eaa40a1754db5090d71624cb72afa977c8a`,
+active approval and unique bound plan. Source history separately permits at
+most64 transitions, inspects all touches and verifies latest blobs; restoring
+bytes cannot launder unapproved edits. No parent-code execution or recursive
+whole-history classification occurs. Successful immutable root/revision proofs
+use a finite64-entry cache and in-progress guard. Ordinary absent/null paths
+need no source admission.
+
+Pure context-less `classifyAssessment` calls used by existing shape/digest
+planning return `blocked` for a shape-valid exact tuple. This is a non-executable
+planning result: it grants neither default320 promotion nor380 authority. A
+supplied untrusted context, a malformed/nonexact object or an explicit
+contradiction still refuses. `resolveReadinessCeiling`, `validateAssessment` and
+all runtime/history entrypoints remain strict. The existing mutation
+`--planned-owned-scope` command emits `authoritative:false` and cannot start work.
+
+CLI checks use committed HEAD for cap authority. Staged, per-commit and range
+checks use each actual immediate parent, including when validating candidate
+artifacts and plans. A candidate policy, decision or source cannot authorize
+itself or backfill an older parent. After policy integration, CHG-093 still waits
+for its own new normal approval before runtime. DEC-SMP-051/P4 holds remain.
+
 
 CHG-084 makes counting explicit: absence of `signals.bookkeeping_files` preserves
 legacy inclusive counting; presence selects CHG-082 delivery counting and the

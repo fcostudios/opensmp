@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { isReadinessCeilingContext } from "./git.mjs";
 
 const TOP_LEVEL_KEYS = [
   "schema_version", "readiness_payload_sha256", "work_id", "kind", "work_type", "title", "source",
@@ -27,8 +28,7 @@ const SIGNAL_KEYS = [
 // actuals. Once actuals.total exists on two items the recalibrator can be pointed
 // at them and this becomes a one-line diff.
 //
-// Both schema `maximum` values must equal this; a test asserts it, because a
-// constant the schema does not track is two sources of truth again.
+// Ordinary work and every partition child retain this ceiling.
 export const MAX_READINESS_MINUTES = 320;
 
 const PHASE_KEYS = ["readiness", "implementation", "focused_verification", "review", "integration"];
@@ -238,7 +238,7 @@ function validateShape(value) {
   // check from rejecting the artifacts that still carry it.
   object(value, "$",
     value.policy_bootstrap === true ? TOP_LEVEL_KEYS : [...TOP_LEVEL_KEYS, "controlling_change"],
-    { optional: ["checkpoints", "mutation_scope"] });
+    { optional: ["checkpoints", "mutation_scope", "budget_exception"] });
   if (value.schema_version !== 1) fail("WR_UNSUPPORTED_SCHEMA_VERSION", "$.schema_version", "Only schema version 1 is supported");
   if (typeof value.readiness_payload_sha256 !== "string" || !/^[0-9a-f]{64}$/u.test(value.readiness_payload_sha256)) fail("WR_INVALID_SHA256", "$.readiness_payload_sha256", "Root digest must be lowercase SHA-256");
   validateWorkId(value.work_id, "$.work_id");
@@ -409,8 +409,28 @@ export function computeReadinessPayloadSha256(value) {
   return createHash("sha256").update(canonicalReadinessPayload(value), "utf8").digest("hex");
 }
 
-function hardLimitViolation(value) {
-  if (value.estimate_minutes.total > MAX_READINESS_MINUTES) return ["WR_ESTIMATE_OVER_BUDGET", "estimate_minutes.total", `Estimate exceeds ${MAX_READINESS_MINUTES} minutes`];
+const SCOPED_CEILING = Object.freeze({
+  project_id: "fcostudios__smp", work_id: "CHG-093", ceiling_minutes: 380,
+  decision_id: "DEC-SMP-059", decision_sha256: "391a0e3545c948dd7082c2d17c9d12a6146c6e3f2d683545df7be8ce07db8433",
+});
+
+export function resolveReadinessCeiling(value, context = {}) {
+  if (value.budget_exception == null) return { minutes: MAX_READINESS_MINUTES, authority: null };
+  const requested = value.budget_exception;
+  if (!isPlainObject(requested) || Object.keys(requested).length !== Object.keys(SCOPED_CEILING).length
+    || Object.keys(SCOPED_CEILING).some((key) => !Object.hasOwn(requested, key) || requested[key] !== SCOPED_CEILING[key])
+    || value.work_id !== SCOPED_CEILING.work_id || value.policy_bootstrap === true) {
+    fail("WR_BUDGET_EXCEPTION_INVALID", "$.budget_exception", "Only the exact project, subject, ceiling and decision tuple is supported");
+  }
+  if (!isReadinessCeilingContext(context, value)) {
+    fail("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", "Scoped ceiling requires admitted policy and custody at the actual authorization revision");
+  }
+  return { minutes: SCOPED_CEILING.ceiling_minutes, authority: SCOPED_CEILING };
+}
+
+function hardLimitViolation(value, context = {}) {
+  const { minutes } = resolveReadinessCeiling(value, context);
+  if (value.estimate_minutes.total > minutes) return ["WR_ESTIMATE_OVER_BUDGET", "estimate_minutes.total", `Estimate exceeds ${minutes} minutes`];
   if (value.outcomes.filter((outcome) => outcome.primary).length > 1) return ["WR_MULTIPLE_OUTCOMES", "outcomes", "More than one primary outcome requires partitioning"];
   if (value.scopes.length > 3) return ["WR_TOO_MANY_SCOPES", "scopes", "More than three scopes are not cohesive"];
   if (value.signals.routes_or_screens > 2) return ["WR_TOO_MANY_ROUTES", "signals.routes_or_screens", "More than two routes or screens requires partitioning"];
@@ -435,8 +455,16 @@ function uncertaintyBlocks(value) {
   return value.uncertainties.some((item) => item.status === "unresolved" || item.resolution === null || item.estimate_impact_minutes === null);
 }
 
-export function classifyAssessment(value) {
+export function classifyAssessment(value, context) {
   validateShape(value);
+  try {
+    resolveReadinessCeiling(value, context);
+  } catch (error) {
+    // Pure shape/digest planners cannot mint execution authority. Only absence
+    // of a supplied context changes this one strict refusal into blocked.
+    if (context === undefined && error instanceof WorkReadinessError && error.code === "WR_BUDGET_EXCEPTION_UNAVAILABLE") return "blocked";
+    throw error;
+  }
   if (value.policy_bootstrap) {
     exactBootstrap(value);
     const recomputed = computeReadinessPayloadSha256(value);
@@ -445,7 +473,7 @@ export function classifyAssessment(value) {
     return "ready";
   }
   if (blockingViolation(value)) return "blocked";
-  return hardLimitViolation(value) ? "partition_required" : "ready";
+  return hardLimitViolation(value, context) ? "partition_required" : "ready";
 }
 
 function validatePartitionLimits(partition, path) {
@@ -828,7 +856,7 @@ function validateAnnotationCorrection(records, record, index, correctedIndices, 
   // The raw prefix validates ONLY the authority's lifecycle. Parent projection
   // cannot grant authority, and this correction cannot authorize itself.
   const prefix = records.slice(0, index);
-  const assessment = validateAssessment(artifact, { feedbackRecords: prefix, independentAuthority: true });
+  const assessment = validateAssessment(artifact, { feedbackRecords: prefix, independentAuthority: true, context: context.approvedReadinessAuthorities?.get("CHG-089")?.context });
   if (!assessment.active || assessment.complete) invalid("Technical authority must be active and uncompleted before correction");
   const approvals = prefix.map((entry, position) => ({ entry, position }))
     .filter(({ entry }) => entry.event === "decision" && entry.id === record.authority.evidence);
@@ -1376,8 +1404,9 @@ export function validateCompletionActuals(value, feedbackRecords, { approvedRead
 // two real checkpoint events, and the closed-key shape check would reject it outright
 // if the key were dropped — the same history-preserving reasoning as CHG-036's optional
 // attestation keys. `init` no longer emits it for new artifacts.
-export function validateAssessment(value, { feedbackRecords = [], approvedReadinessAuthorities, independentAuthority = false } = {}) {
+export function validateAssessment(value, { feedbackRecords = [], approvedReadinessAuthorities, independentAuthority = false, context = {} } = {}) {
   validateShape(value);
+  resolveReadinessCeiling(value, context);
   feedbackArray(feedbackRecords);
   if (value.policy_bootstrap) {
     exactBootstrap(value);
@@ -1387,9 +1416,9 @@ export function validateAssessment(value, { feedbackRecords = [], approvedReadin
   }
   validatePartitionGraph(value);
   const completion = validateCompletionActuals(value, feedbackRecords, { approvedReadinessAuthorities });
-  const computedDecision = value.policy_bootstrap ? "ready" : classifyAssessment(value);
+  const computedDecision = value.policy_bootstrap ? "ready" : classifyAssessment(value, context);
   if (computedDecision !== value.decision) {
-    const violation = computedDecision === "blocked" ? blockingViolation(value) : hardLimitViolation(value);
+    const violation = computedDecision === "blocked" ? blockingViolation(value) : hardLimitViolation(value, context);
     if (value.decision === "ready" && violation) fail(violation[0], `$.${violation[1]}`, violation[2]);
     fail("WR_DECISION_MISMATCH", "$.decision", `Declared decision ${value.decision} does not match recomputed decision ${computedDecision}`);
   }

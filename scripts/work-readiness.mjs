@@ -25,11 +25,13 @@ import {
   WorkReadinessError,
   parseFeedbackRecords,
   computeReadinessPayloadSha256,
+  classifyAssessment,
   isExecutionEvidenceEvent,
   validateAssessment,
 } from "./work-readiness/model.mjs";
 import {
   resolveDefaultRange,
+  loadReadinessCeilingContext,
   readinessDeliveryPolicy,
   validateRangeOwnership,
 } from "./work-readiness/git.mjs";
@@ -172,7 +174,7 @@ function loadAssessment(root, workId) {
 
 function validateOne(root, workId, feedbackRecords) {
   const value = loadAssessment(root, workId);
-  const assessment = validateAssessment(value, { feedbackRecords, approvedReadinessAuthorities: loadApprovedReadinessAuthorities(root), deliveryPolicy: readinessDeliveryPolicy({ root, artifact: value }) });
+  const assessment = validateAssessment(value, { context: loadReadinessCeilingContext({ root, revision: "HEAD", artifact: value }), feedbackRecords, approvedReadinessAuthorities: loadApprovedReadinessAuthorities(root), deliveryPolicy: readinessDeliveryPolicy({ root, artifact: value }) });
   return { artifact: value, assessment };
 }
 
@@ -183,11 +185,23 @@ function loadApprovedReadinessAuthorities(root) {
     if (value.approval?.status === "approved"
       && value.approval.payload_sha256 === value.readiness_payload_sha256
       && computeReadinessPayloadSha256(value) === value.readiness_payload_sha256) {
+      let context;
+      const authorityContext = () => {
+        if (context === undefined) {
+          context = loadReadinessCeilingContext({ root, revision: "HEAD", artifact: value });
+          if (value.budget_exception != null) classifyAssessment(value, context);
+        }
+        return context;
+      };
+      // Validate applicable authority before exposing its projected fields;
+      // unrelated artifacts do not force scoped admission during default work.
       authorities.set(workId, {
         artifact: value,
-        digest: value.readiness_payload_sha256,
-        evidence: value.approval.evidence,
-        approvedBy: value.approval.approved_by,
+        get context() { return authorityContext(); },
+        get revision() { return authorityContext().revision; },
+        get digest() { authorityContext(); return value.readiness_payload_sha256; },
+        get evidence() { authorityContext(); return value.approval.evidence; },
+        get approvedBy() { authorityContext(); return value.approval.approved_by; },
       });
     }
   }
@@ -360,7 +374,7 @@ export function calibrateAssessmentFile({ root, workId, feedbackRecords, fsOps =
   };
   const canonicalRoot = ops.realpathSync(root);
   const value = loadAssessment(canonicalRoot, workId);
-  const validated = validateAssessment(value, { feedbackRecords, deliveryPolicy: readinessDeliveryPolicy({ root, artifact: value }) });
+  const validated = validateAssessment(value, { context: loadReadinessCeilingContext({ root, revision: "HEAD", artifact: value }), feedbackRecords, approvedReadinessAuthorities: loadApprovedReadinessAuthorities(canonicalRoot), deliveryPolicy: readinessDeliveryPolicy({ root, artifact: value }) });
   if (validated.complete || !validated.active) cliError("WR_APPROVAL_INACTIVE", "Only an active, uncompleted approval can be calibrated", "$.approval.evidence");
   const approvalIndex = feedbackRecords.findIndex((record) => record.event === "decision" && record.id === value.approval.evidence);
   if (feedbackRecords.some((record, index) => index > approvalIndex && record.story === workId && isExecutionEvidenceEvent(record.event))) {

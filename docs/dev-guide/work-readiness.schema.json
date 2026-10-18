@@ -138,9 +138,41 @@
         { "type": "null" },
         { "$ref": "#/$defs/controlling_change" }
       ]
+    },
+    "budget_exception": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/budget_exception"
+        }
+      ]
     }
   },
   "allOf": [
+    {
+      "if": {
+        "required": [
+          "budget_exception"
+        ],
+        "properties": {
+          "budget_exception": {
+            "type": "object"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "work_id": {
+            "const": "CHG-093"
+          },
+          "policy_bootstrap": {
+            "const": false
+          }
+        }
+      }
+    },
     {
       "if": { "required": ["mutation_scope"] },
       "then": { "properties": { "kind": { "const": "CHG" }, "work_type": { "const": "technical" } } }
@@ -336,13 +368,6 @@
               }
             }
           },
-          "estimate_minutes": {
-            "properties": {
-              "total": {
-                "maximum": 320
-              }
-            }
-          },
           "partitions": {
             "maxItems": 0
           },
@@ -392,6 +417,40 @@
                 }
               },
               "required": ["work_type", "scopes"]
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "budget_exception"
+              ],
+              "properties": {
+                "budget_exception": {
+                  "type": "object"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "estimate_minutes": {
+                  "properties": {
+                    "total": {
+                      "maximum": 380
+                    }
+                  }
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "estimate_minutes": {
+                  "properties": {
+                    "total": {
+                      "maximum": 320
+                    }
+                  }
+                }
+              }
             }
           }
         ]
@@ -478,7 +537,9 @@
       "properties": {
         "work_id": { "pattern": "^CHG-[0-9]{3,}$", "type": "string" },
         "relationship": { "const": "readiness_governance" },
-        "reason": { "$ref": "#/$defs/nonempty_string" }
+        "reason": {
+          "$ref": "#/$defs/nonempty_string"
+        }
       }
     },
     "nonempty_string": {
@@ -959,6 +1020,39 @@
         },
         "root_cause": {
           "$ref": "#/$defs/nullable_string"
+        }
+      }
+    },
+    "budget_exception": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "project_id",
+        "work_id",
+        "ceiling_minutes",
+        "decision_id",
+        "decision_sha256"
+      ],
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "const": "fcostudios__smp"
+        },
+        "work_id": {
+          "type": "string",
+          "const": "CHG-093"
+        },
+        "ceiling_minutes": {
+          "type": "integer",
+          "const": 380
+        },
+        "decision_id": {
+          "type": "string",
+          "const": "DEC-SMP-059"
+        },
+        "decision_sha256": {
+          "type": "string",
+          "const": "391a0e3545c948dd7082c2d17c9d12a6146c6e3f2d683545df7be8ce07db8433"
         }
       }
     }

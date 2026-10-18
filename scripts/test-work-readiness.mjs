@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
+import { createRequire } from "node:module";
 import { gunzipSync } from "node:zlib";
 
 import {
@@ -5490,23 +5491,6 @@ test("real Git rejects missing and ambiguous bases, and the MESSAGE tells them a
   }
 });
 
-test("the budget is one constant, and the schema tracks it", () => {
-  // CHG-035. The ceiling used to be a literal repeated across the check, its
-  // message, two schema maxima, three doc lines and CLAUDE.md. A constant the
-  // schema does not track is still two sources of truth, so this binds them:
-  // the next re-baseline fails loudly if it updates one and not the other.
-  const schema = JSON.parse(readFileSync(new URL("../docs/dev-guide/work-readiness.schema.json", import.meta.url), "utf8"));
-  const maxima = [...JSON.stringify(schema).matchAll(/"maximum":(\d+)/gu)]
-    .map((m) => Number(m[1]))
-    .filter((n) => n >= 60);
-  assert.equal(maxima.length, 2, "expected exactly two budget maxima in the schema");
-  for (const m of maxima) assert.equal(m, MAX_READINESS_MINUTES);
-
-  // And the message quotes the constant rather than a second literal.
-  const source = readFileSync(new URL("../scripts/work-readiness/model.mjs", import.meta.url), "utf8");
-  assert.match(source, /Estimate exceeds \$\{MAX_READINESS_MINUTES\} minutes/u);
-});
-
 test("the budget boundary is inclusive at the ceiling and refuses one over", () => {
   const at = normal();
   at.estimate_minutes = { readiness: 10, implementation: MAX_READINESS_MINUTES - 45,
@@ -6720,6 +6704,517 @@ test("CHG-105 admission own integrated104 differential changes only owned additi
       } finally { rmSync(fixture.root, { recursive: true, force: true }); }
     }
   } finally { rmSync(baseline, { recursive: true, force: true }); }
+});
+
+// CHG-107: deleting each tuple guard must admit its corresponding hostile case.
+const scopedCeiling = Object.freeze({ project_id: "fcostudios__smp", work_id: "CHG-093", ceiling_minutes: 380,
+  decision_id: "DEC-SMP-059", decision_sha256: "391a0e3545c948dd7082c2d17c9d12a6146c6e3f2d683545df7be8ce07db8433" });
+const ceilingOwnedBase = "e506f729502554b10693f3bee37f0fe095970953";
+const ceilingAdmission = "2faf34fcaa45e1282ede3ccd698a9b7c4bdcf9a3";
+const ceilingPolicyPaths = ["scripts/work-readiness/model.mjs", "docs/dev-guide/work-readiness.schema.json",
+  "scripts/work-readiness.mjs", "scripts/work-readiness/git.mjs"];
+function scopedAssessment(total = 380) {
+  const value = normal({ work_id: "CHG-093", kind: "CHG", work_type: "technical", source: "docs/stories/CHANGES.md",
+    budget_exception: clone(scopedCeiling), approval: { status: "approved", approved_by: "user", evidence: "CHG093-NEW-READY" } });
+  value.estimate_minutes.implementation = total - 45;
+  value.estimate_minutes.total = total;
+  return refreshDigest(value);
+}
+
+test("CHG-107 absent canonical vector and explicit null have independent digest authority", () => {
+  const legacy = normal();
+  assert.equal(computeReadinessPayloadSha256(legacy), "104f8e723c8b929a8ec6917420911fde327ad8e954d86302f49088f779647537");
+  assert.equal(canonicalReadinessPayload(legacy).includes('"budget_exception"'), false);
+  const explicit = normal({ budget_exception: null });
+  assert.notEqual(explicit.readiness_payload_sha256, legacy.readiness_payload_sha256);
+  assert.equal(JSON.parse(canonicalReadinessPayload(explicit)).budget_exception, null);
+  assert.equal(typeof readinessModel.resolveReadinessCeiling, "function", "scoped ceiling resolver is required");
+  assert.deepEqual(readinessModel.resolveReadinessCeiling(explicit), { minutes: 320, authority: null });
+  assert.equal(validateAssessment(explicit, { feedbackRecords: [decisionFor(explicit)] }).decision, "ready");
+  for (const key of Object.keys(scopedCeiling)) {
+    const changed = scopedAssessment(); changed.budget_exception[key] = `${changed.budget_exception[key]}!`;
+    assert.notEqual(computeReadinessPayloadSha256(changed), scopedAssessment().readiness_payload_sha256, key);
+  }
+});
+
+test("CHG-107 malformed exceptions reject before blocked and bootstrap shortcuts below320", () => {
+  const invalids = [false, true, 380, "380", [], {}, { ...scopedCeiling, extra: true }];
+  for (const key of Object.keys(scopedCeiling)) {
+    const omitted = clone(scopedCeiling); delete omitted[key]; invalids.push(omitted);
+    for (const wrong of [null, false, [], {}, "foreign", key === "ceiling_minutes" ? 381 : 1]) invalids.push({ ...scopedCeiling, [key]: wrong });
+  }
+  for (const budget_exception of invalids) for (const total of [100, 380]) {
+    const value = scopedAssessment(total); value.budget_exception = budget_exception; refreshDigest(value);
+    expectError("WR_BUDGET_EXCEPTION_INVALID", "$.budget_exception", () => classifyAssessment(value));
+    value.dependencies = [{ work_id: "CHG-999", type: "blocked_by", reason: "Blocked cannot hide invalid exception" }];
+    expectError("WR_BUDGET_EXCEPTION_INVALID", "$.budget_exception", () => classifyAssessment(value));
+  }
+  const replay = clone(bootstrap); replay.budget_exception = clone(scopedCeiling); refreshDigest(replay);
+  expectError("WR_BUDGET_EXCEPTION_INVALID", "$.budget_exception", () => validateAssessment(replay));
+  expectError("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", () => classifyAssessment(scopedAssessment(100), {
+    capAuthorities: [scopedCeiling], project_id: "fcostudios__smp", admitted: true,
+  }));
+});
+
+// Imports authentic local objects at the frozen pre-code base; no synthetic fallback.
+function authenticCeilingFixture() {
+  const root = mkdtempSync(join(tmpdir(), "readiness-ceiling-authentic-"));
+  const actualRoot = new URL("../", import.meta.url).pathname;
+  git(actualRoot, ["cat-file", "-e", `${ceilingOwnedBase}^{commit}`]);
+  git(actualRoot, ["cat-file", "-e", `${ceilingAdmission}^{commit}`]);
+  git(root, ["clone", "--shared", "--no-checkout", actualRoot, "."]);
+  git(root, ["config", "core.hooksPath", "/dev/null"]);
+  git(root, ["config", "user.name", "Ceiling Test"]); git(root, ["config", "user.email", "ceiling@example.test"]);
+  git(root, ["checkout", "--detach", ceilingOwnedBase]);
+  git(root, ["merge-base", "--is-ancestor", ceilingAdmission, "HEAD"]);
+  for (const path of ceilingPolicyPaths) {
+    const bytes = readFileSync(new URL(path, sourceRoot), "utf8");
+    writeRepoFile(root, path, bytes + (path.endsWith(".json") ? "\n" : "\n// Authentic fixture policy transition.\n"));
+  }
+  const policy = commitRepoAt(root, "feat(CHG-107): admit scoped ceiling policy", ceilingPolicyPaths, "2026-10-18T00:00:00Z");
+  const value = scopedAssessment();
+  const feedbackPrefix = readFileSync(join(root, ".nous-feedback.jsonl"), "utf8");
+  const feedback = feedbackPrefix + JSON.stringify(decisionFor(value)) + "\n";
+  writeRepoFile(root, "docs/readiness/CHG-093.json", JSON.stringify(value, null, 2) + "\n");
+  writeRepoFile(root, ".nous-feedback.jsonl", feedback);
+  const decisionCommit = commitRepoAt(root, "docs(CHG-093): approve exact cumulative readiness", ["docs/readiness/CHG-093.json", ".nous-feedback.jsonl"], "2026-10-18T00:01:00Z");
+  writeRepoFile(root, "docs/superpowers/plans/CHG-093-ceiling-fixture.md",
+    "**Work item:** CHG-093\n**Readiness assessment:** docs/readiness/CHG-093.json\n**Approved estimate:** 380 minutes\n\nAuthentic fixture execution plan.\n");
+  const approval = commitRepoAt(root, "docs(CHG-093): bind execution plan", ["docs/superpowers/plans/CHG-093-ceiling-fixture.md"], "2026-10-18T00:01:30Z");
+  return { root, policy, decisionCommit, approval, value, feedback, feedbackPrefix };
+}
+
+test("CHG-107 authentic source admits380 with ordinary approval and refuses381 cumulative", () => {
+  const f = authenticCeilingFixture();
+  try {
+    const context = readinessGit.loadReadinessCeilingContext({ root: f.root, revision: f.approval, artifact: f.value });
+    assert.deepEqual(readinessModel.resolveReadinessCeiling(f.value, context), { minutes: 380, authority: scopedCeiling });
+    assert.equal(validateAssessment(f.value, { context, feedbackRecords: parseFixtureFeedback(f.feedback), approvedReadinessAuthorities: readinessGit.annotationAuthorities(f.root, f.approval) }).active, true);
+    expectError("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", () => classifyAssessment(f.value, { ...context }));
+    // Full same-ID cumulative estimate retains readiness/review/integration rather than remaining-only accounting.
+    const over = scopedAssessment(381);
+    expectError("WR_ESTIMATE_OVER_BUDGET", "$.estimate_minutes.total", () => validateAssessment(over, { context, feedbackRecords: [decisionFor(over)] }));
+    for (const [key, wrong] of [["project_id", "foreign__smp"], ["work_id", "CHG-094"], ["decision_id", "DEC-SMP-055"], ["decision_sha256", "0".repeat(64)], ["ceiling_minutes", 381]]) {
+      const hostile = scopedAssessment(100); hostile.budget_exception[key] = wrong;
+      expectError("WR_BUDGET_EXCEPTION_INVALID", "$.budget_exception", () => classifyAssessment(hostile, context));
+    }
+    const foreign = scopedAssessment(100); foreign.work_id = "CHG-094";
+    expectError("WR_BUDGET_EXCEPTION_INVALID", "$.budget_exception", () => classifyAssessment(foreign, context));
+    const loader = (revision, value = f.value) => readinessGit.loadReadinessCeilingContext({ root: f.root, revision, artifact: value });
+    for (const revision of ["c9925df037efb317d7458f5d3997cbf4c6945837", ceilingOwnedBase]) {
+      expectError("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", () => loader(revision));
+    }
+    const cli = spawnSync(process.execPath, [cliPath, "check", "CHG-093"], { cwd: f.root, encoding: "utf8" });
+    assert.equal(cli.status, 0, cli.stderr); assert.match(cli.stdout, /CHG-093/u);
+    // A real staged transition, then per-commit and aggregate true-parent validation.
+    writeRepoFile(f.root, "ceiling-result.txt", "execution\n"); git(f.root, ["add", "ceiling-result.txt"]);
+    writeFileSync(join(f.root, ".git/COMMIT_EDITMSG"), "feat(CHG-093): execute cumulative work\n");
+    const staged = spawnSync(process.execPath, [cliPath, "check-staged", "--message-file", join(f.root, ".git/COMMIT_EDITMSG")], { cwd: f.root, encoding: "utf8" });
+    assert.equal(staged.status, 0, staged.stderr);
+    const execution = commitRepoAt(f.root, "feat(CHG-093): execute cumulative work", ["ceiling-result.txt"], "2026-10-18T00:02:00Z");
+    assert.equal(validateRangeOwnership({ root: f.root, base: f.approval, head: execution }).classification, "implementation");
+    assert.equal(validateRangeOwnership({ root: f.root, base: ceilingOwnedBase, head: execution }).classification, "implementation");
+    // The same retained CHG-093 history and independently approved full forecast
+    // (171 sunk + 210 remaining) refuses; an isolated remaining210 would fit.
+    const cumulative = scopedAssessment(381);
+    cumulative.estimate_minutes = { readiness: 28, implementation: 200, focused_verification: 80, review: 43, integration: 30, total: 381 };
+    cumulative.uncertainties = [{ id: "U-CUMULATIVE", statement: "Retained171 plus remaining210, including all attribution and tails", status: "resolved", estimate_impact_minutes: 0, resolution: "Keep the same CHG-093 cumulative accounting" }];
+    refreshDigest(cumulative);
+    writeRepoFile(f.root, "docs/readiness/CHG-093.json", JSON.stringify(cumulative));
+    writeRepoFile(f.root, ".nous-feedback.jsonl", f.feedback + JSON.stringify(decisionFor(cumulative, { id: "CHG093-CUMULATIVE381" })) + "\n");
+    const tooLarge = commitRepoAt(f.root, "docs(CHG-093): retain full sunk and remaining381", ["docs/readiness/CHG-093.json", ".nous-feedback.jsonl"], "2026-10-18T00:02:30Z");
+    const retainedContext = readinessGit.loadReadinessCeilingContext({ root: f.root, revision: tooLarge, artifact: cumulative });
+    expectError("WR_ESTIMATE_OVER_BUDGET", "$.estimate_minutes.total", () => validateAssessment(cumulative, { context: retainedContext, feedbackRecords: parseFixtureFeedback(f.feedback), approvedReadinessAuthorities: readinessGit.annotationAuthorities(f.root, tooLarge) }));
+    writeRepoFile(f.root, "ceiling-result.txt", "attempt381\n");
+    const overExecution = commitRepoAt(f.root, "feat(CHG-093): attempt full381", ["ceiling-result.txt"], "2026-10-18T00:02:45Z");
+    expectError("WR_ESTIMATE_OVER_BUDGET", "$.estimate_minutes.total", () => validateRangeOwnership({ root: f.root, base: tooLarge, head: overExecution }));
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+test("CHG-107 child ceilings never inherit the parent exception", () => {
+  const value = partitioned();
+  value.work_id = "CHG-093"; value.budget_exception = clone(scopedCeiling);
+  value.partitions[0].estimate_minutes = { readiness: 10, implementation: 276, focused_verification: 20, review: 10, integration: 5, total: 321 };
+  refreshDigest(value);
+  expectError("WR_ESTIMATE_OVER_BUDGET", "$.partitions[0].estimate_minutes.total", () => validatePartitionGraph(value));
+});
+
+test("CHG-107 authentic admission refuses tampered custody latest source and parent plans", () => {
+  const f = authenticCeilingFixture();
+  try {
+    const refuse = () => expectError("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", () =>
+      readinessGit.loadReadinessCeilingContext({ root: f.root, revision: git(f.root, ["rev-parse", "HEAD"]), artifact: f.value }));
+    const cases = [
+      ["project", ".nous-project.json", v => { v.project_id = "foreign__smp"; }],
+      ["source", ".nous-provenance.json", v => { v.git_sha = "0".repeat(12); }],
+      ["manifest", ".nous-sync.json", v => { v.files["docs/decisions/DECISION_MATRIX.md"].hash = "0".repeat(16); }],
+    ];
+    for (const [name, path, mutate] of cases) {
+      git(f.root, ["reset", "--hard", f.approval]);
+      const value = JSON.parse(readFileSync(join(f.root, path), "utf8")); mutate(value);
+      writeRepoFile(f.root, path, JSON.stringify(value)); commitRepoAt(f.root, `hostile ${name}`, [path], "2026-10-18T00:03:00Z"); refuse();
+    }
+    for (const kind of ["changed-decision", "duplicate-decision", "decision-mode", "source-mode", "unowned-source", "restored-source", "mixed-source", "missing-plan", "duplicate-plan", "unapproved107"]) {
+      git(f.root, ["reset", "--hard", f.approval]);
+      const source = ceilingPolicyPaths[0];
+      const path = "docs/decisions/DECISION_MATRIX.md";
+      const original = readFileSync(join(f.root, source), "utf8");
+      if (kind === "changed-decision") writeRepoFile(f.root, path, readFileSync(join(f.root, path), "utf8").replace("ceiling from370", "ceiling from371"));
+      if (kind === "duplicate-decision") {
+        const matrix = readFileSync(join(f.root, path), "utf8");
+        writeRepoFile(f.root, path, matrix + matrix.split("\n").find(line => line.startsWith("| DEC-SMP-059 |")) + "\n");
+      }
+      if (kind === "decision-mode") chmodSync(join(f.root, path), 0o755);
+      if (kind === "source-mode") chmodSync(join(f.root, source), 0o755);
+      if (["unowned-source", "restored-source", "mixed-source"].includes(kind)) writeRepoFile(f.root, source, original + "\n// unapproved touch\n");
+      if (["missing-plan", "duplicate-plan", "unapproved107"].includes(kind)) {
+        if (kind === "missing-plan") rmSync(join(f.root, "docs/superpowers/plans/CHG-107-plan.md"));
+        if (kind === "duplicate-plan") writeRepoFile(f.root, "docs/superpowers/plans/CHG-107-duplicate.md", readFileSync(join(f.root, "docs/superpowers/plans/CHG-107-plan.md"), "utf8"));
+        if (kind === "unapproved107") {
+          const v = JSON.parse(readFileSync(join(f.root, "docs/readiness/CHG-107.json"), "utf8")); v.approval.status = "pending";
+          writeRepoFile(f.root, "docs/readiness/CHG-107.json", JSON.stringify(v));
+        }
+        commitRepoAt(f.root, "hostile parent metadata", ["docs"], "2026-10-18T00:03:00Z");
+        writeRepoFile(f.root, source, original + "\n// source after invalid parent\n");
+      }
+      commitRepoAt(f.root, kind === "mixed-source" ? "feat(CHG-107 CHG-093): mixed source" : ["missing-plan", "duplicate-plan", "unapproved107"].includes(kind) ? "feat(CHG-107): bad source parent" : `hostile ${kind}`, ["."], "2026-10-18T00:04:00Z");
+      if (kind === "restored-source") {
+        writeRepoFile(f.root, source, original); commitRepoAt(f.root, "feat(CHG-107): restore previously admitted bytes", [source], "2026-10-18T00:05:00Z");
+      }
+      refuse();
+    }
+    git(f.root, ["reset", "--hard", f.approval]);
+    for (let index = 0; index < 64; index += 1) {
+      const path = ceilingPolicyPaths[0];
+      writeRepoFile(f.root, path, readFileSync(join(f.root, path), "utf8") + `\n// bounded transition ${index}\n`);
+      commitRepoAt(f.root, "feat(CHG-107): bounded source transition", [path], "2026-10-18T00:05:01Z");
+    }
+    refuse(); // initial transition +64 exceeds the finite64 bound
+    git(f.root, ["reset", "--hard", f.approval]);
+    git(f.root, ["checkout", "-b", "hostile-source-side"]);
+    const mergeSource = ceilingPolicyPaths[0];
+    writeRepoFile(f.root, mergeSource, readFileSync(join(f.root, mergeSource), "utf8") + "\n// source side\n");
+    commitRepoAt(f.root, "feat(CHG-107): side source", [mergeSource], "2026-10-18T00:05:02Z");
+    git(f.root, ["checkout", "--detach", f.approval]);
+    writeRepoFile(f.root, "ceiling-unrelated.txt", "intervening unrelated commit\n");
+    commitRepoAt(f.root, "unrelated branch", ["ceiling-unrelated.txt"], "2026-10-18T00:05:03Z");
+    const merged = runGit(f.root, ["merge", "--no-ff", "hostile-source-side", "-m", "feat(CHG-107): unsupported source merge"], { GIT_AUTHOR_DATE: "2026-10-18T00:05:04Z", GIT_COMMITTER_DATE: "2026-10-18T00:05:04Z" });
+    assert.equal(merged.status, 0, merged.stderr); refuse();
+    // Even with admitted policy, a candidate-only ordinary decision is too late.
+    git(f.root, ["reset", "--hard", f.policy]);
+    writeRepoFile(f.root, "docs/readiness/CHG-093.json", JSON.stringify(f.value));
+    writeRepoFile(f.root, ".nous-feedback.jsonl", f.feedback);
+    writeRepoFile(f.root, "ceiling-result.txt", "candidate-only decision\n");
+    const selfDecision = commitRepoAt(f.root, "feat(CHG-093): candidate-only approval", ["."], "2026-10-18T00:05:30Z");
+    expectError("WR_READINESS_MISSING", "docs/readiness/CHG-093.json", () => validateRangeOwnership({ root: f.root, base: f.policy, head: selfDecision }));
+    // Candidate policy and approval cannot authorize their own first execution.
+    git(f.root, ["reset", "--hard", ceilingOwnedBase]);
+    for (const path of ceilingPolicyPaths) writeRepoFile(f.root, path, readFileSync(new URL(path, sourceRoot), "utf8"));
+    writeRepoFile(f.root, "docs/readiness/CHG-093.json", JSON.stringify(f.value));
+    writeRepoFile(f.root, ".nous-feedback.jsonl", f.feedback);
+    writeRepoFile(f.root, "ceiling-result.txt", "self admission\n");
+    const self = commitRepoAt(f.root, "feat(CHG-107 CHG-093): self admit", ["."], "2026-10-18T00:06:00Z");
+    expectError("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", () => validateRangeOwnership({ root: f.root, base: ceilingOwnedBase, head: self }));
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test("CHG-107 ceiling admission never replaces exact ordinary execution approval", () => {
+  const f = authenticCeilingFixture();
+  try {
+    for (const [name, mutate, code, path] of [
+      ["missing", records => { records.pop(); }, "WR_APPROVAL_EVIDENCE_MISSING", "$.approval.evidence"],
+      ["duplicate", records => { records.push(clone(records.at(-1))); }, "WR_APPROVAL_EVIDENCE_DUPLICATE", "$.approval.evidence"],
+      ["forged", records => { records.at(-1).subject_work_id = "CHG-094"; }, "WR_APPROVAL_STORY_MISMATCH", "$.approval.evidence"],
+      ["stale-digest", records => { records.at(-1).text = `Decision ready for readiness payload SHA-256 ${"0".repeat(64)}.`; }, "WR_APPROVAL_DECISION_MISMATCH", "$.approval.evidence"],
+      ["approver", records => { records.at(-1).approved_by = "other"; }, "WR_APPROVER_MISMATCH", "$.approval.approved_by"],
+      ["control", records => { records.at(-1).relationship = "controlling_change"; }, "WR_APPROVAL_CONTROL_MISMATCH", "$.approval.evidence"],
+      ["stale", records => { records.push(decisionFor(f.value, { id: "CHG093-SUPERSEDING", text: `Decision blocked for readiness payload SHA-256 ${f.value.readiness_payload_sha256}.`, reason: "Stop" })); }, "WR_APPROVAL_INACTIVE", "$.approval.evidence"],
+    ]) {
+      git(f.root, ["reset", "--hard", f.approval]);
+      const records = parseFixtureFeedback(f.feedback); mutate(records);
+      writeRepoFile(f.root, ".nous-feedback.jsonl", records.map(JSON.stringify).join("\n") + "\n");
+      const parent = commitRepoAt(f.root, `hostile ${name} approval`, [".nous-feedback.jsonl"], "2026-10-18T00:07:00Z");
+      const context = readinessGit.loadReadinessCeilingContext({ root: f.root, revision: parent, artifact: f.value });
+      expectError(code, path, () => validateAssessment(f.value, { context, feedbackRecords: records, approvedReadinessAuthorities: readinessGit.annotationAuthorities(f.root, parent) }));
+      writeRepoFile(f.root, "ceiling-result.txt", "execution\n");
+      const execution = commitRepoAt(f.root, "feat(CHG-093): attempt refused execution", ["ceiling-result.txt"], "2026-10-18T00:08:00Z");
+      expectError(code, path, () => validateRangeOwnership({ root: f.root, base: parent, head: execution }));
+    }
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test("CHG-107 fix1 contextless classification is blocked while runtime remains strict", () => {
+  for (const total of [100, 380, 381]) {
+    const value = scopedAssessment(total);
+    assert.equal(classifyAssessment(value), "blocked");
+    expectError("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", () => readinessModel.resolveReadinessCeiling(value));
+    expectError("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", () => validateAssessment(value, { feedbackRecords: [decisionFor(value)] }));
+    for (const context of [{}, { admitted: true, capAuthorities: [scopedCeiling] }]) {
+      expectError("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", () => classifyAssessment(value, context));
+    }
+    value.budget_exception.project_id = "foreign__smp";
+    expectError("WR_BUDGET_EXCEPTION_INVALID", "$.budget_exception", () => classifyAssessment(value));
+  }
+});
+
+test("CHG-107 fix1 executes locked Draft2020 schema positive and refusal contracts", () => {
+  const require = createRequire(import.meta.url);
+  const strykerRequire = createRequire(require.resolve("@stryker-mutator/core"));
+  const Ajv2020 = strykerRequire("ajv/dist/2020.js").default;
+  const validator = new Ajv2020({ strict: false, allErrors: true, validateFormats: false }).compile(readinessSchema);
+  const valid = (value) => assert.equal(validator(value), true, JSON.stringify(validator.errors));
+  const invalid = (value, keyword) => {
+    assert.equal(validator(value), false, "invalid readiness was accepted by the real JSON Schema validator");
+    assert.equal(validator.errors.some(error => error.keyword === keyword), true, JSON.stringify(validator.errors));
+  };
+  const ordinary = normal(); ordinary.estimate_minutes.implementation = 275; ordinary.estimate_minutes.total = 320; refreshDigest(ordinary);
+  valid(ordinary); valid(normal({ budget_exception: null })); valid(scopedAssessment(380)); valid(bootstrap);
+  const over = clone(ordinary); over.estimate_minutes.implementation += 1; over.estimate_minutes.total = 321; invalid(over, "maximum");
+  invalid(scopedAssessment(381), "maximum");
+  for (const budget_exception of [false, true, 380, "380", [], {}, { ...scopedCeiling, extra: true }]) {
+    const value = scopedAssessment(100); value.budget_exception = budget_exception; invalid(value, "oneOf");
+  }
+  for (const key of Object.keys(scopedCeiling)) {
+    const missing = scopedAssessment(100); delete missing.budget_exception[key]; invalid(missing, "required");
+    const wrong = scopedAssessment(100); wrong.budget_exception[key] = key === "ceiling_minutes" ? 381 : "foreign"; invalid(wrong, "const");
+    const wrongType = scopedAssessment(100); wrongType.budget_exception[key] = null; invalid(wrongType, "type");
+  }
+  const foreign = scopedAssessment(100); foreign.work_id = "CHG-094"; invalid(foreign, "const");
+  const replay = clone(bootstrap); replay.budget_exception = clone(scopedCeiling); invalid(replay, "const");
+  const children = partitioned(); children.work_id = "CHG-093"; children.budget_exception = clone(scopedCeiling); valid(children);
+  children.partitions[0].estimate_minutes.implementation = 276; children.partitions[0].estimate_minutes.total = 321; invalid(children, "maximum");
+});
+
+test("CHG-107 fix1 real owned planning remains nonauthoritative without cap admission", () => {
+  const f = ownedScopeFixture();
+  try {
+    const value = scopedAssessment(); value.mutation_scope = clone(f.scope); value.approval.status = "pending"; refreshDigest(value);
+    writeRepoFile(f.root, "docs/readiness/CHG-093.json", JSON.stringify(value));
+    writeRepoFile(f.root, "packages/domain/src/owned.test.ts", "import { value } from './owned';\nimport { expect, test } from 'vitest';\ntest('owned value', () => expect(value).toBe(1));\n");
+    commitRepoAt(f.root, "fixture pending scoped planning", ["docs/readiness/CHG-093.json", "packages/domain/src/owned.test.ts"], "2026-10-18T03:00:00Z");
+    const env = { ...process.env };
+    for (const key of ["MUTATION_BASE", "MUTATION_SHARD", "MUTATION_SCOPE_DRY", "MUTATION_SCOPE_WORK_ID", "MUTATION_WORK_ID"]) delete env[key];
+    const args = [new URL("./mutation-scope.mjs", import.meta.url).pathname, "--planned-owned-scope", "CHG-093"];
+    const result = spawnSync(process.execPath, args, { cwd: f.root, env, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    const planned = JSON.parse(result.stdout); assert.equal(planned.authoritative, false); assert.equal(planned.expected_mutation_shards, 1);
+    assert.deepEqual(planned.sources.map(source => source.path), ["packages/domain/src/owned.ts"]);
+    assert.equal(Object.hasOwn(planned, "governingDigest"), false);
+    expectError("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", () => readinessGit.loadCommittedReadinessAuthority({ root: f.root, revision: git(f.root, ["rev-parse", "HEAD"]), workId: "CHG-093" }));
+    value.budget_exception.ceiling_minutes = 381; refreshDigest(value); writeRepoFile(f.root, "docs/readiness/CHG-093.json", JSON.stringify(value));
+    const hostile = spawnSync(process.execPath, args, { cwd: f.root, env, encoding: "utf8" });
+    assert.equal(hostile.status, 1); assert.match(hostile.stderr, /Only the exact/u);
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test("CHG-107 fix1 committed scoped authority and calibration retain their strict boundary", () => {
+  const f = authenticCeilingFixture();
+  try {
+    const authority = readinessGit.loadCommittedReadinessAuthority({ root: f.root, revision: f.approval, workId: "CHG-093" });
+    assert.equal(authority.assessment.active, true); assert.equal(authority.assessment.decision, "ready"); assert.equal(authority.assessment.complete, false);
+    assert.equal(authority.artifact.estimate_minutes.total, 380); assert.equal(authority.revision, f.approval);
+    const calibrated = runCli(f.root, ["calibrate", "CHG-093"]);
+    assert.equal(calibrated.status, 0, calibrated.stderr);
+    assert.equal(calibrated.stdout, "Calibrated docs/readiness/CHG-093.json; review=778, total=1148; approval reset to pending\n");
+    const pending = JSON.parse(readFileSync(join(f.root, "docs/readiness/CHG-093.json"), "utf8"));
+    assert.equal(pending.approval.status, "pending"); assert.equal(pending.estimate_minutes.total, 1148);
+    assert.equal(pending.approval.payload_sha256, computeReadinessPayloadSha256(pending));
+    assert.equal(readFileSync(join(f.root, ".nous-feedback.jsonl"), "utf8"), f.feedback);
+    // A shape-valid artifact at an old immutable parent cannot use the current seed.
+    git(f.root, ["reset", "--hard", ceilingOwnedBase]);
+    writeRepoFile(f.root, "docs/readiness/CHG-093.json", JSON.stringify(f.value)); writeRepoFile(f.root, ".nous-feedback.jsonl", f.feedback);
+    const old = commitRepoAt(f.root, "fixture pre-policy scoped artifact", ["docs/readiness/CHG-093.json", ".nous-feedback.jsonl"], "2026-10-18T03:01:00Z");
+    expectError("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", () => readinessGit.loadCommittedReadinessAuthority({ root: f.root, revision: old, workId: "CHG-093" }));
+    const rejected = runCli(f.root, ["calibrate", "CHG-093", "--json"]);
+    assert.equal(rejected.status, 1); assert.equal(parseCliJson(rejected).errors[0].code, "WR_BUDGET_EXCEPTION_UNAVAILABLE");
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test("CHG-107 fix1 scoped started terminal actuals and corrections preserve immutable custody", () => {
+  const f = authenticCeilingFixture();
+  try {
+    const path = "docs/readiness/CHG-093.json";
+    const save = (value, feedback, message, timestamp) => {
+      writeRepoFile(f.root, path, JSON.stringify(value, null, 2) + "\n"); writeRepoFile(f.root, ".nous-feedback.jsonl", feedback);
+      return commitRepoAt(f.root, message, [path, ".nous-feedback.jsonl"], timestamp);
+    };
+    const load = revision => readinessGit.loadCommittedReadinessAuthority({ root: f.root, revision, workId: "CHG-093" });
+    const startedFeedback = f.feedback + JSON.stringify({ story: "CHG-093", event: "started", agent: "scoped-fixture", ts: "2026-10-18T01:00:00Z" }) + "\n";
+    const started = save(f.value, startedFeedback, "docs(CHG-093): record scoped start", "2026-10-18T01:00:00Z");
+    assert.equal(validateRangeOwnership({ root: f.root, base: f.approval, head: started }).classification, "bootstrap-documentation");
+    assert.equal(load(started).assessment.active, true); assert.equal(load(started).assessment.complete, false);
+    const refusedCalibration = runCli(f.root, ["calibrate", "CHG-093", "--json"]);
+    assert.equal(refusedCalibration.status, 1); assert.equal(parseCliJson(refusedCalibration).errors[0].code, "WR_APPROVAL_ORDER");
+    const provisional = clone(f.value);
+    provisional.actuals = { phase_minutes: { readiness: null, implementation: 44, focused_verification: null, review: null, integration: null }, total: null,
+      changed_files: null, commits: null, review_fix_loops: null, cold_mutation_attempts: null, mutation_invalidations: null, estimate_variance_minutes: null, root_cause: null };
+    const provisionalHead = save(provisional, startedFeedback, "docs(CHG-093): record provisional scoped actuals", "2026-10-18T01:01:00Z");
+    assert.equal(validateRangeOwnership({ root: f.root, base: started, head: provisionalHead }).classification, "bootstrap-documentation");
+    assert.equal(load(provisionalHead).artifact.actuals.phase_minutes.implementation, 44);
+    const terminalFeedback = startedFeedback + [
+      { story: "CHG-093", event: "build_pass", notes: "Fixture verification", ts: "2026-10-18T01:02:00Z" },
+      { story: "CHG-093", event: "test_report", mutation_score: 100, ts: "2026-10-18T01:03:00Z" },
+      { story: "CHG-093", event: "done", ts: "2026-10-18T01:04:00Z" },
+    ].map(JSON.stringify).join("\n") + "\n";
+    const missing = save(f.value, terminalFeedback, "docs(CHG-093): attempt missing terminal actuals", "2026-10-18T01:04:00Z");
+    expectError("WR_ACTUALS_REQUIRED", "$.actuals", () => validateRangeOwnership({ root: f.root, base: provisionalHead, head: missing }));
+    git(f.root, ["reset", "--hard", provisionalHead]);
+    const terminal = clone(f.value); terminal.actuals = clone(completed().actuals); terminal.actuals.changed_files = 11; terminal.actuals.estimate_variance_minutes = -291;
+    const done = save(terminal, terminalFeedback, "docs(CHG-093): record complete scoped terminal", "2026-10-18T01:04:00Z");
+    assert.equal(validateRangeOwnership({ root: f.root, base: provisionalHead, head: done }).classification, "bootstrap-documentation");
+    assert.equal(load(done).assessment.complete, true); assert.equal(load(done).assessment.active, false);
+    assert.equal(load(done).artifact.actuals.total, 89);
+    const frozenBytes = readFileSync(join(f.root, path), "utf8");
+    for (const change of ["rewrite", "delete"]) {
+      git(f.root, ["reset", "--hard", done]);
+      const hostile = clone(terminal); if (change === "delete") hostile.actuals = null; else hostile.actuals.changed_files = 8;
+      const head = save(hostile, terminalFeedback, `docs(CHG-093): ${change} immutable actuals`, "2026-10-18T01:05:00Z");
+      expectError("WR_ACTUALS_IMMUTABLE", "$.actuals", () => validateRangeOwnership({ root: f.root, base: done, head }));
+    }
+    git(f.root, ["reset", "--hard", done]);
+    const authority = approvedArtifact("CHG-998"); authority.approval.evidence = "CHG998-SCOPED-CORRECTION"; refreshDigest(authority);
+    const approvedFeedback = terminalFeedback + JSON.stringify(decisionFor(authority, { ts: "2026-10-18T01:06:00Z" })) + "\n";
+    writeRepoFile(f.root, "docs/readiness/CHG-998.json", JSON.stringify(authority)); writeRepoFile(f.root, ".nous-feedback.jsonl", approvedFeedback);
+    const correctionAuthority = commitRepoAt(f.root, "docs(CHG-998): approve factual scoped correction", ["docs/readiness/CHG-998.json", ".nous-feedback.jsonl"], "2026-10-18T01:06:00Z");
+    const replacement = clone(terminal.actuals); replacement.changed_files = 8; replacement.root_cause = "Fixture raw Git count corrects eleven to eight";
+    const correction = { story: "CHG-093", event: "actuals_corrected", ref: "CHG093-SCOPED-ACTUALS-1", change: "CHG-998",
+      target_actuals_sha256: canonicalActualsSha256(terminal.actuals), replacement_actuals: replacement, reason: "Factual count correction",
+      evidence: ["Fixture raw Git count is eight"], ts: "2026-10-18T01:07:00Z" };
+    for (const variant of ["missing-authority", "wrong-target", "valid"]) {
+      git(f.root, ["reset", "--hard", correctionAuthority]);
+      const event = clone(correction);
+      if (variant === "wrong-target") event.target_actuals_sha256 = "0".repeat(64);
+      if (variant === "missing-authority") rmSync(join(f.root, "docs/readiness/CHG-998.json"));
+      writeRepoFile(f.root, ".nous-feedback.jsonl", approvedFeedback + JSON.stringify(event) + "\n");
+      const head = commitRepoAt(f.root, "docs(CHG-998): append scoped factual correction", ["docs/readiness/CHG-998.json", ".nous-feedback.jsonl"], "2026-10-18T01:07:00Z");
+      if (variant !== "valid") {
+        const code = variant === "missing-authority" ? "WR_ACTUALS_CORRECTION_MISSING_DECISION" : "WR_ACTUALS_CORRECTION_TARGET_HASH_MISMATCH";
+        expectError(code, "$feedback[0]", () => validateRangeOwnership({ root: f.root, base: correctionAuthority, head }));
+      } else {
+        assert.equal(validateRangeOwnership({ root: f.root, base: correctionAuthority, head }).classification, "bootstrap-documentation");
+        const loaded = load(head); assert.equal(loaded.assessment.complete, true); assert.equal(loaded.artifact.actuals.changed_files, 11);
+        const facts = validateCompletionActuals(loaded.artifact, loaded.feedbackRecords, { approvedReadinessAuthorities: new Map([[authority.work_id, { digest: authority.readiness_payload_sha256, evidence: authority.approval.evidence, approvedBy: authority.approval.approved_by }]]) });
+        assert.equal(facts.effective.changed_files, 8);
+        assert.equal(readFileSync(join(f.root, path), "utf8"), frozenBytes);
+      }
+    }
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+function parseFixtureFeedback(text) { return readinessModel.parseFeedbackRecords(text); }
+
+
+// Removing continuity checks accepts the restored hostile transition; pinning
+// seed envelopes instead rejects the legitimate future canonical sync.
+function canonicalCeilingSync(root, { staleMatrix = false, mutate } = {}) {
+  const matrixPath = "docs/decisions/DECISION_MATRIX.md";
+  const matrix = readFileSync(join(root, matrixPath), "utf8") + "\n<!-- unrelated canonical policy explanation -->\n";
+  writeRepoFile(root, matrixPath, matrix);
+  const project = JSON.parse(readFileSync(join(root, ".nous-project.json"), "utf8"));
+  const provenance = JSON.parse(readFileSync(join(root, ".nous-provenance.json"), "utf8"));
+  const sync = JSON.parse(readFileSync(join(root, ".nous-sync.json"), "utf8"));
+  project.generated_at = "2026-10-18T02:00:00Z"; project.substrate_commit = "abcdef01"; project.checksum = "1".repeat(16);
+  provenance.git_sha = "abcdef012345";
+  sync.synced_at = "2026-10-18T02:00:01Z";
+  sync.files[matrixPath].source = "/normal/future/nous/Nous/WorkControl/fcostudios/smp/DECISION_MATRIX.md";
+  if (!staleMatrix) sync.files[matrixPath].hash = createHash("sha256").update(matrix).digest("hex").slice(0, 16);
+  if (mutate) mutate({ project, provenance, sync });
+  for (const [path, value] of [[".nous-project.json", project], [".nous-provenance.json", provenance], [".nous-sync.json", sync]]) writeRepoFile(root, path, JSON.stringify(value, null, 2) + "\n");
+  return commitRepoAt(root, "docs: synchronize canonical future policy", [matrixPath, ".nous-project.json", ".nous-provenance.json", ".nous-sync.json"], "2026-10-18T02:00:02Z");
+}
+
+test("CHG-107 canonical continuity accepts normal future source and rejects hidden restoration", () => {
+  const f = authenticCeilingFixture();
+  try {
+    const contextAt = revision => readinessGit.loadReadinessCeilingContext({ root: f.root, revision, artifact: f.value });
+    const synced = canonicalCeilingSync(f.root);
+    assert.equal(validateAssessment(f.value, { context: contextAt(synced), feedbackRecords: parseFixtureFeedback(f.feedback), approvedReadinessAuthorities: readinessGit.annotationAuthorities(f.root, synced) }).decision, "ready");
+    writeRepoFile(f.root, "ceiling-result.txt", "future canonical execution\n");
+    const executed = commitRepoAt(f.root, "feat(CHG-093): execute after canonical continuity", ["ceiling-result.txt"], "2026-10-18T02:00:03Z");
+    assert.equal(validateRangeOwnership({ root: f.root, base: synced, head: executed }).classification, "implementation");
+    for (const kind of ["restored touch", "mixed unrelated", "stale matrix", "foreign identity", "foreign namespace", "foreign source", "dirty", "nonregular"]) {
+      git(f.root, ["reset", "--hard", f.approval]);
+      if (kind === "restored touch") {
+        const path = ".nous-provenance.json"; const pristine = readFileSync(join(f.root, path), "utf8");
+        writeRepoFile(f.root, path, pristine + "\n"); commitRepoAt(f.root, "hostile hidden custody touch", [path], "2026-10-18T01:58:00Z");
+        writeRepoFile(f.root, path, pristine); commitRepoAt(f.root, "hostile hidden custody restoration", [path], "2026-10-18T01:59:00Z");
+      }
+      if (kind === "mixed unrelated") writeRepoFile(f.root, "unowned-policy-helper.txt", "not canonical\n");
+      const bad = canonicalCeilingSync(f.root, { staleMatrix: kind === "stale matrix", mutate({ project, provenance, sync }) {
+        if (kind === "foreign identity") project.organization = "foreign";
+        if (kind === "foreign namespace") project.nous_namespace = "foreign/smp";
+        if (kind === "foreign source") sync.files["docs/decisions/DECISION_MATRIX.md"].source = "/foreign/Nous/WorkControl/foreign/smp/DECISION_MATRIX.md";
+        if (kind === "dirty") { provenance.dirty = true; provenance.dirty_paths = ["Nous/Elsewhere.md"]; }
+      } });
+      let head = bad;
+      if (kind === "mixed unrelated") {
+        // Amend to include the full changed-path list: a four-path projection
+        // would wrongly let this noncanonical path escape the normal verifier.
+        git(f.root, ["add", "unowned-policy-helper.txt"]); git(f.root, ["commit", "--amend", "--no-edit"]); head = git(f.root, ["rev-parse", "HEAD"]);
+      }
+      if (kind === "nonregular") { chmodSync(join(f.root, ".nous-sync.json"), 0o755); head = commitRepoAt(f.root, "hostile nonregular custody", [".nous-sync.json"], "2026-10-18T02:00:04Z"); }
+      expectError("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", () => contextAt(head));
+    }
+    git(f.root, ["reset", "--hard", f.approval]);
+    writeRepoFile(f.root, "docs/stories/CHANGES.md", readFileSync(join(f.root, "docs/stories/CHANGES.md"), "utf8") + "\nOrdinary unrelated closure.\n");
+    const closure = commitRepoAt(f.root, "docs: ordinary unrelated closure", ["docs/stories/CHANGES.md"], "2026-10-18T02:01:00Z");
+    assert.equal(readinessModel.resolveReadinessCeiling(f.value, contextAt(closure)).minutes, 380);
+    git(f.root, ["reset", "--hard", f.approval]);
+    const matrixPath = "docs/decisions/DECISION_MATRIX.md";
+    writeRepoFile(f.root, matrixPath, readFileSync(join(f.root, matrixPath), "utf8") + "\nUnclaimed drift.\n");
+    commitRepoAt(f.root, "hostile stale unchanged claim", [matrixPath], "2026-10-18T02:01:10Z");
+    const changesPath = "docs/stories/CHANGES.md";
+    const changes = readFileSync(join(f.root, changesPath), "utf8") + "\nNormal unrelated sync.\n";
+    writeRepoFile(f.root, changesPath, changes);
+    const sync = JSON.parse(readFileSync(join(f.root, ".nous-sync.json"), "utf8"));
+    sync.synced_at = "2026-10-18T02:01:11Z";
+    sync.files[changesPath] = { hash: createHash("sha256").update(changes).digest("hex").slice(0, 16), source: "/future/Nous/WorkControl/fcostudios/smp/CHANGES.md" };
+    writeRepoFile(f.root, ".nous-sync.json", JSON.stringify(sync));
+    const untouchedClaim = commitRepoAt(f.root, "docs: sync unrelated change leaving stale matrix claim untouched", [changesPath, ".nous-sync.json"], "2026-10-18T02:01:12Z");
+    expectError("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", () => contextAt(untouchedClaim));
+    git(f.root, ["reset", "--hard", f.approval]);
+    let overflow;
+    for (let index = 0; index < 65; index += 1) overflow = canonicalCeilingSync(f.root);
+    expectError("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", () => contextAt(overflow));
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test("CHG-107 correction projection refuses scoped authority at its old origin despite later policy", () => {
+  const f = authenticCeilingFixture();
+  try {
+    git(f.root, ["reset", "--hard", ceilingOwnedBase]);
+    const target = correctionFixture();
+    const records = [...target.records, { ...target.correction, change: "CHG-093" }];
+    // Keep the ordinary target lifecycle and its correction; replace the
+    // technical correction approver with the exact scoped authority before code exists.
+    const feedback = f.feedbackPrefix + JSON.stringify(decisionFor(f.value)) + "\n" + records.map(JSON.stringify).join("\n") + "\n";
+    writeRepoFile(f.root, "docs/readiness/CHG-093.json", JSON.stringify(f.value));
+    writeRepoFile(f.root, `docs/readiness/${target.value.work_id}.json`, JSON.stringify(target.value));
+    writeRepoFile(f.root, ".nous-feedback.jsonl", feedback);
+    const old = commitRepoAt(f.root, "docs: old scoped correction origin", ["docs/readiness/CHG-093.json", `docs/readiness/${target.value.work_id}.json`, ".nous-feedback.jsonl"], "2026-10-18T02:02:00Z");
+    const refuseOld = () => expectError("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", () => readinessGit.loadCommittedReadinessAuthority({ root: f.root, revision: old, workId: target.value.work_id }));
+    refuseOld();
+    const cliOld = runCli(f.root, ["check", target.value.work_id, "--json"]);
+    assert.equal(cliOld.status, 1, "CLI must not project an unavailable scoped correction authority");
+    assert.equal(parseCliJson(cliOld).errors[0].code, "WR_BUDGET_EXCEPTION_UNAVAILABLE");
+    for (const path of ceilingPolicyPaths) writeRepoFile(f.root, path, readFileSync(new URL(path, sourceRoot), "utf8"));
+    const later = commitRepoAt(f.root, "feat(CHG-107): later normal policy cannot backfill old origin", ceilingPolicyPaths, "2026-10-18T02:03:00Z");
+    assert.equal(readinessModel.resolveReadinessCeiling(f.value, readinessGit.loadReadinessCeilingContext({ root: f.root, revision: later, artifact: f.value })).minutes, 380);
+    refuseOld();
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+// CHG-107: omitting exact scoped planning must not promote execution eligibility.
+test("CHG-107 exact scoped ceiling stays blocked without actual-parent authority", () => {
+  const value = normal({ work_id: "CHG-093", kind: "CHG", work_type: "technical" });
+  value.budget_exception = {
+    project_id: "fcostudios__smp", work_id: "CHG-093", ceiling_minutes: 380,
+    decision_id: "DEC-SMP-059",
+    decision_sha256: "391a0e3545c948dd7082c2d17c9d12a6146c6e3f2d683545df7be8ce07db8433",
+  };
+  assert.equal(classifyAssessment(value), "blocked");
+  for (const suppliedContext of [{}, { project_id: "fcostudios__smp", revision: "a".repeat(40) }]) {
+    expectError("WR_BUDGET_EXCEPTION_UNAVAILABLE", "$.budget_exception", () => classifyAssessment(value, suppliedContext));
+  }
 });
 
 assert.ok(process.env.READINESS_TEST_FILTER ? assertions > 0 : assertions >= 30);
