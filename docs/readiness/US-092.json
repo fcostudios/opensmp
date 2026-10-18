@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "readiness_payload_sha256": "7c873d54fb1abd3fc4e989e2630cfbe319515d61e275324914e80a2755134428",
+  "work_id": "US-092",
+  "kind": "US",
+  "work_type": "functional",
+  "title": "Retire financial drift alerts while preserving historical readability",
+  "source": "docs/stories/sprint-3/r1_misc_us_092.md; CHG-099 canonical allocation; DEC-SMP-038/048/049. Actual authority base 7bc42fa74cb198677817a011fd19c3e924a19ecd. Allocation is not readiness approval.",
+  "outcomes": [
+    {
+      "id": "O1",
+      "statement": "Financial reconciliation stops producing false membership drift alerts while canonical new drift subjects and existing historical alert links remain usable without widening tenant visibility.",
+      "demo": "Run the actual alert worker against an open nonzero financial reconciliation and prove zero new register_drift events/delivery; prove strict canonical new-subject acceptance and reconciliationId refusal; render an existing reconciliation-subject alert with href /excepciones.",
+      "primary": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC2",
+      "outcome_ids": [
+        "O1"
+      ]
+    },
+    {
+      "id": "AC3",
+      "outcome_ids": [
+        "O1"
+      ]
+    }
+  ],
+  "scopes": [
+    "shared-alert-contract-and-domain-compatibility",
+    "financial-alert-worker-retirement",
+    "historical-alert-presentation-proof"
+  ],
+  "signals": {
+    "routes_or_screens": 1,
+    "acceptance_flows": 3,
+    "expected_changed_files": 9,
+    "bookkeeping_files": 4,
+    "expected_mutation_shards": 3,
+    "lifecycle_or_concurrency_boundaries": 1,
+    "external_integrations": 0,
+    "schema_or_migration_changes": 0,
+    "authorization_or_audit_boundaries": 0,
+    "tooling_change": false
+  },
+  "estimate_minutes": {
+    "readiness": 25,
+    "implementation": 65,
+    "focused_verification": 95,
+    "review": 45,
+    "integration": 25,
+    "total": 255
+  },
+  "uncertainties": [
+    {
+      "id": "U1",
+      "statement": "Actual prerequisites and ownership",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "US-042 is completed in actual base SPRINT_PLAN row67; no unresolved blocked_by dependency remains, so dependencies is empty. US-093 follows this subject/legacy outcome. US-084/090/091 and technical CHG-093 remain with their existing owners and are not prerequisites or takeover scope. Parent US-078 AC3 financial-retirement/legacy clauses and corresponding AC5 proof map here; actual episode production/rule/outbox/link/ack proof remains US-093. DEC-SMP-048 real hourly obligation remains with whichever US-078 episode outcome/US-091 integrates second. No policy reinterpretation or generated canonical sync."
+    },
+    {
+      "id": "U2",
+      "statement": "Frozen delivery and bookkeeping inventory",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Exactly nine delivery paths: packages/contracts/src/alerts.ts; packages/contracts/src/alerts.test.ts; packages/domain/src/alerts/evaluate.ts; packages/domain/src/alerts/evaluate.test.ts; packages/domain/src/alerts/types.ts; apps/worker/src/alerts/evaluate-alerts.ts; apps/worker/src/alerts/evaluate-alerts.integration.test.ts; apps/web/src/components/alerts/alert-list.test.tsx; scripts/mutation-routes.json. Four bookkeeping: docs/readiness/US-092.json; docs/superpowers/specs/US-092-design.md; docs/superpowers/plans/US-092-plan.md; .nous-feedback.jsonl. Current closed bookkeeping policy excludes only those four from20; nine delivery plus four informational bookkeeping=13 actual planned paths. No schema, migration, notification, UI production, auth, generated guide/config/toolchain path. Any additional actual path requires stop and amendment before delivery; no hidden custody allowance."
+    },
+    {
+      "id": "U3",
+      "statement": "Legacy destination can survive within frozen paths",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Static actual code evidence: apps/web/src/components/alerts/alert-list.tsx alertDestination delegates to packages/domain/src/alerts/evaluate.ts alertSubjectDestination; existing legacy branch returns /excepciones. packages/contracts/src/alerts.ts currently uses reconciliation subject for both generic read shape and typed new validation. Separate strict new-event typed validation from legacy-compatible read/destination parsing within frozen contracts/domain files. apps/web/src/modules/operational-alert-read.ts returns raw subject_ref; repository authorization/scoping remains unchanged. Existing alert-list.test.tsx renders the actual organism via renderToStaticMarkup, so use a historical reconciliation subject and assert actual href, rather than helper-only proof. No future episode UI/destination or company inference here. Falsifier: historical parse/render requires another production path; STOP for exact scope amendment, not silent expansion."
+    },
+    {
+      "id": "U4",
+      "statement": "Production financial retirement and unchanged behavior oracle",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "Actual evaluate-alerts.ts gatherFacts register_drift case selects open reconciliation with variance_usd IS DISTINCT FROM0 through booleanSubjectFacts, emitting reconciliationId/drifted. Own real PostgreSQL fixture in existing evaluate-alerts.integration.test.ts must exercise createAlertEvaluationJob.run with enabled applicable global/account drift rules and actual open nonzero reconciliation; exact persisted new register_drift count0 and no drift delivery, successful run, unchanged reconciliation/variance evidence. Exercise account scopes and tenant/company negative cases without broadening visibility. Preserve applicable low_pool and other worker behavior using existing real worker fixtures; zero emissions cannot be proven by removing all rule processing or invalid-subject failure. No DriftEpisode query/table/fake emitted episode. Falsifier: fixture requires source or test outside nine paths; stop before expansion."
+    },
+    {
+      "id": "U5",
+      "statement": "Strict new subject and historical compatibility proof",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "Exact canonical new register_drift subject accepts only nonempty drift_episode_id/vendor_account_id; reject reconciliationId, mixed old/new, missing/empty keys, extras and wrong alert-type pairings. Shared type and evaluator accept canonical shape without claiming an actual produced episode. Legacy generic read parsing and alertSubjectDestination still accept existing reconciliationId with /excepciones; malformed subjects remain rejected. Domain existing type-matrix tests retain all other alert destinations/evaluation contracts. Canonical episode destination/new production enforcement beyond this strict shared contract belongs US-093. If caller coupling prevents strict new/legacy split within inventory, STOP amendment."
+    },
+    {
+      "id": "U6",
+      "statement": "Applicable mutation route forecast and future own evidence",
+      "status": "budgeted",
+      "estimate_impact_minutes": 10,
+      "resolution": "Read-only calculatePlannedMutationScope on actual full current nine paths with an in-memory proposed additive route map returned3 shards: contracts alerts.ts -> alerts.test.ts; domain evaluate.ts+types.ts -> evaluate.test.ts; worker evaluate-alerts.ts -> existing overdue-invitations.integration.test.ts PLUS appended existing evaluate-alerts.integration.test.ts. Proposed new key packages/domain/src/alerts/types.ts names existing evaluate.test.ts and is legal only if types.ts actually changes; preserve every base key and ordered value. No routes/config edited in readiness. Full-file planner is nonauthoritative future forecast, not current diff proof or permission. types.ts is currently type-only; actual hunks may yield fewer shards, record discrepancy/actuals honestly without changing approved payload. After approved implementation actual preflight must show routed executed suites/no gaps, touched-only previews at most tasks+1 and30minutes, one own cache-cleared diff cold last after reviews/fixes, own score>=80 and reviewer one-line survivor signoff; no borrowed scores. Full current own gate and real owner/app committed migrate/verify/parity required. No invented zero-shard proof from current docs-only diff."
+    },
+    {
+      "id": "U7",
+      "statement": "Protected testing guidance and canonical source",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Read actual TESTING.md and testing/critical-paths.md: BR-24 is absent from gated business-rule list; no money math, auth or tenant query implementation changes are authorized. Retirement removes false financial drift facts, preserving financial calculations and visibility. Existing tenant isolation remains mandatory in real fixture proofs. No current guide sync/update is indicated; before commit recheck both protected files and current canonical custody; if critical-path guidance actually needs change, STOP for normal IMP-434 operator delivery and exact amendment rather than hand-edit generated guides. No automatic sync or canonical source edits."
+    },
+    {
+      "id": "U8",
+      "statement": "Complete all-role phases and cumulative cost",
+      "status": "resolved",
+      "estimate_impact_minutes": 0,
+      "resolution": "Whole255 minutes includes readiness25, implementation65, focused95, review45, integration25; hard320 leaves65 contingency only through approved current scope, not free expanded work. Readiness25=prior root facts2+fresh US092 controller up to16+independent reviewer up to4+root final/close3. Implementation65=one consolidated implementer45+controller10+root10, including postapproval design/plan binding. Focused95=implementer70+controller15+root10 for actual real worker/contract/render proofs, gate/DB, touched previews and final native cold handling. Review45=reused scoped reviewer20+fresh independent final adversarial reviewer15+controller7+root3; no review performed by implementing controller. Integration25=implementer8+controller10+root7 incl normal commit/range/custody/FF/evidence closure. U4/U5/U6 impacts10 each are embedded in phase reserves, never added twice. No source/test/design/plan/started before exact new human digest approval. No prior US030/CHG099/100/101/104/105/107 or unknown historical cost transfers/reset. New item baseline is fresh controller readiness; role/token telemetry unavailable, active-minute estimates disclosed and no old peaks reused. Falsifiers needing another tool/repair cycle, source path, generic framework or cumulative forecast>320 cause STOP, concrete amendment rather than disguised follow-up."
+    }
+  ],
+  "dependencies": [],
+  "decision": "ready",
+  "partitions": [],
+  "approval": {
+    "status": "pending",
+    "approved_by": null,
+    "evidence": null,
+    "payload_sha256": "7c873d54fb1abd3fc4e989e2630cfbe319515d61e275324914e80a2755134428"
+  },
+  "actuals": null,
+  "policy_bootstrap": false,
+  "bootstrap_exemption_rationale": null,
+  "bootstrap_authorization": null,
+  "controlling_change": null
+}
