@@ -2753,3 +2753,4 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.exit(typeof error?.status === "number" ? error.status : 1);
   }
 }
+// nous-emitted: sha256=84791beeb5bd4bf0

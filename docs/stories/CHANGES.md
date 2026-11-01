@@ -106,6 +106,11 @@
 | **CHG-106** | 📦 delivered | Classify consistent IMP410 delivery snapshots under original immutable authority | — | — |
 | **CHG-107** | 📦 delivered | Honor explicitly approved item-bound cumulative execution ceilings | — | — |
 | **CHG-108** | 📦 delivered | Version explicitly approved CHG-093 ceiling authority without weakening historical policy | — | — |
+| **CHG-109** | 🔵 analyzed | Approve an outcome envelope once and let the forecast move inside it (partition parent) | — | — |
+| **CHG-110** | 🔵 analyzed | Readiness v2: digest-bound outcome envelope with forecast excluded from approval | — | — |
+| **CHG-111** | 🔵 analyzed | Retire the item-bound ceiling exception and its git admission proof | — | — |
+| **CHG-112** | 🟢 accepted | Remove SMP's tenant-built Work Readiness Gate and its approval ceremony (DEC-SMP-065) | — | — |
+| **CHG-113** | 🔵 analyzed | Re-baseline R1 to the value-first R1 prime: license-only manual monthly close first (DEC-SMP-065) | — | — |
 
 ---
 
@@ -540,7 +545,9 @@ _No stories linked to this change yet._
 **Status:** 🟢 `accepted`
 **Source:** developer_feedback
 **Requested by:** Francisco Lomas
-**Notes:** Add a narrow readiness compatibility path for work started before CHG-037: permit terminal actuals to carry reconstructable primary-source counts while phase_minutes is explicitly unreconstructable with a mandatory reason. Scope the exception to legacy items only and keep all modern actuals stric...
+**Notes:** > **WITHDRAWN 2026-11-01 by DEC-SMP-065/DEC-SMP-066.** It extends SMP's tenant readiness gate, which is being removed (CHG-112). Already accepted, so the next sync will mark it delivered; it will not be executed.
+
+Add a narrow readiness compatibility path for work started before CHG-037: permit t...
 **Feedback:** US-043
 
 _No stories linked to this change yet._
@@ -644,11 +651,11 @@ _No stories linked to this change yet._
 **Status:** 🟢 `accepted`
 **Source:** developer_feedback
 **Requested by:** Francisco Lomas
-**Notes:** # CHG-048 — Guard readiness calibration output size and audit CHG-047 actuals
+**Notes:** > **WITHDRAWN 2026-11-01 by DEC-SMP-065/DEC-SMP-066.** It extends SMP's tenant readiness gate, which is being removed (CHG-112). Already accepted, so the next sync will mark it delivered; it will not be executed.
 
-## Background
+# CHG-048 — Guard readiness calibration output size and audit CHG-047 actuals
 
-CHG-047 introduced opt-in readiness estimate calibration. Its final whole-change review reproduced a boundary defect: an input artifact can be valid at the 4,194,304-byte reader limit, while calibration'...
+## B...
 
 _No stories linked to this change yet._
 
@@ -1144,8 +1151,9 @@ _No stories linked to this change yet._
 **Status:** 🟡 `proposed`
 **Source:** client_review
 **Requested by:** Francisco
-**Notes:** smp readiness-gate policy (technical) — PROPOSED, Francisco decides. Adds an execution-continuation path so an item that overruns DURING execution is not forced into a post-hoc repartition.
-Motivation (US-083, CHG-086): gate and adversarial ACs green, mutation 74.15%, remaining work 103 min of or...
+**Notes:** > **WITHDRAWN 2026-11-01 by DEC-SMP-065** (Option A restart). SMP's tenant readiness governance is being removed, so this change will not be executed. The ledger has no cancel verb yet, so its status is left unchanged.
+
+smp readiness-gate policy (technical) — PROPOSED, Francisco decides. Adds an ...
 
 _No stories linked to this change yet._
 
@@ -1290,7 +1298,7 @@ Project: fcostudios__smp. Kind: functional. Authority: Francisco Lomas replied A
 
 | Story | Name | Sprint | Status | File |
 |-------|------|--------|--------|------|
-| **US-092** | Retire financial drift alerts and preserve historical alert readability | Sprint ? | ⬜ backlog | r1_misc_us_092.md |
+| **US-092** | Retire financial drift alerts and preserve historical alert readability | Sprint ? | ✅ dev_done | r1_misc_us_092.md |
 | **US-093** | Detect accepted member drift episodes and expose real alerts and Deriva | Sprint ? | ⬜ backlog | r1_misc_us_093.md |
 
 ### CHG-100: Attest the closed baseline privilege declaration in real release verification
@@ -1399,6 +1407,69 @@ _No stories linked to this change yet._
 **Notes:** # CHG-108 — Version explicitly approved CHG-093 ceiling authority
 
 Project: fcostudios__smp. Kind: technical. Release: R1 tenant verification infrastructure. Owner: existing readiness maintainer01a13a18-5ada-76c0-8b07-3020f9887bb7. Officially allocated through change next --reserve, not invented....
+
+_No stories linked to this change yet._
+
+### CHG-109: Approve an outcome envelope once and let the forecast move inside it (partition parent)
+
+**Status:** 🔵 `analyzed`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** > **WITHDRAWN 2026-11-01 by DEC-SMP-065** (Option A restart). SMP's tenant readiness governance is being removed, so this change will not be executed. The ledger has no cancel verb yet, so its status is left unchanged.
+
+# CHG-109 — Approve an outcome envelope once; let the forecast move inside it...
+
+_No stories linked to this change yet._
+
+### CHG-110: Readiness v2: digest-bound outcome envelope with forecast excluded from approval
+
+**Status:** 🔵 `analyzed`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** > **WITHDRAWN 2026-11-01 by DEC-SMP-065** (Option A restart). SMP's tenant readiness governance is being removed, so this change will not be executed. The ledger has no cancel verb yet, so its status is left unchanged.
+
+# CHG-110 — Readiness v2: digest-bound outcome envelope, forecast excluded fr...
+
+_No stories linked to this change yet._
+
+### CHG-111: Retire the item-bound ceiling exception and its git admission proof
+
+**Status:** 🔵 `analyzed`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** > **WITHDRAWN 2026-11-01 by DEC-SMP-065** (Option A restart). SMP's tenant readiness governance is being removed, so this change will not be executed. The ledger has no cancel verb yet, so its status is left unchanged.
+
+# CHG-111 — Retire the item-bound ceiling exception and its git admission pro...
+
+_No stories linked to this change yet._
+
+### CHG-112: Remove SMP's tenant-built Work Readiness Gate and its approval ceremony (DEC-SMP-065)
+
+**Status:** 🟢 `accepted`
+**Source:** client_review
+**Requested by:** Francisco
+**Notes:** # CHG-112 — Remove SMP's tenant-built Work Readiness Gate and its approval ceremony
+
+| Field | Value |
+|---|---|
+| Project | `fcostudios__smp` |
+| Kind | technical (tenant tooling) |
+| Authority | **DEC-SMP-065** (Francisco, 2026-11-01). Removal is one technical change made **outside the gate**; ...
+
+_No stories linked to this change yet._
+
+### CHG-113: Re-baseline R1 to the value-first R1 prime: license-only manual monthly close first (DEC-SMP-065)
+
+**Status:** 🔵 `analyzed`
+**Source:** client_review
+**Requested by:** Francisco
+**Notes:** # CHG-113 — Re-baseline R1 to the value-first R1′ (license-only manual monthly close first)
+
+| Field | Value |
+|---|---|
+| Project | `fcostudios__smp` |
+| Kind | functional (product scope and plan) |
+| Mode | `story_overlay` (derived live). SMP has delivered to its dev package (IMP-232 signal), e...
 
 _No stories linked to this change yet._
 

@@ -1,13 +1,13 @@
 {
-  "synced_at": "2026-10-18T13:37:49.254270+00:00",
+  "synced_at": "2026-11-01T20:56:12.641897+00:00",
   "project_id": "fcostudios__smp",
   "files": {
     "docs/stories/SPRINT_PLAN.md": {
-      "hash": "11a54507fc8d35f1",
+      "hash": "5219af9009b1c0a2",
       "source": "generated"
     },
     "docs/stories/CHANGES.md": {
-      "hash": "515f0cd17767e1cc",
+      "hash": "11e48dba2c8bbf5a",
       "source": "generated"
     },
     "docs/stories/ASSIGNMENTS.md": {
@@ -19,7 +19,7 @@
       "source": "generated"
     },
     ".nous-project.json": {
-      "hash": "29914121a50f1839",
+      "hash": "7c8d0ca7a48c70c5",
       "source": "generated"
     },
     "docs/stories/INDEX.md": {
@@ -311,8 +311,8 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/14_legal.md"
     },
     "docs/decisions/DECISION_MATRIX.md": {
-      "hash": "7e822c8566d69f36",
-      "source": "/Users/fcolomas/.codex/worktrees/smp-chg104-105-custody/nous/Nous/WorkControl/fcostudios/smp/DECISION_MATRIX.md"
+      "hash": "bc544c19b250ebc6",
+      "source": "/Users/fcolomas/Projects/nous/Nous/WorkControl/fcostudios/smp/DECISION_MATRIX.md"
     },
     "docs/dashboard.html": {
       "hash": "3eb9eabff875eac0",
@@ -555,7 +555,7 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/dev_package_staging/infra/scripts/regenerate-sidebar.py"
     },
     "scripts/mutation-scope.mjs": {
-      "hash": "27d6fdc5405297e1",
+      "hash": "334e06467011ba01",
       "source": "toolchain"
     },
     "docs/stories/sprint-3/r1_misc_us_056.md": {
@@ -595,7 +595,7 @@
       "source": "generated"
     },
     "CLAUDE.md": {
-      "hash": "05722c7d8351bffc",
+      "hash": "60e4cc38a9c4c7ca",
       "source": "emitted"
     },
     "docs/TEST_EFFECTIVENESS_STANDARD.md": {
@@ -631,23 +631,23 @@
       "source": "emitted"
     },
     "docs/dev-guide/CONTRIBUTING-GUIDANCE.md": {
-      "hash": "070f643532013765",
+      "hash": "5e5c4744fc528fd9",
       "source": "emitted"
     },
     "AGENTS.md": {
-      "hash": "d89a094ad2ad2596",
+      "hash": "e612dbded5a5b23f",
       "source": "emitted"
     },
     "CODEX.md": {
-      "hash": "f8a205e781bf7ca3",
+      "hash": "70d90cc4b0ea591c",
       "source": "emitted"
     },
     ".github/copilot-instructions.md": {
-      "hash": "f8a205e781bf7ca3",
+      "hash": "70d90cc4b0ea591c",
       "source": "emitted"
     },
     ".cursorrules": {
-      "hash": "f8a205e781bf7ca3",
+      "hash": "70d90cc4b0ea591c",
       "source": "emitted"
     },
     "docs/dev-guide/SPECS.md": {
@@ -667,7 +667,7 @@
       "source": "toolchain"
     },
     "scripts/nous-sync-owns.mjs": {
-      "hash": "65192df60fe98116",
+      "hash": "cf4cd0e66b1420b7",
       "source": "toolchain"
     },
     "scripts/readiness-check.mjs": {
@@ -789,6 +789,10 @@
     "docs/stories/sprint-3/r1_misc_us_093.md": {
       "hash": "0ca17b3ac2715734",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/stories/r1_misc_us_093.md"
+    },
+    "docs/dev-guide/AGENT_REQUESTS.md": {
+      "hash": "2210cf839d8b59c6",
+      "source": "emitted"
     }
   }
 }

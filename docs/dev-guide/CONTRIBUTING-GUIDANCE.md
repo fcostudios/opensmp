@@ -21,6 +21,7 @@ verified: your guidance survives, and substrate corrections keep arriving.
 
 | generated doc | extend it with |
 |---|---|
+| `AGENT_REQUESTS.md` | `docs/dev-guide/local/AGENT_REQUESTS.md` |
 | `CLAUDE.md` | `docs/dev-guide/local/CLAUDE.md` |
 | `CONTRIBUTING-GUIDANCE.md` | `docs/dev-guide/local/CONTRIBUTING-GUIDANCE.md` |
 | `DEFINITION_OF_DONE.md` | `docs/dev-guide/local/DEFINITION_OF_DONE.md` |
@@ -53,4 +54,4 @@ doc is reported during generation and inlined nowhere.
 - **Commit `docs/dev-guide/local/` to your repository.** It is the only
   copy. `nous_package.py generate --clean` wipes everything except `.git` and
   `node_modules`, so your git history is the recovery path.
-<!-- nous-emitted: sha256=8904873e3c355b8e -->
+<!-- nous-emitted: sha256=c676240ca9620d3c -->

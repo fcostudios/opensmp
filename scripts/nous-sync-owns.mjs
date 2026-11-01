@@ -42,6 +42,7 @@ const ALLOWLIST = [
   "CODEX.md",
   "apps/api/src/main/resources/db/migration/",
   "apps/web/src/components/shell/nav-items.gen.ts",
+  "docs/TEST_EFFECTIVENESS_STANDARD.md",
   "docs/dashboard.html",
   "docs/decisions/",
   "docs/dev-guide/",
@@ -270,4 +271,4 @@ if (violations.length > 0) {
 }
 process.stdout.write(`nous-sync-owns: ok — a Nous sync (${owned} claimed path(s))\n`);
 process.exit(0);
-// nous-emitted: sha256=c951b148f8e86d5f
+// nous-emitted: sha256=0365b8d9fcbbc346

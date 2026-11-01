@@ -20,12 +20,6 @@
    `verify-schema.mjs` apply the COMMITTED migrations. `drizzle-kit push` is NOT the gate: it diffs only what `schema.ts` can model, while the committed migrations also carry RLS policies, triggers and composite tenant-scoped foreign keys — so push proposes DROPPING them and can hard-fail. Use `drizzle-kit generate` to AUTHOR a migration and the committed-migration applier (`db:migrate`) to PROVE the committed set applies.
 4. **Conventions** (tenant column `company_id`, per-table soft delete, App Router, design tokens)
    live in [`CLAUDE.md`](CLAUDE.md) and `docs/dev-guide/` — follow them verbatim.
-5. **Project additions:** read [`docs/dev-guide/local/CLAUDE.md`](docs/dev-guide/local/CLAUDE.md)
-   before starting a work item — the readiness gate and the verification-cost rules
-   (touched-shard previews, one-line survivors, one controller session per item, no 1 s
-   polling, `cost` on `done`); full text in
-   [`docs/dev-guide/WORK_READINESS.md`](docs/dev-guide/WORK_READINESS.md) §Per-task mutation
-   previews, §Session shape and §Closure template.
 
 ## Agent Roles
 
@@ -97,6 +91,11 @@ When an agent needs to coordinate with another:
 2. **UI Contract:** Define the component props interface before building
 3. **Migration Ordering:** Timestamp-slug filenames avoid version conflicts
 
+
+## Supervised agent requests
+
+When enrolled, follow [`docs/dev-guide/AGENT_REQUESTS.md`](docs/dev-guide/AGENT_REQUESTS.md). A queue notification grants no execution permission.
+
 ## Agent session contract
 
 How you run a session is the largest lever on what a story costs. Defaults:
@@ -106,10 +105,12 @@ How you run a session is the largest lever on what a story costs. Defaults:
 - **Close when idle; resume from the story file + `.nous-feedback.jsonl`** — after a >1 h idle gap the whole context is re-created anyway.
 - **Never run a whole-repo read skill** (e.g. `learn-codebase`) — read the files the story names.
 - **If you delegate** (e.g. superpowers `subagent-driven-development`): the orchestrator plans, briefs and reviews — it does not implement; each worker gets a bounded brief; a parent above ~200K context is the expensive shape.
+- **Waiting is not free** — await a background gate or campaign with a blocking wait or a yield of ≥ 60 s. A 1-second poll is one API call per tick, and every tick re-sends the whole context (measured: 29 % of all calls on one project were polls).
+- **Under delegation the parent is one session per work item too** — it opens at readiness and closes at `done`, and it briefs a reviewer for adversarial verification and scoped review instead of running them in its own context. A parent that verifies pays twice: the full story context AND the verification transcript.
 - **Large tool output goes through a sandbox or a summary** — never paste it into the conversation.
 - **Checkpoint = commit what is green and start a fresh session** at ~150 tool calls or ~300K context. There is no `checkpoint` feedback event — it is retired; do not emit one.
 
-These thresholds are defaults measured on one harness (Claude Code, 2026-08/09). On another harness keep the shape and adjust the numbers.
+These thresholds are defaults measured on two harnesses (Claude Code, 2026-08/09; a controller + subagent harness, 2026-10). On another harness keep the shape and adjust the numbers.
 
 ## Testing
 
@@ -142,4 +143,4 @@ expected behavior. Do not spray shallow or heavily-mocked tests to inflate volum
 is not a goal and is measured as a cost, not a quality.
 
 When you change logic in a `docs/dev-guide/TESTING.md` §3 critical path, update its §3 in the same PR.
-<!-- nous-emitted: sha256=276bb5c132c5c40d -->
+<!-- nous-emitted: sha256=fe8c2dc3baa5f2cc -->

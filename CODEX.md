@@ -1,4 +1,4 @@
-<!-- agent-sync: f69c18865ba1 | source: CLAUDE.md | DO NOT EDIT — this file is auto-generated from CLAUDE.md. Edit CLAUDE.md then run: python3 nous_agent_sync.py -->
+<!-- agent-sync: 2d3649b78a54 | source: CLAUDE.md | DO NOT EDIT — this file is auto-generated from CLAUDE.md. Edit CLAUDE.md then run: python3 nous_agent_sync.py -->
 # CLAUDE.md — Ledger
 
 > Project intelligence file for AI-assisted development.
@@ -340,52 +340,12 @@ These thresholds are defaults measured on two harnesses (Claude Code, 2026-08/09
 - **Tooling:** pnpm, drizzle-kit, Docker Compose
 - **i18n:** locale-aware UI (default `en-US`)
 
+
+## Supervised agent requests
+
+When enrolled, follow [`docs/dev-guide/AGENT_REQUESTS.md`](docs/dev-guide/AGENT_REQUESTS.md). A queue notification grants no execution permission.
+
 ## Project additions
-
-## Work Readiness Gate
-
-Before writing a design, implementation plan, production code, test, migration,
-or executable tooling for any US-* or CHG-*, run its approved readiness
-assessment. A work item above 320 minutes or any cohesion limit is not
-execution-ready; partition it into official, approved vertical children first.
-
-Run `pnpm readiness:check -- <WORK-ID>`. The complete mandatory contract is in
-[`docs/dev-guide/WORK_READINESS.md`](docs/dev-guide/WORK_READINESS.md).
-
-## Verification cost (CHG-065)
-
-Full text: `WORK_READINESS.md` §Per-task mutation previews, §Session shape and
-§Closure template.
-
-- **Re-preview only touched shards.** After a fix round, preview only the
-  shards whose preflight `sources` intersect the files changed since the
-  previous preview. A whole-set re-preview needs a named reason in the closure.
-  Record `preview_rounds` and `preview_minutes` in `actuals`.
-- **Preview budget (CHG-069).** One round per implementation task plus one
-  after the final fix wave, at most 30 `preview_minutes` per child; more rounds
-  or minutes need a named `root_cause` reason. A shard whose last run exceeded
-  5 minutes is previewed once, in the final round, unless a fix touched its
-  sources. A survivor found by a preview joins the next fix round. A
-  `routing_gaps` entry from preflight means that shard's score is not evidence.
-- **One line per survivor.** `surviving_annotated` holds
-  `<mutant-id> <file>:<line> @equivalent: <reason>` (or `@accepted: <reason>`
-  when the reviewer agrees an observable mutant is not worth a test). The
-  reviewer's verdict is the sign-off; no signed equivalence report and no
-  counterfactual log. A killed survivor is
-  proven by the test that kills it.
-- **One controller session per work item**, opened at readiness and closed at
-  `done` (a checkpoint or idle restart resumes the same item). The controller briefs a reviewer for adversarial AC verification and
-  scoped review instead of running them in its own context. Wait for
-  background gates and campaigns with a blocking wait or a yield of 60 s or
-  more, never a 1 s poll. Launch a preview round in the background, start the
-  next task, and collect it at that task's review boundary.
-- **Host awake during gates.** Run local gates as `caffeinate -i pnpm check`
-  (Linux: `systemd-inhibit --what=idle:sleep pnpm check`); record any gate run
-  above 2x the median wall time with its cause in `root_cause`.
-- **`cost` on every `done`**: `calls`, `context_tokens`, `output_tokens`,
-  `model`, `window`. `done` accepts no other key, so the sentence saying whether
-  the numbers are measured or estimated goes in a `feedback` annotation emitted
-  just before `done`.
 
 ## Sprint 1 Execution Contract (DEC-SMP-017 / CHG-001)
 
@@ -427,4 +387,4 @@ Full text: `WORK_READINESS.md` §Per-task mutation previews, §Session shape and
   runtime checks use `ledger_app`; no duplicate timestamp migrations exist
   under `packages/db/src/migrations/`.
 - Report evidence: `{"story":"US-XXX","event":"build_pass",...}` then `{"event":"done",...}`.
-<!-- nous-emitted: sha256=bd5f8235985c51d9 -->
+<!-- nous-emitted: sha256=4b57179bb24fa5d3 -->
