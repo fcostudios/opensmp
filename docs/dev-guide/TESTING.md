@@ -49,7 +49,7 @@ The **aggregate + projection layers should be the widest part of the suite**, no
 > Declared rows are published verbatim — under `## Operator additions` in `testing/critical-paths.md`, and in the §3 list in `docs/dev-guide/TESTING.md` — and survive every regeneration.
 
 - **Tenant isolation** — every path that touches tenant-scoped data (filtered by `company_id`). → explicit isolation assertions (a query for tenant A must never return tenant B's rows).
-- **Authorization** — role/permission gates on commands/mutations. → integration tests for allowed vs forbidden (expect 403).
+- **Authorization** — role/permission gates on commands/mutations. → integration tests for allowed vs forbidden (expect 403). US-048 backup/guarded restore also asserts PostgreSQL 16 public-schema object ownership, preserved security-definer EXECUTE restrictions, no backup-role CREATE grant, and restore-window revocation against a real database.
 - **Money / tax / financial math** (if present) — amounts, rounding, and idempotency of charge/ledger events. → property-based + a provider contract test.
 - **BR-01 — Register no-overlap (one seat, one holder, one period)** — critical business rule; oracle: `exact`. (stories: US-003, US-094, US-095, US-097)
 - **BR-02 — Every assigned seat-day belongs to exactly one company** — critical business rule; oracle: `exact`. (stories: US-003, US-034, US-047, US-094, US-095, US-097)

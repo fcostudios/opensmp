@@ -28,5 +28,7 @@ RUN addgroup --system --gid 1001 ledger && adduser --system --uid 1001 --ingroup
 COPY --from=build --chown=ledger:ledger /app/apps/web/.next/standalone ./
 COPY --from=build --chown=ledger:ledger /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=build --chown=ledger:ledger /app/apps/web/public ./apps/web/public
+# US-048: offline-readable operations docs, available without identity login.
+COPY --chown=ledger:ledger docs/runbooks/ ./apps/web/public/auth/operations/
 USER ledger
 CMD ["node", "apps/web/server.js"]

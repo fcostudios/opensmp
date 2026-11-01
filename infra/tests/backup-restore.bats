@@ -532,6 +532,36 @@ SQL
   [ "$output" = 'ledger_owner' ]
 }
 
+@test "restore recreates production public-schema data with owner authority and no PUBLIC create grant" {
+  start_postgres
+  "$host_psql" "$fixture_host_url" --set ON_ERROR_STOP=1 <<'SQL'
+GRANT USAGE, CREATE ON SCHEMA public TO ledger_owner;
+SET ROLE ledger_owner;
+CREATE TABLE public.restore_probe (company_id text PRIMARY KEY, note text NOT NULL);
+INSERT INTO public.restore_probe VALUES ('company-a', 'opening'), ('company-b', 'closing');
+CREATE FUNCTION public.restore_probe_read() RETURNS bigint LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, public AS 'SELECT count(*) FROM public.restore_probe';
+REVOKE ALL ON FUNCTION public.restore_probe_read() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.restore_probe_read() TO ledger_backup;
+SQL
+  backup_artifacts_fixture
+  run env -u DATABASE_URL "$guarded_restore_script" "$backup_file"
+  [ "$status" -eq 0 ]
+  target_host_url="${fixture_host_url%/fixture}/restored"
+  run "$host_psql" "$target_host_url" --tuples-only --no-align --command "SELECT company_id || '|' || note FROM public.restore_probe ORDER BY company_id;"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'company-a|opening\ncompany-b|closing' ]
+  run "$host_psql" "$target_host_url" --tuples-only --no-align --command "SELECT tableowner FROM pg_tables WHERE schemaname = 'public' AND tablename = 'restore_probe';"
+  [ "$status" -eq 0 ]
+  [ "$output" = 'ledger_owner' ]
+  run "$host_psql" "$target_host_url" --tuples-only --no-align --command "SELECT has_schema_privilege('ledger_backup', 'public', 'CREATE');"
+  [ "$status" -eq 0 ]
+  [ "$output" = 'f' ]
+  run "$host_psql" "$target_host_url" --tuples-only --no-align --command "SELECT has_function_privilege('ledger_backup', 'public.restore_probe_read()', 'EXECUTE')::text || '|' || EXISTS (SELECT 1 FROM pg_proc p CROSS JOIN LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a WHERE p.oid = 'public.restore_probe_read()'::regprocedure AND a.grantee = 0 AND a.privilege_type = 'EXECUTE')::text;"
+  [ "$status" -eq 0 ]
+  [ "$output" = 'true|false' ]
+  [ "$(restore_admin_window_state)" = 'false|true|0|0' ]
+}
+
 @test "restore refuses an already-existing target without changing it" {
   start_postgres
   backup_fixture

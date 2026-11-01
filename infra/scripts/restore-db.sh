@@ -298,8 +298,12 @@ target_args=("--host=$pinned_host" "--port=$PGPORT" "--username=$PGUSER" "--dbna
   printf '%s\n' "SELECT 1 / CASE WHEN current_database() = :'restore_staging_database' THEN 1 ELSE 0 END;"
   printf '%s\n' "SELECT 1 / CASE WHEN (pg_control_system()).system_identifier::text = :'restore_target_system_identifier' THEN 1 ELSE 0 END;"
   printf '%s\n' "SELECT 1 / CASE WHEN (SELECT oid::text FROM pg_database WHERE datname = current_database()) = :'restore_staging_database_oid' THEN 1 ELSE 0 END;"
-  printf '%s\n' 'SET ROLE :"restore_target_owner";'
+  # template0's public schema belongs to pg_database_owner, which is the
+  # staging database creator (restore-admin) until promotion. Secure it and
+  # grant the object owner creation rights before switching to that role.
   printf '%s\n' 'REVOKE ALL PRIVILEGES ON SCHEMA public FROM PUBLIC;'
+  printf '%s\n' 'GRANT USAGE, CREATE ON SCHEMA public TO :"restore_target_owner";'
+  printf '%s\n' 'SET ROLE :"restore_target_owner";'
   age_decrypt_from_regular_fd "$AGE_IDENTITY_FILE" < "$stage_backup" | pg_restore --no-owner --exit-on-error --file=-
 } | psql --quiet --single-transaction --set ON_ERROR_STOP=1 \
   --set restore_staging_database="$staging_database" \
