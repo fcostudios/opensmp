@@ -1,0 +1,109 @@
+{
+  "provisional": true,
+  "executed_at": "2026-11-01T23:36:11.697Z",
+  "period": "2026-10",
+  "environment": "ledger-production localhost",
+  "execution_layer": "existing service/repository/export boundary; no interactive Auth.js login claimed",
+  "rate": {
+    "usd": "30.00",
+    "unit": "seat/month",
+    "effective_from": "2026-10-01",
+    "effective_to": "2026-10-31",
+    "contracted": false
+  },
+  "headcounts": [
+    {
+      "company_code": "PROV-094-01",
+      "company_id": "94000000-0000-4000-8000-000000000101",
+      "source_month": "2026-10",
+      "expected_monthly_distinct": 2,
+      "observed_monthly_distinct": 2,
+      "observed_month_end": 2,
+      "real_company_mapping": null,
+      "real_source_comparison": "pending"
+    },
+    {
+      "company_code": "PROV-094-02",
+      "company_id": "94000000-0000-4000-8000-000000000102",
+      "source_month": "2026-10",
+      "expected_monthly_distinct": 2,
+      "observed_monthly_distinct": 2,
+      "observed_month_end": 2,
+      "real_company_mapping": null,
+      "real_source_comparison": "pending"
+    },
+    {
+      "company_code": "PROV-094-03",
+      "company_id": "94000000-0000-4000-8000-000000000103",
+      "source_month": "2026-10",
+      "expected_monthly_distinct": 3,
+      "observed_monthly_distinct": 3,
+      "observed_month_end": 3,
+      "real_company_mapping": null,
+      "real_source_comparison": "pending"
+    },
+    {
+      "company_code": "PROV-094-04",
+      "company_id": "94000000-0000-4000-8000-000000000104",
+      "source_month": "2026-10",
+      "expected_monthly_distinct": 4,
+      "observed_monthly_distinct": 4,
+      "observed_month_end": 4,
+      "real_company_mapping": null,
+      "real_source_comparison": "pending"
+    },
+    {
+      "company_code": "PROV-094-05",
+      "company_id": "94000000-0000-4000-8000-000000000105",
+      "source_month": "2026-10",
+      "expected_monthly_distinct": 5,
+      "observed_monthly_distinct": 5,
+      "observed_month_end": 4,
+      "real_company_mapping": null,
+      "real_source_comparison": "pending"
+    }
+  ],
+  "mismatches": [
+    {
+      "company": "PROV-094-01",
+      "expected": 2,
+      "observed_before": 1,
+      "observed_after": 2,
+      "resolution": "audited manual record; provisional only"
+    }
+  ],
+  "rejected_writes": [
+    "overlapping assignment: no partial anchor/audit",
+    "cross-company person: no partial anchor/audit",
+    "company outside authorized scope",
+    "central finance write",
+    "unauthenticated write",
+    "end before start"
+  ],
+  "company_isolation_checks": 20,
+  "manual_audits": [
+    {
+      "action": "license_assignment.manual_closed",
+      "count": 1
+    },
+    {
+      "action": "license_assignment.manual_recorded",
+      "count": 16
+    }
+  ],
+  "side_effect_counts": {
+    "observations": "0",
+    "capacities": "0",
+    "statements": "0",
+    "credentials": "0"
+  },
+  "export_unauthenticated_status": 401,
+  "real_data_acceptance": "pending",
+  "human_acceptance": "pending",
+  "h2": "pending",
+  "register_csv_sha256": "07c33745d4a3499facc3598488d42089e2cc18ad96f114acb15134b8eef2b009",
+  "source_csv_sha256": "1ca35032851157917b60a014ba6bdddfcb7658d502cb04e2f9d0f14b5195337f",
+  "application_source_commit": "d22b5c7fd7f96938b29037f5585b331938c49614",
+  "deployed_app_image_id": "sha256:0a9c85963c78bad369f991ef4b7f55f41beacf2ef64369c41ecbd1f5f25a71da",
+  "deployed_app_health": "healthy"
+}
