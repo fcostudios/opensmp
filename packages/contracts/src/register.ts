@@ -9,7 +9,7 @@ export interface RegisterFilters {
   readonly limit?: number;
   readonly openState?: "open" | "closed";
   readonly personId?: string;
-  readonly sourceKind?: "request" | "import" | "reconciliation";
+  readonly sourceKind?: "request" | "import" | "reconciliation" | "manual";
   readonly sourceRequestNo?: string;
   readonly startDate?: string;
   readonly vendorAccountId?: string;
@@ -33,7 +33,7 @@ export function createRegisterFiltersSchema() {
     limit: z.coerce.number().int().min(1).max(100).optional(),
     openState: z.enum(["open", "closed"]).optional(),
     personId: optionalUuid,
-    sourceKind: z.enum(["request", "import", "reconciliation"]).optional(),
+    sourceKind: z.enum(["request", "import", "reconciliation", "manual"]).optional(),
     sourceRequestNo: z.string().trim().min(1).max(200).optional(),
     startDate: dateFilter.optional(),
     vendorAccountId: optionalUuid,
@@ -72,3 +72,25 @@ export function serializeRegisterFilters(filters: RegisterFilters): string {
   }
   return parameters.toString();
 }
+
+const manualDate = z.string().refine((value) => {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+});
+const manualNote = z.string().trim().min(1).max(2000);
+
+export const recordManualAssignmentSchema = z.object({
+  personId: z.string().uuid(),
+  companyId: z.string().uuid(),
+  vendorAccountId: z.string().uuid(),
+  licenseTypeId: z.string().uuid(),
+  startedOn: manualDate,
+  note: manualNote,
+}).strict();
+
+export const closeManualAssignmentSchema = z.object({
+  assignmentId: z.string().uuid(),
+  endedOn: manualDate,
+  endReason: z.enum(["left_company", "inactive", "reallocated"]),
+  note: manualNote,
+}).strict();

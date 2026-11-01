@@ -17,6 +17,7 @@ interface RegisterFilterLabels {
   readonly organization: string;
   readonly person: string;
   readonly source: string;
+  readonly sourceManual: string;
   readonly sourceImport: string;
   readonly sourceKind: string;
   readonly sourceReconciliation: string;
@@ -61,7 +62,7 @@ export function RegisterFilters({
       </label>
       <label className="grid gap-1 text-sm text-text-secondary">
         {labels.sourceKind}
-        <select defaultValue={filters.sourceKind ?? ""} name="sourceKind"><option value="">{labels.all}</option><option value="request">{labels.source}</option><option value="import">{labels.sourceImport}</option><option value="reconciliation">{labels.sourceReconciliation}</option></select>
+        <select defaultValue={filters.sourceKind ?? ""} name="sourceKind"><option value="">{labels.all}</option><option value="request">{labels.source}</option><option value="manual">{labels.sourceManual}</option><option value="import">{labels.sourceImport}</option><option value="reconciliation">{labels.sourceReconciliation}</option></select>
       </label>
       <label className="grid gap-1 text-sm text-text-secondary">
         {labels.sourceRequestNo}

@@ -59,7 +59,7 @@ export interface RegisterRow {
   readonly note: string | null;
   readonly personId: string;
   readonly personName: string;
-  readonly sourceKind: "request" | "import" | "reconciliation";
+  readonly sourceKind: "request" | "import" | "reconciliation" | "manual";
   readonly sourceRequestApprovalState: "approved" | "pending" | "rejected" | null;
   readonly sourceRequestDecidedAt: string | null;
   readonly sourceRequestId: string | null;
@@ -289,3 +289,15 @@ export function createRegisterRepository(database: Database) {
 
 export type RegisterRepository = ReturnType<typeof createRegisterRepository>;
 export const registerRepository = createRegisterRepository(db as unknown as Database);
+
+/** Entry choices include people with no assignments; facets alone cannot bootstrap a register. */
+export async function loadManualRegisterChoices(authorization: LedgerAuthorization, database: Database = db as unknown as Database) {
+  if (authorization.globalRole !== "group_admin") return null;
+  const [companies, people, accounts, licenses] = await Promise.all([
+    database.select({ id: company.id, label: company.name }).from(company).where(and(inArray(company.id, [...authorization.companyIds]), eq(company.status, "active"))).orderBy(asc(company.name)),
+    database.select({ id: person.id, label: person.fullName, companyId: person.companyId }).from(person).where(and(inArray(person.companyId, [...authorization.companyIds]), eq(person.status, "active"))).orderBy(asc(person.fullName)),
+    database.select({ id: vendorAccount.id, label: vendorAccount.name, vendorId: vendorAccount.vendorId }).from(vendorAccount).where(eq(vendorAccount.status, "active")).orderBy(asc(vendorAccount.name)),
+    database.select({ id: licenseType.id, label: licenseType.name, vendorId: licenseType.vendorId }).from(licenseType).where(eq(licenseType.status, "active")).orderBy(asc(licenseType.name)),
+  ]);
+  return { companies, people, accounts, licenses };
+}

@@ -11,7 +11,9 @@ import { RegisterFilters } from "@/components/register/register-filters";
 import { RegisterTable } from "@/components/register/register-table";
 import { RegisterExportButton } from "@/components/register/register-export-button";
 import { loadCurrentLedgerAuthorization } from "@/modules/identity-access/server-authorization";
-import { registerRepository } from "@/modules/register/repository";
+import { recordManualAssignment, closeManualAssignment } from "@/modules/register/server-actions";
+import { ManualRegisterForms } from "@/components/register/manual-register-forms";
+import { loadManualRegisterChoices, registerRepository } from "@/modules/register/repository";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 export default async function ScrRegisterPage({
@@ -29,11 +31,12 @@ export default async function ScrRegisterPage({
   } catch {
     redirect("/registro");
   }
-  const [page, facets, locale, t] = await Promise.all([
+  const [page, facets, locale, t, manualChoices] = await Promise.all([
     registerRepository.listRows(authorization, filters),
     registerRepository.facets(authorization),
     getLocale(),
     getTranslations("register"),
+    loadManualRegisterChoices(authorization),
   ]);
   const labels = {
     all: t("all"), apply: t("apply"), closed: t("closed"), company: t("company"), companyCode: t("companyCode"),
@@ -41,7 +44,7 @@ export default async function ScrRegisterPage({
     drilldownStatementLines: t("drilldownStatementLines"), drilldownTitle: t("drilldownTitle"), empty: t("empty"), endReason: t("endReason"),
     endReasonInactive: t("endReasonInactive"), endReasonLeftCompany: t("endReasonLeftCompany"), endReasonReallocated: t("endReasonReallocated"),
     endedOn: t("endedOn"), licenseType: t("licenseType"), note: t("note"), open: t("open"), openState: t("openState"), organization: t("organization"),
-    person: t("person"), requestApproved: t("requestApproved"), requestPending: t("requestPending"), requestRejected: t("requestRejected"), source: t("source"), sourceImport: t("sourceImport"), sourceReconciliation: t("sourceReconciliation"),
+    person: t("person"), requestApproved: t("requestApproved"), requestPending: t("requestPending"), requestRejected: t("requestRejected"), source: t("source"), sourceManual: t("sourceManual"), sourceImport: t("sourceImport"), sourceReconciliation: t("sourceReconciliation"),
     sourceRequest: t("sourceRequest"), sourceKind: t("sourceKind"), sourceRequestNo: t("sourceRequestNo"), startedOn: t("startedOn"), tableCaption: t("tableCaption"), viewStatement: t("viewStatement"),
   };
   const nextParameters = new URLSearchParams(serializeRegisterFilters(filters));
@@ -54,6 +57,7 @@ export default async function ScrRegisterPage({
         <h1 className="font-display text-3xl font-semibold text-text-primary">{t("title")}</h1>
         <p className="mt-1 text-text-secondary">{t("subtitle")}</p>
       </header>
+      <ManualRegisterForms choices={manualChoices} assignments={page.items} recordAction={recordManualAssignment} closeAction={closeManualAssignment} />
       <section data-testid="register_filters">
         <h2 className="mb-3 font-semibold text-text-primary">{t("filters")}</h2>
         <RegisterFilters companies={facets.companies} endReasons={facets.endReasons} filters={filters} labels={labels} licenseTypes={facets.licenseTypes} people={facets.people} sourceRequestNos={facets.sourceRequestNos} vendorAccounts={facets.vendorAccounts} />

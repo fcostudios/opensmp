@@ -16,6 +16,7 @@ import { createRegisterCsvDownload } from "@/modules/register/actions";
 import { RegisterExportControl } from "./register-export-control";
 import { RegisterFilters } from "./register-filters";
 import { RegisterTable } from "./register-table";
+import messages from "../../../messages/en-US.json";
 
 afterEach(cleanup);
 
@@ -24,7 +25,7 @@ const labels = {
   dateFrom: "From", dateTo: "To", endReason: "End reason", endReasonInactive: "Inactive", endReasonLeftCompany: "Left", endReasonReallocated: "Reallocated",
   licenseType: "License type", open: "Open", openState: "State",
   organization: "Organization", person: "Person", source: "Source",
-  sourceImport: "Import", sourceKind: "Source kind", sourceReconciliation: "Reconciliation", sourceRequestNo: "Request no",
+  sourceManual: "Manual entry", sourceImport: "Import", sourceKind: "Source kind", sourceReconciliation: "Reconciliation", sourceRequestNo: "Request no",
 };
 
 describe("register surface contracts", () => {
@@ -80,7 +81,7 @@ describe("register surface contracts", () => {
           endedOn: "End", licenseType: "License", note: "Note",
           organization: "Organization", person: "Person", requestApproved: "Approved",
           requestPending: "Pending", requestRejected: "Rejected", source: "Source",
-          sourceImport: "Import", sourceReconciliation: "Reconciliation",
+          sourceManual: "Manual entry", sourceImport: "Import", sourceReconciliation: "Reconciliation",
           sourceRequest: "Request", startedOn: "Start", tableCaption: "Assignments",
           viewStatement: "View statement",
         }}
@@ -244,4 +245,25 @@ describe("register surface contracts", () => {
       expect(createRegisterFiltersSchema().safeParse(invalid).success).toBe(false);
     }
   });
+});
+
+
+test.each(["MAN-1", null])("manual rows and filters identify manual provenance with anchor %s", (requestNo) => {
+  render(<RegisterTable canViewRequests canViewStatements={false} locale="en-US" labels={messages.register} items={[{
+    id: "assignment", companyId: "company", companyCode: "ALP", companyName: "Alpha", personId: "person", personName: "Alice",
+    vendorAccountId: "account", vendorAccountName: "Account", licenseTypeId: "license", licenseTypeName: "Enterprise",
+    startedOn: "2026-10-01", endedOn: "2026-10-31", endReason: "inactive", sourceKind: "manual", note: "Pilot roster",
+    sourceRequestId: "anchor", sourceRequestNo: requestNo, sourceRequestDecidedAt: null, sourceRequestApprovalState: null, statementLines: [],
+  }]} />);
+  expect(screen.getByRole("link", { name: requestNo ? "Manual entry · MAN-1" : "Manual entry" }).getAttribute("href")).toBe("/solicitudes/anchor");
+  expect(screen.queryByText("Request MAN-1")).toBeNull();
+  render(<RegisterFilters companies={[]} endReasons={[]} filters={{ sourceKind: "manual" }} labels={labels} licenseTypes={[]} people={[]} sourceRequestNos={[]} vendorAccounts={[]} />);
+  expect((screen.getByRole("option", { name: "Manual entry" }) as HTMLOptionElement).selected).toBe(true);
+});
+
+
+test("applying untouched register filters submits only empty optional values", () => {
+  render(<RegisterFilters companies={[]} endReasons={[]} filters={{}} labels={labels} licenseTypes={[]} people={[]} sourceRequestNos={[]} vendorAccounts={[]} />);
+  const values = Object.fromEntries(new FormData(screen.getByTestId("register_filters") as HTMLFormElement));
+  expect(parseRegisterFilters(values)).toEqual({});
 });

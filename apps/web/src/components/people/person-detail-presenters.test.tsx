@@ -69,7 +69,7 @@ describe("person detail presenters", () => {
     const en = enMessages.people as AssignmentLabelCatalog;
 
     expect(
-      (["request", "import", "reconciliation"] as const).map((value) => [
+      (["request", "import", "reconciliation", "manual"] as const).map((value) => [
         assignmentSourceLabel(value, es),
         assignmentSourceLabel(value, en),
       ]),
@@ -77,6 +77,7 @@ describe("person detail presenters", () => {
       ["Solicitud", "Request"],
       ["Importación", "Import"],
       ["Conciliación", "Reconciliation"],
+      ["Entrada manual", "Manual entry"],
     ]);
     expect(
       (["left_company", "inactive", "reallocated", null] as const).map(

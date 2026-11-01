@@ -395,7 +395,7 @@ describe("US-083 observation catalog and immutable ledger", () => {
     const migrationDirectory = new URL("./migrations/", import.meta.url);
     try {
       for (const filename of await readdir(migrationDirectory)) {
-        if (filename.endsWith(".sql") && !filename.endsWith("__member_observations.sql")) await copyFile(new URL(filename,migrationDirectory),join(previousMigrations,filename));
+        if (filename.endsWith(".sql") && filename < "V20261011165000__member_observations.sql") await copyFile(new URL(filename,migrationDirectory),join(previousMigrations,filename));
       }
       await promisify(execFile)(process.execPath,["scripts/apply-migrations.mjs"], { cwd: packageRoot, env: {
         ...process.env,DATABASE_ADMIN_URL:fixture.ownerUrl,DATABASE_URL:fixture.appUrl,MIGRATIONS_DIR:previousMigrations,

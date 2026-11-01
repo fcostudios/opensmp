@@ -1,6 +1,7 @@
 import { FreshnessLabel, type UiLocale } from "@smp/ui";
 
 export interface AssignmentLabelCatalog {
+  readonly sourceKindManual: string;
   readonly sourceKindRequest: string;
   readonly sourceKindImport: string;
   readonly sourceKindReconciliation: string;
@@ -10,18 +11,20 @@ export interface AssignmentLabelCatalog {
 }
 
 export function assignmentSourceLabel(
-  value: "request" | "import" | "reconciliation",
+  value: "request" | "import" | "reconciliation" | "manual",
   labels: AssignmentLabelCatalog,
 ): string {
   const labelKey: Record<
     typeof value,
     keyof Pick<
       AssignmentLabelCatalog,
+      | "sourceKindManual"
       | "sourceKindRequest"
       | "sourceKindImport"
       | "sourceKindReconciliation"
     >
   > = {
+    manual: "sourceKindManual",
     request: "sourceKindRequest",
     import: "sourceKindImport",
     reconciliation: "sourceKindReconciliation",

@@ -17,9 +17,11 @@ import {
   type LedgerAuthorization,
 } from "../identity-access/authorization";
 import { createRegisterCsvDownload } from "./actions";
+import { createManualRegisterService } from "./manual-entry-transaction";
 import { createRegisterExportResponse } from "./export-boundary";
 import {
   createRegisterRepository,
+  loadManualRegisterChoices,
 } from "./repository";
 
 const actorId = "00000000-0000-4000-8000-000000003301";
@@ -584,5 +586,137 @@ describe("US-033 register repository with real PostgreSQL", () => {
     await owner.query("UPDATE license_assignment SET person_id = $1, source_request_id = $2 WHERE id = $3", [personB, requestB, assignmentA1]);
     const repository = createRegisterRepository(drizzle(appPool, { schema }));
     await expect(repository.listRows(authForCompanyA, parseRegisterFilters({ companyId: companyA }))).resolves.toEqual({ items: [expect.objectContaining({ id: assignmentA2 }), expect.objectContaining({ id: assignmentA3 })], nextCursor: null });
+  });
+});
+
+
+// These assertions catch missing scope/role checks, non-atomic anchors/audits,
+// invalid intervals and rewrites of finalized seat-days.
+describe("US-095 manual register writes", () => {
+  const occurredAt = new Date("2026-11-01T12:00:00.000Z");
+  const input = { companyId: companyA, personId: personA2, vendorAccountId: vendorAccountA,
+    licenseTypeId: licenseTypeA, startedOn: "2026-10-01", note: "Pilot roster" };
+  const service = () => createManualRegisterService(drizzle(appPool, { schema }));
+  const counts = async () => (await owner.query(`SELECT
+    (SELECT count(*)::int FROM license_assignment) AS assignments,
+    (SELECT count(*)::int FROM license_request) AS requests,
+    (SELECT count(*)::int FROM audit_log) AS audits,
+    (SELECT count(*)::int FROM request_transition) AS transitions`)).rows[0];
+
+  test("records and closes manual provenance with atomic system anchors and CSV evidence", async () => {
+    const before = await counts();
+    const accountsBefore = (await owner.query("SELECT * FROM vendor_account ORDER BY id")).rows;
+    const row = await service().record(authForGroupAdmin, input, occurredAt);
+    expect(row).toMatchObject({ companyId: companyA, personId: personA2, sourceKind: "manual", startedOn: "2026-10-01", note: "Pilot roster" });
+    const anchor = (await owner.query("SELECT * FROM license_request WHERE id = $1", [row.sourceRequestId])).rows[0];
+    expect(anchor).toMatchObject({ company_id: companyA, person_id: personA2, requested_by: null, created_by: null, state: "active", license_assignment_id: row.id });
+    expect(anchor.request_no).toMatch(/^MAN-/);
+    expect(await counts()).toEqual({ assignments: before.assignments + 1, requests: before.requests + 1, audits: before.audits + 1, transitions: before.transitions + 1 });
+    const closed = await service().close(authForGroupAdmin, { assignmentId: row.id, endedOn: "2026-10-31", endReason: "left_company", note: "Roster departure" }, occurredAt);
+    expect(closed).toMatchObject({ endedOn: "2026-10-31", endReason: "left_company", sourceKind: "manual", note: "Pilot roster" });
+    const repository = createRegisterRepository(drizzle(appPool, { schema }));
+    const filters = parseRegisterFilters({ sourceKind: "manual" });
+    expect((await repository.listRows(authForGroupAdmin, filters)).items.map((item) => item.id)).toEqual([row.id]);
+    expect(await repository.exportCsv(authForGroupAdmin, filters)).toContain("2026-10-01,2026-10-31,left_company,manual,MAN-");
+    const audit = (await owner.query("SELECT * FROM audit_log WHERE entity_id = $1 ORDER BY action", [row.id])).rows;
+    expect(audit).toHaveLength(2);
+    expect(audit.every((item) => item.occurred_at.getTime() === occurredAt.getTime())).toBe(true);
+    expect(audit.every((item) => item.actor_user_id === actorId && item.company_id === companyA && item.entity_type === "LicenseAssignment")).toBe(true);
+    expect(audit.find((item) => item.action === "license_assignment.manual_recorded")).toMatchObject({ before: null, after: expect.objectContaining({ sourceKind: "manual", startedOn: "2026-10-01" }), note: "Pilot roster" });
+    expect((await owner.query("SELECT from_state, to_state, actor_user_id, note FROM request_transition WHERE request_id = $1", [row.sourceRequestId])).rows).toEqual([{ from_state: null, to_state: "active", actor_user_id: null, note: "Pilot roster" }]);
+    expect(audit.find((item) => item.action === "license_assignment.manual_closed")).toMatchObject({ before: expect.objectContaining({ endedOn: null }), after: expect.objectContaining({ endedOn: "2026-10-31" }), note: "Roster departure" });
+    expect((await owner.query(`SELECT (SELECT count(*)::int FROM member_observation) AS observations,
+      (SELECT count(*)::int FROM provisioning_action) AS provisioning`)).rows[0]).toEqual({ observations: 0, provisioning: 0 });
+    expect((await owner.query("SELECT * FROM vendor_account ORDER BY id")).rows).toEqual(accountsBefore);
+  });
+
+  test("rejects unauthenticated, finance and unauthorized company writes without side effects", async () => {
+    const row = await service().record(authForGroupAdmin, input, occurredAt);
+    const before = await counts();
+    for (const authorization of [null, authForCompanyA, { ...authForGroupAdmin, globalRole: "central_finance" as const }, { ...authForGroupAdmin, companyIds: [companyB] }]) {
+      await expect(service().record(authorization, input, occurredAt)).rejects.toThrow("Forbidden");
+      await expect(service().close(authorization, { assignmentId: row.id, endedOn: "2026-10-31", endReason: "inactive", note: "Close" }, occurredAt)).rejects.toThrow("Forbidden");
+    }
+    expect(await counts()).toEqual(before);
+  });
+
+  test("rejects cross-company people, unknown catalog IDs, blank notes and overlaps atomically", async () => {
+    const before = await counts();
+    for (const patch of [{ personId: personB }, { vendorAccountId: companyB }, { licenseTypeId: companyB }, { note: " " }, { personId: personA1 }]) {
+      await expect(service().record(authForGroupAdmin, { ...input, ...patch }, occurredAt)).rejects.toThrow();
+      expect(await counts()).toEqual(before);
+    }
+  });
+
+  test("inactive entities and mismatched vendor catalogs reject before any register write", async () => {
+    const before = await counts();
+    for (const [table, id, status] of [["company", companyA, "inactive"], ["person", personA2, "departed"], ["vendor_account", vendorAccountA, "inactive"], ["license_type", licenseTypeA, "inactive"]]) {
+      await owner.query(`UPDATE ${table} SET status = $1 WHERE id = $2`, [status, id]);
+      try {
+        await expect(service().record(authForGroupAdmin, input, occurredAt)).rejects.toThrow("InvalidReference");
+        expect(await counts()).toEqual(before);
+      } finally { await owner.query(`UPDATE ${table} SET status = 'active' WHERE id = $1`, [id]); }
+    }
+    await expect(service().record({ ...authForGroupAdmin, companyIds: [...authForGroupAdmin.companyIds, actorId] }, { ...input, companyId: actorId }, occurredAt)).rejects.toThrow("InvalidReference");
+    await owner.query(`INSERT INTO vendor SELECT (jsonb_populate_record(NULL::vendor,
+      to_jsonb(v) || jsonb_build_object('id', $1::text, 'name', 'Other Vendor'))).* FROM vendor v WHERE id = $2`, [companyB, vendorId]);
+    await owner.query("UPDATE license_type SET vendor_id = $1 WHERE id = $2", [companyB, licenseTypeA]);
+    await expect(service().record(authForGroupAdmin, input, occurredAt)).rejects.toThrow("InvalidReference");
+    expect(await counts()).toEqual(before);
+  });
+
+  test("database rejects reversed intervals and reallocations lacking a contiguous successor", async () => {
+    const row = await service().record(authForGroupAdmin, input, occurredAt);
+    const before = await counts();
+    for (const [patch, error] of [[{ endedOn: "2026-09-30", endReason: "inactive" }, "InvalidInterval"], [{ endedOn: "2026-10-31", endReason: "reallocated" }, undefined], [{ endedOn: "2026-10-31", endReason: "inactive", note: " " }, undefined]] as const) {
+      await expect(service().close(authForGroupAdmin, { assignmentId: row.id, note: "Close", ...patch }, occurredAt)).rejects.toThrow(error);
+      expect(await counts()).toEqual(before);
+      expect((await owner.query("SELECT ended_on FROM license_assignment WHERE id = $1", [row.id])).rows[0].ended_on).toBeNull();
+    }
+    await expect(service().close(authForGroupAdmin, { assignmentId: assignmentA1, endedOn: "2026-10-31", endReason: "inactive", note: "Close" }, occurredAt)).rejects.toThrow("InvalidAssignment");
+    await service().close(authForGroupAdmin, { assignmentId: row.id, endedOn: "2026-10-31", endReason: "inactive", note: "Close" }, occurredAt);
+    await expect(service().close(authForGroupAdmin, { assignmentId: row.id, endedOn: "2026-11-01", endReason: "inactive", note: "Again" }, occurredAt)).rejects.toThrow("InvalidAssignment");
+  });
+
+  test("a manual assignment can close on its inclusive start day", async () => {
+    const row = await service().record(authForGroupAdmin, input, occurredAt);
+    await expect(service().close(authForGroupAdmin, { assignmentId: row.id, endedOn: "2026-10-01", endReason: "inactive", note: "One seat-day" }, occurredAt)).resolves.toMatchObject({ startedOn: "2026-10-01", endedOn: "2026-10-01", endReason: "inactive" });
+  });
+
+  test("entry choices include unassigned people but never another company's people", async () => {
+    const database = drizzle(appPool, { schema });
+    const choices = await loadManualRegisterChoices({ ...authForGroupAdmin, companyIds: [companyA] }, database);
+    expect(choices!.companies.map((item) => item.id)).toEqual([companyA]);
+    expect(choices!.accounts.map((item) => item.id)).toEqual([vendorAccountA, vendorAccountB]);
+    expect(choices!.licenses.map((item) => item.id)).toEqual([licenseTypeA, licenseTypeB]);
+    expect(choices!.people.map((item) => item.id)).not.toContain(personB);
+    await owner.query("INSERT INTO person (id, email, full_name, company_id, status, created_at, created_by) VALUES ($1, 'unassigned@example.test', 'No assignment', $2, 'active', $3, $4)", [financeUserId, companyA, occurredAt, actorId]);
+    expect((await loadManualRegisterChoices(authForGroupAdmin, database))!.people.map((item) => item.id)).toContain(financeUserId);
+    await expect(loadManualRegisterChoices(authForCompanyA, database)).resolves.toBeNull();
+  });
+
+  test("an audit insert failure rolls the assignment and its system anchor back", async () => {
+    const before = await counts();
+    await owner.query(`CREATE FUNCTION reject_manual_audit() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF NEW.action = 'license_assignment.manual_recorded' THEN RAISE EXCEPTION 'audit unavailable'; END IF; RETURN NEW; END $$;
+      CREATE TRIGGER reject_manual_audit BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION reject_manual_audit()`);
+    try {
+      await expect(service().record(authForGroupAdmin, input, occurredAt)).rejects.toThrow("audit unavailable");
+      expect(await counts()).toEqual(before);
+    } finally {
+      await owner.query("DROP TRIGGER reject_manual_audit ON audit_log; DROP FUNCTION reject_manual_audit()");
+    }
+  });
+
+  test.each(["final", "reconciled"])("%s statements block new historic assignments and changes to finalized seat-days", async (status) => {
+    const row = await service().record(authForGroupAdmin, input, occurredAt);
+    await owner.query(`INSERT INTO statement (company_id, period, status, opening_seats, total_usd, generated_at, created_at)
+      VALUES ($1, '2026-10', $3, 1, 1, $2, $2)`, [companyA, occurredAt, status]);
+    const before = await counts();
+    await expect(service().record(authForGroupAdmin, { ...input, personId: personA3 }, occurredAt)).rejects.toThrow("FinalizedPeriod");
+    await expect(service().close(authForGroupAdmin, { assignmentId: row.id, endedOn: "2026-10-30", endReason: "inactive", note: "Close" }, occurredAt)).rejects.toThrow("FinalizedPeriod");
+    expect(await counts()).toEqual(before);
+    // The inclusive last day does not change October's seat-days.
+    await expect(service().close(authForGroupAdmin, { assignmentId: row.id, endedOn: "2026-10-31", endReason: "inactive", note: "Close" }, occurredAt)).resolves.toMatchObject({ endedOn: "2026-10-31" });
   });
 });

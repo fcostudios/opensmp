@@ -1649,8 +1649,9 @@ const expectedAppendOnlyColumnUpdates = [
       const currentCli = await runNode(currentPath, environment);
       expect(oldCli.code, oldCli.stderr).toBe(0);
       expect(currentCli).toEqual(oldCli);
+      const migrationCount = (await readdir(committedMigrationsPath)).filter((name) => /^V\d{14}__.+\.sql$/.test(name)).length;
       expect(currentCli.stdout).toBe(
-        "✓ 64 committed migration checksum(s) verified across 33 application table(s)\n" +
+        `✓ ${migrationCount} committed migration checksum(s) verified across 33 application table(s)\n` +
         "✓ 6 append-only trigger(s) verified\n" +
         "✓ ledger_app has the exact least-privilege runtime grant matrix\n",
       );
@@ -1663,7 +1664,7 @@ const expectedAppendOnlyColumnUpdates = [
       expect(oldResult.code, oldResult.stderr).toBe(0);
       expect(currentResult).toEqual(oldResult);
       const result = JSON.parse(currentResult.stdout);
-      expect(result).toMatchObject({ ownerRole: "ledger_owner", tableCount: 33, migrationCount: 64, appendOnlyTriggerCount: 6,
+      expect(result).toMatchObject({ ownerRole: "ledger_owner", tableCount: 33, migrationCount, appendOnlyTriggerCount: 6,
         applicationIntegrity: { role: "ledger_app", totalTables: 33 } });
       expect(result.applicationIntegrity.tableGrants.length).toBeGreaterThan(33);
       expect(result.applicationIntegrity.columnPrivileges.length).toBeGreaterThan(33);

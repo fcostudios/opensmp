@@ -29,6 +29,7 @@ interface RegisterTableLabels {
   readonly requestRejected: string;
   readonly note: string;
   readonly source: string;
+  readonly sourceManual: string;
   readonly sourceImport: string;
   readonly sourceReconciliation: string;
   readonly sourceRequest: string;
@@ -46,6 +47,7 @@ export interface RegisterTableProps {
 }
 
 function sourceLabel(row: RegisterRow, labels: RegisterTableLabels): string {
+  if (row.sourceKind === "manual") return row.sourceRequestNo ? `${labels.sourceManual} · ${row.sourceRequestNo}` : labels.sourceManual;
   if (row.sourceRequestNo) return `${labels.sourceRequest} ${row.sourceRequestNo}`;
   return row.sourceKind === "import" ? labels.sourceImport : labels.sourceReconciliation;
 }

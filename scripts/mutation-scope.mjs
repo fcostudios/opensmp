@@ -986,6 +986,12 @@ export function classifyPageWiringBundle(changes) {
 }
 
 const EXACT_FRAMEWORK_ADAPTERS = {
+  "apps/web/src/app/(authenticated)/registro/page.tsx": {
+    sha256: "73bf43e93990fc11f5740181370df3015f77093b81433b74eb8e3d041786aca8",
+  },
+  "apps/web/src/modules/register/server-actions.ts": {
+    sha256: "627c8d11f93a0a1922bbf4e3776ad1c35b5d3b873a0f103d678ca007a92f033c",
+  },
   "apps/web/src/app/(authenticated)/uso/page.tsx": {
     sha256: "8811d58952ee2964a76d812ea3154c2e0ebaae9869b5acfeaa3f96c4cfec0154",
   },
@@ -1590,6 +1596,8 @@ export const DIRECT_TEST_ROUTES = JSON.parse(readFileSync(
 const MUTATION_INCOMPATIBLE_TESTS = new Set([
   "apps/web/src/modules/audit/audited-actions-enforcement.test.ts",
   "packages/db/src/migration-release.integration.test.ts",
+  // Historical-prefix bootstrap needs an empty database, not a migrated mutation clone.
+  "packages/db/src/physical-schema.integration.test.ts",
   "packages/db/src/schema-parity.test.ts",
 ]);
 

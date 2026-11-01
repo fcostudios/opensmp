@@ -199,5 +199,22 @@
   ],
   "packages/domain/src/alerts/types.ts": [
     "packages/domain/src/alerts/evaluate.test.ts"
+  ],
+  "apps/web/src/modules/register/manual-entry-transaction.ts": [
+    "apps/web/src/modules/register/repository.integration.test.ts"
+  ],
+  "packages/contracts/src/register.ts": [
+    "packages/contracts/src/manual-register.test.ts",
+    "apps/web/src/components/register/register-surface.test.tsx"
+  ],
+  "apps/web/src/components/register/register-filters.tsx": [
+    "apps/web/src/components/register/register-surface.test.tsx"
+  ],
+  "apps/web/src/components/register/register-table.tsx": [
+    "apps/web/src/components/register/register-surface.test.tsx"
+  ],
+  "apps/web/src/components/register/manual-register-forms.tsx": [
+    "apps/web/src/components/register/manual-register-forms.test.tsx",
+    "apps/web/src/components/register/manual-register-forms.integration.test.tsx"
   ]
 }
