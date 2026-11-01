@@ -4,14 +4,17 @@ FROM postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f5
 # `minisign` signs manifests with an Ed25519 secret that is mounted only for
 # the backup invocation; `util-linux` supplies cross-container flock and Perl
 # provides the O_NOFOLLOW descriptor copy used by restore staging.
+# Alpine retires exact APK revisions from its live repository (and revisions
+# can differ by architecture). Admit compatible patch/security revisions and
+# pin the built release image digest at deployment time.
 RUN apk add --no-cache \
-    age=1.3.1-r5 \
-    bash=5.3.9-r1 \
-    coreutils=9.11-r0 \
-    minisign=0.12-r2 \
-    openssl=3.5.7-r0 \
-    perl=5.42.2-r0 \
-    util-linux=2.42.1-r0
+    'age~1.3' \
+    'bash~5.3' \
+    'coreutils~9.11' \
+    'minisign~0.12' \
+    'openssl~3.5' \
+    'perl~5.42' \
+    'util-linux~2.42'
 
 COPY --chown=postgres:postgres scripts/backup-common.sh /usr/local/bin/backup-common.sh
 COPY --chown=postgres:postgres scripts/backup-db.sh /usr/local/bin/backup-db.sh
