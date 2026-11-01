@@ -78,13 +78,6 @@ from the nav map. Never edit it. After any nav map change, run
 - **Auth:** Auth.js with Keycloak (OIDC / sessions)
 - **Hosting:** self-hosted (Docker Compose on a VPS)
 
-Production deployment (US-053 / DEC-SMP-066) uses the standalone
-`infra/docker-compose.production.yml`; see
-[`docs/runbooks/production-deploy.md`](docs/runbooks/production-deploy.md).
-It includes Caddy TLS, PostgreSQL-backed Keycloak, a one-shot committed-migration
-job, and the existing app/worker/SMTP services. Configuration and the ADR-13 KEK
-are supplied at runtime; the localhost CI rehearsal uses the same images.
-
 ## Quick Start
 
 ```bash
