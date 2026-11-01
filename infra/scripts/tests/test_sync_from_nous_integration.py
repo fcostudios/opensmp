@@ -498,10 +498,10 @@ class RealNousSyncIntegrationTests(unittest.TestCase):
                 state_before,
             )
             self.assertIn("Step 1/2 — Pulling agent feedback", result.stdout)
-            self.assertIn("Ledger invariant preview", result.stdout)
-            self.assertIn("+- **Tenant isolation**", result.stdout)
+            self.assertNotIn("Ledger invariant preview", result.stdout)
+            self.assertNotIn("+- **Tenant isolation**", result.stdout)
 
-    def test_selective_sync_still_enforces_repository_wide_invariants(
+    def test_selective_sync_accepts_nous_output_without_repository_pins(
         self,
     ) -> None:
         with (
@@ -529,17 +529,10 @@ class RealNousSyncIntegrationTests(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("repository-wide", result.stdout)
+            self.assertNotIn("repository-wide", result.stdout)
             self.assertIn(
-                "filtered by `company_id`",
+                "filtered by `org_id`",
                 testing_path.read_text(encoding="utf-8"),
-            )
-            claude = (fixture / "CLAUDE.md").read_bytes()
-            self.assertEqual((fixture / "CODEX.md").read_bytes(), claude)
-            self.assertEqual((fixture / ".cursorrules").read_bytes(), claude)
-            self.assertEqual(
-                (fixture / ".github/copilot-instructions.md").read_bytes(),
-                claude,
             )
 
 

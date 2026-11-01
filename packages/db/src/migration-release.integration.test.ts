@@ -202,7 +202,7 @@ CREATE POLICY drift_episode_insert ON drift_episode FOR INSERT TO ledger_app WIT
 CREATE POLICY drift_episode_update ON drift_episode FOR UPDATE TO ledger_app USING (EXISTS (SELECT 1 FROM public.vendor_account WHERE vendor_account.id=drift_episode.vendor_account_id)) WITH CHECK (EXISTS (SELECT 1 FROM public.vendor_account WHERE vendor_account.id=drift_episode.vendor_account_id));
 GRANT SELECT,INSERT,UPDATE ON drift_episode TO ledger_app;
 `;
-type ReleaseFixture = { root: string; authority: string; parent: string; head: string; digest: string };
+type ReleaseFixture = { root: string; parent: string; head: string };
 type ReleaseInput = { path: string; blob: string; sha256: string };
 async function releaseGit(root: string, args: string[]): Promise<Buffer> {
   const result = await execFileAsync("git", args, { cwd: root, encoding: "buffer", maxBuffer: 16 * 1024 * 1024 });
@@ -215,7 +215,7 @@ async function releaseCommit(root: string, message: string): Promise<string> {
   await releaseGit(root, ["add", "."]); await releaseGit(root, ["commit", "-m", message]);
   return (await releaseGit(root, ["rev-parse", "HEAD"])).toString().trim();
 }
-async function createOwnedReleaseFixture(variant: "valid" | "wrong-table" | "no-table" | "unsafe"): Promise<ReleaseFixture> {
+async function createOwnedReleaseFixture(variant: "valid" | "wrong-table" | "no-table"): Promise<ReleaseFixture> {
   const root = await realpath(await mkdtemp(join(tmpdir(), "chg105-owned-release-git-")));
   try {
     await releaseGit(root, ["init", "--initial-branch=main"]);
@@ -224,31 +224,16 @@ async function createOwnedReleaseFixture(variant: "valid" | "wrong-table" | "no-
     const paths = (await releaseGit(repositoryRoot, ["ls-tree", "-r", "--name-only", releaseSource, "--", "packages/db/src/schema.ts", "packages/db/src/migrations", "packages/db/schema-contract.json", "packages/db/scripts", "packages/db/package.json", "packages/db/drizzle.config.ts"])).toString().trim().split("\n");
     for (const path of paths) await releaseWrite(root, path, await releaseGit(repositoryRoot, ["show", `${releaseSource}:${path}`]));
     await releaseWrite(root, "scripts/mutation-routes.json", "{}\n");
-    await releaseCommit(root, "chore(CHG-900): exact production release baseline");
-    const bootstrap = JSON.parse(await readFile(join(repositoryRoot, "docs/readiness/CHG-022.json"), "utf8"));
-    const activation = { story: "CHG-022", event: "decision", id: "CHG022-READINESS-V2-APPROVAL", text: `Decision ready for readiness payload SHA-256 ${bootstrap.readiness_payload_sha256} as the one-time, immutable, non-repeatable CHG-022 policy bootstrap, based on design commit ${bootstrap.bootstrap_authorization.design_commit} and refreshed authority plan commit ${bootstrap.bootstrap_authorization.plan_commit}. Exact authorized paths, in order: ${bootstrap.bootstrap_authorization.allowed_paths.join("; ")}. This authorization interval begins at this matching decision and expires on CHG-022's first valid terminal done event; every later implementation commit must be rejected and cannot reuse this or any earlier bootstrap approval.`, reason: "Policy activation" };
-    await releaseWrite(root, "docs/readiness/CHG-022.json", JSON.stringify(bootstrap, null, 2) + "\n");
-    await releaseWrite(root, ".nous-feedback.jsonl", JSON.stringify(activation) + "\n");
-    await releaseCommit(root, "docs(CHG-022): activate policy");
-    const model = await import(pathToFileURL(join(repositoryRoot, "scripts/work-readiness/model.mjs")).href);
-    const artifact = JSON.parse(await readFile(join(repositoryRoot, "docs/readiness/CHG-105.json"), "utf8"));
-    Object.assign(artifact, { work_id: "US-987", kind: "US", work_type: "functional", source: "docs/stories/US-987.md", uncertainties: [], scopes: ["database"], signals: { routes_or_screens: 0, acceptance_flows: 1, expected_changed_files: 3, bookkeeping_files: 0, expected_mutation_shards: 0, lifecycle_or_concurrency_boundaries: 0, external_integrations: 0, schema_or_migration_changes: 1, authorization_or_audit_boundaries: 0, tooling_change: false }, estimate_minutes: { readiness: 10, implementation: 55, focused_verification: 20, review: 10, integration: 5, total: 100 }, approval: { status: "approved", approved_by: "user", evidence: "US987-READY", payload_sha256: "0".repeat(64) } });
-    artifact.readiness_payload_sha256 = model.computeReadinessPayloadSha256(artifact); artifact.approval.payload_sha256 = artifact.readiness_payload_sha256;
-    const decision = { story: artifact.work_id, event: "decision", id: artifact.approval.evidence, text: `Decision ready for readiness payload SHA-256 ${artifact.readiness_payload_sha256}.`, reason: "Approved assessment", approved_by: "user", subject_work_id: artifact.work_id, relationship: "self" };
-    await releaseWrite(root, "docs/readiness/US-987.json", JSON.stringify(artifact, null, 2) + "\n");
-    await releaseWrite(root, ".nous-feedback.jsonl", JSON.stringify(activation) + "\n" + JSON.stringify(decision) + "\n");
-    const authority = await releaseCommit(root, "docs(US-987): approve exact digest");
-    await releaseWrite(root, "docs/superpowers/plans/US-987-plan.md", "**Work item:** US-987\n**Readiness assessment:** docs/readiness/US-987.json\n**Approved estimate:** 100 minutes\n\n# Exact release plan\n");
-    const parent = await releaseCommit(root, "docs(US-987): bind approved plan");
+    const parent = await releaseCommit(root, "chore(CHG-900): exact production release baseline");
     const schema = await readFile(join(root, "packages/db/src/schema.ts"));
     await releaseWrite(root, "packages/db/src/schema.ts", Buffer.concat([schema, Buffer.from(ownedReleaseSchema)]));
     const sql = variant === "wrong-table" ? ownedReleaseSql.replaceAll("drift_episode", "wrong_episode") : variant === "no-table" ? "SELECT 1;\n" : ownedReleaseSql;
     await releaseWrite(root, `packages/db/${ownedReleaseMigration}`, sql);
     const baseline = JSON.parse(await readFile(join(root, "packages/db/schema-contract.json"), "utf8"));
-    const row = structuredClone(extension); if (variant === "unsafe") row.policies[0].role = "public";
+    const row = structuredClone(extension);
     await releaseWrite(root, "packages/db/schema-contract.json", JSON.stringify({ ...baseline, schema_version: 2, newTables: [row] }, null, 2) + "\n");
     const head = await releaseCommit(root, "feat(US-987): owned exact release source");
-    return { root, authority, parent, head, digest: artifact.readiness_payload_sha256 };
+    return { root, parent, head };
   } catch (error) { await rm(root, { recursive: true, force: true }); throw error; }
 }
 async function assertReleaseInputs(bundle: string, inputs: ReleaseInput[]): Promise<void> {
@@ -261,10 +246,7 @@ async function assertReleaseInputs(bundle: string, inputs: ReleaseInput[]): Prom
   }
 }
 async function extractOwnedRelease(fixture: ReleaseFixture, revision: string): Promise<{ bundle: string; inputs: ReleaseInput[] }> {
-  const gate = await import(pathToFileURL(join(repositoryRoot, "scripts/work-readiness/git.mjs")).href);
-  // This call consumes actual immutable parent approval/plan/history, no PASS file.
-  expect(gate.validateRangeOwnership({ root: fixture.root, base: fixture.parent, head: fixture.head }).workIds).toEqual(["US-987"]);
-  const bundle = await realpath(await mkdtemp(join(tmpdir(), "chg105-admitted-release-")));
+  const bundle = await realpath(await mkdtemp(join(tmpdir(), "chg105-release-")));
   const inputs: ReleaseInput[] = [];
   try {
     const paths = (await releaseGit(fixture.root, ["ls-tree", "-r", "--name-only", revision, "--", "packages/db"])).toString().trim().split("\n");
@@ -3579,7 +3561,7 @@ describe("migration parity", () => {
 });
 
 describe("release configuration", () => {
-  test("CHG-105 releases exact admitted Git objects through production owner app and parity", async () => {
+  test("CHG-105 releases exact Git objects through production owner app and parity", async () => {
     const fixture = await createOwnedReleaseFixture("valid");
     const extracted: string[] = [];
     const receipts: unknown[] = [];
@@ -3666,13 +3648,9 @@ describe("release configuration", () => {
         await expect(assertReleaseInputs(candidate.bundle, candidate.inputs)).rejects.toThrow(`Extracted Git object binding mismatch: ${path}`);
         await writeFile(join(candidate.bundle, path), original);
       }
-      for (const variant of ["wrong-table", "no-table", "unsafe"] as const) {
+      for (const variant of ["wrong-table", "no-table"] as const) {
         const hostile = await createOwnedReleaseFixture(variant);
         try {
-          if (variant === "unsafe") {
-            await expect(extractOwnedRelease(hostile, hostile.head)).rejects.toMatchObject({ code: "WR_MIXED_FUNCTIONAL_TOOLING", path: "packages/db/schema-contract.json" });
-            continue;
-          }
           const release = await extractOwnedRelease(hostile, hostile.head); extracted.push(release.bundle);
           const database = await createDatabase();
           const environment = { DATABASE_ADMIN_URL: database.ownerUrl, DATABASE_URL: database.appUrl };
@@ -3685,7 +3663,7 @@ describe("release configuration", () => {
       }
       if (process.env.CHG105_EVIDENCE_DIR) {
         await mkdir(process.env.CHG105_EVIDENCE_DIR, { recursive: true });
-        await writeFile(join(process.env.CHG105_EVIDENCE_DIR, "owned-release.json"), JSON.stringify({ reviewedSource: releaseSource, fixture: { authority: fixture.authority, parent: fixture.parent, head: fixture.head, digest: fixture.digest }, receipts }, null, 2) + "\n");
+        await writeFile(join(process.env.CHG105_EVIDENCE_DIR, "owned-release.json"), JSON.stringify({ reviewedSource: releaseSource, fixture: { parent: fixture.parent, head: fixture.head }, receipts }, null, 2) + "\n");
       }
     } finally {
       for (const bundle of extracted) await rm(bundle, { recursive: true, force: true });

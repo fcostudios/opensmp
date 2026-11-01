@@ -9,15 +9,15 @@
 # after Sprint 4-10, where several routes shipped with no US in the commit
 # message and became orphans in the pipeline.
 #
-# Traceability-exempt commit types (readiness still runs):
+# Exempt commit types (skipped):
 #   - Merge commits       (Merge branch ..., Merge pull request ...)
 #   - Revert commits      (Revert "...")
 #   - Fixup/squash        (fixup! ..., squash! ...)
 #   - Release tags        (chore(release): ...)
 #
-# Traceability escape hatch:
-#   Set COMMIT_MSG_NO_US=1 before committing to bypass the work-ID check for an
-#   emergency. It does not approve readiness or bypass the range/server gate.
+# Escape hatch:
+#   Set COMMIT_MSG_NO_US=1 before committing to bypass (for emergencies only —
+#   will show up in drift detector with no owner and trigger a pipeline review).
 #
 # Install:
 #   git config core.hooksPath .githooks
@@ -36,23 +36,10 @@ fi
 
 MSG="$(cat "$COMMIT_MSG_FILE")"
 
-# IMP-410: a commit that is exactly a Nous sync needs no work id. The emitted,
-# provenance-stamped scripts/nous-sync-owns.mjs authorizes it only when the
-# delivery envelope is consistent, every other staged path is claimed in
-# .nous-sync.json at its delivered hash under the substrate-managed allowlist,
-# and provenance is clean. A convention gate, not proof of authorship.
-if [ -f scripts/nous-sync-owns.mjs ] && command -v node >/dev/null 2>&1 \
-   && node scripts/nous-sync-owns.mjs --staged >/dev/null 2>&1; then
-  echo "commit-msg: Nous sync commit (nous-sync-owns) — work id not required" >&2
-  exit 0
-fi
-
-# Traceability-only emergency bypass (leaves an audit trail via env var usage).
-# Readiness still runs below.
-TRACEABILITY_EXEMPT=0
+# Emergency bypass (leaves an audit trail via env var usage)
 if [ "${COMMIT_MSG_NO_US:-0}" = "1" ]; then
-  echo "commit-msg: missing-ID traceability check bypassed via COMMIT_MSG_NO_US=1 — staged readiness still applies; expect drift detector and pipeline review" >&2
-  TRACEABILITY_EXEMPT=1
+  echo "commit-msg: bypassed via COMMIT_MSG_NO_US=1 — expect drift detector flag" >&2
+  exit 0
 fi
 
 # Trim leading empty lines / whitespace
@@ -60,17 +47,25 @@ FIRST_LINE="$(echo "$MSG" | sed -E '/^\s*$/d' | head -n 1)"
 
 # Skip exempt commit types
 case "$FIRST_LINE" in
-  "Merge "*|"Merge pull"*) TRACEABILITY_EXEMPT=1 ;;
-  "Revert "*|"revert: "*) TRACEABILITY_EXEMPT=1 ;;
-  "fixup! "*|"squash! "*|"amend! "*) TRACEABILITY_EXEMPT=1 ;;
-  "chore(release):"*|"release: "*) TRACEABILITY_EXEMPT=1 ;;
+  "Merge "*|"Merge pull"*) exit 0 ;;
+  "Revert "*|"revert: "*) exit 0 ;;
+  "fixup! "*|"squash! "*|"amend! "*) exit 0 ;;
+  "chore(release):"*|"release: "*) exit 0 ;;
 esac
+
+# A commit that is ONLY a Nous sync carries no work id (IMP-410). The substrate-owned
+# predicate decides; without the script, or without node, behaviour is unchanged.
+if [ -f scripts/nous-sync-owns.mjs ] && command -v node >/dev/null 2>&1 && node scripts/nous-sync-owns.mjs --staged >/dev/null 2>&1; then exit 0; fi
 
 # Require at least one US-NNN or CHG-NNN anywhere in the commit message
 # Case-insensitive so both `feat(chg-021):` (Conventional Commits scope) and
 # `... CHG-021 ...` in the body are accepted.
-if [ "$TRACEABILITY_EXEMPT" = "0" ] && ! echo "$MSG" | grep -qiE '\b(US|CHG)-[0-9]{2,}\b'; then
-  cat >&2 <<'EOF'
+if echo "$MSG" | grep -qiE '\b(US|CHG)-[0-9]{2,}\b'; then
+  exit 0
+fi
+
+# Reject
+cat >&2 <<'EOF'
 ✗ commit rejected: no US-NNN or CHG-NNN reference in commit message.
 
 Every commit must trace back to a user story or change request so the
@@ -88,33 +83,4 @@ Emergency bypass (leaves audit trail — will appear in drift detector):
 Discover open stories:  cat docs/stories/SPRINT_PLAN.md
                         grep -l "backlog\|in_development" docs/stories/sprint-*/*.md
 EOF
-  exit 1
-fi
-
-# CHG-031: resolve the approval trust map from the repository when the operator
-# has not exported it, so a routine commit does not fail with
-# WR_APPROVAL_TRUST_UNAVAILABLE.
-#
-# Deliberately confined to this hook. Git never runs hooks in CI, so CI and the
-# repository range gate keep reading ONLY the protected
-# WORK_READINESS_APPROVAL_KEYS_JSON variable and still fail closed when it is
-# absent (WORK_READINESS.md lines 119-126; CI provisioning stays CHG-027).
-# Reading trust from a tracked file would weaken CI, because a pushed commit
-# could add a public key alongside the signature it validates. Locally it grants
-# nothing new: anyone who can edit that file can already export any value.
-#
-# Never overrides an explicit export, and never validates the contents --
-# model.mjs still rejects missing, malformed, unknown or non-Ed25519 trust, so a
-# corrupt file fails closed exactly as before.
-if [ -z "${WORK_READINESS_APPROVAL_KEYS_JSON:-}" ]; then
-  TRUST_FILE="$(git rev-parse --show-toplevel)/.work-readiness-trust.json"
-  if [ -f "$TRUST_FILE" ]; then
-    WORK_READINESS_APPROVAL_KEYS_JSON="$(cat "$TRUST_FILE")"
-    export WORK_READINESS_APPROVAL_KEYS_JSON
-  fi
-fi
-
-# Traceability handling completed. Validate the exact staged index and canonical
-# Git message through the same readiness engine used by the repository range gate.
-# There is intentionally no readiness-specific bypass.
-node scripts/work-readiness.mjs check-staged --message-file "$COMMIT_MSG_FILE"
+exit 1

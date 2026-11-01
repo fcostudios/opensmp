@@ -9,9 +9,8 @@ set -euo pipefail
 #   ./infra/scripts/sync-from-nous.sh --dry-run     # preview changes
 #   ./infra/scripts/sync-from-nous.sh -c stories migrations  # selective
 #
-# Category selection limits Nous generation only. Ledger's post-sync guidance
-# reconciliation is intentionally repository-wide because parity and forbidden
-# guidance are repository invariants, not generator categories.
+# CHG-112 / DEC-SMP-065: generated guidance is accepted from Nous directly;
+# retired repository pins must not reapply tenant gate instructions after sync.
 #
 # Override the Nous checkout with NOUS_SYSTEM (defaults to the path this
 # package was generated from):
@@ -44,13 +43,6 @@ if [[ "$DRY_RUN" == "true" ]]; then
         "${SYNC_ARGUMENTS[@]:1}"
 
     echo ""
-    echo "=== Ledger invariant preview against the current worktree ==="
-    echo "Nous does not expose materialized dry-run output, so this second preview"
-    echo "is intentionally evaluated against current files, not proposed Nous output."
-    python3 "$TARGET/infra/scripts/reconcile-sprint1-docs.py" \
-        "$TARGET" \
-        --preview
-    echo ""
     echo "=== Sync preview complete; working tree unchanged ==="
     exit 0
 fi
@@ -59,10 +51,6 @@ python3 "$NOUS_SYSTEM/nous_package.py" sync \
     --target "$TARGET" \
     --project fcostudios__smp \
     "${SYNC_ARGUMENTS[@]:1}"
-
-echo ""
-echo "=== Applying repository-wide Ledger documentation invariants ==="
-python3 "$TARGET/infra/scripts/reconcile-sprint1-docs.py" "$TARGET"
 
 echo ""
 echo "=== Sync complete ==="

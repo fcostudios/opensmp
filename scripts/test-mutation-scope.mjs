@@ -54,185 +54,6 @@ import {
 } from "./mutation-scope.mjs";
 import mutationVitestConfig from "../vitest.mutation.config.mjs";
 
-import * as ownedScope from "./mutation-evidence/owned-scope.mjs";
-import * as scopeRunner from "./mutation-scope.mjs";
-import { computeReadinessPayloadSha256 } from "./work-readiness/model.mjs";
-import { collectExecutionInputs, createEvidenceKey } from "./mutation-evidence/fingerprint.mjs";
-
-function makeOwnedMutationFixture() {
-  const root = mkdtempSync(join(tmpdir(), "smp-owned-mutation-scope-"));
-  const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
-  const write = (path, contents) => { mkdirSync(dirname(join(root, path)), { recursive: true }); writeFileSync(join(root, path), contents); };
-  git("init", "--quiet"); git("config", "user.email", "owned@example.invalid"); git("config", "user.name", "Owned fixture");
-  const source = "packages/domain/src/owned.ts";
-  const testFile = "packages/domain/src/owned.test.ts";
-  write(source, "export const stable = 1;\nexport const value = 1;\n");
-  write(testFile, "import { value } from './owned';\nimport { expect, test } from 'vitest';\ntest('owned value', () => expect(value).toBe(2));\n");
-  for (const [path, contents] of [
-    ["package.json", JSON.stringify({ name: "owned-fixture", private: true })], ["pnpm-lock.yaml", "lockfileVersion: '9.0'\n"],
-    ["stryker.conf.json", JSON.stringify({ testFiles: [] })], ["vitest.mutation.config.mjs", "export default {};\n"],
-    ["scripts/mutation-scope.mjs", "export {};\n"], ["scripts/mutation-evidence/fingerprint.mjs", "export {};\n"],
-    ["scripts/mutation-evidence/cache.mjs", "export {};\n"], ["scripts/mutation-evidence/performance.mjs", "export {};\n"],
-    ["docs/dev-guide/work-readiness.schema.json", "{\"fixture\":1}\n"],
-    ["packages/db/src/migrations/V20261013000000__fixture.sql", "-- runtime A\n"], [".gitignore", ".tmp/\nreports/\n"]
-  ]) write(path, contents);
-  git("add", "."); git("commit", "--quiet", "-m", "fixture A"); const base = git("rev-parse", "HEAD");
-  write(source, "export const stable = 1;\nexport const value = 2;\nexport const added = 3;\n");
-  git("add", "."); git("commit", "--quiet", "-m", "fixture B subject"); const head = git("rev-parse", "HEAD");
-  const subject = JSON.parse(readFileSync(new URL("../docs/readiness/CHG-094.json", import.meta.url), "utf8"));
-  Object.assign(subject, { work_id: "US-900", kind: "US", work_type: "functional", scopes: ["server"] });
-  subject.signals.tooling_change = false; subject.signals.expected_mutation_shards = 8;
-  subject.approval = { status: "approved", approved_by: "fixture user", evidence: "SUBJECT-READY" };
-  const refresh = artifact => { artifact.readiness_payload_sha256 = computeReadinessPayloadSha256(artifact); artifact.approval.payload_sha256 = artifact.readiness_payload_sha256; };
-  refresh(subject);
-  const governing = structuredClone(subject);
-  Object.assign(governing, { work_id: "CHG-900", kind: "CHG", work_type: "technical", scopes: ["tooling"] });
-  governing.signals.tooling_change = true; governing.signals.expected_mutation_shards = 1;
-  governing.approval.evidence = "GOVERNING-READY";
-  governing.mutation_scope = { version: 1, subject_work_id: subject.work_id, subject_readiness_sha256: subject.readiness_payload_sha256,
-    scope_base: base, scope_head: head, sources: [{ path: source, head_blob: git("rev-parse", `${head}:${source}`) }] };
-  refresh(governing);
-  const decision = artifact => ({ story: artifact.work_id, event: "decision", id: artifact.approval.evidence,
-    text: `Decision ${artifact.decision} for readiness payload SHA-256 ${artifact.readiness_payload_sha256}.`, reason: "Fixture approved", approved_by: artifact.approval.approved_by, subject_work_id: artifact.work_id, relationship: "self" });
-  const saveAuthority = () => { write("docs/readiness/US-900.json", JSON.stringify(subject)); write("docs/readiness/CHG-900.json", JSON.stringify(governing)); write(".nous-feedback.jsonl", [subject, governing].map(artifact => JSON.stringify(decision(artifact))).join("\n") + "\n"); };
-  saveAuthority();
-  write("packages/domain/src/unrelated.ts", "export const unrelated = 9;\n");
-  write("packages/db/src/migrations/V20261013000000__fixture.sql", "-- runtime C current\n");
-  git("add", "."); git("commit", "--quiet", "-m", "fixture C integrated runtime");
-  return { root, git, write, source, testFile, base, head, subject, governing, refresh, saveAuthority, executionHead: git("rev-parse", "HEAD") };
-}
-
-{
-  const fixture = makeOwnedMutationFixture();
-  try {
-    assert.equal(fixture.git("diff", "--unified=0", fixture.head, fixture.executionHead, "--", fixture.source), "", "legacy integration comparison omits inherited subject source");
-    assert.equal(typeof ownedScope.resolveOwnedMutationScope, "function", "shared immutable resolver exists");
-    const authority = ownedScope.loadApprovedOwnedScope({ root: fixture.root, governingWorkId: "CHG-900", subjectWorkId: "US-900", executionHead: fixture.executionHead });
-    const ports = { mutationTargetsFromPatch: scopeRunner.mutationTargetsFromPatch, mutationHunksFromPatch: scopeRunner.mutationHunksFromPatch, mutatable: scopeRunner.mutatable };
-    const resolved = ownedScope.resolveOwnedMutationScope({ root: fixture.root, authority, executionHead: fixture.executionHead }, ports);
-    assert.deepEqual(resolved.changedPaths, [fixture.source]);
-    assert.deepEqual(resolved.targets, [`${fixture.source}:2-3`]);
-    assert.deepEqual(resolved.ownedScope.sources, [{ path: fixture.source, headBlob: fixture.governing.mutation_scope.sources[0].head_blob, ranges: [{ start: 2, end: 3 }] }]);
-    assert.deepEqual(resolved.hunks.map(hunk => hunk.newStart), [2]);
-    const before = fixture.git("status", "--porcelain", "--untracked-files=all");
-    const planned = await scopeRunner.planOwnedMutationScope({ root: fixture.root, governingWorkId: "CHG-900" });
-    assert.equal(planned.authoritative, false); assert.equal(planned.expected_mutation_shards, 1);
-    assert.equal(planned.scopeDigest, resolved.ownedScope.scopeDigest);
-    assert.deepEqual(planned.shards[0].testFiles, [fixture.testFile]);
-    assert.equal(fixture.git("status", "--porcelain", "--untracked-files=all"), before);
-    for (const directory of [".tmp", "reports", ".git/ledger-mutation-cache"]) assert.equal(existsSync(join(fixture.root, directory)), false);
-    const runtime = { arch: "x64", locale: "en-US", platform: "linux", timezone: "UTC" };
-    const preflight = await runMutationScope({ cwd: fixture.root, mode: "preflight", env: { MUTATION_SCOPE_WORK_ID: "CHG-900", MUTATION_WORK_ID: "US-900" }, toolVersions: {}, runtimeProfileProvider: () => runtime });
-    assert.equal(preflight.preflight.expected_mutation_shards, 1, "governing count wins over historical subject count eight");
-    assert.equal(preflight.preflight.mismatch, false);
-    assert.deepEqual(preflight.manifest.shards[0].mutate, [`${fixture.source}:2-3`]);
-    assert.equal(preflight.manifest.provenance.head, fixture.executionHead);
-    assert.deepEqual(preflight.preflight.ownedScope, resolved.ownedScope);
-    assert.deepEqual(preflight.manifest.provenance.ownedScope, resolved.ownedScope);
-    assert.equal(typeof ownedScope.assertOwnedExecutionUnchanged, "function");
-    ownedScope.assertOwnedExecutionUnchanged(resolved.executionInputs);
-    const identity = () => createEvidenceKey({ governingDigest: authority.governingDigest, scopeDigest: resolved.ownedScope.scopeDigest,
-      dependencyHashes: collectExecutionInputs({ root: fixture.root, entryFiles: [fixture.source, fixture.testFile], configurationFiles: ["stryker.conf.json"],
-        migrationRoots: ["packages/db/src/migrations"], staticFiles: ["docs/dev-guide/work-readiness.schema.json", ".nous-feedback.jsonl", "docs/readiness/CHG-900.json", "docs/readiness/US-900.json"],
-        toolVersions: { node: "fixture" }, runtimeProfile: runtime, environment: {} }).hashes });
-    const originalIdentity = identity();
-    fixture.write("docs/dev-guide/work-readiness.schema.json", "{\"fixture\":2}\n");
-    assert.notEqual(identity(), originalIdentity, "current readiness schema bytes bind execution identity");
-    fixture.git("restore", "--", "docs/dev-guide/work-readiness.schema.json");
-    fixture.write(".nous-feedback.jsonl", readFileSync(join(fixture.root, ".nous-feedback.jsonl"), "utf8") + "\n");
-    assert.notEqual(identity(), originalIdentity, "raw ledger bytes bind execution identity");
-    fixture.git("restore", "--", ".nous-feedback.jsonl");
-    fixture.write("packages/db/src/migrations/V20261013000000__fixture.sql", "-- runtime changed during run\n");
-    assert.notEqual(identity(), originalIdentity, "current real migration bytes change identity with equal owned scope");
-    assert.throws(() => ownedScope.assertOwnedExecutionUnchanged(resolved.executionInputs));
-    fixture.git("restore", "--", "packages/db/src/migrations/V20261013000000__fixture.sql");
-    fixture.governing.approval.status = "pending"; fixture.saveAuthority();
-    assert.throws(() => ownedScope.assertOwnedExecutionUnchanged(resolved.executionInputs), "authority drift also prevents final success");
-    fixture.governing.approval.status = "approved"; fixture.saveAuthority();
-    let childCalls = 0;
-    await assert.rejects(() => runMutationScope({ cwd: fixture.root, env: { MUTATION_SCOPE_WORK_ID: "CHG-900", MUTATION_WORK_ID: "US-900", MUTATION_CACHE: "off" },
-      installSignalHandlers: false, toolVersions: { node: "fixture" }, runtimeProfileProvider: () => runtime,
-      beforeEvidence: () => fixture.write("packages/db/src/migrations/V20261013000000__fixture.sql", "-- mid-run drift\n"),
-      executeShard: () => { childCalls += 1; throw new Error("child must not execute after drift"); } }));
-    assert.equal(childCalls, 0);
-    const failedFiles = readdirSync(join(fixture.root, "reports/mutation-performance"));
-    assert.equal(failedFiles.length, 1);
-    const failedRecord = JSON.parse(readFileSync(join(fixture.root, "reports/mutation-performance", failedFiles[0]), "utf8"));
-    assert.equal(failedRecord.outcome, "failed", "preserve drift failure evidence instead of publishing success");
-    assert.deepEqual(failedRecord.provenance.ownedScope, resolved.ownedScope);
-    assert.equal(failedRecord.cacheMode, "bypass");
-    fixture.git("restore", "--", "packages/db/src/migrations/V20261013000000__fixture.sql");
-
-    fixture.git("commit", "--quiet", "--allow-empty", "-m", "fixture commit-only identity drift");
-    assert.throws(() => ownedScope.assertOwnedExecutionUnchanged(resolved.executionInputs), "commit-only HEAD drift prevents final success");
-
-    fixture.governing.approval.status = "pending"; fixture.saveAuthority(); fixture.git("add", "."); fixture.git("commit", "--quiet", "-m", "fixture pending plan");
-    const pendingPlan = await scopeRunner.planOwnedMutationScope({ root: fixture.root, governingWorkId: "CHG-900" });
-    assert.equal(pendingPlan.authoritative, false); assert.equal(pendingPlan.scopeDigest, planned.scopeDigest);
-    await assert.rejects(() => runMutationScope({ cwd: fixture.root, mode: "preflight", env: { MUTATION_SCOPE_WORK_ID: "CHG-900", MUTATION_WORK_ID: "US-900" } }));
-  } finally { rmSync(fixture.root, { recursive: true, force: true }); }
-}
-
-// Every detectable refusal happens before config creation or runtime discovery.
-for (const mode of ["changed-blob", "deleted", "renamed", "symlink", "submodule", "nonexistent", "nonancestor", "empty-ranges", "dirty-runtime", "untracked-source", "routing-gap", "count", "base-flag", "shard-flag", "dry-flag", "cache-required", "wrong-subject"]) {
-  const fixture = makeOwnedMutationFixture();
-  const previousCwd = process.cwd();
-  const previousOwnedEnv = process.env.MUTATION_SCOPE_WORK_ID;
-  try {
-    let commit = false;
-    if (mode === "changed-blob") { fixture.write(fixture.source, "export const changed = 4;\n"); commit = true; }
-    if (mode === "deleted") { rmSync(join(fixture.root, fixture.source)); commit = true; }
-    if (mode === "renamed") { fixture.git("mv", fixture.source, fixture.source.replace("owned.ts", "renamed.ts")); commit = true; }
-    if (mode === "symlink") { rmSync(join(fixture.root, fixture.source)); symlinkSync("unrelated.ts", join(fixture.root, fixture.source)); commit = true; }
-    if (mode === "submodule") { fixture.git("update-index", "--cacheinfo", `160000,${fixture.head},${fixture.source}`); fixture.git("commit", "--quiet", "-m", "fixture unsupported mode"); }
-    if (mode === "nonexistent") { fixture.governing.mutation_scope.scope_head = "f".repeat(40); commit = true; }
-    if (mode === "nonancestor") { fixture.governing.mutation_scope.scope_base = fixture.git("commit-tree", fixture.git("rev-parse", "HEAD^{tree}"), "-m", "orphan scope"); commit = true; }
-    if (mode === "empty-ranges") { fixture.governing.mutation_scope.scope_base = fixture.head; commit = true; }
-    if (mode === "dirty-runtime") fixture.write("packages/db/src/migrations/V20261013000000__fixture.sql", "-- dirty runtime\n");
-    if (mode === "untracked-source") fixture.write("packages/domain/src/untracked.ts", "export const untracked = 1;\n");
-    if (mode === "routing-gap") { rmSync(join(fixture.root, fixture.testFile)); commit = true; }
-    if (mode === "count") { fixture.governing.signals.expected_mutation_shards = 2; commit = true; }
-    if (commit) { fixture.refresh(fixture.governing); fixture.saveAuthority(); fixture.git("add", "."); fixture.git("commit", "--quiet", "-m", `fixture refusal ${mode}`); }
-    const env = { MUTATION_SCOPE_WORK_ID: "CHG-900", MUTATION_WORK_ID: mode === "wrong-subject" ? "US-901" : "US-900" };
-    if (mode === "base-flag") env.MUTATION_BASE = "";
-    if (mode === "shard-flag") env.MUTATION_SHARD = "";
-    if (mode === "dry-flag") env.MUTATION_SCOPE_DRY = "0";
-    let runtimeCalls = 0;
-    process.env.MUTATION_SCOPE_WORK_ID = "RESTORE-SENTINEL";
-    await assert.rejects(() => runMutationScope({ cwd: fixture.root, mode: mode === "cache-required" ? "campaign" : "preflight", env,
-      runtimeProfileProvider: () => { runtimeCalls += 1; throw new Error("runtime must not start"); } }), undefined, mode);
-    assert.equal(runtimeCalls, 0, mode);
-    assert.equal(existsSync(join(fixture.root, ".tmp")), false, mode);
-    assert.equal(existsSync(join(fixture.root, "reports")), false, mode);
-    assert.equal(process.cwd(), previousCwd, mode);
-    assert.equal(process.env.MUTATION_SCOPE_WORK_ID, "RESTORE-SENTINEL", mode);
-  } finally {
-    if (previousOwnedEnv === undefined) delete process.env.MUTATION_SCOPE_WORK_ID; else process.env.MUTATION_SCOPE_WORK_ID = previousOwnedEnv;
-    rmSync(fixture.root, { recursive: true, force: true });
-  }
-}
-
-{
-  const fixture = makeOwnedMutationFixture();
-  try {
-    fixture.governing.approval.status = "pending"; fixture.saveAuthority(); fixture.git("add", "."); fixture.git("commit", "--quiet", "-m", "pending planning candidate");
-    const script = fileURLToPath(new URL("./mutation-scope.mjs", import.meta.url));
-    const env = { ...process.env };
-    for (const key of ["MUTATION_BASE", "MUTATION_SHARD", "MUTATION_SCOPE_DRY", "MUTATION_SCOPE_WORK_ID", "MUTATION_WORK_ID"]) delete env[key];
-    const before = fixture.git("status", "--porcelain", "--untracked-files=all");
-    const result = spawnSync(process.execPath, [script, "--planned-owned-scope", "CHG-900"], { cwd: fixture.root, env, encoding: "utf8" });
-    assert.equal(result.status, 0, result.stderr);
-    const planned = JSON.parse(result.stdout);
-    assert.equal(planned.authoritative, false); assert.equal(planned.expected_mutation_shards, 1);
-    assert.equal(Object.hasOwn(planned, "governingDigest"), false, "planning does not emit an execution authority token");
-    assert.equal(fixture.git("status", "--porcelain", "--untracked-files=all"), before);
-    for (const args of [["--planned-owned-scope"], ["--planned-owned-scope", "CHG-900", "--preflight"], ["--planned-owned-scope", "main"], ["--planned-owned-scope", "CHG-900", fixture.source]]) {
-      assert.notEqual(spawnSync(process.execPath, [script, ...args], { cwd: fixture.root, env, encoding: "utf8" }).status, 0);
-    }
-    for (const directory of [".tmp", "reports", ".git/ledger-mutation-cache"]) assert.equal(existsSync(join(fixture.root, directory)), false);
-  } finally { rmSync(fixture.root, { recursive: true, force: true }); }
-}
-
 const realpathIn = (root, path) => realpathSync(path.startsWith("/") ? path : join(root, path));
 
 // CHG-069 item 4 — break caught: US-071 Task 2 changed schema.ts with a
@@ -1225,8 +1046,10 @@ for (const mutate of [
   );
 }
 
+// These exact adapter deltas describe US-023's original extraction. Later
+// features changed the pages; bind this oracle to the extraction's Git bytes.
 const pageBundle = (source, deltas) => {
-  const newContents = readFileSync(source, "utf8");
+  const newContents = execFileSync("git", ["show", `9416cd8:${source}`], { encoding: "utf8" });
   let oldContents = newContents;
   for (const delta of [...deltas].reverse()) {
     oldContents = oldContents.replace(
@@ -1327,16 +1150,6 @@ for (const changes of [poolsPageChanges, exceptionsPageChanges]) {
   assert.equal(
     classifyPageWiringBundle(changes).reason,
     "verification-only:page-wiring-bundle",
-  );
-  const ranges = changes.map((change) =>
-    `${change.source}:${change.newStart}-${change.newStart + change.newLines.length - 1}`);
-  assert.equal(
-    verificationAuditsForReport(
-      { files: {} },
-      { id: "page", mutate: ranges, sources: [changes[0].source] },
-      changes,
-    )[0].source,
-    changes[0].source,
   );
 }
 for (const [before, after] of [

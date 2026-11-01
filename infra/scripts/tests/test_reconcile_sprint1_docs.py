@@ -1701,21 +1701,6 @@ class ReconciliationBehaviorTests(unittest.TestCase):
 
             self.assertNotEqual(result.returncode, 0)
 
-    def test_chg022_guidance_contains_readiness_command_and_two_hour_rule(self) -> None:
-        for relative_path in READINESS_GUIDES:
-            text = (READINESS_OVERRIDE_ROOT / relative_path).read_text(encoding="utf-8")
-            self.assertIn("pnpm readiness:check -- <WORK-ID>", text, relative_path)
-            self.assertIn("above 120 minutes", text, relative_path)
-            self.assertIn("docs/dev-guide/WORK_READINESS.md", text, relative_path)
-
-        definition = (
-            READINESS_OVERRIDE_ROOT / "docs/dev-guide/DEFINITION_OF_DONE.md"
-        ).read_text(encoding="utf-8")
-        self.assertIn("pnpm readiness:check:all", definition)
-        self.assertIn("pnpm readiness:check:range", definition)
-        self.assertIn("completion actuals", definition)
-        self.assertIn("estimate variance", definition)
-
     def test_chg042_layer_binds_reviewed_sources_and_320_minute_guidance(self) -> None:
         manifest = json.loads(
             (REPINNED_OVERRIDE_ROOT / "manifest.json").read_text(encoding="utf-8")
@@ -2208,89 +2193,6 @@ class ReconciliationBehaviorTests(unittest.TestCase):
             self.assertEqual(snapshot(root), before)
             self.assertIn("CODEX.md", result.stderr)
             self.assertIn("differs from CLAUDE.md", result.stderr)
-
-
-class SyncIntegrationTests(unittest.TestCase):
-    def test_sync_repairs_known_825e882_substrate_guidance(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            create_project(root)
-            scripts = root / "infra/scripts"
-            scripts.mkdir(parents=True, exist_ok=True)
-            (scripts / SCRIPT.name).write_bytes(SCRIPT.read_bytes())
-            (scripts / SYNC_SCRIPT.name).write_bytes(SYNC_SCRIPT.read_bytes())
-
-            nous_system = root / "fixture-nous-system"
-            nous_system.mkdir()
-            write(
-                nous_system,
-                "nous_package.py",
-                textwrap.dedent(
-                    """\
-                    import argparse
-                    import os
-                    import shutil
-                    from pathlib import Path
-
-                    parser = argparse.ArgumentParser()
-                    parser.add_argument("command")
-                    parser.add_argument("--target", required=True)
-                    parser.add_argument("--project", required=True)
-                    parser.add_argument("-c", "--categories", nargs="*")
-                    args = parser.parse_args()
-
-                    fixture = Path(os.environ["KNOWN_SUBSTRATE_FIXTURE"])
-                    target = Path(args.target)
-                    for source in fixture.rglob("*"):
-                        if source.is_file():
-                            destination = target / source.relative_to(fixture)
-                            destination.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copy2(source, destination)
-                    """
-                ),
-            )
-            environment = os.environ.copy()
-            environment["NOUS_SYSTEM"] = str(nous_system)
-            environment["KNOWN_SUBSTRATE_FIXTURE"] = str(KNOWN_SUBSTRATE_ROOT)
-            environment["RECONCILER_DATA_ROOT"] = str(SCRIPT_DATA_ROOT)
-
-            result = subprocess.run(
-                ["bash", str(scripts / SYNC_SCRIPT.name)],
-                cwd=root,
-                env=environment,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            for relative_path in PINNED_GUIDES:
-                if relative_path == "docs/stories/CHANGES.md":
-                    continue
-                self.assertEqual(
-                    (root / relative_path).read_bytes(),
-                    latest_desired_guide(relative_path),
-                    relative_path,
-                )
-            changes = (root / "docs/stories/CHANGES.md").read_text(encoding="utf-8")
-            self.assertIn(
-                "**Notes:** # CHG-001 — Reconcile Sprint 1 execution contract",
-                changes,
-            )
-            self.assertIn(
-                "| **US-007** | Seed: companies CSV + go-live register backfill "
-                "| Sprint 1 | 🔨 in_development |",
-                changes,
-            )
-            claude = latest_desired_guide("CLAUDE.md")
-            for mirror in (
-                "CODEX.md",
-                ".cursorrules",
-                ".github/copilot-instructions.md",
-            ):
-                self.assertEqual(
-                    (root / mirror).read_bytes(), CURRENT_MIRROR_HEADER + claude
-                )
 
 
 if __name__ == "__main__":
