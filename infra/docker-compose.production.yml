@@ -1,0 +1,182 @@
+# Standalone production stack; never merge with the development Compose file.
+x-runtime: &runtime
+  DB_DRIVER: pg
+  PGHOST: postgres
+  PGPORT: "5432"
+  PGDATABASE: ledger
+  PGUSER: ledger_app
+  PGPASSWORD: ${LEDGER_APP_PASSWORD:?set LEDGER_APP_PASSWORD}
+  LEDGER_PUBLIC_URL: https://${APP_DOMAIN:?set APP_DOMAIN}
+  LEDGER_CREDENTIAL_KEK_FILE: /run/ledger-secrets/credential-kek
+  SMTP_URL: smtp://smtp-relay:587
+x-service: &service
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: "3"}
+services:
+  postgres:
+    <<: *service
+    image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    environment:
+      POSTGRES_DB: ledger
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set POSTGRES_SUPERUSER_PASSWORD}
+      LEDGER_OWNER_PASSWORD: ${LEDGER_OWNER_PASSWORD:?set LEDGER_OWNER_PASSWORD}
+      LEDGER_APP_PASSWORD: ${LEDGER_APP_PASSWORD:?set LEDGER_APP_PASSWORD}
+      LEDGER_BACKUP_PASSWORD: ${LEDGER_BACKUP_PASSWORD:?set LEDGER_BACKUP_PASSWORD}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?set KEYCLOAK_DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init/001-roles.sql:/docker-entrypoint-initdb.d/001-roles.sql:ro
+      - ./postgres/init/002-set-role-passwords.sh:/docker-entrypoint-initdb.d/002-set-role-passwords.sh:ro
+      - ./production/003-keycloak-db.sh:/docker-entrypoint-initdb.d/003-keycloak-db.sh:ro
+    healthcheck:
+      # The init-time temporary server has only a Unix socket. Wait for TCP so
+      # dependents cannot race the final role/database bootstrap.
+      test: [CMD-SHELL, "pg_isready -h 127.0.0.1 -U postgres -d ledger"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  migrate:
+    image: ${MIGRATION_IMAGE:?set MIGRATION_IMAGE}
+    build:
+      context: ..
+      dockerfile: infra/production/migrations.Dockerfile
+    restart: "no"
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ledger
+      PGUSER: ledger_owner
+      LEDGER_OWNER_PASSWORD: ${LEDGER_OWNER_PASSWORD:?set LEDGER_OWNER_PASSWORD}
+      LEDGER_APP_PASSWORD: ${LEDGER_APP_PASSWORD:?set LEDGER_APP_PASSWORD}
+    depends_on:
+      postgres: {condition: service_healthy}
+  keycloak:
+    <<: *service
+    image: quay.io/keycloak/keycloak:26.5
+    command: [start, --import-realm]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?set KEYCLOAK_DB_PASSWORD}
+      KC_HOSTNAME: https://${AUTH_DOMAIN:?set AUTH_DOMAIN}
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD}
+      LEDGER_PUBLIC_URL: https://${APP_DOMAIN:?set APP_DOMAIN}
+      SMP_WEB_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:?set KEYCLOAK_CLIENT_SECRET}
+      SMP_KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?set KEYCLOAK_ADMIN_CLIENT_SECRET}
+    volumes:
+      - ./keycloak/realm-corporativo.json:/opt/keycloak/data/import/realm-corporativo.json:ro
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bash -c "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; timeout 5 cat <&3 | grep -q '\"status\": \"UP\"'"
+      interval: 10s
+      timeout: 6s
+      retries: 30
+      start_period: 60s
+  app:
+    <<: *service
+    image: ${APP_IMAGE:?set APP_IMAGE}
+    build: {context: .., dockerfile: apps/web/Dockerfile}
+    environment:
+      <<: *runtime
+      KEYCLOAK_ISSUER: https://${AUTH_DOMAIN:?set AUTH_DOMAIN}/realms/corporativo
+      KEYCLOAK_ADMIN_BASE_URL: http://keycloak:8080
+      KEYCLOAK_CLIENT_ID: smp-web
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:?set KEYCLOAK_CLIENT_SECRET}
+      KEYCLOAK_ADMIN_CLIENT_ID: smp-keycloak-admin
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?set KEYCLOAK_ADMIN_CLIENT_SECRET}
+      AUTH_TRUST_HOST: "true"
+      AUTH_URL: https://${APP_DOMAIN:?set APP_DOMAIN}
+      NEXTAUTH_URL: https://${APP_DOMAIN:?set APP_DOMAIN}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?set NEXTAUTH_SECRET}
+    secrets:
+      - source: credential_kek
+        target: /run/ledger-secrets/credential-kek
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      keycloak: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+  worker:
+    <<: *service
+    image: ${WORKER_IMAGE:?set WORKER_IMAGE}
+    build: {context: .., dockerfile: apps/worker/Dockerfile}
+    environment:
+      <<: *runtime
+      ECUADOR_HOLIDAYS: ${ECUADOR_HOLIDAYS:?set ECUADOR_HOLIDAYS}
+    secrets:
+      - source: credential_kek
+        target: /run/ledger-secrets/credential-kek
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      smtp-relay: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, dist/readiness.js]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    stop_grace_period: 60s
+  smtp-relay:
+    <<: *service
+    image: boky/postfix:v5.2.0
+    environment:
+      RELAYHOST: ${SMTP_RELAYHOST:?set SMTP_RELAYHOST}
+      RELAYHOST_USERNAME: ${SMTP_RELAYHOST_USERNAME:-}
+      RELAYHOST_PASSWORD: ${SMTP_RELAYHOST_PASSWORD:-}
+      ALLOWED_SENDER_DOMAINS: ${SMTP_SENDER_DOMAINS:?set SMTP_SENDER_DOMAINS}
+      POSTFIX_smtp_tls_security_level: encrypt
+      LOG_FORMAT: json
+    volumes:
+      - smtp_queue:/var/spool/postfix
+    healthcheck:
+      test: [CMD, /scripts/healthcheck.sh]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+  caddy:
+    <<: *service
+    image: caddy:2.10.2-alpine
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN}
+      AUTH_DOMAIN: ${AUTH_DOMAIN:?set AUTH_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+    ports:
+      - "${BIND_ADDRESS:-0.0.0.0}:${HTTP_PORT:-80}:80"
+      - "${BIND_ADDRESS:-0.0.0.0}:${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./production/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app: {condition: service_healthy}
+      keycloak: {condition: service_healthy}
+    healthcheck:
+      test: [CMD-SHELL, "wget -qO- http://127.0.0.1:2019/config/ >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+volumes:
+  postgres_data:
+  smtp_queue:
+  caddy_data:
+  caddy_config:
+secrets:
+  credential_kek:
+    file: ${LEDGER_KEK_FILE:?set LEDGER_KEK_FILE}

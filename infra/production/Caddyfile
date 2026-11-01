@@ -1,0 +1,16 @@
+{
+	email {$ACME_EMAIL}
+}
+{$APP_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000
+}
+{$AUTH_DOMAIN} {
+	@public path /realms/* /resources/* /.well-known/* /robots.txt
+	handle @public {
+		reverse_proxy keycloak:8080
+	}
+	handle {
+		respond 404
+	}
+}

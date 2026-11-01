@@ -16,4 +16,11 @@ backup_output_owner="$(perl -e '@s = stat $ARGV[0] or die "$!\n"; print "$s[4]:$
 [[ "$backup_output_owner" == "$BACKUP_UID:$BACKUP_GID" ]] \
   || { printf '%s\n' 'BACKUP_OUTPUT_DIR must be owned by the invoking Linux UID:GID' >&2; exit 1; }
 
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.backup.yml --profile backup run --rm backup 2>&1 | logger -t ledger-backup
+backup_compose=(docker compose)
+if [[ -n "${PRODUCTION_ENV_FILE:-}" ]]; then
+  backup_compose+=(--project-name "${PRODUCTION_PROJECT:-ledger-production}"
+    --env-file "$PRODUCTION_ENV_FILE" -f infra/docker-compose.production.yml)
+else
+  backup_compose+=(-f infra/docker-compose.yml)
+fi
+"${backup_compose[@]}" -f infra/docker-compose.backup.yml --profile backup run --rm backup 2>&1 | logger -t ledger-backup

@@ -1,0 +1,24 @@
+name: Production Compose
+on:
+  pull_request:
+    paths: ['apps/**', 'packages/**', 'infra/**', 'pnpm-lock.yaml', '.github/workflows/production-compose.yml']
+  push:
+    branches: [main, 'feature/infra/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  localhost-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.12.0
+      - name: Verify production interpolation and isolation
+        run: node --test infra/tests/production-compose.test.mjs
+      - name: Deploy production images to localhost and verify HTTPS and persistence
+        env:
+          REHEARSAL_CLEANUP: '1'
+        run: bash infra/production/rehearse.sh
