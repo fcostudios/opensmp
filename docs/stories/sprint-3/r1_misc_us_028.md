@@ -1,6 +1,6 @@
 # US-028: Reclamation proposals: approve or dismiss
 
-> **Sprint 3** | **P0** | **3 SP** | **R1**
+> **Sprint 3** | **P0** | **3 SP** | **R2**
 
 ## User Story
 
@@ -15,7 +15,7 @@ As a Company Approver (persona_02), I want to consent before any seat is freed s
 | Sprint | Sprint 3 |
 | Priority | P0 |
 | Size | 3 SP |
-| Release | R1 |
+| Release | R2 |
 | Domain | r1_mvp |
 | Journey | J2 |
 | Screens | SCR-reclamation-proposals |
@@ -36,3 +36,5 @@ As a Company Approver (persona_02), I want to consent before any seat is freed s
 - Sprint 3 milestone: Automation + monitoring: connector live (interface from Sprint 2, capability semantics via US-025), invite≤15min, hygiene, reclamation, drift. Beta-API risk retired here (surprise-detection already pulled to the Sprint-1 probe). Connector jobs run on Compose-secret keys (ADR-13) until US-031 lands the managed credential store in Sprint 4.
 - **CHG-071 / DEC-SMP-028:** proposals arrive only from `proposeReclamations` (US-073); the daily inactivity job (US-074) flags requests and never proposes, and returns `flagged_inactive` to `active` when activity resumes. This story keeps approve/dismiss, suppression after a dismissal, `flagged_inactive → offboarding` and `/reclamaciones` unchanged.
 - **CHG-074 / DEC-SMP-032/033:** an approved reclamation drives offboarding through the shared `startOffboarding` entrypoint US-075 delivers (register closes on confirmed removal, one transaction); approval authority for `flagged_inactive → offboarding` and the reclamation screens stay here.
+
+- CHG-113 / DEC-SMP-065/066: R2; no further R1 work.

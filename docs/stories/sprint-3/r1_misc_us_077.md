@@ -1,6 +1,6 @@
 # US-077: Raise same-business-day departure deprovisioning alerts
 
-> **Sprint 3** | **P0** | **1 SP** | **R1**
+> **Sprint 3** | **P0** | **1 SP** | **R2**
 
 ## User Story
 
@@ -15,7 +15,7 @@ As a Group Admin (persona_01), I want to be told when a departure's seat removal
 | Sprint | Sprint 3 |
 | Priority | P0 |
 | Size | 1 SP |
-| Release | R1 |
+| Release | R2 |
 | Domain | r1_mvp |
 | Journey | J2 |
 | Screens | (jobs) |
@@ -38,3 +38,5 @@ As a Group Admin (persona_01), I want to be told when a departure's seat removal
 - **CHG-076 (2026-10-11):** sequenced after **US-082** (shared worker surface; the failed-removal states this story alerts on are produced there). Still parallel-safe with US-076.
 - Reuses the US-042 alert evaluator, calendar injection, request-subject routing and notification outbox; this child delivers the removal-specific facts, the deadline function and race-safe evaluation. The existing inactive-candidate query requires a pending action and would omit failed removals — the eligibility here is "still `offboarding`", not "has a pending action".
 - Vertical delivery: domain deadline function (property-tested over simulated calendars, the BR-14 oracle), worker wiring, verification, review, integration. No migration expected.
+
+- CHG-113 / DEC-SMP-065/066: R2; no further R1 work.

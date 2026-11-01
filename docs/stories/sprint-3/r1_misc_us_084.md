@@ -1,6 +1,6 @@
 # US-084: Run the hourly API member observation and verify confirmed provisions
 
-> **Sprint 3** | **P0** | **1 SP** | **R1**
+> **Sprint 3** | **P0** | **1 SP** | **R2**
 
 ## User Story
 
@@ -15,7 +15,7 @@ As a Group Admin (persona_01), I want Ledger to observe every API-connected org'
 | Sprint | Sprint 3 |
 | Priority | P0 |
 | Size | 1 SP |
-| Release | R1 |
+| Release | R2 |
 | Domain | r1_mvp |
 | Journey | J4 |
 | Screens | (jobs) |
@@ -40,3 +40,5 @@ As a Group Admin (persona_01), I want Ledger to observe every API-connected org'
 - Canonical child of **US-030** (parent AC1 — the production execution of the detection chain), minted by **CHG-077** on 2026-10-11 from the tenant's blocked US-078 readiness. Decisions DEC-SMP-044, DEC-SMP-046 (and DEC-SMP-041 for the stamp). Depends on US-083 (`Blocked By`). Nous allocation target ≈ 200 min; the tenant re-assesses. Parallel-safe with US-078 after US-083 subject to the tenant's file-boundary review (worker + verification extraction vs db/packages diff + web Deriva); when sequential, runs before US-078 so US-078's integrated demo can use the real hourly path.
 - Reuses, does not re-specify: the US-046 schedule, US-056/US-057/US-058 connector composition and journal, the US-020 checklist and US-066 membership-poll verification semantics (relocated behind a port, not rewritten).
 - Falsifiers that require repartition through Nous: a verification rewrite instead of an extraction, UI scope, or a file inventory above 20.
+
+- CHG-113 / DEC-SMP-065/066: R2; no further R1 work.

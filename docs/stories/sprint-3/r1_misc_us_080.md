@@ -1,6 +1,6 @@
 # US-080: Show the drift-to-zero metric on the dashboard
 
-> **Sprint 3** | **P0** | **1 SP** | **R1**
+> **Sprint 3** | **P0** | **1 SP** | **R2**
 
 ## User Story
 
@@ -15,7 +15,7 @@ As a Group Admin (persona_01), I want to see current drift and its 30-day trend 
 | Sprint | Sprint 3 |
 | Priority | P0 |
 | Size | 1 SP |
-| Release | R1 |
+| Release | R2 |
 | Domain | r1_mvp |
 | Journey | J4 |
 | Screens | SCR-admin-dashboard |
@@ -36,3 +36,5 @@ As a Group Admin (persona_01), I want to see current drift and its 30-day trend 
 - Canonical child of **US-030** (parent AC coverage: **AC3**), minted by **CHG-075** on 2026-10-11 from the tenant's `partition_required` assessment (`docs/readiness/drafts/US-030.json`, proposal `drift-metric`, estimate 250 min). Decision DEC-SMP-037. Depends on US-079 (`Blocked By`; transitively US-078): its final verification consumes the real claim action and it shares locale/package export surfaces with US-079, so it runs after US-079 integrates.
 - PRD §17 sets the KPI ("provisioning actions outside the platform: 0 after go-live, continuous") without a counting or window definition; DEC-SMP-037 supplies both and this story is the canonical dashboard specification of the metric. US-029 keeps the broader freshness/stale alert presentation.
 - Vertical delivery: contracts, server read model, dashboard rendering, authorization, locales, verification against the real claim path, review, integration. No migration expected.
+
+- CHG-113 / DEC-SMP-065/066: R2; no further R1 work.

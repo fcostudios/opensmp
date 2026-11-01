@@ -1,6 +1,6 @@
 # US-078: Open, resolve and list drift episodes from accepted member observations
 
-> **Sprint 3** | **P0** | **1 SP** | **R1**
+> **Sprint 3** | **P0** | **1 SP** | **R2**
 
 ## User Story
 
@@ -15,7 +15,7 @@ As a Group Admin (persona_01), I want to catch console bypass within an hour so 
 | Sprint | Sprint 3 |
 | Priority | P0 |
 | Size | 1 SP |
-| Release | R1 |
+| Release | R2 |
 | Domain | r1_mvp |
 | Journey | J4 |
 | Screens | SCR-exceptions |
@@ -44,3 +44,5 @@ As a Group Admin (persona_01), I want to catch console bypass within an hour so 
 - **DEC-SMP-048 / named hourly obligation:** whichever of US-093 and US-091 integrates second owns real hourly wiring plus production end-to-end equivalence proof. Both owners inventory and budget any necessary runtime/test files in their own current readiness; no synthetic call, borrowed proof or unowned debt. This is not a circular unconditional Blocked By edge or deletion of AC5. Parent verification must account for the actual obligation and cannot mark required outstanding proof complete.
 - **DEC-SMP-049:** CHG-100→CHG-101→CHG-102 are the separately allocated technical verifier outcomes. Product DriftEpisode schema/migration/RLS/grants remains US-093; the parent no longer declares the migration. CHG-102 must integrate before US-093 executable readiness; functional contract edits remain denied until then. Each item needs its own current exact readiness; no blocked-parent digest or implementation approval is inferred.
 - Scope/delivery estimates: US-092255minutes/9paths; US-093320minutes/19conditional paths. CHG-100250..310/9paths, CHG-101185..240/5paths, CHG-102255..320/5..7paths. All later actual source/envelope inventories follow existing counting/320/20limits; no cost reset or hidden expansion. Existing CHG-093/US-090 P4(a) order and ownership remain; no code, tests or readiness ledger changed here.
+
+- CHG-113 / DEC-SMP-065/066: R2; no further R1 work.

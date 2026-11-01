@@ -1,6 +1,6 @@
 # US-038: Reconciliation workbench + variance lines
 
-> **Sprint 4** | **P0** | **3 SP** | **R1**
+> **Sprint 3** | **P0** | **3 SP** | **R1**
 
 ## User Story
 
@@ -12,7 +12,7 @@ As a Central Finance (persona_04), I want to reconcile rollup vs invoice within 
 |-------|-------|
 | Story ID | US-038 |
 | Feature | FEAT-028, FEAT-029 |
-| Sprint | Sprint 4 |
+| Sprint | Sprint 3 |
 | Priority | P0 |
 | Size | 3 SP |
 | Release | R1 |
@@ -24,6 +24,8 @@ As a Central Finance (persona_04), I want to reconcile rollup vs invoice within 
 | Business Rules | BR-20 |
 | Blocked By | US-035 |
 
+| Slice | S2 |
+
 ## Acceptance Criteria
 
 - [ ] AC1: Per-org cards: rollup vs `saveInvoiceAmount` input; variance auto-computed + tolerance coloring
@@ -34,4 +36,5 @@ As a Central Finance (persona_04), I want to reconcile rollup vs invoice within 
 ## Notes
 
 - ACs are copied verbatim from `08_scope.md` (generated 10b pass, 2026-07-22) — the scope is the single source; edit there and regenerate.
-- Sprint 4 milestone: Money core (rates + close engine + license lines + statement template) THEN money complete (usage lines, finalization, exports, reconciliation, rollup) + company CRUD, credentials store, runbooks/restore drill, production deploy. MVP COMPLETE.
+
+- CHG-113 / DEC-SMP-065/066: slice S2; license-only manual path. Production acceptance belongs to finance users and the IT Director.

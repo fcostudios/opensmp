@@ -1,6 +1,6 @@
 # US-034: Monthly close job + CloseRun
 
-> **Sprint 4** | **P0** | **5 SP** | **R1**
+> **Sprint 2** | **P0** | **5 SP** | **R1**
 
 ## User Story
 
@@ -12,7 +12,7 @@ As a Central Finance (persona_04), I want to generate per-company draft statemen
 |-------|-------|
 | Story ID | US-034 |
 | Feature | FEAT-027 |
-| Sprint | Sprint 4 |
+| Sprint | Sprint 2 |
 | Priority | P0 |
 | Size | 5 SP |
 | Release | R1 |
@@ -24,6 +24,8 @@ As a Central Finance (persona_04), I want to generate per-company draft statemen
 | Business Rules | BR-02, BR-17, BR-18 |
 | Blocked By | US-032, US-033 |
 
+| Slice | S1 |
+
 ## Acceptance Criteria
 
 - [ ] AC1: `runClose` writes CloseRun (running→succeeded/failed, note) then per-company Statement + StatementLines: license lines from register seat-days × effective rates (daily actual/actual proration, mid-month splits with period_from/to); oracle test (PRD §11 Module E): a transfer effective the 10th yields a company-A line with period_to = the 9th and a company-B line with period_from = the 10th, zero gap/overlap in seat-days, and the person appears on both statements with dates
@@ -33,4 +35,5 @@ As a Central Finance (persona_04), I want to generate per-company draft statemen
 ## Notes
 
 - ACs are copied verbatim from `08_scope.md` (generated 10b pass, 2026-07-22) — the scope is the single source; edit there and regenerate.
-- Sprint 4 milestone: Money core (rates + close engine + license lines + statement template) THEN money complete (usage lines, finalization, exports, reconciliation, rollup) + company CRUD, credentials store, runbooks/restore drill, production deploy. MVP COMPLETE.
+
+- CHG-113 / DEC-SMP-065/066: slice S1; license-only manual path. Production acceptance belongs to finance users and the IT Director.

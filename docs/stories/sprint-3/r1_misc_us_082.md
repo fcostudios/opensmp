@@ -1,6 +1,6 @@
 # US-082: Execute connector seat removal in the production worker
 
-> **Sprint 3** | **P0** | **1 SP** | **R1**
+> **Sprint 3** | **P0** | **1 SP** | **R2**
 
 ## User Story
 
@@ -15,7 +15,7 @@ As a Group Admin (persona_01), I want connector-backed removals to actually reac
 | Sprint | Sprint 3 |
 | Priority | P0 |
 | Size | 1 SP |
-| Release | R1 |
+| Release | R2 |
 | Domain | r1_mvp |
 | Journey | J2 |
 | Screens | (jobs), SCR-exceptions |
@@ -37,3 +37,5 @@ As a Group Admin (persona_01), I want connector-backed removals to actually reac
 - Canonical child of **US-024** (parent AC coverage: **AC1** connector execution), minted by **CHG-076** on 2026-10-11 from the tenant's blocked US-075 readiness, which found the people entrypoint falling back to the checklist through an unregistered dispatcher, the worker selecting `invite` only, and no removal finalization. Decisions DEC-SMP-033, DEC-SMP-042. Depends on US-075's entrypoint and primitive (`Blocked By`). Nous allocation target ≈ 180 min; the tenant re-assesses.
 - Reuses, does not re-specify: the provider deprovision capability and action planner (US-025/US-063..066), credential/composition/observation foundations (US-056/US-057/US-058), the Fallidas retry affordance. Runs after US-075; US-077 (worker alert surface) is sequenced after this story; US-076 may run in parallel with it subject to the file-boundary review.
 - Vertical delivery: worker selection/claim, dispatch, failure/retry, finalization call, exceptions surface, verification with contract-backed connector fixtures (success, failure, already-removed, race), review, integration. No migration expected.
+
+- CHG-113 / DEC-SMP-065/066: R2; no further R1 work.

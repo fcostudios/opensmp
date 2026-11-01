@@ -34,19 +34,19 @@ Ledger's UI is a role-scoped workspace over one register: requesters submit and 
 | 3 | SCR-new-request | /solicitudes/nueva | employee, approver, group_admin | tpl.form-single | J1 S1 | R1 |
 | 4 | SCR-request-detail | /solicitudes/:requestId | employee, approver, group_admin | tpl.workspace-record | J1 S1–S4, J2 | R1 |
 | 5 | SCR-approval-queue | /aprobaciones | approver, group_admin | tpl.queue | J1 S2 | R1 |
-| 6 | SCR-reclamation-proposals | /reclamaciones | approver, group_admin | tpl.queue | J2 | R1 |
-| 7 | SCR-admin-dashboard | /panel | group_admin | tpl.workspace-list | Module F, J4 | R1 |
+| 6 | SCR-reclamation-proposals | /reclamaciones | approver, group_admin | tpl.queue | J2 | R2 |
+| 7 | SCR-admin-dashboard | /panel | group_admin | tpl.workspace-list | Module F, J4 | R2 |
 | 8 | SCR-exceptions | /excepciones | group_admin | tpl.workspace-list | J4 | R1 |
 | 9 | SCR-pools | /cupos | group_admin | tpl.workspace-list | Module C, J4 | R1 |
 | 10 | SCR-vendor-accounts | /organizaciones | group_admin | tpl.workspace-list | D1/Module C | R1 |
 | 11 | SCR-vendor-account-detail | /organizaciones/:vendorAccountId | group_admin | tpl.workspace-record | Module C/H | R1 |
-| 12 | SCR-credentials | /credenciales | group_admin | tpl.workspace-list | Module H, J4 | R1 |
-| 13 | SCR-companies | /companias | group_admin | tpl.workspace-list | Module A | R1 |
-| 14 | SCR-company-detail | /companias/:companyId | group_admin, approver, company_finance, viewer (scoped: own company; admin tabs group_admin-only) | tpl.workspace-record | Module A/F | R1 |
+| 12 | SCR-credentials | /credenciales | group_admin | tpl.workspace-list | Module H, J4 | R2 |
+| 13 | SCR-companies | /companias | group_admin | tpl.workspace-list | Module A | R2 |
+| 14 | SCR-company-detail | /companias/:companyId | group_admin, approver, company_finance, viewer (scoped: own company; admin tabs group_admin-only) | tpl.workspace-record | Module A/F | R2 |
 | 15 | SCR-people | /personas | group_admin | tpl.workspace-list | Module A | R1 |
 | 16 | SCR-person-detail | /personas/:personId | group_admin | tpl.workspace-record | Module A/D | R1 |
 | 17 | SCR-register | /registro | group_admin, central_finance | tpl.workspace-list | Module E | R1 |
-| 18 | SCR-usage | /uso | group_admin | tpl.workspace-list | Module D | R1 |
+| 18 | SCR-usage | /uso | group_admin | tpl.workspace-list | Module D | R2 |
 | 19 | SCR-alerts | /alertas | group_admin | tpl.workspace-list | Module G | R1 |
 | 20 | SCR-audit | /auditoria | group_admin | tpl.workspace-list | Module H | R1 |
 | 21 | SCR-users-roles | /usuarios | group_admin | tpl.workspace-list | Module H | R1 |
@@ -55,12 +55,12 @@ Ledger's UI is a role-scoped workspace over one register: requesters submit and 
 | 24 | SCR-close | /cierre | central_finance, group_admin | tpl.close-workbench | J3 | R1 |
 | 25 | SCR-reconciliation | /conciliacion | central_finance, group_admin | tpl.close-workbench | J3 | R1 |
 | 26 | SCR-rates | /tarifas | central_finance, group_admin | tpl.workspace-list | Module E | R1 |
-| 27 | SCR-settings | /configuracion | group_admin | tpl.form-single | Modules C/G | R1 |
+| 27 | SCR-settings | /configuracion | group_admin | tpl.form-single | Modules C/G | R2 |
 | 28 | SCR-access-denied | /acceso-denegado | public | info | — | R1 |
 
 ### SEC05 — Detailed Screen Specs (Narrative briefs — the TOON authoring contract)
 
-Conventions for all screens: breadcrumb + condensed display title + gray metadata line; StatusPill via the 12-chip es/en vocabulary; FreshnessLabel on every synced figure; money in mono right-aligned (`USD 27,10`); one orange primary per view; es-EC tú microcopy from the brand lock; `meta.release: "R1"`; roles as listed in SEC04.
+Conventions for all screens: breadcrumb + condensed display title + gray metadata line; StatusPill via the 12-chip es/en vocabulary; FreshnessLabel on every synced figure; money in mono right-aligned (`USD 27,10`); one orange primary per view; es-EC tú microcopy from the brand lock; `meta.release` follows SEC04; roles as listed there.
 
 #### SCR-login
 Sections: hero (building photo + dark veil, corporativo. logo, "EL REGISTRO DE LICENCIAS DEL GRUPO"), form (email, password, TOTP code when required), info-banner (2FA obligatorio para roles administrativos). Action: `server_action:login` → navigate_to SCR role landing. Data: UserAccount(email, password, totp).
@@ -166,3 +166,7 @@ See `v1/07c_navigation_map.json` (HR-30/31): routes, params, navigation graph (M
 - Every J1–J4 stage from `03_journeys` maps to ≥1 screen (SEC03); every §10 state is visible via StatusPill on SCR-my-requests / SCR-request-detail / SCR-approval-queue / SCR-exceptions.
 - Every PRD P0 module has a surface: A → companies/people/company-detail; B → new-request/approval-queue/request-detail; C → pools/vendor-accounts/exceptions/settings; D → usage/reclamation-proposals; E → register/statements/statement-detail/close/reconciliation/rates; F → admin-dashboard + scoped views; G → alerts/settings; H → login/credentials/users-roles/audit; I → vendor-accounts (capability fields visible), vendor-neutral labels everywhere.
 - All 22 ER entities are surfaced except pure-plumbing rows (CostRecord appears inside statement usage lines and close math; Vendor appears within vendor-accounts screens) — the coherence review validates both directions.
+
+## R1′ screen overlay — CHG-113 / DEC-SMP-066
+
+Cut screens remain routed and carry R2 in SEC04, navigation routes and TOON meta. Built surfaces are frozen. SCR-register adds US-095 manual entry/close; SCR-vendor-account-detail adds US-097 read-only member-list comparison with corrections via the register (no automated drift and no usage import in R1). SCR-statements and SCR-close add US-096 list and totals; close and statement evidence are license-only. S1 CSV is available without the S2 detail page or S3 PDF. Five pilot companies replace 30 as the acceptance baseline. Company Finance self-service uses statement routes; company record CRUD is R2.

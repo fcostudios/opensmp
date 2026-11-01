@@ -1,6 +1,6 @@
 # US-090: Verify provisions atomically from every accepted member observation
 
-> **Sprint 3** | **P0** | **1 SP** | **R1**
+> **Sprint 3** | **P0** | **1 SP** | **R2**
 
 ## User Story
 
@@ -15,7 +15,7 @@ As a Group Admin (persona_01), I want accepted membership evidence to verify my 
 | Sprint | Sprint 3 |
 | Priority | P0 |
 | Size | 1 SP |
-| Release | R1 |
+| Release | R2 |
 | Domain | r1_mvp |
 | Journey | J4 |
 | Screens | (packages, jobs) |
@@ -38,3 +38,5 @@ As a Group Admin (persona_01), I want accepted membership evidence to verify my 
 - P4(a) integration hold: isolated implementation is allowed after this child's approved readiness, but it must not integrate to main until CHG-093 integrates or is formally closed. Rebase onto the post-CHG-093 lifecycle.ts and orchestration.ts; account honestly for reconciliation/reproof and reassess before exceeding the approved estimate or320-minute hard cap. This note is an integration constraint, not a CHG-valued Blocked By row.
 - Reuse US-020 confirmed-checklist revalidation and US-066 sent-invite activation semantics without a rewrite. Checklist observations are strictly newer than action resolved_at; the delivered actionId/observationId replay key and IDEMPOTENCY_CONFLICT guard remain. Leave the standalone US-066 poll in place; retire neither polling nor encrypted checkpoints in this scope.
 - BR-24 remains non-critical per CHG-086. Existing TESTING.md §3 isolation, authorization, legal-transition and entity rows cover this scope; no new guide/config/pin delivery. Normal changed-source effectiveness threshold and individual survivor review remain mandatory. US-081 owns watermark implementation; this child writes no watermark/schema and does not deliver the hourly worker.
+
+- CHG-113 / DEC-SMP-065/066: R2; no further R1 work.

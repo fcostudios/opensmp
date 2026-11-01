@@ -1,6 +1,6 @@
 # US-035: Statement finalization
 
-> **Sprint 4** | **P0** | **2 SP** | **R1**
+> **Sprint 3** | **P0** | **2 SP** | **R1**
 
 ## User Story
 
@@ -12,7 +12,7 @@ As a Central Finance (persona_04), I want to flip drafts to immutable finals so 
 |-------|-------|
 | Story ID | US-035 |
 | Feature | FEAT-027 |
-| Sprint | Sprint 4 |
+| Sprint | Sprint 3 |
 | Priority | P0 |
 | Size | 2 SP |
 | Release | R1 |
@@ -22,7 +22,9 @@ As a Central Finance (persona_04), I want to flip drafts to immutable finals so 
 | Server Actions | finalizeStatements, finalizeStatement |
 | Entities | Statement (U status) |
 | Business Rules | BR-18 |
-| Blocked By | US-050 |
+| Blocked By | US-034 |
+
+| Slice | S2 |
 
 ## Acceptance Criteria
 
@@ -33,4 +35,5 @@ As a Central Finance (persona_04), I want to flip drafts to immutable finals so 
 ## Notes
 
 - ACs are copied verbatim from `08_scope.md` (generated 10b pass, 2026-07-22) — the scope is the single source; edit there and regenerate.
-- Sprint 4 milestone: Money core (rates + close engine + license lines + statement template) THEN money complete (usage lines, finalization, exports, reconciliation, rollup) + company CRUD, credentials store, runbooks/restore drill, production deploy. MVP COMPLETE.
+
+- CHG-113 / DEC-SMP-065/066: slice S2; license-only manual path. Production acceptance belongs to finance users and the IT Director.

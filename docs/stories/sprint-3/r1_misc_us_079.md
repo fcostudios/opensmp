@@ -1,6 +1,6 @@
 # US-079: Claim a drift member retroactively with audit
 
-> **Sprint 3** | **P0** | **1 SP** | **R1**
+> **Sprint 3** | **P0** | **1 SP** | **R2**
 
 ## User Story
 
@@ -15,7 +15,7 @@ As a Group Admin (persona_01), I want to assign an observed console member to a 
 | Sprint | Sprint 3 |
 | Priority | P0 |
 | Size | 1 SP |
-| Release | R1 |
+| Release | R2 |
 | Domain | r1_mvp |
 | Journey | J4 |
 | Screens | SCR-exceptions |
@@ -38,3 +38,5 @@ As a Group Admin (persona_01), I want to assign an observed console member to a 
 - **CHG-077 (2026-10-11):** the episode this claim resolves was opened from an accepted `MemberObservation` (US-083); a member with an identity/license warning has no episode and cannot be claimed (DEC-SMP-045).
 - The ER model already specifies the system-materialized request shape (LicenseRequest lifecycle) and the mandatory note (BR-24, `AuditLog.note`); this child wires them behind the production action and adds the retroactive-date, replay and race rules. Runtime grants ship here only if missing.
 - Vertical delivery: shared input/result contracts, production action wiring, authorization/audit, real-DB verification of atomicity, rollback, replay and races, locales, review, integration.
+
+- CHG-113 / DEC-SMP-065/066: R2; no further R1 work.

@@ -24,6 +24,8 @@ As a Company Finance (persona_03), I want to receive a document that looks offic
 | Business Rules | BR-19 |
 | Blocked By | US-003 |
 
+| Slice | S3 |
+
 ## Acceptance Criteria
 
 - [ ] AC1: PDF layout: corporativo. lockup, Barlow, condensed uppercase header, mono numerals, es/en variants
@@ -33,4 +35,5 @@ As a Company Finance (persona_03), I want to receive a document that looks offic
 ## Notes
 
 - ACs are copied verbatim from `08_scope.md` (generated 10b pass, 2026-07-22) — the scope is the single source; edit there and regenerate.
-- Sprint 4 milestone: Money core (rates + close engine + license lines + statement template) THEN money complete (usage lines, finalization, exports, reconciliation, rollup) + company CRUD, credentials store, runbooks/restore drill, production deploy. MVP COMPLETE.
+
+- CHG-113 / DEC-SMP-065/066: slice S3; license-only manual path. Production acceptance belongs to finance users and the IT Director.

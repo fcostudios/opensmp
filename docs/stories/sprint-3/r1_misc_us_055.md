@@ -1,6 +1,6 @@
 # US-055: API-less ingestion: member/usage CSV import + manual register upkeep
 
-> **Sprint 3** | **P1** | **3 SP** | **R1**
+> **Sprint 3** | **P1** | **3 SP** | **R2**
 
 ## User Story
 
@@ -15,7 +15,7 @@ As a Group Admin (persona_01), I want to keep the register and usage data true f
 | Sprint | Sprint 3 |
 | Priority | P1 |
 | Size | 3 SP |
-| Release | R1 |
+| Release | R2 |
 | Domain | r1_mvp |
 | Journey | J4 |
 | Screens | SCR-vendor-account-detail |
@@ -41,3 +41,5 @@ As a Group Admin (persona_01), I want to keep the register and usage data true f
 - **CHG-075 (2026-10-11):** the US-030 diff this story's AC1 runs is the shared complete-snapshot entrypoint delivered by **US-078** (packages, source-aware, no UI dependency); this story wires `importMembersCsv` to it on every successful import for csv_import/manual accounts and keeps its own integrated import proof — it implements no second drift algorithm, and drift episodes, `register_drift` alerts and the Deriva tab are US-078's. Unknown members in an import become DriftEpisode rows; the claim stays with US-079 (DEC-SMP-034, DEC-SMP-035).
 - **CHG-077 (2026-10-11):** the member CSV is parsed into US-088's normalized member record (provider ref when the export carries one, nullable e-mail, invited vs member, seat evidence per the vendor's declared capability, license via `LicenseType.provider_ref` or the account's `default_license_type_id`) and submitted through `acceptMemberObservation(source = csv_import, observed_at = export timestamp supplied by the admin, default upload time)` — stale/conflict rules apply (DEC-SMP-044) — before US-078's diff runs. **AC4's Configuración form also carries `VendorAccount.default_license_type_id`**, required before `api` is enabled for a vendor declaring no per-member license identity (DEC-SMP-043); that field is this story's only scope addition from CHG-077.
 - **CHG-076 / DEC-SMP-041:** a successful complete `importMembersCsv` also stamps the account's capacity-refresh watermark through US-081's `recordAcceptedMemberSnapshot` (`source = csv_import`); a single manual register entry (AC3) never stamps it — the explicit "Confirmar cupos actuales" refresh is US-081's.
+
+- CHG-113 / DEC-SMP-065/066: R2; no further R1 work. AC3 is replaced in R1 by US-095; the minimal AC1 comparison by US-097; AC2 usage CSV and residual automated ingestion/configuration stay R2.

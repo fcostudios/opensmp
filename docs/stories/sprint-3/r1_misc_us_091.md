@@ -1,6 +1,6 @@
 # US-091: Observe API membership on the real hourly worker
 
-> **Sprint 3** | **P0** | **1 SP** | **R1**
+> **Sprint 3** | **P0** | **1 SP** | **R2**
 
 ## User Story
 
@@ -15,7 +15,7 @@ As a Group Admin (persona_01), I want Ledger to observe API-connected org member
 | Sprint | Sprint 3 |
 | Priority | P0 |
 | Size | 1 SP |
-| Release | R1 |
+| Release | R2 |
 | Domain | r1_mvp |
 | Journey | J4 |
 | Screens | (packages, jobs) |
@@ -40,3 +40,5 @@ As a Group Admin (persona_01), I want Ledger to observe API-connected org member
 - P4(a) integration hold inherited from the shared verification delivery: no integration that invalidates CHG-093 before it integrates/formally closes. Carry source reconciliation and evidence identity into readiness. BR-24 stays non-critical per CHG-086; normal own cold effectiveness proof applies.
 
 - **CHG-099 / DEC-SMP-048 (2026-10-15), approved AC5 B obligation:** US-093 is the accepted-episode/real-alert/Deriva outcome of the US-078 partition. Whichever of US-093 and US-091 integrates second owns the actual production hourly wiring and end-to-end episode/alert equivalence demo. Record this named conditional obligation in current readiness and parent verification; inventory/budget any worker-composition/test changes before execution, never hide extra paths/effort or use synthetic/borrowed evidence. No unconditional circular dependency is added. US-090 Blocked By, actual shared-verification completion, all US-091 ACs, US-081 watermark debt, existing owner and P4(a) main hold are unchanged. This Notes amendment supplies no implementation-readiness approval or candidate-only dependency exception.
+
+- CHG-113 / DEC-SMP-065/066: R2; no further R1 work.

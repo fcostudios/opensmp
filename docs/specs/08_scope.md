@@ -2,7 +2,12 @@
 
 **Step:** 8 — Scope · **Date:** 2026-07-22 · **Report language:** en-US
 **Inputs:** `07b_features_backlog.md` (46 R1 FEATs) · `07_screens.md` + 28 TOONs (46 server actions) · `04_er_model.md` (26 entities) · `03_cx_journeys.md` (J1–J4 + SLAs) · `02_cx_personas.md` · PRD §11 ACs · `extracts/_step8_coherence_pack.json`
-**Release:** all stories R1 unless noted. R2 features (FEAT-R2-01..12) get NO stories here.
+**Release:** per-story R1/R2 below; CHG-113 and 10_plan.md define the current R1′ scope. Original FEAT-R2-01..12 remain R2.
+
+
+## R1′ overlay — CHG-113 / DEC-SMP-065/066
+
+10_plan.md S0–S4 replaces the historical R1 sequence below for new work (43 SP). Built story blocks and files are frozen unchanged. US-094..097 are the four new R1 stories. R2 release rows below control cut scope; US-055's manual entry and minimal member comparison are replaced by US-095/097, and its usage CSV remains R2. The historic coverage matrices below describe the pre-rescope inventory, not additional R1 commitments.
 
 ### SEC1 — Summary
 
@@ -163,11 +168,12 @@
 - **AC2**: SCR-company-detail tabs; admin tabs (Roles/Configuración) gated group_admin; company roles see their own company read-scoped (Module F P0)
 - **AC3**: Deactivating a company blocks new requests but preserves history
 - **Prerequisites**: US-005
-- **Feature**: FEAT-001, FEAT-033 | **Journey**: — | **Release**: R1
+- **Feature**: FEAT-001, FEAT-033 | **Journey**: — | **Release**: R2
 - **Screens**: SCR-companies, SCR-company-detail
 - **Server actions**: createCompany, updateCompany
 - **Entities (CRUD)**: Company (CRU)
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: R2; no further R1 work.
 ### US-010 — Person records + edit + auto-create on request
 - **As**: Group Admin (persona_01) | **Want to**: keep people accurate (email is the vendor identity key) | **So that**: requests and matching never break on identity
 - **AC1**: Create person; edit full_name/email/company/status ('Salió del grupo') via modal with company-move warning (closes register rows, fast-track re-request)
@@ -360,12 +366,13 @@
 - **AC3**: Departure flow can set Person.status='Salió del grupo' — by explicit admin confirmation, unchecked by default (DEC-SMP-032)
 - **AC4**: Offboardings with end_reason=left_company still not deprovisioned at end of the same business day raise `deprovision_overdue` (15-min alert-eval, business-day calendar, subject_ref=request) — BR-14, DEC-SMP-029/030/033
 - **Prerequisites**: US-019, US-020
-- **Feature**: FEAT-018 | **Journey**: J2 | **Release**: R1
+- **Feature**: FEAT-018 | **Journey**: J2 | **Release**: R2
 - **Screens**: SCR-person-detail, SCR-request-detail
 - **Server actions**: startOffboarding
 - **Entities (CRUD)**: LicenseAssignment (U close), ProvisioningAction (C), Person (U), VendorAccount (U refresh watermark)
 - **Children (CHG-074 + CHG-076 + CHG-078 + CHG-083)**: US-075 = US-086 → US-087; US-087 → US-082; US-086 → US-076; (US-086, US-082) → US-077; US-081 → US-085; parent closes by verification
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: R2; no further R1 work.
 ### US-025 — Vendor accounts + capability descriptor
 - **As**: Group Admin (persona_01) | **Want to**: manage orgs, modes and connector capabilities | **So that**: the vendor-neutral core is operable (Module I)
 - **AC1**: CRUD VendorAccount (mode automated/orchestration, low_pool_floor, renewal); R1 vendor select = Anthropic (registry is FEAT-R2-01)
@@ -405,21 +412,23 @@
 - **AC2**: Dismissal suppresses re-proposal until a new inactivity window elapses
 - **AC3**: Decisions audit-logged; proposal state drives the pending queue + empty state
 - **Prerequisites**: US-027, US-024
-- **Feature**: FEAT-021 | **Journey**: J2 | **Release**: R1
+- **Feature**: FEAT-021 | **Journey**: J2 | **Release**: R2
 - **Screens**: SCR-reclamation-proposals
 - **Server actions**: approveReclamation, dismissReclamation
 - **Entities (CRUD)**: ReclamationProposal (U), LicenseRequest (U)
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: R2; no further R1 work.
 ### US-029 — Freshness labels + staleness alert
 - **As**: Central Finance (persona_04) | **Want to**: know how fresh every synced figure is | **So that**: no silent staleness (Module D)
 - **AC1**: FreshnessLabel bound to synced_at on usage/cost figures across screens ('datos al 19-jul')
 - **AC2**: Sync >48h behind → sync_stale alert + attention styling
 - **AC3**: Staleness surfacing is read-only and distinguishes cause: 'sin datos' vs 'credencial con fallo de autenticación', reading IntegrationCredential.health maintained by US-031 (FEAT-024)
 - **Prerequisites**: US-026, US-042
-- **Feature**: FEAT-022 | **Journey**: J4 | **Release**: R1
+- **Feature**: FEAT-022 | **Journey**: J4 | **Release**: R2
 - **Screens**: all usage/statement screens
 - **Entities (CRUD)**: AlertEvent (C)
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: R2; no further R1 work.
 ### US-030 — Drift detection + retroactive claim
 - **As**: Group Admin (persona_01) | **Want to**: catch console bypass within an hour | **So that**: the register stays the truth (J4)
 - **AC1**: Hourly member sync diffs console vs register (ingestion_mode=api orgs); for csv_import/manual orgs the SAME diff runs on every `importMembersCsv` (US-055) — unknown members → register_drift alert + Deriva tab entry either way. The snapshot is an accepted `MemberObservation` carrying provider identity, membership status and license evidence (DEC-SMP-043/044); warned members are excluded (DEC-SMP-045). Unknown = active licensed console member of a validated complete snapshot with no open LicenseAssignment for the same normalized identity/account/license type; invitations are not seats; persisted as one open DriftEpisode per identity (DEC-SMP-034, DEC-SMP-035); `register_drift` is about member episodes, never financial variance (DEC-SMP-038). *Owner: US-078.*
@@ -427,22 +436,24 @@
 - **AC3**: Drift metric on dashboard trends to zero (PRD §17): current = unresolved distinct episodes, trend = end-of-day counts over the trailing 30 completed America/Guayaquil dates derived from episode lifetimes (DEC-SMP-037). *Owner: US-080.*
 - **Prerequisites**: US-056, US-057, US-058, US-046, US-042
 - **Children (CHG-075 + CHG-077 + CHG-086)**: US-083 = US-088 → US-089; US-089 → (US-084 ∥ US-078, file-boundary review; else US-084 first) → US-079 → US-080; parent AC1 owned collectively by US-083 + US-084 + US-078; parent closes by verification
-- **Feature**: FEAT-023 | **Journey**: J4 | **Release**: R1
+- **Feature**: FEAT-023 | **Journey**: J4 | **Release**: R2
 - **Screens**: SCR-exceptions
 - **Server actions**: claimDriftMember
 - **Entities (CRUD)**: MemberObservation (C), DriftEpisode (CU), LicenseAssignment (C), LicenseRequest (C system), AlertEvent (C)
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: R2; no further R1 work.
 ### US-031 — Credential management + rotation
 - **As**: Group Admin (persona_01) | **Want to**: rotate keys without downtime | **So that**: Module H secrets rules hold
 - **AC1**: Credentials envelope-encrypted at rest; UI masks to last4; scopes displayed
 - **AC2**: `rotateCredential` creates new row + retires old (note required); `verifyCredential` health-checks on demand and distinguishes auth_failed from empty-data (FEAT-024 semantics)
 - **AC3**: credential_failure alert on auth failures from any job
 - **Prerequisites**: US-005
-- **Feature**: FEAT-037, FEAT-024 | **Journey**: J4 | **Release**: R1
+- **Feature**: FEAT-037, FEAT-024 | **Journey**: J4 | **Release**: R2
 - **Screens**: SCR-credentials, SCR-vendor-account-detail
 - **Server actions**: rotateCredential, verifyCredential
 - **Entities (CRUD)**: IntegrationCredential (CRU)
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: R2; no further R1 work.
 ### US-032 — Effective-dated rate cards
 - **As**: Central Finance (persona_04) | **Want to**: maintain contracted rates that reprice cleanly | **So that**: close math is deterministic (Module E)
 - **AC1**: `saveRateCard` adds effective-dated rows per (org, license type); overlapping periods rejected
@@ -454,6 +465,9 @@
 - **Server actions**: saveRateCard
 - **Entities (CRUD)**: RateCard (CR)
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: slice S1; license-only manual path. Production acceptance belongs to finance users and the IT Director.
+- **Gated By**: OQ-SMP-4 (soft: contracted seat rate; owner=Central Finance)
+- **Manual Fallback**: Manual register entry and a provisional rate; provisional evidence enables development and rehearsal, but never passes the real-data run or H2 reconciliation acceptance.
 ### US-033 — The register surface + export
 - **As**: Central Finance (persona_04) | **Want to**: inspect and export the attribution truth | **So that**: disputes become lookups (Module E)
 - **AC1**: SCR-register: filters, open/closed rows, end_reason chips, source links (request_no), note for import/reconciliation rows
@@ -476,38 +490,42 @@
 - **Server actions**: runClose
 - **Entities (CRUD)**: CloseRun (CU), Statement (C), StatementLine (C)
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: slice S1; license-only manual path. Production acceptance belongs to finance users and the IT Director.
 ### US-035 — Statement finalization
 - **As**: Central Finance (persona_04) | **Want to**: flip drafts to immutable finals | **So that**: downstream reconciliation has a stable base (J3)
 - **AC1**: `finalizeStatements` (period) + `finalizeStatement` (single) with confirm; finals immutable (adjustments = new lines next draft)
 - **AC2**: Locks consumed RateCard rows; status chips update across screens
 - **AC3**: Only central_finance/group_admin may finalize
-- **Prerequisites**: US-050
+- **Prerequisites**: US-034
 - **Feature**: FEAT-027 | **Journey**: J3 | **Release**: R1
 - **Screens**: SCR-close, SCR-statement-detail
 - **Server actions**: finalizeStatements, finalizeStatement
 - **Entities (CRUD)**: Statement (U status)
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: slice S2; license-only manual path. Production acceptance belongs to finance users and the IT Director.
 ### US-036 — Statement detail + kind-aware evidence
 - **As**: Company Finance (persona_03) | **Want to**: verify every line to its evidence | **So that**: statements defend themselves (J3)
-- **AC1**: Lines table with kind badges, period_from/to, mono amounts, note column (mandatory on adjustments)
-- **AC2**: Kind-aware expander: license→register rows; usage→CostRecord table (freshness + revision caption), each row linking to a modal viewer for its stored raw API payload — completing statement→register→raw-payload (PRD §15 auditability); adjustment→note; register-row expander links back to statement lines (bidirectional with US-033)
+- **AC1**: License lines table with period_from/to, seat-days, rate, USD amounts and notes (mandatory on adjustments); usage lines are R2.
+- **AC2**: License-line expander traces to register assignment rows and dates; adjustment lines show notes. No CostRecord/raw API payload dependency in R1. Register-to-statement traceability reuses the built US-033 surface.
 - **AC3**: Scoped: company roles see own company only
-- **Prerequisites**: US-050
+- **Prerequisites**: US-034
 - **Feature**: FEAT-031, FEAT-033 | **Journey**: J3 | **Release**: R1
 - **Screens**: SCR-statement-detail
 - **Entities (CRUD)**: StatementLine (R), CostRecord (R)
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: slice S2; license-only manual path. Production acceptance belongs to finance users and the IT Director.
 ### US-037 — Statement exports (CSV/PDF, per-company language)
 - **As**: Company Finance (persona_03) | **Want to**: hand my finance team a defensible document | **So that**: statements travel (Module E)
-- **AC1**: `exportStatementCsv`/`Pdf` per statement; PDF in Company.statement_language (DEC-SMP-011) using the US-049 brand template
-- **AC2**: PDF footer: period, generated stamp, integrity note
+- **AC1**: S1: exportStatementCsv per draft/final statement from the statements list (US-096), scoped by company and using localized labels. S3: exportStatementPdf in Company.statement_language (DEC-SMP-011) using US-049 and US-036; the CSV half does not wait on PDF/detail.
+- **AC2**: S3 PDF footer: period, generated stamp and integrity note; PDF half depends on US-036 and US-049.
 - **AC3**: Exports audit-logged
-- **Prerequisites**: US-036, US-049
+- **Prerequisites**: US-034, US-096
 - **Feature**: FEAT-030 | **Journey**: J3 | **Release**: R1
 - **Screens**: SCR-statement-detail
 - **Server actions**: exportStatementCsv, exportStatementPdf
 - **Entities (CRUD)**: Statement (R)
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: slice S1; license-only manual path. Production acceptance belongs to finance users and the IT Director. 2 SP total: S1 CSV 1 SP; S3 PDF 1 SP. S3 PDF additionally waits on US-036 and US-049; keep whole-story verification pending until then.
 ### US-038 — Reconciliation workbench + variance lines
 - **As**: Central Finance (persona_04) | **Want to**: reconcile rollup vs invoice within 0.5% | **So that**: the month closes with evidence (J3)
 - **AC1**: Per-org cards: rollup vs `saveInvoiceAmount` input; variance auto-computed + tolerance coloring
@@ -520,17 +538,19 @@
 - **Server actions**: saveInvoiceAmount, overrideReconciliation
 - **Entities (CRUD)**: Reconciliation (CU), ReconciliationVarianceLine (C)
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: slice S2; license-only manual path. Production acceptance belongs to finance users and the IT Director.
 ### US-039 — Consolidated rollup + export
 - **As**: Central Finance (persona_04) | **Want to**: see and export the group total | **So that**: Module E P0 'statement AND rollup' is complete (J3)
-- **AC1**: Group-total tile on SCR-close (SUM Statement.total_usd for period)
-- **AC2**: `exportRollupCsv`/`Pdf`: consolidated rollup across all companies
+- **AC1**: Group-total tile on SCR-close reuses US-096 SUM Statement.total_usd for the selected period.
+- **AC2**: exportRollupCsv consolidates the five pilot company statements with company, period and USD totals. Consolidated PDF is R2.
 - **AC3**: Rollup ties to reconciliation totals (same period source)
-- **Prerequisites**: US-050
+- **Prerequisites**: US-034, US-096
 - **Feature**: FEAT-028, FEAT-030 | **Journey**: J3 | **Release**: R1
 - **Screens**: SCR-close
 - **Server actions**: exportRollupCsv, exportRollupPdf
 - **Entities (CRUD)**: Statement (R aggregate)
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: slice S2; license-only manual path. Production acceptance belongs to finance users and the IT Director.
 ### US-040 — Cross-company admin dashboard
 - **As**: Group Admin (persona_01) | **Want to**: see pools, states, inactivity and alerts at a glance | **So that**: exceptions-only operation works (J4)
 - **AC1**: Tiles: purchased/assigned/pending/free (cross-org), in-flight by state, inactive 30+, unacked alerts — each tile navigates
@@ -538,20 +558,22 @@
 - **AC3**: Numbers match their source screens (pool math, alert counts)
 - **AC4**: Perf fixture in CI (50 companies, ~1,000 people, 2 years of daily ActivityRecord/CostRecord rows); SCR-admin-dashboard server-renders < 3 s against it (PRD §15); fixture reused for SCR-pools/SCR-usage aggregates
 - **Prerequisites**: US-022, US-042
-- **Feature**: FEAT-032 | **Journey**: J4 | **Release**: R1
+- **Feature**: FEAT-032 | **Journey**: J4 | **Release**: R2
 - **Screens**: SCR-admin-dashboard
 - **Entities (CRUD)**: (aggregates R)
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: R2; no further R1 work.
 ### US-041 — Scoped per-company experience
 - **As**: Company Finance (persona_03) | **Want to**: see my company's complete world and nothing else | **So that**: scoping is the trust contract (Module F)
-- **AC1**: approver/company_finance/viewer reach SCR-company-detail scoped to their company (admin tabs hidden)
+- **AC1**: Company Finance, approver and viewer reach only their company statements and register evidence through SCR-statements / SCR-statement-detail; hide admin controls. Company CRUD and SCR-company-detail remain R2.
 - **AC2**: Isolation asserted: cross-company URL access → access-denied; exports scoped
 - **AC3**: Viewer role: read-only everywhere it has access
-- **Prerequisites**: US-009, US-005
+- **Prerequisites**: US-005, US-036, US-096
 - **Feature**: FEAT-033 | **Journey**: all | **Release**: R1
 - **Screens**: SCR-company-detail, SCR-statements, SCR-my-requests
 - **Entities (CRUD)**: (scoped reads)
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: slice S3; license-only manual path. Production acceptance belongs to finance users and the IT Director.
 ### US-042 — Alert engine: 10 P0 types
 - **As**: Group Admin (persona_01) | **Want to**: get email alerts for every failure class | **So that**: nothing fails silently (Module G)
 - **AC1**: AlertRule seed: approval_aging, provisioning_failure, blocked_no_seat, low_pool, invite_unaccepted, sync_stale, credential_failure, register_drift, deprovision_overdue, close_missed (enabled, thresholds)
@@ -579,11 +601,12 @@
 - **AC2**: `saveNotificationSettings`/`saveSystemSettings` persist SystemSetting keys (sender, escalation, default_language); every save audit-logged with before/after
 - **AC3**: Per-org floor override lives on VendorAccount (linked from settings)
 - **Prerequisites**: US-005
-- **Feature**: FEAT-044 | **Journey**: J4 | **Release**: R1
+- **Feature**: FEAT-044 | **Journey**: J4 | **Release**: R2
 - **Screens**: SCR-settings
 - **Server actions**: saveAlertRules, saveNotificationSettings, saveSystemSettings
 - **Entities (CRUD)**: AlertRule (U), SystemSetting (CU)
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: R2; no further R1 work.
 ### US-045 — Connector interface + orchestration routing
 - **As**: Group Admin (persona_01) | **Want to**: keep the core vendor-neutral | **So that**: vendor #2 is additive, never a rewrite (DEC-SMP-008)
 - **AC1**: Connector interface: capabilities() + provision/deprovision/syncMembers/syncActivity/syncCost; the Sprint 2 `none` connector routes unsupported provision/deprovision operations to the orchestration checklist (US-020). Unsupported sync operations remain explicit until the CSV/manual ingestion path lands in US-055; the orchestration milestone is independent of the API client (US-018).
@@ -614,16 +637,18 @@
 - **Screens**: (tests)
 - **Entities (CRUD)**: —
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: slice S4; license-only manual path. Production acceptance belongs to finance users and the IT Director.
 ### US-048 — Ops runbooks + backup/restore drill
 - **As**: Group Admin (persona_01) | **Want to**: operate the three critical procedures | **So that**: bus factor is mitigated (PRD §15/§18)
-- **AC1**: Runbooks: seat purchase (console + registerPurchase), credential rotation (ADR-13 KEK/DEK procedure), restore (incl. backup-key retrieval), Keycloak-outage break-glass (enable, use, verify alert + audit rows, confirm auto-disable)
+- **AC1**: Runbooks cover manual register upkeep, Docker/Compose-secret rotation per ADR-13, encrypted backup-key retrieval and restore, and Keycloak outage break-glass enable/use/auto-disable with audit and alert checks. No managed credentials UI dependency.
 - **AC2**: Nightly encrypted backup verified by an actual restore drill pre-go-live
-- **AC3**: Runbooks linked from the relevant screens (pools purchase modal, credentials)
-- **Prerequisites**: US-002, US-031
+- **AC3**: Runbooks are accessible from the deployed operations documentation; IT Director completes the recovery journey without needing SCR-credentials.
+- **Prerequisites**: US-002, US-053
 - **Feature**: (ops) | **Journey**: — | **Release**: R1
 - **Screens**: docs
 - **Entities (CRUD)**: —
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: slice S4; license-only manual path. Production acceptance belongs to finance users and the IT Director.
 ### US-049 — Statement PDF brand template
 - **As**: Company Finance (persona_03) | **Want to**: receive a document that looks official | **So that**: the brand carries into finance artifacts (DEC-SMP-005/012)
 - **AC1**: PDF layout: corporativo. lockup, Barlow, condensed uppercase header, mono numerals, es/en variants
@@ -635,41 +660,47 @@
 - **Entities (CRUD)**: Statement (R)
 
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: slice S3; license-only manual path. Production acceptance belongs to finance users and the IT Director.
 ### US-050 — Close usage lines from CostRecord via the register
 - **As**: Central Finance (persona_04) | **Want to**: charge metered usage to the right company | **So that**: usage-based components bill correctly (PRD A6, Module E)
 - **AC1**: Close adds kind=usage StatementLines from CostRecord mapped through register attribution (person→company at cost_date); amounts snapshot at close (30-day vendor revisions surface in Reconciliation, never mutate finals)
 - **AC2**: Companies with no usage get no usage lines; unmatched CostRecords surface as close warnings
 - **AC3**: Idempotent with US-034's recalc semantics (drafts only)
 - **Prerequisites**: US-034, US-026
-- **Feature**: FEAT-027 | **Journey**: J3 | **Release**: R1
+- **Feature**: FEAT-027 | **Journey**: J3 | **Release**: R2
 - **Screens**: SCR-statement-detail
 - **Entities (CRUD)**: StatementLine (C usage), CostRecord (R)
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: R2; no further R1 work.
 ### US-051 — Close schedule + workbench readouts
 - **As**: Central Finance (persona_04) | **Want to**: the close to run itself by business day 3 | **So that**: G3 holds without manual triggering
 - **AC1**: bd-3 schedule triggers runClose per period (business-day calendar); manual run still available
 - **AC2**: SCR-close tiles + 'última corrida … por … · duración' + <5 min NFR readout bind to latest CloseRun; run-in-progress state visible
 - **AC3**: Failed scheduled runs alert (provisioning_failure-class routing) and appear on the workbench
 - **AC4**: Alert-eval detects a MISSING CloseRun for the period past bd-3 and raises `close_missed`, independent of the close job itself (BR-27 watchdog)
-- **Prerequisites**: US-050, US-046
+- **Prerequisites**: US-034, US-046
 - **Feature**: FEAT-027 | **Journey**: J3 | **Release**: R1
 - **Screens**: SCR-close
 - **Entities (CRUD)**: CloseRun (R), AlertEvent (C)
 
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: slice S4; license-only manual path. Production acceptance belongs to finance users and the IT Director.
 ### US-052 — Execute the first parallel close on real data
 - **As**: Central Finance (persona_04) | **Want to**: run the first real monthly close beside the manual process | **So that**: go-live rests on a reconciled month (PRD §16 weeks 5–6)
-- **AC1**: Close runs for the most recently completed calendar month (calendar anchor per 10_plan SEC1) with contracted rates (OQ-SMP-4) against the US-007 backfill + US-026 synced data, in the production environment (US-053)
+- **AC1**: On production (US-053), run the most recently completed calendar month with the real contracted rate and US-094 register backfill, corrected through US-095. No US-026 analytics or US-050 usage dependency.
 - **AC2**: Per-company statements compared against the manual spreadsheet via the US-038 workbench; every variance triaged into ReconciliationVarianceLines or a bugfix under an existing story
-- **AC3**: Invoice amount entered; reconciliation reaches reconciled/overridden; G3 metric (statements bd-3) measured and recorded
-- **Prerequisites**: US-034, US-038, US-050, US-053
+- **AC3**: Enter the real invoice for that month; reconciliation reaches reconciled within 0.5%, or overridden with every variance explained. Record bd-3 timing and Company Finance acceptance for five pilots. An override is not a pass of H2; H2 remains pending/failed unless the real-invoice tolerance and finance acceptance hold.
+- **Prerequisites**: US-034, US-038, US-053, US-094
 - **Feature**: FEAT-027, FEAT-029 | **Journey**: J3 | **Release**: R1
 - **Screens**: SCR-close, SCR-reconciliation
 - **Entities (CRUD)**: CloseRun (C), Reconciliation (CU), ReconciliationVarianceLine (C)
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: slice S2; license-only manual path. Production acceptance belongs to finance users and the IT Director.
+- **Gated By**: OQ-SMP-1 (soft: real member export and pilot inventory; owner=Francisco), OQ-SMP-4 (soft: contracted rate and real vendor invoice; owner=Central Finance)
+- **Manual Fallback**: Manual register entry and a provisional rate; provisional evidence enables development and rehearsal, but never passes the real-data run or H2 reconciliation acceptance.
 ### US-053 — Production environment + first deploy
 - **As**: Group Admin (persona_01) | **Want to**: a running production stack | **So that**: the parallel close and go-live happen on real infrastructure (ADR-11)
-- **AC1**: VPS provisioned (GATE: hosting root, OQ-SMP-7); Caddy TLS + DNS; production Compose stack up (app/worker/postgres/keycloak/smtp-relay) with healthchecks
+- **AC1**: Deploy the production Docker Compose stack on the approved host with Caddy TLS/DNS and healthchecks; IT Director verifies login and runtime health (DEC-SMP-066). Use the actual app and declared infrastructure services; no separate backend service.
 - **AC2**: Production Keycloak realm imported; KEK + secrets placed per ADR-13; nightly backup job live
 - **AC3**: Deploy runbook documented; first deploy from CI verified
 - **Prerequisites**: US-002
@@ -677,15 +708,19 @@
 - **Screens**: n/a (infra)
 - **Entities (CRUD)**: —
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: slice S0; license-only manual path. Production acceptance belongs to finance users and the IT Director. Docker now; twelve-factor images/config keep the later Azure Container Apps move free of code changes. Azure is a separate change.
+- **Gated By**: OQ-SMP-7 (soft: Docker host DNS and deployment access; owner=IT Director)
+- **Manual Fallback**: IT Director deploys the documented Docker Compose stack manually on the approved host when CI credentials are unavailable; production access is still required for acceptance.
 ### US-054 — Anthropic API probe spike
 - **As**: Group Admin (persona_01) | **Want to**: probe the real APIs with real per-org keys in week 1 | **So that**: beta-API surprises reprice Sprint 3 before it starts
 - **AC1**: With the OQ-SMP-1 keys: invite dry-run/member-list/analytics/cost-report calls executed per org; payload shapes, rate-limit and beta-header behavior captured
 - **AC2**: Findings diffed against US-018 AC1 / US-026 assumptions; deltas filed as scope notes before Sprint 3 planning
 - **Prerequisites**: —
-- **Feature**: (risk spike) | **Journey**: — | **Release**: R1
+- **Feature**: (risk spike) | **Journey**: — | **Release**: R2
 - **Screens**: n/a
 - **Entities (CRUD)**: —
 
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: R2; no further R1 work.
 ### US-055 — API-less ingestion: member/usage CSV import + manual register upkeep
 - **As**: Group Admin (persona_01) | **Want to**: keep the register and usage data true for orgs without API access | **So that**: a Teams-plan (or any API-less) org is fully manageable — Ledger helps control the estate even when nothing can be automated (DEC-SMP-018)
 - **AC1**: `importMembersCsv` (SCR-vendor-account-detail) parses a Console member-list export and runs the US-030 diff: verifies checklist-confirmed provisions, opens/closes LicenseAssignment rows it evidences, flags unknown members as register_drift — identical states + audit as the API member sync
@@ -693,17 +728,19 @@
 - **AC3**: On ingestion_mode=manual orgs the admin can record/close a LicenseAssignment directly (source_kind=manual, note required) — DB-level register integrity (US-003) and audit (US-008) apply unchanged
 - **AC4**: Ingestion mode is configured per org on SCR-vendor-account-detail (Configuración); non-api orgs surface freshness from the last import/manual entry, and sync_stale alerting (US-029) keys on the same synced_at
 - **Prerequisites**: US-003, US-025, US-026, US-030
-- **Feature**: FEAT-046 | **Journey**: J4 | **Release**: R1
+- **Feature**: FEAT-046 | **Journey**: J4 | **Release**: R2
 - **Screens**: SCR-vendor-account-detail
 - **Server actions**: importMembersCsv, importUsageCsv
 - **Entities (CRUD)**: LicenseAssignment (CU), LicenseRequest (C system), ActivityRecord (CU), CostRecord (CU), VendorAccount (U ingestion_mode), AlertEvent (C)
+
+- **CHG-113**: CHG-113 / DEC-SMP-065/066: R2; no further R1 work. AC3 is replaced in R1 by US-095; the minimal AC1 comparison by US-097; AC2 usage CSV and residual automated ingestion/configuration stay R2.
 
 <!-- nous:generated:08-sec4:begin -->
 ### SEC4 — Feature → story coverage (computed)
 
 | Feature | Stories |
 |---|---|
-| FEAT-001 | US-007, US-009 |
+| FEAT-001 | US-007, US-009, US-094 |
 | FEAT-002 | US-010 |
 | FEAT-003 | US-005, US-047 |
 | FEAT-004 | US-012 |
@@ -727,10 +764,10 @@
 | FEAT-022 | US-029 |
 | FEAT-023 | US-030 |
 | FEAT-024 | US-029, US-031 |
-| FEAT-025 | US-003, US-033 |
+| FEAT-025 | US-003, US-033, US-094, US-095, US-097 |
 | FEAT-026 | US-032 |
-| FEAT-027 | US-034, US-035, US-050, US-051, US-052 |
-| FEAT-028 | US-038, US-039 |
+| FEAT-027 | US-034, US-035, US-050, US-051, US-052, US-096 |
+| FEAT-028 | US-038, US-039, US-096 |
 | FEAT-029 | US-038, US-052 |
 | FEAT-030 | US-037, US-039, US-049 |
 | FEAT-031 | US-033, US-036 |
@@ -748,7 +785,7 @@
 | FEAT-043 | US-006 |
 | FEAT-044 | US-044 |
 | FEAT-045 | US-013 |
-| FEAT-046 | US-055 |
+| FEAT-046 | US-055, US-095, US-097 |
 <!-- nous:generated:08-sec4:end -->
 
 <!-- nous:generated:08-sec5:begin -->
@@ -756,35 +793,35 @@
 
 | Entity | Operations covered (story) |
 |---|---|
-| Company | US-007:C; US-009:CRU |
-| Person | US-010:CRU; US-012:C-if-absent; US-024:U |
+| Company | US-007:C; US-009:CRU; US-094:C; US-096:R |
+| Person | US-010:CRU; US-012:C-if-absent; US-024:U; US-094:C; US-097:R |
 | UserAccount | US-004:R/U idp_subject; US-006:U ui_language; US-011:CRU |
 | CompanyRoleAssignment | US-005:R; US-011:CRD |
 | Vendor | US-007:C seed: Anthropic; US-025:R; US-045:R |
-| VendorAccount | US-007:C seed per org inventory OQ-SMP-1; US-056:R; US-057:R; US-058:R; US-024:U refresh watermark; US-025:CRU; US-055:U ingestion_mode |
+| VendorAccount | US-007:C seed per org inventory OQ-SMP-1; US-056:R; US-057:R; US-058:R; US-024:U refresh watermark; US-025:CRU; US-055:U ingestion_mode; US-097:R |
 | VendorAccountCapacity | US-007:C seed; US-022:R; US-023:C |
 | LicenseType | US-007:C seed: Claude tiers; US-025:R |
 | IntegrationCredential | US-007:C per org; US-056:R; US-031:CRU |
 | ConnectorCallObservation | US-018:C; US-057:C; US-058:C |
 | MemberObservation | US-030:C |
-| LicenseRequest | US-007:C system; US-012:C; US-013:R; US-014:U; US-015:U; US-019:U; US-023:U; US-027:U; US-028:U; US-030:C system; US-055:C system |
+| LicenseRequest | US-007:C system; US-012:C; US-013:R; US-014:U; US-015:U; US-019:U; US-023:U; US-027:U; US-028:U; US-030:C system; US-055:C system; US-095:C system |
 | RequestTransition | US-012:C; US-013:R; US-014:C; US-015:C |
-| LicenseAssignment | US-007:C; US-019:C; US-024:U close; US-030:C; US-033:R; US-055:CU |
+| LicenseAssignment | US-007:C; US-019:C; US-024:U close; US-030:C; US-033:R; US-055:CU; US-094:C; US-095:CU; US-097:R |
 | ProvisioningAction | US-018:R/link only; US-057:R/link only; US-058:R/link only; US-019:CU; US-020:U; US-021:U; US-024:C |
 | ReclamationProposal | US-027:C; US-028:U |
 | DriftEpisode | US-030:CU |
 | ActivityRecord | US-026:CU; US-055:CU |
 | CostRecord | US-026:CU; US-036:R; US-050:R; US-055:CU |
 | RateCard | US-032:CR |
-| Statement | US-034:C; US-035:U status; US-037:R; US-039:R aggregate; US-049:R |
+| Statement | US-034:C; US-035:U status; US-037:R; US-039:R aggregate; US-049:R; US-096:R |
 | StatementLine | US-034:C; US-036:R; US-050:C usage |
-| CloseRun | US-034:CU; US-051:R; US-052:C |
+| CloseRun | US-034:CU; US-051:R; US-052:C; US-096:R |
 | Reconciliation | US-038:CU; US-052:CU |
 | ReconciliationVarianceLine | US-038:C; US-052:C |
 | AlertRule | US-042:C seed/R; US-044:U |
 | AlertEvent | US-017:C; US-021:C; US-022:C; US-029:C; US-030:C; US-042:C; US-043:RU; US-051:C; US-055:C |
 | SystemSetting | US-003:C seed; US-016:R; US-044:CU |
-| AuditLog | US-008:C/R |
+| AuditLog | US-008:C/R; US-095:C; US-097:C |
 <!-- nous:generated:08-sec5:end -->
 
 <!-- nous:generated:08-sec6:begin -->
@@ -851,3 +888,56 @@ FEAT-R2-01..12 carry no R1 stories (PRD §12 fast-follow). LicenseType creation 
 - OQ-SMP-1 (org inventory) gates US-007 backfill + US-025 seeds; placeholders acceptable pre-Sprint 0.
 - OQ-SMP-4 (rates) gates US-032 values, not the story.
 - Duplicate action naming `addCapacity` vs `saveVendorAccountCapacity` vs `registerPurchase` (3 TOON entry points, one capacity-write path) — consolidate to ONE server action at Step 9 (US-023 note).
+
+### US-094 — Real-data pilot register run (child of US-007)
+- **As**: Group Admin | **Want to**: real-data pilot register run (child of us-007) | **So that**: the register-derived monthly bill is defensible
+- **AC1**: On production (US-053), run the existing US-007 companies CSV and register backfill for the most recently completed calendar month and five pilot companies. Record source month, account, company mapping and source evidence; require no API keys.
+- **AC2**: Central Finance checks the register CSV headcount per company against the real source spreadsheet/member export. Report every mismatch and resolve through audited manual entry (US-095); enforce existing register integrity and company isolation.
+- **AC3**: If the real inputs have not arrived, use manual register entry and a provisional rate to exercise the journey, label the evidence provisional, and leave this real-data acceptance pending. No synthetic or provisional run is evidence that H2 passed.
+- **AC4**: Central Finance, Company Finance and the IT Director inspect the production run evidence; human story verify follows only when the real-data headcounts are accepted. US-007 remains dev_done and unchanged.
+- **Prerequisites**: US-007, US-053, US-095
+- **Feature**: FEAT-001, FEAT-025 | **Journey**: J3 | **Release**: R1
+- **Screens**: SCR-register
+- **Server actions**: Existing US-007 seed/backfill and exportRegisterCsv
+- **Entities (CRUD)**: Company (C), Person (C), LicenseAssignment (C)
+- **Gated By**: OQ-SMP-1 (soft: real five-company inventory and member export; owner=Francisco), OQ-SMP-4 (soft: real contracted rate and last invoice for subsequent H2 acceptance; owner=Central Finance)
+- **Manual Fallback**: Manual register entry and a provisional rate; provisional evidence enables development and rehearsal, but never passes the real-data run or H2 reconciliation acceptance.
+
+### US-095 — Manual register entry
+- **As**: Group Admin | **Want to**: manual register entry | **So that**: the register-derived monthly bill is defensible
+- **AC1**: On SCR-register a Group Admin records an assignment for a server-authorized company, person, VendorAccount and LicenseType with an effective start date and mandatory note. Persist source_kind=manual and the existing system-request anchor convention; use existing register persistence and schema.
+- **AC2**: The admin closes a manual assignment with effective end date, existing end_reason and mandatory note. Existing DB exclusion and contiguity constraints reject invalid intervals; finalized statement periods cannot be rewritten.
+- **AC3**: Both operations authenticate with auth(), enforce company_id scoping, transact audit with the write, and reject an unauthorized company or cross-company identifiers without mutation. Central/Company Finance remain read-only for these writes.
+- **AC4**: The register and its CSV reflect the change with dates and provenance. Rejected writes leave no partial assignment, anchor or audit success. No member observation, capacity watermark, DriftEpisode or API call is produced.
+- **Prerequisites**: US-003, US-005, US-008, US-033
+- **Feature**: FEAT-025, FEAT-046 | **Journey**: J3 | **Release**: R1
+- **Screens**: SCR-register
+- **Server actions**: recordManualAssignment, closeManualAssignment
+- **Entities (CRUD)**: LicenseAssignment (CU), LicenseRequest (C system), AuditLog (C)
+
+### US-096 — Statements list and totals
+- **As**: Central Finance | **Want to**: statements list and totals | **So that**: the register-derived monthly bill is defensible
+- **AC1**: SCR-statements lists the five pilot companies for the selected period with company code, draft/final/reconciled status, opening seats, joiners/leavers with dates, seat-days, rate and USD total. Empty and failed-close states identify the period and latest CloseRun.
+- **AC2**: SCR-close shows generated count, draft/final counts and group total from the same CloseRun-stamped Statement rows. The total equals the sum of visible statement totals and refreshes after a draft rerun without duplicating rows.
+- **AC3**: Central Finance and Group Admin can filter across authorized companies; Company Finance sees only its authorized company on every read. Cross-company identifiers cannot disclose counts or amounts.
+- **AC4**: Each row exposes its statement identifier, the S1 CSV export (US-037), and the detail route delivered in S2 (US-036). This story requires no usage records, API sync, or S2 detail implementation to show drafts and export CSV.
+- **Prerequisites**: US-034
+- **Feature**: FEAT-027, FEAT-028 | **Journey**: J3 | **Release**: R1
+- **Screens**: SCR-statements, SCR-close
+- **Server actions**: Read-only statement list and period totals
+- **Entities (CRUD)**: Statement (R), Company (R), CloseRun (R)
+
+### US-097 — Member-list CSV reconciliation
+- **As**: Group Admin | **Want to**: member-list csv reconciliation | **So that**: the register-derived monthly bill is defensible
+- **AC1**: The admin uploads a console member-list CSV for a server-authorized VendorAccount and supplies its as-of date. Parse identity/account/license mappings using existing normalized identity conventions; preview invalid, duplicate and ambiguous records separately, without inferring a company for unknown members.
+- **AC2**: Compare active licensed members with open register assignments at the supplied as-of date: show members without assignments and assignments without members, with identity, account, license and evidence. Invitations do not count as active seats; ambiguous/warned identities never become actionable matches.
+- **AC3**: The diff is read-only. Each correction goes through US-095 with an explicit company, effective date and mandatory note; recomputing the same CSV against unchanged register data yields the same result. Never auto-provision, close assignments, invoke the US-030 diff, or create DriftEpisode rows or capacity watermarks.
+- **AC4**: Authenticate and authorize upload/reads by company_id and VendorAccount access; audit the comparison metadata and manual corrections, and reject cross-company identifiers. Malformed input reports row errors without changing register data.
+- **AC5**: Until the real export arrives, use manual register entry and a provisional rate with a manually transcribed member list to rehearse the comparison; label evidence provisional. The real CSV acceptance waits for the export, while monthly close remains usable.
+- **Prerequisites**: US-095, US-005, US-025, US-008
+- **Feature**: FEAT-046, FEAT-025 | **Journey**: J3 | **Release**: R1
+- **Screens**: SCR-vendor-account-detail, SCR-register
+- **Server actions**: previewMemberRegisterDiff
+- **Entities (CRUD)**: LicenseAssignment (R), Person (R), VendorAccount (R), AuditLog (C)
+- **Gated By**: OQ-SMP-1 (soft: real console member-list export; owner=Francisco)
+- **Manual Fallback**: Manual register entry and a provisional rate; provisional evidence enables development and rehearsal, but never passes the real-data run or H2 reconciliation acceptance.

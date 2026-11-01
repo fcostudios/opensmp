@@ -1,6 +1,6 @@
 # US-083: Accept complete member observations with authoritative identity and license evidence
 
-> **Sprint 3** | **P0** | **1 SP** | **R1**
+> **Sprint 3** | **P0** | **1 SP** | **R2**
 
 ## User Story
 
@@ -15,7 +15,7 @@ As a Group Admin (persona_01), I want every console membership observation Ledge
 | Sprint | Sprint 3 |
 | Priority | P0 |
 | Size | 1 SP |
-| Release | R1 |
+| Release | R2 |
 | Domain | r1_mvp |
 | Journey | J4 |
 | Screens | (packages) |
@@ -39,3 +39,5 @@ As a Group Admin (persona_01), I want every console membership observation Ledge
 - Canonical child of **US-030** (parent AC1 — the evidence foundation of the detection chain), minted by **CHG-077** on 2026-10-11 from the tenant's blocked US-078 readiness (`docs/readiness/US-078.json`, 540 min / 38 files / 2 boundaries against the 270-minute / 20-file ceiling; the connector exposed `{email, active}` only). Decisions DEC-SMP-043, DEC-SMP-044, DEC-SMP-045. First of the amended chain: **US-084** (hourly execution + confirmed-provision composition) and **US-078** (drift episodes, alerts, Deriva) consume it. Nous allocation target ≈ 220 min; the tenant re-assesses.
 - Scopes: connectors contract + Pact, db migration, packages acceptance pipeline. The operator-facing `default_license_type_id` field lives in US-055 AC4's Configuración (ingestion-mode configuration), not here. The capacity watermark stamp (`recordAcceptedMemberSnapshot`, US-081/DEC-SMP-041) is a consumer of the event: US-084 wires it for API observations once both are integrated.
 - Falsifiers that require repartition through Nous: a second provider, UI scope, or a file inventory above 20.
+
+- CHG-113 / DEC-SMP-065/066: R2; no further R1 work.

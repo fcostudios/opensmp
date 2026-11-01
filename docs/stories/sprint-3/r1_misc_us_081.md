@@ -1,6 +1,6 @@
 # US-081: Refresh free capacity only after an accepted member observation
 
-> **Sprint 3** | **P0** | **1 SP** | **R1**
+> **Sprint 3** | **P0** | **1 SP** | **R2**
 
 ## User Story
 
@@ -15,7 +15,7 @@ As a Group Admin (persona_01), I want freed seats to appear in the pool only onc
 | Sprint | Sprint 3 |
 | Priority | P0 |
 | Size | 1 SP |
-| Release | R1 |
+| Release | R2 |
 | Domain | r1_mvp |
 | Journey | J2 |
 | Screens | SCR-vendor-account-detail |
@@ -39,3 +39,5 @@ As a Group Admin (persona_01), I want freed seats to appear in the pool only onc
 - Canonical child of **US-024** (parent AC coverage: **AC2** "pool increments next sync, never optimistically at start" — shared with US-085), minted by **CHG-076** on 2026-10-11 and **refined by CHG-078** the same day after the tenant's screen-limit finding: the original story changed three screens against WORK_READINESS.md hard limit 4 (≤ 2 routes/screens). This story keeps the migration, the producer entrypoint, the projection and the one screen that carries production logic (manual refresh action + its display); **US-085** delivers the pools and dashboard consumers. Cross-cutting rationale: the former AC5 (three-screen display) is split by screen — vendor-account share here, pools/dashboard share in US-085 — and the former AC6 demo is split into this foundation/manual/source demo and US-085's overview demo; the shared projection contract (AC4) is delivered once, here, and consumed read-only by US-085. Decisions DEC-SMP-031, DEC-SMP-041. Nous allocation target ≈ 150 min; the tenant re-assesses independently rather than dividing the earlier 170 mechanically. Parallel-safe with US-075 per the tenant's file-boundary review (shared locales, feedback and generated guidance serialized at integration); US-075's finalization is read-only to this story.
 - Extends the US-022 projection (Free = capacity − open assignments − pending invites) with the watermark term; US-022 itself is not amended. US-084 (API producer) and US-055 (CSV producer) are annotated as callers of the entrypoint and receive no other scope; US-029 keeps the broader freshness labels and `sync_stale` alerting. The observation ledger itself is **US-083** (DEC-SMP-044); this watermark is its denormalized capacity view.
 - Vertical delivery: migration + grants, packages entrypoint + projection + shared read contract, manual refresh action with authorization/audit, one screen surface, locales, verification with injected clock (projection oracle over generated closure/observation histories, real-DB grants), review, integration.
+
+- CHG-113 / DEC-SMP-065/066: R2; no further R1 work.

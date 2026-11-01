@@ -24,6 +24,8 @@ As a Group Admin (persona_01), I want to prove scoping on every company-owned ta
 | Business Rules | BR-02, BR-18, BR-22 |
 | Blocked By | US-041, US-034 |
 
+| Slice | S4 |
+
 ## Acceptance Criteria
 
 - [ ] AC1: Automated tests: every company-owned entity query path rejects cross-company access per role
@@ -33,4 +35,5 @@ As a Group Admin (persona_01), I want to prove scoping on every company-owned ta
 ## Notes
 
 - ACs are copied verbatim from `08_scope.md` (generated 10b pass, 2026-07-22) — the scope is the single source; edit there and regenerate.
-- Sprint 5 milestone: Hardening + FIRST PARALLEL CLOSE (US-052, on production): dashboards/perf fixture, scoped views, isolation suite. Go-live gate.
+
+- CHG-113 / DEC-SMP-065/066: slice S4; license-only manual path. Production acceptance belongs to finance users and the IT Director.

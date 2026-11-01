@@ -1,6 +1,6 @@
 # US-051: Close schedule + workbench readouts
 
-> **Sprint 4** | **P0** | **2 SP** | **R1**
+> **Sprint 5** | **P0** | **2 SP** | **R1**
 
 ## User Story
 
@@ -12,7 +12,7 @@ As a Central Finance (persona_04), I want to the close to run itself by business
 |-------|-------|
 | Story ID | US-051 |
 | Feature | FEAT-027 |
-| Sprint | Sprint 4 |
+| Sprint | Sprint 5 |
 | Priority | P0 |
 | Size | 2 SP |
 | Release | R1 |
@@ -22,7 +22,9 @@ As a Central Finance (persona_04), I want to the close to run itself by business
 | Server Actions | — |
 | Entities | CloseRun (R), AlertEvent (C) |
 | Business Rules | BR-27 |
-| Blocked By | US-050, US-046 |
+| Blocked By | US-034, US-046 |
+
+| Slice | S4 |
 
 ## Acceptance Criteria
 
@@ -34,4 +36,5 @@ As a Central Finance (persona_04), I want to the close to run itself by business
 ## Notes
 
 - ACs are copied verbatim from `08_scope.md` (generated 10b pass, 2026-07-22) — the scope is the single source; edit there and regenerate.
-- Sprint 4 milestone: Money core (rates + close engine + license lines + statement template) THEN money complete (usage lines, finalization, exports, reconciliation, rollup) + company CRUD, credentials store, runbooks/restore drill, production deploy. MVP COMPLETE.
+
+- CHG-113 / DEC-SMP-065/066: slice S4; license-only manual path. Production acceptance belongs to finance users and the IT Director.

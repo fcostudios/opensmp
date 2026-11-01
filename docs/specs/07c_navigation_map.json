@@ -376,7 +376,7 @@
         "approver",
         "group_admin"
       ],
-      "release": "R1",
+      "release": "R2",
       "auth_required": true
     },
     {
@@ -385,7 +385,7 @@
       "roles": [
         "group_admin"
       ],
-      "release": "R1",
+      "release": "R2",
       "auth_required": true
     },
     {
@@ -437,7 +437,7 @@
       "roles": [
         "group_admin"
       ],
-      "release": "R1",
+      "release": "R2",
       "auth_required": true
     },
     {
@@ -446,7 +446,7 @@
       "roles": [
         "group_admin"
       ],
-      "release": "R1",
+      "release": "R2",
       "auth_required": true
     },
     {
@@ -458,7 +458,7 @@
         "company_finance",
         "viewer"
       ],
-      "release": "R1",
+      "release": "R2",
       "auth_required": true,
       "params": {
         "companyId": {
@@ -509,7 +509,7 @@
       "roles": [
         "group_admin"
       ],
-      "release": "R1",
+      "release": "R2",
       "auth_required": true
     },
     {
@@ -604,7 +604,7 @@
       "roles": [
         "group_admin"
       ],
-      "release": "R1",
+      "release": "R2",
       "auth_required": true
     },
     {

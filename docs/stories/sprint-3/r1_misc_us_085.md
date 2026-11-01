@@ -1,6 +1,6 @@
 # US-085: Show pending-refresh capacity on the pools and dashboard overview
 
-> **Sprint 3** | **P0** | **1 SP** | **R1**
+> **Sprint 3** | **P0** | **1 SP** | **R2**
 
 ## User Story
 
@@ -15,7 +15,7 @@ As a Group Admin (persona_01), I want the pools overview and my dashboard to tel
 | Sprint | Sprint 3 |
 | Priority | P0 |
 | Size | 1 SP |
-| Release | R1 |
+| Release | R2 |
 | Domain | r1_mvp |
 | Journey | J2 |
 | Screens | SCR-pools, SCR-admin-dashboard |
@@ -36,3 +36,5 @@ As a Group Admin (persona_01), I want the pools overview and my dashboard to tel
 - Canonical child of **US-024** (parent AC coverage: **AC2** "pool increments next sync" — the overview share, with US-081), minted by **CHG-078** on 2026-10-11 from the tenant's screen-limit finding on US-081 (three screens against WORK_READINESS.md hard limit 4). Cross-cutting rationale: US-081's former AC5 pools/dashboard share and the overview half of its former AC6 live here; the projection, the watermark, the producer entrypoint and the manual refresh stay in US-081 and are consumed read-only. Decisions DEC-SMP-031, DEC-SMP-041. Depends on US-081 (`Blocked By`). Nous allocation target ≈ 90 min; the tenant re-assesses independently.
 - Not frontend-only: each surface includes its production query, authorization and rendered-projection verification (the gauge and tile values are asserted against the projection oracle, not against fixture strings). US-022 (origin of the PoolGauge and tiles) is not amended.
 - Vertical delivery: two screen surfaces over the shared read contract, locales, verification, review, integration. No migration.
+
+- CHG-113 / DEC-SMP-065/066: R2; no further R1 work.

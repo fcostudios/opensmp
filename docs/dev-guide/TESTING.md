@@ -51,8 +51,8 @@ The **aggregate + projection layers should be the widest part of the suite**, no
 - **Tenant isolation** — every path that touches tenant-scoped data (filtered by `company_id`). → explicit isolation assertions (a query for tenant A must never return tenant B's rows).
 - **Authorization** — role/permission gates on commands/mutations. → integration tests for allowed vs forbidden (expect 403).
 - **Money / tax / financial math** (if present) — amounts, rounding, and idempotency of charge/ledger events. → property-based + a provider contract test.
-- **BR-01 — Register no-overlap (one seat, one holder, one period)** — critical business rule; oracle: `exact`. (stories: US-003)
-- **BR-02 — Every assigned seat-day belongs to exactly one company** — critical business rule; oracle: `exact`. (stories: US-003, US-034, US-047)
+- **BR-01 — Register no-overlap (one seat, one holder, one period)** — critical business rule; oracle: `exact`. (stories: US-003, US-094, US-095, US-097)
+- **BR-02 — Every assigned seat-day belongs to exactly one company** — critical business rule; oracle: `exact`. (stories: US-003, US-034, US-047, US-094, US-095, US-097)
 - **BR-03 — Audit log is append-only at the database level** — critical business rule; oracle: `exact`. (stories: US-003, US-008)
 - **BR-04 — Only legal state-machine transitions execute** — critical business rule; oracle: `exact`. (stories: US-014)
 - **BR-08 — Approval aging: reminder at 24 h, escalation at 48 h; decision target 2 business days** — critical business rule; oracle: `exact`. (stories: US-015, US-017, US-046)
@@ -60,9 +60,9 @@ The **aggregate + projection layers should be the widest part of the suite**, no
 - **BR-12 — Blocked requests are never dropped; review within 1 business day** — critical business rule; oracle: `exact`. (stories: US-023)
 - **BR-14 — Departure deprovisioning completes same business day** — critical business rule; oracle: `property`. (stories: US-024, US-042, US-075, US-077, US-082, US-086, US-087)
 - **BR-17 — Proration is daily actual/actual with exact mid-month boundaries** — critical business rule; oracle: `exact`. (stories: US-034)
-- **BR-18 — Close is deterministic and idempotent; finals are immutable** — critical business rule; oracle: `exact`. (stories: US-034, US-035, US-047, US-050)
+- **BR-18 — Close is deterministic and idempotent; finals are immutable** — critical business rule; oracle: `exact`. (stories: US-034, US-035, US-047, US-050, US-096)
 - **BR-20 — Reconciliation flips to reconciled ONLY within 0.5%** — critical business rule; oracle: `exact`. (stories: US-038)
-- **BR-22 — Company scoping is enforced server-side on every query** — critical business rule; oracle: `exact`. (stories: US-005, US-047)
+- **BR-22 — Company scoping is enforced server-side on every query** — critical business rule; oracle: `exact`. (stories: US-005, US-047, US-094, US-095, US-096, US-097)
 - **CompanyRoleAssignment** — auth-sensitive entity (name heuristic).
 - **IntegrationCredential** — auth-sensitive entity (name heuristic).
 - **MemberObservation** — auth-sensitive entity (name heuristic).
@@ -141,4 +141,4 @@ pnpm test:mutation  # ONE diff-scoped mutation campaign  ← the gate
 ## 8. Reference
 
 Full rationale + evidence base: `docs/TEST_EFFECTIVENESS_STANDARD.md`.
-<!-- nous-emitted: sha256=ca959bbd4cd13bce -->
+<!-- nous-emitted: sha256=26bf2aea0a2a9b0e -->

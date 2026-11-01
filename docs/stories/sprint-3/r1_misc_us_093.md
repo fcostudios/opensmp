@@ -1,6 +1,6 @@
 # US-093: Detect accepted member drift episodes and expose real alerts and Deriva
 
-> **Sprint 3** | **P0** | **1 SP** | **R1**
+> **Sprint 3** | **P0** | **1 SP** | **R2**
 
 ## User Story
 
@@ -15,7 +15,7 @@ As a Group Admin (persona_01), I want accepted membership observations to produc
 | Sprint | 3 |
 | Priority | P0 |
 | Size | 1 SP |
-| Release | R1 |
+| Release | R2 |
 | Domain | r1_mvp |
 | Journey | J4 |
 | Screens | SCR-exceptions |
@@ -43,3 +43,5 @@ As a Group Admin (persona_01), I want accepted membership observations to produc
 - DEC-SMP-048 exact real-hourly obligation is owed by whichever of this story and US-091 integrates second: production wiring and real end-to-end accepted API/CSV/manual equivalence, not a synthetic call. Record/budget actual worker/test paths in the owning current readiness, preserve all parentAC5 proof and no unowned debt. Parent verification cannot claim outstanding assigned proof complete.
 - DEC-SMP-049: CHG-100→CHG-101→CHG-102 establish closed attestation/single-source/additive authority. This story may not change executable verifier/tooling or existing contract expectations under functional scope. Only owned new table/data/migration under the separately delivered finite policy; no rawSQL/module data or CHG-088 exception expansion.
 - Already-settled U10: enabled global rules and matching vendor_account rules apply to open unassigned episodes; company rules never do, GroupAdmin-only visibility, existing escalation-setting delivery boundary, no company inferred from account/domain/Person. These are implementation/proof requirements, not new product approval questions.
+
+- CHG-113 / DEC-SMP-065/066: R2; no further R1 work.

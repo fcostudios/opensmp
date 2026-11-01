@@ -1,6 +1,6 @@
 # US-030: Drift detection + retroactive claim
 
-> **Sprint 3** | **P0** | **3 SP** | **R1**
+> **Sprint 3** | **P0** | **3 SP** | **R2**
 
 ## User Story
 
@@ -15,7 +15,7 @@ As a Group Admin (persona_01), I want to catch console bypass within an hour so 
 | Sprint | Sprint 3 |
 | Priority | P0 |
 | Size | 3 SP |
-| Release | R1 |
+| Release | R2 |
 | Domain | r1_mvp |
 | Journey | J4 |
 | Screens | SCR-exceptions |
@@ -36,3 +36,5 @@ As a Group Admin (persona_01), I want to catch console bypass within an hour so 
 - **CHG-077 (2026-10-11) — US-078 repartitioned** after the tenant's blocked readiness (540 min / 38 files / 2 boundaries; the connector exposed `{email, active}` only): **US-083** (lossless member contract + Pact, license mapping, `MemberObservation` ledger with replay/conflict rules, warnings; ≈220) → **US-084** (hourly API worker, confirmed-provision composition, watermark stamp; ≈200) ∥ **US-078** (drift diff, episodes, alerts, Deriva + warnings; ≈260; subject to file-boundary review, otherwise US-084 first) → US-079 → US-080. Parent AC1 is owned collectively by US-083 + US-084 + US-078. Rulings DEC-SMP-043 (observation contract + capability limits), DEC-SMP-044 (completeness, replay, ledger), DEC-SMP-045 (warnings excluded from episodes/claims), DEC-SMP-046 (confirmed-provision composition).
 - **Partitioned by CHG-075 (2026-10-11)** from the tenant's `partition_required` assessment (780 min bottom-up vs the 320-minute budget) into three canonical 1-SP children, sequential: **US-078** (AC1, proposal `detect-members`) → **US-079** (AC2, `claim-member`) → **US-080** (AC3, `drift-metric`). This parent closes by parent-level verification once the three are dev_done; it is not amended beyond the decision references above. Rulings: DEC-SMP-034 (unknown member), DEC-SMP-035 (episodes + alert dedupe), DEC-SMP-036 (claim authorization + note), DEC-SMP-037 (metric + window), DEC-SMP-038 (`register_drift` subject correction), DEC-SMP-039 (retroactive date + atomic claim).
 - Sprint 3 milestone: Automation + monitoring: connector live (interface from Sprint 2, capability semantics via US-025), invite≤15min, hygiene, reclamation, drift. Beta-API risk retired here (surprise-detection already pulled to the Sprint-1 probe). Connector jobs run on Compose-secret keys (ADR-13) until US-031 lands the managed credential store in Sprint 4.
+
+- CHG-113 / DEC-SMP-065/066: R2; no further R1 work.

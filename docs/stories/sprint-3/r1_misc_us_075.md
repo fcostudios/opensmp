@@ -1,6 +1,6 @@
 # US-075: Start anchored seat removal from both detail screens and finalize the register atomically
 
-> **Sprint 3** | **P0** | **1 SP** | **R1**
+> **Sprint 3** | **P0** | **1 SP** | **R2**
 
 ## User Story
 
@@ -15,7 +15,7 @@ As a Group Admin (persona_01), I want to remove seats same-business-day on depar
 | Sprint | Sprint 3 |
 | Priority | P0 |
 | Size | 1 SP |
-| Release | R1 |
+| Release | R2 |
 | Domain | r1_mvp |
 | Journey | J2 |
 | Screens | SCR-person-detail, SCR-request-detail |
@@ -37,3 +37,5 @@ As a Group Admin (persona_01), I want to remove seats same-business-day on depar
 - Canonical child of **US-024** (parent AC coverage: **AC1** entrypoint + checklist path, **AC2** register closure), minted by **CHG-074** on 2026-10-11 and **amended by CHG-076** the same day after the tenant's blocked readiness (`docs/readiness/US-075.json`, 440 min / 5 scopes / 25–32 files): connector execution moved to **US-082**, the capacity-refresh foundation to **US-081**, and `reallocated` removed from the accepted reasons. Decisions DEC-SMP-031, DEC-SMP-033, DEC-SMP-040, DEC-SMP-042. First child; no sibling dependency. Nous allocation target ≈ 210 min; the tenant re-assesses.
 - Owns the shared offboarding entrypoint and the finalization primitive that **US-082** (worker connector removal), **US-076** (departure confirmation), **US-077** (overdue alert) and **US-028** (approved reclamation → offboarding) reuse. Invitation-only removal and `invited → deprovisioned` stay with US-068/US-069. The `occurred_at` of the `offboarding → deprovisioned` transition is the closure instant the US-081 capacity projection compares against the account's refresh watermark (DEC-SMP-041).
 - Vertical delivery: contracts, production entrypoint on both detail screens, checklist extension, the primitive, authorization/audit, real-DB verification (atomic close + transition, unconfirmed/retry/concurrency), review, integration. No schema or migration expected (`ended_on`/`end_reason` UPDATE grants already exist); if one is needed it ships here, append-only, with fresh-database verification.
+
+- CHG-113 / DEC-SMP-065/066: R2; no further R1 work.

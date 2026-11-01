@@ -1,6 +1,6 @@
 # US-076: Confirm person departure through the offboarding flow
 
-> **Sprint 3** | **P0** | **1 SP** | **R1**
+> **Sprint 3** | **P0** | **1 SP** | **R2**
 
 ## User Story
 
@@ -15,7 +15,7 @@ As a Group Admin (persona_01), I want to mark a person as having left the group 
 | Sprint | Sprint 3 |
 | Priority | P0 |
 | Size | 1 SP |
-| Release | R1 |
+| Release | R2 |
 | Domain | r1_mvp |
 | Journey | J2 |
 | Screens | SCR-person-detail, SCR-request-detail |
@@ -37,3 +37,5 @@ As a Group Admin (persona_01), I want to mark a person as having left the group 
 - Canonical child of **US-024** (parent AC coverage: **AC3**), minted by **CHG-074** on 2026-10-11 from the tenant's `partition_required` assessment (`docs/readiness/drafts/US-024.json`, proposal `departure-confirmation`, estimate 240 min). Decision DEC-SMP-032. Depends on US-075's entrypoint (`Blocked By`); parallel-safe with US-077 after US-075 integrates (people/UI surface vs alert/calendar surface).
 - `packages/contracts/src/people.ts` already carries `active / departed`; this child adds the confirmation, the atomic person-wide start and the rollback, not a new state.
 - Vertical delivery: contracts, both detail screens, authorization/audit, real-DB verification of atomicity and rollback, review, integration. No migration expected.
+
+- CHG-113 / DEC-SMP-065/066: R2; no further R1 work.

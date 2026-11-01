@@ -1,6 +1,6 @@
 # US-029: Freshness labels + staleness alert
 
-> **Sprint 3** | **P0** | **2 SP** | **R1**
+> **Sprint 3** | **P0** | **2 SP** | **R2**
 
 ## User Story
 
@@ -15,7 +15,7 @@ As a Central Finance (persona_04), I want to know how fresh every synced figure 
 | Sprint | Sprint 3 |
 | Priority | P0 |
 | Size | 2 SP |
-| Release | R1 |
+| Release | R2 |
 | Domain | r1_mvp |
 | Journey | J4 |
 | Screens | all usage/statement screens |
@@ -34,3 +34,5 @@ As a Central Finance (persona_04), I want to know how fresh every synced figure 
 
 - ACs are copied verbatim from `08_scope.md` (generated 10b pass, 2026-07-22) — the scope is the single source; edit there and regenerate.
 - Sprint 3 milestone: Automation + monitoring: connector live (interface from Sprint 2, capability semantics via US-025), invite≤15min, hygiene, reclamation, drift. Beta-API risk retired here (surprise-detection already pulled to the Sprint-1 probe). Connector jobs run on Compose-secret keys (ADR-13) until US-031 lands the managed credential store in Sprint 4.
+
+- CHG-113 / DEC-SMP-065/066: R2; no further R1 work.

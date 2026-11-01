@@ -1,126 +1,95 @@
-# 10 — Plan: Ledger (`fcostudios__smp`)
+# 10 — Plan: Ledger R1′ (`fcostudios__smp`)
 
-**Step:** 10 — Plan · **Date:** 2026-07-22 (rev 2, post plan-review) · **Report language:** en-US
-**Inputs:** `08_scope.md` (58 story IDs, including the partitioned US-018 parent; cycle-free DAG) · `09_architecture.md` · `09b` · PRD §16 (D4) · sizing (tier M).
+**Step:** 10 · **Date:** 2026-11-01 · **Authority:** CHG-113, DEC-SMP-065 and DEC-SMP-066.
+R1′ tests H2 through a license-only manual monthly close for five pilot companies. This replaces the former 155-SP R1 sprint plan. S0–S4 total **43 SP**; the first usable draft chargeback is at **14 SP**, and the core-value slice ends at **27 SP**.
 
-## SEC1 — Sprint plan (PRD §16 mirror; hydrator forbids Sprint 0 → PRD "Sprint 0" folds into Sprint 1)
+## SEC1 — Slices S0–S4
 
-Capacity model: 2 FTEs, AI-assisted; target ≈ 30–40 SP/week-sprint (velocity assumption — **replan trigger:** if Sprint 1 actuals < 25 SP, re-baseline Sprints 2–5 to 1.5-week sprints before Sprint 2 commits; the week-2/week-4 milestone dates shift with the re-baseline). The 6-week plan is the FLOOR of the Step-1 sizing range (1.5–3 months); 7–9 weeks is the sizing-consistent expectation band — **Step 11 must price duration/cost as that band with the 6-week floor as best-case, not the point estimate.**
-**Calendar anchor:** parallel close #1 (US-052) runs over the most recently completed calendar month at Sprint-5 start, using the US-007 backfill + US-026 synced data on production (US-053); statements land within bd-3 of that anchor and reconciliation by ~bd-10. Go-live = when that close reconciles — honestly stated as end-of-Sprint-6 at best and up to ~week 8–9 if the anchor month closes late.
-**Weeks 5–6 cost treatment for Step 11:** Sprint 5 = 0 SP of stories + ~1 FTE-week parallel-run/close-rehearsal reserve; Sprint 6 = 1 FTE-week bugfix/go-live reserve — both reserves priced as FTE-time, not SP.
+One operator/orchestrator; one item per agent session. Slices are the delivery and acceptance unit. For the existing extract/hydration format only, Sprint 1–5 below map to slices S0–S4; these are not the former sprint assignments. New work is R1. Already-built baseline stories are reused without amendment.
 
-### Sprint 1 — Foundations (31 SP)
+**Calendar:** target one slice per week over five weeks, conditional on at least three operator active days per week and about 1.5 SP per active day. 43 / 1.5 = 28.7 active days if that is the actual pace; five weeks at three days yields only 15 active days and requires 2.87 SP/active day. Therefore five weeks is a target, not a promise: the 1.5-SP assumption yields about 9.6 weeks at the attention floor. Track actual verified SP weekly. The attention commitment remains open under DEC-SMP-066; do not invent approval. If S1 is not verified in production by the end of week 3, stop for an operator decision to rescope, pause or close.
 
-**Milestone:** Foundations complete: schema+integrity, auth (Keycloak), RBAC, shell, seeds+backfill, jobs, audit, API probe spike. GATE: org inventory + per-org keys (OQ-SMP-1) cleared before US-007/US-054.
+**Data:** manual register entry, typed provisional rate/invoice and manually maintained pilot configuration allow S0–S2 to proceed. Real-data acceptance remains pending until the actual inputs arrive. Keys are not required. The period anchor is the most recently completed calendar month when the first real parallel close runs. Real invoice acceptance cannot be replaced by provisional totals or an override alone.
 
-| Story | Title | SP | Blocked By |
-|---|---|---|---|
-| US-001 | Scaffold the monorepo and app skeleton | 2 | — |
-| US-002 | Docker Compose runtime + CI pipeline | 3 | US-001 |
-| US-003 | Core schema migration with DB-level register integrity | 5 | US-002 |
-| US-004 | Platform auth via Keycloak OIDC (mandatory 2FA for admin roles) | 3 | US-003 |
-| US-005 | Server-side RBAC + company scoping middleware | 3 | US-004 |
-| US-006 | App shell: data-workspace chrome + bilingual i18n | 5 | US-004 |
-| US-007 | Seed: companies CSV + go-live register backfill | 3 | US-003 |
-| US-008 | Immutable audit trail + viewer | 3 | US-005 |
-| US-046 | Job runner + schedules | 3 | US-002 |
-| US-054 | Anthropic API probe spike | 1 | — |
+### Sprint 1 — S0: Register on production (5 SP)
 
-### Sprint 2 — Usable workflow (orchestration end-to-end) (34 SP)
-
-**Milestone:** USABLE END-TO-END IN ORCHESTRATION MODE (PRD week-2 milestone): request→approval→checklist provisioning→register→pool counter→alerts/audit, no API client required.
+**Goal:** deploy with Docker Compose and make the five-company register usable through manual entry.
+**Milestone:** S0 production register journey accepted by Central Finance, Company Finance and IT Director.
 
 | Story | Title | SP | Blocked By |
 |---|---|---|---|
-| US-010 | Person records + edit + auto-create on request | 3 | US-005 |
-| US-014 | Lifecycle state machine engine | 3 | US-003 |
-| US-012 | Request intake with validations | 3 | US-007, US-010, US-014 |
-| US-013 | My requests + request detail record | 3 | US-012 |
-| US-015 | Approval queue: one-minute decisions | 3 | US-014 |
-| US-016 | Lifecycle notifications (email) | 2 | US-012, US-003 |
-| US-033 | The register surface + export | 3 | US-007 |
-| US-042 | Alert engine: 10 P0 types | 3 | US-046, US-003 |
-| US-017 | Approval aging: reminder + escalation job | 2 | US-015, US-042, US-046 |
-| US-022 | Per-org pool tracking + low-pool alert | 3 | US-007, US-042 |
-| US-045 | Connector interface + orchestration routing | 3 | US-003 |
-| US-020 | Orchestration mode: checklist + confirm + verification | 3 | US-014, US-045 |
+| US-053 | Production Docker Compose deployment | 3 | US-002 |
+| US-094 | Real-data run, child of US-007; provisional rehearsal until data arrives | 1 | US-007, US-053, US-095 |
+| US-095 | Manual register entry | 1 | US-003, US-005, US-008, US-033 |
 
-### Sprint 3 — Automation + monitoring (41 SP)
+**Production exit:** Central Finance completes the register inspection and CSV export journey for month M-1 and five pilot companies on production; Company Finance verifies its company's headcount against its supplied list, and the IT Director completes login and deployment health checks. With manual inputs this exit is explicitly provisional: US-094 remains unverified until the real export is compared. Verifiers use human `story verify` only for the evidence actually accepted. Cumulative **5 SP**. No new money-rule campaign; reuse DB register integrity and auth evidence.
 
-**Milestone:** Automation + monitoring: connector live (interface from Sprint 2, capability semantics via US-025), invite≤15min, hygiene, reclamation, drift, API-less ingestion (CSV import + manual upkeep, DEC-SMP-018). Beta-API risk retired here (surprise-detection already pulled to the Sprint-1 probe). Connector jobs run on Compose-secret keys (ADR-13) until US-031 lands the managed credential store in Sprint 4.
+### Sprint 2 — S1: First draft chargeback (9 SP)
+
+**Goal:** produce draft statements from register seat-days and typed rates.
+**Milestone:** S1 first usable increment in production; cumulative 14 SP.
 
 | Story | Title | SP | Blocked By |
 |---|---|---|---|
-| US-011 | Users, roles and delegation-ready grants | 3 | US-005 |
-| US-056 | Anthropic transport with separated credentials and bounded retry | 1 | US-003, US-045, US-025 |
-| US-057 | Append-only sanitized connector-call journal | 2 | US-056 |
-| US-058 | Anthropic connector conformance and Pact contracts | 1 | US-056, US-057 |
-| US-019 | Automated provisioning: invite ≤ 15 min → Active | 5 | US-056, US-057, US-058, US-014, US-046, US-042 |
-| US-021 | Invite hygiene | 2 | US-019, US-042 |
-| US-023 | Blocked-no-seat + purchase-or-reclaim flow | 3 | US-022, US-042 |
-| US-024 | Offboarding + deprovisioning | 3 | US-019, US-020 |
-| US-025 | Vendor accounts + capability descriptor | 3 | US-005 |
-| US-026 | Analytics sync: activity + cost | 3 | US-056, US-057, US-058, US-046 |
-| US-027 | Inactivity flags + usage surface | 2 | US-026 |
-| US-028 | Reclamation proposals: approve or dismiss | 3 | US-027, US-024 |
-| US-029 | Freshness labels + staleness alert | 2 | US-026, US-042 |
-| US-030 | Drift detection + retroactive claim | 3 | US-056, US-057, US-058, US-046, US-042 |
-| US-055 | API-less ingestion: member/usage CSV import + manual register upkeep | 3 | US-003, US-025, US-026, US-030 |
-| US-043 | Alert log + acknowledgment | 2 | US-042 |
+| US-032 | Effective-dated rates | 2 | US-005 |
+| US-034 | License-only close and CloseRun | 5 | US-032, US-033 |
+| US-096 | Statements list and group totals | 1 | US-034 |
+| US-037 | CSV export half; PDF completes in S3 | 1 | US-034, US-096 |
 
-### Sprint 4 — Money + production readiness (39 SP)
+**Production exit:** Central Finance completes the manual close and CSV handover journey on production for month M-1; Company Finance reads each pilot draft and compares seat-days, dated joiners/leavers and amounts line by line against its manual spreadsheet, recording every difference; the IT Director verifies deployed rerun behavior and that finals remain untouched. Provisional rates are visibly identified. Finance users and IT Director record acceptance with human `story verify` for completed work; US-037 is only partially accepted until its S3 PDF half. Critical mutation campaign once at slice close: **BR-17/18/21**, minimum 80%, survivors annotated. Cumulative **14 SP**.
 
-**Milestone:** Money core (rates + close engine + license lines + statement template) THEN money complete (usage lines, finalization, exports, reconciliation, rollup) + company CRUD, credentials store, runbooks/restore drill, production deploy. MVP COMPLETE.
+### Sprint 3 — S2: A reconciled real month (13 SP)
+
+**Goal:** answer H2 using the real invoice and contracted rate.
+**Milestone:** S2 core value in production; cumulative 27 SP, H2 pending real data.
 
 | Story | Title | SP | Blocked By |
 |---|---|---|---|
-| US-009 | Company registry CRUD + company record | 3 | US-005 |
-| US-031 | Credential management + rotation | 3 | US-005 |
-| US-032 | Effective-dated rate cards | 2 | US-005 |
-| US-034 | Monthly close job + CloseRun | 5 | US-032, US-033 |
-| US-044 | Operational settings | 2 | US-005 |
-| US-048 | Ops runbooks + backup/restore drill | 2 | US-002, US-031 |
+| US-036 | License statement detail and register evidence | 3 | US-034 |
+| US-039 | Consolidated rollup and CSV export | 2 | US-034, US-096 |
+| US-035 | Finalization and rate locking | 2 | US-034 |
+| US-038 | Reconciliation and explained variances | 3 | US-035 |
+| US-052 | First parallel close on real data | 3 | US-034, US-038, US-053, US-094 |
+
+**Production exit:** Central Finance completes the invoice-entry, reconciliation, finalization and CSV delivery journey on production for a real completed month with the contracted rate; Company Finance for all five pilots accepts its statement and traces lines to register evidence, and the IT Director verifies final immutability and the deployed evidence. H2 passes only if the real invoice is present and the register-derived statement sum is within **0.5%** of it and accepted by the finance users. An `overridden` reconciliation with every variance explained is a supported operational outcome, but does not count as H2 passing; record the failed/pending hypothesis honestly. Manual register entry and a provisional rate permit rehearsal; **S2/H2 is not passed until the real invoice and contracted rate arrive**. Finance users and IT Director perform human `story verify` on the accepted real run. Critical mutation campaign once: **BR-20**, minimum 80%, survivors annotated. Cumulative **27 SP**.
+
+### Sprint 4 — S3: Company self-service and manual register check (9 SP)
+
+**Goal:** keep the register true without API automation and deliver company PDFs.
+**Milestone:** S3 second-month company finance journey accepted in production; cumulative 36 SP.
+
+| Story | Title | SP | Blocked By |
+|---|---|---|---|
+| US-041 | Scoped statements and register experience | 2 | US-005, US-036, US-096 |
+| US-097 | Member-list CSV comparison with manual corrections | 3 | US-095, US-005, US-025, US-008 |
 | US-049 | Statement PDF brand template | 3 | US-003 |
-| US-050 | Close usage lines from CostRecord via the register | 2 | US-034, US-026 |
-| US-035 | Statement finalization | 2 | US-050 |
-| US-036 | Statement detail + kind-aware evidence | 3 | US-050 |
-| US-037 | Statement exports (CSV/PDF, per-company language) | 2 | US-036, US-049 |
-| US-038 | Reconciliation workbench + variance lines | 3 | US-035 |
-| US-039 | Consolidated rollup + export | 2 | US-050 |
-| US-051 | Close schedule + workbench readouts | 2 | US-050, US-046 |
-| US-053 | Production environment + first deploy | 3 | US-002 |
+| PDF half of US-037 | PDF export; CSV already credited in S1 | 1 | US-036, US-049 |
 
-### Sprint 5 — Hardening + first parallel close (11 SP)
+**Production exit:** Central Finance completes the member-list comparison and month-M close journey on production; mismatches are corrected through audited manual entry. Two Company Finance users independently open and export only their own PDF, with language per DEC-SMP-011; the IT Director verifies cross-company access rejection. Finance users and IT Director accept via human `story verify`, including US-037 now complete. If the real export is absent, manually transcribe the list and keep real-CSV acceptance pending; the close remains usable. No DriftEpisode or API dependency. Reuse S1/S2 campaigns; BR-22's single campaign closes in S4. Cumulative **36 SP**.
 
-**Milestone:** Hardening + FIRST PARALLEL CLOSE (US-052, on production): dashboards/perf fixture, scoped views, isolation suite. Go-live gate.
+### Sprint 5 — S4: Operate monthly (7 SP)
+
+**Goal:** schedule the monthly close and prove recovery and company isolation.
+**Milestone:** S4 production system-of-record acceptance by finance users and IT Director; cumulative 43 SP.
 
 | Story | Title | SP | Blocked By |
 |---|---|---|---|
-| US-040 | Cross-company admin dashboard | 3 | US-022, US-042 |
-| US-041 | Scoped per-company experience | 2 | US-009, US-005 |
-| US-047 | Company-isolation test suite | 3 | US-041, US-034 |
-| US-052 | Execute the first parallel close on real data | 3 | US-034, US-038, US-050, US-053 |
+| US-051 | bd-3 close schedule and independent close_missed watchdog | 2 | US-034, US-046 |
+| US-048 | Runbooks and encrypted backup/restore drill | 2 | US-002, US-053 |
+| US-047 | Company isolation suite | 3 | US-041, US-034 |
 
-### Sprint 6 — Go-live (no new stories)
-Bugfix/go-live reserve (1 FTE-week); go-live as system of record when the US-052 close reconciles.
+**Production exit:** Central Finance completes the month-M+1 scheduled-close journey in production by business day 3 without a manual trigger; Company Finance verifies receipt and reads its own numbers; the IT Director completes a restore from the previous night's encrypted backup into an isolated recovery environment and verifies the restored register/statement totals against production evidence. Finance users and IT Director sign off with human `story verify`. Critical mutation campaign once: **BR-22**, minimum 80%, survivors annotated. Five pilot companies become the system-of-record scope only after this acceptance; rollout to 30 is configuration. Cumulative **43 SP**.
 
-## SEC2 — Sequencing rationale (risk-first)
-- Orchestration path (US-020/045) lands in Sprint 2 WITHOUT the API client (DEC-SMP-007): a beta-API problem cannot slip the usable-product milestone.
-- Beta-API surprise-detection pulled to Sprint 1 (US-054 probe spike, real keys); implementation risk retired at the start of Sprint 3.
-- US-018 is a non-executable partition parent after CHG-045 exposed the required connector-call journal migration. Its previously approved official children run in order: US-056 transport (1 SP), US-057 journal/migration (2 SP), US-058 conformance/Pact (1 SP). Each child is below the 320-minute execution ceiling; the aggregate grows from 3 SP to 4 SP rather than hiding the migration inside the old estimate.
-- **Sprint-3 slip fallback:** Sprint 4 proceeds with rates + license-line-only close drafts + statement template (US-032, US-034, US-044, US-049 — no analytics dependency); US-050 and its dependents (US-035/036/037/038/039/051) join when US-026 lands.
-- Register migration (US-003, slug=core_schema_register_integrity) is Sprint 1 (HR-25 slugs in story Meta; no Vxxx).
-- Close split (US-034→050→051) inside Sprint 4; US-049 unblocked from the close (prereq = schema) so the template runs parallel.
-- Production deploy (US-053) + restore drill (US-048) land in Sprint 4 — proven a week before the go-live gate; Sprint 5 concentrates the perf fixture, isolation suite and the parallel close itself.
+## SEC2 — Deferred R2 and frozen baseline
 
-## SEC3 — Ordering + staffing notes
-- Sprint tables are in TOPOLOGICAL execution order (a story never appears above a same-sprint blocker) — validated mechanically.
-- US-013 must stay in Sprint 2: it owns SCR-request-detail, the surface the US-020 checklist panel and Sprint-3 stories render onto.
-- Sprint 4 note: the US-032→US-034→US-050→US-036→US-037 chain (14 SP) is serial on one FTE; effective Sprint-4 staffing ≈ 1.5 FTE — **Step 11 should price Sprint 4 by duration, not SP/velocity.**
-- Sprint 5 deliberately runs light: reserve for parallel-close operation, variance fixes, and Sprint 2/3 spillover.
+**S5 is R2 and not planned** (DEC-SMP-066). The historical optional API tail was about 8 SP (51 SP including the 43-SP core); 51 is a comparison scenario, not an R1 commitment. No S0–S4 dependency on API keys, US-026 analytics, US-030 drift machinery, US-050 usage lines, company CRUD or credential/settings UI remains.
 
-## SEC4 — Gates & external dependencies
-- Before US-007/US-054: org inventory + per-org Analytics/Admin keys (OQ-SMP-1; primary-owner action per org).
-- Before US-052: contracted rates (OQ-SMP-4) and the calendar anchor month confirmed (month-end + bd-3 + reconciliation window inside Sprints 5–6).
-- Before US-053: hosting root (OQ-SMP-7).
-- Go-live: approver roster (OQ-SMP-5); US-048 restore drill (Sprint 4); US-052 reconciled.
+Open cut stories: US-009, US-024, US-028/029/030/031, US-040, US-044, US-050, US-054, US-055, US-075/076/077/078/079/080/081/082/083/084/085/090/091/093 are R2. US-055 is the residual automation/usage/configuration parent: its AC3 manual entry is replaced in R1 by US-095, AC1's minimal comparison by US-097, and AC2 usage CSV remains R2. No duplicate R1 implementation.
+
+Freeze built cut modules without editing their stories or statuses: US-019 and children US-063..066; US-021 (children US-067..069), US-023, US-026 (US-070/071), US-027 (US-072..074), and already-built US-086/087/088/089/092. All 50 built baseline stories remain unchanged. Reuse auth/RBAC/shell/audit, register, J1 orchestration, jobs and alerts. One production baseline acceptance pass covers US-001–008, US-012/013/015/020/033; only a human changes verification status. Other built work is accepted as built, unverified, with no further extension in R1′.
+
+## SEC3 — Operating conditions
+
+Spec frozen per slice; discoveries go to `docs/stories/DEFERRED_EXTERNAL_BLOCKERS.md` and are triaged at the demo. One approval of the slice story set; no tenant-built readiness gate, envelopes or per-item forecasts. One mutation campaign per slice's critical set, not per story or commit. Package type-check, lint, tests and build remain. No substrate changes mid-slice except a genuine blocking bug.
+
+Every Friday record in WORKFLOW_STATE.md: `verified SP / 43 · week N of 5 · next slice · blocker`. Pending verifications are not earned SP; do not credit US-037 twice. The weekly attention floor is still an operator decision. Docker Compose is the R1′ host. Keep images and configuration twelve-factor so the later Azure Container Apps move needs no code change; that is a later change, not an R1 story.

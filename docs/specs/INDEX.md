@@ -21,7 +21,6 @@
 | [09_architecture.md](09_architecture.md) | Architecture — DDD bounded contexts |
 | [09b_business_rules.md](09b_business_rules.md) | Business rules — statement, parameters, enforcement layer, oracle, critical flag |
 | [10_plan.md](10_plan.md) | Plan — sprints + roadmap |
-| [11_estimates.md](11_estimates.md) | Estimates |
 | [12_proofread.md](12_proofread.md) | QA — Proofread |
 | [13_risk.md](13_risk.md) | QA — Risk |
 | [14_legal.md](14_legal.md) | QA — Legal |

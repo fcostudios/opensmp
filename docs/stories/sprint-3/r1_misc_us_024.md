@@ -1,6 +1,6 @@
 # US-024: Offboarding + deprovisioning
 
-> **Sprint 3** | **P0** | **3 SP** | **R1**
+> **Sprint 3** | **P0** | **3 SP** | **R2**
 
 ## User Story
 
@@ -15,7 +15,7 @@ As a Group Admin (persona_01), I want to remove seats same-business-day on depar
 | Sprint | Sprint 3 |
 | Priority | P0 |
 | Size | 3 SP |
-| Release | R1 |
+| Release | R2 |
 | Domain | r1_mvp |
 | Journey | J2 |
 | Screens | SCR-person-detail, SCR-request-detail |
@@ -39,3 +39,5 @@ As a Group Admin (persona_01), I want to remove seats same-business-day on depar
 - **CHG-076 (2026-10-11) — US-075 repartitioned** after the tenant's blocked readiness (440 min / 5 scopes / 25–32 files / 2 boundaries): **US-075** (entrypoint on both screens, checklist path, atomic finalization primitive; ≈210) → **US-082** (worker connector removal, failure/retry; ≈180) → **US-076 ∥ US-077**; **US-081** (capacity refresh watermark + projection + stale display; ≈170) parallel-safe with US-075 subject to the tenant's file-boundary review. Rulings DEC-SMP-040 (`reallocated` = transfer, BR-02 stands, no R1 transfer entrypoint), DEC-SMP-041 (accepted-observation watermark contract), DEC-SMP-042 (removal execution and finalization contract). Each revised child gets its own readiness and digest-bound approval; the parent approval stands.
 - **DEC-SMP-029..033 (CHG-074):** Ecuador business-day calendar and local-midnight deadline anchored on the offboarding transition; only `left_company` under BR-14; capacity refreshes at the next authoritative sync, never optimistically; explicit departure confirmation (the automatic marking is retired); register closes on confirmed removal in one transaction, failed removals stay alert-eligible.
 - Sprint 3 milestone: Automation + monitoring: connector live (interface from Sprint 2, capability semantics via US-025), invite≤15min, hygiene, reclamation, drift. Beta-API risk retired here (surprise-detection already pulled to the Sprint-1 probe). Connector jobs run on Compose-secret keys (ADR-13) until US-031 lands the managed credential store in Sprint 4.
+
+- CHG-113 / DEC-SMP-065/066: R2; no further R1 work.
