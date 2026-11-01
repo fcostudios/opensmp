@@ -1,5 +1,5 @@
 <!-- nous-sprint-stamp
-generated_at: 2026-11-01T21:31:12Z
+generated_at: 2026-11-01T23:06:36Z
 current_sprint: sprint-3
 sprints_hash: 9f037415ad0ab61e
 -->
@@ -38,9 +38,9 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | 8 | full-stack | **US-007** ✅ | Seed: companies CSV + go-live register backfill | 3SP | `See story file` | CHG-001 | US-003 | →4 | 33b725b7-eb1 (push, exp 2026-08-02) | [r1_misc_us_007.md](sprint-1/r1_misc_us_007.md) |
 | 9 | full-stack | **US-008** ✅ | Immutable audit trail + viewer | 3SP | `See story file` | — | US-005 | →2 | 33b725b7-eb1 (push, exp 2026-08-02) | [r1_misc_us_008.md](sprint-1/r1_misc_us_008.md) |
 | 10 | full-stack | **US-046** ✅ | Job runner + schedules | 3SP | `See story file` | — | US-002 | →20 | — | [r1_misc_us_046.md](sprint-1/r1_misc_us_046.md) |
-| 11 | full-stack | **US-053** ⬜ | Production environment + first deploy | 3SP | `See story file` | — | US-002 | →3 | — | [r1_misc_us_053.md](sprint-1/r1_misc_us_053.md) |
+| 11 | full-stack | **US-053** 🔨 | Production environment + first deploy | 3SP | `See story file` | — | US-002 | →3 | — | [r1_misc_us_053.md](sprint-1/r1_misc_us_053.md) |
 | 12 | full-stack | **US-094** ⬜ | Real-data pilot register run (child of US-007) | 1SP | `See story file` | CHG-113 | US-007, US-053, US-095 | →1 | — | [r1_misc_us_094.md](sprint-1/r1_misc_us_094.md) |
-| 13 | full-stack | **US-095** ⬜ | Manual register entry | 1SP | `See story file` | CHG-113 | US-003, US-005, US-008, US-033 | →2 | — | [r1_misc_us_095.md](sprint-1/r1_misc_us_095.md) |
+| 13 | full-stack | **US-095** 🔨 | Manual register entry | 1SP | `See story file` | CHG-113 | US-003, US-005, US-008, US-033 | →2 | — | [r1_misc_us_095.md](sprint-1/r1_misc_us_095.md) |
 
 ### Parallel Tracks
 

@@ -1,13 +1,13 @@
 {
-  "synced_at": "2026-11-01T21:31:12.494803+00:00",
+  "synced_at": "2026-11-01T23:06:36.452308+00:00",
   "project_id": "fcostudios__smp",
   "files": {
     "docs/stories/SPRINT_PLAN.md": {
-      "hash": "82aa515c08fa1e71",
+      "hash": "f7b2607df7bf54b4",
       "source": "generated"
     },
     "docs/stories/CHANGES.md": {
-      "hash": "413a207a9f18833b",
+      "hash": "5a50d6f860f2b6d4",
       "source": "generated"
     },
     "docs/stories/ASSIGNMENTS.md": {
@@ -19,7 +19,7 @@
       "source": "generated"
     },
     ".nous-project.json": {
-      "hash": "b9ec6fa0f93819a3",
+      "hash": "7c75eea5a9b77a89",
       "source": "generated"
     },
     "docs/stories/INDEX.md": {
@@ -235,7 +235,7 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/07c_navigation_map.json"
     },
     "docs/specs/08_scope.md": {
-      "hash": "5fac9e4ab4b6d91b",
+      "hash": "0b197a254363bf70",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/08_scope.md"
     },
     "docs/specs/09_architecture.md": {
@@ -547,7 +547,7 @@
       "source": "generated"
     },
     "CLAUDE.md": {
-      "hash": "60e4cc38a9c4c7ca",
+      "hash": "5fde98bf9d210d1f",
       "source": "emitted"
     },
     "docs/TEST_EFFECTIVENESS_STANDARD.md": {
@@ -591,15 +591,15 @@
       "source": "emitted"
     },
     "CODEX.md": {
-      "hash": "70d90cc4b0ea591c",
+      "hash": "346ce6df9775232c",
       "source": "emitted"
     },
     ".github/copilot-instructions.md": {
-      "hash": "70d90cc4b0ea591c",
+      "hash": "346ce6df9775232c",
       "source": "emitted"
     },
     ".cursorrules": {
-      "hash": "70d90cc4b0ea591c",
+      "hash": "346ce6df9775232c",
       "source": "emitted"
     },
     "docs/dev-guide/SPECS.md": {

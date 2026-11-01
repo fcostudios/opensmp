@@ -110,7 +110,8 @@
 | **CHG-110** | 🔵 analyzed | Readiness v2: digest-bound outcome envelope with forecast excluded from approval | — | — |
 | **CHG-111** | 🔵 analyzed | Retire the item-bound ceiling exception and its git admission proof | — | — |
 | **CHG-112** | 📦 delivered | Remove SMP's tenant-built Work Readiness Gate and its approval ceremony (DEC-SMP-065) | — | — |
-| **CHG-113** | 🔷 spec_applied | Re-baseline R1 to the value-first R1 prime: license-only manual monthly close first (DEC-SMP-065) | US-094, US-095, US-096, US-097 | S1, S2, S4 |
+| **CHG-113** | 🔨 dev_in_progress | Re-baseline R1 to the value-first R1 prime: license-only manual monthly close first (DEC-SMP-065) | US-094, US-095, US-096, US-097 | S1, S2, S4 |
+| **CHG-114** | 🔷 spec_applied | Adopt the IMP-462 core-value contract: PRD contract block, walking-skeleton slice tags, R1 justifications | — | — |
 
 ---
 
@@ -1460,7 +1461,7 @@ _No stories linked to this change yet._
 
 ### CHG-113: Re-baseline R1 to the value-first R1 prime: license-only manual monthly close first (DEC-SMP-065)
 
-**Status:** 🔷 `spec_applied`
+**Status:** 🔨 `dev_in_progress`
 **Source:** client_review
 **Requested by:** Francisco
 **Notes:** # CHG-113 — Re-baseline R1 to the value-first R1′ (license-only manual monthly close first)
@@ -1476,7 +1477,22 @@ _No stories linked to this change yet._
 | Story | Name | Sprint | Status | File |
 |-------|------|--------|--------|------|
 | **US-094** | Real-data pilot register run (child of US-007) | Sprint 1 | ⬜ backlog | [r1_misc_us_094.md](sprint-1/r1_misc_us_094.md) |
-| **US-095** | Manual register entry | Sprint 1 | ⬜ backlog | [r1_misc_us_095.md](sprint-1/r1_misc_us_095.md) |
+| **US-095** | Manual register entry | Sprint 1 | 🔨 in_development | [r1_misc_us_095.md](sprint-1/r1_misc_us_095.md) |
 | **US-096** | Statements list and totals | Sprint 2 | ⬜ backlog | [r1_misc_us_096.md](sprint-2/r1_misc_us_096.md) |
 | **US-097** | Member-list CSV reconciliation | Sprint 4 | ⬜ backlog | [r1_misc_us_097.md](sprint-4/r1_misc_us_097.md) |
+
+### CHG-114: Adopt the IMP-462 core-value contract: PRD contract block, walking-skeleton slice tags, R1 justifications
+
+**Status:** 🔷 `spec_applied`
+**Source:** client_review
+**Requested by:** Francisco
+**Notes:** # CHG-114 — Adopt the IMP-462 core-value contract on SMP
+
+| Field | Value |
+|---|---|
+| Project | `fcostudios__smp` · functional · mode `story_overlay` (derived) |
+| Authority | Francisco, 2026-11-01 ("do it"), on DEC-SMP-065/066 |
+| Patcher | `Nous/System/patches/fcostudios__smp/CHG-114.py` (ide...
+
+_No stories linked to this change yet._
 

@@ -1,4 +1,4 @@
-<!-- agent-sync: 2d3649b78a54 | source: CLAUDE.md | DO NOT EDIT — this file is auto-generated from CLAUDE.md. Edit CLAUDE.md then run: python3 nous_agent_sync.py -->
+<!-- agent-sync: dff61fb80bd4 | source: CLAUDE.md | DO NOT EDIT — this file is auto-generated from CLAUDE.md. Edit CLAUDE.md then run: python3 nous_agent_sync.py -->
 # CLAUDE.md — Ledger
 
 > Project intelligence file for AI-assisted development.
@@ -387,4 +387,14 @@ When enrolled, follow [`docs/dev-guide/AGENT_REQUESTS.md`](docs/dev-guide/AGENT_
   runtime checks use `ledger_app`; no duplicate timestamp migrations exist
   under `packages/db/src/migrations/`.
 - Report evidence: `{"story":"US-XXX","event":"build_pass",...}` then `{"event":"done",...}`.
-<!-- nous-emitted: sha256=4b57179bb24fa5d3 -->
+
+## Production deployment
+
+Production deployment (US-053 / DEC-SMP-066) uses the standalone
+`infra/docker-compose.production.yml`; see
+[`docs/runbooks/production-deploy.md`](docs/runbooks/production-deploy.md).
+It includes Caddy TLS, PostgreSQL-backed Keycloak, a one-shot committed-migration
+job, and the existing app/worker/SMTP services. Configuration and the ADR-13 KEK
+are supplied at runtime; the localhost CI rehearsal uses the same images.
+Hosting is Docker Compose now and Azure Container Apps later (a separate change).
+<!-- nous-emitted: sha256=83c990078e06b323 -->
