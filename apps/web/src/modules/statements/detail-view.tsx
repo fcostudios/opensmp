@@ -20,6 +20,7 @@ export function StatementDetailView({ detail, canViewRegister, locale, copy: t, 
     <header className="space-y-2 border-b border-border pb-4">
       <h1 className="font-display text-3xl font-semibold text-text-primary">{t.title} · {detail.companyName} ({detail.companyCode}) · {statement.period}</h1>
       <p className="text-text-secondary">{t.licenseOnly}</p>
+      <a data-testid="btn_export_csv" className="text-primary underline" href={`/api/v1/statements/${statement.id}/export/csv`}>{t.csv}</a>
     </header>
     {statement.status !== "final" && <p data-testid="status_banner" className="rounded border border-border bg-info-bg p-4 text-info-text">{statement.status === "draft" ? t.draft : t.reconciled}</p>}
     <dl data-testid="statement_tiles" className="grid gap-4 rounded border border-border bg-surface p-4 sm:grid-cols-3">

@@ -1,3 +1,4 @@
+import { csvCell } from "@smp/domain/csv";
 import {
   and,
   asc,
@@ -130,12 +131,6 @@ function filterConditions(filters: RegisterFilters): SQL[] {
   if (filters.startDate) conditions.push(gte(licenseAssignment.startedOn, filters.startDate));
   if (filters.endDate) conditions.push(lte(licenseAssignment.startedOn, filters.endDate));
   return conditions;
-}
-
-function csvCell(value: string | number | null): string {
-  const raw = value === null ? "" : String(value);
-  const safe = /^[\s\0-\x1f]*[=+\-@]/u.test(raw) ? `'${raw}` : raw;
-  return /[",\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
 }
 
 function renderRegisterCsvRows(rows: readonly RegisterRow[]): string {
