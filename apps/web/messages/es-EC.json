@@ -520,6 +520,7 @@
     "retry": "Reintentar",
     "viewRegister": "Ver evidencia en el registro",
     "csv": "Exportar CSV",
+    "pdf": "Descargar PDF",
     "licenseOnly": "Cargos de licencia y ajustes. Los cargos por uso quedan fuera de esta versión."
   },
   "statements": {
@@ -543,6 +544,7 @@
     "statementId": "Identificador del estado de cuenta",
     "closeRun": "Corrida de cierre",
     "csv": "Exportar CSV",
+    "pdf": "Descargar PDF",
     "empty": "No hay estados de cuenta para este período y filtros.",
     "noRun": "No hay una corrida de cierre visible para este período.",
     "latest": "Última corrida de cierre visible",

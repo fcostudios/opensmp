@@ -1,10 +1,11 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { createPostgresFixture, type PostgresFixture } from "@smp/db/testing/postgres-container";
 import * as schema from "@smp/db/schema";
 import type { LedgerAuthorization } from "../identity-access/authorization";
-import { createStatementExportService, createStatementExportResponse, createStatementCsvDownload } from "./export-transaction";
+import { createStatementExportService, createStatementExportResponse, createStatementCsvDownload, createStatementPdfDownload, createStatementPdfExportResponse } from "./export-transaction";
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const companyA = id(2), companyB = id(3), statementA = id(10), statementB = id(11);
@@ -144,22 +145,23 @@ test("an audit insert failure prevents any successful download", async () => {
  await owner.query("CREATE FUNCTION us037_reject_export() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'export audit unavailable'; END $$; CREATE TRIGGER us037_reject_export BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION us037_reject_export()");
  await expect(repository.exportCsv(authorization,statementA)).rejects.toThrow("export audit unavailable");
  await expect(createStatementExportResponse(repository,authorization,statementA)).rejects.toThrow("export audit unavailable");
+ await expect(createStatementPdfExportResponse(repository,authorization,statementA)).rejects.toThrow("export audit unavailable");
  } finally {
  await owner.query("DROP TRIGGER us037_reject_export ON audit_log; DROP FUNCTION us037_reject_export()");await owner.end();
  }
 });
 
 
-test("a draft rerun cannot mix CSV header totals, line amounts and audit snapshot", async () => {
+test.each(["csv","pdf"] as const)("a draft rerun cannot mix %s header totals, line amounts and audit snapshot", async format => {
  const owner=await fixture.connectAsOwner();
  await owner.query(`ALTER TABLE company RENAME TO us037_company;
  CREATE FUNCTION us037_read_gate(input_name text) RETURNS text LANGUAGE plpgsql AS $$
  BEGIN PERFORM pg_advisory_xact_lock(370037); RETURN input_name; END $$;
  CREATE VIEW company AS SELECT id,code,statement_language,us037_read_gate(name) AS name FROM us037_company;
  GRANT SELECT ON company TO ledger_app; SELECT pg_advisory_lock(370037)`);
- let reading: ReturnType<typeof repository.exportCsv>|undefined;
+ let reading: Promise<string>|undefined;
  try {
-  reading=repository.exportCsv(authorization,statementA);
+  reading=format==="csv" ? repository.exportCsv(authorization,statementA).then(result=>result.csv) : repository.exportPdf(authorization,statementA).then(async result=>(await pdfPages(result.pdf)).join(" "));
   const deadline=performance.now()+10_000;
   while(true) {
    if((await owner.query("SELECT 1 FROM pg_locks WHERE locktype='advisory' AND NOT granted AND objid=370037")).rowCount) break;
@@ -168,8 +170,8 @@ test("a draft rerun cannot mix CSV header totals, line amounts and audit snapsho
   }
   await owner.query(`BEGIN; UPDATE statement SET total_usd=27.29 WHERE id='${statementA}'; UPDATE statement_line SET amount_usd=31.29 WHERE id='${id(12)}'; COMMIT; SELECT pg_advisory_unlock(370037)`);
   const result=await reading;
-  expect(result.csv).toContain(",0,17.29,");expect(result.csv).toContain(",60.00,21.29,");expect(result.csv).not.toContain("31.29");
-  const audit=await owner.query("SELECT after FROM audit_log WHERE action='statement.export_csv' AND entity_id=$1 ORDER BY id",[statementA]);
+  expect(result).toContain(format==="csv"?",0,17.29,":"USD 17,29");expect(result).toContain(format==="csv"?",60.00,21.29,":"USD 21,29");expect(result).not.toContain(format==="csv"?"31.29":"31,29");
+  const audit=await owner.query("SELECT after FROM audit_log WHERE action=$1 AND entity_id=$2 ORDER BY id",[`statement.export_${format}`,statementA]);
   expect(audit.rows.every(row=>row.after.totalUsd === "17.29")).toBe(true);
  } finally {
   await owner.query("SELECT pg_advisory_unlock_all()");await reading?.catch(()=>undefined);
@@ -198,6 +200,87 @@ test("negative draft totals remain signed numeric CSV metadata and exact audit v
  }
 });
 
+async function pdfPages(bytes: Buffer) {
+ const document=await getDocument({data:new Uint8Array(bytes),useSystemFonts:false}).promise;
+ try {
+  const pages=[];
+  for(let n=1;n<=document.numPages;n++) {
+   const content=await (await document.getPage(n)).getTextContent();
+   pages.push(content.items.filter(item=>"str" in item).map(item=>item.str).join(" ").replace(/\s+/g," "));
+  }
+  return pages;
+ } finally {await document.destroy();}
+}
+
+// Detects missing PDF integration, language selected from UI instead of company,
+// dropped stored facts, usage leakage, recomputed amounts and unaudited downloads.
+test("PDF exports stored draft/final S1 facts, company languages and each-page footer with committed audits",async()=>{
+ const owner=await fixture.connectAsOwner();
+ try {
+  const previousAuditIds=(await owner.query("SELECT id FROM audit_log WHERE action='statement.export_pdf'")).rows.map(row=>row.id);
+  for(const language of [null,"es","en"] as const) {
+   await owner.query("UPDATE company SET statement_language=$1 WHERE id=$2",[language,companyA]);
+   const {pdf,filename}=await repository.exportPdf(authorization,statementA);
+   expect(pdf.subarray(0,5).toString()).toBe("%PDF-");
+   expect(filename).toBe(`statement-${statementA}-2026-07.pdf`);
+   const pages=await pdfPages(pdf), text=pages.join(" "), english=language==="en";
+   for(const value of [english?"ACCOUNT STATEMENT":"ESTADO DE CUENTA",english?"Draft":"Borrador",english?"USD 17.29":"USD 17,29",english?"USD -4.00":"USD -4,00",english?"USD 21.29":"USD 21,29",id(12),id(13),"Prorated","Correction required note"]) expect(text).toContain(value);
+   for(const page of pages) {
+    expect(page).toContain(english?"Period: 2026-07 | Generated: 7/31/26, 19:00":"Período: 2026-07 | Generado: 31/7/26, 19:00");
+    expect(page).toContain(english?"Copy of statement data; amounts are not recalculated.":"Copia de los datos del estado de cuenta; no recalcula importes.");
+   }
+   expect(text).not.toContain(id(14));expect(text).not.toContain("Secret line");expect(text).not.toContain("R2 hidden");
+  }
+  await owner.query("UPDATE company SET statement_language='en' WHERE id=$1",[companyB]);
+  const response=await createStatementPdfExportResponse(repository,{...authorization,globalRole:"central_finance"},statementB);
+  expect(response.status).toBe(200);
+  expect(response.headers.get("content-type")).toBe("application/pdf");
+  expect(response.headers.get("content-disposition")).toBe(`attachment; filename="statement-${statementB}-2026-07.pdf"`);
+  expect(response.headers.get("cache-control")).toBe("private, no-store");
+  const finalText=(await pdfPages(Buffer.from(await response.arrayBuffer()))).join(" ");
+  expect(finalText).toContain("Status: Final");expect(finalText).toContain("USD 60.00");expect(finalText).not.toContain(id(12));
+  const audits=await owner.query("SELECT * FROM audit_log WHERE action='statement.export_pdf' AND id <> ALL($1::uuid[]) ORDER BY occurred_at,id",[previousAuditIds]);
+  expect(audits.rows).toHaveLength(4);
+  for(const row of audits.rows) {
+   const own=row.entity_id===statementA;
+   expect([row.company_id,row.entity_type,row.actor_user_id,row.occurred_at.toISOString()]).toEqual([own?companyA:companyB,"Statement",id(1),"2026-11-02T12:00:00.000Z"]);
+   expect(row.before).toBeNull();expect(row.note).toBeNull();
+   if(!own) expect(row.after.language).toBe("en");
+   expect(row.after).toEqual({format:"pdf",period:"2026-07",status:own?"draft":"final",language:row.after.language,totalUsd:own?"17.29":"60.00",lineCount:own?2:1});
+  }
+  expect(audits.rows.filter(row=>row.entity_id===statementA).map(row=>row.after.language).sort()).toEqual(["en","es","es"]);
+  const empty=(await pdfPages((await repository.exportPdf(authorization,id(20))).pdf)).join(" ");
+  expect(empty).toContain("No lines");expect(empty).toContain("USD 0.00");
+  const emptyAudit=await owner.query("SELECT after FROM audit_log WHERE action='statement.export_pdf' AND entity_id=$1",[id(20)]);
+  expect(emptyAudit.rows.map(row=>row.after)).toEqual([{format:"pdf",period:"2026-08",status:"draft",language:"en",totalUsd:"0.00",lineCount:0}]);
+ } finally {
+  await owner.query("UPDATE company SET statement_language=NULL WHERE id=ANY($1::uuid[])",[[companyA,companyB]]);await owner.end();
+ }
+});
+
+test("PDF download rejects unauthorized, wrong-role, malformed, absent and foreign IDs without auditing",async()=>{
+ const owner=await fixture.connectAsOwner();
+ try {
+  const before=(await owner.query("SELECT count(*) FROM audit_log")).rows[0].count;
+  for(const [auth,value,status,code] of [
+   [null,statementA,401,"UNAUTHORIZED"],
+   [{...authorization,companyGrants:[],roles:["viewer"]},statementA,403,"STATEMENTS_ACCESS_FORBIDDEN"],
+   [{...authorization,companyGrants:[],roles:["employee"]},statementA,403,"STATEMENTS_ACCESS_FORBIDDEN"],
+   [authorization,"invalid",400,"INVALID_STATEMENT_ID"],
+   [authorization,id(999),404,"STATEMENT_NOT_FOUND"],
+   [authorization,statementB,404,"STATEMENT_NOT_FOUND"],
+  ] as const) {
+   const response=await createStatementPdfExportResponse(repository,auth as LedgerAuthorization|null,value);
+   expect(response.status).toBe(status);expect(await response.json()).toEqual({error:code});
+   expect(response.headers.get("cache-control")).toBe("private, no-store");
+  }
+  expect((await owner.query("SELECT count(*) FROM audit_log")).rows[0].count).toBe(before);
+  expect(createStatementPdfDownload(authorization,statementA)).toEqual({downloadUrl:`/api/v1/statements/${statementA}/export/pdf`});
+  expect(()=>createStatementPdfDownload(null,statementA)).toThrow("UNAUTHORIZED");
+  expect(()=>createStatementPdfDownload(authorization,"bad")).toThrow("INVALID_STATEMENT_ID");
+ } finally {await owner.end();}
+});
+
 test.each(["finance","approver","viewer"] as const)("US-041 %s exports only granted company evidence",async role=>{
  const scoped={...authorization,companyGrants:[{companyId:companyA,role}]};
  const own=await createStatementExportResponse(repository,scoped,statementA);
@@ -205,4 +288,30 @@ test.each(["finance","approver","viewer"] as const)("US-041 %s exports only gran
  const csv=await own.text();expect(csv).toContain("Alice");expect(csv).not.toContain("Bob secret");expect(csv).not.toContain("Secret line");
  const foreign=await createStatementExportResponse(repository,scoped,statementB);
  expect(foreign.status).toBe(404);expect(await foreign.json()).toEqual({error:"STATEMENT_NOT_FOUND"});
+});
+
+
+// US-041 read grants apply equally to PDF: each role reads only its own stored
+// evidence, commits a scoped audit and cannot audit an unavailable tenant.
+test.each(["finance","approver","viewer"] as const)("US-041 %s exports only granted company PDF evidence",async role=>{
+ const owner=await fixture.connectAsOwner();
+ try {
+  const previous=(await owner.query("SELECT id FROM audit_log WHERE action='statement.export_pdf'")).rows.map(row=>row.id);
+  const scoped={...authorization,companyGrants:[{companyId:companyA,role}]};
+  const own=await createStatementPdfExportResponse(repository,scoped,statementA);
+  expect(own.status).toBe(200);
+  expect(own.headers.get("content-type")).toBe("application/pdf");
+  const bytes=Buffer.from(await own.arrayBuffer());
+  expect(bytes.subarray(0,5).toString()).toBe("%PDF-");
+  const text=(await pdfPages(bytes)).join(" ");
+  for(const value of [id(12),id(13),"Prorated","Correction required note","USD 17,29"]) expect(text).toContain(value);
+  expect(text).not.toContain(id(14));expect(text).not.toContain("Secret line");expect(text).not.toContain("R2 hidden");
+  const foreign=await createStatementPdfExportResponse(repository,scoped,statementB);
+  expect(foreign.status).toBe(404);expect(await foreign.clone().json()).toEqual({error:"STATEMENT_NOT_FOUND"});
+  expect(foreign.headers.get("content-type")).toBe("application/json");
+  expect(foreign.headers.get("content-disposition")).toBeNull();
+  expect(await foreign.text()).toBe(JSON.stringify({error:"STATEMENT_NOT_FOUND"}));
+  const audits=await owner.query("SELECT entity_id,company_id,actor_user_id,after FROM audit_log WHERE action='statement.export_pdf' AND id <> ALL($1::uuid[])",[previous]);
+  expect(audits.rows).toEqual([{entity_id:statementA,company_id:companyA,actor_user_id:id(1),after:{format:"pdf",period:"2026-07",status:"draft",language:"es",totalUsd:"17.29",lineCount:2}}]);
+ } finally {await owner.end();}
 });

@@ -46,6 +46,10 @@
     ],
     "lifecycle": [
       "packages/db/src/lifecycle-notifications.integration.test.ts"
+    ],
+    "statement-pdf-export": [
+      "apps/web/src/modules/statements/export.integration.test.ts",
+      "apps/web/src/app/(authenticated)/estados-de-cuenta/[statementId]/page.integration.test.tsx"
     ]
   },
   "tables": {
@@ -98,7 +102,8 @@
       "ownership": "company_id",
       "suites": [
         "statements",
-        "close"
+        "close",
+        "statement-pdf-export"
       ]
     },
     "statement_line": {
@@ -106,7 +111,8 @@
       "suites": [
         "statements",
         "close",
-        "register"
+        "register",
+        "statement-pdf-export"
       ]
     },
     "close_run": {
@@ -132,7 +138,8 @@
       "suites": [
         "people",
         "identity",
-        "statements"
+        "statements",
+        "statement-pdf-export"
       ]
     },
     "person": {
@@ -241,7 +248,8 @@
         "audit",
         "people",
         "requests",
-        "close"
+        "close",
+        "statement-pdf-export"
       ]
     }
   }

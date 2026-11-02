@@ -32,7 +32,7 @@ export function StatementTable({ data, t }: { data: StatementRegister; t: Labels
           <td className="p-2 font-mono">{row.totalUsd}</td>
           <td className="p-2"><time>{row.generatedAt.toISOString()}</time></td>
           <td className="p-2"><Link className="block font-mono underline" href={ROUTE_SCR_STATEMENT_DETAIL.replace(":statementId", row.id)}>{row.id}</Link>
-            <a className="underline" href={`/api/v1/statements/${row.id}/export/csv`}>{t.csv}</a></td>
+            <a className="underline" href={`/api/v1/statements/${row.id}/export/csv`}>{t.csv}</a>{" · "}<a className="underline" href={`/api/v1/statements/${row.id}/export/pdf`}>{t.pdf}</a></td>
           <td className="p-2 font-mono">{row.closeRunId ?? t.none}</td>
         </tr>)}</tbody>
       </table>}

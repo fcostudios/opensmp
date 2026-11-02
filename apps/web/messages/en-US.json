@@ -520,6 +520,7 @@
     "retry": "Try again",
     "viewRegister": "View evidence in register",
     "csv": "Export CSV",
+    "pdf": "Download PDF",
     "licenseOnly": "License charges and adjustments. Usage charges are outside this release."
   },
   "statements": {
@@ -543,6 +544,7 @@
     "statementId": "Statement identifier",
     "closeRun": "Close run",
     "csv": "Export CSV",
+    "pdf": "Download PDF",
     "empty": "No statements match this period and filters.",
     "noRun": "No visible close run for this period.",
     "latest": "Latest visible close run",

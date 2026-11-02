@@ -37,4 +37,13 @@ test("US-047 enrolled oracles are real integration tests and include finance and
   for (const surface of ["statements/list-repository", "statements/repository", "statements/export", "close/rollup", "estados-de-cuenta/[statementId]/page", "cierre/page"]) {
     expect(files.some(file => file.includes(surface)), surface).toBe(true);
   }
+  // The PDF download owns separate queries and an audit write. Keep its real
+  // query-path and signed-session oracles enrolled in the required suite.
+  expect(inventory.seams["statement-pdf-export"]).toEqual([
+    "apps/web/src/modules/statements/export.integration.test.ts",
+    "apps/web/src/app/(authenticated)/estados-de-cuenta/[statementId]/page.integration.test.tsx",
+  ]);
+  for (const table of ["company", "statement", "statement_line", "audit_log"]) {
+    expect(inventory.tables[table].suites, table).toContain("statement-pdf-export");
+  }
 });

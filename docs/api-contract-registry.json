@@ -2,7 +2,7 @@
   "meta": {
     "generated": "auto",
     "description": "API contract registry \u2014 all endpoints from TOON dataSource + story specs.",
-    "endpoint_count": 3,
+    "endpoint_count": 4,
     "scaffold": false
   },
   "endpoints": {
@@ -33,6 +33,16 @@
         {
           "type": "story",
           "ref": "US-037 (S1 CSV)"
+        }
+      ]
+    },
+    "GET /api/v1/statements/:statementId/export/pdf": {
+      "method": "GET",
+      "url": "/api/v1/statements/:statementId/export/pdf",
+      "sources": [
+        {
+          "type": "story",
+          "ref": "US-037 (S3 PDF)"
         }
       ]
     }

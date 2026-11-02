@@ -15,6 +15,8 @@ let localePool: pg.Pool;
 let Page: typeof import("./page").default;
 let ListPage: typeof import("../page").default;
 let download: typeof import("@/app/api/v1/statements/[statementId]/export/csv/route").GET;
+let pdfDownload: typeof import("@/app/api/v1/statements/[statementId]/export/pdf/route").GET;
+let pdfAction: typeof import("@/modules/statements/server-actions").exportStatementPdf;
 let exportAction: typeof import("@/modules/statements/server-actions").exportStatementCsv;
 let hooks: ReturnType<typeof registerHooks>;
 const saved = vi.hoisted(() => {
@@ -31,7 +33,7 @@ beforeAll(async () => {
   ('${id(1)}','finance@test.invalid','detail-finance',NULL,'active','2026-08-01'),
   ('${id(2)}','viewer@test.invalid','detail-viewer',NULL,'active','2026-08-01'),
   ('${id(3)}','central@test.invalid','detail-central','central_finance','active','2026-08-01'),
-  ('${id(4)}','admin@test.invalid','detail-admin','group_admin','active','2026-08-01'), ('${id(20)}','approver@test.invalid','detail-approver',NULL,'active','2026-08-01');
+  ('${id(4)}','admin@test.invalid','detail-admin','group_admin','active','2026-08-01'), ('${id(21)}','ungranted@test.invalid','detail-ungranted',NULL,'active','2026-08-01'), ('${id(20)}','approver@test.invalid','detail-approver',NULL,'active','2026-08-01');
   INSERT INTO company (id,name,code,type,status,created_at,created_by) VALUES
   ('${id(5)}','Alpha detail','ALP','internal','active','2026-08-01','${id(3)}'),('${id(6)}','Foreign detail','BRV','internal','active','2026-08-01','${id(3)}');
   INSERT INTO company_role_assignment (user_account_id,company_id,role,unique_grant,created_at,created_by) VALUES
@@ -72,14 +74,16 @@ beforeAll(async () => {
  ListPage=(await import("../page")).default;
  download=(await import("@/app/api/v1/statements/[statementId]/export/csv/route")).GET;
  exportAction=(await import("@/modules/statements/server-actions")).exportStatementCsv;
+ pdfDownload=(await import("@/app/api/v1/statements/[statementId]/export/pdf/route")).GET;
+ pdfAction=(await import("@/modules/statements/server-actions")).exportStatementPdf;
  productionPool=((await import(require.resolve("@smp/db"))).db as unknown as {$client:pg.Pool}).$client;
 });
 afterAll(async()=>{if(hooks){localePool=require("@smp/db").db.$client;if(localePool!==productionPool)await localePool.end();}hooks?.deregister();await productionPool?.end();await owner?.end();await fixture?.stop();vi.useRealTimers();for(const [key,value] of Object.entries(saved)) {if(value===undefined)delete process.env[key];else process.env[key]=value;}});
 function page(subject:string|null,statementId?:string,uiLanguage?:string,operation?:"page"): Promise<Awaited<ReturnType<typeof Page>>>;
-function page(subject:string|null,statementId:string,uiLanguage:string,operation:"csv"): Promise<Response>;
-function page(subject:string|null,statementId:string,uiLanguage:string,operation:"action"): Promise<{downloadUrl:string}>;
+function page(subject:string|null,statementId:string,uiLanguage:string,operation:"csv"|"pdf"): Promise<Response>;
+function page(subject:string|null,statementId:string,uiLanguage:string,operation:"action"|"pdfAction"): Promise<{downloadUrl:string}>;
 function page(subject:string|null,statementId:string,uiLanguage:string,operation:"list",listFilters:{period?:string;companyId?:string}): Promise<Awaited<ReturnType<typeof ListPage>>>;
-async function page(subject:string|null,statementId=id(7),uiLanguage="en", operation: "page"|"csv"|"action"|"list"="page",listFilters?:{period?:string;companyId?:string}) {
+async function page(subject:string|null,statementId=id(7),uiLanguage="en", operation: "page"|"csv"|"action"|"pdf"|"pdfAction"|"list"="page",listFilters?:{period?:string;companyId?:string}) {
  if(subject) await owner.query("UPDATE user_account SET ui_language=$1 WHERE idp_subject=$2",[uiLanguage,subject]);
  const {encode}=await import(require.resolve("next-auth/jwt"));
  const token=subject?await encode({secret:process.env.AUTH_SECRET!,salt:"authjs.session-token",token:{idpSubject:subject,displayName:"Verified finance",uiLanguage}}):null;
@@ -91,7 +95,7 @@ async function page(subject:string|null,statementId=id(7),uiLanguage="en", opera
  const request=new Request(url,{headers:{host:url.host,...(token?{cookie:"authjs.session-token="+token}:{})}});
  const store=createRequestStoreForAPI(request,url,{tags:[],expirationsByCacheKind:new Map()});
  const work=createWorkStore({page:"/estados-de-cuenta/[statementId]/page",renderOpts:{supportsDynamicResponse:true,isDraftMode:false},isPrefetchRequest:false,buildId:"us036",previouslyRevalidatedTags:[]});
- return workAsyncStorage.run(work,()=>workUnitAsyncStorage.run(store,()=>operation === "list" ? ListPage({searchParams:Promise.resolve(listFilters!)}) : operation === "csv" ? download(request,{params:Promise.resolve({statementId})}) : operation === "action" ? exportAction(statementId) : Page({params:Promise.resolve({statementId})})));
+ return workAsyncStorage.run(work,()=>workUnitAsyncStorage.run(store,()=>operation === "list" ? ListPage({searchParams:Promise.resolve(listFilters!)}) : operation === "pdf" ? pdfDownload(request,{params:Promise.resolve({statementId})}) : operation === "pdfAction" ? pdfAction(statementId) : operation === "csv" ? download(request,{params:Promise.resolve({statementId})}) : operation === "action" ? exportAction(statementId) : Page({params:Promise.resolve({statementId})})));
 }
 test.each([null])("signed %s cannot open statement detail",async subject=>{await expect(page(subject)).rejects.toMatchObject({digest:expect.stringContaining(";/acceso-denegado;")});});
 test.each(["detail-finance","detail-approver","detail-viewer"])("signed %s reads only own evidence and denies foreign/missing IDs",async subject=>{
@@ -140,5 +144,44 @@ test("CSV download and action independently resolve signed finance grants, langu
   await owner.query("DELETE FROM company_role_assignment WHERE user_account_id=$1",[id(n)]);
   try {expect((await page(subject,id(7),"en","csv")).status).toBe(403);}
   finally {await owner.query("INSERT INTO company_role_assignment (user_account_id,company_id,role,unique_grant,created_at,created_by) VALUES ($1,$2,$3,$4,'2026-08-01',$5)",[id(n),id(5),role,key,id(3)]);}
+ }
+});
+
+
+// Fresh grants at both public entry points constrain role, actor, tenant and UI-locale spoofing.
+test("signed PDF action and download reauthorize grants and ignore UI locale",async()=>{
+ const {getDocument}=await import("pdfjs-dist/legacy/build/pdf.mjs");
+ for(const [subject,statementId,status] of [[null,id(7),401],["detail-ungranted",id(7),403],["detail-finance",id(8),404],["detail-finance",id(999),404],["detail-finance","bad-id",400]] as const) expect((await page(subject,statementId,"en","pdf")).status).toBe(status);
+ const before=(await owner.query("SELECT count(*) FROM audit_log WHERE action='statement.export_pdf'")).rows[0].count;
+ for(const subject of ["detail-finance","detail-approver","detail-viewer","detail-central","detail-admin"]) {
+  expect(await page(subject,id(7),"en","pdfAction")).toEqual({downloadUrl:`/api/v1/statements/${id(7)}/export/pdf`});
+ }
+ expect((await owner.query("SELECT count(*) FROM audit_log WHERE action='statement.export_pdf'")).rows[0].count).toBe(before);
+ for(const subject of ["detail-finance","detail-approver","detail-viewer","detail-central","detail-admin"]) {
+  const response=await page(subject,id(7),"en","pdf");expect(response.status).toBe(200);
+  const document=await getDocument({data:new Uint8Array(await response.arrayBuffer()),useSystemFonts:false}).promise;
+  try {
+   const content=await (await document.getPage(1)).getTextContent();
+   const text=content.items.filter(item=>"str" in item).map(item=>item.str).join(" ").replace(/\s+/g," ");
+   expect(text).toContain("ESTADO DE CUENTA");expect(text).toContain("USD 21,29");expect(text).not.toContain("Foreign detail");
+  } finally {await document.destroy();}
+ }
+ await expect(page(null,id(7),"en","pdfAction")).rejects.toThrow("UNAUTHORIZED");
+ await expect(page("detail-ungranted",id(7),"en","pdfAction")).rejects.toThrow("STATEMENTS_ACCESS_FORBIDDEN");
+ await expect(page("detail-finance","bad-id","en","pdfAction")).rejects.toThrow("INVALID_STATEMENT_ID");
+ const audits=await owner.query("SELECT entity_id,company_id,actor_user_id FROM audit_log WHERE action='statement.export_pdf' ORDER BY actor_user_id");
+ expect(audits.rows).toEqual([1,2,3,4,20].map(n=>({entity_id:id(7),company_id:id(5),actor_user_id:id(n)})));
+ for(const subject of ["detail-finance","detail-approver","detail-viewer"]) {
+  const foreign=await page(subject,id(8),"en","pdf");
+  expect(foreign.status).toBe(404);expect(await foreign.json()).toEqual({error:"STATEMENT_NOT_FOUND"});
+ }
+ // Revoke after issuing each role's URL: neither action nor download may use a stale grant.
+ for(const [n,subject,role,key] of [[1,"detail-finance","finance","finance-a"],[2,"detail-viewer","viewer","viewer-a"],[20,"detail-approver","approver","approver-a"]] as const) {
+  await owner.query("DELETE FROM company_role_assignment WHERE user_account_id=$1",[id(n)]);
+  try {
+   expect((await page(subject,id(7),"en","pdf")).status).toBe(403);
+   await expect(page(subject,id(7),"en","pdfAction")).rejects.toThrow("STATEMENTS_ACCESS_FORBIDDEN");
+   expect((await owner.query("SELECT count(*) FROM audit_log WHERE action='statement.export_pdf'")).rows[0].count).toBe("5");
+  } finally {await owner.query("INSERT INTO company_role_assignment (user_account_id,company_id,role,unique_grant,created_at,created_by) VALUES ($1,$2,$3,$4,'2026-08-01',$5)",[id(n),id(5),role,key,id(3)]);}
  }
 });

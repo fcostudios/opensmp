@@ -6,6 +6,7 @@ import * as schema from "@smp/db/schema";
 import { auditLog, company, statement, statementLine, person, vendorAccount, licenseType } from "@smp/db/schema";
 import type { LedgerAuthorization } from "../identity-access/authorization";
 import { statementCompanyIds } from "./repository";
+import { renderStatementPdf } from "./pdf/render";
 import english from "../../../messages/en-US.json";
 import spanish from "../../../messages/es-EC.json";
 
@@ -23,8 +24,34 @@ export function createStatementCsvDownload(authorization: LedgerAuthorization | 
   return { downloadUrl: `/api/v1/statements/${id}/export/csv` };
 }
 
+/** The PDF action follows the same read-only URL contract as CSV. */
+export function createStatementPdfDownload(authorization: LedgerAuthorization | null, input: unknown) {
+  const { id } = authorizedId(authorization, input);
+  return { downloadUrl: `/api/v1/statements/${id}/export/pdf` };
+}
+
 export function createStatementExportService(database: NodePgDatabase<typeof schema>, now = () => new Date()) {
   return {
+    async exportPdf(authorization: LedgerAuthorization | null, input: unknown) {
+      const { ids, id } = authorizedId(authorization, input);
+      return database.transaction(async tx => {
+        const [snapshot] = await tx.select({ statement, company: { id: company.id, code: company.code, name: company.name, statementLanguage: company.statementLanguage } })
+          .from(statement).innerJoin(company, and(eq(company.id, statement.companyId), inArray(company.id, ids)))
+          .where(and(eq(statement.id, id), inArray(statement.companyId, ids)));
+        if (!snapshot) throw new Error("STATEMENT_NOT_FOUND");
+        // Match US-036 detail's stored S1 facts, without deriving new usage or amounts.
+        const lines = await tx.select({ line: statementLine }).from(statementLine)
+          .innerJoin(statement, eq(statement.id, statementLine.statementId))
+          .where(and(eq(statementLine.statementId, id), eq(statement.companyId, snapshot.statement.companyId), inArray(statementLine.kind, ["license", "adjustment"])))
+          .orderBy(asc(statementLine.id));
+        const pdf = await renderStatementPdf({ ...snapshot, lines: lines.map(entry => entry.line) });
+        const row = snapshot.statement;
+        await tx.insert(auditLog).values({ action: "statement.export_pdf", entityType: "Statement", entityId: id,
+          actorUserId: authorization!.userAccountId, companyId: row.companyId, before: null, note: null,
+          after: { format: "pdf", period: row.period, status: row.status, language: snapshot.company.statementLanguage ?? "es", totalUsd: row.totalUsd, lineCount: lines.length }, occurredAt: now() });
+        return { pdf, filename: `statement-${id}-${row.period}.pdf` };
+      }, { isolationLevel: "repeatable read" });
+    },
     async exportCsv(authorization: LedgerAuthorization | null, input: unknown) {
       const { ids, id } = authorizedId(authorization, input);
       return database.transaction(async tx => {
@@ -65,10 +92,23 @@ export async function createStatementExportResponse(service: ReturnType<typeof c
     const { csv, filename } = await service.exportCsv(authorization, input);
     return new Response(csv, { headers: { "Content-Type": "text/csv; charset=utf-8", "Cache-Control": "private, no-store", "Content-Disposition": `attachment; filename="${filename}"` } });
   } catch (error) {
-    const code = error instanceof Error ? error.message : "";
-    const statuses: Record<string, number> = { UNAUTHORIZED: 401, STATEMENTS_ACCESS_FORBIDDEN: 403, INVALID_STATEMENT_ID: 400, STATEMENT_NOT_FOUND: 404 };
-    const status = statuses[code];
-    if (!status) throw error;
-    return Response.json({ error: code }, { status, headers: { "Cache-Control": "private, no-store" } });
+    return exportErrorResponse(error);
   }
+}
+
+export async function createStatementPdfExportResponse(service: ReturnType<typeof createStatementExportService>, authorization: LedgerAuthorization | null, input: unknown) {
+  try {
+    const { pdf, filename } = await service.exportPdf(authorization, input);
+    return new Response(new Uint8Array(pdf), { headers: { "Content-Type": "application/pdf", "Cache-Control": "private, no-store", "Content-Disposition": `attachment; filename="${filename}"` } });
+  } catch (error) {
+    return exportErrorResponse(error);
+  }
+}
+
+function exportErrorResponse(error: unknown) {
+  const code = error instanceof Error ? error.message : "";
+  const statuses: Record<string, number> = { UNAUTHORIZED: 401, STATEMENTS_ACCESS_FORBIDDEN: 403, INVALID_STATEMENT_ID: 400, STATEMENT_NOT_FOUND: 404 };
+  const status = statuses[code];
+  if (!status) throw error;
+  return Response.json({ error: code }, { status, headers: { "Cache-Control": "private, no-store" } });
 }
