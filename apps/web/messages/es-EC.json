@@ -391,7 +391,7 @@
     "manualError": "No se pudo actualizar el registro. Revise permisos, referencias, notas, fechas y períodos finalizados.",
     "manualPending": "Guardando…",
 
-    "all": "Todas", "apply": "Aplicar filtros", "closed": "Cerradas", "company": "Compañía", "companyCode": "Compañía", "dateFrom": "Fecha inicial", "dateTo": "Fecha final",
+    "activeMonth": "Activas en el mes", "activeMonthHint": "Cada licencia activa al menos un día del mes, tal como la factura el cierre mensual.", "all": "Todas", "apply": "Aplicar filtros", "closed": "Cerradas", "company": "Compañía", "companyCode": "Compañía", "dateFrom": "Fecha inicial", "dateTo": "Fecha final",
     "drilldownClose": "Cerrar", "drilldownDecisionDate": "decidida el", "drilldownSource": "Solicitud de origen", "drilldownStatementLines": "Líneas del estado de cuenta", "drilldownTitle": "Trazabilidad de la asignación",
     "empty": "No hay asignaciones que coincidan con estos filtros.", "endReason": "Motivo de cierre", "endReasonInactive": "Inactividad", "endReasonLeftCompany": "Salida de la compañía", "endReasonReallocated": "Reasignada", "endedOn": "Fin",
     "export": "Exportar CSV", "exportError": "No pudimos exportar el registro. Verifica tu acceso e inténtalo de nuevo.", "filters": "Filtra el registro", "integrityContent": "La base de datos impide asignaciones solapadas y exige continuidad en los movimientos por reasignación. Revisa las alertas de desvío del registro cuando otra brecha de atribución requiera investigación.", "integrityTitle": "Integridad del registro",
