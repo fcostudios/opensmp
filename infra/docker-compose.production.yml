@@ -6,6 +6,8 @@ x-runtime: &runtime
   PGDATABASE: ledger
   PGUSER: ledger_app
   PGPASSWORD: ${LEDGER_APP_PASSWORD:?set LEDGER_APP_PASSWORD}
+  # CHG-122: some web modules read DATABASE_URL explicitly; same ledger_app credentials (generated passwords are hex, URL-safe).
+  DATABASE_URL: postgresql://ledger_app:${LEDGER_APP_PASSWORD:?set LEDGER_APP_PASSWORD}@postgres:5432/ledger
   LEDGER_PUBLIC_URL: https://${APP_DOMAIN:?set APP_DOMAIN}
   LEDGER_CREDENTIAL_KEK_FILE: /run/ledger-secrets/credential-kek
   SMTP_URL: smtp://smtp-relay:587
