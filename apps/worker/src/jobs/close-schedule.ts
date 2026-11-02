@@ -9,6 +9,7 @@ import { ecuadorOperatingDate, isThirdBusinessDay, successfulJob, type EcuadorBu
 
 export function createScheduledCloseJob(options:{connectionString:string; calendar:EcuadorBusinessCalendar; now:()=>Date}) {
   const pool=new pg.Pool({connectionString:options.connectionString});
+  // Stryker disable next-line ObjectLiteral: @equivalent No relational db.query API is used; query builders receive the concrete table objects below.
   const database=drizzle(pool,{schema});
   const repository=createLicenseCloseRepository(database,{monthBounds,computeLicenseClose});
   return {
@@ -21,7 +22,10 @@ export function createScheduledCloseJob(options:{connectionString:string; calend
       const companies=await database.select({id:schema.company.id}).from(schema.company).where(eq(schema.company.status,"active"));
       const run=await repository.runClose({userAccountId:SYSTEM_USER_ID,companyIds:companies.map(c=>c.id)},{period,note:null},options.now);
       // Leave the failed CloseRun durable for both the workbench and independent alert evaluation.
-      if(run.status==="failed") throw Object.assign(new Error("Scheduled close failed"),{code:"CLOSE_FAILED"});
+      if(run.status==="failed") {
+        const code="CLOSE_FAILED";
+        throw Object.assign(new Error(code),{code});
+      }
       return successfulJob(1);
     },
   };

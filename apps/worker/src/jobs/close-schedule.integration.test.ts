@@ -1,11 +1,11 @@
 import { once } from "node:events";
 import pg from "pg";
 import { SMTPServer } from "smtp-server";
-import { afterAll, beforeAll, beforeEach, expect, test } from "vitest";
+import { afterAll, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import { createPostgresFixture, type PostgresFixture } from "@smp/db/testing/postgres-container";
 import { createSmtpMailer } from "@smp/notifications";
-import { createDeferredJobHandlers } from "./deferred.js";
-import { createScheduledCloseJob } from "./close-schedule.js";
+let createDeferredJobHandlers:typeof import("./deferred.js").createDeferredJobHandlers;
+let createScheduledCloseJob:typeof import("./close-schedule.js").createScheduledCloseJob;
 import { createJobIdempotencyBoundary } from "../idempotency.js";
 import { createJobIdempotencyKey } from "@smp/domain";
 import { createAlertEvaluationJob } from "../alerts/evaluate-alerts.js";
@@ -28,6 +28,9 @@ beforeAll(async()=>{
   smtp.listen(0,"127.0.0.1");await once(smtp.server,"listening");const address=smtp.server.address();if(!address||typeof address==="string")throw new Error("SMTP unavailable");mailer=createSmtpMailer(`smtp://127.0.0.1:${address.port}`);
 });
 beforeEach(async()=>{
+  vi.resetModules();
+  ({createDeferredJobHandlers}=await import("./deferred.js"));
+  ({createScheduledCloseJob}=await import("./close-schedule.js"));
   await owner.query("TRUNCATE audit_log, close_run, statement, alert_event CASCADE");
   await owner.query("TRUNCATE pgboss.worker_job_execution");
   await owner.query("UPDATE alert_rule SET enabled=type IN ('close_missed','provisioning_failure')");
@@ -44,6 +47,7 @@ test("earlier no-ops cannot consume bd-3; holiday-aware scheduled close runs onc
   expect((await owner.query("SELECT period,status,triggered_by FROM close_run")).rows).toEqual([{period:"2026-10",status:"succeeded",triggered_by:system}]);
   expect((await owner.query("SELECT company_id,period,status,total_usd FROM statement")).rows).toEqual([{company_id:company,period:"2026-10",status:"draft",total_usd:"0.00"}]);
   expect((await owner.query("SELECT status,global_role FROM user_account WHERE id=$1",[system])).rows).toEqual([{status:"disabled",global_role:null}]);
+  expect((await owner.query("SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname=$1 AND usename='ledger_app'",[fixture.databaseName])).rows).toEqual([{count:0}]);
 });
 
 test("watchdog works without ever calling the close handler, including weekends, holidays and UTC month edges",async()=>{
@@ -68,7 +72,7 @@ test("failed scheduled close is persisted, alerted by provisioning-failure routi
     await expect(precheck("2026-11-06T10:30:00Z")).rejects.toMatchObject({code:"CLOSE_FAILED"});
     expect((await owner.query("SELECT status,note FROM close_run")).rows).toEqual([{status:"failed",note:"CLOSE_FAILED"}]);
     const job=createAlertEvaluationJob({connectionString:fixture.appUrl,calendar,mailer,workerId:"failure-eval"});
-    try {await job.run(new Date("2026-11-07T15:07:00Z"));await job.run(new Date("2026-11-07T15:22:00Z"));}finally{await job.close();}
+    try {expect(await job.run(new Date("2026-11-07T15:07:00Z"))).toEqual({processed:1,status:"succeeded"});expect(await job.run(new Date("2026-11-07T15:22:00Z"))).toEqual({processed:0,status:"succeeded"});}finally{await job.close();}
     expect((await owner.query(`SELECT r.type,e.subject_ref FROM alert_event e JOIN alert_rule r ON r.id=e.alert_rule_id`)).rows).toEqual([{type:"provisioning_failure",subject_ref:{period:"2026-10"}}]);
     expect(messages).toHaveLength(1);expect(messages[0]).toContain("provisioning_failure");
   } finally {await owner.query("DROP TRIGGER fail_us051_close ON statement; DROP FUNCTION fail_us051_close()");await owner.query("DELETE FROM alert_rule WHERE company_id=$1",[company]);}
@@ -81,6 +85,7 @@ test("January schedule selects December and a UTC month boundary remains on the 
     expect((await owner.query("SELECT period FROM close_run")).rows).toEqual([{period:"2025-12"}]);
     expect(await job.run(new Date("2026-02-01T03:00:00Z"))).toEqual({processed:0,status:"succeeded"});
   } finally {await job.close();}
+  expect((await owner.query("SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname=$1 AND usename='ledger_app'",[fixture.databaseName])).rows).toEqual([{count:0}]);
 });
 
 test("watchdog fires on Saturday immediately after Friday bd-3 and ignores company-scoped rules",async()=>{

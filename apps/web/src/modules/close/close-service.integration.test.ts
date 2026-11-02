@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import * as schema from "@smp/db/schema";
 import { createPostgresFixture, type PostgresFixture } from "@smp/db/testing/postgres-container";
 import type { LedgerAuthorization } from "../identity-access/authorization";
-import { createLicenseCloseRepository } from "@smp/db/license-close";
+import { createLicenseCloseRepository } from "../../../../../packages/db/src/license-close";
 import { computeLicenseClose, monthBounds } from "@smp/domain/close/license-close";
 import { createCloseService } from "./close-transaction";
 import { createCloseActions } from "./close-actions-factory";

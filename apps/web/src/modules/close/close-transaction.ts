@@ -1,4 +1,4 @@
-import { createLicenseCloseRepository } from "@smp/db/license-close";
+import { createLicenseCloseRepository } from "../../../../../packages/db/src/license-close";
 import { createHash } from "node:crypto";
 import { and, asc, desc, eq, inArray, or, sql, getTableColumns } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
@@ -111,6 +111,7 @@ export function createCloseService(database: Database, { now = () => new Date() 
         finals: sql<number>`count(*) FILTER (WHERE ${statement.status} IN ('final','reconciled'))::int`,
         totalUsd: sql<string>`COALESCE(sum(${statement.totalUsd}),0)::numeric(12,2)::text`,
       }).from(statement).where(and(inArray(statement.companyId,[...authorization.companyIds]),eq(statement.period,period)));
+      // Stryker disable next-line ObjectLiteral: @equivalent The projection is unused; only the number of authorized active company rows is consumed.
       const companies=await database.select({id:company.id}).from(company).where(and(inArray(company.id,[...authorization.companyIds]),eq(company.status,"active")));
       return {...row!,companies:companies.length};
     },

@@ -31,6 +31,9 @@ export type AlertEventCounts = {
   readonly unacknowledged: bigint;
 };
 
+// Period failures have no request/company target; the rule's global scope still gates visibility.
+const scheduledCloseFailureLinkClause = "WHEN rule.type::text = 'provisioning_failure' AND event.subject_ref ? 'period' THEN TRUE";
+
 const DEFAULT_ALERT_LIMIT = 50;
 const MAX_ALERT_LIMIT = 100;
 
@@ -162,7 +165,7 @@ export async function listAuthorizedAlertEvents(
                 )::text AS company_id,
                 COALESCE(tenant.name, request_target.name) AS company_name,
                 CASE
-                  WHEN rule.type::text = 'provisioning_failure' AND event.subject_ref ? 'period' THEN TRUE
+                  ${scheduledCloseFailureLinkClause}
                   WHEN rule.scope_kind::text = 'global'
                     AND rule.type::text IN (
                       'approval_aging',
