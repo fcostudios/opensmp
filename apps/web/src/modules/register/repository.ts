@@ -141,7 +141,7 @@ function renderRegisterCsvRows(rows: readonly RegisterRow[]): string {
     row.personName, row.companyCode, row.vendorAccountName, row.licenseTypeName,
     row.startedOn, row.endedOn, row.endReason,
     row.sourceKind, row.sourceRequestNo, row.note,
-  ].map(csvCell).join(",")).join("\r\n") + (rows.length ? "\r\n" : "");
+  ].map(value => csvCell(value)).join(",")).join("\r\n") + (rows.length ? "\r\n" : "");
 }
 
 function registerCsvHeader(): string {
