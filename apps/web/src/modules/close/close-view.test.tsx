@@ -41,3 +41,23 @@ test("route boundaries and running or failed runs remain visible and recoverable
   fireEvent.submit(screen.getByTestId("modal_confirm_close"));await waitFor(()=>expect(screen.getByRole("alert").textContent).toContain(t.failed));
   expect(screen.getByRole("alert").textContent).toContain("1.234");
 });
+
+test("latest run binds actor, tiles and strict five-minute NFR without claiming failed runs meet target",()=>{
+  const latest={id:"newest",period:"2026-10",status:"succeeded" as const,note:null,triggeredByName:"finance@test.invalid",startedAt:new Date("2026-11-06T10:30:00Z"),finishedAt:new Date("2026-11-06T10:34:59Z")};
+  const view=render(<CloseView period="2026-10" latest={latest} summary={{generated:2,companies:3,drafts:1,finals:1,totalUsd:"42.18"}} action={async()=>({status:"error"})}/>);
+  expect(screen.getByTestId("latest_close_run").textContent).toContain("finance@test.invalid");
+  expect(screen.getByTestId("tile_current_period").textContent).toContain("2026-10");
+  expect(screen.getByTestId("tile_statements_generated").textContent).toContain("2/3");
+  expect(screen.getByTestId("tile_drafts").textContent).toContain("1");
+  expect(screen.getByTestId("tile_finals").textContent).toContain("1");
+  expect(screen.getByTestId("tile_group_total").textContent).toContain("USD 42.18");
+  expect(screen.getByTestId("close_nfr").textContent).toContain(t.withinTarget);
+  view.rerender(<CloseView period="2026-10" latest={{...latest,finishedAt:new Date("2026-11-06T10:35:00Z")}} action={async()=>({status:"error"})}/>);
+  expect(screen.getByTestId("close_nfr").textContent).toContain(t.overTarget);
+  view.rerender(<CloseView period="2026-10" latest={{...latest,status:"failed"}} action={async()=>({status:"error"})}/>);
+  expect(screen.getByTestId("close_nfr").textContent).toContain(t.failed);
+  view.rerender(<CloseView period="2026-10" latest={{...latest,status:"running",finishedAt:null,triggeredByName:"system@ledger.invalid",scheduled:true}} action={async()=>({status:"error"})}/>);
+  expect(screen.getByTestId("latest_close_run").textContent).toContain(t.scheduled);
+  expect(screen.getByTestId("close_nfr").textContent).toContain(t.running);
+  expect(screen.getByRole("button",{name:t.run}).hasAttribute("disabled")).toBe(true);
+});

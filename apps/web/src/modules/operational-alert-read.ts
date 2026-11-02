@@ -162,6 +162,7 @@ export async function listAuthorizedAlertEvents(
                 )::text AS company_id,
                 COALESCE(tenant.name, request_target.name) AS company_name,
                 CASE
+                  WHEN rule.type::text = 'provisioning_failure' AND event.subject_ref ? 'period' THEN TRUE
                   WHEN rule.scope_kind::text = 'global'
                     AND rule.type::text IN (
                       'approval_aging',

@@ -56,7 +56,7 @@ export function createJobIdempotencyKey(job: JobName, input: JobKeyInput): strin
   if (job === "inactivityFlagging") return `inactivity-flagging:${day}`;
   if (job === "alertEvaluation") return `alert-evaluation:${utcQuarterHour(date)}`;
   if (job === "capacityRecovery") return `capacity-recovery:${date.toISOString().slice(0, 16)}`;
-  return `close-precheck:${day.slice(0, 7)}`;
+  return `close-precheck:${ecuadorOperatingDate(date)}`;
 }
 
 /**
@@ -109,6 +109,12 @@ export function businessDaysElapsedInMonth(
     if (isBusinessDay(isoDate(year, month, day), calendar)) elapsed += 1;
   }
   return elapsed;
+}
+
+/** Fully elapsed Ecuador business dates; today's date has not ended yet. */
+export function completedBusinessDaysInMonth(date: Date, calendar: EcuadorBusinessCalendar): number {
+  const operatingDate = ecuadorOperatingDate(date);
+  return businessDaysElapsedInMonth(date, calendar) - (isBusinessDay(operatingDate, calendar) ? 1 : 0);
 }
 
 export function businessDaysBetween(

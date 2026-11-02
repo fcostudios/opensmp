@@ -25,7 +25,8 @@
   ],
   "apps/worker/src/alerts/evaluate-alerts.ts": [
     "apps/worker/src/alerts/overdue-invitations.integration.test.ts",
-    "apps/worker/src/alerts/evaluate-alerts.integration.test.ts"
+    "apps/worker/src/alerts/evaluate-alerts.integration.test.ts",
+    "apps/worker/src/jobs/close-schedule.integration.test.ts"
   ],
   "apps/web/src/app/(authenticated)/excepciones/page.tsx": [
     "apps/web/src/components/exceptions/exception-page-boundaries.test.ts"
@@ -269,5 +270,8 @@
   "apps/web/src/modules/register/repository.ts": [
     "apps/web/src/modules/register/repository.integration.test.ts",
     "apps/web/src/modules/statements/repository.integration.test.ts"
+  ],
+  "packages/db/src/license-close.ts": [
+    "apps/web/src/modules/close/close-service.integration.test.ts"
   ]
 }

@@ -4,6 +4,8 @@ import { afterAll, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import * as schema from "@smp/db/schema";
 import { createPostgresFixture, type PostgresFixture } from "@smp/db/testing/postgres-container";
 import type { LedgerAuthorization } from "../identity-access/authorization";
+import { createLicenseCloseRepository } from "@smp/db/license-close";
+import { computeLicenseClose, monthBounds } from "@smp/domain/close/license-close";
 import { createCloseService } from "./close-transaction";
 import { createCloseActions } from "./close-actions-factory";
 
@@ -453,4 +455,34 @@ test("each finalization command records its actor, scope, time and stable period
     commandIds.set(period,current[0].entity_id);
   }
   expect(commandIds.get("2026-01")).not.toBe(commandIds.get("2026-02"));
+});
+
+test("finance sees scheduled failures without statements and sees a committed running record while close waits",async()=>{
+  // A failed scheduled run has no statement through which to discover it.
+  await owner.query(`INSERT INTO user_account(id,email,status,created_at) VALUES('00000000-0000-0000-0000-000000000001','system@ledger.invalid','disabled',$1)`,[now]);
+  await owner.query(`INSERT INTO close_run(period,status,started_at,finished_at,triggered_by,created_at,note) VALUES('2026-10','failed',$1,$1,'00000000-0000-0000-0000-000000000001',$1,'CLOSE_FAILED')`,[now]);
+  expect(await service.latestRun(finance,"2026-10")).toMatchObject({status:"failed",note:"CLOSE_FAILED",triggeredByName:"system@ledger.invalid"});
+  expect(await service.latestRun({...finance,globalRole:null},"2026-10").catch(e=>e.message)).toBe("CLOSE_ACCESS_FORBIDDEN");
+  const locker=await fixture.connectAsOwner(), writer=await fixture.connectAsApp();
+  try {
+    await locker.query("BEGIN");await locker.query(`SELECT pg_advisory_xact_lock(hashtextextended('license-close:2026-09',0))`);
+    const lockerPid=(await locker.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+    const writerPid=(await writer.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+    await writer.query("SET statement_timeout='10s'");
+    let settled=false;
+    const pending=createLicenseCloseRepository(drizzle(writer,{schema}),{computeLicenseClose,monthBounds}).runClose(finance,{period:"2026-09",note:null},()=>now).finally(()=>{settled=true;});
+    try {
+      let blocked=false;
+      while(!settled&&!blocked) blocked=(await owner.query(`SELECT $1::int=ANY(pg_blocking_pids($2)) AS blocked`,[lockerPid,writerPid])).rows[0].blocked;
+      expect(blocked).toBe(true);
+      expect(await service.latestRun(finance,"2026-09")).toMatchObject({status:"running",finishedAt:null,triggeredByName:"rates@test.invalid"});
+    } finally {await locker.query("COMMIT");await pending;}
+  } finally {await locker.end();await writer.end();}
+});
+
+test("workbench totals and counts stay period and company scoped",async()=>{
+  await service.runClose({...finance,companyIds:[id(5),id(6)]},{period:"2026-01"});
+  expect(await service.summary(finance,"2026-01")).toEqual({generated:1,drafts:1,finals:0,totalUsd:"18.00",companies:1});
+  expect(await service.summary({...finance,companyIds:[id(6)]},"2026-01")).toEqual({generated:1,drafts:1,finals:0,totalUsd:"44.00",companies:1});
+  expect(await service.summary(finance,"2026-02")).toEqual({generated:0,drafts:0,finals:0,totalUsd:"0.00",companies:1});
 });

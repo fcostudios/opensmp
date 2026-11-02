@@ -10,6 +10,7 @@ import {
   createScheduledJobIdempotencyKey,
   isEcuadorBusinessDayDeadlineOverdue,
   isThirdBusinessDay,
+  completedBusinessDaysInMonth,
   type EcuadorBusinessCalendar,
 } from "./schedule.js";
 
@@ -115,7 +116,7 @@ describe("US-046 job schedules", () => {
     expect(createJobIdempotencyKey("capacityRecovery", { at })).toBe(
       "capacity-recovery:2026-07-25T14:29",
     );
-    expect(createJobIdempotencyKey("closePrecheck", { at })).toBe("close-precheck:2026-07");
+    expect(createJobIdempotencyKey("closePrecheck", { at })).toBe("close-precheck:2026-07-25");
   });
 
   it("deduplicates daily flagging across scheduled/manual launches and separates UTC dates", () => {
@@ -210,4 +211,19 @@ describe("US-046 job schedules", () => {
       ),
     ).toBe(1);
   });
+});
+
+it("keeps earlier no-op dates separate and uses the Ecuador date for precheck retries", () => {
+  expect(createScheduledJobIdempotencyKey("closePrecheck", {at:new Date("2026-08-04T10:30:00Z")})).toBe("close-precheck:2026-08-04");
+  expect(createScheduledJobIdempotencyKey("closePrecheck", {at:new Date("2026-08-05T03:30:00Z")})).toBe("close-precheck:2026-08-04");
+  expect(createScheduledJobIdempotencyKey("closePrecheck", {at:new Date("2026-08-05T10:30:00Z")})).toBe("close-precheck:2026-08-05");
+});
+it("counts completed business dates past bd-3 even across a weekend or holiday", () => {
+  const calendar={holidays:new Set(["2026-04-03"])};
+  // April 1, 2, 6: bd-3 is April 6 after the Good Friday holiday.
+  expect(completedBusinessDaysInMonth(new Date("2026-04-07T04:59:59.999Z"),calendar)).toBe(2);
+  expect(completedBusinessDaysInMonth(new Date("2026-04-07T05:00:00Z"),calendar)).toBe(3);
+  // September 1, 2, 3: threshold expires before Friday, including weekend evals.
+  expect(completedBusinessDaysInMonth(new Date("2026-09-05T05:00:00Z"),{holidays:new Set()})).toBe(4);
+  expect(completedBusinessDaysInMonth(new Date("2026-09-01T05:00:00Z"),calendar)).toBe(0);
 });

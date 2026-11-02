@@ -336,3 +336,10 @@ describe("US-092 canonical drift evaluation", () => {
       .toThrow();
   });
 });
+
+it("routes scheduled failures by period and expires close deadline after three completed dates", () => {
+  expect(alertSubjectDestination("provisioning_failure",{period:"2026-12"})).toBe("/cierre?period=2026-12");
+  const rule={enabled:true,type:"close_missed" as const,threshold:{businessDays:3}};
+  expect(evaluateAlertRule(rule,{businessDaysElapsed:2,subject:{period:"2026-12"}},at)).toBeNull();
+  expect(evaluateAlertRule(rule,{businessDaysElapsed:3,subject:{period:"2026-12"}},at)?.type).toBe("close_missed");
+});

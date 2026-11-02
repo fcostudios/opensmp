@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { runCloseSchema } from "@smp/contracts/close";
 import { loadCurrentLedgerAuthorization } from "@/modules/identity-access/server-authorization";
 import { ROUTE_SCR_ACCESS_DENIED } from "@/lib/routes";
-import { loadCloseStatements, loadLatestCloseRun } from "@/modules/close/production";
+import { loadCloseSummary, loadCloseStatements, loadLatestCloseRun } from "@/modules/close/production";
 import { finalizeStatement, finalizeStatements, runClose } from "@/modules/close/server-actions";
 import { FinalizationPanel } from "@/modules/close/finalization-panel";
 import { CloseView } from "@/modules/close/close-view";
@@ -19,7 +19,7 @@ export default async function ClosePage({ searchParams }: { searchParams: Promis
   const previousMonth = new Date(Date.UTC(year, month - 2, 1));
   const parsed = runCloseSchema.safeParse({ period: params.period });
   const period = parsed.success ? parsed.data.period : previousMonth.toISOString().slice(0, 7);
-  const [latest, statements] = await Promise.all([loadLatestCloseRun(authorization, period), loadCloseStatements(authorization, period)]);
-  return <Fragment key={period}><CloseView period={period} latest={latest} action={runClose} />
+  const [latest, statements, summary] = await Promise.all([loadLatestCloseRun(authorization, period), loadCloseStatements(authorization, period), loadCloseSummary(authorization, period)]);
+  return <Fragment key={period}><CloseView period={period} latest={latest} summary={summary} action={runClose} />
     <FinalizationPanel period={period} statements={statements} singleAction={finalizeStatement} periodAction={finalizeStatements} /></Fragment>;
 }
