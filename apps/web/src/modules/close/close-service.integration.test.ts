@@ -481,6 +481,7 @@ test("finance sees scheduled failures without statements and sees a committed ru
 });
 
 test("workbench totals and counts stay period and company scoped",async()=>{
+  for(const authorization of [null,{...finance,globalRole:null}]) await expect(service.summary(authorization,"2026-01")).rejects.toThrow("CLOSE_ACCESS_FORBIDDEN");
   await service.runClose({...finance,companyIds:[id(5),id(6)]},{period:"2026-01"});
   expect(await service.summary(finance,"2026-01")).toEqual({generated:1,drafts:1,finals:0,totalUsd:"18.00",companies:1});
   expect(await service.summary({...finance,companyIds:[id(6)]},"2026-01")).toEqual({generated:1,drafts:1,finals:0,totalUsd:"44.00",companies:1});

@@ -62,6 +62,7 @@ test("watchdog works without ever calling the close handler, including weekends,
 });
 
 test("failed scheduled close is persisted, alerted by provisioning-failure routing and not mistaken for a missing run",async()=>{
+  await owner.query(`INSERT INTO alert_rule(type,scope_kind,company_id,threshold,channel,enabled,created_at,created_by) VALUES('provisioning_failure','company',$1,'{"failures":1}','email',true,'2026-01-01',$2)`,[company,system]);
   await owner.query(`CREATE FUNCTION fail_us051_close() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'close write fault'; END $$; CREATE TRIGGER fail_us051_close BEFORE INSERT ON statement FOR EACH ROW EXECUTE FUNCTION fail_us051_close()`);
   try {
     await expect(precheck("2026-11-06T10:30:00Z")).rejects.toMatchObject({code:"CLOSE_FAILED"});
@@ -70,7 +71,7 @@ test("failed scheduled close is persisted, alerted by provisioning-failure routi
     try {await job.run(new Date("2026-11-07T15:07:00Z"));await job.run(new Date("2026-11-07T15:22:00Z"));}finally{await job.close();}
     expect((await owner.query(`SELECT r.type,e.subject_ref FROM alert_event e JOIN alert_rule r ON r.id=e.alert_rule_id`)).rows).toEqual([{type:"provisioning_failure",subject_ref:{period:"2026-10"}}]);
     expect(messages).toHaveLength(1);expect(messages[0]).toContain("provisioning_failure");
-  } finally {await owner.query("DROP TRIGGER fail_us051_close ON statement; DROP FUNCTION fail_us051_close()");}
+  } finally {await owner.query("DROP TRIGGER fail_us051_close ON statement; DROP FUNCTION fail_us051_close()");await owner.query("DELETE FROM alert_rule WHERE company_id=$1",[company]);}
 });
 
 test("January schedule selects December and a UTC month boundary remains on the Ecuador calendar",async()=>{
