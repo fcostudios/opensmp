@@ -10,6 +10,7 @@ test("selected period reaches reconciliation and export; success provides the ac
  let submitted: unknown;
  render(<RollupPanel period="2026-01" reconciliationTotalUsd="62.00" ties={true} t={t} action={async period=>{submitted=period;return {csv:'"Company","Period","Total (USD)"\r\n"A","2026-01",62.00\r\n',filename:"rollup-2026-01.csv"};}}/>);
  expect(screen.getByTestId("rollup_reconciliation_total").textContent).toContain("62.00");
+ expect(screen.queryByRole("alert")).toBeNull();
  expect(screen.getByRole("status").textContent).toBe(t.tied);
  expect(screen.getByRole("link",{name:t.reconciliation}).getAttribute("href")).toBe("/conciliacion?period=2026-01");
  fireEvent.click(screen.getByTestId("btn_export_rollup_csv"));

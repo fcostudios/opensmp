@@ -39,8 +39,8 @@ test("exports five pilot headers once, exact USD and scoped audit; empty periods
  const download=await service().exportRollupCsv(finance,"2026-01");
  expect(download.filename).toBe("rollup-2026-01.csv");
  expect(download.csv).toBe('Company,Period,Total (USD)\r\nP2 · Pilot 2,2026-01,62.00\r\nP3 · Pilot 3,2026-01,0.00\r\nP4 · Pilot 4,2026-01,0.00\r\nP5 · Pilot 5,2026-01,0.00\r\nP6 · Pilot 6,2026-01,0.00\r\n');
- const audit=(await owner.query("SELECT action,actor_user_id,occurred_at,\"after\" FROM audit_log WHERE action='rollup.export_csv'")).rows;
- expect(audit).toHaveLength(1);expect(audit[0]).toMatchObject({actor_user_id:finance.userAccountId,occurred_at:now,after:{period:"2026-01",totalUsd:"62.00",companyIds:finance.companyIds,statementCount:5}});
+ const audit=(await owner.query("SELECT action,entity_type,company_id,\"before\",note,actor_user_id,occurred_at,\"after\" FROM audit_log WHERE action='rollup.export_csv'")).rows;
+ expect(audit).toHaveLength(1);expect(audit[0]).toMatchObject({entity_type:"StatementRollup",company_id:null,before:null,note:null,actor_user_id:finance.userAccountId,occurred_at:now,after:{period:"2026-01",totalUsd:"62.00",companyIds:finance.companyIds,statementCount:5}});
  const partial={...finance,companyIds:[id(3)]};
  expect((await service().exportRollupCsv(partial,"2026-01")).csv).toBe('Company,Period,Total (USD)\r\nP3 · Pilot 3,2026-01,0.00\r\n');
  const empty=await service().read(finance,"2024-01");
