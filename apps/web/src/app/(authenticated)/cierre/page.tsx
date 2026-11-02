@@ -25,10 +25,8 @@ export default async function ClosePage({ searchParams }: { searchParams: Promis
   const previousMonth = new Date(Date.UTC(year, month - 2, 1));
   const parsed = runCloseSchema.safeParse({ period: params.period });
   const period = parsed.success ? parsed.data.period : previousMonth.toISOString().slice(0, 7);
-  const [rollup, latest] = await Promise.all([
-    createRollupService(closeDatabase).read(authorization, period),
-    loadLatestCloseRun(authorization, period),
-  ]);
+  const rollup = await createRollupService(closeDatabase).read(authorization, period);
+  const latest = await loadLatestCloseRun(authorization, period);
   const statements = rollup.statements;
   const messages = await loadAppMessages(await getLocale());
   return <Fragment key={period}><CloseView period={period} latest={latest} action={runClose} tiles={<StatementSummary data={statements} t={messages.statements}/>}/><section className="space-y-6 p-6">
