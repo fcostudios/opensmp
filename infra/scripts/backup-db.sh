@@ -141,7 +141,9 @@ checksum_partial="$(mktemp "$BACKUP_DIR/.ledger-${backup_timestamp}.XXXXXX.sha25
 manifest_partial="$(mktemp "$BACKUP_DIR/.ledger-${backup_timestamp}.XXXXXX.manifest.partial")"
 signature_partial="${manifest_partial}.minisig"
 
-pg_dump --format=custom --no-owner --no-acl "${DATABASE_CLIENT_ARGS[@]}" \
+# ACLs include security-definer EXECUTE revocations and runtime grants. Dropping
+# them silently changes authorization on restore, even with an intact schema.
+pg_dump --format=custom --no-owner "${DATABASE_CLIENT_ARGS[@]}" \
   | age --recipient "$BACKUP_AGE_RECIPIENT" > "$encrypted_partial"
 fsync_path "$encrypted_partial"
 

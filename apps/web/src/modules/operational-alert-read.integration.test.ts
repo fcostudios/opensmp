@@ -223,3 +223,15 @@ describe("US-042 bounded alert read mutation contract", () => {
     expect(clamped.nextCursor).not.toBeNull();
   });
 });
+
+it("scheduled close failures keep period links for admins and remain outside company-only alert scope",async()=>{
+  const rule="51000000-0000-4000-8000-000000000051";
+  await owner.query(`INSERT INTO alert_rule(id,type,scope_kind,threshold,channel,enabled,created_at,created_by) VALUES($1,'provisioning_failure','global','{"failures":1}','email',true,now(),'00000000-0000-0000-0000-000000000001')`,[rule]);
+  try {
+    await owner.query(`INSERT INTO alert_event(alert_rule_id,fired_at,subject_ref,notified,dedupe_key) VALUES($1,'2026-11-06','{"period":"2026-10"}','{"status":"pending"}','us051-close-failure')`,[rule]);
+    const admin=await listAuthorizedAlertEvents(pool,authorization([],"group_admin"),{limit:100});
+    expect(admin.items.find(event=>event.alertRuleId===rule)).toMatchObject({subjectRef:{period:"2026-10"},subjectLinkAllowed:true});
+    const scoped=await listAuthorizedAlertEvents(pool,authorization([ids.companyA]),{limit:100});
+    expect(scoped.items.some(event=>event.alertRuleId===rule)).toBe(false);
+  }finally{await owner.query("DELETE FROM alert_event WHERE alert_rule_id=$1",[rule]);await owner.query("DELETE FROM alert_rule WHERE id=$1",[rule]);}
+});

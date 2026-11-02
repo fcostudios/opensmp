@@ -1,0 +1,66 @@
+{
+  "company": {
+    "id": "20000000-0000-4000-8000-000000000049",
+    "name": "Compañía del Pacífico",
+    "code": "PAC",
+    "statementLanguage": null
+  },
+  "statement": {
+    "id": "10000000-0000-4000-8000-000000000049",
+    "companyId": "20000000-0000-4000-8000-000000000049",
+    "period": "2026-10",
+    "status": "final",
+    "openingSeats": 12,
+    "totalUsd": "47.75",
+    "generatedAt": "2026-11-01T03:15:00.000Z",
+    "createdAt": "2026-11-01T03:00:00.000Z",
+    "closeRunId": "30000000-0000-4000-8000-000000000049"
+  },
+  "lines": [
+    {
+      "id": "40000000-0000-4000-8000-000000000000",
+      "statementId": "10000000-0000-4000-8000-000000000049",
+      "kind": "license",
+      "personId": "50000000-0000-4000-8000-000000000000",
+      "vendorAccountId": "60000000-0000-4000-8000-000000000049",
+      "licenseTypeId": "70000000-0000-4000-8000-000000000049",
+      "assignmentId": "80000000-0000-4000-8000-000000000000",
+      "licenseDays": 16,
+      "rateUsd": "1.50",
+      "amountUsd": "24.00",
+      "periodFrom": "2026-10-16",
+      "periodTo": "2026-10-31",
+      "note": "Alta: Ana Pérez, incorporación el 16 de octubre."
+    },
+    {
+      "id": "40000000-0000-4000-8000-000000000001",
+      "statementId": "10000000-0000-4000-8000-000000000049",
+      "kind": "license",
+      "personId": "50000000-0000-4000-8000-000000000001",
+      "vendorAccountId": "60000000-0000-4000-8000-000000000049",
+      "licenseTypeId": "70000000-0000-4000-8000-000000000049",
+      "assignmentId": "80000000-0000-4000-8000-000000000001",
+      "licenseDays": 15,
+      "rateUsd": "1.50",
+      "amountUsd": "22.50",
+      "periodFrom": "2026-10-01",
+      "periodTo": "2026-10-15",
+      "note": "Baja: José Muñoz, salida el 15 de octubre."
+    },
+    {
+      "id": "40000000-0000-4000-8000-000000000002",
+      "statementId": "10000000-0000-4000-8000-000000000049",
+      "kind": "usage",
+      "personId": null,
+      "vendorAccountId": "60000000-0000-4000-8000-000000000049",
+      "licenseTypeId": null,
+      "assignmentId": null,
+      "licenseDays": null,
+      "rateUsd": null,
+      "amountUsd": "1.25",
+      "periodFrom": null,
+      "periodTo": null,
+      "note": "Consumo registrado, sin asiento asignado."
+    }
+  ]
+}

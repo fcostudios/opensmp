@@ -1,0 +1,37 @@
+{
+  "title": "ACCOUNT STATEMENT",
+  "period": "Period",
+  "opening": "Opening seats",
+  "generated": "Generated",
+  "created": "Created",
+  "status": "Status",
+  "statuses": {
+    "draft": "Draft",
+    "final": "Final",
+    "reconciled": "Reconciled"
+  },
+  "kind": {
+    "license": "License",
+    "usage": "Usage",
+    "adjustment": "Adjustment"
+  },
+  "detail": "DETAIL",
+  "from": "From",
+  "to": "To",
+  "days": "Days",
+  "rate": "Rate",
+  "amount": "Amount",
+  "note": "Note",
+  "total": "TOTAL USD",
+  "empty": "No lines",
+  "statement": "Statement",
+  "close": "Close run",
+  "line": "Line",
+  "person": "Person",
+  "account": "Account",
+  "license": "License",
+  "assignment": "Assignment",
+  "page": "Page",
+  "integrity": "Copy of statement data; amounts are not recalculated.",
+  "missing": "—"
+}

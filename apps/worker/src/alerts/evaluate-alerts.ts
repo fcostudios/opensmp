@@ -10,7 +10,7 @@ import {
   evaluateAlertRule,
   evaluateApprovalAging,
   businessDaysBetween,
-  businessDaysElapsedInMonth,
+  completedBusinessDaysInMonth,
   ecuadorOperatingDate,
   failedJob,
   isEcuadorBusinessDayDeadlineOverdue,
@@ -159,7 +159,9 @@ export function createAlertEvaluationJob(options: {
           for (const fact of facts) {
             const evaluation = evaluateAlertRule(parsed, fact, windowStart);
             if (!evaluation) continue;
-            const eventDedupeKey = row.type === "invite_unaccepted"
+            const eventDedupeKey = "period" in evaluation.subjectRef
+              ? `${row.id}:breach:${row.type}:${evaluation.subjectRef.period}`
+              : row.type === "invite_unaccepted"
               ? `${row.id}:breach:invite_unaccepted:${fact.invitationActionId}`
               : row.type === "blocked_no_seat" &&
                 "requestId" in evaluation.subjectRef
@@ -681,7 +683,7 @@ async function gatherFacts(
     case "deprovision_overdue":
       return await deprovisionOverdueFacts(pool, rule, at, calendar);
     case "provisioning_failure":
-      return await booleanSubjectFacts(
+      return [...await booleanSubjectFacts(
         pool,
         rule,
         `SELECT request.id AS subject_id
@@ -692,7 +694,7 @@ async function gatherFacts(
            AND ($2::uuid IS NULL OR action.vendor_account_id = $2)`,
         "failed",
         "requestId",
-      );
+      ), ...await scheduledCloseFailureFacts(pool, rule)];
     case "credential_failure":
       return await booleanSubjectFacts(
         pool,
@@ -750,6 +752,13 @@ async function requestBusinessDayFacts(
   }));
 }
 
+async function scheduledCloseFailureFacts(pool:pg.Pool, rule:RuleRow):Promise<AlertFacts[]> {
+  if(rule.scope_kind !== "global") return [];
+  const result=await pool.query<{period:string}>(`SELECT DISTINCT period FROM close_run
+    WHERE status='failed' AND triggered_by='00000000-0000-0000-0000-000000000001'::uuid`);
+  return result.rows.map(({period})=>({failed:true,subject:{period}}));
+}
+
 async function closeMissedFacts(
   pool: pg.Pool,
   rule: RuleRow,
@@ -767,7 +776,7 @@ async function closeMissedFacts(
   );
   if (result.rows[0]!.exists) return [];
   return [{
-    businessDaysElapsed: businessDaysElapsedInMonth(at, calendar),
+    businessDaysElapsed: completedBusinessDaysInMonth(at, calendar),
     subject: { period },
   }];
 }

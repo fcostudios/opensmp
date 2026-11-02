@@ -38,10 +38,10 @@ start_target_cluster() {
     --publish 127.0.0.1::5432 postgres:16-alpine >/dev/null
   local attempt
   for attempt in {1..30}; do
-    docker exec "$container_id" pg_isready --username postgres --dbname postgres >/dev/null 2>&1 && break
+    docker exec "$container_id" pg_isready --host 127.0.0.1 --username postgres --dbname postgres >/dev/null 2>&1 && break
     sleep 1
   done
-  docker exec "$container_id" pg_isready --username postgres --dbname postgres >/dev/null
+  docker exec "$container_id" pg_isready --host 127.0.0.1 --username postgres --dbname postgres >/dev/null
   postgres_port="$(docker port "$container_id" 5432/tcp | sed 's/.*://')"
   target_system_identifier="$(docker exec "$container_id" psql --username postgres --dbname postgres --tuples-only --no-align --command 'SELECT (pg_control_system()).system_identifier;')"
   "$host_psql" "postgresql://postgres:postgres@127.0.0.1:${postgres_port}/ledger" --set ON_ERROR_STOP=1 <<'SQL'

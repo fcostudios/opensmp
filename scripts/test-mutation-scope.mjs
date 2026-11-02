@@ -247,6 +247,49 @@ try {
     assert.equal(existsSync(join(plannedScopeFixtureRoot, "reports/mutation-performance")), false);
     assert.equal(readFileSync(join(plannedScopeFixtureRoot, ".nous-feedback.jsonl"), "utf8"), "");
   }
+  // CHG-117: real diff discovery must skip non-mutatable declarations, but fail
+  // closed when executable code receives an empty instrumentation report.
+  const emptyReport = ({ shard }) => {
+    writePlannedScopeFixture(shard.jsonReportPath, JSON.stringify({
+      config: { configFile: shard.configPath, jsonReporter: { fileName: shard.jsonReportPath }, mutate: shard.mutate },
+      files: Object.fromEntries(shard.sources.map((source) => [source, {
+        source: readFileSync(join(plannedScopeFixtureRoot, source), "utf8"), mutants: [],
+      }])),
+    }));
+    return { status: 0 };
+  };
+  const emptyCampaign = () => runPlannedPreview({
+    env: { MUTATION_BASE: previewBase, MUTATION_CACHE_DISABLE: "1" },
+    executeShard: emptyReport,
+  });
+  writePlannedScopeFixture("src/alpha.ts", 'export type Role = "admin" | "member";\nexport interface Grant { role: Role }\n');
+  writePlannedScopeFixture("src/beta.ts", "export declare const gamma: number;\n");
+  const declarations = await emptyCampaign();
+  assert.equal(declarations.authoritative, true);
+  assert.deepEqual(declarations.manifest.shards.map(({ classification, result, sources }) => ({ classification, result, sources })).sort((a, b) => a.sources[0].localeCompare(b.sources[0])), [
+    { classification: "skipped", result: "skipped: no mutable code", sources: ["src/alpha.ts"] },
+    { classification: "skipped", result: "skipped: no mutable code", sources: ["src/beta.ts"] },
+  ]);
+  writePlannedScopeFixture("src/alpha.ts", 'export const alpha = { roles: ["viewer"] } as const satisfies Record<string, readonly string[]>;\n');
+  writePlannedScopeFixture("src/beta.ts", 'export { alpha as gamma } from "./alpha";\n');
+  const staticDeclarations = await emptyCampaign();
+  assert.equal(staticDeclarations.manifest.shards.length, 2);
+  assert.deepEqual(staticDeclarations.manifest.shards.flatMap((shard) => shard.sources).sort(),
+    ["src/alpha.ts", "src/beta.ts"]);
+  assert.ok(staticDeclarations.manifest.shards.every((shard) =>
+    shard.classification === "skipped" && shard.result === "skipped: no mutable code"));
+  for (const executable of [
+    "export const alpha = () => true;\n",
+    "export type Role = string; export const alpha = () => true;\n",
+    "export const alpha = { enabled: true };\n",
+    "export const alpha = { enabled: (() => true)() } as const;\n",
+    "export const alpha = { enabled() { return true; } } as const;\n",
+    "export const alpha = (() => true) as () => boolean;\n",
+  ]) {
+    writePlannedScopeFixture("src/alpha.ts", executable);
+    await assert.rejects(emptyCampaign, /zero mutants|verification-only/,
+      "CHG-117 planted RED: mutable code with zero mutants must fail");
+  }
   writeFileSync(join(plannedScopeOutsideRoot, "external.ts"), "export const external = true;\n", "utf8");
   writeFileSync(join(plannedScopeOutsideRoot, "external.test.ts"), "export {};\n", "utf8");
   symlinkSync(plannedScopeOutsideRoot, join(plannedScopeFixtureRoot, "src", "escaped"), "dir");

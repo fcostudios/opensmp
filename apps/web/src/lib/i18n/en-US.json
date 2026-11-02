@@ -178,7 +178,17 @@
     "refresh": "Refresh run status",
     "loading": "Loading monthly close…",
     "loadError": "Could not load monthly close. Try again.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "by": "By",
+    "scheduled": "Automatic schedule",
+    "unknownActor": "Unknown actor",
+    "withinTarget": "Runtime target met: under 5 minutes",
+    "overTarget": "Runtime target missed: 5 minutes or more",
+    "generated": "Statements generated",
+    "drafts": "Drafts",
+    "finals": "Finals and reconciled",
+    "total": "Group total (USD)",
+    "unavailable": "—"
   },
   "finalization": {
     "title": "Finalize statements",

@@ -136,6 +136,10 @@ test("production runClose verifies signed identity, revalidates and renders the 
   expect(response.work.pendingRevalidatedTags).toEqual([{tag:"_N_T_/cierre",profile:undefined},{tag:"_N_T_/estados-de-cuenta",profile:undefined}]);
   const html=renderToStaticMarkup(await page("close-finance"));
   expect(html).toContain("Close succeeded");expect(html).toContain("Production seam");expect(html).toContain("Duration");
+  expect(html).toContain("finance@rates.invalid");
+  expect(html).toContain('data-testid="close_tiles"');expect(html.match(/data-testid="tile_group_total"[\s\S]*?<\/div>/)?.[0]).toContain(">62.00</dd>");
+  expect(html).toContain("Runtime target met: under 5 minutes");
+  expect(html).not.toContain("Unknown actor");
   expect((await data.owner.query("SELECT total_usd,close_run_id FROM statement")).rows).toEqual([{total_usd:"62.00",close_run_id:"runId" in response.result?response.result.runId:"missing"}]);
 });
 test("invalid period defaults to the previous completed month and read failures reach the route boundary",async()=>{
@@ -163,7 +167,8 @@ test("US-096 production pages share stamped totals and enforce finance-grant rea
   const form=new FormData();form.set("period","2026-01");
   await withSession("close-finance",()=>runClose({status:"idle"},form));
   const closeHtml=renderToStaticMarkup(await page("close-finance"));
-  expect(closeHtml).toContain('data-testid="tile_group_total"');expect(closeHtml).toContain("62.00");
+  expect(closeHtml.match(/data-testid="tile_group_total"/g)).toHaveLength(1);expect(closeHtml).toContain("62.00");
+  expect(closeHtml).toContain('data-testid="statements_by_company"');expect(closeHtml).toContain('data-testid="latest_close_run"');
   const statements=async(subject:string|null,params:{period?:string;companyId?:string;status?:string}={period:"2026-01"})=>(await withSession(subject,()=>StatementsPage({searchParams:Promise.resolve(params)}))).result;
   for(const subject of [null,"close-viewer"])await expect(statements(subject)).rejects.toMatchObject({digest:expect.stringContaining(";/acceso-denegado;")});
   await data.owner.query(`INSERT INTO company_role_assignment(user_account_id,company_id,role,unique_grant,created_at,created_by) VALUES($1,$2,'finance','us096-finance-grant','2026-01-01',$1)`,["34100000-0000-4000-8000-000000000002","34100000-0000-4000-8000-000000000007"]);
@@ -225,6 +230,16 @@ test("rollup page reuses the selected group sum and export action resolves genui
  const html=renderToStaticMarkup(await page("close-finance"));
  expect(html).toContain('data-testid="rollup_panel"');expect(html).toContain('data-testid="tile_group_total"');
  expect(html).toContain('/conciliacion?period=2026-01');expect(html).toContain('data-testid="btn_export_rollup_csv"');
+ expect(html.match(/data-testid="tile_group_total"/g)).toHaveLength(1);
+ expect(html.indexOf('data-testid="close_tiles"')).toBeLessThan(html.indexOf('data-testid="latest_close_run"'));
+ // A scheduled failure has no statement stamp; the latest-run reader must still win over the rollup's run metadata.
+ await data.owner.query("INSERT INTO user_account(id,email,status,created_at) VALUES('00000000-0000-0000-0000-000000000001','system@ledger.invalid','disabled','2026-01-01') ON CONFLICT(id) DO NOTHING");
+ const scheduled=(await data.owner.query("INSERT INTO close_run(period,status,started_at,finished_at,triggered_by,created_at,note) VALUES('2026-01','failed','2026-10-10T12:00:01Z','2026-10-10T12:00:02Z','00000000-0000-0000-0000-000000000001','2026-10-10T12:00:01Z','scheduled failure evidence') RETURNING id")).rows[0].id;
+ const combined=renderToStaticMarkup(await page("close-finance"));
+ expect(combined).toContain(scheduled);expect(combined).toContain("scheduled failure evidence");
+ expect(combined).toContain('data-testid="close_nfr"');expect(combined).toContain('data-testid="rollup_panel"');
+ expect(combined.match(/data-testid="tile_group_total"[\s\S]*?<\/div>/)?.[0]).toContain(">62.00</dd>");
+
  const {exportRollupCsv}=await import("@/modules/close/rollup-actions");
  const download=await withSession("close-finance",()=>exportRollupCsv("2026-01"));
  expect(download.result.filename).toBe("rollup-2026-01.csv");expect(download.result.csv).toContain("62.00");

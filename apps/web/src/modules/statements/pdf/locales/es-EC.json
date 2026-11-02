@@ -1,0 +1,37 @@
+{
+  "title": "ESTADO DE CUENTA",
+  "period": "Período",
+  "opening": "Asientos iniciales",
+  "generated": "Generado",
+  "created": "Creado",
+  "status": "Estado",
+  "statuses": {
+    "draft": "Borrador",
+    "final": "Final",
+    "reconciled": "Conciliado"
+  },
+  "kind": {
+    "license": "Licencia",
+    "usage": "Consumo",
+    "adjustment": "Ajuste"
+  },
+  "detail": "DETALLE",
+  "from": "Desde",
+  "to": "Hasta",
+  "days": "Días",
+  "rate": "Tarifa",
+  "amount": "Importe",
+  "note": "Nota",
+  "total": "TOTAL USD",
+  "empty": "Sin líneas",
+  "statement": "Estado de cuenta",
+  "close": "Cierre",
+  "line": "Línea",
+  "person": "Persona",
+  "account": "Cuenta",
+  "license": "Licencia",
+  "assignment": "Asignación",
+  "page": "Página",
+  "integrity": "Copia de los datos del estado de cuenta; no recalcula importes.",
+  "missing": "—"
+}
