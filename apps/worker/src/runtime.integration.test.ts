@@ -526,6 +526,7 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
     const logs: Array<{ id?: string; jobId?: string; jobName?: string; status?: string }> = [];
     const runtime = createWorkerRuntime({
       connectionString: appConnectionString,
+      calendar: { holidays: new Set(["2026-08-03"]) },
       credentialKekAllowedRoot: privateRoot,
       credentialKekFile,
       logger: { write: (entry) => logs.push(entry) },
@@ -580,11 +581,10 @@ describe("US-046 worker runtime with real PostgreSQL", () => {
           processed: 0,
           status: "succeeded",
         }));
-        expect(
-          logs.filter(({ jobId, status }) =>
-            [jobIds[1], jobIds[4]].includes(jobId) && status === "skipped"),
-        ).toHaveLength(2);
+        expect(logs).toContainEqual(expect.objectContaining({jobId:jobIds[4],jobName:"close-precheck",processed:0,status:"succeeded"}));
+        expect(logs.filter(({jobId,status})=>jobId===jobIds[1]&&status==="skipped")).toHaveLength(1);
       });
+      expect((await queryAsOwner(`SELECT job_name,status,result FROM pgboss.worker_job_execution WHERE idempotency_key='close-precheck:2026-08-05'`)).rows).toEqual([{job_name:"closePrecheck",status:"succeeded",result:{processed:0,status:"succeeded"}}]);
       const analyticsExecution = await queryAsOwner(
         `SELECT job_name, status, result FROM pgboss.worker_job_execution
          WHERE idempotency_key = 'analytics-sync:scheduled:2026-08-05'`,

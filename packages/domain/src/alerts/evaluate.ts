@@ -29,6 +29,9 @@ export function alertSubjectDestination(
   switch (parsed.type) {
     case "approval_aging":
     case "provisioning_failure":
+      return "period" in parsed.subject
+        ? `/cierre?period=${encodeURIComponent(parsed.subject.period)}`
+        : `/solicitudes/${encodeURIComponent(parsed.subject.requestId)}`;
     case "blocked_no_seat":
     case "invite_unaccepted":
     case "deprovision_overdue":
@@ -110,8 +113,9 @@ function isBreached(
     case "blocked_no_seat":
     case "invite_unaccepted":
     case "sync_stale":
-    case "close_missed":
       return Number.isFinite(measure as number) && (measure as number) > threshold;
+    case "close_missed":
+      return Number.isFinite(measure as number) && (measure as number) >= threshold;
     // Stryker disable next-line ConditionalExpression:
     // @equivalent canonical contracts admit only threshold zero, so falling
     // through to the boolean <= 1 branch has identical reachable behavior.

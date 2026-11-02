@@ -1,6 +1,5 @@
 import {
   dependencyNotDelivered,
-  isThirdBusinessDay,
   successfulJob,
   type EcuadorBusinessCalendar,
   type JobResult,
@@ -8,6 +7,7 @@ import {
 } from "@smp/domain";
 import type { NotificationMailer } from "@smp/notifications";
 
+import { createScheduledCloseJob } from "./close-schedule.js";
 import { createAlertEvaluationJob } from "../alerts/evaluate-alerts.js";
 import { createAutomatedInviteDeliveryJob } from "./automated-invite-delivery.js";
 import { createCapacityRecoveryJob } from "./capacity-recovery.js";
@@ -107,8 +107,12 @@ export function createDeferredJobHandlers(
         await alertJob.close();
       }
     },
-    closePrecheck: async ({ at }) =>
-      isThirdBusinessDay(at, calendar) ? dependencyNotDelivered("US-034") : successfulJob(0),
+    closePrecheck: async ({ at }) => {
+      if (!services) return dependencyNotDelivered("US-034");
+      const job = createScheduledCloseJob({ ...services, calendar });
+      try { return await job.run(at); }
+      finally { await job.close(); }
+    },
     capacityRecovery: async ({ at }) => {
       if (!services) return dependencyNotDelivered("US-023");
       const job = createCapacityRecoveryJob({ connectionString: services.connectionString });

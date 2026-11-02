@@ -48,3 +48,20 @@ the instance unhealthy and triggers bounded fatal shutdown even if PostgreSQL
 cannot accept the unhealthy-state write; Docker can then restart the failed
 process. Another worker's queue supervision cannot mask this instance's
 failure.
+
+## Monthly close (US-051 / BR-27)
+
+The weekday 05:30 America/Guayaquil precheck calls the shared license close
+on business day 3, using `ECUADOR_HOLIDAYS`, for the previous local month.
+Daily precheck execution keys keep earlier no-ops from consuming the bd-3 run;
+pg-boss retries retain the original execution date. The disabled system actor
+records scheduled runs without gaining an interactive finance role. Manual
+runs remain available on `/cierre`.
+
+The separate 15-minute alert evaluator checks for a missing CloseRun after
+bd-3 ends in America/Guayaquil, including weekends and holidays. It emits one
+`close_missed` event per rule/period even if the close handler never executes.
+Failed scheduled CloseRuns use the global `provisioning_failure` rule and a
+period subject linking to `/cierre`; the evaluator sends through the existing
+escalation email/outbox and deduplicates subsequent evaluations. A failed run
+remains visible on the close workbench, including failures with no statements.

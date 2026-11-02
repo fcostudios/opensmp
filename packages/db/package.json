@@ -23,7 +23,8 @@
     "./testing/pglite": "./src/testing/pglite.ts",
     "./testing/postgres-container": "./src/testing/postgres-container.ts",
     "./testing/seed-auth-users": "./src/testing/seed-auth-users.ts",
-    "./inactivity-flagging": "./src/inactivity-flagging.ts"
+    "./inactivity-flagging": "./src/inactivity-flagging.ts",
+    "./license-close": "./src/license-close.ts"
   },
   "scripts": {
     "db:migrate": "node scripts/apply-migrations.mjs",
