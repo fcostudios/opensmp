@@ -1,0 +1,2014 @@
+{
+  "story": "US-039",
+  "verifiedAt": "2026-11-02T13:09:16.274303+00:00",
+  "implementationHead": "b2699aeb72b5aad08c8491a765b5925182026f60",
+  "base": "7a578ed0f56514ab3fac80197419ce28cee2ea75",
+  "gates": {
+    "install": "pnpm install --frozen-lockfile passed before implementation",
+    "mainMerge": "git merge main: Already up to date; repeated before final gate",
+    "types": "pnpm type-check passed",
+    "lint": "pnpm lint passed",
+    "build": "pnpm build passed",
+    "functionalSuite": {
+      "command": "pnpm --filter @smp/db exec tsx src/testing/run-with-shared-postgres.ts pnpm --dir /Users/fcolomas/Projects/smp-us039 exec turbo run test --env-mode=loose -- --maxWorkers=4",
+      "tasksPassed": 15,
+      "packages": {
+        "@smp/ui": {
+          "passed": 36,
+          "skipped": 0
+        },
+        "@smp/contracts": {
+          "passed": 153,
+          "skipped": 0
+        },
+        "@smp/domain": {
+          "passed": 594,
+          "skipped": 0
+        },
+        "@smp/connectors": {
+          "passed": 682,
+          "skipped": 0
+        },
+        "@smp/notifications": {
+          "passed": 21,
+          "skipped": 1
+        },
+        "smp-web": {
+          "passed": 1201,
+          "skipped": 3
+        },
+        "@smp/worker": {
+          "passed": 226,
+          "skipped": 8
+        },
+        "@smp/db": {
+          "passed": 359,
+          "skipped": 0
+        }
+      },
+      "notes": "Initial default/limited runs had unrelated fixture timeouts. All failed cases passed focused retries; the complete shared-harness run passed without assertion or timeout changes. Final strengthened story suite: 23 passed."
+    },
+    "migrations": {
+      "command": "node scripts/apply-migrations.mjs && node scripts/verify-schema.mjs",
+      "freshPostgres": true,
+      "migrations": 69,
+      "applicationTables": 33,
+      "appendOnlyTriggers": 6,
+      "runtimeGrantMatrix": "verified"
+    },
+    "apiReconciliation": "all 3 endpoints matched; no raw fetch violations (Python 3.12)",
+    "routeAlignment": "28/28 registered",
+    "mutationRunnerRegression": "pnpm test:mutation-scope passed; new close-page classification test failed wrong-scope before registration"
+  },
+  "mutation": {
+    "command": "MUTATION_BASE=main MUTATION_CACHE=off pnpm test:mutation (ephemeral migrated US039 owner/app template)",
+    "scope": "diff",
+    "cacheDisabled": true,
+    "score": 98.0952380952381,
+    "counts": {
+      "NoCoverage": 1,
+      "Killed": 103,
+      "Survived": 1
+    },
+    "equivalentAnnotations": [
+      "@equivalent: rollup-transaction.ts mutant 14 (NoCoverage): default clock returning undefined uses withAudit current-time fallback; explicitly injected clocks remain constrained. Approved by independent reviewer us039_review.",
+      "@equivalent: rollup-panel.tsx mutant 8 (Survived): removing the decorative heading separator preserves title, period, export and reconciliation behavior; punctuation is outside AC1\u2013AC3. Approved by independent reviewer us039_review."
+    ],
+    "targetedCompletenessMutants": {
+      "28": "Killed",
+      "32": "Killed",
+      "35": "Killed",
+      "37": "Killed",
+      "57": "Killed"
+    },
+    "shards": [
+      {
+        "id": "exact-framework-adapter-91412e7dd14f",
+        "kind": "exact-framework-adapter",
+        "classification": "verification-only",
+        "result": {
+          "audits": [
+            {
+              "ranges": [
+                {
+                  "target": "apps/web/src/app/(authenticated)/cierre/page.tsx:28-29",
+                  "reason": "exact-source-hash"
+                },
+                {
+                  "target": "apps/web/src/app/(authenticated)/cierre/page.tsx:33-33",
+                  "reason": "exact-source-hash"
+                },
+                {
+                  "target": "apps/web/src/app/(authenticated)/cierre/page.tsx:9-12",
+                  "reason": "exact-source-hash"
+                }
+              ],
+              "reason": "verification-only:exact-framework-adapter",
+              "source": "apps/web/src/app/(authenticated)/cierre/page.tsx",
+              "verifiedMutationRanges": [
+                "apps/web/src/app/(authenticated)/cierre/page.tsx:28-29",
+                "apps/web/src/app/(authenticated)/cierre/page.tsx:33-33",
+                "apps/web/src/app/(authenticated)/cierre/page.tsx:9-12"
+              ]
+            }
+          ],
+          "commands": [
+            [
+              "./apps/web/node_modules/.bin/vitest",
+              "run",
+              "--config",
+              "vitest.mutation.config.mjs",
+              "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+            ],
+            [
+              "pnpm",
+              "--filter",
+              "smp-web",
+              "type-check"
+            ],
+            [
+              "./apps/web/node_modules/.bin/vitest",
+              "run",
+              "--config",
+              "vitest.mutation.config.mjs",
+              "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+            ]
+          ],
+          "tests": [
+            "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+          ]
+        },
+        "sources": [
+          "apps/web/src/app/(authenticated)/cierre/page.tsx"
+        ],
+        "testFiles": [
+          "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+        ],
+        "mutate": [
+          "apps/web/src/app/(authenticated)/cierre/page.tsx:28-29",
+          "apps/web/src/app/(authenticated)/cierre/page.tsx:33-33",
+          "apps/web/src/app/(authenticated)/cierre/page.tsx:9-12"
+        ],
+        "configHash": "08b7e389b9c9c47bf0385a10ea9f2a266cdf5ba0566d3576da819a6a50cf041c",
+        "contentHashes": {
+          "apps/web/src/app/(authenticated)/cierre/page.tsx": "7160de817acd9ed8aaf269abf2c4addc332f65b2b705747f1796f332a5c81582"
+        },
+        "durationMs": 6003.216457999999
+      },
+      {
+        "id": "vitest-341ff46eac35",
+        "kind": "vitest",
+        "classification": "scored",
+        "result": "passed",
+        "sources": [
+          "apps/web/src/modules/close/rollup-transaction.ts"
+        ],
+        "testFiles": [
+          "apps/web/src/modules/close/rollup.integration.test.ts"
+        ],
+        "mutate": [
+          "apps/web/src/modules/close/rollup-transaction.ts:1-58"
+        ],
+        "configHash": "5996a6677fc27e4d91dd5437396ee0859827a265c7210a546128f6fe9a21bcdf",
+        "contentHashes": {
+          "apps/web/src/modules/close/rollup-transaction.ts": "c952e22607f12e76dd1bbaff032bf70559531dd13bd736a057a9e9292b184374"
+        },
+        "durationMs": 103715.681375,
+        "reportSha256": "129dc5caa0b260547fa8321e754894c15dbc1c42437e92e6863f3d0a4608f162",
+        "mutants": [
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "14",
+            "status": "NoCoverage",
+            "mutatorName": "ArrowFunction",
+            "location": {
+              "end": {
+                "column": 79,
+                "line": 21
+              },
+              "start": {
+                "column": 63,
+                "line": 21
+              }
+            },
+            "replacement": "() => undefined"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "0",
+            "status": "Killed",
+            "mutatorName": "BlockStatement",
+            "location": {
+              "end": {
+                "column": 2,
+                "line": 18
+              },
+              "start": {
+                "column": 88,
+                "line": 16
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "1",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 92,
+                "line": 17
+              },
+              "start": {
+                "column": 7,
+                "line": 17
+              }
+            },
+            "replacement": "true"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "2",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 92,
+                "line": 17
+              },
+              "start": {
+                "column": 7,
+                "line": 17
+              }
+            },
+            "replacement": "false"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "3",
+            "status": "Killed",
+            "mutatorName": "LogicalOperator",
+            "location": {
+              "end": {
+                "column": 92,
+                "line": 17
+              },
+              "start": {
+                "column": 7,
+                "line": 17
+              }
+            },
+            "replacement": "!auth && auth.globalRole !== \"central_finance\" && auth.globalRole !== \"group_admin\""
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "4",
+            "status": "Killed",
+            "mutatorName": "BooleanLiteral",
+            "location": {
+              "end": {
+                "column": 12,
+                "line": 17
+              },
+              "start": {
+                "column": 7,
+                "line": 17
+              }
+            },
+            "replacement": "auth"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "5",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 91,
+                "line": 17
+              },
+              "start": {
+                "column": 17,
+                "line": 17
+              }
+            },
+            "replacement": "false"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "6",
+            "status": "Killed",
+            "mutatorName": "LogicalOperator",
+            "location": {
+              "end": {
+                "column": 91,
+                "line": 17
+              },
+              "start": {
+                "column": 17,
+                "line": 17
+              }
+            },
+            "replacement": "auth.globalRole !== \"central_finance\" || auth.globalRole !== \"group_admin\""
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "7",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 54,
+                "line": 17
+              },
+              "start": {
+                "column": 17,
+                "line": 17
+              }
+            },
+            "replacement": "true"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "8",
+            "status": "Killed",
+            "mutatorName": "EqualityOperator",
+            "location": {
+              "end": {
+                "column": 54,
+                "line": 17
+              },
+              "start": {
+                "column": 17,
+                "line": 17
+              }
+            },
+            "replacement": "auth.globalRole === \"central_finance\""
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "9",
+            "status": "Killed",
+            "mutatorName": "StringLiteral",
+            "location": {
+              "end": {
+                "column": 54,
+                "line": 17
+              },
+              "start": {
+                "column": 37,
+                "line": 17
+              }
+            },
+            "replacement": "\"\""
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "10",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 91,
+                "line": 17
+              },
+              "start": {
+                "column": 58,
+                "line": 17
+              }
+            },
+            "replacement": "true"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "11",
+            "status": "Killed",
+            "mutatorName": "EqualityOperator",
+            "location": {
+              "end": {
+                "column": 91,
+                "line": 17
+              },
+              "start": {
+                "column": 58,
+                "line": 17
+              }
+            },
+            "replacement": "auth.globalRole === \"group_admin\""
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "12",
+            "status": "Killed",
+            "mutatorName": "StringLiteral",
+            "location": {
+              "end": {
+                "column": 91,
+                "line": 17
+              },
+              "start": {
+                "column": 78,
+                "line": 17
+              }
+            },
+            "replacement": "\"\""
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "13",
+            "status": "Killed",
+            "mutatorName": "StringLiteral",
+            "location": {
+              "end": {
+                "column": 128,
+                "line": 17
+              },
+              "start": {
+                "column": 110,
+                "line": 17
+              }
+            },
+            "replacement": "\"\""
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "15",
+            "status": "Killed",
+            "mutatorName": "BlockStatement",
+            "location": {
+              "end": {
+                "column": 2,
+                "line": 57
+              },
+              "start": {
+                "column": 81,
+                "line": 21
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "16",
+            "status": "Killed",
+            "mutatorName": "BlockStatement",
+            "location": {
+              "end": {
+                "column": 4,
+                "line": 41
+              },
+              "start": {
+                "column": 73,
+                "line": 22
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "17",
+            "status": "Killed",
+            "mutatorName": "ObjectLiteral",
+            "location": {
+              "end": {
+                "column": 62,
+                "line": 24
+              },
+              "start": {
+                "column": 45,
+                "line": 24
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "18",
+            "status": "Killed",
+            "mutatorName": "BlockStatement",
+            "location": {
+              "end": {
+                "column": 6,
+                "line": 40
+              },
+              "start": {
+                "column": 45,
+                "line": 25
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "19",
+            "status": "Killed",
+            "mutatorName": "ObjectLiteral",
+            "location": {
+              "end": {
+                "column": 89,
+                "line": 28
+              },
+              "start": {
+                "column": 79,
+                "line": 28
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "20",
+            "status": "Killed",
+            "mutatorName": "ArrowFunction",
+            "location": {
+              "end": {
+                "column": 111,
+                "line": 30
+              },
+              "start": {
+                "column": 59,
+                "line": 30
+              }
+            },
+            "replacement": "() => undefined"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "21",
+            "status": "Killed",
+            "mutatorName": "ArithmeticOperator",
+            "location": {
+              "end": {
+                "column": 111,
+                "line": 30
+              },
+              "start": {
+                "column": 76,
+                "line": 30
+              }
+            },
+            "replacement": "total - cents(card.rollupAmountUsd)"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "22",
+            "status": "Killed",
+            "mutatorName": "ObjectLiteral",
+            "location": {
+              "end": {
+                "column": 86,
+                "line": 32
+              },
+              "start": {
+                "column": 45,
+                "line": 31
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "23",
+            "status": "Killed",
+            "mutatorName": "StringLiteral",
+            "location": {
+              "end": {
+                "column": 84,
+                "line": 32
+              },
+              "start": {
+                "column": 30,
+                "line": 32
+              }
+            },
+            "replacement": "``"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "24",
+            "status": "Killed",
+            "mutatorName": "ArrayDeclaration",
+            "location": {
+              "end": {
+                "column": 99,
+                "line": 34
+              },
+              "start": {
+                "column": 79,
+                "line": 34
+              }
+            },
+            "replacement": "[]"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "25",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 181,
+                "line": 37
+              },
+              "start": {
+                "column": 24,
+                "line": 36
+              }
+            },
+            "replacement": "true"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "26",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 181,
+                "line": 37
+              },
+              "start": {
+                "column": 24,
+                "line": 36
+              }
+            },
+            "replacement": "false"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "27",
+            "status": "Killed",
+            "mutatorName": "LogicalOperator",
+            "location": {
+              "end": {
+                "column": 181,
+                "line": 37
+              },
+              "start": {
+                "column": 24,
+                "line": 36
+              }
+            },
+            "replacement": "contributions.every(line => cards.some(card => card.vendorAccountId === line.vendorAccountId)) || statements.rows.every(row => cents(row.totalUsd) === contributions.filter(line => line.statementId === row.id).reduce((sum, line) => sum + cents(line.totalUsd), BigInt(0)))"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "28",
+            "status": "Killed",
+            "mutatorName": "MethodExpression",
+            "location": {
+              "end": {
+                "column": 118,
+                "line": 36
+              },
+              "start": {
+                "column": 24,
+                "line": 36
+              }
+            },
+            "replacement": "contributions.some(line => cards.some(card => card.vendorAccountId === line.vendorAccountId))"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "29",
+            "status": "Killed",
+            "mutatorName": "ArrowFunction",
+            "location": {
+              "end": {
+                "column": 117,
+                "line": 36
+              },
+              "start": {
+                "column": 44,
+                "line": 36
+              }
+            },
+            "replacement": "() => undefined"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "30",
+            "status": "Killed",
+            "mutatorName": "MethodExpression",
+            "location": {
+              "end": {
+                "column": 117,
+                "line": 36
+              },
+              "start": {
+                "column": 52,
+                "line": 36
+              }
+            },
+            "replacement": "cards.every(card => card.vendorAccountId === line.vendorAccountId)"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "31",
+            "status": "Killed",
+            "mutatorName": "ArrowFunction",
+            "location": {
+              "end": {
+                "column": 116,
+                "line": 36
+              },
+              "start": {
+                "column": 63,
+                "line": 36
+              }
+            },
+            "replacement": "() => undefined"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "32",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 116,
+                "line": 36
+              },
+              "start": {
+                "column": 71,
+                "line": 36
+              }
+            },
+            "replacement": "true"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "33",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 116,
+                "line": 36
+              },
+              "start": {
+                "column": 71,
+                "line": 36
+              }
+            },
+            "replacement": "false"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "34",
+            "status": "Killed",
+            "mutatorName": "EqualityOperator",
+            "location": {
+              "end": {
+                "column": 116,
+                "line": 36
+              },
+              "start": {
+                "column": 71,
+                "line": 36
+              }
+            },
+            "replacement": "card.vendorAccountId !== line.vendorAccountId"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "35",
+            "status": "Killed",
+            "mutatorName": "MethodExpression",
+            "location": {
+              "end": {
+                "column": 181,
+                "line": 37
+              },
+              "start": {
+                "column": 9,
+                "line": 37
+              }
+            },
+            "replacement": "statements.rows.some(row => cents(row.totalUsd) === contributions.filter(line => line.statementId === row.id).reduce((sum, line) => sum + cents(line.totalUsd), BigInt(0)))"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "36",
+            "status": "Killed",
+            "mutatorName": "ArrowFunction",
+            "location": {
+              "end": {
+                "column": 180,
+                "line": 37
+              },
+              "start": {
+                "column": 31,
+                "line": 37
+              }
+            },
+            "replacement": "() => undefined"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "37",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 180,
+                "line": 37
+              },
+              "start": {
+                "column": 38,
+                "line": 37
+              }
+            },
+            "replacement": "true"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "38",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 180,
+                "line": 37
+              },
+              "start": {
+                "column": 38,
+                "line": 37
+              }
+            },
+            "replacement": "false"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "39",
+            "status": "Killed",
+            "mutatorName": "EqualityOperator",
+            "location": {
+              "end": {
+                "column": 180,
+                "line": 37
+              },
+              "start": {
+                "column": 38,
+                "line": 37
+              }
+            },
+            "replacement": "cents(row.totalUsd) !== contributions.filter(line => line.statementId === row.id).reduce((sum, line) => sum + cents(line.totalUsd), BigInt(0))"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "40",
+            "status": "Killed",
+            "mutatorName": "MethodExpression",
+            "location": {
+              "end": {
+                "column": 119,
+                "line": 37
+              },
+              "start": {
+                "column": 62,
+                "line": 37
+              }
+            },
+            "replacement": "contributions"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "41",
+            "status": "Killed",
+            "mutatorName": "ArrowFunction",
+            "location": {
+              "end": {
+                "column": 118,
+                "line": 37
+              },
+              "start": {
+                "column": 83,
+                "line": 37
+              }
+            },
+            "replacement": "() => undefined"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "42",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 118,
+                "line": 37
+              },
+              "start": {
+                "column": 91,
+                "line": 37
+              }
+            },
+            "replacement": "true"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "43",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 118,
+                "line": 37
+              },
+              "start": {
+                "column": 91,
+                "line": 37
+              }
+            },
+            "replacement": "false"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "44",
+            "status": "Killed",
+            "mutatorName": "EqualityOperator",
+            "location": {
+              "end": {
+                "column": 118,
+                "line": 37
+              },
+              "start": {
+                "column": 91,
+                "line": 37
+              }
+            },
+            "replacement": "line.statementId !== row.id"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "45",
+            "status": "Killed",
+            "mutatorName": "ArrowFunction",
+            "location": {
+              "end": {
+                "column": 168,
+                "line": 37
+              },
+              "start": {
+                "column": 127,
+                "line": 37
+              }
+            },
+            "replacement": "() => undefined"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "46",
+            "status": "Killed",
+            "mutatorName": "ArithmeticOperator",
+            "location": {
+              "end": {
+                "column": 168,
+                "line": 37
+              },
+              "start": {
+                "column": 142,
+                "line": 37
+              }
+            },
+            "replacement": "sum - cents(line.totalUsd)"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "47",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 148,
+                "line": 38
+              },
+              "start": {
+                "column": 20,
+                "line": 38
+              }
+            },
+            "replacement": "true"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "48",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 148,
+                "line": 38
+              },
+              "start": {
+                "column": 20,
+                "line": 38
+              }
+            },
+            "replacement": "false"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "49",
+            "status": "Killed",
+            "mutatorName": "LogicalOperator",
+            "location": {
+              "end": {
+                "column": 148,
+                "line": 38
+              },
+              "start": {
+                "column": 20,
+                "line": 38
+              }
+            },
+            "replacement": "statements.rows.length > 0 && statements.totals.draft === 0 && complete || statements.totals.totalUsd === reconciliationTotalUsd"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "50",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 91,
+                "line": 38
+              },
+              "start": {
+                "column": 20,
+                "line": 38
+              }
+            },
+            "replacement": "true"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "51",
+            "status": "Killed",
+            "mutatorName": "LogicalOperator",
+            "location": {
+              "end": {
+                "column": 91,
+                "line": 38
+              },
+              "start": {
+                "column": 20,
+                "line": 38
+              }
+            },
+            "replacement": "statements.rows.length > 0 && statements.totals.draft === 0 || complete"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "52",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 79,
+                "line": 38
+              },
+              "start": {
+                "column": 20,
+                "line": 38
+              }
+            },
+            "replacement": "true"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "53",
+            "status": "Killed",
+            "mutatorName": "LogicalOperator",
+            "location": {
+              "end": {
+                "column": 79,
+                "line": 38
+              },
+              "start": {
+                "column": 20,
+                "line": 38
+              }
+            },
+            "replacement": "statements.rows.length > 0 || statements.totals.draft === 0"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "54",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 46,
+                "line": 38
+              },
+              "start": {
+                "column": 20,
+                "line": 38
+              }
+            },
+            "replacement": "true"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "55",
+            "status": "Killed",
+            "mutatorName": "EqualityOperator",
+            "location": {
+              "end": {
+                "column": 46,
+                "line": 38
+              },
+              "start": {
+                "column": 20,
+                "line": 38
+              }
+            },
+            "replacement": "statements.rows.length >= 0"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "56",
+            "status": "Killed",
+            "mutatorName": "EqualityOperator",
+            "location": {
+              "end": {
+                "column": 46,
+                "line": 38
+              },
+              "start": {
+                "column": 20,
+                "line": 38
+              }
+            },
+            "replacement": "statements.rows.length <= 0"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "57",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 79,
+                "line": 38
+              },
+              "start": {
+                "column": 50,
+                "line": 38
+              }
+            },
+            "replacement": "true"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "58",
+            "status": "Killed",
+            "mutatorName": "EqualityOperator",
+            "location": {
+              "end": {
+                "column": 79,
+                "line": 38
+              },
+              "start": {
+                "column": 50,
+                "line": 38
+              }
+            },
+            "replacement": "statements.totals.draft !== 0"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "59",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 148,
+                "line": 38
+              },
+              "start": {
+                "column": 95,
+                "line": 38
+              }
+            },
+            "replacement": "true"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "60",
+            "status": "Killed",
+            "mutatorName": "EqualityOperator",
+            "location": {
+              "end": {
+                "column": 148,
+                "line": 38
+              },
+              "start": {
+                "column": 95,
+                "line": 38
+              }
+            },
+            "replacement": "statements.totals.totalUsd !== reconciliationTotalUsd"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "61",
+            "status": "Killed",
+            "mutatorName": "ObjectLiteral",
+            "location": {
+              "end": {
+                "column": 58,
+                "line": 39
+              },
+              "start": {
+                "column": 14,
+                "line": 39
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "62",
+            "status": "Killed",
+            "mutatorName": "ObjectLiteral",
+            "location": {
+              "end": {
+                "column": 45,
+                "line": 40
+              },
+              "start": {
+                "column": 8,
+                "line": 40
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "63",
+            "status": "Killed",
+            "mutatorName": "StringLiteral",
+            "location": {
+              "end": {
+                "column": 43,
+                "line": 40
+              },
+              "start": {
+                "column": 26,
+                "line": 40
+              }
+            },
+            "replacement": "\"\""
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "64",
+            "status": "Killed",
+            "mutatorName": "ObjectLiteral",
+            "location": {
+              "end": {
+                "column": 4,
+                "line": 56
+              },
+              "start": {
+                "column": 10,
+                "line": 42
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "65",
+            "status": "Killed",
+            "mutatorName": "BlockStatement",
+            "location": {
+              "end": {
+                "column": 6,
+                "line": 55
+              },
+              "start": {
+                "column": 77,
+                "line": 44
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "66",
+            "status": "Killed",
+            "mutatorName": "BlockStatement",
+            "location": {
+              "end": {
+                "column": 8,
+                "line": 54
+              },
+              "start": {
+                "column": 46,
+                "line": 45
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "67",
+            "status": "Killed",
+            "mutatorName": "ArrowFunction",
+            "location": {
+              "end": {
+                "column": 164,
+                "line": 49
+              },
+              "start": {
+                "column": 45,
+                "line": 49
+              }
+            },
+            "replacement": "() => undefined"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "68",
+            "status": "Killed",
+            "mutatorName": "ArrayDeclaration",
+            "location": {
+              "end": {
+                "column": 154,
+                "line": 49
+              },
+              "start": {
+                "column": 52,
+                "line": 49
+              }
+            },
+            "replacement": "[]"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "69",
+            "status": "Killed",
+            "mutatorName": "StringLiteral",
+            "location": {
+              "end": {
+                "column": 102,
+                "line": 49
+              },
+              "start": {
+                "column": 61,
+                "line": 49
+              }
+            },
+            "replacement": "``"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "70",
+            "status": "Killed",
+            "mutatorName": "BooleanLiteral",
+            "location": {
+              "end": {
+                "column": 152,
+                "line": 49
+              },
+              "start": {
+                "column": 148,
+                "line": 49
+              }
+            },
+            "replacement": "false"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "71",
+            "status": "Killed",
+            "mutatorName": "StringLiteral",
+            "location": {
+              "end": {
+                "column": 163,
+                "line": 49
+              },
+              "start": {
+                "column": 160,
+                "line": 49
+              }
+            },
+            "replacement": "\"\""
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "72",
+            "status": "Killed",
+            "mutatorName": "ArrayDeclaration",
+            "location": {
+              "end": {
+                "column": 104,
+                "line": 50
+              },
+              "start": {
+                "column": 21,
+                "line": 50
+              }
+            },
+            "replacement": "[]"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "73",
+            "status": "Killed",
+            "mutatorName": "ArrayDeclaration",
+            "location": {
+              "end": {
+                "column": 52,
+                "line": 50
+              },
+              "start": {
+                "column": 22,
+                "line": 50
+              }
+            },
+            "replacement": "[]"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "74",
+            "status": "Killed",
+            "mutatorName": "ArrowFunction",
+            "location": {
+              "end": {
+                "column": 80,
+                "line": 50
+              },
+              "start": {
+                "column": 57,
+                "line": 50
+              }
+            },
+            "replacement": "() => undefined"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "75",
+            "status": "Killed",
+            "mutatorName": "StringLiteral",
+            "location": {
+              "end": {
+                "column": 90,
+                "line": 50
+              },
+              "start": {
+                "column": 87,
+                "line": 50
+              }
+            },
+            "replacement": "\"\""
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "76",
+            "status": "Killed",
+            "mutatorName": "StringLiteral",
+            "location": {
+              "end": {
+                "column": 116,
+                "line": 50
+              },
+              "start": {
+                "column": 110,
+                "line": 50
+              }
+            },
+            "replacement": "\"\""
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "77",
+            "status": "Killed",
+            "mutatorName": "StringLiteral",
+            "location": {
+              "end": {
+                "column": 126,
+                "line": 50
+              },
+              "start": {
+                "column": 120,
+                "line": 50
+              }
+            },
+            "replacement": "\"\""
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "78",
+            "status": "Killed",
+            "mutatorName": "ObjectLiteral",
+            "location": {
+              "end": {
+                "column": 190,
+                "line": 53
+              },
+              "start": {
+                "column": 16,
+                "line": 51
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "79",
+            "status": "Killed",
+            "mutatorName": "ObjectLiteral",
+            "location": {
+              "end": {
+                "column": 77,
+                "line": 51
+              },
+              "start": {
+                "column": 25,
+                "line": 51
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "80",
+            "status": "Killed",
+            "mutatorName": "StringLiteral",
+            "location": {
+              "end": {
+                "column": 75,
+                "line": 51
+              },
+              "start": {
+                "column": 42,
+                "line": 51
+              }
+            },
+            "replacement": "``"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "81",
+            "status": "Killed",
+            "mutatorName": "ObjectLiteral",
+            "location": {
+              "end": {
+                "column": 188,
+                "line": 53
+              },
+              "start": {
+                "column": 86,
+                "line": 51
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "82",
+            "status": "Killed",
+            "mutatorName": "StringLiteral",
+            "location": {
+              "end": {
+                "column": 115,
+                "line": 51
+              },
+              "start": {
+                "column": 96,
+                "line": 51
+              }
+            },
+            "replacement": "\"\""
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "83",
+            "status": "Killed",
+            "mutatorName": "StringLiteral",
+            "location": {
+              "end": {
+                "column": 146,
+                "line": 51
+              },
+              "start": {
+                "column": 129,
+                "line": 51
+              }
+            },
+            "replacement": "\"\""
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "84",
+            "status": "Killed",
+            "mutatorName": "ObjectLiteral",
+            "location": {
+              "end": {
+                "column": 186,
+                "line": 53
+              },
+              "start": {
+                "column": 18,
+                "line": 53
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "85",
+            "status": "Killed",
+            "mutatorName": "ArrowFunction",
+            "location": {
+              "end": {
+                "column": 143,
+                "line": 53
+              },
+              "start": {
+                "column": 122,
+                "line": 53
+              }
+            },
+            "replacement": "() => undefined"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "86",
+            "status": "Killed",
+            "mutatorName": "ObjectLiteral",
+            "location": {
+              "end": {
+                "column": 31,
+                "line": 54
+              },
+              "start": {
+                "column": 10,
+                "line": 54
+              }
+            },
+            "replacement": "{}"
+          }
+        ]
+      },
+      {
+        "id": "vitest-3d52efb5b379",
+        "kind": "vitest",
+        "classification": "scored",
+        "result": "passed",
+        "sources": [
+          "apps/web/src/modules/close/rollup-actions.ts"
+        ],
+        "testFiles": [
+          "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+        ],
+        "mutate": [
+          "apps/web/src/modules/close/rollup-actions.ts:1-10"
+        ],
+        "configHash": "f859499fdb9e8b6884f48699680c4ed52be188f4ff933be87b9beab493721462",
+        "contentHashes": {
+          "apps/web/src/modules/close/rollup-actions.ts": "c8f439a2df00cee7d2ee95d2feab93f7bede246a61fe103c706424affa33bcb2"
+        },
+        "durationMs": 4861.965499999991,
+        "reportSha256": "2d0495418604971066bff9153eccdb269c1d1fcb54f8dcf6a684dbdd9b9438ca",
+        "mutants": [
+          {
+            "source": "apps/web/src/modules/close/rollup-actions.ts",
+            "id": "0",
+            "status": "Killed",
+            "mutatorName": "BlockStatement",
+            "location": {
+              "end": {
+                "column": 2,
+                "line": 10
+              },
+              "start": {
+                "column": 55,
+                "line": 8
+              }
+            },
+            "replacement": "{}"
+          }
+        ]
+      },
+      {
+        "id": "vitest-ab73a3ce68c6",
+        "kind": "vitest",
+        "classification": "scored",
+        "result": "passed",
+        "sources": [
+          "apps/web/src/modules/close/rollup-panel.tsx"
+        ],
+        "testFiles": [
+          "apps/web/src/modules/close/rollup-panel.test.tsx"
+        ],
+        "mutate": [
+          "apps/web/src/modules/close/rollup-panel.tsx:1-27"
+        ],
+        "configHash": "6e165170638a3d88c187a67c700ecbd4cf4a9d497fe58eab422cf93152a512dd",
+        "contentHashes": {
+          "apps/web/src/modules/close/rollup-panel.tsx": "71d56c2939ae7213bf05b0b3468972980f0ecd085613cff19137d12cb6605c90"
+        },
+        "durationMs": 26980.066541000007,
+        "reportSha256": "10a5c9e1ec5cd7ce0ea164c14bc3dd9013c0198580e90db35e1219710b4a0e9b",
+        "mutants": [
+          {
+            "source": "apps/web/src/modules/close/rollup-panel.tsx",
+            "id": "0",
+            "status": "Killed",
+            "mutatorName": "BlockStatement",
+            "location": {
+              "end": {
+                "column": 2,
+                "line": 27
+              },
+              "start": {
+                "column": 100,
+                "line": 7
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-panel.tsx",
+            "id": "1",
+            "status": "Killed",
+            "mutatorName": "BooleanLiteral",
+            "location": {
+              "end": {
+                "column": 43,
+                "line": 9
+              },
+              "start": {
+                "column": 38,
+                "line": 9
+              }
+            },
+            "replacement": "true"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-panel.tsx",
+            "id": "2",
+            "status": "Killed",
+            "mutatorName": "BlockStatement",
+            "location": {
+              "end": {
+                "column": 4,
+                "line": 17
+              },
+              "start": {
+                "column": 24,
+                "line": 11
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-panel.tsx",
+            "id": "3",
+            "status": "Killed",
+            "mutatorName": "BooleanLiteral",
+            "location": {
+              "end": {
+                "column": 19,
+                "line": 13
+              },
+              "start": {
+                "column": 14,
+                "line": 13
+              }
+            },
+            "replacement": "true"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-panel.tsx",
+            "id": "4",
+            "status": "Killed",
+            "mutatorName": "BlockStatement",
+            "location": {
+              "end": {
+                "column": 6,
+                "line": 16
+              },
+              "start": {
+                "column": 33,
+                "line": 14
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-panel.tsx",
+            "id": "5",
+            "status": "Killed",
+            "mutatorName": "BlockStatement",
+            "location": {
+              "end": {
+                "column": 49,
+                "line": 15
+              },
+              "start": {
+                "column": 11,
+                "line": 15
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-panel.tsx",
+            "id": "6",
+            "status": "Killed",
+            "mutatorName": "BlockStatement",
+            "location": {
+              "end": {
+                "column": 75,
+                "line": 15
+              },
+              "start": {
+                "column": 56,
+                "line": 15
+              }
+            },
+            "replacement": "{}"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-panel.tsx",
+            "id": "7",
+            "status": "Killed",
+            "mutatorName": "BooleanLiteral",
+            "location": {
+              "end": {
+                "column": 71,
+                "line": 15
+              },
+              "start": {
+                "column": 67,
+                "line": 15
+              }
+            },
+            "replacement": "false"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-panel.tsx",
+            "id": "8",
+            "status": "Survived",
+            "mutatorName": "StringLiteral",
+            "location": {
+              "end": {
+                "column": 50,
+                "line": 19
+              },
+              "start": {
+                "column": 45,
+                "line": 19
+              }
+            },
+            "replacement": "\"\""
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-panel.tsx",
+            "id": "9",
+            "status": "Killed",
+            "mutatorName": "StringLiteral",
+            "location": {
+              "end": {
+                "column": 91,
+                "line": 22
+              },
+              "start": {
+                "column": 45,
+                "line": 22
+              }
+            },
+            "replacement": "``"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-panel.tsx",
+            "id": "10",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 44,
+                "line": 24
+              },
+              "start": {
+                "column": 6,
+                "line": 24
+              }
+            },
+            "replacement": "true"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-panel.tsx",
+            "id": "11",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 44,
+                "line": 24
+              },
+              "start": {
+                "column": 6,
+                "line": 24
+              }
+            },
+            "replacement": "false"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-panel.tsx",
+            "id": "12",
+            "status": "Killed",
+            "mutatorName": "LogicalOperator",
+            "location": {
+              "end": {
+                "column": 44,
+                "line": 24
+              },
+              "start": {
+                "column": 6,
+                "line": 24
+              }
+            },
+            "replacement": "error || <p role=\"alert\">{t.error}</p>"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-panel.tsx",
+            "id": "13",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 167,
+                "line": 25
+              },
+              "start": {
+                "column": 6,
+                "line": 25
+              }
+            },
+            "replacement": "true"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-panel.tsx",
+            "id": "14",
+            "status": "Killed",
+            "mutatorName": "ConditionalExpression",
+            "location": {
+              "end": {
+                "column": 167,
+                "line": 25
+              },
+              "start": {
+                "column": 6,
+                "line": 25
+              }
+            },
+            "replacement": "false"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-panel.tsx",
+            "id": "15",
+            "status": "Killed",
+            "mutatorName": "LogicalOperator",
+            "location": {
+              "end": {
+                "column": 167,
+                "line": 25
+              },
+              "start": {
+                "column": 6,
+                "line": 25
+              }
+            },
+            "replacement": "download || <a className=\"block underline\" href={`data:text/csv;charset=utf-8,${encodeURIComponent(download.csv)}`} download={download.filename}>{t.download}</a>"
+          },
+          {
+            "source": "apps/web/src/modules/close/rollup-panel.tsx",
+            "id": "16",
+            "status": "Killed",
+            "mutatorName": "StringLiteral",
+            "location": {
+              "end": {
+                "column": 120,
+                "line": 25
+              },
+              "start": {
+                "column": 55,
+                "line": 25
+              }
+            },
+            "replacement": "``"
+          }
+        ]
+      }
+    ]
+  }
+}

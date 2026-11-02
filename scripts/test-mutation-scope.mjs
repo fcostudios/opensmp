@@ -2878,3 +2878,12 @@ try {
 } finally {
   rmSync(projectionFixtureRoot, { force: true, recursive: true });
 }
+
+// US-039: this page diff is only composition; exact bytes and real signed-session tests guard wiring.
+const rollupPageSource = "apps/web/src/app/(authenticated)/cierre/page.tsx";
+const rollupPageContents = readFileSync(rollupPageSource, "utf8");
+assert.equal(classifyExactFrameworkAdapter(rollupPageSource, rollupPageContents).reason,
+  "verification-only:exact-framework-adapter");
+assert.throws(() => classifyExactFrameworkAdapter(rollupPageSource,
+  rollupPageContents.replace(".read(authorization, period)", '.read(authorization, "2026-02")')),
+  /exact framework adapter changed/);

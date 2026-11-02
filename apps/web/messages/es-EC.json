@@ -561,5 +561,16 @@
     "loadError": "No se pudieron cargar los estados de cuenta.",
     "retry": "Reintentar",
     "evidenceNote": "Las altas y bajas identifican asignaciones y personas del registro; las tarifas y licencias-día provienen de las líneas generadas."
-  }
+  },
+  "rollup": {
+    "title": "Consolidado del grupo",
+    "csv": "Exportar consolidado CSV",
+    "download": "Descargar CSV",
+    "reconciliation": "Ver conciliación",
+    "total": "Consolidado de conciliación (USD)",
+    "tied": "El consolidado coincide con la conciliación del período.",
+    "untied": "Aún no coincide. Finaliza el período y revisa el alcance y los totales de conciliación.",
+    "pending": "Preparando CSV…",
+    "error": "No se pudo exportar el consolidado. Intenta de nuevo."
+}
 }

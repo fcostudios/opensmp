@@ -1,0 +1,282 @@
+{
+  "story": "US-039",
+  "verifiedAt": "2026-11-02T15:21:15.001792+00:00",
+  "mergeHead": "24d5654581a848feddefbfe33c10a9d64d30255a",
+  "main": "3aceb120794563b6ebe50de09b024c86e0a789a9",
+  "branch": "feature/statements/us-039-rollup",
+  "integration": "Preserves US-051 tiles/latest scheduled-run readout and US-039 rollup/export. Sequential page reads ensure a failed read cannot leave sibling DB work outstanding.",
+  "reviewer": "us039_review; no blocking findings; current page exact-hash adapter approved.",
+  "gates": {
+    "frozenInstall": "passed",
+    "typeCheck": "passed",
+    "lint": "passed",
+    "build": "passed",
+    "workspaceTests": {
+      "tasksPassed": 15,
+      "cachedTasksOnFinalRerun": 14,
+      "passedByPackage": {
+        "connectors": 682,
+        "ui": 36,
+        "db": 360,
+        "contracts": 154,
+        "domain": 597,
+        "notifications": 21,
+        "web": 1216,
+        "worker": 231
+      },
+      "skippedByPackage": {
+        "notifications": 1,
+        "web": 3,
+        "worker": 8
+      },
+      "notes": "Initial 15-task uncached run had one worker pg_stat_activity post-close assertion fail (expected0/received1). Isolated unchanged14-case suite passed; full unchanged rerun passed15/15. No assertions or source changed for retry. Initial focused page fixture deadlock led to reviewed sequential-read integration fix before final gate."
+    },
+    "freshCommittedMigrations": {
+      "count": 70,
+      "tables": 33,
+      "appendOnlyTriggers": 6,
+      "runtimeGrants": "verified"
+    },
+    "focusedAcChecks": 27,
+    "mutationScopeRegression": "passed"
+  },
+  "feedbackHistory": "Exact bytes from pre-merge tip77b02d72d3840b981cd94f34eec6757e77fb5582 preserved as prefix; main suffix appended without reordering.",
+  "mutation": {
+    "command": "MUTATION_BASE=main MUTATION_CACHE=off pnpm test:mutation (ephemeral migrated owner/app template)",
+    "scope": "diff",
+    "provenance": {
+      "base": "3aceb120794563b6ebe50de09b024c86e0a789a9",
+      "baseRef": "main",
+      "head": "24d5654581a848feddefbfe33c10a9d64d30255a",
+      "worktreeHash": "60345617491e86acdb5a88c54c8971751d867537ab1e0bfd672592623547b117"
+    },
+    "manifestSha256": "52c44d3f37857d0c0cf09c0166801818c0bdbacba766073d8c711124986fad06",
+    "performanceSha256": "6b95ca1bd825297fbee8fa7b2ae85b03ff9903336a98011d3c8855b274d184ba",
+    "wallClockDurationMs": 257089.49033300002,
+    "cacheMode": "bypass",
+    "outcome": "passed",
+    "counts": {
+      "NoCoverage": 1,
+      "Killed": 103,
+      "Survived": 1
+    },
+    "score": 98.09523809523809,
+    "equivalentAnnotations": [
+      "@equivalent: rollup-transaction.ts mutant14 default clock returning undefined uses withAudit current-time fallback; explicitly injected clocks remain constrained.",
+      "@equivalent: rollup-panel.tsx mutant8 removes only decorative heading separator; title, period, export and reconciliation behavior remain."
+    ],
+    "shards": [
+      {
+        "id": "exact-framework-adapter-b067b40e1799",
+        "kind": "exact-framework-adapter",
+        "classification": "verification-only",
+        "result": {
+          "audits": [
+            {
+              "ranges": [
+                {
+                  "target": "apps/web/src/app/(authenticated)/cierre/page.tsx:28-30",
+                  "reason": "exact-source-hash"
+                },
+                {
+                  "target": "apps/web/src/app/(authenticated)/cierre/page.tsx:33-33",
+                  "reason": "exact-source-hash"
+                },
+                {
+                  "target": "apps/web/src/app/(authenticated)/cierre/page.tsx:9-12",
+                  "reason": "exact-source-hash"
+                }
+              ],
+              "reason": "verification-only:exact-framework-adapter",
+              "source": "apps/web/src/app/(authenticated)/cierre/page.tsx",
+              "verifiedMutationRanges": [
+                "apps/web/src/app/(authenticated)/cierre/page.tsx:28-30",
+                "apps/web/src/app/(authenticated)/cierre/page.tsx:33-33",
+                "apps/web/src/app/(authenticated)/cierre/page.tsx:9-12"
+              ]
+            }
+          ],
+          "commands": [
+            [
+              "./apps/web/node_modules/.bin/vitest",
+              "run",
+              "--config",
+              "vitest.mutation.config.mjs",
+              "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+            ],
+            [
+              "pnpm",
+              "--filter",
+              "smp-web",
+              "type-check"
+            ],
+            [
+              "./apps/web/node_modules/.bin/vitest",
+              "run",
+              "--config",
+              "vitest.mutation.config.mjs",
+              "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+            ]
+          ],
+          "tests": [
+            "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+          ]
+        },
+        "sources": [
+          "apps/web/src/app/(authenticated)/cierre/page.tsx"
+        ],
+        "testFiles": [
+          "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+        ],
+        "mutate": [
+          "apps/web/src/app/(authenticated)/cierre/page.tsx:28-30",
+          "apps/web/src/app/(authenticated)/cierre/page.tsx:33-33",
+          "apps/web/src/app/(authenticated)/cierre/page.tsx:9-12"
+        ],
+        "durationMs": 13518.358416999996,
+        "configHash": "e2c33d6a3016ceb959189f5bfb9e0c2e0411fcf012c85a632ed1695e82e49c3b",
+        "evidenceKey": "59e99867d293b19738603ca07872be64ebe2dbc1bae2e0d9e6c2ad8eea54aa46",
+        "reportSha256": "60342fb0f26f3feb6e8d90e35050f93e0b7e94fbf0aa107ab7d3b6ecffe502dd",
+        "counts": {},
+        "remainingMutants": []
+      },
+      {
+        "id": "vitest-341ff46eac35",
+        "kind": "vitest",
+        "classification": "scored",
+        "result": "passed",
+        "sources": [
+          "apps/web/src/modules/close/rollup-transaction.ts"
+        ],
+        "testFiles": [
+          "apps/web/src/modules/close/rollup.integration.test.ts"
+        ],
+        "mutate": [
+          "apps/web/src/modules/close/rollup-transaction.ts:1-58"
+        ],
+        "durationMs": 166977.922791,
+        "configHash": "5996a6677fc27e4d91dd5437396ee0859827a265c7210a546128f6fe9a21bcdf",
+        "evidenceKey": "785bf390bb2d5cb76a516e43212f3097e662a3d7cfa654ab847d3d8839d59cec",
+        "reportSha256": "a91cf4642f39966769678e4f98558f4f456384f167702b7f7d1986274a4b0ea1",
+        "counts": {
+          "NoCoverage": 1,
+          "Killed": 86
+        },
+        "remainingMutants": [
+          {
+            "source": "apps/web/src/modules/close/rollup-transaction.ts",
+            "id": "14",
+            "status": "NoCoverage",
+            "mutatorName": "ArrowFunction",
+            "location": {
+              "end": {
+                "column": 79,
+                "line": 21
+              },
+              "start": {
+                "column": 63,
+                "line": 21
+              }
+            },
+            "replacement": "() => undefined"
+          }
+        ]
+      },
+      {
+        "id": "vitest-3d52efb5b379",
+        "kind": "vitest",
+        "classification": "scored",
+        "result": "passed",
+        "sources": [
+          "apps/web/src/modules/close/rollup-actions.ts"
+        ],
+        "testFiles": [
+          "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+        ],
+        "mutate": [
+          "apps/web/src/modules/close/rollup-actions.ts:1-10"
+        ],
+        "durationMs": 11198.563125000015,
+        "configHash": "f859499fdb9e8b6884f48699680c4ed52be188f4ff933be87b9beab493721462",
+        "evidenceKey": "b638ec390eae39af937109185fa726798a314dad207e6c197504b8364487f28a",
+        "reportSha256": "aaa6a17503d5f7a0d10a25f0c28702d36dc7a434685b9424238f7b24442352c3",
+        "counts": {
+          "Killed": 1
+        },
+        "remainingMutants": []
+      },
+      {
+        "id": "vitest-ab73a3ce68c6",
+        "kind": "vitest",
+        "classification": "scored",
+        "result": "passed",
+        "sources": [
+          "apps/web/src/modules/close/rollup-panel.tsx"
+        ],
+        "testFiles": [
+          "apps/web/src/modules/close/rollup-panel.test.tsx"
+        ],
+        "mutate": [
+          "apps/web/src/modules/close/rollup-panel.tsx:1-27"
+        ],
+        "durationMs": 34013.790458,
+        "configHash": "6e165170638a3d88c187a67c700ecbd4cf4a9d497fe58eab422cf93152a512dd",
+        "evidenceKey": "18ec3c984e8eaecb8533b8ed2c34b651493e467c8e5e86c097478ec5128c90c5",
+        "reportSha256": "6fc78cf9ecb6b5f16462c39737ce081bf296095567cf002a8dd78a2f7f7de7ab",
+        "counts": {
+          "Killed": 16,
+          "Survived": 1
+        },
+        "remainingMutants": [
+          {
+            "source": "apps/web/src/modules/close/rollup-panel.tsx",
+            "id": "8",
+            "status": "Survived",
+            "mutatorName": "StringLiteral",
+            "location": {
+              "end": {
+                "column": 50,
+                "line": 19
+              },
+              "start": {
+                "column": 45,
+                "line": 19
+              }
+            },
+            "replacement": "\"\""
+          }
+        ]
+      }
+    ],
+    "equivalenceReviewer": "us039_review reconfirmed both against final campaign reports; no blocking findings."
+  },
+  "verifiedContentHashes": {
+    "apps/web/src/app/(authenticated)/cierre/page.tsx": "6c86f244e5e71e509b803fc964d82935b34bedbdcf3c5971e7f4df44217491fd",
+    "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts": "fc0533669aff255e6c7976cc8d2d088f8b46a77b7421303f1a2b9db47e69bb35",
+    "apps/web/src/modules/close/rollup-transaction.ts": "c952e22607f12e76dd1bbaff032bf70559531dd13bd736a057a9e9292b184374",
+    "apps/web/src/modules/close/rollup.integration.test.ts": "0ec1ff4a1490215fa9196e015cd43374891b1e89bf53f3eb66d5145f54ef9372",
+    "apps/web/src/modules/close/rollup-actions.ts": "c8f439a2df00cee7d2ee95d2feab93f7bede246a61fe103c706424affa33bcb2",
+    "apps/web/src/modules/close/rollup-panel.tsx": "71d56c2939ae7213bf05b0b3468972980f0ecd085613cff19137d12cb6605c90",
+    "apps/web/src/modules/close/rollup-panel.test.tsx": "d29f9abcc15a68edd8483b3319ca5ff2475822465c815bcf3c01335a11d3c88b",
+    "scripts/mutation-scope.mjs": "887a6fb18df456eb23f208b005d5287ab9d4b343abed6cb849084a965672e695",
+    "scripts/test-mutation-scope.mjs": "4f1baf7e6d6d8b75f946bad28160cc7320d63cd494e3a5d89df3900321b05647",
+    "scripts/mutation-routes.json": "9dccccbaacdfe1e347a0fbdcc2e60d6e577e148d81df11e004f63bd0e474d2c4",
+    "stryker.conf.json": "c915f5629b0334113cffc07d2efbe77d759fe5bfb578edba6297804158171add",
+    "pnpm-lock.yaml": "f3f44696c59e732be5576c47a0a064d107992f468bad2459286ca5bdad4440cd"
+  },
+  "gateLogHashes": {
+    "mutation-scope.log": "d8d9a2e9c0fba4e23288e1822a1f75e36a49b73f1359319803e515ad9eb46ffd",
+    "lint.log": "640e30508829d975ccd3e2141ddaab517026af74f9403d4c56d77eb050db5e04",
+    "worker-repro.log": "fa19f3a18d22fd37db94c787ca6715707f35b8838dc8c54a8d4ab2e6ced74bc0",
+    "focused-final.log": "0b1219b7f7db89f53edc71a176d919ce8bac976773fc4cf78a4ab1a8770f57c4",
+    "type-check.log": "2e7145ef899209c288c353189f75feadb461280112739fb4c8866f0a1b903b19",
+    "ac-verification.log": "ee06848bfd5cf8473c44942ab1ebf8c50354713322c9e59df304272f2083573b",
+    "migrations.log": "850945520bfeebdf05890cf130f9d3dd7f10f2503b6cdb0bbf387ff6157e49ad",
+    "tests-final.log": "92cf34828e08d19706f86c282c0e7873efd73805293bd881f5c403c57c396cbd",
+    "tests.log": "4906111b209de2caa4409a1a716adf2879f53930f2465a794a5bea3edf6884ad",
+    "mutation.log": "face0d950bace7349870d43051ff7fe3adac2e78d39c8b13553995ea97ab79c9",
+    "focused.log": "905c838c90cfcef542c134b7cfc1ce0a89190d9f5c8610f194f070bd281e8518",
+    "build.log": "c0683ac8317d30b72cd05980e742b5bfe45ecd26086d60452ee1ca620f76989c",
+    "page-repro.log": "06de41b498a37ebdd95aa6931f3404343bebc5d80a08308363c3ce3bed8649e3"
+  }
+}

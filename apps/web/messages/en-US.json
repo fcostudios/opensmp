@@ -561,5 +561,16 @@
     "loadError": "Statements could not be loaded.",
     "retry": "Try again",
     "evidenceNote": "Movements identify register assignments and people; rates and seat-days come from generated license lines."
-  }
+  },
+  "rollup": {
+    "title": "Consolidated rollup",
+    "csv": "Export rollup CSV",
+    "download": "Download CSV",
+    "reconciliation": "View reconciliation",
+    "total": "Reconciliation rollup (USD)",
+    "tied": "Rollup ties to reconciliation for this period.",
+    "untied": "Not tied yet. Finalize the period and check reconciliation scope and totals.",
+    "pending": "Preparing CSV…",
+    "error": "Unable to export the rollup. Try again."
+}
 }

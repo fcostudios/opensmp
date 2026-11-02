@@ -321,5 +321,11 @@
   "apps/web/src/modules/statements/export-transaction.ts": [
     "apps/web/src/modules/statements/export.integration.test.ts",
     "apps/web/src/app/(authenticated)/estados-de-cuenta/[statementId]/page.integration.test.tsx"
+  ],
+  "apps/web/src/modules/close/rollup-actions.ts": [
+    "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+  ],
+  "apps/web/src/modules/close/rollup-transaction.ts": [
+    "apps/web/src/modules/close/rollup.integration.test.ts"
   ]
 }
