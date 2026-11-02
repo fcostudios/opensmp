@@ -157,5 +157,27 @@
     "loading": "Loading rates and capacity…",
     "forbidden": "Central Finance or Group Admin access is required.",
     "capacityLink": "Manage capacity"
+  },
+  "close": {
+    "title": "Monthly close",
+    "subtitle": "Generate license statements for a completed month. Target: business day 3.",
+    "licenseOnly": "License charges only: register seat-days × effective monthly rates, prorated daily using actual days in the month. Provisional rates are marked on license lines.",
+    "period": "Period",
+    "select": "Select period",
+    "latest": "Latest close run",
+    "duration": "Duration (target under 5 minutes)",
+    "seconds": "seconds",
+    "noRun": "No close run for this period.",
+    "note": "Note (optional)",
+    "run": "Run close",
+    "running": "Running",
+    "succeeded": "Close succeeded",
+    "failed": "Close failed",
+    "error": "The close could not start. Check your access and input, then try again.",
+    "confirm": "Existing drafts will be recalculated. Final statements stay unchanged. Missing rates fail the close without changing statements.",
+    "refresh": "Refresh run status",
+    "loading": "Loading monthly close…",
+    "loadError": "Could not load monthly close. Try again.",
+    "retry": "Try again"
   }
 }

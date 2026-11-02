@@ -13,7 +13,8 @@
     "./requests": "./src/requests.ts",
     "./register": "./src/register.ts",
     "./vendor-catalog": "./src/vendor-catalog.ts",
-    "./rates": "./src/rates.ts"
+    "./rates": "./src/rates.ts",
+    "./close": "./src/close.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",

@@ -238,5 +238,26 @@
   "apps/web/src/modules/vendor-catalog/rates-view.tsx": [
     "apps/web/src/modules/vendor-catalog/rates-view.test.tsx",
     "apps/web/src/modules/vendor-catalog/rates-view.integration.test.tsx"
+  ],
+  "apps/web/src/modules/close/close-transaction.ts": [
+    "apps/web/src/modules/close/close-service.integration.test.ts"
+  ],
+  "apps/web/src/modules/close/close-actions-factory.ts": [
+    "apps/web/src/modules/close/close-service.integration.test.ts"
+  ],
+  "apps/web/src/modules/close/close-operations.ts": [
+    "apps/web/src/modules/close/close-service.integration.test.ts"
+  ],
+  "apps/web/src/modules/close/production.ts": [
+    "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+  ],
+  "apps/web/src/modules/close/server-actions.ts": [
+    "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+  ],
+  "apps/web/src/app/(authenticated)/cierre/error.tsx": [
+    "apps/web/src/modules/close/close-view.test.tsx"
+  ],
+  "apps/web/src/app/(authenticated)/cierre/loading.tsx": [
+    "apps/web/src/modules/close/close-view.test.tsx"
   ]
 }

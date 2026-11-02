@@ -1,16 +1,22 @@
-// SCAFFOLD (SCR-close) — generated page stub. Build the real screen per its spec: docs/screens/SCR-close.json
-import messages from "@/lib/i18n/en-US.json";
-
-const pages = (messages as { pages?: Record<string, { title?: string }> }).pages ?? {};
-
-export default function ScrClosePage() {
-  const title = pages["cierre"]?.title ?? "Cierre mensual";
-  return (
-    <div className="p-6" data-scaffold={"SCR-close"}>
-      <h1 className="text-2xl font-bold">{title}</h1>
-      <p className="mt-2 text-text-secondary">
-        {"SCR-close"}
-      </p>
-    </div>
-  );
+import { redirect } from "next/navigation";
+import { runCloseSchema } from "@smp/contracts/close";
+import { loadCurrentLedgerAuthorization } from "@/modules/identity-access/server-authorization";
+import { ROUTE_SCR_ACCESS_DENIED } from "@/lib/routes";
+import { loadLatestCloseRun } from "@/modules/close/production";
+import { runClose } from "@/modules/close/server-actions";
+import { CloseView } from "@/modules/close/close-view";
+export default async function ClosePage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
+  const authorization = await loadCurrentLedgerAuthorization();
+  // @equivalent: any missing-role fallback stays outside the explicit finance/admin allowlist.
+  if (!authorization || !["central_finance", "group_admin"].includes(authorization.globalRole ?? "")) redirect(ROUTE_SCR_ACCESS_DENIED);
+  const params = await searchParams;
+  const local = new Intl.DateTimeFormat("en", { timeZone: "America/Guayaquil", year: "numeric", month: "numeric" }).formatToParts(new Date());
+  const year = Number(local.find(part => part.type === "year")!.value);
+  // @equivalent: en numeric month/year emits the month first; an always-true predicate picks that same month.
+  const month = Number(local.find(part => part.type === "month")!.value);
+  const previousMonth = new Date(Date.UTC(year, month - 2, 1));
+  const parsed = runCloseSchema.safeParse({ period: params.period });
+  const period = parsed.success ? parsed.data.period : previousMonth.toISOString().slice(0, 7);
+  const latest = await loadLatestCloseRun(authorization, period);
+  return <CloseView key={period} period={period} latest={latest} action={runClose} />;
 }
