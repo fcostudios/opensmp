@@ -259,5 +259,20 @@
   ],
   "apps/web/src/app/(authenticated)/cierre/loading.tsx": [
     "apps/web/src/modules/close/close-view.test.tsx"
+  ],
+  "apps/web/src/app/(authenticated)/estados-de-cuenta/page.tsx": [
+    "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+  ],
+  "apps/web/src/app/(authenticated)/estados-de-cuenta/loading.tsx": [
+    "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+  ],
+  "apps/web/src/app/(authenticated)/estados-de-cuenta/error.tsx": [
+    "apps/web/src/modules/statements/statement-view.test.tsx"
+  ],
+  "apps/web/src/modules/statements/production.ts": [
+    "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+  ],
+  "packages/contracts/src/statements.ts": [
+    "apps/web/src/modules/statements/repository.integration.test.ts"
   ]
 }

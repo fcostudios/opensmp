@@ -2,9 +2,12 @@ import { redirect } from "next/navigation";
 import { runCloseSchema } from "@smp/contracts/close";
 import { loadCurrentLedgerAuthorization } from "@/modules/identity-access/server-authorization";
 import { ROUTE_SCR_ACCESS_DENIED } from "@/lib/routes";
-import { loadLatestCloseRun } from "@/modules/close/production";
 import { runClose } from "@/modules/close/server-actions";
 import { CloseView } from "@/modules/close/close-view";
+import { loadStatementRegister } from "@/modules/statements/production";
+import { StatementSummary, StatementTable } from "@/modules/statements/statement-view";
+import { getLocale } from "next-intl/server";
+import { loadAppMessages } from "@/lib/i18n/messages";
 export default async function ClosePage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   const authorization = await loadCurrentLedgerAuthorization();
   // @equivalent: any missing-role fallback stays outside the explicit finance/admin allowlist.
@@ -17,6 +20,10 @@ export default async function ClosePage({ searchParams }: { searchParams: Promis
   const previousMonth = new Date(Date.UTC(year, month - 2, 1));
   const parsed = runCloseSchema.safeParse({ period: params.period });
   const period = parsed.success ? parsed.data.period : previousMonth.toISOString().slice(0, 7);
-  const latest = await loadLatestCloseRun(authorization, period);
-  return <CloseView key={period} period={period} latest={latest} action={runClose} />;
+  const statements = await loadStatementRegister(authorization, { period });
+  const messages = await loadAppMessages(await getLocale());
+  return <><CloseView key={period} period={period} latest={statements.latest} action={runClose}/><section className="space-y-6 p-6">
+    <StatementSummary data={statements} t={messages.statements}/>
+    <div data-testid="statements_by_company"><StatementTable data={statements} t={messages.statements}/></div>
+  </section></>;
 }

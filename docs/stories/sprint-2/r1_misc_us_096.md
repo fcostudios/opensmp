@@ -43,3 +43,12 @@ Use existing schema and shared domain/contracts; no new migration is required. A
 ## Verification
 
 Use deterministic real-DB assertions for interval integrity, rejected writes and company isolation where applicable. Follow docs/dev-guide/TESTING.md before test edits; no mocks of owned code. Slice production evidence is accepted by Central Finance, Company Finance and the IT Director with human story verify; no agent declares human acceptance.
+
+## US-096 delivery contract
+
+- Both Server Component pages call the shared read-only `createStatementRepository.read(authorization, { period, companyId?, status? })` through `loadStatementRegister`. Filters are validated by `@smp/contracts/statements`. The result contains authorized company choices, statement rows with license-line evidence, exact PostgreSQL numeric totals, and the latest visible CloseRun. One repeatable-read transaction keeps the result consistent during draft replacement.
+- Finance reads intersect the resolved company set with `finance:read` grants. Unauthorized company filters fail before any data query. Company Finance receives only CloseRuns referenced by its statements and never operator notes; failed runs with no company stamp are visible to the operator who triggered them. A status filter affects rows and totals, not the latest-run diagnostic.
+- Detail links use `/estados-de-cuenta/:statementId` (US-036). CSV links use `/api/v1/statements/:statementId/export/csv` (US-037 integration contract). This story implements neither destination.
+- Dated movements are deduplicated by assignment, using the scoped assignment start/end only where they match a generated line boundary. Rate changes inside a month do not create extra joiners/leavers. Monetary totals and seat-days always use persisted statement/line evidence.
+- Draft reruns invalidate `/cierre` and `/estados-de-cuenta`. Finalization remains US-035; no statement mutations or migrations are added here.
+- Sprint 2 production acceptance remains a human `story verify` step with Central Finance, Company Finance and the IT Director; this implementation does not claim that exit criterion.
