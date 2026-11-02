@@ -114,3 +114,48 @@ test("finalized signed company contributions conserve the same cents across both
   expect(rollup.reconciliationTotalUsd).toBe(rollup.statements.totals.totalUsd);expect(rollup.ties).toBe(true);
  }),{seed:390,numRuns:8});
 });
+
+// This kills removal of the OUTER repeatable-read isolation; nested repository savepoints inherit it.
+test("a concurrent draft replacement cannot mix rollup rows and totals across snapshots",async()=>{
+ await owner.query(`ALTER TABLE statement_line RENAME TO us039_statement_line;
+ CREATE FUNCTION us039_pause_read() RETURNS boolean LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_xact_lock(39039); RETURN true; END $$;
+ CREATE VIEW statement_line AS SELECT * FROM us039_statement_line WHERE us039_pause_read();
+ GRANT SELECT ON statement_line TO ledger_app`);
+ await owner.query("SELECT pg_advisory_lock(39039)");
+ const pid=(await owner.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+ let settled=false;
+ const pending=service().read(finance,"2026-01").finally(()=>{settled=true;});
+ void pending.catch(()=>undefined);
+ try {
+  let blocked=false;
+  while(!settled&&!blocked)blocked=(await owner.query("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE $1::int=ANY(pg_blocking_pids(pid))) AS blocked",[pid])).rows[0].blocked;
+  expect(blocked).toBe(true);
+  await owner.query("UPDATE statement SET total_usd=82 WHERE company_id=$1 AND period='2026-01'",[id(2)]);
+  await owner.query("SELECT pg_advisory_unlock(39039)");
+  const rollup=await pending;
+  expect(rollup.statements.rows[0]?.totalUsd).toBe("62.00");
+  expect(rollup.statements.totals.totalUsd).toBe("62.00");
+ } finally {
+  await owner.query("SELECT pg_advisory_unlock_all()");
+  await pending.catch(()=>undefined);
+  await owner.query("DROP VIEW statement_line; DROP FUNCTION us039_pause_read(); ALTER TABLE us039_statement_line RENAME TO statement_line");
+ }
+});
+
+test.each(["partial-zero-account","offset-empty-headers","empty-draft"])("equal aggregate money cannot hide %s",async scenario=>{
+ if(scenario === "partial-zero-account") {
+  await owner.query("INSERT INTO vendor_account(id,vendor_id,name,mode,low_pool_floor,status,created_at,created_by) VALUES($1,$2,'Partially scoped','orchestration',0,'active',$3,$4)",[id(21),id(10),now,id(1)]);
+  await owner.query("INSERT INTO company(id,name,code,type,status,created_at,created_by) VALUES($1,'Foreign','FOREIGN','internal','active',$2,$3) ON CONFLICT(id) DO NOTHING",[id(99),now,id(1)]);
+  await owner.query("INSERT INTO statement(id,company_id,period,status,opening_seats,total_usd,generated_at,created_at) VALUES($1,$2,'2026-01','draft',0,1,$3,$3)",[id(98),id(99),now]);
+  const ownZero=(await owner.query("SELECT id FROM statement WHERE company_id=$1 AND period='2026-01'",[id(3)])).rows[0].id;
+  await owner.query("INSERT INTO statement_line(statement_id,kind,vendor_account_id,amount_usd) VALUES($1,'adjustment',$2,0),($3,'adjustment',$2,1)",[ownZero,id(21),id(98)]);
+ } else if(scenario === "offset-empty-headers") {
+  await owner.query("UPDATE statement SET total_usd=CASE WHEN company_id=$1 THEN 5 WHEN company_id=$2 THEN -5 ELSE total_usd END",[id(3),id(4)]);
+ }
+ if(scenario === "empty-draft")await owner.query("UPDATE statement SET status='final' WHERE company_id<>$1",[id(3)]);
+ else await owner.query("UPDATE statement SET status='final'");
+ const rollup=await service().read(finance,"2026-01");
+ expect(rollup.statements.totals.totalUsd).toBe("62.00");
+ expect(rollup.reconciliationTotalUsd).toBe("62.00");
+ expect(rollup.ties).toBe(false);
+});

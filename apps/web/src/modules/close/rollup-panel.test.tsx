@@ -27,4 +27,9 @@ test("untied drafts show explanation and export failures are recoverable",async(
  reject(new Error("unavailable"));
  await waitFor(()=>expect(screen.getByRole("alert").textContent).toBe(t.error));
  expect(screen.getByTestId("btn_export_rollup_csv").hasAttribute("disabled")).toBe(false);
+ fireEvent.click(screen.getByTestId("btn_export_rollup_csv"));
+ await waitFor(()=>expect(screen.getByTestId("btn_export_rollup_csv").hasAttribute("disabled")).toBe(true));
+ expect(screen.queryByRole("alert")).toBeNull();
+ reject(new Error("still unavailable"));
+ await waitFor(()=>expect(screen.getByRole("alert").textContent).toBe(t.error));
 });
