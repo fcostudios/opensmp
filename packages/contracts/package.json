@@ -14,7 +14,8 @@
     "./register": "./src/register.ts",
     "./vendor-catalog": "./src/vendor-catalog.ts",
     "./rates": "./src/rates.ts",
-    "./close": "./src/close.ts"
+    "./close": "./src/close.ts",
+    "./statements": "./src/statements.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",
