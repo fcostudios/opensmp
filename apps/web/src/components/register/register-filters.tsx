@@ -1,5 +1,7 @@
 import type { RegisterFilters as RegisterFilterValues } from "@smp/contracts/register";
 
+import { RegisterActiveMonthFilter } from "./register-active-month-filter";
+
 interface RegisterFilterLabels {
   readonly all: string;
   readonly apply: string;
@@ -101,6 +103,7 @@ export function RegisterFilters({
           <option value="closed">{labels.closed}</option>
         </select>
       </label>
+      <RegisterActiveMonthFilter value={filters.activeMonth} />
       <label className="grid gap-1 text-sm text-text-secondary">
         {labels.dateFrom}
         <input className="min-h-11 rounded border border-border bg-surface px-3 text-text-primary" defaultValue={filters.startDate ?? ""} name="startDate" type="date" />

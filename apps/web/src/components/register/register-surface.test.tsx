@@ -2,6 +2,8 @@
 
 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, test } from "vitest";
 
 import {
@@ -19,6 +21,9 @@ import { RegisterTable } from "./register-table";
 import messages from "../../../messages/en-US.json";
 
 afterEach(cleanup);
+
+// RegisterFilters composes the client-side month filter (US-098), which reads the register catalog.
+const withIntl = { wrapper: ({ children }: { readonly children: ReactNode }) => <NextIntlClientProvider locale="en-US" messages={messages}>{children}</NextIntlClientProvider> };
 
 const labels = {
   all: "All", apply: "Apply", closed: "Closed", company: "Company",
@@ -133,6 +138,7 @@ describe("register surface contracts", () => {
         sourceRequestNos={["SOL-1001"]}
         vendorAccounts={[{ id: "00000000-0000-4000-8000-000000003305", label: "Org" }]}
       />,
+      withIntl,
     );
     const form = container.querySelector("form")!;
     expect(screen.getByLabelText(labels.person)).toBeTruthy();
@@ -257,13 +263,37 @@ test.each(["MAN-1", null])("manual rows and filters identify manual provenance w
   }]} />);
   expect(screen.getByRole("link", { name: requestNo ? "Manual entry · MAN-1" : "Manual entry" }).getAttribute("href")).toBe("/solicitudes/anchor");
   expect(screen.queryByText("Request MAN-1")).toBeNull();
-  render(<RegisterFilters companies={[]} endReasons={[]} filters={{ sourceKind: "manual" }} labels={labels} licenseTypes={[]} people={[]} sourceRequestNos={[]} vendorAccounts={[]} />);
+  render(<RegisterFilters companies={[]} endReasons={[]} filters={{ sourceKind: "manual" }} labels={labels} licenseTypes={[]} people={[]} sourceRequestNos={[]} vendorAccounts={[]} />, withIntl);
   expect((screen.getByRole("option", { name: "Manual entry" }) as HTMLOptionElement).selected).toBe(true);
 });
 
 
 test("applying untouched register filters submits only empty optional values", () => {
-  render(<RegisterFilters companies={[]} endReasons={[]} filters={{}} labels={labels} licenseTypes={[]} people={[]} sourceRequestNos={[]} vendorAccounts={[]} />);
+  render(<RegisterFilters companies={[]} endReasons={[]} filters={{}} labels={labels} licenseTypes={[]} people={[]} sourceRequestNos={[]} vendorAccounts={[]} />, withIntl);
   const values = Object.fromEntries(new FormData(screen.getByTestId("register_filters") as HTMLFormElement));
   expect(parseRegisterFilters(values)).toEqual({});
+});
+
+describe("US-098 active-in-month filter", () => {
+  test("renders a labelled month input prefilled from the URL and submits it through the canonical parser", () => {
+    const { container } = render(<RegisterFilters companies={[{ id: "00000000-0000-4000-8000-000000003302", label: "Alpha" }]} endReasons={[]} filters={parseRegisterFilters({ activeMonth: "2026-10", companyId: "00000000-0000-4000-8000-000000003302" })} labels={labels} licenseTypes={[]} people={[]} sourceRequestNos={[]} vendorAccounts={[]} />, withIntl);
+    const input = screen.getByLabelText("Active in month") as HTMLInputElement;
+    expect(input.name).toBe("activeMonth");
+    expect(input.type).toBe("month");
+    expect(input.value).toBe("2026-10");
+    const submitted = Object.fromEntries(new FormData(container.querySelector("form")!).entries()) as Record<string, string>;
+    expect(serializeRegisterFilters(parseRegisterFilters(submitted))).toBe("activeMonth=2026-10&companyId=00000000-0000-4000-8000-000000003302");
+    expect(createRegisterCsvDownload({ userId: "u", userAccountId: "u", idpSubject: "s", globalRole: "central_finance", roles: ["central_finance"], companyIds: [], employeeCompanyId: null, companyGrants: [] }, submitted))
+      .toEqual({ downloadUrl: "/api/exports/register?activeMonth=2026-10&companyId=00000000-0000-4000-8000-000000003302" });
+  });
+
+  test("accepts exactly the periods the close accepts and composes with the US-033 date filters", () => {
+    expect(parseRegisterFilters({ activeMonth: "2026-10", startDate: "2026-01-01", endDate: "2026-12-31" })).toEqual({ activeMonth: "2026-10", startDate: "2026-01-01", endDate: "2026-12-31" });
+    expect(parseRegisterFilters({ activeMonth: "2024-02" })).toEqual({ activeMonth: "2024-02" });
+    expect(parseRegisterFilters({ activeMonth: "" })).toEqual({});
+    for (const activeMonth of ["2026-13", "2026-00", "0000-01", "2026-1", "26-10", "2026-10-01", " 2026-10", "2026/10", "2026-10x"]) {
+      expect(() => parseRegisterFilters({ activeMonth }), activeMonth).toThrow("Invalid register filters");
+    }
+  });
+
 });

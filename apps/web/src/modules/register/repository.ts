@@ -1,3 +1,4 @@
+import { monthBounds } from "@smp/domain/close/license-close";
 import { csvCell } from "@smp/domain/csv";
 import {
   and,
@@ -130,6 +131,15 @@ function filterConditions(filters: RegisterFilters): SQL[] {
   if (filters.endReason) conditions.push(eq(licenseAssignment.endReason, filters.endReason));
   if (filters.startDate) conditions.push(gte(licenseAssignment.startedOn, filters.startDate));
   if (filters.endDate) conditions.push(lte(licenseAssignment.startedOn, filters.endDate));
+  if (filters.activeMonth) {
+    // US-098: the license-only close's own period bounds and assignment predicate
+    // (packages/db/src/license-close.ts), so the M-1 register is the set the close bills.
+    const month = monthBounds(filters.activeMonth);
+    conditions.push(
+      lte(licenseAssignment.startedOn, month.to),
+      or(isNull(licenseAssignment.endedOn), gte(licenseAssignment.endedOn, month.from))!,
+    );
+  }
   return conditions;
 }
 

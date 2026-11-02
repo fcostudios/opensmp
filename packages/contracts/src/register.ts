@@ -1,6 +1,10 @@
 import { z } from "zod";
 
+import { runCloseSchema } from "./close";
+
 export interface RegisterFilters {
+  /** US-098: calendar month (YYYY-MM); rows active on at least one day of it, as the close bills. */
+  readonly activeMonth?: string;
   readonly companyId?: string;
   readonly cursor?: string;
   readonly endDate?: string;
@@ -25,6 +29,8 @@ export function createRegisterFiltersSchema() {
   const optionalUuid = z.string().uuid().optional();
 
   return z.object({
+    // Same period contract as the license-only close (US-034), so a month the close accepts is a month the register accepts.
+    activeMonth: runCloseSchema.shape.period.optional(),
     companyId: optionalUuid,
     cursor: z.string().min(1).max(500).optional(),
     endDate: dateFilter.optional(),
