@@ -9,15 +9,29 @@ personal data, private host configuration or unsanitized drill logs here.
 
 ## Monthly manual register upkeep (DEC-SMP-065/066)
 
-Central Finance owns the group register; Company Finance checks only its own
-company. Use `/registro`, select the company and vendor account, compare the
-source member list with current assignments, and enter joiners/leavers with
-their actual effective dates. Correct mistakes through the existing audited
-manual-entry workflow; never edit assignment rows with SQL. Check dated
-history and `/auditoria` for the actor, company and before/after evidence.
-Export the register CSV and have each of the five pilots reconcile headcount
-and dated joiners/leavers against its supplied list. Record unresolved
-mismatches and the source date with the close evidence.
+Group Admin keeps the register; Central Finance inspects and exports it;
+Company Finance checks only its own company.
+
+1. **Group Admin enters and closes assignments (US-095).** In `/registro`, use
+   **Manual register entry**: record each joiner with the real start date, and
+   close each leaver with **Close assignment**, giving the end date and reason.
+   Every entry needs a note naming its source. The manual-entry form is shown
+   to Group Admin only. Correct mistakes with a new audited entry or close;
+   never edit assignment rows with SQL.
+2. **Central Finance inspects.** In `/registro`, filter by company and vendor
+   account, compare the source member list with the assignments, and check
+   dated history and `/auditoria` for the actor, company and before/after
+   evidence. Send any correction back to Group Admin for step 1.
+3. **Central Finance exports the M-1 register (US-098).** Set **Active in
+   month** to M-1 (for example `2026-10`) and press **Export CSV**. The CSV
+   lists every seat active on at least one day of M-1, including seats open
+   since an earlier month and leavers who ended during M-1 — the same
+   assignments the license-only close bills for that month. Do not use
+   `Start date`/`End date` for this: they match the assignment's *start*
+   date only.
+4. Each of the five pilots reconciles its month-end headcount and dated
+   joiners/leavers against its supplied list. Record unresolved mismatches and
+   the source date with the close evidence.
 
 In `/tarifas`, Central Finance enters the monthly license rate and effective
 date manually. Until the contracted rate arrives it is **provisional**
