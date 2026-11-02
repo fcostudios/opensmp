@@ -1509,3 +1509,22 @@ describe("people repository", () => {
   });
 
 });
+
+
+test.each(["finance","approver","viewer"] as const)("US-047 %s reads only granted people and cannot mutate either company", async role => {
+  const repository = createPeopleRepository(drizzle(appPool,{schema}));
+  const scoped = {...viewer, companyIds:[companyA,companyB], companyGrants:[{companyId:companyA,role}]};
+  const rows = await repository.list(scoped);
+  expect(rows.length).toBeGreaterThan(0);
+  expect(new Set(rows.map(row=>row.companyId))).toEqual(new Set([companyA]));
+  expect((await repository.detail(scoped,personA)).id).toBe(personA);
+  await expect(repository.detail(scoped,personB)).rejects.toMatchObject({code:"person_not_found"});
+  expect((await repository.companies(scoped)).map(row=>row.id)).toEqual([companyA]);
+  const before = (await owner.query("SELECT id,full_name,company_id,status FROM person ORDER BY id")).rows;
+  for(const companyId of [companyA,companyB]) {
+    const input = {fullName:"Forbidden",email:"forbidden@isolation.invalid",companyId,status:"active" as const,confirmCompanyMove:false};
+    await expect(repository.create(scoped,input,occurredAt)).rejects.toMatchObject({code:"person_forbidden"});
+    await expect(repository.update(scoped,{...input,id:companyId===companyA?personA:personB},occurredAt)).rejects.toMatchObject({code:"person_forbidden"});
+  }
+  expect((await owner.query("SELECT id,full_name,company_id,status FROM person ORDER BY id")).rows).toEqual(before);
+});

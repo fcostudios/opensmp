@@ -32,7 +32,7 @@ import {
 import { permittedCompanyIds } from "@smp/domain/identity-access";
 import * as schema from "@smp/db/schema";
 
-import type { LedgerAuthorization } from "../identity-access/authorization";
+import { assertCapability, type LedgerAuthorization } from "../identity-access/authorization";
 
 type Database = NodePgDatabase<typeof schema>;
 
@@ -164,6 +164,7 @@ export function createRegisterRepository(database: Pick<Database, "select">) {
     pageSize: number | undefined,
     assignmentIdsFilter?: readonly string[],
   ): Promise<RegisterPage> {
+    if (filters.companyId) assertCapability(authorization, "finance:read", filters.companyId);
     const conditions = [readScope(authorization, licenseAssignment.companyId), ...filterConditions(filters)];
     if (assignmentIdsFilter) conditions.push(inArray(licenseAssignment.id, [...assignmentIdsFilter]));
     if (pageSize !== undefined && filters.cursor) {
@@ -263,6 +264,7 @@ export function createRegisterRepository(database: Pick<Database, "select">) {
     async *streamCsv(authorization: LedgerAuthorization, filters: RegisterFilters): AsyncGenerator<string> {
       let cursor: string | undefined;
       try {
+        if (filters.companyId) assertCapability(authorization, "finance:read", filters.companyId);
         yield registerCsvHeader();
         do {
           const page = await queryRows(authorization, { ...filters, cursor, limit: 100 }, 100);

@@ -159,3 +159,12 @@ test.each(["partial-zero-account","offset-empty-headers","empty-draft"])("equal 
  expect(rollup.reconciliationTotalUsd).toBe("62.00");
  expect(rollup.ties).toBe(false);
 });
+
+
+test.each(["finance","approver","viewer"] as const)("US-047 %s grants never authorize group rollup or export writes", async role => {
+ const scoped={...own,companyGrants:[{companyId:id(2),role}]};
+ const before=(await owner.query("SELECT count(*)::int AS n FROM audit_log WHERE action='rollup.export_csv'")).rows;
+ await expect(service().read(scoped,"2026-01")).rejects.toThrow("ROLLUP_FORBIDDEN");
+ await expect(service().exportRollupCsv(scoped,"2026-01")).rejects.toThrow("ROLLUP_FORBIDDEN");
+ expect((await owner.query("SELECT count(*)::int AS n FROM audit_log WHERE action='rollup.export_csv'")).rows).toEqual(before);
+});

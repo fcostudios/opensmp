@@ -394,3 +394,28 @@ describe("US-003 register integrity migration", () => {
     }
   }, 150_000);
 });
+
+
+test("US-047 shortening a committed cross-company predecessor rejects at commit and preserves its partition", async () => {
+  const fixture = await createPostgresFixture(); fixtures.push(fixture);
+  await fixture.migrate();
+  const owner = await fixture.connectAsOwner();
+  const app = await connectAsRuntimeApp(fixture);
+  const predecessor = "47000000-0000-4000-8000-000000000001";
+  const successor = "47000000-0000-4000-8000-000000000002";
+  try {
+    await seedRegisterFixture(owner);
+    await app.query("BEGIN");
+    await insertAssignment(app,{id:predecessor,startedOn:"2026-01-01",endedOn:"2026-01-09",endReason:"reallocated"});
+    await insertAssignment(app,{id:successor,companyId:ids.companyB,startedOn:"2026-01-10"});
+    await app.query("COMMIT");
+    const read = () => app.query("SELECT id,company_id,started_on::text,ended_on::text FROM license_assignment ORDER BY started_on");
+    const before = (await read()).rows;
+    expect(before.map(row=>row.company_id)).toEqual([ids.companyA,ids.companyB]);
+    await app.query("BEGIN");
+    await app.query("UPDATE license_assignment SET ended_on='2026-01-08' WHERE id=$1",[predecessor]);
+    await expect(app.query("COMMIT")).rejects.toMatchObject({code:"23514",constraint:"license_assignment_reallocation_contiguous"});
+    await app.query("ROLLBACK");
+    expect((await read()).rows).toEqual(before);
+  } finally { await Promise.all([owner.end(),app.end()]); }
+},150_000);
