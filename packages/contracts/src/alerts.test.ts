@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   alertRuleContractSchema,
+  alertSubjectForTypeSchema,
   approvalAgingThresholdSchema,
   inviteUnacceptedThresholdSchema,
 } from "./alerts.js";
@@ -228,4 +229,13 @@ describe("US-092 new drift subjects and historical reads", () => {
       expect(schemas.alertSubjectForReadTypeSchema.safeParse({ type: "register_drift", subject }).success).toBe(false);
     }
   });
+});
+
+it("accepts scheduled-close period failures without weakening request failures or cross-type identities",()=>{
+  for(const subject of [{period:"2026-12"},{requestId:"request-051"}]) {
+    expect(alertSubjectForTypeSchema.parse({type:"provisioning_failure",subject})).toEqual({type:"provisioning_failure",subject});
+  }
+  for(const subject of [{period:"2026-13"},{period:"2026-12",requestId:"request-051"},{vendorAccountId:"wrong"}]) {
+    expect(alertSubjectForTypeSchema.safeParse({type:"provisioning_failure",subject}).success).toBe(false);
+  }
 });

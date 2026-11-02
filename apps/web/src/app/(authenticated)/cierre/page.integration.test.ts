@@ -134,6 +134,10 @@ test("production runClose verifies signed identity, revalidates and renders the 
   expect(response.work.pendingRevalidatedTags).toEqual([{tag:"_N_T_/cierre",profile:undefined}]);
   const html=renderToStaticMarkup(await page("close-finance"));
   expect(html).toContain("Close succeeded");expect(html).toContain("Production seam");expect(html).toContain("Duration");
+  expect(html).toContain("finance@rates.invalid");
+  expect(html).toContain('data-testid="close_tiles"');expect(html).toContain("USD 62.00");
+  expect(html).toContain("Runtime target met: under 5 minutes");
+  expect(html).not.toContain("Unknown actor");
   expect((await data.owner.query("SELECT total_usd,close_run_id FROM statement")).rows).toEqual([{total_usd:"62.00",close_run_id:"runId" in response.result?response.result.runId:"missing"}]);
 });
 test("invalid period defaults to the previous completed month and read failures reach the route boundary",async()=>{

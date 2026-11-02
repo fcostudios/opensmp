@@ -273,5 +273,9 @@
   ],
   "packages/db/src/license-close.ts": [
     "apps/web/src/modules/close/close-service.integration.test.ts"
+  ],
+  "apps/worker/src/jobs/deferred.ts": [
+    "apps/worker/src/jobs/deferred.test.ts",
+    "apps/worker/src/jobs/close-schedule.integration.test.ts"
   ]
 }
