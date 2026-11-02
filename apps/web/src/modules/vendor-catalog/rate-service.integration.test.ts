@@ -165,8 +165,9 @@ test("locked corrections use a new non-overlapping row and reconciled legacy lin
   expect(correction.effectiveFrom).toBe("2026-04-01");
   const old = (await owner.query(`SELECT monthly_rate_usd FROM rate_card WHERE effective_from='2026-03-01'`)).rows[0];
   expect(old.monthly_rate_usd).toBe("58.50");
-  await owner.query(`INSERT INTO statement (id,company_id,period,status,opening_seats,total_usd,generated_at,created_at) VALUES ($1,$2,'2027-01','reconciled',1,65.25,$3,$3)`, [id(11), id(6), now]);
+  await owner.query(`INSERT INTO statement (id,company_id,period,status,opening_seats,total_usd,generated_at,created_at) VALUES ($1,$2,'2027-01','draft',1,65.25,$3,$3)`, [id(11), id(6), now]);
   await owner.query(`INSERT INTO statement_line (statement_id,kind,vendor_account_id,license_type_id,rate_usd,amount_usd) VALUES ($1,'license',$2,$3,65.25,65.25)`, [id(11), id(3), id(4)]);
+  await owner.query(`UPDATE statement SET status='reconciled' WHERE id=$1`, [id(11)]);
   const legacy = (await service.workspace(finance)).rates.find(row => row.effectiveFrom === "2027-01-01")!;
   expect(legacy.locked).toBe(true);
   await expect(service.saveRateCard(finance, { ...command, id: legacy.id })).rejects.toThrow();

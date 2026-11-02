@@ -14,7 +14,8 @@
     "./request-workflow": "./src/request-workflow/lifecycle.ts",
     "./request-workflow/business-time": "./src/request-workflow/business-time.ts",
     "./vendor-catalog/pool-math": "./src/vendor-catalog/pool-math.ts",
-    "./usage/inactivity": "./src/usage/inactivity.ts"
+    "./usage/inactivity": "./src/usage/inactivity.ts",
+    "./close/license-close": "./src/close/license-close.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",
