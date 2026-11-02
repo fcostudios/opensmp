@@ -135,8 +135,9 @@ and a seat held for 21 days is $20.32.
 
 ## 4. Known gaps (say these out loud)
 
-* **US-041 is not merged.** Company Finance has no own-company register or
-  headcount screen before a close. `/registro` and the register CSV are limited
+* **No own-company register screen before a close.** US-041 (merged) scopes
+  Company Finance to its own statements and the register evidence inside them,
+  but there is no standalone own-company register or headcount screen before a close. `/registro` and the register CSV are limited
   to Group Admin and Central Finance, and `/companias` is still a scaffold. In S0,
   Company Finance verifies headcount from the CSV slice that Central Finance
   shares. In S1, it verifies headcount from opening seats and lines on its own
