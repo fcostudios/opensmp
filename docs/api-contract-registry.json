@@ -1,8 +1,8 @@
 {
   "meta": {
     "generated": "auto",
-    "description": "API contract registry — all endpoints from TOON dataSource + story specs.",
-    "endpoint_count": 2,
+    "description": "API contract registry \u2014 all endpoints from TOON dataSource + story specs.",
+    "endpoint_count": 3,
     "scaffold": false
   },
   "endpoints": {
@@ -23,6 +23,16 @@
         {
           "type": "story",
           "ref": "US-033"
+        }
+      ]
+    },
+    "GET /api/v1/statements/:statementId/export/csv": {
+      "method": "GET",
+      "url": "/api/v1/statements/:statementId/export/csv",
+      "sources": [
+        {
+          "type": "story",
+          "ref": "US-037 (S1 CSV)"
         }
       ]
     }

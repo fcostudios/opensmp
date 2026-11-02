@@ -1643,7 +1643,13 @@ const expectedAppendOnlyColumnUpdates = [
       expect(sha256(oldSource)).toBe("d927f78f95e192e6c5e96344859449a99894d59c8917363c950ac4b6e65bc767");
       const oldPath = join(bundle, "scripts/old-verify-schema.mjs");
       const currentPath = join(bundle, "scripts/verify-schema.mjs");
-      await writeFile(oldPath, oldSource);
+      // US-038 extends the release grant profile after pinning the untouched
+      // historical executable. Compare both verifiers under the same two
+      // guarded variance CRUD grants; preserve the historical hash above.
+      const releaseSource = oldSource
+        .replace('  "reconciliation",\n  "statement",', '  "reconciliation",\n  "reconciliation_variance_line",\n  "statement",')
+        .replace('const expectedRuntimeTableGrants = [\n', 'const expectedRuntimeTableGrants = [\n  { tableName: "reconciliation_variance_line", privilege: "DELETE" },\n');
+      await writeFile(oldPath, releaseSource);
       const environment = { DATABASE_ADMIN_URL: database.ownerUrl, DATABASE_URL: database.appUrl };
       const oldCli = await runNode(oldPath, environment);
       const currentCli = await runNode(currentPath, environment);
@@ -2614,6 +2620,7 @@ const expectedAppendOnlyColumnUpdates = [
       "the btree_gist extension",
       `
         ALTER TABLE license_assignment DROP CONSTRAINT license_assignment_no_overlap;
+        ALTER TABLE rate_card DROP CONSTRAINT rate_card_no_overlap;
         DROP EXTENSION btree_gist;
       `,
       "register extension mismatch",

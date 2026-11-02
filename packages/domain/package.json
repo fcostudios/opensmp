@@ -7,6 +7,7 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./csv": "./src/csv.ts",
     "./alerts": "./src/alerts/evaluate.ts",
     "./audit": "./src/audit/port.ts",
     "./identity-access": "./src/identity-access/authorization.ts",
@@ -14,7 +15,10 @@
     "./request-workflow": "./src/request-workflow/lifecycle.ts",
     "./request-workflow/business-time": "./src/request-workflow/business-time.ts",
     "./vendor-catalog/pool-math": "./src/vendor-catalog/pool-math.ts",
-    "./usage/inactivity": "./src/usage/inactivity.ts"
+    "./usage/inactivity": "./src/usage/inactivity.ts",
+    "./close/license-close": "./src/close/license-close.ts",
+    "./close/finalization": "./src/close/finalization.ts",
+    "./close/reconciliation": "./src/close/reconciliation.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",

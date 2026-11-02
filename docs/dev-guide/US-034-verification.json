@@ -1,0 +1,142 @@
+{
+  "story": "US-034",
+  "verified_at": "2026-11-02T02:15:29.168582+00:00",
+  "base_sha": "e2b7c4e864a5e0950843713e4595cc0ff579bc92",
+  "scope": "diff",
+  "process_timezone": "UTC",
+  "cold": true,
+  "mutated_sources": 11,
+  "shards": [
+    {
+      "id": "vitest-1151dc89c21b",
+      "counts": {
+        "Killed": 137,
+        "Survived": 5
+      },
+      "duration_ms": 479402.458,
+      "report_sha256": "2aa25779f350d636e535c02662ad2e2681805fd4072a8c2a237386fc8155c521"
+    },
+    {
+      "id": "vitest-27943f770296",
+      "counts": {
+        "Killed": 10
+      },
+      "duration_ms": 6141.031583999982,
+      "report_sha256": "b7f667c3e566dde9f5cfc90484ff51710c912a4be5a1cdad1da554bc905ccf8b"
+    },
+    {
+      "id": "vitest-45510777cc13",
+      "counts": {
+        "Killed": 97
+      },
+      "duration_ms": 43592.494084000005,
+      "report_sha256": "7cfe3fc9f675b6a9bbf9f8e15e874471d9c5e96ac225b18bda1b2ed7e708f1fc"
+    },
+    {
+      "id": "vitest-f373870476d0",
+      "counts": {
+        "Killed": 33,
+        "Survived": 2
+      },
+      "duration_ms": 39737.259290999966,
+      "report_sha256": "ceface00612b86f7f4e990e1e372e753fb422972fedbcde519fffa144687a1a2"
+    },
+    {
+      "id": "vitest-fa234427dde5",
+      "counts": {
+        "Killed": 29,
+        "Survived": 2
+      },
+      "duration_ms": 95802.01950000005,
+      "report_sha256": "23514a3c9297c1722a43c1441ba06f706e8c8db3ad9f63e700af2d1bfcacb554"
+    }
+  ],
+  "counts": {
+    "Killed": 306,
+    "Survived": 9
+  },
+  "mutation_score": 97.14285714285714,
+  "mutation_shards_wallclock_s": 664.675262459,
+  "surviving_annotated": [
+    {
+      "file": "apps/web/src/modules/close/close-actions-factory.ts",
+      "line": 16,
+      "mutant_id": "5",
+      "replacement": "{}",
+      "annotation": "@equivalent: empty authorization catch falls through to the null guard and the same error without writes.",
+      "reviewer": "Codex (inline author self-review)"
+    },
+    {
+      "file": "apps/web/src/modules/close/close-actions-factory.ts",
+      "line": 18,
+      "mutant_id": "10",
+      "replacement": "false",
+      "annotation": "@equivalent: removing the early null guard reaches the independent service rejection, mapped to the same error.",
+      "reviewer": "Codex (inline author self-review)"
+    },
+    {
+      "file": "apps/web/src/modules/close/close-transaction.ts",
+      "line": 14,
+      "mutant_id": "38",
+      "replacement": "\"Stryker was here!\"",
+      "annotation": "@equivalent: any missing-role fallback string stays outside the explicit finance/admin allowlist.",
+      "reviewer": "Codex (inline author self-review)"
+    },
+    {
+      "file": "apps/web/src/modules/close/close-transaction.ts",
+      "line": 38,
+      "mutant_id": "65",
+      "replacement": "\"\"",
+      "annotation": "@equivalent: changing only the internal advisory-key prefix preserves one shared lock per period.",
+      "reviewer": "Codex (inline author self-review)"
+    },
+    {
+      "file": "apps/web/src/modules/close/close-transaction.ts",
+      "line": 46,
+      "mutant_id": "72",
+      "replacement": "{}",
+      "annotation": "@equivalent: unused select projection does not change the locked rows, SQL ordering or lock mode.",
+      "reviewer": "Codex (inline author self-review)"
+    },
+    {
+      "file": "apps/web/src/modules/close/close-view.tsx",
+      "line": 12,
+      "mutant_id": "3",
+      "replacement": "{}",
+      "annotation": "@equivalent: empty initial state/status renders no result; the action ignores previous state.",
+      "reviewer": "Codex (inline author self-review)"
+    },
+    {
+      "file": "apps/web/src/modules/close/close-view.tsx",
+      "line": 12,
+      "mutant_id": "4",
+      "replacement": "\"\"",
+      "annotation": "@equivalent: empty initial state/status renders no result; the action ignores previous state.",
+      "reviewer": "Codex (inline author self-review)"
+    },
+    {
+      "file": "apps/web/src/app/(authenticated)/cierre/page.tsx",
+      "line": 11,
+      "mutant_id": "9",
+      "replacement": "\"Stryker was here!\"",
+      "annotation": "@equivalent: any missing-role fallback string stays outside the explicit finance/admin allowlist.",
+      "reviewer": "Codex (inline author self-review)"
+    },
+    {
+      "file": "apps/web/src/app/(authenticated)/cierre/page.tsx",
+      "line": 16,
+      "mutant_id": "21",
+      "replacement": "true",
+      "annotation": "@equivalent: the explicit en numeric month/year formatter emits month first; an always-true predicate selects the same month.",
+      "reviewer": "Codex (inline author self-review)"
+    }
+  ],
+  "functional_gate": "pnpm type-check && pnpm lint && pnpm build && pnpm test: passed",
+  "migrations": {
+    "applied": 67,
+    "tables_verified": 33,
+    "runtime_grants": "exact least-privilege matrix verified"
+  },
+  "raw_reports_local": ".tmp/us034-mutation-reports/mutation",
+  "production_sprint_exit": "Pending human production Finance/IT acceptance; US-096 and US-037 remain separate stories."
+}

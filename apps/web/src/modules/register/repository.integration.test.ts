@@ -169,8 +169,8 @@ async function seedRegisterFixture() {
   await owner.query(
     `INSERT INTO statement (id, company_id, period, status, opening_seats, total_usd, generated_at, created_at)
      VALUES
-       ('00000000-0000-4000-8000-000000003319', $1, '2026-01', 'final', 1, 10.00, $3, $3),
-       ('00000000-0000-4000-8000-000000003320', $2, '2026-01', 'final', 1, 10.00, $3, $3)`,
+       ('00000000-0000-4000-8000-000000003319', $1, '2026-01', 'draft', 1, 10.00, $3, $3),
+       ('00000000-0000-4000-8000-000000003320', $2, '2026-01', 'draft', 1, 10.00, $3, $3)`,
     [companyA, companyB, occurredAt],
   );
   await owner.query(
@@ -181,6 +181,7 @@ async function seedRegisterFixture() {
        ('00000000-0000-4000-8000-000000003322', '00000000-0000-4000-8000-000000003320', 'license', $2, $4, $6, $8, 31, 10.00, 10.00, '2026-01-01', '2026-01-31', 'B trace')`,
     [personA1, personB, vendorAccountA, vendorAccountB, licenseTypeA, licenseTypeB, assignmentA1, assignmentB],
   );
+  await owner.query(`UPDATE statement SET status='final' WHERE period='2026-01'`);
 }
 
 beforeAll(async () => {
@@ -719,4 +720,14 @@ describe("US-095 manual register writes", () => {
     // The inclusive last day does not change October's seat-days.
     await expect(service().close(authForGroupAdmin, { assignmentId: row.id, endedOn: "2026-10-31", endReason: "inactive", note: "Close" }, occurredAt)).resolves.toMatchObject({ endedOn: "2026-10-31" });
   });
+});
+
+
+test("US-036 exact assignment evidence excludes unrelated and foreign register rows", async () => {
+  const repository = createRegisterRepository(drizzle(appPool, { schema }));
+  const selected = await repository.assignmentsById(authForCompanyA, [assignmentA2, assignmentB]);
+  expect(selected.map(row => row.id)).toEqual([assignmentA2]);
+  expect([selected[0].startedOn, selected[0].endedOn]).toEqual(["2026-02-01", "2026-02-28"]);
+  expect(await repository.assignmentsById(authForCompanyA, [])).toEqual([]);
+  expect((await repository.assignmentsById(authForGroupAdmin, [assignmentB])).map(row => row.id)).toEqual([assignmentB]);
 });

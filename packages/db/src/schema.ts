@@ -247,7 +247,13 @@ export const rateCard = pgTable("rate_card", {
   effectiveTo: date("effective_to"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   createdBy: uuid("created_by").references((): AnyPgColumn => userAccount.id).notNull(),
-});
+  provisional: boolean(
+    "provisional", // @equivalent: Drizzle setName infers this same property key when the SQL name is empty.
+  ).default(true).notNull(),
+}, (table) => ({
+  validPeriod: check("rate_card_valid_period", sql`${table.effectiveTo} IS NULL OR ${table.effectiveTo} >= ${table.effectiveFrom}`),
+  nonnegative: check("rate_card_nonnegative", sql`${table.monthlyRateUsd} >= 0`),
+}));
 
 export const statement = pgTable("statement", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),
@@ -314,6 +320,7 @@ export const reconciliationVarianceLine = pgTable("reconciliation_variance_line"
   statementLineId: uuid("statement_line_id").references((): AnyPgColumn => statementLine.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   createdBy: uuid("created_by").references((): AnyPgColumn => userAccount.id).notNull(),
+  evidenceUrl: text("evidence_url"),
 });
 
 export const company = pgTable("company", {

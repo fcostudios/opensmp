@@ -1,0 +1,359 @@
+{
+  "shards": [
+    {
+      "id": "schema-static-693b9604135d",
+      "result": "passed",
+      "classification": "scored",
+      "durationMs": 12719.868874999998,
+      "counts": {
+        "Survived": 1,
+        "Killed": 7
+      },
+      "report": "reports/mutation/schema-static-693b9604135d-98976-1793580290139-e95b049ee05a2.json",
+      "reportHash": "919c2954b213a72ddcf680183b974040a78bdb17abb55de12fadcf30ed2a5fe4",
+      "survivors": [
+        {
+          "file": "packages/db/src/schema.ts",
+          "id": "0",
+          "location": {
+            "end": {
+              "column": 18,
+              "line": 251
+            },
+            "start": {
+              "column": 5,
+              "line": 251
+            }
+          },
+          "replacement": "\"\"",
+          "annotation": "@equivalent: Drizzle infers the same provisional SQL column name from the property when the explicit name is empty."
+        }
+      ]
+    },
+    {
+      "id": "vitest-049f3237d95c",
+      "result": "passed",
+      "classification": "scored",
+      "durationMs": 3859.9743750000016,
+      "counts": {
+        "Killed": 2
+      },
+      "report": "reports/mutation/vitest-049f3237d95c-98976-1793580290139-e95b049ee05a2.json",
+      "reportHash": "9b203e8db33a700dbf4a3a2ac49c4b16e0e6fd5382d2307deb47d08d364ca16a",
+      "survivors": []
+    },
+    {
+      "id": "vitest-0f22a2739153",
+      "result": "passed",
+      "classification": "scored",
+      "durationMs": 17946.939541000003,
+      "counts": {
+        "Killed": 12,
+        "Survived": 1
+      },
+      "report": "reports/mutation/vitest-0f22a2739153-98976-1793580290139-e95b049ee05a2.json",
+      "reportHash": "de04cff189f5349bbe25b4b2f87a65e4eeb604ca2c69fcf37aedccc9bd99fec3",
+      "survivors": [
+        {
+          "file": "apps/web/src/app/(authenticated)/tarifas/page.tsx",
+          "id": "9",
+          "location": {
+            "end": {
+              "column": 100,
+              "line": 10
+            },
+            "start": {
+              "column": 98,
+              "line": 10
+            }
+          },
+          "replacement": "\"Stryker was here!\"",
+          "annotation": "@equivalent: Both null-role fallback strings remain outside the explicit finance/admin allowlist."
+        }
+      ]
+    },
+    {
+      "id": "vitest-9b7bb99b8b1b",
+      "result": "passed",
+      "classification": "scored",
+      "durationMs": 117772.79041700001,
+      "counts": {
+        "Killed": 80,
+        "Survived": 6
+      },
+      "report": "reports/mutation/vitest-9b7bb99b8b1b-98976-1793580290139-e95b049ee05a2.json",
+      "reportHash": "81e0f6c05654eab3f2f62681f4d5e9dd246a76b69f4ce9e53bc243ca54578ac1",
+      "survivors": [
+        {
+          "file": "apps/web/src/modules/vendor-catalog/rates-view.tsx",
+          "id": "26",
+          "location": {
+            "end": {
+              "column": 40,
+              "line": 46
+            },
+            "start": {
+              "column": 35,
+              "line": 46
+            }
+          },
+          "replacement": "\"\"",
+          "annotation": "@equivalent: The new-form key remains distinct from every UUID editing key and preserves remounts."
+        },
+        {
+          "file": "apps/web/src/modules/vendor-catalog/rates-view.tsx",
+          "id": "32",
+          "location": {
+            "end": {
+              "column": 108,
+              "line": 54
+            },
+            "start": {
+              "column": 90,
+              "line": 54
+            }
+          },
+          "replacement": "{}",
+          "annotation": "@equivalent: An empty initial action state renders neither result; the action ignores previousState."
+        },
+        {
+          "file": "apps/web/src/modules/vendor-catalog/rates-view.tsx",
+          "id": "33",
+          "location": {
+            "end": {
+              "column": 106,
+              "line": 54
+            },
+            "start": {
+              "column": 100,
+              "line": 54
+            }
+          },
+          "replacement": "\"\"",
+          "annotation": "@equivalent: An empty idle status renders neither result; the action ignores previousState."
+        },
+        {
+          "file": "apps/web/src/modules/vendor-catalog/rates-view.tsx",
+          "id": "36",
+          "location": {
+            "end": {
+              "column": 76,
+              "line": 56
+            },
+            "start": {
+              "column": 74,
+              "line": 56
+            }
+          },
+          "replacement": "\"Stryker was here!\"",
+          "annotation": "@equivalent: A non-option account fallback has no vendor match and displays/submits the same blank selection."
+        },
+        {
+          "file": "apps/web/src/modules/vendor-catalog/rates-view.tsx",
+          "id": "54",
+          "location": {
+            "end": {
+              "column": 144,
+              "line": 66
+            },
+            "start": {
+              "column": 142,
+              "line": 66
+            }
+          },
+          "replacement": "\"Stryker was here!\"",
+          "annotation": "@equivalent: A non-option license default normalizes to the same first blank selection."
+        },
+        {
+          "file": "apps/web/src/modules/vendor-catalog/rates-view.tsx",
+          "id": "70",
+          "location": {
+            "end": {
+              "column": 132,
+              "line": 73
+            },
+            "start": {
+              "column": 130,
+              "line": 73
+            }
+          },
+          "replacement": "\"Stryker was here!\"",
+          "annotation": "@equivalent: An invalid date fallback normalizes to the same empty date input value."
+        }
+      ]
+    },
+    {
+      "id": "vitest-c7bc19300d2c",
+      "result": "passed",
+      "classification": "scored",
+      "durationMs": 77306.416459,
+      "counts": {
+        "Killed": 87,
+        "Survived": 4
+      },
+      "report": "reports/mutation/vitest-c7bc19300d2c-98976-1793580290139-e95b049ee05a2.json",
+      "reportHash": "49ee334475288473b22184091bcee2e7f20fee3c813df98fa933e1b5507a785c",
+      "survivors": [
+        {
+          "file": "apps/web/src/modules/vendor-catalog/actions/manage-rates-server-actions-factory.ts",
+          "id": "26",
+          "location": {
+            "end": {
+              "column": 44,
+              "line": 19
+            },
+            "start": {
+              "column": 13,
+              "line": 19
+            }
+          },
+          "replacement": "{}",
+          "annotation": "@equivalent: An empty authorization catch falls through to the same denial guard without writes or revalidation."
+        },
+        {
+          "file": "apps/web/src/modules/vendor-catalog/actions/manage-rates-server-actions-factory.ts",
+          "id": "31",
+          "location": {
+            "end": {
+              "column": 25,
+              "line": 21
+            },
+            "start": {
+              "column": 11,
+              "line": 21
+            }
+          },
+          "replacement": "false",
+          "annotation": "@equivalent: Removing the early null guard reaches the service denial, caught as the same error without writes or revalidation."
+        },
+        {
+          "file": "apps/web/src/modules/vendor-catalog/rate-service.ts",
+          "id": "50",
+          "location": {
+            "end": {
+              "column": 100,
+              "line": 14
+            },
+            "start": {
+              "column": 98,
+              "line": 14
+            }
+          },
+          "replacement": "\"Stryker was here!\"",
+          "annotation": "@equivalent: Both null-role fallback strings remain outside the explicit finance/admin allowlist."
+        },
+        {
+          "file": "apps/web/src/modules/vendor-catalog/rate-service.ts",
+          "id": "58",
+          "location": {
+            "end": {
+              "column": 85,
+              "line": 27
+            },
+            "start": {
+              "column": 49,
+              "line": 27
+            }
+          },
+          "replacement": "{}",
+          "annotation": "@equivalent: The joined pair projection is unused; an empty object still proves the same matching pair exists."
+        }
+      ]
+    },
+    {
+      "id": "vitest-fd9f6653aba0",
+      "result": "passed",
+      "classification": "scored",
+      "durationMs": 19640.813041999994,
+      "counts": {
+        "Survived": 4,
+        "Killed": 36
+      },
+      "report": "reports/mutation/vitest-fd9f6653aba0-98976-1793580290139-e95b049ee05a2.json",
+      "reportHash": "a90699ef5e781cffcb1c792f465070731a5c5a22f67eb39a5ccc21be1ad4266b",
+      "survivors": [
+        {
+          "file": "packages/contracts/src/rates.ts",
+          "id": "0",
+          "location": {
+            "end": {
+              "column": 52,
+              "line": 4
+            },
+            "start": {
+              "column": 31,
+              "line": 4
+            }
+          },
+          "replacement": "/\\d{4}-\\d{2}-\\d{2}$/",
+          "annotation": "@equivalent: The full ISO date round-trip rejects prefix text even without the regex start anchor."
+        },
+        {
+          "file": "packages/contracts/src/rates.ts",
+          "id": "1",
+          "location": {
+            "end": {
+              "column": 52,
+              "line": 4
+            },
+            "start": {
+              "column": 31,
+              "line": 4
+            }
+          },
+          "replacement": "/^\\d{4}-\\d{2}-\\d{2}/",
+          "annotation": "@equivalent: The full ISO date round-trip rejects suffix text even without the regex end anchor."
+        },
+        {
+          "file": "packages/contracts/src/rates.ts",
+          "id": "16",
+          "location": {
+            "end": {
+              "column": 27,
+              "line": 7
+            },
+            "start": {
+              "column": 4,
+              "line": 7
+            }
+          },
+          "replacement": "\"\"",
+          "annotation": "@equivalent: Changing an internal diagnostic preserves rejection; the action exposes a generic localized error."
+        },
+        {
+          "file": "packages/contracts/src/rates.ts",
+          "id": "39",
+          "location": {
+            "end": {
+              "column": 65,
+              "line": 18
+            },
+            "start": {
+              "column": 35,
+              "line": 18
+            }
+          },
+          "replacement": "\"\"",
+          "annotation": "@equivalent: Changing an internal diagnostic preserves rejection and field path; the action exposes a generic localized error."
+        }
+      ]
+    }
+  ],
+  "totals": {
+    "Survived": 16,
+    "Killed": 224
+  },
+  "story": "US-032",
+  "provenance": {
+    "base": "d22b5c7fd7f96938b29037f5585b331938c49614",
+    "baseRef": "d22b5c7",
+    "head": "d22b5c7fd7f96938b29037f5585b331938c49614",
+    "worktreeHash": "482e416c6cd4ea782e1291fc57c489837ba3a2e8ebe4eb48eeb52ab12bc1f3a5"
+  },
+  "campaign": "64a9a984-02b8-471c-9a46-40b61a75718e",
+  "cacheMode": "bypass",
+  "mutation_score": 93.33333333333333,
+  "wallclock_s": 260.847030292,
+  "reviewer": "rates_review",
+  "review": "All exact IDs, replacements, locations, report hashes and embedded frozen sources signed off; no mismatches."
+}
