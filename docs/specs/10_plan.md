@@ -11,7 +11,7 @@ One operator/orchestrator; one item per agent session. Slices are the delivery a
 
 **Data:** manual register entry, typed provisional rate/invoice and manually maintained pilot configuration allow S0–S2 to proceed. Real-data acceptance remains pending until the actual inputs arrive. Keys are not required. The period anchor is the most recently completed calendar month when the first real parallel close runs. Real invoice acceptance cannot be replaced by provisional totals or an override alone.
 
-### Sprint 1 — S0: Register on production (5 SP)
+### Sprint 1 — S0: Register on production (6 SP)
 
 **Goal:** deploy with Docker Compose and make the five-company register usable through manual entry.
 **Milestone:** S0 production register journey accepted by Central Finance, Company Finance and IT Director.
@@ -21,6 +21,7 @@ One operator/orchestrator; one item per agent session. Slices are the delivery a
 | US-053 | Production Docker Compose deployment | 3 | US-002 |
 | US-094 | Real-data run, child of US-007; provisional rehearsal until data arrives | 1 | US-007, US-053, US-095 |
 | US-095 | Manual register entry | 1 | US-003, US-005, US-008, US-033 |
+| US-098 | Register filter for seats active during a month | 1 | US-033, US-095 |
 
 **Exit criterion:** Central Finance completes the register inspection and CSV export journey for month M-1 and five pilot companies on production; Company Finance verifies its company's headcount against its supplied list, and the IT Director completes login and deployment health checks. With manual inputs this exit is explicitly provisional: US-094 remains unverified until the real export is compared. Verifiers use human `story verify` only for the evidence actually accepted. Cumulative **5 SP**. No new money-rule campaign; reuse DB register integrity and auth evidence.
 
