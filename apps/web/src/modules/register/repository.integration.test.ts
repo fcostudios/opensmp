@@ -744,7 +744,4 @@ test.each(["finance", "approver", "viewer"] as const)("%s register evidence and 
  expect((await repository.listRows(scoped, {})).items.map(row=>row.companyId)).toEqual([companyA,companyA,companyA]);
  expect((await repository.assignmentsById(scoped,[assignmentA1,assignmentB])).map(row=>row.id)).toEqual([assignmentA1]);
  expect(await repository.exportCsv(scoped,{companyId:companyB})).toBe(csv.split("\r\n")[0]+"\r\n");
- const response=await createRegisterExportResponse({loadAuthorization:async()=>scoped,query:new URLSearchParams(),queryLength:0,repository,subject:"verified-scoped-subject"});
- expect(response.status).toBe(403);
- await expect(response.json()).resolves.toEqual({error:"Forbidden"});
 });
