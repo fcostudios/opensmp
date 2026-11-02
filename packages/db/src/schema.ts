@@ -320,6 +320,7 @@ export const reconciliationVarianceLine = pgTable("reconciliation_variance_line"
   statementLineId: uuid("statement_line_id").references((): AnyPgColumn => statementLine.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   createdBy: uuid("created_by").references((): AnyPgColumn => userAccount.id).notNull(),
+  evidenceUrl: text("evidence_url"),
 });
 
 export const company = pgTable("company", {

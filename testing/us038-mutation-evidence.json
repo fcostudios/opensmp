@@ -1,0 +1,642 @@
+{
+  "story": "US-038",
+  "scope": "diff",
+  "authoritative": true,
+  "cold": true,
+  "exitCode": 0,
+  "provenance": {
+    "base": "d1e2f9043569502b9ed6f5bd39375f0a93df880a",
+    "baseRef": "d1e2f9043569502b9ed6f5bd39375f0a93df880a",
+    "head": "d1e2f9043569502b9ed6f5bd39375f0a93df880a",
+    "worktreeHash": "c209592382dd5289d0bf219c7809abefd351918797f166c206657c5e1e99f850"
+  },
+  "startedAt": "2026-11-02T04:54:49.972Z",
+  "finishedAt": "2026-11-02T05:14:44.892Z",
+  "wallClockSeconds": 1194.9203671875,
+  "metrics": {
+    "total": 470,
+    "killed": 454,
+    "survived": 16,
+    "noCoverage": 0,
+    "timeout": 0,
+    "mutationScore": 96.59574468085107
+  },
+  "review": {
+    "reviewer": "us038_review",
+    "allUndetectedReviewed": true,
+    "unexpectedUndetected": 0,
+    "equivalents": [
+      {
+        "shard": "vitest-69c764feea38",
+        "path": "apps/web/src/modules/close/reconciliation-actions-factory.ts",
+        "id": "23",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 95,
+            "line": 16
+          },
+          "start": {
+            "column": 64,
+            "line": 16
+          }
+        },
+        "mutator": "BlockStatement",
+        "replacement": "{}",
+        "reason": "Deleting the authorization catch body leaves authorization undefined; the immediately following missing-authorization guard returns the identical error state without writes or revalidation.",
+        "reviewer": "us038_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-69c764feea38",
+        "path": "apps/web/src/modules/close/reconciliation-actions-factory.ts",
+        "id": "28",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 25,
+            "line": 18
+          },
+          "start": {
+            "column": 11,
+            "line": 18
+          }
+        },
+        "mutator": "ConditionalExpression",
+        "replacement": "false",
+        "reason": "Removing the missing-authorization guard reaches the real service access check; the operation catch returns the identical error state before any write or revalidation.",
+        "reviewer": "us038_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-69c764feea38",
+        "path": "apps/web/src/modules/close/reconciliation-actions-factory.ts",
+        "id": "44",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 95,
+            "line": 27
+          },
+          "start": {
+            "column": 64,
+            "line": 27
+          }
+        },
+        "mutator": "BlockStatement",
+        "replacement": "{}",
+        "reason": "Deleting the authorization catch body leaves authorization undefined; the immediately following missing-authorization guard returns the identical error state without writes or revalidation.",
+        "reviewer": "us038_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-69c764feea38",
+        "path": "apps/web/src/modules/close/reconciliation-actions-factory.ts",
+        "id": "49",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 25,
+            "line": 29
+          },
+          "start": {
+            "column": 11,
+            "line": 29
+          }
+        },
+        "mutator": "ConditionalExpression",
+        "replacement": "false",
+        "reason": "Removing the missing-authorization guard reaches the real service access check; the operation catch returns the identical error state before any write or revalidation.",
+        "reviewer": "us038_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-69c764feea38",
+        "path": "apps/web/src/modules/close/reconciliation-actions-factory.ts",
+        "id": "60",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 95,
+            "line": 38
+          },
+          "start": {
+            "column": 64,
+            "line": 38
+          }
+        },
+        "mutator": "BlockStatement",
+        "replacement": "{}",
+        "reason": "Deleting the authorization catch body leaves authorization undefined; the immediately following missing-authorization guard returns the identical error state without writes or revalidation.",
+        "reviewer": "us038_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-69c764feea38",
+        "path": "apps/web/src/modules/close/reconciliation-actions-factory.ts",
+        "id": "65",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 25,
+            "line": 40
+          },
+          "start": {
+            "column": 11,
+            "line": 40
+          }
+        },
+        "mutator": "ConditionalExpression",
+        "replacement": "false",
+        "reason": "Removing the missing-authorization guard reaches the real service access check; the operation catch returns the identical error state before any write or revalidation.",
+        "reviewer": "us038_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-69c764feea38",
+        "path": "apps/web/src/modules/close/reconciliation-actions-factory.ts",
+        "id": "76",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 95,
+            "line": 49
+          },
+          "start": {
+            "column": 64,
+            "line": 49
+          }
+        },
+        "mutator": "BlockStatement",
+        "replacement": "{}",
+        "reason": "Deleting the authorization catch body leaves authorization undefined; the immediately following missing-authorization guard returns the identical error state without writes or revalidation.",
+        "reviewer": "us038_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-69c764feea38",
+        "path": "apps/web/src/modules/close/reconciliation-actions-factory.ts",
+        "id": "81",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 25,
+            "line": 51
+          },
+          "start": {
+            "column": 11,
+            "line": 51
+          }
+        },
+        "mutator": "ConditionalExpression",
+        "replacement": "false",
+        "reason": "Removing the missing-authorization guard reaches the real service access check; the operation catch returns the identical error state before any write or revalidation.",
+        "reviewer": "us038_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-6fb6558cfdcd",
+        "path": "apps/web/src/modules/close/reconciliation-transaction.ts",
+        "id": "24",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 138,
+            "line": 35
+          },
+          "start": {
+            "column": 25,
+            "line": 35
+          }
+        },
+        "mutator": "StringLiteral",
+        "replacement": "``",
+        "reason": "The immediately preceding transaction-level whole-period close lock already serializes all reconciliation commands and finalization for the same period; removing or changing the additional organization lock preserves that synchronization.",
+        "reviewer": "us038_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-6fb6558cfdcd",
+        "path": "apps/web/src/modules/close/reconciliation-transaction.ts",
+        "id": "25",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 91,
+            "line": 35
+          },
+          "start": {
+            "column": 74,
+            "line": 35
+          }
+        },
+        "mutator": "StringLiteral",
+        "replacement": "\"\"",
+        "reason": "The immediately preceding transaction-level whole-period close lock already serializes all reconciliation commands and finalization for the same period; removing or changing the additional organization lock preserves that synchronization.",
+        "reviewer": "us038_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-6fb6558cfdcd",
+        "path": "apps/web/src/modules/close/reconciliation-transaction.ts",
+        "id": "26",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 110,
+            "line": 35
+          },
+          "start": {
+            "column": 107,
+            "line": 35
+          }
+        },
+        "mutator": "StringLiteral",
+        "replacement": "\"\"",
+        "reason": "The immediately preceding transaction-level whole-period close lock already serializes all reconciliation commands and finalization for the same period; removing or changing the additional organization lock preserves that synchronization.",
+        "reviewer": "us038_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-9340dbd77679",
+        "path": "packages/domain/src/close/reconciliation.ts",
+        "id": "26",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 37,
+            "line": 10
+          },
+          "start": {
+            "column": 20,
+            "line": 10
+          }
+        },
+        "mutator": "EqualityOperator",
+        "replacement": "value <= BigInt(0)",
+        "reason": "Changing the absolute-value comparison from <0n to <=0n only negates zero; JavaScript BigInt has -0n === 0n, preserving formatted money and tolerance.",
+        "reviewer": "us038_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-9340dbd77679",
+        "path": "packages/domain/src/close/reconciliation.ts",
+        "id": "54",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 76,
+            "line": 18
+          },
+          "start": {
+            "column": 59,
+            "line": 18
+          }
+        },
+        "mutator": "EqualityOperator",
+        "replacement": "delta <= BigInt(0)",
+        "reason": "Changing the absolute-value comparison from <0n to <=0n only negates zero; JavaScript BigInt has -0n === 0n, preserving formatted money and tolerance.",
+        "reviewer": "us038_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-cc076aac7451",
+        "path": "apps/web/src/modules/close/reconciliation-view.tsx",
+        "id": "35",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 152,
+            "line": 32
+          },
+          "start": {
+            "column": 150,
+            "line": 32
+          }
+        },
+        "mutator": "StringLiteral",
+        "replacement": "\"Stryker was here!\"",
+        "reason": "An invalid string fallback is sanitized by the browser number input to the same empty rendered value; required validation and money parsing reject both until user input replaces the fallback.",
+        "reviewer": "us038_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-cc076aac7451",
+        "path": "apps/web/src/modules/close/reconciliation-view.tsx",
+        "id": "38",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 153,
+            "line": 34
+          },
+          "start": {
+            "column": 151,
+            "line": 34
+          }
+        },
+        "mutator": "StringLiteral",
+        "replacement": "\"Stryker was here!\"",
+        "reason": "An invalid string fallback is sanitized by the browser number input to the same empty rendered value; required validation and money parsing reject both until user input replaces the fallback.",
+        "reviewer": "us038_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-cc076aac7451",
+        "path": "apps/web/src/modules/close/reconciliation-view.tsx",
+        "id": "53",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 66,
+            "line": 47
+          },
+          "start": {
+            "column": 64,
+            "line": 47
+          }
+        },
+        "mutator": "StringLiteral",
+        "replacement": "\"Stryker was here!\"",
+        "reason": "An invalid string fallback is sanitized by the browser number input to the same empty rendered value; required validation and money parsing reject both until user input replaces the fallback.",
+        "reviewer": "us038_review",
+        "reviewed": true
+      }
+    ]
+  },
+  "hashAttestation": {
+    "launchCapturedAt": "2026-11-02T04:56:17.947Z",
+    "selectedSourceTestConfigLockFiles": 33,
+    "selectedFileSha256": {
+      "stryker.conf.json": "c915f5629b0334113cffc07d2efbe77d759fe5bfb578edba6297804158171add",
+      "vitest.mutation.config.mjs": "7b565cc85a08470b0e63d1122d20499a73a822f728454417d2dfd9e514c26076",
+      "scripts/mutation-routes.json": "e0f837a38972f28d123e4979afb460d970d8476ee1a697c4bb5e2714ab444f94",
+      "pnpm-lock.yaml": "c9f565102b7ca592264f98d246fd0e7632a41de5ddc5d6cab72da7f5758fb0f1",
+      "package.json": "aa97ef18e1ff06332f08dc627489055c9de7087f3b6b6dcec6488000c22ec710",
+      "packages/db/src/schema.ts": "b398eed6a832c7f16ee89743b5c4e6a35b9bef685b091562551ce709d769145c",
+      "packages/db/src/schema.test.ts": "27ef8135e96df14c4d9176b25732141180b14a58bec08e65f904713947fa243f",
+      "packages/db/src/reconciliation.integration.test.ts": "639dcd1d985af2ce1f65d9c4e2e48785c2137cf126335f70e8e7801c4e671178",
+      ".tmp/stryker-shards/schema-static-f239754323d5-42886-1793595289972-07ec5c7036b75.json": "bd5539cbc7670e153236eeafc78bfed042089dece5cbd665a079ecfe01582916",
+      "apps/web/src/app/(authenticated)/conciliacion/page.tsx": "da0f8705219b224fc66294febae69f9a0283d5afb9812569aa6c9f2f4454b64f",
+      "apps/web/src/modules/close/reconciliation-actions-factory.ts": "bb198822c9e46a667af02f749163b5176704d33ad1e9aef391509b04097b59a0",
+      "apps/web/src/modules/close/reconciliation-actions.ts": "932fd407a834d5767e3aa53c9b545dc45abeb7b5abb7c54fa8ad3defd682f989",
+      "apps/web/src/modules/close/reconciliation-operations.ts": "89fbd8ea258ea32b5c6a169e40f0bc86b127f9ef87ff3dde186d072a535ce438",
+      "apps/web/src/app/(authenticated)/conciliacion/page.integration.test.ts": "9e45d796c17ad2da9cdb27b17dab7b9854d7857a6a7db28413be409f4d6c46af",
+      ".tmp/stryker-shards/vitest-69c764feea38-42886-1793595289972-07ec5c7036b75.json": "ee1cdf1f27e88da449d1e41d636c4618f94e88fa091ad361e655090a23b86240",
+      "apps/web/src/modules/close/reconciliation-transaction.ts": "b5d2b82e0eeb47e6f91d563e0915e7f19159e3a8fdcc3592c5f4bcf2fe166686",
+      "apps/web/src/modules/close/reconciliation.integration.test.ts": "d7d98d98e9e767bc3b42cf5aa039049523eb032b1ef05831ed3b22545fa417b6",
+      ".tmp/stryker-shards/vitest-6fb6558cfdcd-42886-1793595289972-07ec5c7036b75.json": "efa05cdc155bc357279a92a384e18e2c72107daace3dab08f31ec7cb66788e2c",
+      "apps/web/src/app/(authenticated)/conciliacion/error.tsx": "3fa0b1f163104ea62b33182c07c6054027b65210c85907d2fd41592f3cdaedc3",
+      "apps/web/src/app/(authenticated)/conciliacion/error.test.tsx": "7c0c9e264be537ab58db20b057b09a8f4ec7ad4e71eb6ba5b847c51880fc9637",
+      ".tmp/stryker-shards/vitest-8527785dddac-42886-1793595289972-07ec5c7036b75.json": "626b99b3fd578ea578d86a5f8317041bcc2d34daf3d053a85645a757191fa7af",
+      "packages/domain/src/close/reconciliation.ts": "5632c6788dd82adc2f6d7d6b964bfb9a70c2e4508d284a377da30fe4c59c858e",
+      "packages/domain/src/close/reconciliation.test.ts": "9e6ff1e965d5a3c72af88f5e69d94e6cb57a10ccd41ea1d135515383dc038948",
+      ".tmp/stryker-shards/vitest-9340dbd77679-42886-1793595289972-07ec5c7036b75.json": "262dd45fd8616ab23939b51a6d226fcc75e5c0e37dc88a71e2954054f1e92b74",
+      "apps/web/src/modules/close/reconciliation-view.tsx": "09e1320ee1c55945fa7eae8c1cd05bbd27d0b62fcce91a918c2f88445835af1b",
+      "apps/web/src/modules/close/reconciliation-view.test.tsx": "4a89c68bcde0fc321a038411675b9446af64591420df9a7de395803880f1e257",
+      ".tmp/stryker-shards/vitest-cc076aac7451-42886-1793595289972-07ec5c7036b75.json": "44dab3abef02f9ce12f9da012f23702a35395b2e83ef3bca116394770e6262a8",
+      "packages/contracts/src/reconciliation.ts": "d14796fe62d8151398792f18c46c1c080968f78578be3c322faa0fb5bc84af51",
+      "packages/contracts/src/reconciliation.test.ts": "70c3d1dcc27356e3bed1822601cce4a7a44363f7c1bc646dcbe3e9305313ff20",
+      ".tmp/stryker-shards/vitest-f358abbef8ad-42886-1793595289972-07ec5c7036b75.json": "8b48995971a8aa73b897b814e649c6addb7c838a688dc742ba3d84809d45231c",
+      "apps/web/src/app/(authenticated)/conciliacion/loading.tsx": "f71c198c73f1a026898522638f77a9132d396043da00ddfacf1c4eec6dae8b3c",
+      "apps/web/src/app/(authenticated)/conciliacion/loading.test.tsx": "8d88d413c78e477f452f757e58df863b8d5338c2fd3a128cf6f7cdcae5d11a28",
+      ".tmp/stryker-shards/vitest-fcb370c54de4-42886-1793595289972-07ec5c7036b75.json": "72f047a09cfac5c9ef096385f73ea3a9230d6169e37bcd524a7d9ee0736dd697"
+    },
+    "configurationSha256": {
+      "apps/web/eslint.config.mjs": "f93debeae24441f616ac913f40a311f3028c5482356065c1e2fe9705cf9d5a75",
+      "apps/web/next.config.test.ts": "2b3017001c2db1adfa9209b06fb02de1f64ea122aade5cd5c33cda1215d92dbf",
+      "apps/web/next.config.ts": "cdc15c22da84ffd661d012d88beff9e8707acceb1587118a20f2b3275e29f575",
+      "apps/web/package.json": "f7212edc2b2541ada72cbf9aaae043084cecb483d90fb33b855ff3b98e71c8be",
+      "apps/web/playwright.config.ts": "f84c6acba5b8e82e2123a9224ca5c0cb40f208942f18065cf8af4e243ed54bcd",
+      "apps/web/postcss.config.mjs": "dfac7ac2d86d326a0e5adb024e7943c181393ed17a5fcb8f0315b24c7da6ddde",
+      "apps/web/src/lib/auth/auth-config.ts": "a1158427181fe8eaa1d1062669d66c39ea0e36a24eeff0b0fa10c5778950c3ac",
+      "apps/web/src/lib/auth/compose-auth-config.test.ts": "120cad5865f357f7c8538db9e5530b71883cb2729ea48aaaed14c12c5202e995",
+      "apps/web/src/lib/auth/keycloak-realm-config.test.ts": "5d8cf304478a7c74e894eb9c3ad02d2fb3e8b5b293c497f15313d940e0c22dea",
+      "apps/web/src/lib/i18n/config.test.ts": "8fcd19a3c51e783be73abfa84cf34c80e8ce7bf214a22d0a15103aaafeb50e3e",
+      "apps/web/src/lib/i18n/config.ts": "5989660de76a35c7f4a65da505467ffbdfab9aee140c02c07e26e5422d8d208f",
+      "apps/web/tailwind.config.ts": "889f1f78eb25ffd13f251a1f3cbf8f50ead163d6c019fdf5076939dcea25e972",
+      "apps/web/tsconfig.json": "55134881a23efd2a1f9266d2d0752731ff9c40d0e867136cd8863ea679560a09",
+      "apps/web/vitest.alert-outbox.config.ts": "6bf585a31be5de44d6e388c8ffe2a6e87c780d8598e9a684ec59a33f4222c8f5",
+      "apps/web/vitest.config.ts": "2af4c4419f967d641a580fecae15f53a6c1a27ca6a9193e98972c973f59ec7a0",
+      "apps/web/vitest.static-contract.config.mjs": "2d4ac4b984c9b3891a9eabb63b9b5c9e6164b291453e8071055a56d68d67bfda",
+      "apps/web/vitest.us007.config.ts": "43b914a1f59f3b73ca2b427a862f89b28a68c2a3c2ce7a9ddbb3f70d0dd3eec3",
+      "apps/web/vitest.us010.config.ts": "8b584c2705de9516577c4d3f6cb42f5567c6a2b90e2618e222989468e8b3700c",
+      "apps/web/vitest.us012.config.ts": "10d4b23109bd0ea19e94798a2a580d8347e3dff1ad768264b2dd49ac8dc72f1d",
+      "apps/web/vitest.us013.config.ts": "f2e7cad3174fa3bd34b50323a992d1aea3f6759cc406315c16258953b1c23f20",
+      "apps/web/vitest.us015.config.ts": "2675cc123013c8d66d3844d80bf43ba2e11b44ba8223e1271407cb72cf85e9b8",
+      "apps/web/vitest.us016.config.ts": "efe383d704292bd0e520bf009b34f6e896ee00c6413353be3b69e2c32ee40d16",
+      "apps/web/vitest.us017.config.ts": "5f523792864713dc308d009ff84a3b95ab7becf8ffbcfd00b084e212c67e0091",
+      "apps/web/vitest.us020.config.ts": "66368486624726bd9cac98cbfe7ef190877bcf062b5bcef2bc6896c1f56c682f",
+      "apps/web/vitest.us022.config.ts": "6c5cdc159a3b3580e7f111d8906c4fdbd70f2db643d6ae04c9421d02e2ca1338",
+      "apps/web/vitest.us033.config.ts": "2e50b635b267f65a17ab5f4e94569518e4304063a92fe8b750be01862700b1b5",
+      "apps/web/vitest.us042-surfaces.config.ts": "1bc4e9c9a9d636e18471cf4eb473fb6178cd0a7b09ff5011860239a9987d5b90",
+      "apps/worker/package.json": "d286207e2ceab7b37f236f9b9048f43a4f2c740cc2f921132e3968e30b26f7cc",
+      "apps/worker/tsconfig.json": "21703e3b57bda168606e7e57181cb3353c27ca88d0899f429998f5e38d5a125b",
+      "package.json": "aa97ef18e1ff06332f08dc627489055c9de7087f3b6b6dcec6488000c22ec710",
+      "packages/config/package.json": "6dab93bf2559359119d5c0fd1fea78b86c9dc540310430bb33c3f2423d462ca8",
+      "packages/config/tsconfig.json": "9bed61ee71eef1e5523a79b9a25b364ae18590d9e5e6eef052d2eb06b0036b6e",
+      "packages/connectors/package.json": "1a072ab7cb239e285864e511eb4b34c21116bfe4a60acf65e860ae9cee04dd57",
+      "packages/connectors/tsconfig.json": "e6b559933f0512d7af8e38e70ab89a72a9bef4e2ea63d74fdf1560476ce0f9ea",
+      "packages/contracts/package.json": "58786f6f7a28251ff6229e003e55353981defaadd11aaf11163455f574c90aed",
+      "packages/contracts/tsconfig.json": "9bed61ee71eef1e5523a79b9a25b364ae18590d9e5e6eef052d2eb06b0036b6e",
+      "packages/db/drizzle.config.ts": "d40035ab9cf567fff6f1e4c72206090e66becb9c78d65c8b0c30b14bf50fe1c7",
+      "packages/db/package.json": "0ad13f0a833195efa646c04ae863d453df79e53f9958b7b26787c94b62d88704",
+      "packages/db/tsconfig.json": "9bed61ee71eef1e5523a79b9a25b364ae18590d9e5e6eef052d2eb06b0036b6e",
+      "packages/db/vitest.config.ts": "72e604d066920242b9c554ead469f010aca6b5252d08fda34435b4ff0fdd9065",
+      "packages/domain/package.json": "5d0b5755752ddf194574ce70828e5df0950c0178fa0aac1a1ea74cd3003499a3",
+      "packages/domain/tsconfig.json": "9bed61ee71eef1e5523a79b9a25b364ae18590d9e5e6eef052d2eb06b0036b6e",
+      "packages/notifications/package.json": "03038913f598fe6b3c9e8df30676390e747cd4ea86a1f1450ae3ad0ec8aec42c",
+      "packages/notifications/tsconfig.json": "60fdc91f20e814b0680127c54b4185aacc1470e70dd6ecd6fa2394966777e722",
+      "packages/ui/package.json": "c6d770c0a22f31931c098b6aece65f273fd474969da349b38bf2618198a2304b",
+      "packages/ui/tsconfig.json": "7488f337bba6f56620aa8e2dbfc88d6b4a9ae0495fa07f54018996ce9d5e45b5",
+      "pnpm-lock.yaml": "c9f565102b7ca592264f98d246fd0e7632a41de5ddc5d6cab72da7f5758fb0f1",
+      "tsconfig.base.json": "912541c528a2a9439260206d24f6dbea4e32a684fcefaa3e5a4a1c6bd4a46543",
+      "vitest.mutation.config.mjs": "7b565cc85a08470b0e63d1122d20499a73a822f728454417d2dfd9e514c26076"
+    },
+    "repositoryDependencyFilesCompared": 709,
+    "sourceTestConfigLockMismatches": [],
+    "repositoryDependencyMismatches": [],
+    "manifestSha256": "87d387f40f05de423d9556a40fbb7977e7f2225441634ef84bfcf87f31817fb6",
+    "rawManifestPath": ".tmp/stryker-shards/manifest.json",
+    "logPath": ".tmp/us038-mutation-accepted.log",
+    "logSha256": "32c9a12e27cf35409ac5dd9e268fc9bc7389a3fdb5871e46292e0a4150f98f5a"
+  },
+  "shards": [
+    {
+      "id": "schema-static-f239754323d5",
+      "result": "passed",
+      "classification": "scored",
+      "cacheDecision": "rejected",
+      "durationMs": 13179.053542,
+      "counts": {
+        "total": 1,
+        "killed": 1,
+        "survived": 0,
+        "noCoverage": 0,
+        "timeout": 0,
+        "errors": 0
+      },
+      "mutationScore": 100,
+      "jsonReport": ".tmp/us038-reports/mutation/schema-static-f239754323d5-42886-1793595289972-07ec5c7036b75.json",
+      "jsonReportSha256": "ad362f73ea6d05b8b44129d86c7ed20a067fba06a2dc52215481b6cb7a04d32d",
+      "htmlReport": ".tmp/us038-reports/mutation/schema-static-f239754323d5-42886-1793595289972-07ec5c7036b75.html",
+      "htmlReportSha256": "9825fa85256e9044f624b7469af4a3f47d0482124e8e94c25e0de0dba1ab59ce",
+      "configPath": ".tmp/stryker-shards/schema-static-f239754323d5-42886-1793595289972-07ec5c7036b75.json",
+      "configFileSha256": "bd5539cbc7670e153236eeafc78bfed042089dece5cbd665a079ecfe01582916"
+    },
+    {
+      "id": "vitest-69c764feea38",
+      "result": "passed",
+      "classification": "scored",
+      "cacheDecision": "rejected",
+      "durationMs": 525217.79125,
+      "counts": {
+        "total": 128,
+        "killed": 120,
+        "survived": 8,
+        "noCoverage": 0,
+        "timeout": 0,
+        "errors": 0
+      },
+      "mutationScore": 93.75,
+      "jsonReport": ".tmp/us038-reports/mutation/vitest-69c764feea38-42886-1793595289972-07ec5c7036b75.json",
+      "jsonReportSha256": "2c1c63a2907653c5148a71f89c645a3c456cd8957414c1051d35667618f1e0cc",
+      "htmlReport": ".tmp/us038-reports/mutation/vitest-69c764feea38-42886-1793595289972-07ec5c7036b75.html",
+      "htmlReportSha256": "59eeee0205a2f75d5153aa78c3829f536bc82a9672c5eed36b0e8980988c8405",
+      "configPath": ".tmp/stryker-shards/vitest-69c764feea38-42886-1793595289972-07ec5c7036b75.json",
+      "configFileSha256": "ee1cdf1f27e88da449d1e41d636c4618f94e88fa091ad361e655090a23b86240"
+    },
+    {
+      "id": "vitest-6fb6558cfdcd",
+      "result": "passed",
+      "classification": "scored",
+      "cacheDecision": "rejected",
+      "durationMs": 417669.3208750001,
+      "counts": {
+        "total": 115,
+        "killed": 112,
+        "survived": 3,
+        "noCoverage": 0,
+        "timeout": 0,
+        "errors": 0
+      },
+      "mutationScore": 97.3913043478261,
+      "jsonReport": ".tmp/us038-reports/mutation/vitest-6fb6558cfdcd-42886-1793595289972-07ec5c7036b75.json",
+      "jsonReportSha256": "83d97a44c7514f1400a08897c5a68e22d2e4cb8b439569ebe41bc145e5398f6f",
+      "htmlReport": ".tmp/us038-reports/mutation/vitest-6fb6558cfdcd-42886-1793595289972-07ec5c7036b75.html",
+      "htmlReportSha256": "fee61659604a0d149b17d454bc32c5083a48bd1d733ec6b5ed5e54c8a5ea128a",
+      "configPath": ".tmp/stryker-shards/vitest-6fb6558cfdcd-42886-1793595289972-07ec5c7036b75.json",
+      "configFileSha256": "efa05cdc155bc357279a92a384e18e2c72107daace3dab08f31ec7cb66788e2c"
+    },
+    {
+      "id": "vitest-8527785dddac",
+      "result": "passed",
+      "classification": "scored",
+      "cacheDecision": "executed",
+      "durationMs": 3793.180042000022,
+      "counts": {
+        "total": 1,
+        "killed": 1,
+        "survived": 0,
+        "noCoverage": 0,
+        "timeout": 0,
+        "errors": 0
+      },
+      "mutationScore": 100,
+      "jsonReport": ".tmp/us038-reports/mutation/vitest-8527785dddac-42886-1793595289972-07ec5c7036b75.json",
+      "jsonReportSha256": "2a8b5e5aead5deac37934407ddb5d530639b54287e19ef3e51ed424665d5403d",
+      "htmlReport": ".tmp/us038-reports/mutation/vitest-8527785dddac-42886-1793595289972-07ec5c7036b75.html",
+      "htmlReportSha256": "f18a460fd97d7e89694cce9d15f95c5de7826f9503fb91c57bcd3c5102354adf",
+      "configPath": ".tmp/stryker-shards/vitest-8527785dddac-42886-1793595289972-07ec5c7036b75.json",
+      "configFileSha256": "626b99b3fd578ea578d86a5f8317041bcc2d34daf3d053a85645a757191fa7af"
+    },
+    {
+      "id": "vitest-9340dbd77679",
+      "result": "passed",
+      "classification": "scored",
+      "cacheDecision": "executed",
+      "durationMs": 28225.161667000037,
+      "counts": {
+        "total": 57,
+        "killed": 55,
+        "survived": 2,
+        "noCoverage": 0,
+        "timeout": 0,
+        "errors": 0
+      },
+      "mutationScore": 96.49122807017544,
+      "jsonReport": ".tmp/us038-reports/mutation/vitest-9340dbd77679-42886-1793595289972-07ec5c7036b75.json",
+      "jsonReportSha256": "6e9ed370fe29bd640ce104fae72c07e567edc55e14b64e3d545a90310fbffda8",
+      "htmlReport": ".tmp/us038-reports/mutation/vitest-9340dbd77679-42886-1793595289972-07ec5c7036b75.html",
+      "htmlReportSha256": "100d5d5397927efdf5a9869d8a0627dc18c0c2a68657e1611293a94fbfb6e057",
+      "configPath": ".tmp/stryker-shards/vitest-9340dbd77679-42886-1793595289972-07ec5c7036b75.json",
+      "configFileSha256": "262dd45fd8616ab23939b51a6d226fcc75e5c0e37dc88a71e2954054f1e92b74"
+    },
+    {
+      "id": "vitest-cc076aac7451",
+      "result": "passed",
+      "classification": "scored",
+      "cacheDecision": "executed",
+      "durationMs": 165992.85445899994,
+      "counts": {
+        "total": 145,
+        "killed": 142,
+        "survived": 3,
+        "noCoverage": 0,
+        "timeout": 0,
+        "errors": 0
+      },
+      "mutationScore": 97.93103448275862,
+      "jsonReport": ".tmp/us038-reports/mutation/vitest-cc076aac7451-42886-1793595289972-07ec5c7036b75.json",
+      "jsonReportSha256": "f18259910de60646e50fdcf4468c352e2f770256dc8f46524692a6dc38c2a448",
+      "htmlReport": ".tmp/us038-reports/mutation/vitest-cc076aac7451-42886-1793595289972-07ec5c7036b75.html",
+      "htmlReportSha256": "f95e45bc581922c0be59192281ca28ea2280b35f87f31900ed354cbff4654888",
+      "configPath": ".tmp/stryker-shards/vitest-cc076aac7451-42886-1793595289972-07ec5c7036b75.json",
+      "configFileSha256": "44dab3abef02f9ce12f9da012f23702a35395b2e83ef3bca116394770e6262a8"
+    },
+    {
+      "id": "vitest-f358abbef8ad",
+      "result": "passed",
+      "classification": "scored",
+      "cacheDecision": "executed",
+      "durationMs": 23017.27062500012,
+      "counts": {
+        "total": 22,
+        "killed": 22,
+        "survived": 0,
+        "noCoverage": 0,
+        "timeout": 0,
+        "errors": 0
+      },
+      "mutationScore": 100,
+      "jsonReport": ".tmp/us038-reports/mutation/vitest-f358abbef8ad-42886-1793595289972-07ec5c7036b75.json",
+      "jsonReportSha256": "73be23f622fa04e92862fb1a1607077e2ad0599d68befd88d04450f414ed9ab0",
+      "htmlReport": ".tmp/us038-reports/mutation/vitest-f358abbef8ad-42886-1793595289972-07ec5c7036b75.html",
+      "htmlReportSha256": "41db78a515dce6ea2925c33d45db2fa9688ca4abbdad5b8da23c8fd12ae16529",
+      "configPath": ".tmp/stryker-shards/vitest-f358abbef8ad-42886-1793595289972-07ec5c7036b75.json",
+      "configFileSha256": "8b48995971a8aa73b897b814e649c6addb7c838a688dc742ba3d84809d45231c"
+    },
+    {
+      "id": "vitest-fcb370c54de4",
+      "result": "passed",
+      "classification": "scored",
+      "cacheDecision": "executed",
+      "durationMs": 4197.914292000001,
+      "counts": {
+        "total": 1,
+        "killed": 1,
+        "survived": 0,
+        "noCoverage": 0,
+        "timeout": 0,
+        "errors": 0
+      },
+      "mutationScore": 100,
+      "jsonReport": ".tmp/us038-reports/mutation/vitest-fcb370c54de4-42886-1793595289972-07ec5c7036b75.json",
+      "jsonReportSha256": "bbed9dc6d5b4d4582036e7360556bd96bb4331c138892042bd812288456d9109",
+      "htmlReport": ".tmp/us038-reports/mutation/vitest-fcb370c54de4-42886-1793595289972-07ec5c7036b75.html",
+      "htmlReportSha256": "1d2c085265a4c54cc256a2b0f19d7c60131eb789dd31eb37580cb1e0f5b67f9b",
+      "configPath": ".tmp/stryker-shards/vitest-fcb370c54de4-42886-1793595289972-07ec5c7036b75.json",
+      "configFileSha256": "72f047a09cfac5c9ef096385f73ea3a9230d6169e37bcd524a7d9ee0736dd697"
+    }
+  ]
+}
