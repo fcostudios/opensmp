@@ -95,6 +95,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Company isolation suite (US-047 / BR-22)
+        run: pnpm test:isolation
+
       - name: Verify third-party contracts
         run: pnpm test:contract
 
@@ -161,6 +164,8 @@ jobs:
             command: test:mutation:us033
           - slice: us042-surfaces
             command: test:mutation:us042-surfaces
+          - slice: us047
+            command: test:mutation:us047
           - slice: probe
             command: test:mutation:probe
           - slice: infra

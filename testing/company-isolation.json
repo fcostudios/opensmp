@@ -1,0 +1,248 @@
+{
+  "seams": {
+    "people": [
+      "apps/web/src/modules/org-registry/repository.integration.test.ts"
+    ],
+    "identity": [
+      "apps/web/src/modules/identity-access/authorization.integration.test.ts",
+      "apps/web/src/modules/identity-access/user-admin-service.integration.test.ts",
+      "packages/domain/src/identity-access/authorization.test.ts"
+    ],
+    "requests": [
+      "apps/web/src/modules/request-workflow/repository.integration.test.ts",
+      "apps/web/src/modules/request-workflow/read-repository.integration.test.ts",
+      "apps/web/src/modules/request-workflow/approval-repository.integration.test.ts",
+      "apps/web/src/modules/request-workflow/service.integration.test.ts",
+      "apps/web/src/modules/request-workflow/actions/withdraw-invite.integration.test.ts"
+    ],
+    "register": [
+      "apps/web/src/modules/register/repository.integration.test.ts",
+      "packages/db/src/integrity/register-integrity.test.ts"
+    ],
+    "statements": [
+      "apps/web/src/modules/statements/list-repository.integration.test.ts",
+      "apps/web/src/modules/statements/repository.integration.test.ts",
+      "apps/web/src/modules/statements/export.integration.test.ts",
+      "apps/web/src/app/(authenticated)/estados-de-cuenta/[statementId]/page.integration.test.tsx"
+    ],
+    "close": [
+      "apps/web/src/modules/close/close-service.integration.test.ts",
+      "apps/web/src/modules/close/rollup.integration.test.ts",
+      "apps/web/src/modules/close/reconciliation.integration.test.ts",
+      "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+    ],
+    "alerts": [
+      "apps/web/src/modules/alerts/repository.integration.test.ts",
+      "apps/web/src/modules/operational-alert-read.integration.test.ts"
+    ],
+    "usage": [
+      "apps/web/src/modules/usage/repository.integration.test.ts",
+      "packages/db/src/analytics-ingestion.integration.test.ts",
+      "packages/db/src/member-observations.integration.test.ts"
+    ],
+    "audit": [
+      "apps/web/src/modules/audit/queries.integration.test.ts",
+      "apps/web/src/modules/navigation/repository.integration.test.ts"
+    ],
+    "lifecycle": [
+      "packages/db/src/lifecycle-notifications.integration.test.ts"
+    ]
+  },
+  "tables": {
+    "alert_rule": {
+      "ownership": "company_id (nullable: global admin only)",
+      "suites": [
+        "alerts"
+      ]
+    },
+    "alert_event": {
+      "ownership": "alert_rule.company_id",
+      "suites": [
+        "alerts"
+      ]
+    },
+    "alert_notification_delivery": {
+      "ownership": "alert_event.alert_rule.company_id",
+      "suites": [
+        "alerts"
+      ]
+    },
+    "lifecycle_notification": {
+      "ownership": "company_id",
+      "suites": [
+        "lifecycle",
+        "requests"
+      ]
+    },
+    "lifecycle_notification_delivery": {
+      "ownership": "lifecycle_notification.company_id",
+      "suites": [
+        "lifecycle"
+      ]
+    },
+    "system_setting": {
+      "global": "Global administration only.",
+      "suites": []
+    },
+    "identity_provider_operation": {
+      "ownership": "company_id (nullable: global administration)",
+      "suites": [
+        "identity"
+      ]
+    },
+    "rate_card": {
+      "global": "Global vendor-account catalog; role-gated rate administration.",
+      "suites": []
+    },
+    "statement": {
+      "ownership": "company_id",
+      "suites": [
+        "statements",
+        "close"
+      ]
+    },
+    "statement_line": {
+      "ownership": "statement.company_id",
+      "suites": [
+        "statements",
+        "close",
+        "register"
+      ]
+    },
+    "close_run": {
+      "global": "Global operation; scoped statement stamps and redacted notes govern company readers.",
+      "suites": [
+        "close"
+      ]
+    },
+    "reconciliation": {
+      "global": "Vendor-account global invoice; only global finance/admin can read or write.",
+      "suites": [
+        "close"
+      ]
+    },
+    "reconciliation_variance_line": {
+      "global": "Inherits global vendor-account reconciliation; only global finance/admin.",
+      "suites": [
+        "close"
+      ]
+    },
+    "company": {
+      "ownership": "id",
+      "suites": [
+        "people",
+        "identity",
+        "statements"
+      ]
+    },
+    "person": {
+      "ownership": "company_id",
+      "suites": [
+        "people",
+        "requests",
+        "usage"
+      ]
+    },
+    "user_account": {
+      "ownership": "person.company_id / company_role_assignment.company_id; global admin only",
+      "suites": [
+        "identity"
+      ]
+    },
+    "company_role_assignment": {
+      "ownership": "company_id",
+      "suites": [
+        "identity"
+      ]
+    },
+    "license_assignment": {
+      "ownership": "company_id",
+      "suites": [
+        "register",
+        "people",
+        "close"
+      ]
+    },
+    "provisioning_action": {
+      "ownership": "license_request.company_id",
+      "suites": [
+        "requests"
+      ]
+    },
+    "reclamation_proposal": {
+      "ownership": "license_assignment.company_id",
+      "suites": [
+        "usage",
+        "requests"
+      ]
+    },
+    "license_request": {
+      "ownership": "company_id",
+      "suites": [
+        "requests"
+      ]
+    },
+    "request_transition": {
+      "ownership": "license_request.company_id",
+      "suites": [
+        "requests"
+      ]
+    },
+    "activity_record": {
+      "ownership": "person.company_id",
+      "suites": [
+        "usage",
+        "people"
+      ]
+    },
+    "cost_record": {
+      "ownership": "person.company_id",
+      "suites": [
+        "usage"
+      ]
+    },
+    "vendor": {
+      "global": "Global shared catalog.",
+      "suites": []
+    },
+    "vendor_account": {
+      "global": "Global shared account; role-gated administration.",
+      "suites": []
+    },
+    "member_observation": {
+      "ownership": "person.company_id (matched identities); global account ingestion",
+      "suites": [
+        "usage"
+      ]
+    },
+    "connector_call_observation": {
+      "global": "Global vendor-account operational telemetry.",
+      "suites": []
+    },
+    "vendor_account_capacity": {
+      "global": "Global shared capacity; company consumption is scoped via assignments.",
+      "suites": []
+    },
+    "license_type": {
+      "global": "Global shared catalog.",
+      "suites": []
+    },
+    "integration_credential": {
+      "global": "Global account secret; no company-facing secret read.",
+      "suites": []
+    },
+    "capacity_recovery_work": {
+      "global": "Global vendor-account worker outbox; no company-facing query.",
+      "suites": []
+    },
+    "audit_log": {
+      "ownership": "company_id (nullable: system/global)",
+      "suites": [
+        "audit",
+        "people",
+        "requests",
+        "close"
+      ]
+    }
+  }
+}
