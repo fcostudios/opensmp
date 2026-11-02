@@ -8,8 +8,8 @@ Past feedback lines remain unchanged; an appended event records withdrawal.
 
 The IT Director's off-host escrow retrieval and recovery journey remain human
 acceptance at the S4 demo. Record unperformed checks as `ac_unverifiable`, not
-development blockers. The scheduled-nightly artifact must still be actually
-restored for AC2; a manual backup is not a substitute. Finance compares
+development blockers. The scheduled-nightly artifact `ledger-20261102070006.dump.age` was actually
+restored and its per-company register counts/hashes match the live source. Finance compares
 statements when present; provisional rates remain provisional (DEC-SMP-066).
 
 Evidence: [US-048 recovery record](../runbooks/us-048-recovery-evidence.md).

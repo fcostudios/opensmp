@@ -30,5 +30,6 @@ COPY --from=build --chown=ledger:ledger /app/apps/web/.next/static ./apps/web/.n
 COPY --from=build --chown=ledger:ledger /app/apps/web/public ./apps/web/public
 # US-048: offline-readable operations docs, available without identity login.
 COPY --chown=ledger:ledger docs/runbooks/ ./apps/web/public/auth/operations/
+COPY --chown=ledger:ledger docs/evidence/us-048/ ./apps/web/public/auth/evidence/us-048/
 USER ledger
 CMD ["node", "apps/web/server.js"]

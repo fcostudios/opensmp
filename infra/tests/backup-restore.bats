@@ -54,12 +54,12 @@ start_postgres() {
 
   local attempt
   for attempt in {1..30}; do
-    if docker exec "$container_id" pg_isready --username postgres --dbname fixture >/dev/null 2>&1; then
+    if docker exec "$container_id" pg_isready --host 127.0.0.1 --username postgres --dbname fixture >/dev/null 2>&1; then
       break
     fi
     sleep 1
   done
-  docker exec "$container_id" pg_isready --username postgres --dbname fixture >/dev/null
+  docker exec "$container_id" pg_isready --host 127.0.0.1 --username postgres --dbname fixture >/dev/null
 
   export BACKUP_TEST_POSTGRES_CONTAINER="$container_id"
   postgres_port="$(docker port "$container_id" 5432/tcp | sed 's/.*://')"
