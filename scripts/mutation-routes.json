@@ -260,6 +260,22 @@
   "apps/web/src/app/(authenticated)/cierre/loading.tsx": [
     "apps/web/src/modules/close/close-view.test.tsx"
   ],
+  "apps/web/src/modules/close/reconciliation-actions-factory.ts": [
+    "apps/web/src/app/(authenticated)/conciliacion/page.integration.test.ts"
+  ],
+  "apps/web/src/modules/close/reconciliation-operations.ts": [
+    "apps/web/src/app/(authenticated)/conciliacion/page.integration.test.ts"
+  ],
+  "apps/web/src/modules/close/reconciliation-actions.ts": [
+    "apps/web/src/app/(authenticated)/conciliacion/page.integration.test.ts"
+  ],
+  "apps/web/src/modules/close/reconciliation-transaction.ts": [
+    "apps/web/src/modules/close/reconciliation.integration.test.ts",
+    "apps/web/src/app/(authenticated)/conciliacion/page.integration.test.ts"
+  ],
+  "packages/contracts/src/reconciliation.ts": [
+    "packages/contracts/src/reconciliation.test.ts"
+  ],
   "apps/web/src/app/(authenticated)/estados-de-cuenta/page.tsx": [
     "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
   ],

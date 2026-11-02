@@ -1,0 +1,568 @@
+{
+  "story": "US-038",
+  "scope": "diff",
+  "authoritative": true,
+  "cold": true,
+  "exitCode": 0,
+  "provenance": {
+    "base": "a55234ca7b8c22d1cbcc308db321d3fe9746ed8d",
+    "baseRef": "a55234ca7b8c22d1cbcc308db321d3fe9746ed8d",
+    "head": "d3b5cfbfa71c5afee1ada3ae3a5a6c2659cf794d",
+    "worktreeHash": "0605b82c1cc0e04b65b146a80318e092187f9bb399868b31f4134656c5132469"
+  },
+  "startedAt": "2026-11-02T10:18:54.744Z",
+  "finishedAt": "2026-11-02T10:50:33.954Z",
+  "wallClockSeconds": 1899.201946958,
+  "metrics": {
+    "total": 470,
+    "killed": 454,
+    "survived": 16,
+    "noCoverage": 0,
+    "timeout": 0,
+    "errors": 0,
+    "mutationScore": 96.59574468085107
+  },
+  "review": {
+    "reviewer": "us038_merge_review",
+    "allUndetectedReviewed": true,
+    "unexpectedUndetected": 0,
+    "equivalents": [
+      {
+        "shard": "vitest-69c764feea38",
+        "path": "apps/web/src/modules/close/reconciliation-actions-factory.ts",
+        "id": "23",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 95,
+            "line": 16
+          },
+          "start": {
+            "column": 64,
+            "line": 16
+          }
+        },
+        "mutator": "BlockStatement",
+        "replacement": "{}",
+        "reason": "Deleting the authorization catch body leaves authorization undefined; the immediately following missing-authorization guard returns the identical error state without writes or revalidation.",
+        "reviewer": "us038_merge_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-69c764feea38",
+        "path": "apps/web/src/modules/close/reconciliation-actions-factory.ts",
+        "id": "28",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 25,
+            "line": 18
+          },
+          "start": {
+            "column": 11,
+            "line": 18
+          }
+        },
+        "mutator": "ConditionalExpression",
+        "replacement": "false",
+        "reason": "Removing the missing-authorization guard reaches the real service access check; the operation catch returns the identical error state before any write or revalidation.",
+        "reviewer": "us038_merge_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-69c764feea38",
+        "path": "apps/web/src/modules/close/reconciliation-actions-factory.ts",
+        "id": "44",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 95,
+            "line": 27
+          },
+          "start": {
+            "column": 64,
+            "line": 27
+          }
+        },
+        "mutator": "BlockStatement",
+        "replacement": "{}",
+        "reason": "Deleting the authorization catch body leaves authorization undefined; the immediately following missing-authorization guard returns the identical error state without writes or revalidation.",
+        "reviewer": "us038_merge_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-69c764feea38",
+        "path": "apps/web/src/modules/close/reconciliation-actions-factory.ts",
+        "id": "49",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 25,
+            "line": 29
+          },
+          "start": {
+            "column": 11,
+            "line": 29
+          }
+        },
+        "mutator": "ConditionalExpression",
+        "replacement": "false",
+        "reason": "Removing the missing-authorization guard reaches the real service access check; the operation catch returns the identical error state before any write or revalidation.",
+        "reviewer": "us038_merge_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-69c764feea38",
+        "path": "apps/web/src/modules/close/reconciliation-actions-factory.ts",
+        "id": "60",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 95,
+            "line": 38
+          },
+          "start": {
+            "column": 64,
+            "line": 38
+          }
+        },
+        "mutator": "BlockStatement",
+        "replacement": "{}",
+        "reason": "Deleting the authorization catch body leaves authorization undefined; the immediately following missing-authorization guard returns the identical error state without writes or revalidation.",
+        "reviewer": "us038_merge_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-69c764feea38",
+        "path": "apps/web/src/modules/close/reconciliation-actions-factory.ts",
+        "id": "65",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 25,
+            "line": 40
+          },
+          "start": {
+            "column": 11,
+            "line": 40
+          }
+        },
+        "mutator": "ConditionalExpression",
+        "replacement": "false",
+        "reason": "Removing the missing-authorization guard reaches the real service access check; the operation catch returns the identical error state before any write or revalidation.",
+        "reviewer": "us038_merge_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-69c764feea38",
+        "path": "apps/web/src/modules/close/reconciliation-actions-factory.ts",
+        "id": "76",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 95,
+            "line": 49
+          },
+          "start": {
+            "column": 64,
+            "line": 49
+          }
+        },
+        "mutator": "BlockStatement",
+        "replacement": "{}",
+        "reason": "Deleting the authorization catch body leaves authorization undefined; the immediately following missing-authorization guard returns the identical error state without writes or revalidation.",
+        "reviewer": "us038_merge_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-69c764feea38",
+        "path": "apps/web/src/modules/close/reconciliation-actions-factory.ts",
+        "id": "81",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 25,
+            "line": 51
+          },
+          "start": {
+            "column": 11,
+            "line": 51
+          }
+        },
+        "mutator": "ConditionalExpression",
+        "replacement": "false",
+        "reason": "Removing the missing-authorization guard reaches the real service access check; the operation catch returns the identical error state before any write or revalidation.",
+        "reviewer": "us038_merge_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-6fb6558cfdcd",
+        "path": "apps/web/src/modules/close/reconciliation-transaction.ts",
+        "id": "24",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 138,
+            "line": 35
+          },
+          "start": {
+            "column": 25,
+            "line": 35
+          }
+        },
+        "mutator": "StringLiteral",
+        "replacement": "``",
+        "reason": "The immediately preceding transaction-level whole-period close lock already serializes all reconciliation commands and finalization for the same period; removing or changing the additional organization lock preserves that synchronization.",
+        "reviewer": "us038_merge_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-6fb6558cfdcd",
+        "path": "apps/web/src/modules/close/reconciliation-transaction.ts",
+        "id": "25",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 91,
+            "line": 35
+          },
+          "start": {
+            "column": 74,
+            "line": 35
+          }
+        },
+        "mutator": "StringLiteral",
+        "replacement": "\"\"",
+        "reason": "The immediately preceding transaction-level whole-period close lock already serializes all reconciliation commands and finalization for the same period; removing or changing the additional organization lock preserves that synchronization.",
+        "reviewer": "us038_merge_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-6fb6558cfdcd",
+        "path": "apps/web/src/modules/close/reconciliation-transaction.ts",
+        "id": "26",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 110,
+            "line": 35
+          },
+          "start": {
+            "column": 107,
+            "line": 35
+          }
+        },
+        "mutator": "StringLiteral",
+        "replacement": "\"\"",
+        "reason": "The immediately preceding transaction-level whole-period close lock already serializes all reconciliation commands and finalization for the same period; removing or changing the additional organization lock preserves that synchronization.",
+        "reviewer": "us038_merge_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-9340dbd77679",
+        "path": "packages/domain/src/close/reconciliation.ts",
+        "id": "26",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 37,
+            "line": 10
+          },
+          "start": {
+            "column": 20,
+            "line": 10
+          }
+        },
+        "mutator": "EqualityOperator",
+        "replacement": "value <= BigInt(0)",
+        "reason": "Changing the absolute-value comparison from <0n to <=0n only negates zero; JavaScript BigInt has -0n === 0n, preserving formatted money and tolerance.",
+        "reviewer": "us038_merge_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-9340dbd77679",
+        "path": "packages/domain/src/close/reconciliation.ts",
+        "id": "54",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 76,
+            "line": 18
+          },
+          "start": {
+            "column": 59,
+            "line": 18
+          }
+        },
+        "mutator": "EqualityOperator",
+        "replacement": "delta <= BigInt(0)",
+        "reason": "Changing the absolute-value comparison from <0n to <=0n only negates zero; JavaScript BigInt has -0n === 0n, preserving formatted money and tolerance.",
+        "reviewer": "us038_merge_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-cc076aac7451",
+        "path": "apps/web/src/modules/close/reconciliation-view.tsx",
+        "id": "35",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 152,
+            "line": 32
+          },
+          "start": {
+            "column": 150,
+            "line": 32
+          }
+        },
+        "mutator": "StringLiteral",
+        "replacement": "\"Stryker was here!\"",
+        "reason": "An invalid string fallback is sanitized by the browser number input to the same empty rendered value; required validation and money parsing reject both until user input replaces the fallback.",
+        "reviewer": "us038_merge_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-cc076aac7451",
+        "path": "apps/web/src/modules/close/reconciliation-view.tsx",
+        "id": "38",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 153,
+            "line": 34
+          },
+          "start": {
+            "column": 151,
+            "line": 34
+          }
+        },
+        "mutator": "StringLiteral",
+        "replacement": "\"Stryker was here!\"",
+        "reason": "An invalid string fallback is sanitized by the browser number input to the same empty rendered value; required validation and money parsing reject both until user input replaces the fallback.",
+        "reviewer": "us038_merge_review",
+        "reviewed": true
+      },
+      {
+        "shard": "vitest-cc076aac7451",
+        "path": "apps/web/src/modules/close/reconciliation-view.tsx",
+        "id": "53",
+        "status": "Survived",
+        "location": {
+          "end": {
+            "column": 66,
+            "line": 47
+          },
+          "start": {
+            "column": 64,
+            "line": 47
+          }
+        },
+        "mutator": "StringLiteral",
+        "replacement": "\"Stryker was here!\"",
+        "reason": "An invalid string fallback is sanitized by the browser number input to the same empty rendered value; required validation and money parsing reject both until user input replaces the fallback.",
+        "reviewer": "us038_merge_review",
+        "reviewed": true
+      }
+    ]
+  },
+  "hashAttestation": {
+    "beforeCapturedAt": "2026-11-02T10:18:47.160378+00:00",
+    "afterCapturedAt": "2026-11-02T10:52:11.074276+00:00",
+    "sourceTestConfigLockMigrationDependencyManifestFilesCompared": 919,
+    "mismatches": [],
+    "repositoryDependencyFilesCompared": 723,
+    "repositoryDependencyMismatches": [],
+    "runnerDependencyClosureEntries": 46324,
+    "runnerDependencyClosureSha256": "f9d12fc38446ff398b74ba946a1362d59572cba94709213cd816d009db246c96",
+    "rawManifestPath": ".tmp/us038-post-merge-reports/manifest.json",
+    "rawManifestSha256": "3bbfcf4a65f8df1c260d4347dff4250eeb9f56d5410e10f4c802bfe5b0e804f2",
+    "beforeHashesPath": ".tmp/us038-post-merge-reports/before-hashes.json",
+    "beforeHashesSha256": "524a1d7cb812e22d9c9fbf3873726b5eb9ab2fb9dcd9f754a60b9d484dcb8fc1",
+    "afterHashesPath": ".tmp/us038-post-merge-reports/after-hashes.json",
+    "afterHashesSha256": "a42adc933c931ec33e154c0cbc79e9b0a886646e102934aecc086ab916d1ff39",
+    "logPath": ".tmp/us038-merge-mutation-cold.log",
+    "logSha256": "3933fe6e20be98c96d56586dffff3004ec166d99c3b1d4e9d712583034dae1b1",
+    "performancePath": ".tmp/us038-post-merge-reports/f06f9389-f462-4410-bb93-fc5c05a9ef2b.json",
+    "performanceSha256": "6f129ac143b33f40c209fd691a94b2944805a931ab1254c003782bd3d45a2b78",
+    "installedDependencyFilesRechecked": 45368,
+    "installedDependencyMismatches": []
+  },
+  "shards": [
+    {
+      "id": "schema-static-f239754323d5",
+      "result": "passed",
+      "classification": "scored",
+      "cacheDecision": "rejected",
+      "durationMs": 15893.381125000004,
+      "counts": {
+        "total": 1,
+        "killed": 1,
+        "survived": 0,
+        "noCoverage": 0,
+        "timeout": 0,
+        "errors": 0
+      },
+      "mutationScore": 100.0,
+      "jsonReport": ".tmp/us038-post-merge-reports/reports/schema-static-f239754323d5-33266-1793614734742-5d39b09d3703c.json",
+      "jsonReportSha256": "9824a9fbc95adf47e2e634b82293117e9869b2c5e9330b4d820b34cc4de4bc41",
+      "htmlReport": ".tmp/us038-post-merge-reports/reports/schema-static-f239754323d5-33266-1793614734742-5d39b09d3703c.html",
+      "htmlReportSha256": "8e8ee96419bff3aa96b667a900a9b4a1601f30383d38618fdfc9f05874b0d92f",
+      "configPath": ".tmp/us038-post-merge-reports/configs/schema-static-f239754323d5-33266-1793614734742-5d39b09d3703c.json",
+      "configPathSha256": "b1a67a7d32c9fe0a01b205f2bb2f56f622511e45e2a2596f1d15f19b04b24436"
+    },
+    {
+      "id": "vitest-69c764feea38",
+      "result": "passed",
+      "classification": "scored",
+      "cacheDecision": "rejected",
+      "durationMs": 1043353.5924579999,
+      "counts": {
+        "total": 128,
+        "killed": 120,
+        "survived": 8,
+        "noCoverage": 0,
+        "timeout": 0,
+        "errors": 0
+      },
+      "mutationScore": 93.75,
+      "jsonReport": ".tmp/us038-post-merge-reports/reports/vitest-69c764feea38-33266-1793614734742-5d39b09d3703c.json",
+      "jsonReportSha256": "7d583d96ec82336594194f39df91b871685ab955316e0bb0da931baa7bab833f",
+      "htmlReport": ".tmp/us038-post-merge-reports/reports/vitest-69c764feea38-33266-1793614734742-5d39b09d3703c.html",
+      "htmlReportSha256": "28562268ead82595c1fdb6faff2a7a36e34fa80ed7f9af7f467519536d72120e",
+      "configPath": ".tmp/us038-post-merge-reports/configs/vitest-69c764feea38-33266-1793614734742-5d39b09d3703c.json",
+      "configPathSha256": "4502847bb32bc31314c8f6634cee2944a6f5322049f0b588bc66fc5beb95b21f"
+    },
+    {
+      "id": "vitest-6fb6558cfdcd",
+      "result": "passed",
+      "classification": "scored",
+      "cacheDecision": "rejected",
+      "durationMs": 562307.8821659999,
+      "counts": {
+        "total": 115,
+        "killed": 112,
+        "survived": 3,
+        "noCoverage": 0,
+        "timeout": 0,
+        "errors": 0
+      },
+      "mutationScore": 97.3913043478261,
+      "jsonReport": ".tmp/us038-post-merge-reports/reports/vitest-6fb6558cfdcd-33266-1793614734742-5d39b09d3703c.json",
+      "jsonReportSha256": "df15e5dafb39f3991b889ee10233ce9147d503efaf91972dafe20951210335c5",
+      "htmlReport": ".tmp/us038-post-merge-reports/reports/vitest-6fb6558cfdcd-33266-1793614734742-5d39b09d3703c.html",
+      "htmlReportSha256": "473fbec087686bb9103aad4f717c47b3f855791849b2d5644660c764a4946f52",
+      "configPath": ".tmp/us038-post-merge-reports/configs/vitest-6fb6558cfdcd-33266-1793614734742-5d39b09d3703c.json",
+      "configPathSha256": "becac0512abb7b9847e1f4ab38c500426f60a342e5b349da1dd5fb6a1180be7d"
+    },
+    {
+      "id": "vitest-8527785dddac",
+      "result": "passed",
+      "classification": "scored",
+      "cacheDecision": "executed",
+      "durationMs": 5157.849167000037,
+      "counts": {
+        "total": 1,
+        "killed": 1,
+        "survived": 0,
+        "noCoverage": 0,
+        "timeout": 0,
+        "errors": 0
+      },
+      "mutationScore": 100.0,
+      "jsonReport": ".tmp/us038-post-merge-reports/reports/vitest-8527785dddac-33266-1793614734742-5d39b09d3703c.json",
+      "jsonReportSha256": "6395dff8d483de92445e3700d1413eb0f1b29d029b42c6603dea0aed3fd379a4",
+      "htmlReport": ".tmp/us038-post-merge-reports/reports/vitest-8527785dddac-33266-1793614734742-5d39b09d3703c.html",
+      "htmlReportSha256": "cf2ef9782009c41fc7c68ecd894790f25e13b3b350a313e505f2dbea80efffa4",
+      "configPath": ".tmp/us038-post-merge-reports/configs/vitest-8527785dddac-33266-1793614734742-5d39b09d3703c.json",
+      "configPathSha256": "aee82cb41019438518d3142d82c6d95562bf8fd137b28b20262354c5ae70c82a"
+    },
+    {
+      "id": "vitest-9340dbd77679",
+      "result": "passed",
+      "classification": "scored",
+      "cacheDecision": "executed",
+      "durationMs": 34676.012624999974,
+      "counts": {
+        "total": 57,
+        "killed": 55,
+        "survived": 2,
+        "noCoverage": 0,
+        "timeout": 0,
+        "errors": 0
+      },
+      "mutationScore": 96.49122807017544,
+      "jsonReport": ".tmp/us038-post-merge-reports/reports/vitest-9340dbd77679-33266-1793614734742-5d39b09d3703c.json",
+      "jsonReportSha256": "f12c55279dc34ef12def2b066e6b666c24f4a4106d3b257ff99e1e001c9c2f01",
+      "htmlReport": ".tmp/us038-post-merge-reports/reports/vitest-9340dbd77679-33266-1793614734742-5d39b09d3703c.html",
+      "htmlReportSha256": "10ef3d9c310a8da23194b7329fc7a5cb9a9b7bef910715b91f5aafd79767ad27",
+      "configPath": ".tmp/us038-post-merge-reports/configs/vitest-9340dbd77679-33266-1793614734742-5d39b09d3703c.json",
+      "configPathSha256": "bf2a6038db0dc6fca7223e576c3a82af587d9115db7bd3062c914df23df2f0dd"
+    },
+    {
+      "id": "vitest-cc076aac7451",
+      "result": "passed",
+      "classification": "scored",
+      "cacheDecision": "executed",
+      "durationMs": 203457.01375000016,
+      "counts": {
+        "total": 145,
+        "killed": 142,
+        "survived": 3,
+        "noCoverage": 0,
+        "timeout": 0,
+        "errors": 0
+      },
+      "mutationScore": 97.93103448275862,
+      "jsonReport": ".tmp/us038-post-merge-reports/reports/vitest-cc076aac7451-33266-1793614734742-5d39b09d3703c.json",
+      "jsonReportSha256": "c3daaaaaa03492a2935be7393b39412833f2d6ec2f041ed0a9ea0514779e0f68",
+      "htmlReport": ".tmp/us038-post-merge-reports/reports/vitest-cc076aac7451-33266-1793614734742-5d39b09d3703c.html",
+      "htmlReportSha256": "a55d730ef09b00b3f3d273fbdf634c53fb209f737ef9f3278e2ddd9feb949721",
+      "configPath": ".tmp/us038-post-merge-reports/configs/vitest-cc076aac7451-33266-1793614734742-5d39b09d3703c.json",
+      "configPathSha256": "6c5ae98078e6252167cb18f81e4bd6b383376bedb4a94cf2bc59cf0aba7963bc"
+    },
+    {
+      "id": "vitest-f358abbef8ad",
+      "result": "passed",
+      "classification": "scored",
+      "cacheDecision": "executed",
+      "durationMs": 12740.46708299988,
+      "counts": {
+        "total": 22,
+        "killed": 22,
+        "survived": 0,
+        "noCoverage": 0,
+        "timeout": 0,
+        "errors": 0
+      },
+      "mutationScore": 100.0,
+      "jsonReport": ".tmp/us038-post-merge-reports/reports/vitest-f358abbef8ad-33266-1793614734742-5d39b09d3703c.json",
+      "jsonReportSha256": "1dcde744e47c51f6a5cabd54bc8c0acd2e42e9c2517189f8c6aad8fcd1dde6e8",
+      "htmlReport": ".tmp/us038-post-merge-reports/reports/vitest-f358abbef8ad-33266-1793614734742-5d39b09d3703c.html",
+      "htmlReportSha256": "5522e91af894e2c2f7f44b98c18b678401b7e9211d19bb62d73a73259b4f1895",
+      "configPath": ".tmp/us038-post-merge-reports/configs/vitest-f358abbef8ad-33266-1793614734742-5d39b09d3703c.json",
+      "configPathSha256": "9655f48df39e74cf49311024c01b63674f8ee536a9ac47d68d0ffa7c82260c0f"
+    },
+    {
+      "id": "vitest-fcb370c54de4",
+      "result": "passed",
+      "classification": "scored",
+      "cacheDecision": "executed",
+      "durationMs": 3938.2990840000566,
+      "counts": {
+        "total": 1,
+        "killed": 1,
+        "survived": 0,
+        "noCoverage": 0,
+        "timeout": 0,
+        "errors": 0
+      },
+      "mutationScore": 100.0,
+      "jsonReport": ".tmp/us038-post-merge-reports/reports/vitest-fcb370c54de4-33266-1793614734742-5d39b09d3703c.json",
+      "jsonReportSha256": "6427483c0539541ef53c697b4cdcc3a4095aa5e4c8724ccdb4e90cf022a0d56b",
+      "htmlReport": ".tmp/us038-post-merge-reports/reports/vitest-fcb370c54de4-33266-1793614734742-5d39b09d3703c.html",
+      "htmlReportSha256": "7645782a1d4bacfc0c162a0cf41ae9ebe35b52b65db8f4d7eb9068cd8020242a",
+      "configPath": ".tmp/us038-post-merge-reports/configs/vitest-fcb370c54de4-33266-1793614734742-5d39b09d3703c.json",
+      "configPathSha256": "1ac413aa4864fecff48fdf091ada395e2e4ffba33b6d333a3b3e611a50bc52dd"
+    }
+  ]
+}
