@@ -649,7 +649,7 @@
 - **CHG-113**: CHG-113 / DEC-SMP-065/066: slice S4; license-only manual path. Production acceptance belongs to finance users and the IT Director.
 ### US-048 — Ops runbooks + backup/restore drill
 - **As**: Group Admin (persona_01) | **Want to**: operate the three critical procedures | **So that**: bus factor is mitigated (PRD §15/§18)
-- **AC1**: Runbooks cover manual register upkeep, Docker/Compose-secret rotation per ADR-13, encrypted backup-key retrieval and restore, and Keycloak outage break-glass enable/use/auto-disable with audit and alert checks. No managed credentials UI dependency.
+- **AC1**: Runbooks cover manual register upkeep, Docker/Compose-secret rotation per ADR-13, encrypted backup-key retrieval and restore, and Keycloak outage recovery by restarting or restoring Keycloak (break-glass is R2, FEAT-R2-13, DEC-SMP-067). No managed credentials UI dependency.
 - **AC2**: Nightly encrypted backup verified by an actual restore drill pre-go-live
 - **AC3**: Runbooks are accessible from the deployed operations documentation; IT Director completes the recovery journey without needing SCR-credentials.
 - **Prerequisites**: US-002, US-053

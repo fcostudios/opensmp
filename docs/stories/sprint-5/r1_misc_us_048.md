@@ -28,7 +28,7 @@ As a Group Admin (persona_01), I want to operate the three critical procedures s
 
 ## Acceptance Criteria
 
-- [ ] AC1: Runbooks cover manual register upkeep, Docker/Compose-secret rotation per ADR-13, encrypted backup-key retrieval and restore, and Keycloak outage break-glass enable/use/auto-disable with audit and alert checks. No managed credentials UI dependency.
+- [ ] AC1: Runbooks cover manual register upkeep, Docker/Compose-secret rotation per ADR-13, encrypted backup-key retrieval and restore, and Keycloak outage recovery by restarting or restoring Keycloak (break-glass is R2, FEAT-R2-13, DEC-SMP-067). No managed credentials UI dependency.
 - [ ] AC2: Nightly encrypted backup verified by an actual restore drill pre-go-live
 - [ ] AC3: Runbooks are accessible from the deployed operations documentation; IT Director completes the recovery journey without needing SCR-credentials.
 

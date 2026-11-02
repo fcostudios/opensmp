@@ -13,7 +13,10 @@
    DEFINITION_OF_DONE). Not `drizzle-kit push` — see step 3.
 2. **Pick work from [`docs/stories/SPRINT_PLAN.md`](docs/stories/SPRINT_PLAN.md)** — the
    sprint-ordered work queue (links to each story spec by sprint). `docs/stories/INDEX.md`
-   is a flat catalog, NOT the queue; start from SPRINT_PLAN.
+   is a flat catalog, NOT the queue; start from SPRINT_PLAN. Work the current sprint's
+   slice toward its **Exit criterion**; when the criterion is met, record it in your
+   `done` feedback. If the sprint slips, its **Fallback** applies — say so to the operator
+   instead of silently reordering.
 3. **Definition of Done:** a story is done only when
    [`docs/dev-guide/DEFINITION_OF_DONE.md`](docs/dev-guide/DEFINITION_OF_DONE.md) passes —
    `pnpm type-check && pnpm lint && pnpm build`, and `apply-migrations.mjs` +
@@ -143,4 +146,4 @@ expected behavior. Do not spray shallow or heavily-mocked tests to inflate volum
 is not a goal and is measured as a cost, not a quality.
 
 When you change logic in a `docs/dev-guide/TESTING.md` §3 critical path, update its §3 in the same PR.
-<!-- nous-emitted: sha256=fe8c2dc3baa5f2cc -->
+<!-- nous-emitted: sha256=78209cadf6743626 -->

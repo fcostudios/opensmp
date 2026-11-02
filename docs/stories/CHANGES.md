@@ -111,7 +111,8 @@
 | **CHG-111** | 🔵 analyzed | Retire the item-bound ceiling exception and its git admission proof | — | — |
 | **CHG-112** | 📦 delivered | Remove SMP's tenant-built Work Readiness Gate and its approval ceremony (DEC-SMP-065) | — | — |
 | **CHG-113** | 🔨 dev_in_progress | Re-baseline R1 to the value-first R1 prime: license-only manual monthly close first (DEC-SMP-065) | US-094, US-095, US-096, US-097 | S1, S2, S4 |
-| **CHG-114** | 🔷 spec_applied | Adopt the IMP-462 core-value contract: PRD contract block, walking-skeleton slice tags, R1 justifications | — | — |
+| **CHG-114** | 📦 delivered | Adopt the IMP-462 core-value contract: PRD contract block, walking-skeleton slice tags, R1 justifications | — | — |
+| **CHG-115** | 🔷 spec_applied | Move Keycloak break-glass to R2 (FEAT-R2-13); US-048 AC1 covers outage recovery by restart or restore (DEC-SMP-067) | — | — |
 
 ---
 
@@ -1476,14 +1477,14 @@ _No stories linked to this change yet._
 
 | Story | Name | Sprint | Status | File |
 |-------|------|--------|--------|------|
-| **US-094** | Real-data pilot register run (child of US-007) | Sprint 1 | ⬜ backlog | [r1_misc_us_094.md](sprint-1/r1_misc_us_094.md) |
-| **US-095** | Manual register entry | Sprint 1 | 🔨 in_development | [r1_misc_us_095.md](sprint-1/r1_misc_us_095.md) |
+| **US-094** | Real-data pilot register run (child of US-007) | Sprint 1 | ✅ dev_done | [r1_misc_us_094.md](sprint-1/r1_misc_us_094.md) |
+| **US-095** | Manual register entry | Sprint 1 | ✅ dev_done | [r1_misc_us_095.md](sprint-1/r1_misc_us_095.md) |
 | **US-096** | Statements list and totals | Sprint 2 | ⬜ backlog | [r1_misc_us_096.md](sprint-2/r1_misc_us_096.md) |
 | **US-097** | Member-list CSV reconciliation | Sprint 4 | ⬜ backlog | [r1_misc_us_097.md](sprint-4/r1_misc_us_097.md) |
 
 ### CHG-114: Adopt the IMP-462 core-value contract: PRD contract block, walking-skeleton slice tags, R1 justifications
 
-**Status:** 🔷 `spec_applied`
+**Status:** 📦 `delivered`
 **Source:** client_review
 **Requested by:** Francisco
 **Notes:** # CHG-114 — Adopt the IMP-462 core-value contract on SMP
@@ -1493,6 +1494,19 @@ _No stories linked to this change yet._
 | Project | `fcostudios__smp` · functional · mode `story_overlay` (derived) |
 | Authority | Francisco, 2026-11-01 ("do it"), on DEC-SMP-065/066 |
 | Patcher | `Nous/System/patches/fcostudios__smp/CHG-114.py` (ide...
+
+_No stories linked to this change yet._
+
+### CHG-115: Move Keycloak break-glass to R2 (FEAT-R2-13); US-048 AC1 covers outage recovery by restart or restore (DEC-SMP-067)
+
+**Status:** 🔷 `spec_applied`
+**Source:** client_review
+**Requested by:** Francisco
+**Notes:** # CHG-115 — Move Keycloak break-glass to R2
+
+Authority: DEC-SMP-067 (Francisco, 2026-11-01). Patcher: `Nous/System/patches/fcostudios__smp/CHG-115.py`.
+
+- **US-048 AC1** (08_scope + story file): the break-glass clause is replaced by "Keycloak outage recovery by restarting or restoring Keycloak (b...
 
 _No stories linked to this change yet._
 
