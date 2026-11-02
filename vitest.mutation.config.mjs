@@ -10,6 +10,7 @@ export default defineConfig({
       "packages/db/vitest.config.ts",
       "packages/domain/vitest.config.ts",
       "packages/notifications/vitest.config.ts",
+      "packages/ui/vitest.config.ts",
     ],
   },
 });
