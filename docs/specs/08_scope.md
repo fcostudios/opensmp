@@ -461,6 +461,7 @@
 - **AC3**: SCR-rates lists rates + capacity history side by side
 - **Prerequisites**: US-005
 - **Feature**: FEAT-026 | **Journey**: J3 | **Release**: R1
+- **Slice**: S1 (CV-2)
 - **Screens**: SCR-rates
 - **Server actions**: saveRateCard
 - **Entities (CRUD)**: RateCard (CR)
@@ -486,6 +487,7 @@
 - **AC3**: Statements stamped close_run_id
 - **Prerequisites**: US-032, US-033
 - **Feature**: FEAT-027 | **Journey**: J3 | **Release**: R1
+- **Slice**: S1 (CV-3)
 - **Screens**: SCR-close
 - **Server actions**: runClose
 - **Entities (CRUD)**: CloseRun (CU), Statement (C), StatementLine (C)
@@ -498,6 +500,7 @@
 - **AC3**: Only central_finance/group_admin may finalize
 - **Prerequisites**: US-034
 - **Feature**: FEAT-027 | **Journey**: J3 | **Release**: R1
+- **Slice**: S1 (CV-6)
 - **Screens**: SCR-close, SCR-statement-detail
 - **Server actions**: finalizeStatements, finalizeStatement
 - **Entities (CRUD)**: Statement (U status)
@@ -510,6 +513,7 @@
 - **AC3**: Scoped: company roles see own company only
 - **Prerequisites**: US-034
 - **Feature**: FEAT-031, FEAT-033 | **Journey**: J3 | **Release**: R1
+- **Slice**: S1 (CV-4)
 - **Screens**: SCR-statement-detail
 - **Entities (CRUD)**: StatementLine (R), CostRecord (R)
 
@@ -521,6 +525,7 @@
 - **AC3**: Exports audit-logged
 - **Prerequisites**: US-034, US-096
 - **Feature**: FEAT-030 | **Journey**: J3 | **Release**: R1
+- **Slice**: S1 (CV-6)
 - **Screens**: SCR-statement-detail
 - **Server actions**: exportStatementCsv, exportStatementPdf
 - **Entities (CRUD)**: Statement (R)
@@ -534,6 +539,7 @@
 - **AC4**: open→reconciled is server-rejected when |variance| > 0.5% of invoice total; outside tolerance the ONLY path is `overrideReconciliation` (mandatory note) → overridden; rejection covered by a test
 - **Prerequisites**: US-035
 - **Feature**: FEAT-028, FEAT-029 | **Journey**: J3 | **Release**: R1
+- **Slice**: S1 (CV-5)
 - **Screens**: SCR-reconciliation
 - **Server actions**: saveInvoiceAmount, overrideReconciliation
 - **Entities (CRUD)**: Reconciliation (CU), ReconciliationVarianceLine (C)
@@ -546,6 +552,7 @@
 - **AC3**: Rollup ties to reconciliation totals (same period source)
 - **Prerequisites**: US-034, US-096
 - **Feature**: FEAT-028, FEAT-030 | **Journey**: J3 | **Release**: R1
+- **Slice**: S1 (CV-6)
 - **Screens**: SCR-close
 - **Server actions**: exportRollupCsv, exportRollupPdf
 - **Entities (CRUD)**: Statement (R aggregate)
@@ -570,6 +577,7 @@
 - **AC3**: Viewer role: read-only everywhere it has access
 - **Prerequisites**: US-005, US-036, US-096
 - **Feature**: FEAT-033 | **Journey**: all | **Release**: R1
+- **R1 because**: pilot acceptance needs each Company Finance contact to see only its own statements
 - **Screens**: SCR-company-detail, SCR-statements, SCR-my-requests
 - **Entities (CRUD)**: (scoped reads)
 
@@ -634,17 +642,19 @@
 - **AC3**: Suite runs in CI; failures block merge
 - **Prerequisites**: US-041, US-034
 - **Feature**: FEAT-003 | **Journey**: — | **Release**: R1
+- **R1 because**: company isolation (BR-22) is a critical rule the pilot must prove
 - **Screens**: (tests)
 - **Entities (CRUD)**: —
 
 - **CHG-113**: CHG-113 / DEC-SMP-065/066: slice S4; license-only manual path. Production acceptance belongs to finance users and the IT Director.
 ### US-048 — Ops runbooks + backup/restore drill
 - **As**: Group Admin (persona_01) | **Want to**: operate the three critical procedures | **So that**: bus factor is mitigated (PRD §15/§18)
-- **AC1**: Runbooks cover manual register upkeep, Docker/Compose-secret rotation per ADR-13, encrypted backup-key retrieval and restore, and Keycloak outage break-glass enable/use/auto-disable with audit and alert checks. No managed credentials UI dependency.
+- **AC1**: Runbooks cover manual register upkeep, Docker/Compose-secret rotation per ADR-13, encrypted backup-key retrieval and restore, and Keycloak outage recovery by restarting or restoring Keycloak (break-glass is R2, FEAT-R2-13, DEC-SMP-067). No managed credentials UI dependency.
 - **AC2**: Nightly encrypted backup verified by an actual restore drill pre-go-live
 - **AC3**: Runbooks are accessible from the deployed operations documentation; IT Director completes the recovery journey without needing SCR-credentials.
 - **Prerequisites**: US-002, US-053
 - **Feature**: (ops) | **Journey**: — | **Release**: R1
+- **R1 because**: a system of record needs runbooks and a tested restore before go-live
 - **Screens**: docs
 - **Entities (CRUD)**: —
 
@@ -656,6 +666,7 @@
 - **AC3**: Golden-file test against a fixture statement
 - **Prerequisites**: US-003
 - **Feature**: FEAT-030 | **Journey**: J3 | **Release**: R1
+- **R1 because**: pilot companies receive PDF statements, not only CSV
 - **Screens**: (pdf)
 - **Entities (CRUD)**: Statement (R)
 
@@ -680,6 +691,7 @@
 - **AC4**: Alert-eval detects a MISSING CloseRun for the period past bd-3 and raises `close_missed`, independent of the close job itself (BR-27 watchdog)
 - **Prerequisites**: US-034, US-046
 - **Feature**: FEAT-027 | **Journey**: J3 | **Release**: R1
+- **R1 because**: operating the close monthly needs the schedule and the business-day-3 watchdog
 - **Screens**: SCR-close
 - **Entities (CRUD)**: CloseRun (R), AlertEvent (C)
 
@@ -692,6 +704,7 @@
 - **AC3**: Enter the real invoice for that month; reconciliation reaches reconciled within 0.5%, or overridden with every variance explained. Record bd-3 timing and Company Finance acceptance for five pilots. An override is not a pass of H2; H2 remains pending/failed unless the real-invoice tolerance and finance acceptance hold.
 - **Prerequisites**: US-034, US-038, US-053, US-094
 - **Feature**: FEAT-027, FEAT-029 | **Journey**: J3 | **Release**: R1
+- **Slice**: S1 (CV-5)
 - **Screens**: SCR-close, SCR-reconciliation
 - **Entities (CRUD)**: CloseRun (C), Reconciliation (CU), ReconciliationVarianceLine (C)
 
@@ -705,6 +718,7 @@
 - **AC3**: Deploy runbook documented; first deploy from CI verified
 - **Prerequisites**: US-002
 - **Feature**: (ops enabler) | **Journey**: — | **Release**: R1
+- **Slice**: S1 (CV-1)
 - **Screens**: n/a (infra)
 - **Entities (CRUD)**: —
 
@@ -897,6 +911,7 @@ FEAT-R2-01..12 carry no R1 stories (PRD §12 fast-follow). LicenseType creation 
 - **AC4**: Central Finance, Company Finance and the IT Director inspect the production run evidence; human story verify follows only when the real-data headcounts are accepted. US-007 remains dev_done and unchanged.
 - **Prerequisites**: US-007, US-053, US-095
 - **Feature**: FEAT-001, FEAT-025 | **Journey**: J3 | **Release**: R1
+- **Slice**: S1 (CV-1)
 - **Screens**: SCR-register
 - **Server actions**: Existing US-007 seed/backfill and exportRegisterCsv
 - **Entities (CRUD)**: Company (C), Person (C), LicenseAssignment (C)
@@ -911,6 +926,7 @@ FEAT-R2-01..12 carry no R1 stories (PRD §12 fast-follow). LicenseType creation 
 - **AC4**: The register and its CSV reflect the change with dates and provenance. Rejected writes leave no partial assignment, anchor or audit success. No member observation, capacity watermark, DriftEpisode or API call is produced.
 - **Prerequisites**: US-003, US-005, US-008, US-033
 - **Feature**: FEAT-025, FEAT-046 | **Journey**: J3 | **Release**: R1
+- **Slice**: S1 (CV-1)
 - **Screens**: SCR-register
 - **Server actions**: recordManualAssignment, closeManualAssignment
 - **Entities (CRUD)**: LicenseAssignment (CU), LicenseRequest (C system), AuditLog (C)
@@ -923,6 +939,7 @@ FEAT-R2-01..12 carry no R1 stories (PRD §12 fast-follow). LicenseType creation 
 - **AC4**: Each row exposes its statement identifier, the S1 CSV export (US-037), and the detail route delivered in S2 (US-036). This story requires no usage records, API sync, or S2 detail implementation to show drafts and export CSV.
 - **Prerequisites**: US-034
 - **Feature**: FEAT-027, FEAT-028 | **Journey**: J3 | **Release**: R1
+- **Slice**: S1 (CV-3)
 - **Screens**: SCR-statements, SCR-close
 - **Server actions**: Read-only statement list and period totals
 - **Entities (CRUD)**: Statement (R), Company (R), CloseRun (R)
@@ -936,6 +953,7 @@ FEAT-R2-01..12 carry no R1 stories (PRD §12 fast-follow). LicenseType creation 
 - **AC5**: Until the real export arrives, use manual register entry and a provisional rate with a manually transcribed member list to rehearse the comparison; label evidence provisional. The real CSV acceptance waits for the export, while monthly close remains usable.
 - **Prerequisites**: US-095, US-005, US-025, US-008
 - **Feature**: FEAT-046, FEAT-025 | **Journey**: J3 | **Release**: R1
+- **R1 because**: without the API, the register stays true only through a manual member-list check
 - **Screens**: SCR-vendor-account-detail, SCR-register
 - **Server actions**: previewMemberRegisterDiff
 - **Entities (CRUD)**: LicenseAssignment (R), Person (R), VendorAccount (R), AuditLog (C)

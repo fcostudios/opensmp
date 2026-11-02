@@ -386,4 +386,14 @@ When enrolled, follow [`docs/dev-guide/AGENT_REQUESTS.md`](docs/dev-guide/AGENT_
   runtime checks use `ledger_app`; no duplicate timestamp migrations exist
   under `packages/db/src/migrations/`.
 - Report evidence: `{"story":"US-XXX","event":"build_pass",...}` then `{"event":"done",...}`.
-<!-- nous-emitted: sha256=2d3649b78a5467a0 -->
+
+## Production deployment
+
+Production deployment (US-053 / DEC-SMP-066) uses the standalone
+`infra/docker-compose.production.yml`; see
+[`docs/runbooks/production-deploy.md`](docs/runbooks/production-deploy.md).
+It includes Caddy TLS, PostgreSQL-backed Keycloak, a one-shot committed-migration
+job, and the existing app/worker/SMTP services. Configuration and the ADR-13 KEK
+are supplied at runtime; the localhost CI rehearsal uses the same images.
+Hosting is Docker Compose now and Azure Container Apps later (a separate change).
+<!-- nous-emitted: sha256=dff61fb80bd4f67d -->

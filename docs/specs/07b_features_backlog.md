@@ -61,7 +61,7 @@
 
 ## R2 fast-follow (no R1 stories; PRD §12 middle column)
 
-FEAT-R2-01 manual vendor registry (any vendor via orchestration; renewal alerts) · FEAT-R2-02 one-click transfer · FEAT-R2-03 scheduled offboarding · FEAT-R2-04 approver delegation · FEAT-R2-05 bulk approvals · FEAT-R2-06 budget vs actual + threshold alerts · FEAT-R2-07 statement email delivery · FEAT-R2-08 weekly digest · FEAT-R2-09 utilization dashboards · FEAT-R2-10 SSO (OIDC) login · FEAT-R2-11 access review report · FEAT-R2-12 Slack/Teams notification webhooks.
+FEAT-R2-01 manual vendor registry (any vendor via orchestration; renewal alerts) · FEAT-R2-02 one-click transfer · FEAT-R2-03 scheduled offboarding · FEAT-R2-04 approver delegation · FEAT-R2-05 bulk approvals · FEAT-R2-06 budget vs actual + threshold alerts · FEAT-R2-07 statement email delivery · FEAT-R2-08 weekly digest · FEAT-R2-09 utilization dashboards · FEAT-R2-10 SSO (OIDC) login · FEAT-R2-11 access review report · FEAT-R2-12 Slack/Teams notification webhooks. · FEAT-R2-13 Keycloak-outage break-glass (ADR-03 contract: deploy-time flag, sealed one-time secret, auto-disable, audit and alert; DEC-SMP-067).
 
 ## Coverage checks
 
