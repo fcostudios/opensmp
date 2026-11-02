@@ -82,5 +82,8 @@ defines no RPO/RTO promise, so do not invent an accepted target.
 Record IT Director and finance names, acceptance date and any missing real
 inputs. Human production acceptance requires a previous-night encrypted backup
 and five-company register/statement comparison. Local development completion
-cannot certify human acceptance, off-host escrow or the break-glass profile.
+cannot certify human acceptance or off-host escrow. Under DEC-SMP-067 /
+CHG-115, break-glass is R2 (FEAT-R2-13); R1 identity recovery uses restart or
+restore. Record unperformed off-host retrieval and the IT Director journey as
+`ac_unverifiable` for the S4 demo, without blocking development completion.
 See [current drill evidence](us-048-recovery-evidence.md).

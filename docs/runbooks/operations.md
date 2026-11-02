@@ -124,41 +124,18 @@ outcomes, record key IDs (never key bytes), actor, UTC cutover, checks and
 rollback result. Stop on failed checks; retain the prior keys/configuration
 until recovery is proved. Revocation after compromise is an incident decision.
 
-## Keycloak outage and break-glass (ADR-03 / DEC-SMP-014)
+## Keycloak outage recovery (DEC-SMP-067 / CHG-115)
 
-Check PostgreSQL, Keycloak container health, bounded logs, TLS and canonical
-issuer discovery first. Recover the identity service using the same pinned
-release and persistent realm data; do not run `start-dev`, bypass auth, grant
-roles with SQL or manufacture a local password. Host-level backup/restore and
-this documentation remain available without SCR-credentials or a web login.
+For R1, follow [Keycloak restart or restore](keycloak-recovery.md): recover the
+existing service/realm, verify issuer discovery and login, and retain incident
+evidence. Host-level recovery and these documents remain available without
+SCR-credentials or a web login. Keep access closed if identity recovery fails.
 
-**Release blocker:** current `auth-config.ts` registers only the Keycloak
-provider and rejects other providers. There is no deploy-time break-glass
-flag, Compose one-time-secret mount, local TOTP login or expiry implementation.
-Therefore enabling and using the ADR-03 profile cannot be executed on this
-release. Do not claim a database restore role is a break-glass login. If
-identity cannot be recovered, keep application access closed and escalate to
-the IT Director; preserve incident evidence.
+Break-glass is deferred to R2 as **FEAT-R2-13** by DEC-SMP-067. Its missing
+local-login/one-time-secret profile is no longer an R1 release blocker. Do not
+try to enable it or bypass authentication during this R1 procedure.
 
-Before production acceptance, the release supplying that profile must publish
-its exact enable/disable commands and secret mount, then the IT Director must
-perform this checklist in isolation:
-
-1. Confirm disabled baseline rejects local login. Inject a sealed one-time
-   secret through a temporary Compose secret and explicitly enable the
-   deploy-time flag; record activation time and the 24-hour deadline.
-2. Verify a system alert is persisted and reaches its configured destination.
-   Wrong secret, wrong/missing TOTP and unauthorized identities must fail.
-3. Complete one authorized local login with TOTP. Inspect append-only AuditLog
-   evidence flagged `break_glass`, with actor/time and no secret material.
-4. Replay the same credential: reject. Confirm the profile disables after the
-   first successful login. In a separate unused activation, verify rejection
-   after 24 hours, including restart persistence. Check audit and alerts for
-   each activation; never accept a purely visual toggle as evidence.
-5. Disable the flag, remove the temporary secret, recreate affected services,
-   revoke emergency sessions and verify normal OIDC login and local rejection.
-   Confirm disablement after any failed exercise and retain sanitized evidence.
-
-Only a human records production `story verify`. Automated drill evidence,
-document publication and implementation `done` never substitute for that
-acceptance; unresolved checks must remain explicitly pending.
+Only a human records production `story verify`. Under DEC-SMP-067, the IT
+Director's recovery journey is human acceptance at the S4 demo, separate from
+development completion. Record unperformed human checks as `ac_unverifiable`,
+not as development blockers; never claim them as performed.

@@ -65,17 +65,19 @@ lint, build and tests passed. The story-scoped mutation preflight (base
 `d22b5c7`) found zero mutatable TypeScript files; shell defects were constrained
 by the red/green real-PostgreSQL regression, not a claimed Stryker score.
 
-## Acceptance still pending
+## DEC-SMP-067 / CHG-115 update
 
-ADR-03's deploy-time break-glass profile is absent from this release: Auth.js
-only registers Keycloak. No local login, one-time secret enablement, TOTP,
-first-login/24-hour auto-disable or associated alert/audit exercise can be
-truthfully certified. The operations runbook specifies the required checks
-and fail-closed incident response; it does not invent an enablement command.
+The historical break-glass blocker is withdrawn. It is R2 FEAT-R2-13, outside
+R1 acceptance. The new [Keycloak recovery runbook](keycloak-recovery.md) covers
+restart and isolated identity-database restore. Past feedback remains intact.
 
-The IT Director must still retrieve escrow independently, restore the previous
-night's scheduled backup, exercise break-glass on a release supplying it, and
-complete the deployed recovery journey. Finance must compare restored
-statement totals when real statements exist. Provisional typed rates remain
-provisional under DEC-SMP-066. No human production acceptance or story
-verification is claimed by this document.
+The next scheduled localhost backup is 2026-11-02 at 02:00 America/Guayaquil
+(07:00 UTC). Its actual artifact must be restored before AC2 is closed; the
+manual rehearsal above does not substitute for it. The scheduled backup image
+must include this branch's ACL-preservation repair.
+
+Independent off-host escrow retrieval is not evidenced. Record that portion of
+AC2 as `ac_unverifiable` for the S4 demo. The IT Director recovery journey
+(AC3) is human S4 demo acceptance, also `ac_unverifiable` if unperformed, and
+is not a development blocker under DEC-SMP-067. Finance acceptance and real
+contracted rates remain separate; DEC-SMP-066 provisional labels still apply.
