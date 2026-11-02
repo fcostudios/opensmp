@@ -27,7 +27,7 @@ beforeAll(async()=>{
  await owner.query(`INSERT INTO person(id,email,full_name,company_id,status,created_at,created_by) VALUES($1,'person@statements.invalid','Pilot Person',$2,'active',$3,$4)`,[id(13),id(2),now,id(1)]);
  await owner.query(`INSERT INTO license_assignment(id,person_id,company_id,vendor_account_id,license_type_id,started_on,ended_on,end_reason,source_kind,note,created_at,created_by) VALUES($1,$2,$3,$4,$5,'2025-12-01','2026-01-09','inactive','manual','opening',$6,$7),($8,$2,$3,$4,$5,'2026-01-10','2026-01-31','inactive','manual','joined',$6,$7)`,[id(14),id(13),id(2),id(11),id(12),now,id(1),id(15)]);
 });
-beforeEach(async()=>{await owner.query("TRUNCATE statement_line,statement,close_run,audit_log CASCADE");await owner.query(`UPDATE license_assignment SET started_on='2026-01-10',ended_on='2026-01-31' WHERE id=$1`,[id(15)]);await close.runClose(finance,{period:"2026-01"});});
+beforeEach(async()=>{await owner.query("TRUNCATE reconciliation_variance_line,reconciliation,statement_line,statement,close_run,audit_log CASCADE");await owner.query(`UPDATE license_assignment SET started_on='2026-01-10',ended_on='2026-01-31' WHERE id=$1`,[id(15)]);await close.runClose(finance,{period:"2026-01"});});
 afterAll(async()=>{await pool?.end();await owner?.end();await fixture?.stop();});
 
 
