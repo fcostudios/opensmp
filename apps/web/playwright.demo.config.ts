@@ -8,8 +8,20 @@ import { defineConfig } from "@playwright/test";
  * default E2E config: it has no development globalSetup and targets HTTPS.
  *
  *   DEMO_REHEARSAL_ENV_FILE=<printed runtime.env> \
- *     pnpm --filter @smp/web exec playwright test -c playwright.demo.config.ts
+ *     pnpm --dir apps/web exec playwright test -c playwright.demo.config.ts
+ *
+ * CHG-121 (`pnpm demo:up`) selects the suite with DEMO_SUITE:
+ *   journey  (default) seed + the S0/S1 journey, persisting admin TOTP secrets
+ *   accounts seed + one sign-in per user (TOTP enrollment only; `--empty`)
+ *   login    no seeding; sign in from DEMO_CREDENTIALS_FILE only (the proof)
  */
+const suites = {
+  journey: "demo-s0-s1.spec.ts",
+  accounts: "demo-accounts.spec.ts",
+  login: "demo-login.spec.ts",
+} as const;
+const suite = (process.env.DEMO_SUITE ?? "journey") as keyof typeof suites;
+if (!(suite in suites)) throw new Error(`DEMO_SUITE must be one of ${Object.keys(suites).join(", ")}`);
 const baseURL = process.env.DEMO_BASE_URL ?? "https://ledger.localhost:28443";
 const { hostname: appHost, port } = new URL(baseURL);
 const authHost = appHost.replace(/^ledger\./, "auth.");
@@ -37,8 +49,9 @@ function verifiedLeafPins(): string[] {
 
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: ["demo-s0-s1.spec.ts"],
-  globalSetup: "./e2e/demo-s0-s1.setup.ts",
+  testMatch: [suites[suite]],
+  // Seeding regenerates the passwords, so the login proof must never run it.
+  ...(suite === "login" ? {} : { globalSetup: "./e2e/demo-s0-s1.setup.ts" }),
   fullyParallel: false,
   workers: 1,
   timeout: 180_000,

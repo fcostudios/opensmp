@@ -16,14 +16,95 @@ this page.
 
 ### Which instance
 
+**For practice or a walkthrough on fictitious data, run `pnpm demo:up`** (option
+B, below). One command builds a disposable stack beside production, seeds it,
+runs the S0/S1 journey so provisional data exists, and leaves you credentials
+you can sign in with, including each admin's TOTP secret.
+
 | Option | When | URL | Data |
 |---|---|---|---|
 | **A. Production** (`ledger-production`) | The real acceptance demo | `https://ledger.localhost:18443` (the operator's localhost deployment, US-053) | Real pilot data once it arrives. Until then it holds only the US-094 `PROVISIONAL US-094` / `PROV-094-0N` fixture for 2026-10. |
 | **B. Disposable rehearsal** | Practice, or a walkthrough on fictitious data | `https://ledger.localhost:28443` | The CHG-118 `PROVISIONAL Demo Company 1..5` fixture, seeded by the spec's global setup |
 
-To start option B next to a running production, use other ports, another
-project name, another image tag, and no backup leg. The backup leg retags the
-`ledger-backup:local` image that production's 02:00 LaunchAgent uses.
+#### Option B: `pnpm demo:up` (CHG-121)
+
+From an SMP checkout with Docker running:
+
+```bash
+pnpm demo:up            # stack + 5 PROVISIONAL companies + 3 users + the S0/S1 journey
+pnpm demo:up --empty    # stack + companies + users only (no assignments, rate or close)
+```
+
+It runs `infra/production/rehearse.sh` as Compose project **`ledger-demo`** with
+images `ledger-*:demo-up`, the 28080/28443 override and no backup leg (that leg
+retags the `ledger-backup:local` image production's 02:00 LaunchAgent uses). It
+refuses the `ledger-production` project and refuses to start if 28443/28080 is
+taken by another project or process. The first build takes several minutes.
+
+It keeps everything you need in a per-user state directory outside the
+repository, `${XDG_STATE_HOME:-~/.local/state}/smp-demo/ledger-demo/` (mode
+0700; never under `~/.local/share/smp/production`):
+
+| File | What |
+|---|---|
+| `credentials.json` (0600) | Username and password per role. For the two admins also `totpSecret` and `otpauthUri`. |
+| `root.crt` | The demo stack's Caddy root CA (new on every `demo:up`) |
+| `runtime.env` (0600) | The stack's random runtime secrets (for `docker compose` inspection) |
+| `state.env` | Project, image tag, temp stack directory, mode, status |
+
+Before it prints the summary, `demo:up` proves the file is enough: Playwright
+signs in as each of the three users using only `credentials.json`. It computes
+the admins' codes from the stored secrets and checks the landing page:
+`/panel`, `/cierre` and `/estados-de-cuenta`.
+
+**Then, to sign in yourself:**
+
+1. Trust the demo CA. The summary prints the exact command for your path. Do not
+   click through certificate warnings.
+
+   ```bash
+   security add-trusted-cert -r trustRoot -k ~/Library/Keychains/login.keychain-db \
+     ~/.local/state/smp-demo/ledger-demo/root.crt
+   ```
+
+   Every `demo:up` makes a new CA. To remove one, use the SHA-1 fingerprint the
+   summary (and `demo:down`) prints: `security delete-certificate -Z <sha1>
+   ~/Library/Keychains/login.keychain-db`. Never delete by name, because the
+   production CA has the same Caddy name.
+2. Add the admins' TOTP to an authenticator app. Either render `otpauthUri` as a
+   QR code (for example `qrencode -t ansiutf8 '<otpauthUri>'`), or choose "enter a
+   setup key" and paste `totpSecret` (time-based, SHA-1, 6 digits, 30 s). Both
+   modes enroll the admins' TOTP during the run: the journey enrolls it, and
+   `--empty` signs each user in once to do so. So Keycloak will not show a QR
+   code on your first sign-in. It asks for the 6-digit code.
+3. Open `https://ledger.localhost:28443`, choose **Continue with Corporativo**,
+   and sign in with a username and password from `credentials.json`. Admins then
+   enter the current code.
+
+   **Known issue:** the Group Admin lands on `/panel`, which currently shows
+   "This page couldn't load" on a production-shaped stack. The production
+   Compose file sets no `DATABASE_URL`, which that page needs (CHG-121 finding
+   in `.nous-feedback.jsonl`). The session itself is fine. Open `/registro`
+   directly.
+
+Running `pnpm demo:up` again on a healthy demo stack reuses it and reprints the
+summary. A half-built stack is refused: run `pnpm demo:down` first. The S0/S1
+journey also needs a fresh database, so a new journey always starts from
+`demo:down`.
+
+Tear it down when you are done:
+
+```bash
+pnpm demo:down          # containers, volumes, network, ledger-*:demo-up images, temp dir
+pnpm demo:down --purge  # also deletes ~/.local/state/smp-demo/ledger-demo/
+```
+
+`DEMO_PROJECT`, `DEMO_IMAGE_TAG` and `DEMO_STATE_DIR` override the defaults. The
+ports are fixed by the override file.
+
+#### Option B by hand (the CHG-118 rehearsal)
+
+The same stack without the wrapper, for debugging the journey itself:
 
 ```bash
 cd <smp checkout>
@@ -38,7 +119,8 @@ cd apps/web && DEMO_REHEARSAL_ENV_FILE=<dir>/runtime.env \
 
 The spec refuses the `ledger-production` project and port 18443. It also refuses
 a database that already holds assignments, statements or rates, so start from a
-fresh stack. The per-run role passwords are written to
+fresh stack. The per-run role passwords, and since CHG-121 the admins' enrolled
+TOTP secrets, are written to
 `apps/web/test-results/demo-s0-s1/rehearsal-users.json` (git-ignored, mode
 0600). Screenshots, the register CSV and the statement CSV land in the same
 folder.
@@ -53,7 +135,8 @@ docker compose -p ledger-demo-rehearsal --env-file <dir>/runtime.env \
 
 **Browser trust (both options).** Import Caddy's local root CA for the instance
 into the presenter's browser. For production, use the operator's CA directory
-under `~/.local/share/smp/production/`. Do not click through certificate
+under `~/.local/share/smp/production/`. For `pnpm demo:up`, use the `root.crt`
+in the demo state directory (step 1 above). Do not click through certificate
 warnings. The automated spec instead validates each certificate chain against
 the rehearsal CA with OpenSSL, then pins those leaf keys for the test browser.
 

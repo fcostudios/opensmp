@@ -4,7 +4,19 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 export PRODUCTION_PROJECT="${PRODUCTION_PROJECT:-ledger-production-rehearsal}"
-rehearsal_dir="$(mktemp -d "${TMPDIR:-/tmp}/ledger-rehearsal.XXXXXX")"
+# A caller (CHG-121 demo-up.sh) may name an empty directory it created itself so
+# it can find the stack's runtime.env and CA later; default is a fresh mktemp.
+if [[ -n "${REHEARSAL_DIR:-}" ]]; then
+  rehearsal_dir="$REHEARSAL_DIR"
+  [[ -d "$rehearsal_dir" && -z "$(ls -A "$rehearsal_dir")" ]] || {
+    echo "REHEARSAL_DIR must be an existing empty directory: $rehearsal_dir" >&2; exit 2; }
+  case "$(cd "$rehearsal_dir" && pwd -P)/" in
+    "$HOME/.local/share/smp/production/"*|"$(cd "$HOME" && pwd -P)/.local/share/smp/production/"*)
+      echo "Refusing REHEARSAL_DIR under the production data directory" >&2; exit 2 ;;
+  esac
+else
+  rehearsal_dir="$(mktemp -d "${TMPDIR:-/tmp}/ledger-rehearsal.XXXXXX")"
+fi
 export PRODUCTION_ENV_FILE="$rehearsal_dir/runtime.env"
 export LOCAL_CA_DIR="$rehearsal_dir/ca"
 # A caller may supply its own self-contained override (e.g. the CHG-118 demo
