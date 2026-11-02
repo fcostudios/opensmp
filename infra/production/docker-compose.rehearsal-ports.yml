@@ -1,0 +1,34 @@
+# Disposable demo rehearsal (CHG-118) beside a running localhost production.
+# Self-contained replacement for docker-compose.local.yml: identical except
+# that Caddy listens on 28080/28443 inside and outside the container, so the
+# public URLs used by the browser, the app and Keycloak stay the same string.
+# Use only with PRODUCTION_PROJECT=ledger-demo-rehearsal (never ledger-production):
+#   PRODUCTION_PROJECT=ledger-demo-rehearsal \
+#   PRODUCTION_OVERRIDE_FILE=$PWD/infra/production/docker-compose.rehearsal-ports.yml \
+#   REHEARSAL_HTTPS_PORT=28443 REHEARSAL_SKIP_BACKUP=1 bash infra/production/rehearse.sh
+services:
+  caddy:
+    ports: !override
+      - "127.0.0.1:28080:28080"
+      - "127.0.0.1:28443:28443"
+    volumes:
+      - ./production/Caddyfile.rehearsal-ports:/etc/caddy/Caddyfile:ro
+    networks:
+      default:
+        aliases: [ledger.localhost, auth.localhost]
+  app:
+    environment:
+      AUTH_URL: https://ledger.localhost:28443
+      NEXTAUTH_URL: https://ledger.localhost:28443
+      LEDGER_PUBLIC_URL: https://ledger.localhost:28443
+      KEYCLOAK_ISSUER: https://auth.localhost:28443/realms/corporativo
+      NODE_EXTRA_CA_CERTS: /run/local-ca/root.crt
+    volumes:
+      - ${LOCAL_CA_DIR:?set LOCAL_CA_DIR}:/run/local-ca:ro
+  keycloak:
+    environment:
+      KC_HOSTNAME: https://auth.localhost:28443
+      LEDGER_PUBLIC_URL: https://ledger.localhost:28443
+  worker:
+    environment:
+      LEDGER_PUBLIC_URL: https://ledger.localhost:28443
