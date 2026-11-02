@@ -217,3 +217,17 @@ test("signed finalization actions enforce identity/confirmation and refresh immu
   expect(retry.result).toEqual({status:"finalized",count:0});
   expect(retry.work.pendingRevalidatedTags.map((entry:{tag:string})=>entry.tag)).toContain("_N_T_/estados-de-cuenta/layout");
 });
+
+// US-039: signed sessions exercise the actual action and selected-period page composition.
+test("rollup page reuses the selected group sum and export action resolves genuine finance sessions",async()=>{
+ const form=new FormData();form.set("period","2026-01");
+ await withSession("close-finance",()=>runClose({status:"idle"},form));
+ const html=renderToStaticMarkup(await page("close-finance"));
+ expect(html).toContain('data-testid="rollup_panel"');expect(html).toContain('data-testid="tile_group_total"');
+ expect(html).toContain('/conciliacion?period=2026-01');expect(html).toContain('data-testid="btn_export_rollup_csv"');
+ const {exportRollupCsv}=await import("@/modules/close/rollup-actions");
+ const download=await withSession("close-finance",()=>exportRollupCsv("2026-01"));
+ expect(download.result.filename).toBe("rollup-2026-01.csv");expect(download.result.csv).toContain("62.00");
+ expect((await withSession("close-finance",()=>exportRollupCsv("2026-02"))).result.csv).not.toContain("62.00");
+ for(const subject of [null,"close-viewer"])await expect(withSession(subject,()=>exportRollupCsv("2026-01"))).rejects.toThrow("ROLLUP_FORBIDDEN");
+});
