@@ -1,0 +1,17 @@
+{
+	local_certs
+	https_port 28443
+	http_port 28080
+}
+https://ledger.localhost:28443 {
+	reverse_proxy app:3000
+}
+https://auth.localhost:28443 {
+	@public path /realms/* /resources/* /.well-known/* /robots.txt
+	handle @public {
+		reverse_proxy keycloak:8080
+	}
+	handle {
+		respond 404
+	}
+}

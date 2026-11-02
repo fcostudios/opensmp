@@ -4,13 +4,16 @@ import { test } from 'node:test';
 
 const envFile = process.env.PRODUCTION_ENV_FILE;
 assert.ok(envFile, 'PRODUCTION_ENV_FILE must name the local rehearsal environment');
+// A rehearsal beside a running localhost production uses its own port/override.
+const httpsPort = process.env.REHEARSAL_HTTPS_PORT ?? '18443';
+const overrideFile = process.env.PRODUCTION_OVERRIDE_FILE ?? 'infra/production/docker-compose.local.yml';
 const compose = (...args) => execFileSync('docker', ['compose', '--project-name',
   process.env.PRODUCTION_PROJECT ?? 'ledger-production', '--env-file', envFile,
-  '-f', 'infra/docker-compose.production.yml', '-f', 'infra/production/docker-compose.local.yml', ...args],
+  '-f', 'infra/docker-compose.production.yml', '-f', overrideFile, ...args],
   { encoding: 'utf8' });
 const request = (host, path, format = '%{http_code}') => execFileSync('curl', [
   '--fail-with-body', '--silent', '--show-error', '--cacert', `${process.env.LOCAL_CA_DIR}/root.crt`,
-  '--resolve', `${host}:18443:127.0.0.1`, '-w', `\n${format}`, `https://${host}:18443${path}`,
+  '--resolve', `${host}:${httpsPort}:127.0.0.1`, '-w', `\n${format}`, `https://${host}:${httpsPort}${path}`,
 ], { encoding: 'utf8' });
 
 test('TLS app health proves the deployed Next server can query PostgreSQL', () => {
@@ -30,7 +33,7 @@ test('the committed migration verifier succeeded before the runtime started', ()
 test('realm import advertises HTTPS issuer and keeps admin API behind the proxy', () => {
   const [body, status] = request('auth.localhost', '/realms/corporativo/.well-known/openid-configuration').trim().split('\n');
   assert.equal(status, '200');
-  assert.equal(JSON.parse(body).issuer, 'https://auth.localhost:18443/realms/corporativo');
+  assert.equal(JSON.parse(body).issuer, `https://auth.localhost:${httpsPort}/realms/corporativo`);
   assert.throws(() => request('auth.localhost', '/admin/realms/corporativo'), /404/);
 });
 
@@ -55,5 +58,5 @@ test('server-side OIDC discovery validates the same local CA and canonical issue
       .then(async r=>{if(!r.ok)process.exit(1);process.stdout.write((await r.json()).issuer)})
       .catch(()=>process.exit(1));
   `);
-  assert.equal(output, 'https://auth.localhost:18443/realms/corporativo');
+  assert.equal(output, `https://auth.localhost:${httpsPort}/realms/corporativo`);
 });

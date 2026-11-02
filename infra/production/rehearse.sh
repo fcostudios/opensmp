@@ -7,7 +7,10 @@ export PRODUCTION_PROJECT="${PRODUCTION_PROJECT:-ledger-production-rehearsal}"
 rehearsal_dir="$(mktemp -d "${TMPDIR:-/tmp}/ledger-rehearsal.XXXXXX")"
 export PRODUCTION_ENV_FILE="$rehearsal_dir/runtime.env"
 export LOCAL_CA_DIR="$rehearsal_dir/ca"
-export PRODUCTION_OVERRIDE_FILE="$PWD/infra/production/docker-compose.local.yml"
+# A caller may supply its own self-contained override (e.g. the CHG-118 demo
+# rehearsal on other host ports) and image tag; defaults are unchanged.
+export PRODUCTION_OVERRIDE_FILE="${PRODUCTION_OVERRIDE_FILE:-$PWD/infra/production/docker-compose.local.yml}"
+image_tag="${REHEARSAL_IMAGE_TAG:-rehearsal}"
 mkdir -p "$LOCAL_CA_DIR"
 openssl rand -base64 32 > "$rehearsal_dir/credential-kek"
 chmod 0440 "$rehearsal_dir/credential-kek"
@@ -20,9 +23,9 @@ cat >> "$PRODUCTION_ENV_FILE" <<EOF
 APP_DOMAIN=ledger.localhost
 AUTH_DOMAIN=auth.localhost
 ACME_EMAIL=ops@example.com
-APP_IMAGE=ledger-app:rehearsal
-WORKER_IMAGE=ledger-worker:rehearsal
-MIGRATION_IMAGE=ledger-migrations:rehearsal
+APP_IMAGE=ledger-app:$image_tag
+WORKER_IMAGE=ledger-worker:$image_tag
+MIGRATION_IMAGE=ledger-migrations:$image_tag
 LEDGER_KEK_FILE=$rehearsal_dir/credential-kek
 LOCAL_CA_DIR=$LOCAL_CA_DIR
 SMTP_RELAYHOST=smtp.example.invalid:587
@@ -51,6 +54,11 @@ fi
 "${compose[@]}" cp caddy:/data/caddy/pki/authorities/local/root.crt "$LOCAL_CA_DIR/root.crt"
 bash infra/production/deploy.sh existing
 node --test infra/tests/production-smoke.test.mjs
+if [[ "${REHEARSAL_SKIP_BACKUP:-0}" == 1 ]]; then
+  # The backup leg rebuilds the shared ledger-backup:local tag, which a running
+  # localhost production's scheduled backup also uses; skip it beside one.
+  printf 'Backup proof skipped (REHEARSAL_SKIP_BACKUP=1)\n'
+else
 # Exercise the existing backup image against the production RLS/grant state.
 docker build -t ledger-backup:local -f infra/backup/Dockerfile infra
 mkdir -p "$rehearsal_dir/backups"
@@ -66,6 +74,7 @@ export BACKUP_SIGNING_KEY_FILE="$rehearsal_dir/backup-signing.key"
 export BACKUP_OUTPUT_DIR="$rehearsal_dir/backups"
 "${compose[@]}" -f infra/docker-compose.backup.yml --profile backup run --rm backup
 BACKUP_FIXTURE_DIR="$rehearsal_dir" node --test infra/tests/production-backup.test.mjs
+fi
 # Restart identity and runtime, proving realm import/persistence survives startup.
 "${compose[@]}" restart keycloak app worker
 "${compose[@]}" up -d --wait --wait-timeout 360 app worker caddy
