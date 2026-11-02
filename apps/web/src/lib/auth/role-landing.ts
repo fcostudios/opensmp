@@ -2,7 +2,6 @@ import {
   ROUTE_SCR_ADMIN_DASHBOARD,
   ROUTE_SCR_APPROVAL_QUEUE,
   ROUTE_SCR_CLOSE,
-  ROUTE_SCR_COMPANY_DETAIL,
   ROUTE_SCR_MY_REQUESTS,
   ROUTE_SCR_STATEMENTS,
 } from "../routes";
@@ -22,12 +21,8 @@ export function roleLanding(user: LedgerSessionUser): string {
     return ROUTE_SCR_STATEMENTS;
   }
 
-  const firstViewerCompanyId = user.companyGrants
-    .filter(({ role }) => role === "viewer")
-    .map(({ companyId }) => companyId)
-    .sort()[0];
-  if (firstViewerCompanyId) {
-    return ROUTE_SCR_COMPANY_DETAIL.replace(":companyId", firstViewerCompanyId);
+  if (user.companyGrants.some(({ role }) => role === "viewer")) {
+    return ROUTE_SCR_STATEMENTS;
   }
   return ROUTE_SCR_MY_REQUESTS;
 }

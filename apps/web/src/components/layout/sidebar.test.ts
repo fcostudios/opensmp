@@ -27,7 +27,6 @@ describe("sidebar access", () => {
     ["unauthenticated", undefined],
     ["no roles", []],
     ["unknown role", ["future_super_admin"]],
-    ["viewer", ["viewer"]],
   ] as const)("%s fails closed", (_case, roles) => {
     expect(visibleNavItems(roles).map(({ id }) => id)).toEqual([]);
   });

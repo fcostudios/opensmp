@@ -13,6 +13,7 @@ let owner: pg.Client;
 let productionPool: pg.Pool;
 let localePool: pg.Pool;
 let Page: typeof import("./page").default;
+let ListPage: typeof import("../page").default;
 let hooks: ReturnType<typeof registerHooks>;
 const saved = vi.hoisted(() => {
  const original = { AUTH_SECRET:process.env.AUTH_SECRET,AUTH_URL:process.env.AUTH_URL,AUTH_TRUST_HOST:process.env.AUTH_TRUST_HOST,DATABASE_URL:process.env.DATABASE_URL,DB_DRIVER:process.env.DB_DRIVER };
@@ -28,11 +29,11 @@ beforeAll(async () => {
   ('${id(1)}','finance@test.invalid','detail-finance',NULL,'active','2026-08-01'),
   ('${id(2)}','viewer@test.invalid','detail-viewer',NULL,'active','2026-08-01'),
   ('${id(3)}','central@test.invalid','detail-central','central_finance','active','2026-08-01'),
-  ('${id(4)}','admin@test.invalid','detail-admin','group_admin','active','2026-08-01');
+  ('${id(4)}','admin@test.invalid','detail-admin','group_admin','active','2026-08-01'), ('${id(20)}','approver@test.invalid','detail-approver',NULL,'active','2026-08-01');
   INSERT INTO company (id,name,code,type,status,created_at,created_by) VALUES
   ('${id(5)}','Alpha detail','ALP','internal','active','2026-08-01','${id(3)}'),('${id(6)}','Foreign detail','BRV','internal','active','2026-08-01','${id(3)}');
   INSERT INTO company_role_assignment (user_account_id,company_id,role,unique_grant,created_at,created_by) VALUES
-  ('${id(1)}','${id(5)}','finance','finance-a','2026-08-01','${id(3)}'),('${id(2)}','${id(5)}','viewer','viewer-a','2026-08-01','${id(3)}');
+  ('${id(20)}','${id(5)}','approver','approver-a','2026-08-01','${id(3)}'), ('${id(1)}','${id(5)}','finance','finance-a','2026-08-01','${id(3)}'),('${id(2)}','${id(5)}','viewer','viewer-a','2026-08-01','${id(3)}');
   INSERT INTO statement (id,company_id,period,status,opening_seats,total_usd,generated_at,created_at) VALUES
   ('${id(7)}','${id(5)}','2026-07','draft',0,21.29,'2026-08-01','2026-08-01'),
   ('${id(8)}','${id(6)}','2026-07','final',0,0,'2026-08-01','2026-08-01');`);
@@ -66,10 +67,11 @@ beforeAll(async () => {
   return nextLoad(url,context);
  }});
  Page=(await import(require.resolve("./page.tsx"))).default;
+ ListPage=(await import("../page")).default;
  productionPool=((await import(require.resolve("@smp/db"))).db as unknown as {$client:pg.Pool}).$client;
 });
 afterAll(async()=>{if(hooks){localePool=require("@smp/db").db.$client;if(localePool!==productionPool)await localePool.end();}hooks?.deregister();await productionPool?.end();await owner?.end();await fixture?.stop();vi.useRealTimers();for(const [key,value] of Object.entries(saved)) {if(value===undefined)delete process.env[key];else process.env[key]=value;}});
-async function page(subject:string|null,statementId=id(7),uiLanguage="en") {
+async function page(subject:string|null,statementId=id(7),uiLanguage="en",listFilters?: {period?:string;companyId?:string}) {
  if(subject) await owner.query("UPDATE user_account SET ui_language=$1 WHERE idp_subject=$2",[uiLanguage,subject]);
  const {encode}=await import(require.resolve("next-auth/jwt"));
  const token=subject?await encode({secret:process.env.AUTH_SECRET!,salt:"authjs.session-token",token:{idpSubject:subject,displayName:"Verified finance",uiLanguage}}):null;
@@ -81,12 +83,12 @@ async function page(subject:string|null,statementId=id(7),uiLanguage="en") {
  const request=new Request(url,{headers:{host:url.host,...(token?{cookie:"authjs.session-token="+token}:{})}});
  const store=createRequestStoreForAPI(request,url,{tags:[],expirationsByCacheKind:new Map()});
  const work=createWorkStore({page:"/estados-de-cuenta/[statementId]/page",renderOpts:{supportsDynamicResponse:true,isDraftMode:false},isPrefetchRequest:false,buildId:"us036",previouslyRevalidatedTags:[]});
- return workAsyncStorage.run(work,()=>workUnitAsyncStorage.run(store,()=>Page({params:Promise.resolve({statementId})})));
+ return workAsyncStorage.run(work,()=>workUnitAsyncStorage.run(store,()=>listFilters ? ListPage({searchParams:Promise.resolve(listFilters)}) : Page({params:Promise.resolve({statementId})})));
 }
-test.each([null,"detail-viewer"])("signed %s cannot open statement detail",async subject=>{await expect(page(subject)).rejects.toMatchObject({digest:expect.stringContaining(";/acceso-denegado;")});});
-test("signed company finance sees own company only and foreign/missing IDs return 404",async()=>{
- const html=renderToStaticMarkup(await page("detail-finance"));expect(html).toContain("Statement · Alpha detail");expect(html).toContain("$21.29");expect(html).toContain("Signed evidence");expect(html).not.toContain('data-testid="btn_view_register"');expect(html).not.toContain("Foreign detail");
- for(const statementId of [id(8),id(999),"bad-id"]) await expect(page("detail-finance",statementId)).rejects.toMatchObject({digest:"NEXT_HTTP_ERROR_FALLBACK;404"});
+test.each([null])("signed %s cannot open statement detail",async subject=>{await expect(page(subject)).rejects.toMatchObject({digest:expect.stringContaining(";/acceso-denegado;")});});
+test.each(["detail-finance","detail-approver","detail-viewer"])("signed %s reads only own evidence and denies foreign/missing IDs",async subject=>{
+ const html=renderToStaticMarkup(await page(subject));expect(html).toContain("Statement · Alpha detail");expect(html).toContain("$21.29");expect(html).toContain("Signed evidence");expect(html).not.toContain('data-testid="btn_view_register"');expect(html).not.toContain("Foreign detail");
+ for(const statementId of [id(8),id(999),"bad-id"]) await expect(page(subject,statementId)).rejects.toMatchObject({digest:expect.stringContaining(";/acceso-denegado;")});
 });
 test.each(["detail-central","detail-admin"])("signed %s sees other-company detail",async subject=>{
  expect(renderToStaticMarkup(await page(subject,id(8)))).toContain("Foreign detail");
@@ -96,4 +98,12 @@ test("signed locale controls the detail copy and DB failures propagate to recove
  const spanish=renderToStaticMarkup(await page("detail-finance",id(7),"es"));expect(spanish).toContain("Estado de cuenta");expect(spanish).toContain("USD 21,29");
  await owner.query("ALTER TABLE statement RENAME TO unavailable_statement");
  try {await expect(page("detail-finance")).rejects.toMatchObject({code:"42P01"});} finally {await owner.query("ALTER TABLE unavailable_statement RENAME TO statement");}
+});
+
+test.each(["detail-finance","detail-approver","detail-viewer"])("US-041 signed %s lists only own company without administration",async subject=>{
+ const html=renderToStaticMarkup(await page(subject,id(7),"en",{period:"2026-07"}));
+ expect(html).toContain("Alpha detail");expect(html).not.toContain("Foreign detail");
+ expect(html).not.toContain('data-testid="filter_company"');
+ expect(html).toContain('method="get"');expect(html).not.toContain('method="post"');expect(html).not.toContain('/cierre');
+ await expect(page(subject,id(7),"en",{period:"2026-07",companyId:id(6)})).rejects.toMatchObject({digest:expect.stringContaining(";/acceso-denegado;")});
 });

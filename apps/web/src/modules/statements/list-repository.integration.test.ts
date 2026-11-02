@@ -11,7 +11,7 @@ import { createStatementRepository } from "./repository";
 const id = (n: number) => `96000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const now = new Date("2026-11-01T12:00:00Z");
 const finance: LedgerAuthorization = { userId:id(1),userAccountId:id(1),idpSubject:"statements-finance",globalRole:"central_finance",roles:["central_finance"],companyIds:[2,3,4,5,6].map(id),companyGrants:[],employeeCompanyId:null };
-const own: LedgerAuthorization = {...finance,globalRole:null,roles:["company_finance","viewer"],companyIds:[id(2),id(3)],companyGrants:[{companyId:id(2),role:"finance"},{companyId:id(3),role:"viewer"}]};
+const own: LedgerAuthorization = {...finance,globalRole:null,roles:["company_finance","viewer"],companyIds:[id(2),id(3)],companyGrants:[{companyId:id(2),role:"finance"}]};
 let fixture: PostgresFixture; let owner: pg.Client; let pool: pg.Pool;
 let repository: ReturnType<typeof createStatementRepository>;
 let close: ReturnType<typeof createCloseService>;
@@ -117,4 +117,13 @@ test("a draft replacement between line and total reads cannot mix financial snap
    await pending.catch(()=>undefined);
    await owner.query(`DROP VIEW statement_line; DROP FUNCTION us096_pause_read(); ALTER TABLE us096_statement_line RENAME TO statement_line`);
  }
+});
+
+test.each(["finance","approver","viewer"] as const)("US-041 %s sees only granted company rows, totals and choices",async role=>{
+ const scoped={...own,companyGrants:[{companyId:id(2),role}]};
+ const result=await repository.read(scoped,{period:"2026-01"});
+ expect(result.rows.map(row=>row.companyId)).toEqual([id(2)]);
+ expect(result.companies.map(row=>row.id)).toEqual([id(2)]);
+ expect(result.totals.generated).toBe(1);
+ await expect(repository.read(scoped,{period:"2026-01",companyId:id(3)})).rejects.toThrow("STATEMENTS_ACCESS_FORBIDDEN");
 });
