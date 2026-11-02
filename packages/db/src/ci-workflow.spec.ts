@@ -92,3 +92,15 @@ describe("database CI workflow", () => {
     expect(source).toContain("POSTGRES_16_ALPINE_IMAGE");
   });
 });
+
+
+test("US-047 isolation failures block the verify job and BR-22 probes block its dependent mutation job", async () => {
+  const workflow = parse(await readFile(workflowPath, "utf8"));
+  const step = workflow.jobs.verify.steps.find((step: {run?: string}) => step.run === "pnpm test:isolation");
+  expect(step).toBeDefined();
+  expect(step["continue-on-error"]).toBeUndefined();
+  expect(step.if).toBeUndefined();
+  expect(workflow.jobs.verify["continue-on-error"]).toBeUndefined();
+  expect(workflow.jobs.mutation.needs).toContain("verify");
+  expect(workflow.jobs.mutation.strategy.matrix.include).toContainEqual({slice:"us047",command:"test:mutation:us047"});
+});

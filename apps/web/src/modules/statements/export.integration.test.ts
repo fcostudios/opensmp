@@ -300,11 +300,17 @@ test.each(["finance","approver","viewer"] as const)("US-041 %s exports only gran
   const scoped={...authorization,companyGrants:[{companyId:companyA,role}]};
   const own=await createStatementPdfExportResponse(repository,scoped,statementA);
   expect(own.status).toBe(200);
-  const text=(await pdfPages(Buffer.from(await own.arrayBuffer()))).join(" ");
+  expect(own.headers.get("content-type")).toBe("application/pdf");
+  const bytes=Buffer.from(await own.arrayBuffer());
+  expect(bytes.subarray(0,5).toString()).toBe("%PDF-");
+  const text=(await pdfPages(bytes)).join(" ");
   for(const value of [id(12),id(13),"Prorated","Correction required note","USD 17,29"]) expect(text).toContain(value);
   expect(text).not.toContain(id(14));expect(text).not.toContain("Secret line");expect(text).not.toContain("R2 hidden");
   const foreign=await createStatementPdfExportResponse(repository,scoped,statementB);
-  expect(foreign.status).toBe(404);expect(await foreign.json()).toEqual({error:"STATEMENT_NOT_FOUND"});
+  expect(foreign.status).toBe(404);expect(await foreign.clone().json()).toEqual({error:"STATEMENT_NOT_FOUND"});
+  expect(foreign.headers.get("content-type")).toBe("application/json");
+  expect(foreign.headers.get("content-disposition")).toBeNull();
+  expect(await foreign.text()).toBe(JSON.stringify({error:"STATEMENT_NOT_FOUND"}));
   const audits=await owner.query("SELECT entity_id,company_id,actor_user_id,after FROM audit_log WHERE action='statement.export_pdf' AND id <> ALL($1::uuid[])",[previous]);
   expect(audits.rows).toEqual([{entity_id:statementA,company_id:companyA,actor_user_id:id(1),after:{format:"pdf",period:"2026-07",status:"draft",language:"es",totalUsd:"17.29",lineCount:2}}]);
  } finally {await owner.end();}

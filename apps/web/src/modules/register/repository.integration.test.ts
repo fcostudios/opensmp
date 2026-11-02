@@ -747,10 +747,34 @@ test.each(["finance", "approver", "viewer"] as const)("%s register evidence and 
  const csv = await repository.exportCsv(scoped, {});
  const ownCsv = await repository.exportCsv(scoped, {companyId:companyA});
  expect(csv).toBe(ownCsv);
+ let streamed=""; for await (const chunk of repository.streamCsv(scoped,{})) streamed+=chunk;
+ expect(streamed).toBe(csv);
+ expect((await repository.facets(scoped)).companies.map(row=>row.id)).toEqual([companyA]);
  expect(csv).toContain("Bruno Import");expect(csv).not.toContain("Bravo Tenant");
  expect((await repository.listRows(scoped, {})).items.map(row=>row.companyId)).toEqual([companyA,companyA,companyA]);
  expect((await repository.assignmentsById(scoped,[assignmentA1,assignmentB])).map(row=>row.id)).toEqual([assignmentA1]);
- expect(await repository.exportCsv(scoped,{companyId:companyB})).toBe(csv.split("\r\n")[0]+"\r\n");
+ await expect(repository.exportCsv(scoped,{companyId:companyB})).rejects.toMatchObject({status:403});
+ await expect(repository.listRows(scoped,{companyId:companyB})).rejects.toMatchObject({status:403});
+ const stream=repository.streamCsv(scoped,{companyId:companyB});
+ await expect(stream.next()).rejects.toMatchObject({status:403});
+});
+
+// The internal projection can represent an empty grant set without exposing a
+// record. Its HTTP boundary must still deny access before returning a stream.
+test("US-047 empty read grants expose no projection records and cannot download or probe a company", async () => {
+  const repository = createRegisterRepository(drizzle(appPool, { schema }));
+  const noGrant = {...authForCompanyA, companyIds:[companyA,companyB], companyGrants:[]};
+  expect((await repository.listRows(noGrant,{})).items).toEqual([]);
+  expect((await repository.facets(noGrant)).companies).toEqual([]);
+  const header = (await repository.exportCsv(authForCompanyA,{})).split("\r\n")[0]+"\r\n";
+  expect(await repository.exportCsv(noGrant,{})).toBe(header);
+  let csv="";
+  for await(const chunk of repository.streamCsv(noGrant,{})) csv+=chunk;
+  expect(csv).toBe(header);
+  await expect(repository.listRows(noGrant,{companyId:companyA})).rejects.toMatchObject({status:403});
+  const response=await createRegisterExportResponse({loadAuthorization:async()=>noGrant,query:new URLSearchParams(),queryLength:0,repository,subject:"empty-grants"});
+  expect(response.status).toBe(403);
+  expect(await response.json()).toEqual({error:"Forbidden"});
 });
 
 describe("US-098 active-in-month register equals what the license-only close bills", () => {

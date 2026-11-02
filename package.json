@@ -49,7 +49,9 @@
     "check:generated-guidance": "python3 infra/scripts/reconcile-sprint1-docs.py . --check",
     "lint:tests": "node scripts/check-test-mocks.mjs . && node scripts/check-test-oracles.mjs .",
     "lint:vitest-workspaces": "node scripts/check-vitest-workspaces.mjs .",
-    "test:mutation:preflight": "node scripts/mutation-preflight.mjs"
+    "test:mutation:preflight": "node scripts/mutation-preflight.mjs",
+    "test:isolation": "node scripts/run-company-isolation.mjs",
+    "test:mutation:us047": "tsx packages/db/src/testing/run-with-shared-postgres.ts node scripts/company-isolation-mutation.mjs"
   },
   "devDependencies": {
     "@pact-foundation/pact": "17.0.1",

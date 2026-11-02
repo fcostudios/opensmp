@@ -1,5 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
+import fc from "fast-check";
 import { afterAll, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import * as schema from "@smp/db/schema";
 import { createPostgresFixture, type PostgresFixture } from "@smp/db/testing/postgres-container";
@@ -486,4 +487,43 @@ test("workbench totals and counts stay period and company scoped",async()=>{
   expect(await service.summary(finance,"2026-01")).toEqual({generated:1,drafts:1,finals:0,totalUsd:"18.00",companies:1});
   expect(await service.summary({...finance,companyIds:[id(6)]},"2026-01")).toEqual({generated:1,drafts:1,finals:0,totalUsd:"44.00",companies:1});
   expect(await service.summary(finance,"2026-02")).toEqual({generated:0,drafts:0,finals:0,totalUsd:"0.00",companies:1});
+});
+
+
+// US-047 extends the US-003 contiguity oracle through the real close writer.
+// A skipped/duplicated transfer day or company, or a non-idempotent draft rerun,
+// changes these partitions even if a group monetary total happens to tie.
+test("US-047 generated cross-company transfers partition every day and repeated closes preserve exact evidence", async () => {
+  await fc.assert(fc.asyncProperty(fc.integer({min:2,max:31}), async boundary => {
+    await owner.query("TRUNCATE statement_line, statement, close_run, audit_log CASCADE");
+    await owner.query("BEGIN");
+    try {
+      await owner.query("DELETE FROM license_assignment");
+      const day = (value: number) => `2026-01-${String(value).padStart(2,"0")}`;
+      await owner.query(`INSERT INTO license_assignment
+        (id,person_id,company_id,vendor_account_id,license_type_id,started_on,ended_on,end_reason,source_kind,note,created_at,created_by) VALUES
+        ($1,$3,$4,$6,$7,'2026-01-01',$8,'reallocated','manual','generated transfer',$10,$11),
+        ($2,$3,$5,$6,$7,$9,NULL,NULL,'manual','generated successor',$10,$11)`,
+        [id(8),id(9),id(7),id(5),id(6),id(3),id(4),day(boundary-1),day(boundary),now,id(1)]);
+      await owner.query("COMMIT");
+    } catch(error) { await owner.query("ROLLBACK"); throw error; }
+    const coverage = await owner.query(`SELECT d::date::text AS day, count(a.id)::int AS owners
+      FROM generate_series('2026-01-01'::date,'2026-01-31'::date,'1 day') d
+      LEFT JOIN license_assignment a ON d::date >= a.started_on AND (a.ended_on IS NULL OR d::date <= a.ended_on)
+      GROUP BY d ORDER BY d`);
+    expect(coverage.rows.map(row=>row.owners)).toEqual(Array(31).fill(1));
+    const scoped = {...finance,companyIds:[id(5),id(6)]};
+    expect((await service.runClose(scoped,{period:"2026-01"})).status).toBe("succeeded");
+    const first = await snapshot();
+    expect(first.map(row=>[row.company_id,row.license_days,row.amount_usd])).toEqual([
+      [id(5),boundary-1,`${2*(boundary-1)}.00`],
+      [id(6),32-boundary,`${2*(32-boundary)}.00`],
+    ]);
+    expect(first.reduce((sum,row)=>sum+row.license_days,0)).toBe(31);
+    expect((await service.runClose(scoped,{period:"2026-01"})).status).toBe("succeeded");
+    expect(await snapshot()).toEqual(first);
+    // Each company's scoped rerun must leave the other's draft untouched.
+    expect((await service.runClose(finance,{period:"2026-01"})).status).toBe("succeeded");
+    expect(await snapshot()).toEqual(first);
+  }),{seed:4702,numRuns:8,examples:[[2],[31]]});
 });
