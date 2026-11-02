@@ -17,11 +17,8 @@ export function roleLanding(user: LedgerSessionUser): string {
   if (user.companyGrants.some(({ role }) => role === "approver")) {
     return ROUTE_SCR_APPROVAL_QUEUE;
   }
-  if (user.companyGrants.some(({ role }) => role === "finance")) {
-    return ROUTE_SCR_STATEMENTS;
-  }
-
-  if (user.companyGrants.some(({ role }) => role === "viewer")) {
+  // Remaining company grants are finance/viewer; both land on scoped statements.
+  if (user.companyGrants.length > 0) {
     return ROUTE_SCR_STATEMENTS;
   }
   return ROUTE_SCR_MY_REQUESTS;

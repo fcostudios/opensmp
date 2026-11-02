@@ -1,0 +1,41 @@
+{
+  "story": "US-049",
+  "ts": "2026-11-02T02:22:36.368224+00:00",
+  "branch": "feature/statements/us-049-pdf-template",
+  "mutation_base": "e2b7c4e864a5e0950843713e4595cc0ff579bc92",
+  "gates": {
+    "frozen_install": "pass",
+    "type_check": "pass",
+    "lint": "pass",
+    "build": "pass",
+    "workspace_tests": "15 successful tasks; web 137 files / 1089 passed / 3 pre-existing skips",
+    "fresh_postgres_16": "66 committed migration checksums; 33 application tables; 6 append-only triggers; exact ledger_app grant matrix"
+  },
+  "mutation": {
+    "score": 99.15,
+    "killed": 117,
+    "survived": 1,
+    "timeouts": 0,
+    "scope": "diff",
+    "wallclock_s": 79,
+    "report": "US-049-mutation.json",
+    "report_sha256": "c288e7727c4b5b24d8272ee0890a62cb6140f5b4f0651ff987219a5edb374be5",
+    "surviving_annotated": [
+      "@equivalent: mutant 73 changes > to >= in the page-space lookahead. At exact fit either keeping the block or moving it to the next page is valid pagination; actual text flow still enforces the body bounds. No AC fixes exact-boundary page placement. Scoped reviewer sign-off: Codex, 2026-11-01."
+    ]
+  },
+  "source_sha256": "e86da65b82d209f4dd1a7a6a484c7e10ced6b50d2e3d9f261b91f552db9303cd",
+  "goldens": {
+    "statement-en.pdf": "0831c20a1f3afa99b91d9395127d3e0adc393023bdea6fde599a485703b642db",
+    "statement-es.pdf": "6754eedcb9db10201c3b4de732afa0b60baee32bbc8ec467d4a9044bb4abe3c0",
+    "statement-overflow-en.pdf": "6eeba6dd458b7d1b60f2a47f78c336ab10a9fef8b46688a488b0c62e8deb5597"
+  },
+  "acceptance": {
+    "AC1": "pass with operator-approved temporary Corporativo typographic lockup; delivered font/color tokens; company-language default/override",
+    "AC2_renderer": "pass against existing Statement/StatementLine schema; stored notes and service-date bounds represent joiners/leavers without live movement inference",
+    "AC2_screen_parity": "ac_unverifiable: US-036 does not exist yet",
+    "AC3": "Spanish/English single-page and seven-page overflow byte-level goldens; visual review of both languages and overflow continuation/final page"
+  },
+  "scope": "No close (US-034), statement-detail (US-036), route, database schema or migration changes. Sprint S3 production journey acceptance remains finance-user / IT Director owned.",
+  "session_deviation": "The shell initially opened in /Users/fcolomas/Projects/smp on main; the first requested frozen install completed there before the mismatch was detected. All subsequent work, including another frozen install, used this dedicated worktree. No branch switch was made."
+}

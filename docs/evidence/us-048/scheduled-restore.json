@@ -1,0 +1,155 @@
+{
+  "story": "US-048",
+  "compared_at": "2026-11-02T12:06:55.067822+00:00",
+  "main_base": "7a578ed0f56514ab3fac80197419ce28cee2ea75",
+  "artifact": "ledger-20261102070006.dump.age",
+  "sha256": "42127adccd9fc888c02e76a32ecc15c6627d2a4d2acf856fe53cff0309da67fc",
+  "created_at": "2026-11-02T07:00:06Z",
+  "source_system_identifier": "7703322705419923490",
+  "target_system_identifier": "7703544130789466152",
+  "restore": "pass",
+  "postconditions": "false|true|0|0",
+  "existing_target": "rejected",
+  "tampered_ciphertext": "rejected",
+  "counts": "license_assignment|16\nstatement|0\nstatement_line|0\ncompany|5",
+  "fresh_and_restored_schema": "pass",
+  "register_hash_algorithm": "SHA-256 of ASCII JSON rows ordered by assignment id, object keys sorted, compact separators; all license_assignment columns included",
+  "all_companies_equal": true,
+  "source": [
+    {
+      "company_id": "94000000-0000-4000-8000-000000000101",
+      "company_code": "PROV-094-01",
+      "license_assignment": {
+        "count": 2,
+        "sha256": "acb92ff59d8974a14b6ace203752085bef878c0ed2f05afffe0cc86617096c19"
+      },
+      "statement": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    },
+    {
+      "company_id": "94000000-0000-4000-8000-000000000102",
+      "company_code": "PROV-094-02",
+      "license_assignment": {
+        "count": 2,
+        "sha256": "34b7b627113d4d6e95ab6000cc8b5476f731874048eea0cfddca6fe1a2f6d30c"
+      },
+      "statement": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    },
+    {
+      "company_id": "94000000-0000-4000-8000-000000000103",
+      "company_code": "PROV-094-03",
+      "license_assignment": {
+        "count": 3,
+        "sha256": "91837ea7d6c5f9e3c1c18b3827f77a17de8faef172f54069d70095173b1f9ada"
+      },
+      "statement": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    },
+    {
+      "company_id": "94000000-0000-4000-8000-000000000104",
+      "company_code": "PROV-094-04",
+      "license_assignment": {
+        "count": 4,
+        "sha256": "c16fd233e65748b26156d4644acdb2db6df49598c615235fac37cb459f3f6703"
+      },
+      "statement": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    },
+    {
+      "company_id": "94000000-0000-4000-8000-000000000105",
+      "company_code": "PROV-094-05",
+      "license_assignment": {
+        "count": 5,
+        "sha256": "cdc06cf3421be9ec37ec217c52618fa258cce7173f49b0ef9d2bb46fe40399d2"
+      },
+      "statement": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    }
+  ],
+  "restored": [
+    {
+      "company_id": "94000000-0000-4000-8000-000000000101",
+      "company_code": "PROV-094-01",
+      "license_assignment": {
+        "count": 2,
+        "sha256": "acb92ff59d8974a14b6ace203752085bef878c0ed2f05afffe0cc86617096c19"
+      },
+      "statement": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    },
+    {
+      "company_id": "94000000-0000-4000-8000-000000000102",
+      "company_code": "PROV-094-02",
+      "license_assignment": {
+        "count": 2,
+        "sha256": "34b7b627113d4d6e95ab6000cc8b5476f731874048eea0cfddca6fe1a2f6d30c"
+      },
+      "statement": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    },
+    {
+      "company_id": "94000000-0000-4000-8000-000000000103",
+      "company_code": "PROV-094-03",
+      "license_assignment": {
+        "count": 3,
+        "sha256": "91837ea7d6c5f9e3c1c18b3827f77a17de8faef172f54069d70095173b1f9ada"
+      },
+      "statement": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    },
+    {
+      "company_id": "94000000-0000-4000-8000-000000000104",
+      "company_code": "PROV-094-04",
+      "license_assignment": {
+        "count": 4,
+        "sha256": "c16fd233e65748b26156d4644acdb2db6df49598c615235fac37cb459f3f6703"
+      },
+      "statement": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    },
+    {
+      "company_id": "94000000-0000-4000-8000-000000000105",
+      "company_code": "PROV-094-05",
+      "license_assignment": {
+        "count": 5,
+        "sha256": "cdc06cf3421be9ec37ec217c52618fa258cce7173f49b0ef9d2bb46fe40399d2"
+      },
+      "statement": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    }
+  ],
+  "migrations_verified": 69,
+  "application_tables_verified": 33,
+  "append_only_triggers_verified": 6,
+  "scheduler": {
+    "label": "com.smp.production-backup",
+    "local_time": "2026-11-02T02:00:06-05:00",
+    "runs_before": 3,
+    "runs_after": 4,
+    "last_exit_code": 0
+  },
+  "off_host_escrow_retrieval": "ac_unverifiable",
+  "it_director_recovery_journey": "ac_unverifiable",
+  "s4_production_exit": "pending human acceptance"
+}

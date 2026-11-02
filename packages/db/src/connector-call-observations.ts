@@ -1,5 +1,7 @@
 import pg from "pg";
 
+import { awaitPoolTermination } from "./pool.js";
+
 import {
   buildConnectorCallSummary,
   type ConnectorCallObservationAppender,
@@ -30,6 +32,7 @@ export function createConnectorCallObservationAppender(connectionString: string)
   close(): Promise<void>;
 }> {
   const pool = new pg.Pool({ connectionString });
+  const closePool = awaitPoolTermination(pool);
 
   const append: ConnectorCallObservationAppender = async (input) => {
     if (
@@ -61,6 +64,8 @@ export function createConnectorCallObservationAppender(connectionString: string)
 
   return Object.freeze({
     append,
-    close: pool.end.bind(pool),
+    async close(): Promise<void> {
+      await closePool();
+    },
   });
 }

@@ -3,6 +3,15 @@
 This US-002 procedure is deliberately fail-closed: a restore creates a new
 target database; it never cleans, overwrites, or attaches to an existing one.
 
+US-048 operations entry point: [operations.md](operations.md). The complete
+pre-go-live procedure and acceptance record are in [restore-drill.md](restore-drill.md).
+Backups now retain ACLs, including security-definer EXECUTE revocations and
+runtime grants. Earlier backups produced with `--no-acl` can restore data but
+fail exact authorization verification. Keep them isolated; do not expose a
+restored application until the release grant matrix is repaired and verified
+through a reviewed recovery procedure. Prefer a newly generated, verified
+backup. Provision all referenced roles on the isolated target before restore.
+
 ## Operating contract
 
 The base application stack intentionally has no `backup` service. Normal

@@ -143,6 +143,8 @@ export async function listAuthorizedAlertEvents(
   authorization: LedgerAuthorization,
   options: AlertReadOptions,
 ): Promise<AlertEventPage> {
+  // Period failures have no request/company target; the global rule still gates visibility.
+  const scheduledCloseFailureLinkClause = "WHEN rule.type::text = 'provisioning_failure' AND event.subject_ref ? 'period' THEN TRUE";
   const cursor = parseAlertCursor(options.cursor);
   const limit = Math.min(
     MAX_ALERT_LIMIT,
@@ -162,6 +164,7 @@ export async function listAuthorizedAlertEvents(
                 )::text AS company_id,
                 COALESCE(tenant.name, request_target.name) AS company_name,
                 CASE
+                  ${scheduledCloseFailureLinkClause}
                   WHEN rule.scope_kind::text = 'global'
                     AND rule.type::text IN (
                       'approval_aging',

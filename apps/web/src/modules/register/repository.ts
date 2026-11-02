@@ -1,3 +1,4 @@
+import { csvCell } from "@smp/domain/csv";
 import {
   and,
   asc,
@@ -132,12 +133,6 @@ function filterConditions(filters: RegisterFilters): SQL[] {
   return conditions;
 }
 
-function csvCell(value: string | number | null): string {
-  const raw = value === null ? "" : String(value);
-  const safe = /^[\s\0-\x1f]*[=+\-@]/u.test(raw) ? `'${raw}` : raw;
-  return /[",\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
-}
-
 function renderRegisterCsvRows(rows: readonly RegisterRow[]): string {
   // Stable, locale-neutral register_v1 contract: identifiers stay canonical
   // while user-managed display names remain the values captured in Ledger.
@@ -146,7 +141,7 @@ function renderRegisterCsvRows(rows: readonly RegisterRow[]): string {
     row.personName, row.companyCode, row.vendorAccountName, row.licenseTypeName,
     row.startedOn, row.endedOn, row.endReason,
     row.sourceKind, row.sourceRequestNo, row.note,
-  ].map(csvCell).join(",")).join("\r\n") + (rows.length ? "\r\n" : "");
+  ].map(value => csvCell(value)).join(",")).join("\r\n") + (rows.length ? "\r\n" : "");
 }
 
 function registerCsvHeader(): string {

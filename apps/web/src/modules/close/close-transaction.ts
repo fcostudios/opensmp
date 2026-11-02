@@ -1,14 +1,15 @@
+import { createLicenseCloseRepository } from "../../../../../packages/db/src/license-close";
 import { createHash } from "node:crypto";
-import { and, asc, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql, getTableColumns } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "@smp/db/schema";
 import { finalizeStatementSchema, finalizeStatementsSchema, runCloseSchema } from "@smp/contracts/close";
 import { computeLicenseClose, monthBounds } from "@smp/domain/close/license-close";
 import { assertFinalizationAccess, finalizeStatementStatus } from "@smp/domain/close/finalization";
 import type { LedgerAuthorization } from "../identity-access/authorization";
-import { withAudit } from "../audit/with-audit";
+import { withAudit, verifyRecordedAuditReceipt } from "../audit/with-audit";
 
-const { company, statement, statementLine, closeRun, licenseAssignment, rateCard, vendorAccount } = schema;
+const { company, statement, statementLine, closeRun, rateCard, vendorAccount } = schema;
 type Database = NodePgDatabase<typeof schema>;
 function access(auth: LedgerAuthorization | null): asserts auth is LedgerAuthorization {
   // @equivalent: any fallback for a missing global role remains outside this explicit allowlist.
@@ -92,61 +93,34 @@ export function createCloseService(database: Database, { now = () => new Date() 
       return withAudit(database, async tx => {
         access(authorization);
         const command = runCloseSchema.parse(input);
-        const month = monthBounds(command.period);
-        const startedAt = now();
-        const audit = (run: typeof closeRun.$inferSelect) => ({ actorUserId: authorization.userAccountId,
-          action: `close.${run.status}`, entityType: "CloseRun", entityId: run!.id,
-          companyId: null, note: run.note, before: null, after: run });
-        const [run] = await tx.insert(closeRun).values({ period: command.period, status: "running",
-          startedAt, createdAt: startedAt, triggeredBy: authorization.userAccountId, note: command.note }).returning();
-        await tx.insert(schema.auditLog).values({ ...audit(run!), action: "close.started", occurredAt: startedAt });
-        try {
-          return await tx.transaction(async tx => {
-            // Same-period reruns serialize before reading any draft or register input.
-            await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${'license-close:' + command.period}, 0))`);
-            const companies = await tx.select().from(company).where(and(inArray(company.id, [...authorization.companyIds]), eq(company.status, "active"))).orderBy(asc(company.id));
-            const ids = companies.map(c => c.id);
-            const existing = await tx.select().from(statement).where(and(inArray(statement.companyId, ids), eq(statement.period, command.period))).orderBy(asc(statement.id)).for("update");
-            const assignments = await tx.select().from(licenseAssignment).where(and(inArray(licenseAssignment.companyId, ids), lte(licenseAssignment.startedOn, month.to), or(isNull(licenseAssignment.endedOn), gte(licenseAssignment.endedOn, month.from))));
-            const accountIds = [...new Set(assignments.map(a => a.vendorAccountId))];
-            // Same lock order as US-032's rate edits and finalization triggers.
-            // @equivalent: the projection is unused; an empty projection locks the same rows in the same SQL order.
-            // @equivalent: the projection is unused; an empty projection locks the same account rows.
-    await tx.select({ id: vendorAccount.id }).from(vendorAccount).where(inArray(vendorAccount.id, accountIds)).orderBy(asc(vendorAccount.id)).for("no key update");
-            const rates = await tx.select().from(rateCard).where(and(inArray(rateCard.vendorAccountId, accountIds), lte(rateCard.effectiveFrom, month.to), or(isNull(rateCard.effectiveTo), gte(rateCard.effectiveTo, month.from))));
-            const lines = computeLicenseClose(command.period, assignments, rates);
-            for (const c of companies) {
-              const previous = existing.find(s => s.companyId === c.id);
-              if (previous && previous.status !== "draft") continue;
-              const openingSeats = assignments.filter(a => a.companyId === c.id && a.startedOn <= month.from).length;
-              const [target] = previous ? [previous] : await tx.insert(statement).values({ companyId: c.id, period: command.period, status: "draft", openingSeats: 0, totalUsd: "0.00", generatedAt: startedAt, createdAt: startedAt, closeRunId: run!.id }).returning();
-              // Parent row remains locked through replacement; every child mutation is company-scoped through that parent.
-              await tx.execute(sql`SELECT public.clear_draft_license_lines(${target!.id}::uuid, ${c.id}::uuid, ${authorization.userAccountId}::uuid)`);
-              const companyLines = lines.filter(l => l.companyId === c.id);
-              if (companyLines.length) await tx.insert(statementLine).values(companyLines.map(({ companyId: _companyId, ...line }) => ({ ...line,
-                id: lineId(`${target!.id}:${line.assignmentId}:${line.periodFrom}:${line.periodTo}`), statementId: target!.id, kind: "license" as const })));
-              const [total] = await tx.select({ amount: sql<string>`COALESCE(SUM(${statementLine.amountUsd}),0)::numeric(12,2)::text` }).from(statementLine)
-                .innerJoin(statement, eq(statementLine.statementId, statement.id)).where(and(eq(statement.id, target!.id), eq(statement.companyId, c.id)));
-              // SUM happens in Postgres numeric; no floating point crosses the money boundary.
-              const totalUsd = total!.amount;
-              await tx.update(statement).set({ openingSeats, totalUsd, generatedAt: startedAt, closeRunId: run!.id })
-                .where(and(eq(statement.id, target!.id), eq(statement.companyId, c.id), eq(statement.status, "draft")));
-            }
-            const [value] = await tx.update(closeRun).set({ status: "succeeded", finishedAt: now() }).where(eq(closeRun.id, run!.id)).returning();
-            return { value: { ...value!, durationMs: value!.finishedAt!.valueOf() - value!.startedAt.valueOf() }, audit: audit(value!) };
-          });
-        } catch (error) {
-          const reason = error instanceof Error && error.message === "CLOSE_RATE_COVERAGE" ? error.message : "CLOSE_FAILED";
-          const [value] = await tx.update(closeRun).set({ status: "failed", finishedAt: now(), note: [command.note, reason].filter(Boolean).join("\n") }).where(eq(closeRun.id, run!.id)).returning();
-          return { value: { ...value!, durationMs: value!.finishedAt!.valueOf() - value!.startedAt.valueOf() }, audit: audit(value!) };
-        }
-      }, { occurredAt: now() });
+        const run = await createLicenseCloseRepository(database, { monthBounds, computeLicenseClose }).runClose(authorization, command, now);
+        const { durationMs: _durationMs, ...after } = run;
+        const receipt = await verifyRecordedAuditReceipt(tx, {
+          action: `close.${run.status}`, entityType: "CloseRun", entityId: run.id,
+          companyId: null, actorUserId: authorization.userAccountId, after,
+        });
+        return { value: run, audit: receipt };
+      });
+    },
+    async summary(authorization: LedgerAuthorization | null, period: string) {
+      access(authorization);
+      runCloseSchema.parse({ period });
+      const [row] = await database.select({
+        generated: sql<number>`count(*)::int`,
+        drafts: sql<number>`count(*) FILTER (WHERE ${statement.status}='draft')::int`,
+        finals: sql<number>`count(*) FILTER (WHERE ${statement.status} IN ('final','reconciled'))::int`,
+        totalUsd: sql<string>`COALESCE(sum(${statement.totalUsd}),0)::numeric(12,2)::text`,
+      }).from(statement).where(and(inArray(statement.companyId,[...authorization.companyIds]),eq(statement.period,period)));
+      // Stryker disable next-line ObjectLiteral: @equivalent The projection is unused; only the number of authorized active company rows is consumed.
+      const companies=await database.select({id:company.id}).from(company).where(and(inArray(company.id,[...authorization.companyIds]),eq(company.status,"active")));
+      return {...row!,companies:companies.length};
     },
     async latestRun(authorization: LedgerAuthorization | null, period: string) {
       access(authorization);
       runCloseSchema.parse({ period });
-      const [run] = await database.select().from(closeRun).where(and(eq(closeRun.period, period), or(
+      const [run] = await database.select({ ...getTableColumns(closeRun), triggeredByName: schema.userAccount.email, scheduled: sql<boolean>`${closeRun.triggeredBy}='00000000-0000-0000-0000-000000000001'::uuid` }).from(closeRun).leftJoin(schema.userAccount, eq(schema.userAccount.id, closeRun.triggeredBy)).where(and(eq(closeRun.period, period), or(
         eq(closeRun.triggeredBy, authorization.userAccountId),
+        eq(closeRun.triggeredBy, "00000000-0000-0000-0000-000000000001"),
         sql`EXISTS (SELECT 1 FROM statement s WHERE s.close_run_id=${closeRun.id} AND ${inArray(sql`s.company_id`, [...authorization.companyIds])})`,
       ))).orderBy(desc(closeRun.startedAt), desc(closeRun.id)).limit(1);
       return run ?? null;

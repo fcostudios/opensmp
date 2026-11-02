@@ -136,6 +136,10 @@ test("production runClose verifies signed identity, revalidates and renders the 
   expect(response.work.pendingRevalidatedTags).toEqual([{tag:"_N_T_/cierre",profile:undefined},{tag:"_N_T_/estados-de-cuenta",profile:undefined}]);
   const html=renderToStaticMarkup(await page("close-finance"));
   expect(html).toContain("Close succeeded");expect(html).toContain("Production seam");expect(html).toContain("Duration");
+  expect(html).toContain("finance@rates.invalid");
+  expect(html).toContain('data-testid="close_tiles"');expect(html.match(/data-testid="tile_group_total"[\s\S]*?<\/div>/)?.[0]).toContain(">62.00</dd>");
+  expect(html).toContain("Runtime target met: under 5 minutes");
+  expect(html).not.toContain("Unknown actor");
   expect((await data.owner.query("SELECT total_usd,close_run_id FROM statement")).rows).toEqual([{total_usd:"62.00",close_run_id:"runId" in response.result?response.result.runId:"missing"}]);
 });
 test("invalid period defaults to the previous completed month and read failures reach the route boundary",async()=>{
@@ -163,7 +167,8 @@ test("US-096 production pages share stamped totals and enforce finance-grant rea
   const form=new FormData();form.set("period","2026-01");
   await withSession("close-finance",()=>runClose({status:"idle"},form));
   const closeHtml=renderToStaticMarkup(await page("close-finance"));
-  expect(closeHtml).toContain('data-testid="tile_group_total"');expect(closeHtml).toContain("62.00");
+  expect(closeHtml.match(/data-testid="tile_group_total"/g)).toHaveLength(1);expect(closeHtml).toContain("62.00");
+  expect(closeHtml).toContain('data-testid="statements_by_company"');expect(closeHtml).toContain('data-testid="latest_close_run"');
   const statements=async(subject:string|null,params:{period?:string;companyId?:string;status?:string}={period:"2026-01"})=>(await withSession(subject,()=>StatementsPage({searchParams:Promise.resolve(params)}))).result;
   for(const subject of [null,"close-viewer"])await expect(statements(subject)).rejects.toMatchObject({digest:expect.stringContaining(";/acceso-denegado;")});
   await data.owner.query(`INSERT INTO company_role_assignment(user_account_id,company_id,role,unique_grant,created_at,created_by) VALUES($1,$2,'finance','us096-finance-grant','2026-01-01',$1)`,["34100000-0000-4000-8000-000000000002","34100000-0000-4000-8000-000000000007"]);

@@ -70,7 +70,7 @@ describe("US-046 deferred job handlers", () => {
         jobId: "job-not-third-business-day",
         jobName: "closePrecheck",
       }),
-    ).resolves.toEqual({ processed: 0, status: "succeeded" });
+    ).resolves.toMatchObject({ reason: "dependency_not_delivered", status: "skipped", story: "US-034" });
     await expect(
       handlers.closePrecheck({
         at: new Date("2026-08-06T10:30:00.000Z"),

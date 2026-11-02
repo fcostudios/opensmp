@@ -52,7 +52,7 @@ export type AlertSubjectRef = z.infer<typeof alertSubjectRefSchema>;
 
 export const alertSubjectForTypeSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("approval_aging"), subject: requestSubjectSchema }),
-  z.object({ type: z.literal("provisioning_failure"), subject: requestSubjectSchema }),
+  z.object({ type: z.literal("provisioning_failure"), subject: z.union([requestSubjectSchema, periodSubjectSchema]) }),
   z.object({ type: z.literal("blocked_no_seat"), subject: requestSubjectSchema }),
   z.object({ type: z.literal("invite_unaccepted"), subject: requestSubjectSchema }),
   z.object({ type: z.literal("deprovision_overdue"), subject: requestSubjectSchema }),

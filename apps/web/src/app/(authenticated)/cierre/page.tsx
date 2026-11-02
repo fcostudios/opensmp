@@ -4,6 +4,7 @@ import { runCloseSchema } from "@smp/contracts/close";
 import { loadCurrentLedgerAuthorization } from "@/modules/identity-access/server-authorization";
 import { ROUTE_SCR_ACCESS_DENIED } from "@/lib/routes";
 import { finalizeStatement, finalizeStatements, runClose } from "@/modules/close/server-actions";
+import { loadLatestCloseRun } from "@/modules/close/production";
 import { FinalizationPanel } from "@/modules/close/finalization-panel";
 import { CloseView } from "@/modules/close/close-view";
 import { loadStatementRegister } from "@/modules/statements/production";
@@ -22,10 +23,9 @@ export default async function ClosePage({ searchParams }: { searchParams: Promis
   const previousMonth = new Date(Date.UTC(year, month - 2, 1));
   const parsed = runCloseSchema.safeParse({ period: params.period });
   const period = parsed.success ? parsed.data.period : previousMonth.toISOString().slice(0, 7);
-  const statements = await loadStatementRegister(authorization, { period });
+  const [statements, latest] = await Promise.all([loadStatementRegister(authorization, { period }), loadLatestCloseRun(authorization, period)]);
   const messages = await loadAppMessages(await getLocale());
-  return <Fragment key={period}><CloseView period={period} latest={statements.latest} action={runClose}/><section className="space-y-6 p-6">
-    <StatementSummary data={statements} t={messages.statements}/>
+  return <Fragment key={period}><CloseView period={period} latest={latest} action={runClose} tiles={<StatementSummary data={statements} t={messages.statements}/>}/><section className="space-y-6 p-6">
     <div data-testid="statements_by_company"><StatementTable data={statements} t={messages.statements}/></div>
   </section><FinalizationPanel period={period} statements={statements.rows.map(({id,companyName,status})=>({id,companyName,status}))} singleAction={finalizeStatement} periodAction={finalizeStatements}/></Fragment>;
 }

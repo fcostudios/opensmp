@@ -10,6 +10,7 @@ import {
   readKekFile,
 } from "@smp/db/credential-crypto";
 import { createConnectorCallObservationAppender } from "@smp/db/connector-call-observations";
+import { awaitPoolTermination } from "@smp/db/pool";
 import { applyRequestTransitionInTransaction } from "@smp/db/request-transition";
 import * as schema from "@smp/db/schema";
 import { parseCredentialEnvelope } from "@smp/domain";
@@ -66,6 +67,7 @@ function provisionInstruction(candidate: Candidate): ProvisionInstruction {
 export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliveryJobOptions) {
   const PROVIDER_INVITATION_FAILURE = "provider_invitation_failed";
   const pool = new pg.Pool({ connectionString: options.connectionString });
+  const closePool = awaitPoolTermination(pool);
   const observations = createConnectorCallObservationAppender(options.connectionString);
   const now = options.now ?? (() => new Date());
   const clock = { now: () => now().getTime() };
@@ -498,7 +500,7 @@ export function createAutomatedInviteDeliveryJob(options: AutomatedInviteDeliver
 
   return Object.freeze({
     async close(): Promise<void> {
-      await Promise.all([pool.end(), observations.close()]);
+      await Promise.all([closePool(), observations.close()]);
     },
     async drain(input: Readonly<{ at: Date; vendorAccountId?: string }>): Promise<{ processed: number }> {
       if (!(input.at instanceof Date) || !Number.isFinite(input.at.getTime())) {

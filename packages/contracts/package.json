@@ -15,6 +15,7 @@
     "./vendor-catalog": "./src/vendor-catalog.ts",
     "./rates": "./src/rates.ts",
     "./close": "./src/close.ts",
+    "./reconciliation": "./src/reconciliation.ts",
     "./statements": "./src/statements.ts"
   },
   "scripts": {
