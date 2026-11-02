@@ -19,7 +19,14 @@ this page.
 **For practice or a walkthrough on fictitious data, run `pnpm demo:up`** (option
 B, below). One command builds a disposable stack beside production, seeds it,
 runs the S0/S1 journey so provisional data exists, and leaves you credentials
-you can sign in with, including each admin's TOTP secret.
+you can sign in with. By default the demo stack has **no 2FA (demo only)**:
+everyone, admins included, signs in with username and password. Add
+`--with-2fa` to rehearse the admin TOTP as well.
+
+> **Production keeps mandatory admin 2FA.** Only `pnpm demo:up` switches it
+> off, and only in the demo stack's running Keycloak (CHG-124). The realm file
+> `infra/keycloak/realm-corporativo.json`, the `ledger-production` stack and
+> option A below are unchanged: every platform admin there must use TOTP.
 
 | Option | When | URL | Data |
 |---|---|---|---|
@@ -31,9 +38,21 @@ you can sign in with, including each admin's TOTP secret.
 From an SMP checkout with Docker running:
 
 ```bash
-pnpm demo:up            # stack + 5 PROVISIONAL companies + 3 users + the S0/S1 journey
-pnpm demo:up --empty    # stack + companies + users only (no assignments, rate or close)
+pnpm demo:up                       # stack + 5 PROVISIONAL companies + 3 users + the S0/S1 journey
+pnpm demo:up --empty               # stack + companies + users only (no assignments, rate or close)
+pnpm demo:up --with-2fa            # as the first, but admins keep TOTP (as in production)
+pnpm demo:up --empty --with-2fa    # as the second, with admin TOTP
 ```
+
+**Admin 2FA in the demo (CHG-124).** In production the realm's browser flow asks
+members of the `platform-admin` role for TOTP through the conditional sub-flow
+`ledger-platform-admin-otp`. Without `--with-2fa`, `demo:up` sets that sub-flow
+to `DISABLED` in the demo stack's Keycloak through its admin API while seeding,
+and checks that it took effect. The admins stay in `platform-admin` and the app
+authorizes them exactly as before; only the second factor is gone. The choice
+is recorded in `state.env` (`DEMO_ADMIN_OTP`) and in `credentials.json`
+(`"twoFactor": "off"` or `"on"`), and a reused stack reports it. To switch,
+run `pnpm demo:down` first.
 
 It runs `infra/production/rehearse.sh` as Compose project **`ledger-demo`** with
 images `ledger-*:demo-up`, the 28080/28443 override and no backup leg (that leg
@@ -47,15 +66,17 @@ repository, `${XDG_STATE_HOME:-~/.local/state}/smp-demo/ledger-demo/` (mode
 
 | File | What |
 |---|---|
-| `credentials.json` (0600) | Username and password per role. For the two admins also `totpSecret` and `otpauthUri`. |
+| `credentials.json` (0600) | `twoFactor` (`off` or `on`) and the username and password per role. With `--with-2fa`, the two admins also have `totpSecret` and `otpauthUri`; without it there are no TOTP fields. |
 | `root.crt` | The demo stack's Caddy root CA (new on every `demo:up`) |
 | `runtime.env` (0600) | The stack's random runtime secrets (for `docker compose` inspection) |
-| `state.env` | Project, image tag, temp stack directory, mode, status |
+| `state.env` | Project, image tag, temp stack directory, mode, admin 2FA (`DEMO_ADMIN_OTP`), status |
 
 Before it prints the summary, `demo:up` proves the file is enough: Playwright
-signs in as each of the three users using only `credentials.json`. It computes
-the admins' codes from the stored secrets and checks the landing page:
-`/panel`, `/cierre` and `/estados-de-cuenta`.
+signs in as each of the three users using only `credentials.json` and checks
+that the landing page renders: `/panel`, `/cierre` and `/estados-de-cuenta`.
+Without `--with-2fa` it also asserts that nobody, admins included, is shown an
+OTP or TOTP setup page. With `--with-2fa` it computes the admins' codes from the
+stored secrets.
 
 **Then, to sign in yourself:**
 
@@ -71,15 +92,18 @@ the admins' codes from the stored secrets and checks the landing page:
    summary (and `demo:down`) prints: `security delete-certificate -Z <sha1>
    ~/Library/Keychains/login.keychain-db`. Never delete by name, because the
    production CA has the same Caddy name.
-2. Add the admins' TOTP to an authenticator app. Either render `otpauthUri` as a
-   QR code (for example `qrencode -t ansiutf8 '<otpauthUri>'`), or choose "enter a
-   setup key" and paste `totpSecret` (time-based, SHA-1, 6 digits, 30 s). Both
-   modes enroll the admins' TOTP during the run: the journey enrolls it, and
-   `--empty` signs each user in once to do so. So Keycloak will not show a QR
-   code on your first sign-in. It asks for the 6-digit code.
+2. **Only with `--with-2fa`:** add the admins' TOTP to an authenticator app.
+   Either render `otpauthUri` as a QR code (for example
+   `qrencode -t ansiutf8 '<otpauthUri>'`), or choose "enter a setup key" and
+   paste `totpSecret` (time-based, SHA-1, 6 digits, 30 s). The run enrolls the
+   admins' TOTP: the journey enrolls it, and `--empty` signs each user in once
+   to do so. So Keycloak will not show a QR code on your first sign-in. It asks
+   for the 6-digit code. Without `--with-2fa`, skip this step: there is no 2FA
+   (demo only).
 3. Open `https://ledger.localhost:28443`, choose **Continue with Corporativo**,
-   and sign in with a username and password from `credentials.json`. Admins then
-   enter the current code.
+   and sign in with a username and password from `credentials.json`. With
+   `--with-2fa`, admins then enter the current code; otherwise everyone lands
+   straight on their page.
 
    The Group Admin lands on `/panel`. (Before CHG-122 that page failed on
    production-shaped stacks because the Compose file set no `DATABASE_URL`;
@@ -117,8 +141,9 @@ cd apps/web && DEMO_REHEARSAL_ENV_FILE=<dir>/runtime.env \
 
 The spec refuses the `ledger-production` project and port 18443. It also refuses
 a database that already holds assignments, statements or rates, so start from a
-fresh stack. The per-run role passwords, and since CHG-121 the admins' enrolled
-TOTP secrets, are written to
+fresh stack. This path leaves the realm's admin 2FA on (as imported) unless you
+also set `DEMO_ADMIN_OTP=off`. The per-run role passwords, and since CHG-121 the
+admins' enrolled TOTP secrets, are written to
 `apps/web/test-results/demo-s0-s1/rehearsal-users.json` (git-ignored, mode
 0600). Screenshots, the register CSV and the statement CSV land in the same
 folder.

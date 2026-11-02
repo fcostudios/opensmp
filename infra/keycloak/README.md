@@ -51,6 +51,13 @@ test passwords. They must never be mounted in a production Compose invocation.
 The companion `seedAuthUsers` helper seeds only Ledger roles and grants into a
 disposable test database.
 
+`testing/demo-admin-otp.mjs` (CHG-124) is run only by the `pnpm demo:up`
+seeding, against the disposable demo stack's Keycloak on its private network.
+With `DEMO_ADMIN_OTP=off` it sets the `ledger-platform-admin-otp` sub-flow of the
+running realm's browser flow to `DISABLED` through the admin API, so demo admins
+sign in without TOTP. It never edits `realm-corporativo.json`: every import,
+production included, keeps the conditional admin OTP.
+
 Validate the import and the admin-service boundary with:
 
 ```bash

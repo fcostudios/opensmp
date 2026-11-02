@@ -4,23 +4,28 @@
 #   pnpm demo:up            fresh stack + 5 PROVISIONAL companies + 3 users
 #                           + the CHG-118 S0/S1 journey (provisional data exists)
 #   pnpm demo:up --empty    fresh stack + companies + users only
+#   ... --with-2fa          keep the platform admins' TOTP (CHG-124; default:
+#                           admins sign in without 2FA — demo stack only)
 #
 # Builds a disposable production-shaped stack with infra/production/rehearse.sh
 # under its own Compose project (default ledger-demo), image tag and the
 # rehearsal-ports override (https://ledger.localhost:28443). Never touches the
 # operator's ledger-production project, its ports, keys or ledger-backup:local.
-# Credentials (passwords + admin TOTP secrets) and the stack's CA land in a
-# per-user state dir outside the repository. Stop with `pnpm demo:down`.
+# Credentials (passwords, plus admin TOTP secrets with --with-2fa) and the
+# stack's CA land in a per-user state dir outside the repository. Stop with
+# `pnpm demo:down`. Production always keeps mandatory admin 2FA.
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/demo-common.sh"
 cd "$demo_repo"
 
 mode=journey
+admin_otp=off
 for arg in "$@"; do
   case "$arg" in
     --empty) mode=empty ;;
-    -h|--help) sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *) demo_die "unknown argument '$arg' (use --empty)" ;;
+    --with-2fa) admin_otp=on ;;
+    -h|--help) sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) demo_die "unknown argument '$arg' (use --empty, --with-2fa)" ;;
   esac
 done
 demo_guard_target
@@ -28,9 +33,17 @@ demo_guard_target
 credentials="$demo_state_dir/credentials.json"
 ca_file="$demo_state_dir/root.crt"
 
+# Admin 2FA of the recorded stack; stacks from before CHG-124 always had it.
+recorded_otp() {
+  local value
+  value="$(demo_state_value DEMO_ADMIN_OTP)"
+  printf '%s' "${value:-on}"
+}
+
 summary() {
-  local sha1
+  local sha1 otp
   sha1="$(openssl x509 -in "$ca_file" -noout -fingerprint -sha1 | sed 's/^.*=//; s/://g')"
+  otp="$(recorded_otp)"
   cat <<EOF
 
 SMP demo stack is up — project $demo_project, $(demo_state_value DEMO_MODE) mode (PROVISIONAL, fictitious data).
@@ -42,10 +55,23 @@ SMP demo stack is up — project $demo_project, $(demo_state_value DEMO_MODE) mo
                 production CA has the same name):
                 security delete-certificate -Z $sha1 ~/Library/Keychains/login.keychain-db
   Credentials   $credentials (mode 0600)
+EOF
+  if [[ "$otp" == off ]]; then
+    cat <<EOF
+                demo-group-admin, demo-central-finance, demo-company-finance-01
+  2FA           off: no 2FA (demo only). Every user signs in with username and
+                password. Production keeps mandatory admin 2FA; to rehearse it
+                here: pnpm demo:down, then pnpm demo:up --with-2fa.
+EOF
+  else
+    cat <<EOF
                 demo-group-admin and demo-central-finance (TOTP), demo-company-finance-01
   TOTP          For each admin, add "otpauthUri" to an authenticator app (render it
                 as a QR code, e.g. qrencode -t ansiutf8 '<otpauthUri>'), or enter
                 "totpSecret" as a setup key: time-based, SHA-1, 6 digits, 30 s.
+EOF
+  fi
+  cat <<EOF
   Stop          pnpm demo:down            (keeps $demo_state_dir)
                 pnpm demo:down --purge    (also deletes it)
 EOF
@@ -56,8 +82,12 @@ if demo_stack_exists; then
   if [[ "$(demo_state_value DEMO_STATUS)" == ready && -f "$credentials" && -f "$ca_file" ]] \
     && curl --silent --fail --max-time 10 --cacert "$ca_file" \
       --resolve "ledger.localhost:$demo_https_port:127.0.0.1" "$demo_base_url/api/health" >/dev/null; then
-    printf 'demo: %s is already up and healthy; reusing it (mode %s). Run pnpm demo:down first for a fresh one.\n' \
-      "$demo_project" "$(demo_state_value DEMO_MODE)"
+    printf 'demo: %s is already up and healthy; reusing it (mode %s, admin 2FA %s). Run pnpm demo:down first for a fresh one.\n' \
+      "$demo_project" "$(demo_state_value DEMO_MODE)" "$(recorded_otp)"
+    if [[ "$(recorded_otp)" != "$admin_otp" ]]; then
+      printf 'demo: note: you asked for admin 2FA %s, but this stack has it %s; run pnpm demo:down, then pnpm demo:up again.\n' \
+        "$admin_otp" "$(recorded_otp)" >&2
+    fi
     summary
     exit 0
   fi
@@ -85,6 +115,7 @@ DEMO_PROJECT=$demo_project
 DEMO_IMAGE_TAG=$demo_image_tag
 DEMO_STACK_DIR=$stack_dir
 DEMO_MODE=$mode
+DEMO_ADMIN_OTP=$admin_otp
 DEMO_STATUS=starting
 EOF
 chmod 0600 "$demo_state_dir/state.env"
@@ -111,14 +142,16 @@ pnpm --dir apps/web exec playwright install chromium || failed "playwright insta
 export DEMO_REHEARSAL_ENV_FILE="$stack_dir/runtime.env"
 export DEMO_REHEARSAL_PROJECT="$demo_project"
 export DEMO_BASE_URL="$demo_base_url"
+# CHG-124: seeding sets the stack's admin OTP to this; the login proof checks it.
+export DEMO_ADMIN_OTP="$admin_otp"
 evidence_credentials="$demo_repo/apps/web/test-results/demo-s0-s1/rehearsal-users.json"
 rm -f "$evidence_credentials"
 suite=journey
 [[ "$mode" == empty ]] && suite=accounts
 seeded=0
 DEMO_SUITE="$suite" pnpm --dir apps/web exec playwright test -c playwright.demo.config.ts || seeded=$?
-# Whatever happened, keep what was enrolled: the passwords and TOTP secrets
-# are the only way back into this stack.
+# Whatever happened, keep what was enrolled: the passwords (and, with
+# --with-2fa, the TOTP secrets) are the only way back into this stack.
 [[ -f "$evidence_credentials" ]] && install -m 0600 "$evidence_credentials" "$credentials"
 [[ "$seeded" == 0 ]] || failed "seeding / $suite run (credentials so far: $credentials)"
 

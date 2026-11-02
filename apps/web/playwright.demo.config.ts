@@ -14,6 +14,8 @@ import { defineConfig } from "@playwright/test";
  *   journey  (default) seed + the S0/S1 journey, persisting admin TOTP secrets
  *   accounts seed + one sign-in per user (TOTP enrollment only; `--empty`)
  *   login    no seeding; sign in from DEMO_CREDENTIALS_FILE only (the proof)
+ * CHG-124: DEMO_ADMIN_OTP=off|on (unset = on) is the admin 2FA seeding applies
+ * to the stack's realm; `pnpm demo:up` passes off unless --with-2fa.
  */
 const suites = {
   journey: "demo-s0-s1.spec.ts",

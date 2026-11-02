@@ -233,9 +233,37 @@ export interface StoredCredential {
   readonly otpauthUri?: string;
 }
 
-export function readCredentials(file = credentialsFile): Record<DemoUser["key"], StoredCredential> {
-  return JSON.parse(readFileSync(file, "utf8")) as Record<DemoUser["key"], StoredCredential>;
+/** CHG-124 — whether the demo realm asks platform admins for a second factor. */
+export type TwoFactorMode = "on" | "off";
+
+/**
+ * The credentials file: one entry per role plus `twoFactor`, the admin OTP mode
+ * the seeding verified in the stack's realm. A file without it predates CHG-124,
+ * when the demo always enforced admin TOTP.
+ */
+export type CredentialsFile = Record<DemoUser["key"], StoredCredential> & { twoFactor?: TwoFactorMode };
+
+export function readCredentials(file = credentialsFile): CredentialsFile {
+  return JSON.parse(readFileSync(file, "utf8")) as CredentialsFile;
 }
+
+export function twoFactorOf(credentials: CredentialsFile): TwoFactorMode {
+  return credentials.twoFactor ?? "on";
+}
+
+/**
+ * CHG-124 — the admin OTP mode seeding applies (DEMO_ADMIN_OTP). Unset means
+ * "on": the CHG-118 rehearsal run by hand keeps the realm's 2FA unchanged; only
+ * `pnpm demo:up` passes "off" (its default).
+ */
+export function requestedTwoFactor(value = process.env.DEMO_ADMIN_OTP): TwoFactorMode {
+  if (value === undefined || value === "") return "on";
+  if (value !== "on" && value !== "off") throw new Error(`DEMO_ADMIN_OTP must be "on" or "off", got ${JSON.stringify(value)}`);
+  return value;
+}
+
+/** What signIn() met between the password form and the app. */
+export type SignInSecondFactor = "none" | "code" | "enrolled";
 
 /** Keycloak's default OTP policy (the realm sets none): TOTP, HmacSHA1, 6 digits, 30 s. */
 export function otpauthUri(username: string, secret: string, project = demoProject): string {
@@ -280,14 +308,19 @@ export const currentTotpStep = () => totpStep();
  * admin to configure TOTP, enrolls it and persists the secret (CHG-121) — unless
  * `allowEnrollment` is false, which the persisted-credentials login proof uses
  * so that an un-enrolled admin fails instead of being silently enrolled.
+ *
+ * CHG-124: when the credentials file says `twoFactor: "off"`, any OTP or TOTP
+ * setup page is an error — the user must land on the app straight after the
+ * password, and no TOTP secret is needed or recorded. Returns what it met.
  */
 export async function signIn(page: Page, key: DemoUser["key"], options: {
   readonly allowEnrollment: boolean;
   readonly file?: string;
   readonly totpNotBefore?: number;
-}): Promise<void> {
+}): Promise<SignInSecondFactor> {
   const file = options.file ?? credentialsFile;
-  const credentials = readCredentials(file)[key];
+  const all = readCredentials(file);
+  const credentials = all[key];
   const appHost = new URL(demoBaseUrl).hostname;
   await page.goto("/login");
   await page.getByTestId("btn_continue_corporativo").click();
@@ -299,7 +332,11 @@ export async function signIn(page: Page, key: DemoUser["key"], options: {
     page.waitForURL((url) => url.hostname === appHost),
     page.locator("#kc-totp-secret-key, #otp, a:has-text('Unable to scan?')").first().waitFor(),
   ]);
-  if (new URL(page.url()).hostname === appHost) return;
+  if (new URL(page.url()).hostname === appHost) return "none";
+  if (twoFactorOf(all) === "off") {
+    throw new Error(`${credentials.username}: Keycloak showed an OTP page (${page.url()}) although the demo's admin 2FA is off`);
+  }
+  let met: SignInSecondFactor;
   if (page.url().includes("CONFIGURE_TOTP") || await page.locator("#totp").count()) {
     if (!options.allowEnrollment) {
       throw new Error(`${credentials.username} has no enrolled TOTP; Keycloak asked to configure one`);
@@ -313,13 +350,16 @@ export async function signIn(page: Page, key: DemoUser["key"], options: {
     if (await label.isVisible()) await label.fill("chg118-demo");
     await page.locator("#saveTOTPBtn").click();
     recordTotpSecret(key, value, file);
+    met = "enrolled";
   } else {
     const secret = credentials.totpSecret;
     if (!secret) throw new Error(`${credentials.username} needs a TOTP code but the credentials file has no secret`);
     await page.locator("#otp").fill(await freshTotp(secret, options.totpNotBefore));
     await page.locator("#kc-login").click();
+    met = "code";
   }
   await page.waitForURL((url) => url.hostname === appHost);
+  return met;
 }
 
 export function composeArgs(): string[] {

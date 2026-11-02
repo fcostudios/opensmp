@@ -46,7 +46,8 @@ async function session(browser: Browser, key: DemoUser["key"]): Promise<Page> {
   if (existing) return existing.page;
   const context = await browser.newContext();
   const page = await context.newPage();
-  // CHG-121: enrollment writes each admin's TOTP secret next to its password.
+  // CHG-121: enrollment writes each admin's TOTP secret next to its password;
+  // CHG-124: with admin 2FA off nobody is asked and an OTP page fails the sign-in.
   await signIn(page, key, { allowEnrollment: true });
   sessions.set(key, { context, page });
   return page;
