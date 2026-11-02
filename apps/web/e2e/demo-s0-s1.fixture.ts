@@ -11,8 +11,9 @@
  */
 import { createHmac, randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import type { Page } from "@playwright/test";
 
 export const repositoryRoot = resolve(__dirname, "../../..");
 export const demoProject = process.env.DEMO_REHEARSAL_PROJECT ?? "ledger-demo-rehearsal";
@@ -116,6 +117,13 @@ export const USERS: readonly DemoUser[] = [
     firstName: "Demo", lastName: "Company Finance 01", globalRole: null, platformAdmin: false, financeCompanyId: COMPANIES[0]!.id },
 ];
 
+/** roleLanding(): group_admin → panel, central_finance → close, finance grant → statements. */
+export const ROLE_LANDING: Readonly<Record<DemoUser["key"], string>> = {
+  groupAdmin: "/panel",
+  centralFinance: "/cierre",
+  companyFinance: "/estados-de-cuenta",
+};
+
 /** Most recently completed calendar month in America/Guayaquil (M-1). */
 export function previousMonth(now = new Date()): { period: string; from: string; to: string; days: number } {
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en", { timeZone: "America/Guayaquil", year: "numeric", month: "numeric" })
@@ -211,6 +219,107 @@ export function totp(secret: string, at = Date.now()): string {
   const binary = ((digest[offset]! & 0x7f) << 24) | ((digest[offset + 1]! & 0xff) << 16)
     | ((digest[offset + 2]! & 0xff) << 8) | (digest[offset + 3]! & 0xff);
   return String(binary % 1_000_000).padStart(6, "0");
+}
+
+/**
+ * CHG-121 — one entry of the per-run credentials file. Admins also carry the
+ * TOTP secret enrolled during the run (and an otpauth:// URI for an
+ * authenticator app) so the operator can sign in after the automation.
+ */
+export interface StoredCredential {
+  readonly username: string;
+  readonly password: string;
+  readonly totpSecret?: string;
+  readonly otpauthUri?: string;
+}
+
+export function readCredentials(file = credentialsFile): Record<DemoUser["key"], StoredCredential> {
+  return JSON.parse(readFileSync(file, "utf8")) as Record<DemoUser["key"], StoredCredential>;
+}
+
+/** Keycloak's default OTP policy (the realm sets none): TOTP, HmacSHA1, 6 digits, 30 s. */
+export function otpauthUri(username: string, secret: string, project = demoProject): string {
+  const issuer = `SMP demo (${project})`;
+  // Key URI format: percent-encoding (%20), not form encoding (+), for authenticator apps.
+  const query = Object.entries({ secret, issuer, algorithm: "SHA1", digits: "6", period: "30" })
+    .map(([name, value]) => `${name}=${encodeURIComponent(value)}`).join("&");
+  return `otpauth://totp/${encodeURIComponent(`${issuer}:${username}`)}?${query}`;
+}
+
+/** Merges an enrolled secret into the credentials file, keeping it mode 0600. */
+export function recordTotpSecret(key: DemoUser["key"], secret: string, file = credentialsFile): void {
+  const all = readCredentials(file);
+  all[key] = { ...all[key], totpSecret: secret, otpauthUri: otpauthUri(all[key].username, secret) };
+  writeFileSync(file, `${JSON.stringify(all, null, 2)}\n`, { mode: 0o600 });
+  chmodSync(file, 0o600);
+}
+
+const TOTP_STEP_MS = 30_000;
+const totpStep = (at = Date.now()) => Math.floor(at / TOTP_STEP_MS);
+const lastTotpStep = new Map<string, number>();
+
+/**
+ * Keycloak refuses a code that was already used (codeReusable=false by
+ * default). Wait until a step after `notBefore` (and after this process's last
+ * use of the secret) before computing the code.
+ */
+export async function freshTotp(secret: string, notBefore = -1): Promise<string> {
+  const after = Math.max(notBefore, lastTotpStep.get(secret) ?? -1);
+  while (totpStep() <= after) {
+    await new Promise((done) => setTimeout(done, (after + 1) * TOTP_STEP_MS - Date.now() + 250));
+  }
+  lastTotpStep.set(secret, totpStep());
+  return totp(secret);
+}
+
+/** Start of the current TOTP step: a later sign-in never reuses a code issued before it. */
+export const currentTotpStep = () => totpStep();
+
+/**
+ * Signs in through Keycloak with the stored credentials. When Keycloak asks an
+ * admin to configure TOTP, enrolls it and persists the secret (CHG-121) — unless
+ * `allowEnrollment` is false, which the persisted-credentials login proof uses
+ * so that an un-enrolled admin fails instead of being silently enrolled.
+ */
+export async function signIn(page: Page, key: DemoUser["key"], options: {
+  readonly allowEnrollment: boolean;
+  readonly file?: string;
+  readonly totpNotBefore?: number;
+}): Promise<void> {
+  const file = options.file ?? credentialsFile;
+  const credentials = readCredentials(file)[key];
+  const appHost = new URL(demoBaseUrl).hostname;
+  await page.goto("/login");
+  await page.getByTestId("btn_continue_corporativo").click();
+  await page.waitForURL((url) => url.hostname.startsWith("auth."));
+  await page.locator("#username").fill(credentials.username);
+  await page.locator("#password").fill(credentials.password);
+  await page.locator("#kc-login").click();
+  await Promise.race([
+    page.waitForURL((url) => url.hostname === appHost),
+    page.locator("#kc-totp-secret-key, #otp, a:has-text('Unable to scan?')").first().waitFor(),
+  ]);
+  if (new URL(page.url()).hostname === appHost) return;
+  if (page.url().includes("CONFIGURE_TOTP") || await page.locator("#totp").count()) {
+    if (!options.allowEnrollment) {
+      throw new Error(`${credentials.username} has no enrolled TOTP; Keycloak asked to configure one`);
+    }
+    const secret = page.locator("#kc-totp-secret-key");
+    if (!(await secret.isVisible())) await page.getByRole("link", { name: "Unable to scan?" }).click();
+    const value = (await secret.textContent())?.replaceAll(" ", "") ?? "";
+    if (value === "") throw new Error("Keycloak showed no TOTP secret");
+    await page.locator("#totp").fill(await freshTotp(value, options.totpNotBefore));
+    const label = page.locator("#userLabel");
+    if (await label.isVisible()) await label.fill("chg118-demo");
+    await page.locator("#saveTOTPBtn").click();
+    recordTotpSecret(key, value, file);
+  } else {
+    const secret = credentials.totpSecret;
+    if (!secret) throw new Error(`${credentials.username} needs a TOTP code but the credentials file has no secret`);
+    await page.locator("#otp").fill(await freshTotp(secret, options.totpNotBefore));
+    await page.locator("#kc-login").click();
+  }
+  await page.waitForURL((url) => url.hostname === appHost);
 }
 
 export function composeArgs(): string[] {

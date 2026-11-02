@@ -14,15 +14,13 @@ import {
   LICENSE,
   PROVISIONAL_RATE_USD,
   cents,
-  credentialsFile,
   day,
-  demoBaseUrl,
   demoConfigured,
   evidenceDir,
   expectedStatements,
   parseCsv,
   previousMonth,
-  totp,
+  signIn,
   type DemoUser,
 } from "./demo-s0-s1.fixture";
 
@@ -31,10 +29,8 @@ test.describe.configure({ mode: "serial" });
 
 const month = previousMonth();
 const expected = expectedStatements(month);
-const appHost = new URL(demoBaseUrl).hostname;
 const NOTE = "PROVISIONAL CHG-118 demo — fictitious M-1 assignment, not real pilot data";
 const sessions = new Map<DemoUser["key"], { context: BrowserContext; page: Page }>();
-const totpSecrets = new Map<string, string>();
 const statementIds = new Map<string, string>();
 let groupTotalFromClose = "";
 
@@ -48,36 +44,10 @@ const readDownload = async (download: Download) => readFileSync((await download.
 async function session(browser: Browser, key: DemoUser["key"]): Promise<Page> {
   const existing = sessions.get(key);
   if (existing) return existing.page;
-  const credentials = JSON.parse(readFileSync(credentialsFile, "utf8"))[key] as { username: string; password: string };
   const context = await browser.newContext();
   const page = await context.newPage();
-  await page.goto("/login");
-  await page.getByTestId("btn_continue_corporativo").click();
-  await page.waitForURL((url) => url.hostname.startsWith("auth."));
-  await page.locator("#username").fill(credentials.username);
-  await page.locator("#password").fill(credentials.password);
-  await page.locator("#kc-login").click();
-  await Promise.race([
-    page.waitForURL((url) => url.hostname === appHost),
-    page.locator("#kc-totp-secret-key, #otp, a:has-text('Unable to scan?')").first().waitFor(),
-  ]);
-  if (new URL(page.url()).hostname !== appHost) {
-    if (page.url().includes("CONFIGURE_TOTP") || await page.locator("#totp").count()) {
-      const secret = page.locator("#kc-totp-secret-key");
-      if (!(await secret.isVisible())) await page.getByRole("link", { name: "Unable to scan?" }).click();
-      const value = (await secret.textContent())?.replaceAll(" ", "") ?? "";
-      expect(value).not.toBe("");
-      totpSecrets.set(credentials.username, value);
-      await page.locator("#totp").fill(totp(value));
-      const label = page.locator("#userLabel");
-      if (await label.isVisible()) await label.fill("chg118-demo");
-      await page.locator("#saveTOTPBtn").click();
-    } else {
-      await page.locator("#otp").fill(totp(totpSecrets.get(credentials.username)!));
-      await page.locator("#kc-login").click();
-    }
-    await page.waitForURL((url) => url.hostname === appHost);
-  }
+  // CHG-121: enrollment writes each admin's TOTP secret next to its password.
+  await signIn(page, key, { allowEnrollment: true });
   sessions.set(key, { context, page });
   return page;
 }

@@ -44,6 +44,8 @@
     "test:mutation:us042-surfaces": "pnpm --filter smp-web exec tsx scripts/run-us042-surfaces-mutation.ts",
     "test:mutation:probe": "pnpm --dir scripts/probes/anthropic run test:mutation",
     "check": "pnpm check:stale-containers && pnpm mutation:preflight && pnpm type-check && pnpm lint && pnpm test && pnpm build",
+    "demo:up": "bash infra/production/demo-up.sh",
+    "demo:down": "bash infra/production/demo-down.sh",
     "validate:routes": "./infra/scripts/validate-routes.sh",
     "validate:sidebar": "./infra/scripts/regenerate-sidebar.py --check",
     "check:generated-guidance": "python3 infra/scripts/reconcile-sprint1-docs.py . --check",
