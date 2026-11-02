@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import React from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import messages from "@/lib/i18n/en-US.json";
 import { CloseView } from "./close-view";
 import Loading from "@/app/(authenticated)/cierre/loading";
 import ErrorState from "@/app/(authenticated)/cierre/error";
-afterEach(cleanup);
+beforeEach(()=>vi.stubEnv("TZ","UTC"));
+afterEach(()=>{cleanup();vi.unstubAllEnvs();});
 const t=messages.close;
 
 test("renders license-only explanation, empty run state and submits period and note with pending state",async()=>{
@@ -46,6 +47,7 @@ test("latest run binds actor, tiles and strict five-minute NFR without claiming 
   const latest={id:"newest",period:"2026-10",status:"succeeded" as const,note:null,triggeredByName:"finance@test.invalid",startedAt:new Date("2026-11-06T10:30:00Z"),finishedAt:new Date("2026-11-06T10:34:59Z")};
   const view=render(<CloseView period="2026-10" latest={latest} summary={{generated:2,companies:3,drafts:1,finals:1,totalUsd:"42.18"}} action={async()=>({status:"error"})}/>);
   expect(screen.getByTestId("latest_close_run").textContent).toContain("finance@test.invalid");
+  expect(screen.getByTestId("latest_close_run").querySelector("time")?.textContent).toBe("11/6/2026, 5:30:00 AM");
   expect(screen.getByTestId("tile_current_period").textContent).toContain("2026-10");
   expect(screen.getByTestId("tile_statements_generated").textContent).toContain("2/3");
   expect(screen.getByTestId("tile_drafts").textContent).toContain("1");
@@ -54,6 +56,9 @@ test("latest run binds actor, tiles and strict five-minute NFR without claiming 
   expect(screen.getByTestId("close_nfr").textContent).toContain(t.withinTarget);
   view.rerender(<CloseView period="2026-10" latest={{...latest,finishedAt:new Date("2026-11-06T10:35:00Z")}} action={async()=>({status:"error"})}/>);
   expect(screen.getByTestId("close_nfr").textContent).toContain(t.overTarget);
+  view.rerender(<CloseView period="2026-10" latest={{...latest,finishedAt:null}} action={async()=>({status:"error"})}/>);
+  expect(screen.getByTestId("close_nfr").textContent).toContain(t.succeeded);
+  expect(screen.getByTestId("close_nfr").textContent).not.toContain(t.withinTarget);
   view.rerender(<CloseView period="2026-10" latest={{...latest,status:"failed"}} action={async()=>({status:"error"})}/>);
   expect(screen.getByTestId("close_nfr").textContent).toContain(t.failed);
   view.rerender(<CloseView period="2026-10" latest={{...latest,status:"running",finishedAt:null,triggeredByName:"system@ledger.invalid",scheduled:true}} action={async()=>({status:"error"})}/>);
