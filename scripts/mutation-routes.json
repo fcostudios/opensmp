@@ -273,6 +273,19 @@
     "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
   ],
   "packages/contracts/src/statements.ts": [
+    "apps/web/src/modules/statements/list-repository.integration.test.ts"
+  ],
+  "apps/web/src/app/(authenticated)/estados-de-cuenta/[statementId]/error.tsx": [
+    "apps/web/src/modules/statements/detail-view.test.tsx"
+  ],
+  "apps/web/src/app/(authenticated)/estados-de-cuenta/[statementId]/loading.tsx": [
+    "apps/web/src/modules/statements/detail-view.test.tsx"
+  ],
+  "apps/web/src/modules/register/repository.ts": [
+    "apps/web/src/modules/register/repository.integration.test.ts",
     "apps/web/src/modules/statements/repository.integration.test.ts"
+  ],
+  "apps/web/src/modules/statements/repository.ts": [
+    "apps/web/src/modules/statements/list-repository.integration.test.ts"
   ]
 }

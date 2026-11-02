@@ -721,3 +721,13 @@ describe("US-095 manual register writes", () => {
     await expect(service().close(authForGroupAdmin, { assignmentId: row.id, endedOn: "2026-10-31", endReason: "inactive", note: "Close" }, occurredAt)).resolves.toMatchObject({ endedOn: "2026-10-31" });
   });
 });
+
+
+test("US-036 exact assignment evidence excludes unrelated and foreign register rows", async () => {
+  const repository = createRegisterRepository(drizzle(appPool, { schema }));
+  const selected = await repository.assignmentsById(authForCompanyA, [assignmentA2, assignmentB]);
+  expect(selected.map(row => row.id)).toEqual([assignmentA2]);
+  expect([selected[0].startedOn, selected[0].endedOn]).toEqual(["2026-02-01", "2026-02-28"]);
+  expect(await repository.assignmentsById(authForCompanyA, [])).toEqual([]);
+  expect((await repository.assignmentsById(authForGroupAdmin, [assignmentB])).map(row => row.id)).toEqual([assignmentB]);
+});

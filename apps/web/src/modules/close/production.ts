@@ -11,3 +11,7 @@ import type { LedgerAuthorization } from "../identity-access/authorization";
 export async function loadLatestCloseRun(authorization: LedgerAuthorization, period: string) {
   return closeService.latestRun(authorization, period);
 }
+
+export async function loadCloseStatements(authorization: LedgerAuthorization, period: string) {
+  return closeService.statements(authorization, period);
+}

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 export interface RegisterDrilldownProps {
   readonly canViewStatements?: boolean;
   readonly locale: string;
+  readonly titleId?: string;
   readonly assignment: {
     readonly companyName: string;
     readonly endedOn: string | null;
@@ -45,7 +46,7 @@ function value(label: string, content: ReactNode) {
   return <div><dt className="text-xs uppercase tracking-wide text-text-muted">{label}</dt><dd className="mt-1 text-text-primary">{content}</dd></div>;
 }
 
-export function RegisterDrilldown({ assignment, canViewStatements, labels, locale }: RegisterDrilldownProps) {
+export function RegisterDrilldown({ assignment, canViewStatements, labels, locale, titleId = "register-drilldown-title" }: RegisterDrilldownProps) {
   const dateFormatter = new Intl.DateTimeFormat(locale, { timeZone: "UTC" });
   const formatDate = (date: string | null) => date
     ? dateFormatter.format(new Date(date.length === 10 ? `${date}T00:00:00.000Z` : date))
@@ -65,8 +66,8 @@ export function RegisterDrilldown({ assignment, canViewStatements, labels, local
       decisionDate ? `${labels.drilldownDecisionDate} ${decisionDate}` : null,
     ].filter(Boolean).join(" · ")
     : "—";
-  return <section aria-labelledby="register-drilldown-title" data-organism="register-drilldown">
-    <h2 className="text-xl font-semibold text-text-primary" id="register-drilldown-title">{labels.drilldownTitle}</h2>
+  return <section aria-labelledby={titleId} data-organism="register-drilldown">
+    <h2 className="text-xl font-semibold text-text-primary" id={titleId}>{labels.drilldownTitle}</h2>
     <dl className="mt-4 grid gap-4 sm:grid-cols-2">
       {value(labels.person, assignment.personName)}
       {value(labels.company, assignment.companyName)}

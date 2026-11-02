@@ -52,3 +52,7 @@ Use deterministic real-DB assertions for interval integrity, rejected writes and
 - Dated movements are deduplicated by assignment, using the scoped assignment start/end only where they match a generated line boundary. Rate changes inside a month do not create extra joiners/leavers. Monetary totals and seat-days always use persisted statement/line evidence.
 - Draft reruns invalidate `/cierre` and `/estados-de-cuenta`. Finalization remains US-035; no statement mutations or migrations are added here.
 - Sprint 2 production acceptance remains a human `story verify` step with Central Finance, Company Finance and the IT Director; this implementation does not claim that exit criterion.
+
+## Merge integration with US-035 / US-036
+
+The close page uses one US-096 snapshot for its totals, rows and US-035 finalization candidates. Confirmed finalization refreshes the close/list/rate/detail consumers. US-036 detail reads and register evidence retain their repository API and independent test suite; US-096 list evidence lives in `list-repository.integration.test.ts`.

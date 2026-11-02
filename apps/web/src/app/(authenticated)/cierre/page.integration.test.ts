@@ -13,6 +13,8 @@ let localePool: pg.Pool;
 let ClosePage: typeof import("./page").default;
 let StatementsPage: typeof import("../estados-de-cuenta/page").default;
 let runClose: typeof import("@/modules/close/server-actions").runClose;
+let finalizeStatement: typeof import("@/modules/close/server-actions").finalizeStatement;
+let finalizeStatements: typeof import("@/modules/close/server-actions").finalizeStatements;
 let hooks: ReturnType<typeof registerHooks>;
 let data: Awaited<ReturnType<typeof createCloseFixture>>;
 const saved = vi.hoisted(() => {
@@ -51,7 +53,10 @@ beforeAll(async () => {
   } });
   ClosePage = (await import(require.resolve("./page.tsx"))).default;
   StatementsPage = (await import("../estados-de-cuenta/page")).default;
-  runClose = (await import("@/modules/close/server-actions")).runClose;
+  const actions = await import("@/modules/close/server-actions");
+  runClose = actions.runClose;
+  finalizeStatement = actions.finalizeStatement;
+  finalizeStatements = actions.finalizeStatements;
   productionPool = ((await import(require.resolve("@smp/db"))).db as unknown as { $client: pg.Pool }).$client;
   process.env.AUTH_SECRET = "us034-genuine-signed-session-fixture-secret";
   process.env.AUTH_URL = "http://localhost:3000";
@@ -176,4 +181,39 @@ test("US-096 localized loading boundary resolves within the real request",async(
  const result=await withSession("close-finance",()=>Loading());
  expect(renderToStaticMarkup(result.result)).toContain('role="status"');
  expect(renderToStaticMarkup(result.result)).toContain("Cargando estados de cuenta");
+});
+
+test("signed finalization actions enforce identity/confirmation and refresh immutable status and rate consumers",async()=>{
+  const form=new FormData();form.set("period","2026-01");
+  await withSession("close-finance",()=>runClose({status:"idle"},form));
+  const row=(await data.owner.query("SELECT id FROM statement")).rows[0];
+  form.set("statementId",row.id);
+  const draft=renderToStaticMarkup(await page("close-finance"));
+  expect(draft).toContain('value="'+row.id+'"');expect(draft).toContain("Finalize period drafts");
+  for(const subject of [null,"close-viewer","close-finance"]) {
+    const response=await withSession(subject,()=>finalizeStatement({status:"idle"},form));
+    expect(response.result).toEqual({status:"error"});expect(response.work.pendingRevalidatedTags??[]).toEqual([]);
+  }
+  form.set("confirmed","true");
+  for(const subject of [null,"close-viewer"]) {
+    const denied=await withSession(subject,()=>finalizeStatements({status:"idle"},form));
+    expect(denied.result).toEqual({status:"error"});expect(denied.work.pendingRevalidatedTags??[]).toEqual([]);
+  }
+  const response=await withSession("close-finance",()=>finalizeStatement({status:"idle"},form));
+  expect(response.result).toEqual({status:"finalized",count:1});
+  expect(response.work.pendingRevalidatedTags.map((entry:{tag:string})=>entry.tag)).toEqual(["_N_T_/cierre","_N_T_/estados-de-cuenta","_N_T_/tarifas","_N_T_/estados-de-cuenta/layout"]);
+  const final=renderToStaticMarkup(await page("close-finance"));
+  expect(final).toContain(">Final</span>");expect(final).not.toContain("Finalize period drafts");expect(final).not.toContain('name="statementId"');
+  expect(final.match(/data-testid="tile_drafts"[\s\S]*?<\/div>/)?.[0]).toContain(">0</dd>");
+  expect(final.match(/data-testid="tile_finals"[\s\S]*?<\/div>/)?.[0]).toContain(">1</dd>");
+  expect(final.match(/data-testid="tile_group_total"[\s\S]*?<\/div>/)?.[0]).toContain(">62.00</dd>");
+  for(const [status,visible] of [["draft",false],["final",true]] as const) {
+    const list=await withSession("close-finance",()=>StatementsPage({searchParams:Promise.resolve({period:"2026-01",status})}));
+    expect(renderToStaticMarkup(list.result).includes(`data-testid="statement-${row.id}"`)).toBe(visible);
+  }
+
+  expect((await data.owner.query(`SELECT public.rate_card_is_locked(r) AS locked FROM rate_card r`)).rows).toEqual([{locked:true}]);
+  const retry=await withSession("close-admin",()=>finalizeStatements({status:"idle"},form));
+  expect(retry.result).toEqual({status:"finalized",count:0});
+  expect(retry.work.pendingRevalidatedTags.map((entry:{tag:string})=>entry.tag)).toContain("_N_T_/estados-de-cuenta/layout");
 });

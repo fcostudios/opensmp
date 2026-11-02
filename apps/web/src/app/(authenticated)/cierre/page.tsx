@@ -1,8 +1,10 @@
+import { Fragment } from "react";
 import { redirect } from "next/navigation";
 import { runCloseSchema } from "@smp/contracts/close";
 import { loadCurrentLedgerAuthorization } from "@/modules/identity-access/server-authorization";
 import { ROUTE_SCR_ACCESS_DENIED } from "@/lib/routes";
-import { runClose } from "@/modules/close/server-actions";
+import { finalizeStatement, finalizeStatements, runClose } from "@/modules/close/server-actions";
+import { FinalizationPanel } from "@/modules/close/finalization-panel";
 import { CloseView } from "@/modules/close/close-view";
 import { loadStatementRegister } from "@/modules/statements/production";
 import { StatementSummary, StatementTable } from "@/modules/statements/statement-view";
@@ -22,8 +24,8 @@ export default async function ClosePage({ searchParams }: { searchParams: Promis
   const period = parsed.success ? parsed.data.period : previousMonth.toISOString().slice(0, 7);
   const statements = await loadStatementRegister(authorization, { period });
   const messages = await loadAppMessages(await getLocale());
-  return <><CloseView key={period} period={period} latest={statements.latest} action={runClose}/><section className="space-y-6 p-6">
+  return <Fragment key={period}><CloseView period={period} latest={statements.latest} action={runClose}/><section className="space-y-6 p-6">
     <StatementSummary data={statements} t={messages.statements}/>
     <div data-testid="statements_by_company"><StatementTable data={statements} t={messages.statements}/></div>
-  </section></>;
+  </section><FinalizationPanel period={period} statements={statements.rows.map(({id,companyName,status})=>({id,companyName,status}))} singleAction={finalizeStatement} periodAction={finalizeStatements}/></Fragment>;
 }
