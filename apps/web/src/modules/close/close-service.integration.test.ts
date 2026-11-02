@@ -254,3 +254,203 @@ test("close holds a period advisory lock while blocked on rates, and another per
     } finally {await locker.query("ROLLBACK");await pending;}
   } finally {await locker.query("ROLLBACK");await locker.end();await writer.end();}
 });
+
+// US-035: these oracles kill omitted scope/confirmation/status/rate-validation guards.
+test("single finalization confirms scope, locks consumed rates and retries without changing immutable bytes", async () => {
+  await service.runClose({...finance,companyIds:[id(5),id(6)]},{period:"2026-01"});
+  const rows=(await owner.query(`SELECT * FROM statement ORDER BY company_id`)).rows;
+  const a=rows[0], b=rows[1];
+  const command={period:"2026-01",statementId:a.id,confirmed:true};
+  await expect(service.finalizeStatement(finance,{...command,confirmed:false})).rejects.toThrow();
+  await expect(service.finalizeStatement(finance,{...command,statementId:b.id})).rejects.toThrow("STATEMENT_NOT_FOUND");
+  await expect(service.finalizeStatement(finance,{...command,period:"2026-02"})).rejects.toThrow("STATEMENT_NOT_FOUND");
+  const before=await snapshot();
+  expect(await service.finalizeStatement(finance,command)).toEqual([a.id]);
+  expect((await owner.query(`SELECT status FROM statement ORDER BY company_id`)).rows).toEqual([{status:"final"},{status:"draft"}]);
+  expect(await snapshot()).toEqual(before);
+  const headers=(await owner.query(`SELECT * FROM statement ORDER BY company_id`)).rows;
+  expect(await service.finalizeStatement(finance,command)).toEqual([]);
+  expect((await owner.query(`SELECT * FROM statement ORDER BY company_id`)).rows).toEqual(headers);
+  expect((await owner.query(`SELECT action,company_id,before->>'status' AS before,after->>'status' AS after,occurred_at FROM audit_log WHERE entity_type='Statement'`)).rows).toEqual([{action:"statement.finalized",company_id:id(5),before:"draft",after:"final",occurred_at:now}]);
+  expect((await owner.query(`SELECT public.rate_card_is_locked(r) AS locked FROM rate_card r`)).rows).toEqual([{locked:true}]);
+  await expect(owner.query(`UPDATE rate_card SET monthly_rate_usd=99`)).rejects.toMatchObject({code:"23514"});
+  await expect(owner.query(`UPDATE statement_line SET amount_usd=99 WHERE statement_id=$1`,[a.id])).rejects.toMatchObject({code:"23514"});
+  // Later corrections go on the next draft; reruns preserve them and the final.
+  await service.runClose(finance,{period:"2026-02"});
+  const next=(await owner.query(`SELECT id FROM statement WHERE period='2026-02' AND company_id=$1`,[id(5)])).rows[0];
+  await owner.query(`INSERT INTO statement_line(statement_id,kind,vendor_account_id,amount_usd,note) VALUES($1,'adjustment',$2,-1.25,'January correction')`,[next.id,id(3)]);
+  await service.runClose(finance,{period:"2026-02"});
+  expect((await owner.query(`SELECT total_usd FROM statement WHERE id=$1`,[next.id])).rows).toEqual([{total_usd:"-1.25"}]);
+  expect(await snapshot()).toEqual(before);
+});
+
+test("period finalization is atomic, company scoped, role gated and rejects stale draft rates", async () => {
+  await service.runClose({...finance,companyIds:[id(5),id(6)]},{period:"2026-01"});
+  const command={period:"2026-01",confirmed:true};
+  for(const auth of [null,{...finance,globalRole:null,roles:["central_finance"]} as LedgerAuthorization]) {
+    await expect(service.finalizeStatements(auth,command)).rejects.toThrow("CLOSE_ACCESS_FORBIDDEN");
+    await expect(service.finalizeStatement(auth,{...command,statementId:id(99)})).rejects.toThrow("CLOSE_ACCESS_FORBIDDEN");
+  }
+  for(const input of [{...command,confirmed:false},{...command,period:"2026-13"},{...command,companyId:id(6)}]) await expect(service.finalizeStatements(finance,input)).rejects.toThrow();
+  await owner.query(`UPDATE rate_card SET monthly_rate_usd=93`);
+  await expect(service.finalizeStatements(finance,command)).rejects.toThrow("STATEMENT_RATES_CHANGED");
+  expect((await owner.query(`SELECT DISTINCT status FROM statement`)).rows).toEqual([{status:"draft"}]);
+  await service.runClose({...finance,companyIds:[id(5),id(6)]},{period:"2026-01"});
+  expect((await service.finalizeStatements({...finance,globalRole:"group_admin"},command))).toHaveLength(1);
+  expect((await service.statements(finance,"2026-01")).map(s=>[s.companyId,s.status])).toEqual([[id(5),"final"]]);
+  expect((await service.statements({...finance,companyIds:[]},"2026-01"))).toEqual([]);
+  expect((await owner.query(`SELECT company_id,status FROM statement ORDER BY company_id`)).rows).toEqual([{company_id:id(5),status:"final"},{company_id:id(6),status:"draft"}]);
+  expect(await service.finalizeStatements(finance,command)).toEqual([]);
+});
+
+test("finalization actions require confirmation, authenticate and invalidate every consuming screen", async () => {
+  await service.runClose(finance,{period:"2026-01"});
+  const row=(await owner.query(`SELECT id FROM statement`)).rows[0];
+  const paths:string[]=[];
+  const actions=createCloseActions({database,now:()=>now,loadAuthorization:async()=>finance,revalidate:path=>{paths.push(path);}});
+  const form=new FormData();form.set("period","2026-01");form.set("statementId",row.id);
+  expect(await actions.finalizeStatement({status:"idle"},form)).toEqual({status:"error"});
+  expect(paths).toEqual([]);
+  expect(await actions.finalizeStatements({status:"idle"},form)).toEqual({status:"error"});
+  form.set("confirmed","false");
+  expect(await actions.finalizeStatements({status:"idle"},form)).toEqual({status:"error"});
+  form.set("confirmed","true");
+  expect(await actions.finalizeStatement({status:"idle"},form)).toEqual({status:"finalized",count:1});
+  expect(paths).toEqual(["/cierre","/estados-de-cuenta","/tarifas"]);
+  paths.length=0;
+  expect(await actions.finalizeStatements({status:"idle"},form)).toEqual({status:"finalized",count:0});
+  expect(paths).toEqual(["/cierre","/estados-de-cuenta","/tarifas"]);
+  for(const loadAuthorization of [async()=>null,async()=>{throw new Error("session unavailable");},async()=>({...finance,globalRole:null} as LedgerAuthorization)]) {
+    const denied=createCloseActions({database,loadAuthorization,revalidate:()=>{throw new Error("unexpected invalidation");}});
+    expect(await denied.finalizeStatement({status:"idle"},form)).toEqual({status:"error"});
+    expect(await denied.finalizeStatements({status:"idle"},form)).toEqual({status:"error"});
+  }
+});
+
+test("bulk finalization rolls back every status and rate lock when the final audit fails",async()=>{
+  const all={...finance,companyIds:[id(5),id(6)]};
+  await service.runClose(all,{period:"2026-01"});
+  const before=await snapshot();
+  await owner.query(`CREATE FUNCTION reject_us035_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='statements.finalization_requested' THEN RAISE EXCEPTION 'injected audit fault'; END IF; RETURN NEW; END $$; CREATE TRIGGER reject_us035_audit BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION reject_us035_audit()`);
+  try {
+    await expect(service.finalizeStatements(all,{period:"2026-01",confirmed:true})).rejects.toThrow("injected audit fault");
+    expect((await owner.query(`SELECT DISTINCT status FROM statement`)).rows).toEqual([{status:"draft"}]);
+    expect((await owner.query(`SELECT public.rate_card_is_locked(r) AS locked FROM rate_card r`)).rows).toEqual([{locked:false}]);
+    expect((await owner.query(`SELECT action FROM audit_log WHERE entity_type IN ('Statement','StatementFinalization')`)).rows).toEqual([]);
+    expect(await snapshot()).toEqual(before);
+  } finally {await owner.query(`DROP TRIGGER reject_us035_audit ON audit_log; DROP FUNCTION reject_us035_audit()`);}
+  expect((await service.finalizeStatements(all,{period:"2026-01",confirmed:true}))).toHaveLength(2);
+  await owner.query(`UPDATE statement SET status='reconciled' WHERE company_id=$1`,[id(5)]);
+  const headers=(await owner.query(`SELECT * FROM statement ORDER BY id`)).rows;
+  expect(await service.finalizeStatements(all,{period:"2026-01",confirmed:true})).toEqual([]);
+  expect((await owner.query(`SELECT * FROM statement ORDER BY id`)).rows).toEqual(headers);
+});
+
+test("only consumed dated rates lock and another period remains draft",async()=>{
+  await owner.query(`UPDATE rate_card SET effective_to='2026-01-31'`);
+  await owner.query(`INSERT INTO rate_card(vendor_account_id,license_type_id,monthly_rate_usd,effective_from,created_at,created_by) VALUES($1,$2,93,'2026-02-01',$3,$4)`,[id(3),id(4),now,id(1)]);
+  await service.runClose(finance,{period:"2026-01"});
+  await service.runClose(finance,{period:"2026-02"});
+  expect(await service.finalizeStatements({...finance,companyIds:[]},{period:"2026-01",confirmed:true})).toEqual([]);
+  expect((await service.finalizeStatements(finance,{period:"2026-01",confirmed:true}))).toHaveLength(1);
+  expect((await owner.query(`SELECT effective_from::text,public.rate_card_is_locked(r) AS locked FROM rate_card r ORDER BY effective_from`)).rows).toEqual([{effective_from:"2026-01-01",locked:true},{effective_from:"2026-02-01",locked:false}]);
+  expect((await service.statements(finance,"2026-02")).map(s=>s.status)).toEqual(["draft"]);
+  await expect(service.statements(null,"2026-01")).rejects.toThrow("CLOSE_ACCESS_FORBIDDEN");
+  await expect(service.statements(finance,"invalid")).rejects.toThrow();
+});
+
+test("finalization rejects missing or shortened rate coverage and incomplete license evidence",async()=>{
+  await owner.query(`INSERT INTO license_type(id,vendor_id,name,unit,status,created_at,created_by) VALUES($1,$2,'Other seat','seat','active',$3,$4)`,[id(40),id(2),now,id(1)]);
+  await owner.query(`INSERT INTO rate_card(vendor_account_id,license_type_id,monthly_rate_usd,effective_from,created_at,created_by) VALUES($1,$2,62,'2026-01-01',$3,$4)`,[id(3),id(40),now,id(1)]);
+  for(const fault of [
+    `UPDATE rate_card SET monthly_rate_usd=93 WHERE license_type_id='${id(4)}'`,
+    `UPDATE rate_card SET effective_from='2026-01-02' WHERE license_type_id='${id(4)}'`,
+    `UPDATE rate_card SET effective_to='2026-01-08' WHERE license_type_id='${id(4)}'`,
+    `UPDATE statement_line SET period_from=NULL`,
+    `UPDATE statement_line SET period_to=NULL`,
+    `UPDATE statement_line SET license_type_id=NULL`,
+  ]) {
+    // Open-ended coverage must still reject a missing segment end date.
+    await owner.query(`UPDATE rate_card SET monthly_rate_usd=62,effective_from='2026-01-01',effective_to=NULL WHERE license_type_id=$1`,[id(4)]);
+    expect((await service.runClose(finance,{period:"2026-01"})).status).toBe("succeeded");
+    await owner.query(fault);
+    await expect(service.finalizeStatements(finance,{period:"2026-01",confirmed:true})).rejects.toThrow("STATEMENT_RATES_CHANGED");
+    expect((await service.statements(finance,"2026-01")).map(s=>s.status)).toEqual(["draft"]);
+  }
+});
+
+test("finalization shares the close period lock and a different period can proceed",async()=>{
+  await service.runClose(finance,{period:"2026-03"});
+  const locker=await fixture.connectAsOwner();const writer=await fixture.connectAsApp();
+  try {
+    await locker.query("BEGIN");await locker.query(`SELECT pg_advisory_xact_lock(hashtextextended('license-close:2026-03',0))`);
+    const lockerPid=(await locker.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+    const writerPid=(await writer.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+    await writer.query("SET statement_timeout='10s'");
+    let settled=false;
+    const pending=createCloseService(drizzle(writer,{schema}),{now:()=>now}).finalizeStatements(finance,{period:"2026-03",confirmed:true}).finally(()=>{settled=true;});
+    try {
+      let blocked=false;
+      while(!settled&&!blocked) blocked=(await owner.query(`SELECT $1::int=ANY(pg_blocking_pids($2)) AS blocked`,[lockerPid,writerPid])).rows[0].blocked;
+      expect(blocked).toBe(true);
+      expect((await service.runClose(finance,{period:"2026-04"})).status).toBe("succeeded");
+    } finally {await locker.query("COMMIT");}
+    expect(await pending).toHaveLength(1);
+    expect((await service.statements(finance,"2026-03")).map(s=>s.status)).toEqual(["final"]);
+    expect((await service.statements(finance,"2026-04")).map(s=>s.status)).toEqual(["draft"]);
+  } finally {await locker.query("ROLLBACK");await locker.end();await writer.end();}
+});
+
+test("a rate edit that wins the account lock invalidates the waiting finalization",async()=>{
+  await service.runClose(finance,{period:"2026-01"});
+  const locker=await fixture.connectAsOwner();const writer=await fixture.connectAsApp();
+  try {
+    await locker.query("BEGIN");await locker.query(`UPDATE rate_card SET monthly_rate_usd=93 WHERE license_type_id=$1`,[id(4)]);
+    const lockerPid=(await locker.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+    const writerPid=(await writer.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+    await writer.query("SET statement_timeout='10s'");
+    let settled=false;
+    const pending=createCloseService(drizzle(writer,{schema}),{now:()=>now}).finalizeStatements(finance,{period:"2026-01",confirmed:true}).then(()=>"unexpected success",error=>error.message).finally(()=>{settled=true;});
+    try {
+      let blocked=false;
+      while(!settled&&!blocked) blocked=(await owner.query(`SELECT $1::int=ANY(pg_blocking_pids($2)) AS blocked`,[lockerPid,writerPid])).rows[0].blocked;
+      expect(blocked).toBe(true);
+    } finally {await locker.query("COMMIT");}
+    expect(await pending).toBe("STATEMENT_RATES_CHANGED");
+    expect((await service.statements(finance,"2026-01")).map(s=>s.status)).toEqual(["draft"]);
+    expect((await owner.query(`SELECT public.rate_card_is_locked(r) AS locked FROM rate_card r`)).rows).toEqual([{locked:false}]);
+  } finally {await locker.query("ROLLBACK");await locker.end();await writer.end();}
+});
+
+
+test("inclusive rate end dates can finalize, and another consumed account cannot mask a stale rate",async()=>{
+  await owner.query(`UPDATE rate_card SET effective_to='2026-01-09'`);
+  expect((await service.runClose(finance,{period:"2026-01"})).status).toBe("succeeded");
+  expect(await service.finalizeStatements(finance,{period:"2026-01",confirmed:true})).toHaveLength(1);
+  // Next-period drafts consuming two accounts must each match their own rate.
+  await owner.query(`INSERT INTO rate_card(vendor_account_id,license_type_id,monthly_rate_usd,effective_from,created_at,created_by) VALUES($1,$2,62,'2026-02-01',$3,$4)`,[id(3),id(4),now,id(1)]);
+  await owner.query(`INSERT INTO vendor_account(id,vendor_id,name,mode,low_pool_floor,status,created_at,created_by) VALUES($1,$2,'Second account','orchestration',0,'active',$3,$4)`,[id(50),id(2),now,id(1)]);
+  await owner.query(`INSERT INTO rate_card(vendor_account_id,license_type_id,monthly_rate_usd,effective_from,created_at,created_by) VALUES($1,$2,62,'2026-02-01',$3,$4)`,[id(50),id(4),now,id(1)]);
+  await service.runClose({...finance,companyIds:[id(6)]},{period:"2026-02"});
+  await owner.query(`INSERT INTO statement_line(statement_id,kind,vendor_account_id,license_type_id,period_from,period_to,rate_usd,amount_usd) SELECT id,'license',$1,$2,'2026-02-01','2026-02-28',62,62 FROM statement WHERE period='2026-02' AND company_id=$3`,[id(50),id(4),id(6)]);
+  await owner.query(`UPDATE rate_card SET monthly_rate_usd=93 WHERE vendor_account_id=$1 AND effective_from='2026-02-01'`,[id(3)]);
+  await expect(service.finalizeStatements({...finance,companyIds:[id(6)]},{period:"2026-02",confirmed:true})).rejects.toThrow("STATEMENT_RATES_CHANGED");
+  expect((await service.statements(finance,"2026-02"))).toEqual([]);
+});
+
+test("each finalization command records its actor, scope, time and stable period audit identity",async()=>{
+  const commandIds=new Map<string,string>();
+  for(const period of ["2026-01","2026-02"]) {
+    await service.runClose({...finance,companyIds:[id(5),id(6)]},{period});
+    const rows=(await owner.query(`SELECT id FROM statement WHERE period=$1 ORDER BY company_id`,[period])).rows;
+    expect(await service.finalizeStatement(finance,{period,statementId:rows[0].id,confirmed:true})).toEqual([rows[0].id]);
+    expect(await service.finalizeStatements({...finance,companyIds:[id(6)]},{period,confirmed:true})).toEqual([rows[1].id]);
+    const audits=(await owner.query(`SELECT action,entity_type,entity_id,actor_user_id,company_id,before,after,occurred_at FROM audit_log WHERE entity_type='StatementFinalization' ORDER BY occurred_at,id`)).rows;
+    const current=audits.filter(r=>r.after.statementIds.includes(rows[0].id)||r.after.statementIds.includes(rows[1].id));
+    expect(current).toHaveLength(2);
+    expect(new Set(current.map(r=>r.entity_id)).size).toBe(1);
+    for(const row of rows) expect(current.find(r=>r.after.statementIds.includes(row.id))).toMatchObject({action:"statements.finalization_requested",entity_type:"StatementFinalization",actor_user_id:id(1),company_id:null,before:null,after:{statementIds:[row.id]},occurred_at:now});
+    commandIds.set(period,current[0].entity_id);
+  }
+  expect(commandIds.get("2026-01")).not.toBe(commandIds.get("2026-02"));
+});
