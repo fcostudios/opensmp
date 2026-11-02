@@ -48,7 +48,7 @@ The **aggregate + projection layers should be the widest part of the suite**, no
 > `nous_trace.py config patch --project <id> --key testing.critical_paths --value '["**Your path** — what a silent fault here would cost."]'`
 > Declared rows are published verbatim — under `## Operator additions` in `testing/critical-paths.md`, and in the §3 list in `docs/dev-guide/TESTING.md` — and survive every regeneration.
 
-- **Tenant isolation** — every path that touches tenant-scoped data (filtered by `company_id`). → explicit isolation assertions (a query for tenant A must never return tenant B's rows).
+- **Tenant isolation** — every path that touches tenant-scoped data (filtered by `company_id`). → explicit isolation assertions (a query for tenant A must never return tenant B's rows). US-036: `apps/web/src/modules/statements/repository.integration.test.ts` and the signed-session statement-detail route seam assert finance-grant scope for headers, lines and exact US-033 register assignments; a concurrent draft rerun must preserve one repeatable-read snapshot.
 - **Authorization** — role/permission gates on commands/mutations. → integration tests for allowed vs forbidden (expect 403).
 - **Money / tax / financial math** (if present) — amounts, rounding, and idempotency of charge/ledger events. → property-based + a provider contract test.
 - **BR-01 — Register no-overlap (one seat, one holder, one period)** — critical business rule; oracle: `exact`. (stories: US-003, US-094, US-095, US-097)
