@@ -42,7 +42,7 @@ export function CloseView({ period, latest, action, summary }: { period: string;
       <h2 className="font-semibold">{t.run} · {period}</h2>
       <input type="hidden" name="period" value={period} />
       <label className="block">{t.note}<textarea data-testid="confirm_note" aria-label={t.note} name="note" maxLength={2000} className="block w-full rounded border border-border p-2" /></label>
-      <p>{t.confirm}</p><button data-testid="btn_confirm_run_close" type="submit" disabled={pending || latest?.status === "running"} className="rounded bg-primary px-4 py-2 text-white">{pending ? t.running : t.run}</button>
+      <p>{t.confirm}</p><button data-testid="btn_confirm_run_close" type="submit" disabled={pending} className="rounded bg-primary px-4 py-2 text-white">{pending ? t.running : t.run}</button>
       {state.status === "error" && <p role="alert">{t.error}</p>}
       {(state.status === "succeeded" || state.status === "failed") && <p role={state.status === "failed" ? "alert" : "status"}>{t[state.status]} · {state.runId} · {state.durationMs / 1000} {t.seconds}</p>}
     </form>
