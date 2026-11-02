@@ -12,7 +12,7 @@ export const PERFORMANCE_SCHEMA_VERSION = 1;
 
 const state = new WeakMap();
 const decisions = new Set(["executed", "reused", "rejected"]);
-const finalClassifications = new Set(["scored", "verification-only"]);
+const finalClassifications = new Set(["scored", "verification-only", "skipped"]);
 const unsafeKeyPattern = /(?:^environment$|database.?url|password|token|authorization|credential|secret|api.?key|^__proto__$|^prototype$|^constructor$)/i;
 const unsafeValuePattern = /(?:\b[a-z][a-z\d+.-]*:\/\/|\b(?:basic|bearer)\s+)/i;
 

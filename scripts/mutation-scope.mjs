@@ -1139,6 +1139,58 @@ export function validateScoredMutationReport(report, breakThreshold, shardId) {
   return score;
 }
 
+// Stryker skips TS assertions wholesale. Accept only literal data under a
+// const assertion; a call, method, operator or spread hidden by a cast is still
+// executable code and must fail closed on an empty instrumentation report.
+function staticData(node) {
+  if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node)
+      || ts.isSatisfiesExpression(node)) return staticData(node.expression);
+  if (ts.isIdentifier(node) || ts.isStringLiteral(node) || ts.isNumericLiteral(node)
+      || ts.isBigIntLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)
+      || [ts.SyntaxKind.TrueKeyword, ts.SyntaxKind.FalseKeyword, ts.SyntaxKind.NullKeyword]
+        .includes(node.kind)) return true;
+  if (ts.isArrayLiteralExpression(node)) return node.elements.every(staticData);
+  if (ts.isObjectLiteralExpression(node)) return node.properties.every((property) =>
+    (ts.isShorthandPropertyAssignment(property) && !property.objectAssignmentInitializer)
+    || (ts.isPropertyAssignment(property) && !ts.isComputedPropertyName(property.name)
+      && staticData(property.initializer)));
+  return false;
+}
+
+function staticConstDeclaration(node) {
+  if (!ts.isVariableStatement(node) || !(node.declarationList.flags & ts.NodeFlags.Const)) {
+    return false;
+  }
+  return node.declarationList.declarations.every((declaration) => {
+    let value = declaration.initializer;
+    if (!value || !ts.isIdentifier(declaration.name)) return false;
+    while (ts.isParenthesizedExpression(value) || ts.isSatisfiesExpression(value)) {
+      value = value.expression;
+    }
+    return ts.isAsExpression(value) && ts.isTypeReferenceNode(value.type)
+      && ts.isIdentifier(value.type.typeName) && value.type.typeName.text === "const"
+      && staticData(value.expression);
+  });
+}
+
+function declarationOnlyShard(shard) {
+  return shard.mutate.length > 0 && shard.mutate.every((target) => {
+    const range = rangeParts(target);
+    const parsed = parseModule(range.source, readFileSync(range.source, "utf8"));
+    const statements = parsed.statements.filter((node) => {
+      const start = parsed.getLineAndCharacterOfPosition(node.getStart(parsed)).line + 1;
+      const end = parsed.getLineAndCharacterOfPosition(node.getEnd()).line + 1;
+      return start <= range.end && end >= range.start;
+    });
+    return statements.length > 0 && statements.every((node) =>
+      ts.isTypeAliasDeclaration(node) || ts.isInterfaceDeclaration(node)
+      || node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.DeclareKeyword)
+      || (ts.isExportDeclaration(node) && node.exportClause
+        && ts.isNamedExports(node.exportClause) && !node.attributes)
+      || staticConstDeclaration(node));
+  });
+}
+
 export function requireNonzeroStaticShard(kind, mutantCount, shardId) {
   if (SCORED_STATIC_KINDS.has(kind) && mutantCount === 0) {
     throw new Error(`scored mutation shard ${shardId} instrumented zero mutants`);
@@ -2593,34 +2645,40 @@ export async function runMutationScope(options = {}) {
           throw new Error(`zero-mutant shard ${shard.id} exited ${result.status}`);
         }
         failureStage = "verification";
-        requireNonzeroStaticShard(shard.kind, mutants.length, shard.id);
-        const audits = verificationAuditsForReport(report, shard, allHunks);
-        const projectionEvidencePath = projectionEvidencePathForShard(shard);
-        const commands = verificationCommandsForSources(
-          shard.sources,
-          shard.testFiles,
-          { evidencePath: projectionEvidencePath },
-        );
-        runVerificationCommands(
-          commands,
-          options.verificationRunner ?? spawnSync,
-          childEnvironment,
-        );
-        shard.classification = "verification-only";
-        shard.result = {
-          audits,
-          commands: commandList,
-          ...(projectionEvidencePath
-            ? {
-                projectionEvidence: validatePoolProjectionEvidence(
-                  JSON.parse(readFileSync(projectionEvidencePath, "utf8")),
-                  readFileSync(POOL_PROJECTION_SOURCE, "utf8"),
-                ),
-              }
-            : {}),
-          tests: shard.testFiles,
-        };
-        console.log(`mutation-scope: verified non-mutatable source bundle ${shard.id}`);
+        if (declarationOnlyShard(shard)) {
+          shard.classification = "skipped";
+          shard.result = "skipped: no mutable code";
+          console.log(`mutation-scope: skipped: no mutable code (${shard.sources.join(", ")})`);
+        } else {
+          requireNonzeroStaticShard(shard.kind, mutants.length, shard.id);
+          const audits = verificationAuditsForReport(report, shard, allHunks);
+          const projectionEvidencePath = projectionEvidencePathForShard(shard);
+          const commands = verificationCommandsForSources(
+            shard.sources,
+            shard.testFiles,
+            { evidencePath: projectionEvidencePath },
+          );
+          runVerificationCommands(
+            commands,
+            options.verificationRunner ?? spawnSync,
+            childEnvironment,
+          );
+          shard.classification = "verification-only";
+          shard.result = {
+            audits,
+            commands: commandList,
+            ...(projectionEvidencePath
+              ? {
+                  projectionEvidence: validatePoolProjectionEvidence(
+                    JSON.parse(readFileSync(projectionEvidencePath, "utf8")),
+                    readFileSync(POOL_PROJECTION_SOURCE, "utf8"),
+                  ),
+                }
+              : {}),
+            tests: shard.testFiles,
+          };
+          console.log(`mutation-scope: verified non-mutatable source bundle ${shard.id}`);
+        }
       } else {
         failureStage = "threshold";
         validateScoredMutationReport(report, shard.config.thresholds.break, shard.id);
@@ -2642,8 +2700,8 @@ export async function runMutationScope(options = {}) {
       });
       shard.durationMs = timing.durationMs;
       if (shard.cacheDecision === "pending") shard.cacheDecision = "executed";
-      if (cacheMode === "enabled" && shard.reason !== "runtime-profile-unavailable"
-          && executionInputs.reusable) {
+      if (cacheMode === "enabled" && shard.classification !== "skipped"
+          && shard.reason !== "runtime-profile-unavailable" && executionInputs.reusable) {
         const artifacts = { "mutation-report.json": shard.jsonReportPath };
         const artifactProjectors = {
           "mutation-report.json": projectMutationReportArtifact,
