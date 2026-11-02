@@ -1,0 +1,95 @@
+{
+  "story": "US-036",
+  "ts": "2026-11-02T04:11:08.743961+00:00",
+  "base": "d1e2f9043569502b9ed6f5bd39375f0a93df880a",
+  "branch": "feature/statements/us-036-statement-detail",
+  "mutation": {
+    "score": 100,
+    "scope": "diff",
+    "cold": true,
+    "cache_disabled": true,
+    "counts": {
+      "Killed": 142,
+      "Ignored": 1
+    },
+    "equivalence": "Removing accessMode read only leaves the SELECT-only projection unchanged; independent reviewer approved equivalence. Repeatable-read behavior remains covered by concurrent-write assertions.",
+    "shards": [
+      {
+        "id": "vitest-0d27bacc5dd8",
+        "sources": [
+          "apps/web/src/modules/register/repository.ts"
+        ],
+        "counts": {
+          "Killed": 4
+        },
+        "duration_ms": 24293.981874999998,
+        "report_sha256": "d1c26a9d37fcced74d698db8c3025cf3981b5202148c216b2d2345cedbe84664"
+      },
+      {
+        "id": "vitest-3a0c09a2d97c",
+        "sources": [
+          "apps/web/src/app/(authenticated)/estados-de-cuenta/[statementId]/error.tsx",
+          "apps/web/src/app/(authenticated)/estados-de-cuenta/[statementId]/loading.tsx",
+          "apps/web/src/modules/statements/detail-view.tsx"
+        ],
+        "counts": {
+          "Killed": 68
+        },
+        "duration_ms": 69177.748209,
+        "report_sha256": "f4e0f64cf117d22709aea2e215ad2f8009cf05fb8e6273e077e9e90294952b5b"
+      },
+      {
+        "id": "vitest-4ec53bc4f24f",
+        "sources": [
+          "apps/web/src/app/(authenticated)/estados-de-cuenta/[statementId]/page.tsx"
+        ],
+        "counts": {
+          "Killed": 24
+        },
+        "duration_ms": 89219.94950000002,
+        "report_sha256": "b264c7c28b5fa16edcb0a2f70cb3a5effc4d9fbe055031e3f975e799b6f17688"
+      },
+      {
+        "id": "vitest-c36e22d60406",
+        "sources": [
+          "packages/ui/src/organisms/register-drilldown.tsx"
+        ],
+        "counts": {
+          "Killed": 1
+        },
+        "duration_ms": 3118.890833000012,
+        "report_sha256": "e601ad72c0e04ac048d667078b9823807c0b578ff8207490bc1bd41dc3cff6ba"
+      },
+      {
+        "id": "vitest-faba5a540fc0",
+        "sources": [
+          "apps/web/src/modules/statements/repository.ts"
+        ],
+        "counts": {
+          "Ignored": 1,
+          "Killed": 45
+        },
+        "duration_ms": 195653.57074999998,
+        "report_sha256": "f65be31d3866455e43731d5e706f46d1b4c61034a75f6c77b6e56f6fbae1f483"
+      }
+    ]
+  },
+  "gates": {
+    "type_check": "passed",
+    "lint": "passed",
+    "build": "passed",
+    "tests": "passed: web 143 files, 1134 passed, 3 pre-existing skips",
+    "migrations": "67 committed migrations applied on fresh PostgreSQL; 33 application tables, append-only triggers and exact runtime grants verified",
+    "api_reconciliation": "2/2 endpoints; no raw fetch violations",
+    "route_alignment": "28/28 registered",
+    "ac_verification": "AC1\u2013AC3 passed; 13 focused tests plus full suite; independent review closed"
+  },
+  "list_page_changed": false,
+  "tool_versions": {
+    "node": "26.11.1",
+    "pnpm": "9.15.0",
+    "stryker": "9.6.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

@@ -162,13 +162,15 @@ function requestApprovalState(
   return decidedAt ? "approved" : "pending";
 }
 
-export function createRegisterRepository(database: Database) {
+export function createRegisterRepository(database: Pick<Database, "select">) {
   async function queryRows(
     authorization: LedgerAuthorization,
     filters: RegisterFilters,
     pageSize: number | undefined,
+    assignmentIdsFilter?: readonly string[],
   ): Promise<RegisterPage> {
     const conditions = [readScope(authorization, licenseAssignment.companyId), ...filterConditions(filters)];
+    if (assignmentIdsFilter) conditions.push(inArray(licenseAssignment.id, [...assignmentIdsFilter]));
     if (pageSize !== undefined && filters.cursor) {
       const cursor = decodeCursor(filters.cursor);
       conditions.push(or(
@@ -258,6 +260,11 @@ export function createRegisterRepository(database: Database) {
   }
 
   return {
+    /** Exact backing assignments, with the same tenant scope and traceability as the register. */
+    async assignmentsById(authorization: LedgerAuthorization, ids: readonly string[]): Promise<readonly RegisterRow[]> {
+      const page = await queryRows(authorization, {}, undefined, ids);
+      return page.items;
+    },
     async *streamCsv(authorization: LedgerAuthorization, filters: RegisterFilters): AsyncGenerator<string> {
       let cursor: string | undefined;
       try {
