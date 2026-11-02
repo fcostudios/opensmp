@@ -161,7 +161,34 @@ The rehearsal ran `apps/web/e2e/demo-s0-s1.spec.ts` on the disposable stack, as
 described in section 1, option B. The results are recorded in
 `.nous-feedback.jsonl` under CHG-118 and summarised here.
 
-RESULTS_PLACEHOLDER
+Run on 2026-11-02 at worktree commit `7085df6` (CHG-118). M-1 = **2026-10** (31
+days). The stack was `ledger-demo-rehearsal` on 28080/28443, with images
+`ledger-*:chg118-demo` built from main `3aceb12` application code. The run used
+a fresh database: realm import, then all committed migrations. Production
+smoke ran 5/5 on the rehearsal. The fixture was five `PROVISIONAL Demo Company
+N` (`PROV-DEMO-01..05`) with 2/2/3/4/5 fictitious people, one joiner (C4,
+starting on the 11th) and one leaver (C5, ending on the 15th, reason
+`inactive`). The provisional rate was $30.00 per seat per month.
+
+**10/10 journey steps passed:**
+
+| Step | Story | Result | Evidence (asserted) |
+|---|---|---|---|
+| IT Director health | US-053 | pass | `/api/health` over verified TLS returns `{status: ok, database: reachable}` |
+| Group Admin manual entry, joiner and leaver | US-095 | pass | 16 entries recorded through the form, then one closed with an end date and reason. "Register updated." each time. |
+| Central Finance register inspection and M-1 CSV | S0 exit | pass | `register_v1` CSV with 16 rows, all `manual` with the note. Per-company people, start/end dates and reasons match the list. Month-end headcount is 2/2/3/4/4. No manual-entry form for Central Finance. |
+| Company Finance register scoping | US-005 | pass, with a **gap** | `/registro` goes to `/acceso-denegado`. `/api/exports/register` returns 403. There is no own-company headcount surface before a close (US-041). |
+| Provisional rate | US-032 | pass | "Rate saved". The row shows $30.00, effective 2026-10-01, **Provisional**. |
+| License-only close | US-034 | pass | "Close succeeded". Generated 5, drafts 5, finals 0. Group total **454.84** equals the independently computed value. "Runtime target met". |
+| Statements list | US-096 | pass | 5 Draft rows. Opening seats 2/2/3/3/5, seat-days 62/62/93/114/139, totals 60.00/60.00/90.00/110.32/134.52. The sum equals the group tile (454.84). |
+| Detail with register evidence, and statement CSV | US-036, US-037 | pass | PROV-DEMO-05: draft banner, total $134.52, 5 lines noted `provisional_rate`. Evidence shows the manual assignment and its note. The CSV has 5 rows with total 134.52 on each. Line amounts (4 × 30.00 + 14.52) sum to the total, and seat-days sum to 139. |
+| IT Director rerun, finals untouched | S1 exit | pass | PROV-DEMO-03 was finalized on disposable data, then the close was rerun. The same 5 statement ids and totals remain. Drafts carry the new close-run id. The final keeps its status and its original close-run id. |
+| Company Finance own draft only | US-005 | pass | One row (PROV-DEMO-01, Draft, opening seats 2, seat-days 62, 60.00) and no company filter. Own detail and CSV total 60.00. Another company's statement id goes to "Access denied", with no figures. |
+
+Screenshots and both CSVs are under `apps/web/test-results/demo-s0-s1/`
+(git-ignored, regenerated on every run). The operator's `ledger-production`
+containers kept identical start times, health and image ids before and after
+the rehearsal, and `ledger-backup:local` was not retagged.
 
 ## 6. Sign-off (only after the humans accept)
 

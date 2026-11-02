@@ -287,7 +287,10 @@ test.describe("S1 — first draft chargeback (provisional rate)", () => {
     const article = main(page).getByRole("region", { name: "Finalize statements" }).locator("article", { hasText: finalCompany.name });
     await article.getByRole("checkbox").check();
     await article.getByRole("button", { name: "Finalize statement" }).click();
-    await expect(article.getByRole("status")).toContainText("Statements finalized: 1");
+    // The draft-only confirmation form (and its transient status) disappears once final.
+    await expect(article.getByRole("checkbox")).toHaveCount(0);
+    await expect(article.getByRole("alert")).toHaveCount(0);
+    await expect(article.locator("span").first()).toHaveText("Final");
 
     await page.goto(`/cierre?period=${month.period}`);
     await main(page).getByTestId("btn_confirm_run_close").click();
