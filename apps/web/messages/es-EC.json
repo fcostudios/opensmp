@@ -519,6 +519,7 @@
     "loadError": "No se pudo cargar el estado de cuenta.",
     "retry": "Reintentar",
     "viewRegister": "Ver evidencia en el registro",
+    "csv": "Exportar CSV",
     "licenseOnly": "Cargos de licencia y ajustes. Los cargos por uso quedan fuera de esta versión."
   },
   "statements": {

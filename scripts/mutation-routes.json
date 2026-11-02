@@ -303,5 +303,15 @@
   ],
   "apps/web/src/modules/statements/repository.ts": [
     "apps/web/src/modules/statements/list-repository.integration.test.ts"
+  ],
+  "apps/web/src/app/api/v1/statements/[statementId]/export/csv/route.ts": [
+    "apps/web/src/app/(authenticated)/estados-de-cuenta/[statementId]/page.integration.test.tsx"
+  ],
+  "apps/web/src/modules/statements/server-actions.ts": [
+    "apps/web/src/app/(authenticated)/estados-de-cuenta/[statementId]/page.integration.test.tsx"
+  ],
+  "apps/web/src/modules/statements/export-transaction.ts": [
+    "apps/web/src/modules/statements/export.integration.test.ts",
+    "apps/web/src/app/(authenticated)/estados-de-cuenta/[statementId]/page.integration.test.tsx"
   ]
 }
