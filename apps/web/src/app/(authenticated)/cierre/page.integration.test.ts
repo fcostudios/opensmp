@@ -12,6 +12,8 @@ let productionPool: pg.Pool;
 let localePool: pg.Pool;
 let ClosePage: typeof import("./page").default;
 let runClose: typeof import("@/modules/close/server-actions").runClose;
+let finalizeStatement: typeof import("@/modules/close/server-actions").finalizeStatement;
+let finalizeStatements: typeof import("@/modules/close/server-actions").finalizeStatements;
 let hooks: ReturnType<typeof registerHooks>;
 let data: Awaited<ReturnType<typeof createCloseFixture>>;
 const saved = vi.hoisted(() => {
@@ -49,7 +51,10 @@ beforeAll(async () => {
     return nextLoad(url, context);
   } });
   ClosePage = (await import(require.resolve("./page.tsx"))).default;
-  runClose = (await import("@/modules/close/server-actions")).runClose;
+  const actions = await import("@/modules/close/server-actions");
+  runClose = actions.runClose;
+  finalizeStatement = actions.finalizeStatement;
+  finalizeStatements = actions.finalizeStatements;
   productionPool = ((await import(require.resolve("@smp/db"))).db as unknown as { $client: pg.Pool }).$client;
   process.env.AUTH_SECRET = "us034-genuine-signed-session-fixture-secret";
   process.env.AUTH_URL = "http://localhost:3000";
@@ -147,4 +152,32 @@ test("default period follows Ecuador's completed month at UTC month boundaries",
       expect(renderToStaticMarkup(response.result)).toContain(expected);
     }
   } finally {vi.setSystemTime(new Date("2026-10-10T12:00:00Z"));}
+});
+
+
+test("signed finalization actions enforce identity/confirmation and refresh immutable status and rate consumers",async()=>{
+  const form=new FormData();form.set("period","2026-01");
+  await withSession("close-finance",()=>runClose({status:"idle"},form));
+  const row=(await data.owner.query("SELECT id FROM statement")).rows[0];
+  form.set("statementId",row.id);
+  const draft=renderToStaticMarkup(await page("close-finance"));
+  expect(draft).toContain('value="'+row.id+'"');expect(draft).toContain("Finalize period drafts");
+  for(const subject of [null,"close-viewer","close-finance"]) {
+    const response=await withSession(subject,()=>finalizeStatement({status:"idle"},form));
+    expect(response.result).toEqual({status:"error"});expect(response.work.pendingRevalidatedTags??[]).toEqual([]);
+  }
+  form.set("confirmed","true");
+  for(const subject of [null,"close-viewer"]) {
+    const denied=await withSession(subject,()=>finalizeStatements({status:"idle"},form));
+    expect(denied.result).toEqual({status:"error"});expect(denied.work.pendingRevalidatedTags??[]).toEqual([]);
+  }
+  const response=await withSession("close-finance",()=>finalizeStatement({status:"idle"},form));
+  expect(response.result).toEqual({status:"finalized",count:1});
+  expect(response.work.pendingRevalidatedTags.map((entry:{tag:string})=>entry.tag)).toEqual(["_N_T_/cierre","_N_T_/estados-de-cuenta","_N_T_/tarifas","_N_T_/estados-de-cuenta/layout"]);
+  const final=renderToStaticMarkup(await page("close-finance"));
+  expect(final).toContain(">Final</span>");expect(final).not.toContain("Finalize period drafts");expect(final).not.toContain('name="statementId"');
+  expect((await data.owner.query(`SELECT public.rate_card_is_locked(r) AS locked FROM rate_card r`)).rows).toEqual([{locked:true}]);
+  const retry=await withSession("close-admin",()=>finalizeStatements({status:"idle"},form));
+  expect(retry.result).toEqual({status:"finalized",count:0});
+  expect(retry.work.pendingRevalidatedTags.map((entry:{tag:string})=>entry.tag)).toContain("_N_T_/estados-de-cuenta/layout");
 });

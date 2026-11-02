@@ -179,5 +179,19 @@
     "loading": "Loading monthly close…",
     "loadError": "Could not load monthly close. Try again.",
     "retry": "Try again"
+  },
+  "finalization": {
+    "title": "Finalize statements",
+    "immutable": "Final statements are immutable. Record later adjustments as new lines on the next draft. Consumed rates are locked.",
+    "confirm": "I confirm these drafts are ready to become immutable finals.",
+    "single": "Finalize statement",
+    "period": "Finalize period drafts",
+    "pending": "Finalizing…",
+    "success": "Statements finalized",
+    "error": "Could not finalize. Refresh and rerun close if rates changed, then try again.",
+    "empty": "No statements for this period.",
+    "draft": "Draft",
+    "final": "Final",
+    "reconciled": "Reconciled"
   }
 }

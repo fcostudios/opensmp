@@ -473,5 +473,19 @@
       "deprovisioned": "Retirada",
       "rejected": "Rechazada"
     }
+  },
+  "finalization": {
+    "title": "Finalizar estados de cuenta",
+    "immutable": "Los estados finales son inmutables. Registre ajustes posteriores como líneas nuevas en el siguiente borrador. Las tarifas consumidas quedan bloqueadas.",
+    "confirm": "Confirmo que estos borradores están listos para convertirse en finales inmutables.",
+    "single": "Finalizar estado de cuenta",
+    "period": "Finalizar borradores del período",
+    "pending": "Finalizando…",
+    "success": "Estados finalizados",
+    "error": "No se pudo finalizar. Actualice y ejecute el cierre si cambiaron las tarifas; luego intente de nuevo.",
+    "empty": "No hay estados de cuenta para este período.",
+    "draft": "Borrador",
+    "final": "Final",
+    "reconciled": "Conciliado"
   }
 }
