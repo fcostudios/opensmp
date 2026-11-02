@@ -189,6 +189,8 @@ test("US-096 localized loading boundary resolves within the real request",async(
 });
 
 test("signed finalization actions enforce identity/confirmation and refresh immutable status and rate consumers",async()=>{
+  // US-041: a genuine viewer read grant must still reject finalization commands.
+  await data.owner.query(`INSERT INTO company_role_assignment(user_account_id,company_id,role,unique_grant,created_at,created_by) VALUES($1,$2,'viewer','us041-viewer-grant','2026-01-01',$3)`,["34100000-0000-4000-8000-000000000002","34100000-0000-4000-8000-000000000007","34100000-0000-4000-8000-000000000001"]);
   const form=new FormData();form.set("period","2026-01");
   await withSession("close-finance",()=>runClose({status:"idle"},form));
   const row=(await data.owner.query("SELECT id FROM statement")).rows[0];
@@ -221,4 +223,28 @@ test("signed finalization actions enforce identity/confirmation and refresh immu
   const retry=await withSession("close-admin",()=>finalizeStatements({status:"idle"},form));
   expect(retry.result).toEqual({status:"finalized",count:0});
   expect(retry.work.pendingRevalidatedTags.map((entry:{tag:string})=>entry.tag)).toContain("_N_T_/estados-de-cuenta/layout");
+});
+
+// US-039: signed sessions exercise the actual action and selected-period page composition.
+test("rollup page reuses the selected group sum and export action resolves genuine finance sessions",async()=>{
+ const form=new FormData();form.set("period","2026-01");
+ await withSession("close-finance",()=>runClose({status:"idle"},form));
+ const html=renderToStaticMarkup(await page("close-finance"));
+ expect(html).toContain('data-testid="rollup_panel"');expect(html).toContain('data-testid="tile_group_total"');
+ expect(html).toContain('/conciliacion?period=2026-01');expect(html).toContain('data-testid="btn_export_rollup_csv"');
+ expect(html.match(/data-testid="tile_group_total"/g)).toHaveLength(1);
+ expect(html.indexOf('data-testid="close_tiles"')).toBeLessThan(html.indexOf('data-testid="latest_close_run"'));
+ // A scheduled failure has no statement stamp; the latest-run reader must still win over the rollup's run metadata.
+ await data.owner.query("INSERT INTO user_account(id,email,status,created_at) VALUES('00000000-0000-0000-0000-000000000001','system@ledger.invalid','disabled','2026-01-01') ON CONFLICT(id) DO NOTHING");
+ const scheduled=(await data.owner.query("INSERT INTO close_run(period,status,started_at,finished_at,triggered_by,created_at,note) VALUES('2026-01','failed','2026-10-10T12:00:01Z','2026-10-10T12:00:02Z','00000000-0000-0000-0000-000000000001','2026-10-10T12:00:01Z','scheduled failure evidence') RETURNING id")).rows[0].id;
+ const combined=renderToStaticMarkup(await page("close-finance"));
+ expect(combined).toContain(scheduled);expect(combined).toContain("scheduled failure evidence");
+ expect(combined).toContain('data-testid="close_nfr"');expect(combined).toContain('data-testid="rollup_panel"');
+ expect(combined.match(/data-testid="tile_group_total"[\s\S]*?<\/div>/)?.[0]).toContain(">62.00</dd>");
+
+ const {exportRollupCsv}=await import("@/modules/close/rollup-actions");
+ const download=await withSession("close-finance",()=>exportRollupCsv("2026-01"));
+ expect(download.result.filename).toBe("rollup-2026-01.csv");expect(download.result.csv).toContain("62.00");
+ expect((await withSession("close-finance",()=>exportRollupCsv("2026-02"))).result.csv).not.toContain("62.00");
+ for(const subject of [null,"close-viewer"])await expect(withSession(subject,()=>exportRollupCsv("2026-01"))).rejects.toThrow("ROLLUP_FORBIDDEN");
 });

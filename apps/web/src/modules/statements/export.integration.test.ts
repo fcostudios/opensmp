@@ -12,7 +12,7 @@ const companyA = id(2), companyB = id(3), statementA = id(10), statementB = id(1
 const authorization: LedgerAuthorization = {
   userId: id(1), userAccountId: id(1), idpSubject: "finance-a", globalRole: null,
   roles: ["company_finance"], companyIds: [companyA, companyB], employeeCompanyId: null,
-  companyGrants: [{ companyId: companyA, role: "finance" }, { companyId: companyB, role: "viewer" }],
+  companyGrants: [{ companyId: companyA, role: "finance" }],
 };
 let fixture: PostgresFixture;
 let pool: pg.Pool;
@@ -109,13 +109,12 @@ test("empty statements retain metadata; quotes, multiline text and formula cells
  }
 });
 
-test("download boundary denies unauthenticated, viewers, employees, malformed, absent and foreign identifiers without an audit", async () => {
+test("download boundary denies unauthenticated, employees, malformed, absent and foreign identifiers without an audit", async () => {
  const owner=await fixture.connectAsOwner();
  try {
  const before=(await owner.query("SELECT count(*) FROM audit_log")).rows[0].count;
  for(const [auth,statementId,status,expectedCode] of [
    [null,statementA,401,"UNAUTHORIZED"],
-   [{...authorization,companyGrants:[{companyId:companyA,role:"viewer"}]},statementA,403,"STATEMENTS_ACCESS_FORBIDDEN"],
    [{...authorization,globalRole:null,companyGrants:[],roles:["employee"]},statementA,403,"STATEMENTS_ACCESS_FORBIDDEN"],
    [authorization,"invalid",400,"INVALID_STATEMENT_ID"],
    [authorization,id(999),404,"STATEMENT_NOT_FOUND"],
@@ -265,7 +264,7 @@ test("PDF download rejects unauthorized, wrong-role, malformed, absent and forei
   const before=(await owner.query("SELECT count(*) FROM audit_log")).rows[0].count;
   for(const [auth,value,status,code] of [
    [null,statementA,401,"UNAUTHORIZED"],
-   [{...authorization,companyGrants:[{companyId:companyA,role:"viewer"}]},statementA,403,"STATEMENTS_ACCESS_FORBIDDEN"],
+   [{...authorization,companyGrants:[],roles:["viewer"]},statementA,403,"STATEMENTS_ACCESS_FORBIDDEN"],
    [{...authorization,companyGrants:[],roles:["employee"]},statementA,403,"STATEMENTS_ACCESS_FORBIDDEN"],
    [authorization,"invalid",400,"INVALID_STATEMENT_ID"],
    [authorization,id(999),404,"STATEMENT_NOT_FOUND"],
@@ -279,5 +278,34 @@ test("PDF download rejects unauthorized, wrong-role, malformed, absent and forei
   expect(createStatementPdfDownload(authorization,statementA)).toEqual({downloadUrl:`/api/v1/statements/${statementA}/export/pdf`});
   expect(()=>createStatementPdfDownload(null,statementA)).toThrow("UNAUTHORIZED");
   expect(()=>createStatementPdfDownload(authorization,"bad")).toThrow("INVALID_STATEMENT_ID");
+ } finally {await owner.end();}
+});
+
+test.each(["finance","approver","viewer"] as const)("US-041 %s exports only granted company evidence",async role=>{
+ const scoped={...authorization,companyGrants:[{companyId:companyA,role}]};
+ const own=await createStatementExportResponse(repository,scoped,statementA);
+ expect(own.status).toBe(200);
+ const csv=await own.text();expect(csv).toContain("Alice");expect(csv).not.toContain("Bob secret");expect(csv).not.toContain("Secret line");
+ const foreign=await createStatementExportResponse(repository,scoped,statementB);
+ expect(foreign.status).toBe(404);expect(await foreign.json()).toEqual({error:"STATEMENT_NOT_FOUND"});
+});
+
+
+// US-041 read grants apply equally to PDF: each role reads only its own stored
+// evidence, commits a scoped audit and cannot audit an unavailable tenant.
+test.each(["finance","approver","viewer"] as const)("US-041 %s exports only granted company PDF evidence",async role=>{
+ const owner=await fixture.connectAsOwner();
+ try {
+  const previous=(await owner.query("SELECT id FROM audit_log WHERE action='statement.export_pdf'")).rows.map(row=>row.id);
+  const scoped={...authorization,companyGrants:[{companyId:companyA,role}]};
+  const own=await createStatementPdfExportResponse(repository,scoped,statementA);
+  expect(own.status).toBe(200);
+  const text=(await pdfPages(Buffer.from(await own.arrayBuffer()))).join(" ");
+  for(const value of [id(12),id(13),"Prorated","Correction required note","USD 17,29"]) expect(text).toContain(value);
+  expect(text).not.toContain(id(14));expect(text).not.toContain("Secret line");expect(text).not.toContain("R2 hidden");
+  const foreign=await createStatementPdfExportResponse(repository,scoped,statementB);
+  expect(foreign.status).toBe(404);expect(await foreign.json()).toEqual({error:"STATEMENT_NOT_FOUND"});
+  const audits=await owner.query("SELECT entity_id,company_id,actor_user_id,after FROM audit_log WHERE action='statement.export_pdf' AND id <> ALL($1::uuid[])",[previous]);
+  expect(audits.rows).toEqual([{entity_id:statementA,company_id:companyA,actor_user_id:id(1),after:{format:"pdf",period:"2026-07",status:"draft",language:"es",totalUsd:"17.29",lineCount:2}}]);
  } finally {await owner.end();}
 });

@@ -11,6 +11,8 @@ import {
   type PostgresFixture,
 } from "@smp/db/testing/postgres-container";
 import * as schema from "@smp/db/schema";
+import { createLicenseCloseRepository } from "@smp/db/license-close";
+import { computeLicenseClose, monthBounds } from "@smp/domain/close/license-close";
 
 import {
   createAuthorizationRepository,
@@ -342,6 +344,11 @@ describe("US-033 register repository with real PostgreSQL", () => {
     ["end reason", { endReason: "left_company" }, authForCompanyA, [assignmentA3]],
     ["start date", { startDate: "2026-02-01" }, authForCompanyA, [assignmentA2, assignmentA3]],
     ["end date", { endDate: "2026-02-01" }, authForCompanyA, [assignmentA1, assignmentA2]],
+    // US-098: overlap with the calendar month, not the start date; scoped like every other filter (BR-22).
+    ["active month (joiner after, leaver inside)", { activeMonth: "2026-02" }, authForCompanyA, [assignmentA1, assignmentA2]],
+    ["active month (leaver before)", { activeMonth: "2026-03" }, authForCompanyA, [assignmentA1, assignmentA3]],
+    ["active month (group scope)", { activeMonth: "2026-03" }, authForGroupAdmin, [assignmentA1, assignmentB, assignmentA3]],
+    ["active month (before every start)", { activeMonth: "2025-12" }, authForGroupAdmin, []],
   ] as const)("enforces the %s filter independently", async (_name, input, authorization, expectedIds) => {
     const repository = createRegisterRepository(drizzle(appPool, { schema }));
     const page = await repository.listRows(authorization, parseRegisterFilters(input));
@@ -730,4 +737,156 @@ test("US-036 exact assignment evidence excludes unrelated and foreign register r
   expect([selected[0].startedOn, selected[0].endedOn]).toEqual(["2026-02-01", "2026-02-28"]);
   expect(await repository.assignmentsById(authForCompanyA, [])).toEqual([]);
   expect((await repository.assignmentsById(authForGroupAdmin, [assignmentB])).map(row => row.id)).toEqual([assignmentB]);
+});
+
+// US-041: evidence projection stays scoped even when callers bypass the global register screen.
+test.each(["finance", "approver", "viewer"] as const)("%s register evidence and CSV never include another company", async role => {
+ const database = drizzle(appPool, { schema });
+ const repository = createRegisterRepository(database);
+ const scoped = {...authForCompanyA, companyIds:[companyA,companyB], companyGrants:[{companyId:companyA,role}]};
+ const csv = await repository.exportCsv(scoped, {});
+ const ownCsv = await repository.exportCsv(scoped, {companyId:companyA});
+ expect(csv).toBe(ownCsv);
+ expect(csv).toContain("Bruno Import");expect(csv).not.toContain("Bravo Tenant");
+ expect((await repository.listRows(scoped, {})).items.map(row=>row.companyId)).toEqual([companyA,companyA,companyA]);
+ expect((await repository.assignmentsById(scoped,[assignmentA1,assignmentB])).map(row=>row.id)).toEqual([assignmentA1]);
+ expect(await repository.exportCsv(scoped,{companyId:companyB})).toBe(csv.split("\r\n")[0]+"\r\n");
+});
+
+describe("US-098 active-in-month register equals what the license-only close bills", () => {
+  const id = (n: number) => `00000000-0000-4000-8000-0000000098${String(n).padStart(2, "0")}`;
+  const companyC = id(1);
+  const companyD = id(2);
+  const period = "2026-10";
+  // name -> [company, started_on, ended_on]. Every boundary of the month on both sides.
+  const seats = {
+    openSinceBefore: [companyC, "2026-09-15", null],
+    joinerMidMonth: [companyC, "2026-10-11", null],
+    leaverMidMonth: [companyC, "2026-09-01", "2026-10-15"],
+    endedBeforeMonth: [companyC, "2026-08-01", "2026-09-30"],
+    startsOnLastDay: [companyC, "2026-10-31", null],
+    startsAfterMonth: [companyC, "2026-11-01", null],
+    endsOnFirstDay: [companyD, "2026-07-01", "2026-10-01"],
+    leavesOnLastDay: [companyD, "2026-10-01", "2026-10-31"],
+    openSinceLastYear: [companyD, "2025-01-01", null],
+    startsLaterNextMonth: [companyD, "2026-11-05", null],
+  } as const satisfies Record<string, readonly [string, string, string | null]>;
+  const names = Object.keys(seats) as (keyof typeof seats)[];
+  const assignmentId = (name: keyof typeof seats) => id(50 + names.indexOf(name));
+
+  async function seedMonthFixture() {
+    const at = new Date("2026-10-31T00:00:00.000Z");
+    await owner.query(
+      `INSERT INTO company (id, name, code, type, status, created_at, created_by)
+       VALUES ($1, 'Charlie Company', 'CHR', 'internal', 'active', $3, $4),
+              ($2, 'Delta Company', 'DLT', 'internal', 'active', $3, $4)`,
+      [companyC, companyD, at, actorId],
+    );
+    for (const [index, name] of names.entries()) {
+      const [companyId, startedOn, endedOn] = seats[name];
+      const personId = id(10 + index);
+      await owner.query(
+        `INSERT INTO person (id, email, full_name, company_id, status, created_at, created_by)
+         VALUES ($1, $2, $3, $4, 'active', $5, $6)`,
+        [personId, `${name.toLowerCase()}@example.test`, name, companyId, at, actorId],
+      );
+      await owner.query(
+        `INSERT INTO license_assignment (id, person_id, company_id, vendor_account_id, license_type_id,
+                                         started_on, ended_on, end_reason, source_kind, note, created_at, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'import', $9, $10, $11)`,
+        [assignmentId(name), personId, companyId, vendorAccountA, licenseTypeA, startedOn, endedOn, endedOn ? "left_company" : null, name, at, actorId],
+      );
+    }
+    await owner.query(
+      `INSERT INTO rate_card (vendor_account_id, license_type_id, monthly_rate_usd, effective_from, created_at, created_by)
+       VALUES ($1, $2, 31.00, '2025-01-01', $3, $4)`,
+      [vendorAccountA, licenseTypeA, at, actorId],
+    );
+  }
+
+  test("per-company assignments, seat-days and month-end headcount match a real close of the same month", async () => {
+    await seedMonthFixture();
+    const database = drizzle(appPool, { schema });
+    const repository = createRegisterRepository(database);
+    const run = await createLicenseCloseRepository(database, { computeLicenseClose, monthBounds })
+      .runClose({ userAccountId: actorId, companyIds: [companyC, companyD] }, { period, note: null }, () => new Date("2026-11-01T00:00:00.000Z"));
+    expect(run.status).toBe("succeeded");
+    const lines = (await owner.query<{ assignment_id: string; company_id: string; license_days: number; period_to: Date }>(
+      `SELECT s.company_id, l.assignment_id, l.license_days, l.period_to
+         FROM statement_line l JOIN statement s ON s.id = l.statement_id
+        WHERE s.period = $1 AND l.kind = 'license'`,
+      [period],
+    )).rows;
+    const month = monthBounds(period);
+    const overlapDays = (startedOn: string, endedOn: string | null) =>
+      (Date.parse(endedOn && endedOn < month.to ? endedOn : month.to) - Date.parse(startedOn > month.from ? startedOn : month.from)) / 86_400_000 + 1;
+
+    const expected = {
+      [companyC]: { ids: ["openSinceBefore", "joinerMidMonth", "leaverMidMonth", "startsOnLastDay"], monthEnd: 3, seatDays: 31 + 21 + 15 + 1 },
+      [companyD]: { ids: ["endsOnFirstDay", "leavesOnLastDay", "openSinceLastYear"], monthEnd: 2, seatDays: 1 + 31 + 31 },
+    } as const;
+    for (const companyId of [companyC, companyD]) {
+      const rows = (await repository.listRows(authForGroupAdmin, parseRegisterFilters({ activeMonth: period, companyId }))).items;
+      const closeLines = lines.filter((line) => line.company_id === companyId);
+      const want = expected[companyId]!;
+      const wantIds = want.ids.map((name) => assignmentId(name as keyof typeof seats)).sort();
+      // Exact oracle first, then the equivalence AC3 states.
+      expect(rows.map((row) => row.id).sort()).toEqual(wantIds);
+      expect([...new Set(closeLines.map((line) => line.assignment_id))].sort()).toEqual(wantIds);
+      expect(rows.every((row) => row.companyId === companyId)).toBe(true);
+      const registerMonthEnd = rows.filter((row) => row.endedOn === null || row.endedOn >= month.to).length;
+      const closeMonthEnd = closeLines.filter((line) => line.period_to.toISOString().slice(0, 10) === month.to).length;
+      expect(registerMonthEnd).toBe(want.monthEnd);
+      expect(closeMonthEnd).toBe(registerMonthEnd);
+      const registerSeatDays = rows.reduce((sum, row) => sum + overlapDays(row.startedOn, row.endedOn), 0);
+      expect(registerSeatDays).toBe(want.seatDays);
+      expect(closeLines.reduce((sum, line) => sum + line.license_days, 0)).toBe(registerSeatDays);
+    }
+
+    // The US-033 date filters keep their meaning: they match the START date, which is the rehearsal finding.
+    const byStartDate = await repository.listRows(authForGroupAdmin, parseRegisterFilters({ companyId: companyC, startDate: month.from, endDate: month.to }));
+    expect(byStartDate.items.map((row) => row.id).sort()).toEqual([assignmentId("joinerMidMonth"), assignmentId("startsOnLastDay")].sort());
+
+    // AC2: the M-1 CSV carries exactly the active-in-month rows, with dates and end reason.
+    const csv = await repository.exportCsv(authForGroupAdmin, parseRegisterFilters({ activeMonth: period }));
+    // Header + the 7 fixture seats + the two US-033 seats open since January (A1, B), which are also active in October.
+    expect(countCsvRecords(csv)).toBe(1 + 7 + 2);
+    const records = csv.trimEnd().split("\r\n").filter((record) => record.includes(",CHR,") || record.includes(",DLT,"));
+    expect(records.sort()).toEqual([
+      "register_v1,endsOnFirstDay,DLT,Register Org A,Enterprise,2026-07-01,2026-10-01,left_company,import,,endsOnFirstDay",
+      "register_v1,joinerMidMonth,CHR,Register Org A,Enterprise,2026-10-11,,,import,,joinerMidMonth",
+      "register_v1,leavesOnLastDay,DLT,Register Org A,Enterprise,2026-10-01,2026-10-31,left_company,import,,leavesOnLastDay",
+      "register_v1,leaverMidMonth,CHR,Register Org A,Enterprise,2026-09-01,2026-10-15,left_company,import,,leaverMidMonth",
+      "register_v1,openSinceBefore,CHR,Register Org A,Enterprise,2026-09-15,,,import,,openSinceBefore",
+      "register_v1,openSinceLastYear,DLT,Register Org A,Enterprise,2025-01-01,,,import,,openSinceLastYear",
+      "register_v1,startsOnLastDay,CHR,Register Org A,Enterprise,2026-10-31,,,import,,startsOnLastDay",
+    ].sort());
+  });
+
+  test("the download boundary carries the month filter for both register roles and still refuses Company Finance", async () => {
+    await seedMonthFixture();
+    const database = drizzle(appPool, { schema });
+    const authorizationRepository = createAuthorizationRepository(database);
+    const repository = createRegisterRepository(database);
+    expect(createRegisterCsvDownload(authForGroupAdmin, { activeMonth: period, companyId: companyD })).toEqual({
+      downloadUrl: `/api/exports/register?activeMonth=${period}&companyId=${companyD}`,
+    });
+    expect(() => createRegisterCsvDownload(authForCompanyA, { activeMonth: period })).toThrow("Forbidden");
+    const query = serializeRegisterFilters(parseRegisterFilters({ activeMonth: period, companyId: companyD }));
+    const download = (subject: string) => createRegisterExportResponse({ loadAuthorization: async (s) => authorizationRepository.load({ subject: s }), query: new URLSearchParams(query), queryLength: query.length, repository, subject });
+    const admin = await download("register-admin");
+    expect(admin.status).toBe(200);
+    const rows = (await admin.text()).trimEnd().split("\r\n").slice(1).map((record) => record.split(",")[1]).sort();
+    expect(rows).toEqual(["endsOnFirstDay", "leavesOnLastDay", "openSinceLastYear"]);
+    await owner.query("UPDATE user_account SET global_role = 'central_finance', idp_subject = 'register-central' WHERE id = $1", [actorId]);
+    const central = await download("register-central");
+    expect(central.status).toBe(200);
+    expect((await central.text()).trimEnd().split("\r\n")).toHaveLength(4);
+    const companyFinance = await download("register-finance-a");
+    expect(companyFinance.status).toBe(403);
+    await expect(companyFinance.json()).resolves.toEqual({ error: "Forbidden" });
+    const malformed = new URLSearchParams("activeMonth=2026-13");
+    const rejected = await createRegisterExportResponse({ loadAuthorization: async (s) => authorizationRepository.load({ subject: s }), query: malformed, queryLength: 19, repository, subject: "register-admin" });
+    expect(rejected.status).toBe(400);
+  });
 });

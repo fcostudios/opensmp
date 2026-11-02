@@ -79,7 +79,7 @@ describe("generated screen access", () => {
       company_finance: "/estados-de-cuenta",
       central_finance: "/cierre",
       group_admin: "/panel",
-      viewer: "/companias/:companyId",
+      viewer: "/estados-de-cuenta",
     });
   });
 

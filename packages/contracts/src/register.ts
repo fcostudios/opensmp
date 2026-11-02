@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 export interface RegisterFilters {
+  /** US-098: calendar month (YYYY-MM); rows active on at least one day of it, as the close bills. */
+  readonly activeMonth?: string;
   readonly companyId?: string;
   readonly cursor?: string;
   readonly endDate?: string;
@@ -25,6 +27,9 @@ export function createRegisterFiltersSchema() {
   const optionalUuid = z.string().uuid().optional();
 
   return z.object({
+    // Same period contract as the license-only close (runCloseSchema.period / monthBounds, US-034);
+    // the register surface test pins the two to accept exactly the same strings.
+    activeMonth: z.string().regex(/^[1-9]\d{3}-(0[1-9]|1[0-2])$/).optional(),
     companyId: optionalUuid,
     cursor: z.string().min(1).max(500).optional(),
     endDate: dateFilter.optional(),

@@ -33,7 +33,7 @@ import {
 
 // UserRole — the distinct roles the nav map gates sidebar items on.
 // Generated locally (the dev team may re-home this in a real auth hook).
-export type UserRole = "approver" | "central_finance" | "company_finance" | "employee" | "group_admin";
+export type UserRole = "approver" | "central_finance" | "company_finance" | "employee" | "group_admin" | "viewer";
 export type NavSectionId = "operation" | "finance" | "administration";
 
 export const navSections = [
@@ -147,7 +147,7 @@ export const navItems: readonly NavItem[] = [
     href: "/estados-de-cuenta",
     screenId: "SCR-statements",
     section: "finance",
-    roles: ["company_finance", "central_finance", "group_admin"],
+    roles: ["company_finance", "central_finance", "group_admin", "approver", "viewer"],
   },
   {
     id: "nav-cierre",

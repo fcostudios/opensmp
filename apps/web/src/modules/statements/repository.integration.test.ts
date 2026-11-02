@@ -12,7 +12,7 @@ const companyA = id(2), companyB = id(3), statementA = id(10), statementB = id(1
 const authorization: LedgerAuthorization = {
   userId: id(1), userAccountId: id(1), idpSubject: "finance-a", globalRole: null,
   roles: ["company_finance"], companyIds: [companyA, companyB], employeeCompanyId: null,
-  companyGrants: [{ companyId: companyA, role: "finance" }, { companyId: companyB, role: "viewer" }],
+  companyGrants: [{ companyId: companyA, role: "finance" }],
 };
 let fixture: PostgresFixture;
 let pool: pg.Pool;
@@ -80,7 +80,11 @@ test("rejects foreign company, wrong role, missing and malformed statement IDs",
   expect(await repository.find(authorization, id(999))).toBeNull();
   expect(await repository.find(authorization, "bad-id")).toBeNull();
   expect(await repository.find({ ...authorization, companyGrants: [] }, statementA)).toBeNull();
-  expect(await repository.find({ ...authorization, companyGrants: [{companyId: companyA, role: "viewer"}] }, statementA)).toBeNull();
+  for (const role of ["finance", "approver", "viewer"] as const) {
+    const scoped = { ...authorization, companyGrants: [{companyId: companyA, role}] };
+    expect((await repository.find(scoped, statementA))?.lines[0].assignment?.id).toBe(id(9));
+    expect(await repository.find(scoped, statementB)).toBeNull();
+  }
   for (const globalRole of ["central_finance", "group_admin"] as const) {
     const result = await repository.find({ ...authorization, globalRole }, statementB);
     expect(result?.lines[0].personName).toBe("Bob secret");

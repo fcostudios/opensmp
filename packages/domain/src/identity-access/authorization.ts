@@ -45,9 +45,9 @@ export const ROLE_CAPABILITIES: Readonly<
   ],
   central_finance: ["finance:read", "finance:close"],
   employee: ["request:create"],
-  approver: ["company:read", "request:create", "request:approve"],
+  approver: ["finance:read", "company:read", "request:create", "request:approve"],
   company_finance: ["company:read", "finance:read"],
-  viewer: ["company:read"],
+  viewer: ["company:read", "finance:read"],
 } as const;
 
 function roleForGrant(role: CompanyRole): LedgerRole {

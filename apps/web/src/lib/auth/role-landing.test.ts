@@ -68,7 +68,7 @@ describe("roleLanding", () => {
           },
         ],
       }),
-      "/companias/00000000-0000-0000-0000-000000000411",
+      "/estados-de-cuenta",
     ],
   ] as const)("lands %s on its exact destination", (_kind, identity, expected) => {
     expect(roleLanding(identity)).toBe(expected);
@@ -115,7 +115,7 @@ describe("roleLanding", () => {
           ],
         }),
       ),
-    ).toBe("/companias/00000000-0000-0000-0000-000000000401");
+    ).toBe("/estados-de-cuenta");
   });
 
   test("global roles take precedence over every company grant", () => {

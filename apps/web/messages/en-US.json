@@ -391,7 +391,7 @@
     "manualError": "Could not update the register. Check permissions, references, notes, dates and finalized periods.",
     "manualPending": "Saving…",
 
-    "all": "All", "apply": "Apply filters", "closed": "Closed", "company": "Company", "companyCode": "Company", "dateFrom": "Start date", "dateTo": "End date",
+    "activeMonth": "Active in month", "activeMonthHint": "Every seat active on at least one day of the month, as the month-end close bills it.", "all": "All", "apply": "Apply filters", "closed": "Closed", "company": "Company", "companyCode": "Company", "dateFrom": "Start date", "dateTo": "End date",
     "drilldownClose": "Close", "drilldownDecisionDate": "Decided on", "drilldownSource": "Source request", "drilldownStatementLines": "Statement lines", "drilldownTitle": "Assignment trace",
     "empty": "No assignments match these filters.", "endReason": "End reason", "endReasonInactive": "Inactive", "endReasonLeftCompany": "Left company", "endReasonReallocated": "Reallocated", "endedOn": "End",
     "export": "Export CSV", "exportError": "We couldn't export the register. Check your access and try again.", "filters": "Filter the register", "integrityContent": "The database prevents overlapping assignments and requires reallocation moves to remain contiguous. Review register-drift alerts when another attribution gap needs investigation.", "integrityTitle": "Register integrity",
@@ -563,5 +563,16 @@
     "loadError": "Statements could not be loaded.",
     "retry": "Try again",
     "evidenceNote": "Movements identify register assignments and people; rates and seat-days come from generated license lines."
-  }
+  },
+  "rollup": {
+    "title": "Consolidated rollup",
+    "csv": "Export rollup CSV",
+    "download": "Download CSV",
+    "reconciliation": "View reconciliation",
+    "total": "Reconciliation rollup (USD)",
+    "tied": "Rollup ties to reconciliation for this period.",
+    "untied": "Not tied yet. Finalize the period and check reconciliation scope and totals.",
+    "pending": "Preparing CSV…",
+    "error": "Unable to export the rollup. Try again."
+}
 }

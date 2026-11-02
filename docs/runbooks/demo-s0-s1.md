@@ -93,7 +93,7 @@ IT Director completes login and deployment health checks.
 | S0.2 | IT Director, then each participant | Sign in through "Continue with corporativo.". Admin roles enroll or use TOTP. | Login works. Admin roles must use a second factor. Sign-out works. |
 | S0.3 | Group Admin | In `/registro`, use **Manual register entry**. Record each person's assignment: company, person, organization, license type, start date, and a mandatory note naming the source. Record joiners with their real start date. Record leavers with **Close assignment**, giving the end date and reason. (US-095) | Each save shows "Register updated." The register table lists the row as `Manual entry` with its note. Mistakes are corrected with a new audited entry or close, never with SQL. |
 | S0.4 | Central Finance | Open `/registro` and filter by company, organization or person. Inspect dated history and open a row's drilldown. | Central Finance can read the whole group register. The manual-entry form is **not** shown to Central Finance (Group Admin only, by design in US-095). |
-| S0.5 | Central Finance | **Export CSV** for M-1. Leave `Start date` empty and set `End date` to the last day of M-1. Then, in the spreadsheet, drop rows whose `ended_on` is before the first day of M-1. See the gap note below. | The `register_v1` CSV has one row per assignment, with `company_code`, dates, `end_reason`, `source_kind` and `note`. People per company and month-end headcount match the lists for all **five** companies. |
+| S0.5 | Central Finance | Set **Active in month** to M-1 and press **Export CSV**. Leave `Start date` and `End date` empty: they match only the assignment's start date. (US-098) | The `register_v1` CSV has one row per assignment, with `company_code`, dates, `end_reason`, `source_kind` and `note`. People per company and month-end headcount match the lists for all **five** companies. |
 | S0.6 | Company Finance (each) | Compare its supplied list with Central Finance's exported rows for its own company. Central Finance shares the CSV slice; see the known gap. | Every person, start and end date matches, or each mismatch is listed and then corrected through S0.3 with before/after evidence in `/auditoria`. |
 
 IT Director smoke test on production. It is read-only, and the host operator
@@ -135,19 +135,15 @@ and a seat held for 21 days is $20.32.
 
 ## 4. Known gaps (say these out loud)
 
-* **US-041 is not merged.** Company Finance has no own-company register or
-  headcount screen before a close. `/registro` and the register CSV are limited
+* **No own-company register screen before a close.** US-041 (merged) scopes
+  Company Finance to its own statements and the register evidence inside them,
+  but there is no standalone own-company register or headcount screen before a close. `/registro` and the register CSV are limited
   to Group Admin and Central Finance, and `/companias` is still a scaffold. In S0,
   Company Finance verifies headcount from the CSV slice that Central Finance
   shares. In S1, it verifies headcount from opening seats and lines on its own
   draft.
-* **Register CSV "month" filter.** `Start date`/`End date` filter on the
-  assignment's *start date*, not on overlap with the month. Filtering
-  1–31 Oct drops a seat that started in September and is still open. Use only
-  `End date` = end of M-1, then exclude rows that ended before M-1.
-* **Manual entry is Group Admin only (US-095).** `docs/runbooks/operations.md`
-  says Central Finance enters joiners and leavers. In the code, Central Finance
-  inspects and exports while Group Admin records the entries.
+* Fixed by US-098: the register now has an **Active in month** filter, so the M-1 CSV no longer needs the start/end-date workaround.
+* Fixed with US-098: `docs/runbooks/operations.md` now says Group Admin records entries and Central Finance inspects and exports.
 * **Real data is pending.** Without the real export, the contracted rate and the
   invoice, S0 is provisional, US-094 is not verified, and **H2 is not tested**.
   A provisional total proves nothing about the 0.5% reconciliation in S2.

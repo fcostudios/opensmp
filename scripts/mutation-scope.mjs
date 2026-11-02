@@ -986,6 +986,10 @@ export function classifyPageWiringBundle(changes) {
 }
 
 const EXACT_FRAMEWORK_ADAPTERS = {
+  // US-039: only the close-page composition diff is verification-only; business rules remain scored.
+  "apps/web/src/app/(authenticated)/cierre/page.tsx": {
+    sha256: "6c86f244e5e71e509b803fc964d82935b34bedbdcf3c5971e7f4df44217491fd",
+  },
   "apps/web/src/app/(authenticated)/registro/page.tsx": {
     sha256: "73bf43e93990fc11f5740181370df3015f77093b81433b74eb8e3d041786aca8",
   },

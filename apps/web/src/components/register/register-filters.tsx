@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { RegisterFilters as RegisterFilterValues } from "@smp/contracts/register";
 
 interface RegisterFilterLabels {
@@ -50,6 +51,8 @@ export function RegisterFilters({
   sourceRequestNos,
   vendorAccounts,
 }: RegisterFiltersProps) {
+  // US-098: the month filter reads its catalog labels directly, so the register page's composition root is unchanged.
+  const t = useTranslations("register");
   return (
     <form
       className="grid gap-4 rounded border border-border bg-surface p-4 md:grid-cols-3"
@@ -101,6 +104,13 @@ export function RegisterFilters({
           <option value="closed">{labels.closed}</option>
         </select>
       </label>
+      <div className="grid gap-1 text-sm text-text-secondary">
+        <label className="grid gap-1">
+          {t("activeMonth")}
+          <input aria-describedby="register-active-month-hint" className="min-h-11 rounded border border-border bg-surface px-3 text-text-primary" defaultValue={filters.activeMonth} name="activeMonth" pattern="[0-9]{4}-[0-9]{2}" placeholder="YYYY-MM" type="month" />
+        </label>
+        <span className="text-xs text-text-muted" id="register-active-month-hint">{t("activeMonthHint")}</span>
+      </div>
       <label className="grid gap-1 text-sm text-text-secondary">
         {labels.dateFrom}
         <input className="min-h-11 rounded border border-border bg-surface px-3 text-text-primary" defaultValue={filters.startDate ?? ""} name="startDate" type="date" />

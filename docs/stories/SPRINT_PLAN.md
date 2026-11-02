@@ -1,7 +1,7 @@
 <!-- nous-sprint-stamp
-generated_at: 2026-11-02T01:10:10Z
+generated_at: 2026-11-02T15:44:00Z
 current_sprint: sprint-3
-sprints_hash: 726889067d40a1ab
+sprints_hash: c00992ce43a32ad6
 -->
 # SMP — Sprint Execution Plan
 
@@ -24,7 +24,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 
 **Goal:** deploy with Docker Compose and make the five-company register usable through manual entry.  
 **Exit criterion:** Central Finance completes the register inspection and CSV export journey for month M-1 and five pilot companies on production; Company Finance verifies its company's headcount against its supplied list, and the IT Director completes login and deployment health checks. With manual inputs this exit is explicitly provisional: US-094 remains unverified until the real export is compared. Verifiers use human `story verify` only for the evidence actually accepted. Cumulative **5 SP**. No new money-rule campaign; reuse DB register integrity and auth evidence.  
-**Stories:** 13 | **Points:** 36 SP
+**Stories:** 14 | **Points:** 37 SP
 
 ### Execution Order
 
@@ -41,14 +41,15 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | 9 | full-stack | **US-008** ✅ | Immutable audit trail + viewer | 3SP | `See story file` | — | US-005 | →2 | 33b725b7-eb1 (push, exp 2026-08-02) | [r1_misc_us_008.md](sprint-1/r1_misc_us_008.md) |
 | 10 | full-stack | **US-046** ✅ | Job runner + schedules | 3SP | `See story file` | — | US-002 | →20 | — | [r1_misc_us_046.md](sprint-1/r1_misc_us_046.md) |
 | 11 | full-stack | **US-053** ✅ | Production environment + first deploy | 3SP | `See story file` | — | US-002 | →3 | — | [r1_misc_us_053.md](sprint-1/r1_misc_us_053.md) |
-| 12 | full-stack | **US-094** ✅ | Real-data pilot register run (child of US-007) | 1SP | `See story file` | CHG-113 | US-007, US-053, US-095 | →1 | — | [r1_misc_us_094.md](sprint-1/r1_misc_us_094.md) |
-| 13 | full-stack | **US-095** ✅ | Manual register entry | 1SP | `See story file` | CHG-113 | US-003, US-005, US-008, US-033 | →2 | — | [r1_misc_us_095.md](sprint-1/r1_misc_us_095.md) |
+| 12 | full-stack | **US-098** ⬜ | Register filter: seats active during a month | 1SP | `See story file` | CHG-119 | US-033, US-095 | — | — | [r1_misc_us_098.md](sprint-1/r1_misc_us_098.md) |
+| 13 | full-stack | **US-094** ✅ | Real-data pilot register run (child of US-007) | 1SP | `See story file` | CHG-113 | US-007, US-053, US-095 | →1 | — | [r1_misc_us_094.md](sprint-1/r1_misc_us_094.md) |
+| 14 | full-stack | **US-095** ✅ | Manual register entry | 1SP | `See story file` | CHG-113 | US-003, US-005, US-008, US-033 | →3 | — | [r1_misc_us_095.md](sprint-1/r1_misc_us_095.md) |
 
 ### Parallel Tracks
 
 **Backend (3 stories):** US-003 → US-004 → US-005
 **Frontend (2 stories):** US-001 → US-006
-**Full-stack (8 stories):** US-054 → US-002 → US-007 → US-008 → US-046 → US-053 → US-094 → US-095
+**Full-stack (9 stories):** US-054 → US-002 → US-007 → US-008 → US-046 → US-053 → US-098 → US-094 → US-095
 
 ### References
 
@@ -70,20 +71,20 @@ See `docs/specs/09_architecture.md` for bounded context details.
 |---|-------|-------|------|------|---------------|-----|------------|--------|----------|------|
 | 1 | full-stack | **US-010** ✅ | Person records + edit + auto-create on request | 3SP | `See story file` | — | US-005 | →1 | — | [r1_misc_us_010.md](sprint-2/r1_misc_us_010.md) |
 | 2 | full-stack | **US-014** ✅ | Lifecycle state machine engine | 3SP | `See story file` | — | US-003 | →8 | — | [r1_misc_us_014.md](sprint-2/r1_misc_us_014.md) |
-| 3 | full-stack | **US-032** 🔨 | Effective-dated rate cards | 2SP | `See story file` | — | US-005 | →1 | — | [r1_misc_us_032.md](sprint-2/r1_misc_us_032.md) |
-| 4 | full-stack | **US-033** ✅ | The register surface + export | 3SP | `See story file` | — | US-007 | →2 | — | [r1_misc_us_033.md](sprint-2/r1_misc_us_033.md) |
+| 3 | full-stack | **US-032** ✅ | Effective-dated rate cards | 2SP | `See story file` | — | US-005 | →1 | — | [r1_misc_us_032.md](sprint-2/r1_misc_us_032.md) |
+| 4 | full-stack | **US-033** ✅ | The register surface + export | 3SP | `See story file` | — | US-007 | →3 | — | [r1_misc_us_033.md](sprint-2/r1_misc_us_033.md) |
 | 5 | full-stack | **US-042** ✅ | Alert engine: 10 P0 types | 3SP | `See story file` | — | US-046, US-003 | →25 | — | [r1_misc_us_042.md](sprint-2/r1_misc_us_042.md) |
 | 6 | full-stack | **US-045** ✅ | Connector interface + orchestration routing | 3SP | `See story file` | — | US-003 | →3 | — | [r1_misc_us_045.md](sprint-2/r1_misc_us_045.md) |
 | 7 | full-stack | **US-013** ✅ | My requests + request detail record | 3SP | `See story file` | — | US-012 | — | — | [r1_misc_us_013.md](sprint-2/r1_misc_us_013.md) |
 | 8 | full-stack | **US-015** ✅ | Approval queue: one-minute decisions | 3SP | `See story file` | — | US-014 | →1 | — | [r1_misc_us_015.md](sprint-2/r1_misc_us_015.md) |
 | 9 | full-stack | **US-016** ✅ | Lifecycle notifications (email) | 2SP | `See story file` | — | US-012, US-003 | — | — | [r1_misc_us_016.md](sprint-2/r1_misc_us_016.md) |
 | 10 | full-stack | **US-022** ✅ | Per-org pool tracking + low-pool alert | 3SP | `See story file` | — | US-007, US-042 | →2 | — | [r1_misc_us_022.md](sprint-2/r1_misc_us_022.md) |
-| 11 | full-stack | **US-096** ⬜ | Statements list and totals | 1SP | `See story file` | CHG-113 | US-034 | →3 | — | [r1_misc_us_096.md](sprint-2/r1_misc_us_096.md) |
+| 11 | full-stack | **US-096** ✅ | Statements list and totals | 1SP | `See story file` | CHG-113 | US-034 | →3 | — | [r1_misc_us_096.md](sprint-2/r1_misc_us_096.md) |
 | 12 | full-stack | **US-012** ✅ | Request intake with validations | 3SP | `See story file` | — | US-007, US-010, US-014 | →2 | — | [r1_misc_us_012.md](sprint-2/r1_misc_us_012.md) |
 | 13 | full-stack | **US-017** ✅ | Approval aging: reminder + escalation job | 2SP | `See story file` | — | US-015, US-042, US-046 | — | — | [r1_misc_us_017.md](sprint-2/r1_misc_us_017.md) |
 | 14 | full-stack | **US-020** ✅ | Orchestration mode: checklist + confirm + verification | 3SP | `See story file` | — | US-014, US-045 | →9 | — | [r1_misc_us_020.md](sprint-2/r1_misc_us_020.md) |
-| 15 | full-stack | **US-034** ⬜ | Monthly close job + CloseRun | 5SP | `See story file` | — | US-032, US-033 | →9 | — | [r1_misc_us_034.md](sprint-2/r1_misc_us_034.md) |
-| 16 | full-stack | **US-037** ⬜ | Statement exports (CSV/PDF, per-company language) | 2SP | `See story file` | — | US-034, US-096 | — | — | [r1_misc_us_037.md](sprint-2/r1_misc_us_037.md) |
+| 15 | full-stack | **US-034** ✅ | Monthly close job + CloseRun | 5SP | `See story file` | — | US-032, US-033 | →9 | — | [r1_misc_us_034.md](sprint-2/r1_misc_us_034.md) |
+| 16 | full-stack | **US-037** ✅ | Statement exports (CSV/PDF, per-company language) | 2SP | `See story file` | — | US-034, US-096 | — | — | [r1_misc_us_037.md](sprint-2/r1_misc_us_037.md) |
 
 ### References
 
@@ -106,12 +107,12 @@ See `docs/specs/09_architecture.md` for bounded context details.
 | 1 | full-stack | **US-011** ✅ | Users, roles and delegation-ready grants | 3SP | `See story file` | CHG-001 | US-005 | — | — | [r1_misc_us_011.md](sprint-3/r1_misc_us_011.md) |
 | 2 | full-stack | **US-023** ✅ | Blocked-no-seat + purchase-or-reclaim flow | 3SP | `See story file` | — | US-022, US-042 | →1 | — | [r1_misc_us_023.md](sprint-3/r1_misc_us_023.md) |
 | 3 | full-stack | **US-025** ✅ | Vendor accounts + capability descriptor | 3SP | `See story file` | — | US-005 | →4 | — | [r1_misc_us_025.md](sprint-3/r1_misc_us_025.md) |
-| 4 | full-stack | **US-035** ⬜ | Statement finalization | 2SP | `See story file` | — | US-034 | →1 | — | [r1_misc_us_035.md](sprint-3/r1_misc_us_035.md) |
-| 5 | full-stack | **US-036** ⬜ | Statement detail + kind-aware evidence | 3SP | `See story file` | — | US-034 | →1 | — | [r1_misc_us_036.md](sprint-3/r1_misc_us_036.md) |
-| 6 | full-stack | **US-039** ⬜ | Consolidated rollup + export | 2SP | `See story file` | — | US-034, US-096 | — | — | [r1_misc_us_039.md](sprint-3/r1_misc_us_039.md) |
+| 4 | full-stack | **US-035** ✅ | Statement finalization | 2SP | `See story file` | — | US-034 | →1 | — | [r1_misc_us_035.md](sprint-3/r1_misc_us_035.md) |
+| 5 | full-stack | **US-036** ✅ | Statement detail + kind-aware evidence | 3SP | `See story file` | — | US-034 | →1 | — | [r1_misc_us_036.md](sprint-3/r1_misc_us_036.md) |
+| 6 | full-stack | **US-039** ✅ | Consolidated rollup + export | 2SP | `See story file` | — | US-034, US-096 | — | — | [r1_misc_us_039.md](sprint-3/r1_misc_us_039.md) |
 | 7 | full-stack | **US-043** ✅ | Alert log + acknowledgment | 2SP | `See story file` | — | US-042 | — | — | [r1_misc_us_043.md](sprint-3/r1_misc_us_043.md) |
 | 8 | frontend | **US-029** ⬜ | Freshness labels + staleness alert | 2SP | `apps/web/src/components/` | — | US-026, US-042 | — | — | [r1_misc_us_029.md](sprint-3/r1_misc_us_029.md) |
-| 9 | full-stack | **US-038** ⬜ | Reconciliation workbench + variance lines | 3SP | `See story file` | — | US-035 | →1 | — | [r1_misc_us_038.md](sprint-3/r1_misc_us_038.md) |
+| 9 | full-stack | **US-038** ✅ | Reconciliation workbench + variance lines | 3SP | `See story file` | — | US-035 | →1 | — | [r1_misc_us_038.md](sprint-3/r1_misc_us_038.md) |
 | 10 | full-stack | **US-052** ⬜ | Execute the first parallel close on real data | 3SP | `See story file` | — | US-034, US-038, US-053, US-094 | — | — | [r1_misc_us_052.md](sprint-3/r1_misc_us_052.md) |
 | 11 | full-stack | **US-056** ✅ | Anthropic transport with separated credentials and bounded retry | 1SP | `See story file` | CHG-045 | US-003, US-025, US-045 | →19 | — | [r1_misc_us_056.md](sprint-3/r1_misc_us_056.md) |
 | 12 | full-stack | **US-057** ✅ | Append-only sanitized connector-call journal | 2SP | `See story file` | CHG-045 | US-056 | →18 | — | [r1_misc_us_057.md](sprint-3/r1_misc_us_057.md) |
@@ -180,9 +181,9 @@ See `docs/specs/09_architecture.md` for bounded context details.
 |---|-------|-------|------|------|---------------|-----|------------|--------|----------|------|
 | 1 | full-stack | **US-009** ⬜ | Company registry CRUD + company record | 3SP | `See story file` | — | US-005 | — | — | [r1_misc_us_009.md](sprint-4/r1_misc_us_009.md) |
 | 2 | full-stack | **US-031** ⬜ | Credential management + rotation | 3SP | `See story file` | — | US-005 | — | — | [r1_misc_us_031.md](sprint-4/r1_misc_us_031.md) |
-| 3 | full-stack | **US-041** ⬜ | Scoped per-company experience | 2SP | `See story file` | — | US-005, US-036, US-096 | →1 | — | [r1_misc_us_041.md](sprint-4/r1_misc_us_041.md) |
+| 3 | full-stack | **US-041** ✅ | Scoped per-company experience | 2SP | `See story file` | — | US-005, US-036, US-096 | →1 | — | [r1_misc_us_041.md](sprint-4/r1_misc_us_041.md) |
 | 4 | full-stack | **US-044** ⬜ | Operational settings | 2SP | `See story file` | — | US-005 | — | — | [r1_misc_us_044.md](sprint-4/r1_misc_us_044.md) |
-| 5 | full-stack | **US-049** ⬜ | Statement PDF brand template | 3SP | `See story file` | — | US-003 | — | — | [r1_misc_us_049.md](sprint-4/r1_misc_us_049.md) |
+| 5 | full-stack | **US-049** ✅ | Statement PDF brand template | 3SP | `See story file` | — | US-003 | — | — | [r1_misc_us_049.md](sprint-4/r1_misc_us_049.md) |
 | 6 | full-stack | **US-050** ⬜ | Close usage lines from CostRecord via the register | 2SP | `See story file` | — | US-034, US-026 | — | — | [r1_misc_us_050.md](sprint-4/r1_misc_us_050.md) |
 | 7 | full-stack | **US-097** ⬜ | Member-list CSV reconciliation | 3SP | `See story file` | CHG-113 | US-005, US-008, US-025, US-095 | — | — | [r1_misc_us_097.md](sprint-4/r1_misc_us_097.md) |
 
@@ -206,8 +207,8 @@ See `docs/specs/09_architecture.md` for bounded context details.
 |---|-------|-------|------|------|---------------|-----|------------|--------|----------|------|
 | 1 | full-stack | **US-040** ⬜ | Cross-company admin dashboard | 3SP | `See story file` | — | US-022, US-042 | — | — | [r1_misc_us_040.md](sprint-5/r1_misc_us_040.md) |
 | 2 | full-stack | **US-047** ⬜ | Company-isolation test suite | 3SP | `See story file` | — | US-041, US-034 | — | — | [r1_misc_us_047.md](sprint-5/r1_misc_us_047.md) |
-| 3 | full-stack | **US-048** 🔨 | Ops runbooks + backup/restore drill | 2SP | `See story file` | — | US-002, US-053 | — | — | [r1_misc_us_048.md](sprint-5/r1_misc_us_048.md) |
-| 4 | full-stack | **US-051** ⬜ | Close schedule + workbench readouts | 2SP | `See story file` | — | US-046, US-034 | — | — | [r1_misc_us_051.md](sprint-5/r1_misc_us_051.md) |
+| 3 | full-stack | **US-048** ✅ | Ops runbooks + backup/restore drill | 2SP | `See story file` | — | US-002, US-053 | — | — | [r1_misc_us_048.md](sprint-5/r1_misc_us_048.md) |
+| 4 | full-stack | **US-051** ✅ | Close schedule + workbench readouts | 2SP | `See story file` | — | US-046, US-034 | — | — | [r1_misc_us_051.md](sprint-5/r1_misc_us_051.md) |
 
 ### References
 

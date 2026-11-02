@@ -778,13 +778,13 @@
 | FEAT-022 | US-029 |
 | FEAT-023 | US-030 |
 | FEAT-024 | US-029, US-031 |
-| FEAT-025 | US-003, US-033, US-094, US-095, US-097 |
+| FEAT-025 | US-003, US-033, US-094, US-095, US-098, US-097 |
 | FEAT-026 | US-032 |
 | FEAT-027 | US-034, US-035, US-050, US-051, US-052, US-096 |
 | FEAT-028 | US-038, US-039, US-096 |
 | FEAT-029 | US-038, US-052 |
 | FEAT-030 | US-037, US-039, US-049 |
-| FEAT-031 | US-033, US-036 |
+| FEAT-031 | US-033, US-036, US-098 |
 | FEAT-032 | US-040 |
 | FEAT-033 | US-009, US-036, US-041 |
 | FEAT-034 | US-042 |
@@ -820,7 +820,7 @@
 | MemberObservation | US-030:C |
 | LicenseRequest | US-007:C system; US-012:C; US-013:R; US-014:U; US-015:U; US-019:U; US-023:U; US-027:U; US-028:U; US-030:C system; US-055:C system; US-095:C system |
 | RequestTransition | US-012:C; US-013:R; US-014:C; US-015:C |
-| LicenseAssignment | US-007:C; US-019:C; US-024:U close; US-030:C; US-033:R; US-055:CU; US-094:C; US-095:CU; US-097:R |
+| LicenseAssignment | US-007:C; US-019:C; US-024:U close; US-030:C; US-033:R; US-055:CU; US-094:C; US-095:CU; US-098:R; US-097:R |
 | ProvisioningAction | US-018:R/link only; US-057:R/link only; US-058:R/link only; US-019:CU; US-020:U; US-021:U; US-024:C |
 | ReclamationProposal | US-027:C; US-028:U |
 | DriftEpisode | US-030:CU |
@@ -835,7 +835,7 @@
 | AlertRule | US-042:C seed/R; US-044:U |
 | AlertEvent | US-017:C; US-021:C; US-022:C; US-029:C; US-030:C; US-042:C; US-043:RU; US-051:C; US-055:C |
 | SystemSetting | US-003:C seed; US-016:R; US-044:CU |
-| AuditLog | US-008:C/R; US-095:C; US-097:C |
+| AuditLog | US-008:C/R; US-095:C; US-098:C; US-097:C |
 <!-- nous:generated:08-sec5:end -->
 
 <!-- nous:generated:08-sec6:begin -->
@@ -930,6 +930,20 @@ FEAT-R2-01..12 carry no R1 stories (PRD §12 fast-follow). LicenseType creation 
 - **Screens**: SCR-register
 - **Server actions**: recordManualAssignment, closeManualAssignment
 - **Entities (CRUD)**: LicenseAssignment (CU), LicenseRequest (C system), AuditLog (C)
+
+### US-098 — Register filter: seats active during a month
+- **As**: Central Finance (persona_04) | **Want to**: filter and export the register for the seats active in a month | **So that**: the M-1 register CSV matches what the close bills
+- **AC1**: SCR-register offers an "active in month" filter (a calendar month, e.g. M-1). It returns every assignment that was active on at least one day of that month: started on or before the month's last day, and not ended before its first day. Open assignments that started before the month are included.
+- **AC2**: `exportRegisterCsv` honours the same filter, so the M-1 register CSV lists every seat active during M-1 with its dates, end reason and provenance. The existing start-date and end-date filters keep their current meaning.
+- **AC3**: Per-company headcount on the last day of the month, derived from the filtered rows, matches the seat-days the license-only close (US-034) uses for the same month. Company scoping (BR-22) and audit of the export are unchanged.
+- **Prerequisites**: US-033, US-095
+- **Feature**: FEAT-025, FEAT-031 | **Journey**: J3 | **Release**: R1
+- **Slice**: S1 (CV-1)
+- **Screens**: SCR-register
+- **Server actions**: exportRegisterCsv
+- **Entities (CRUD)**: LicenseAssignment (R), AuditLog (C)
+
+- **CHG-119**: CHG-118 dress-rehearsal finding — the month export used "started between" semantics.
 
 ### US-096 — Statements list and totals
 - **As**: Central Finance | **Want to**: statements list and totals | **So that**: the register-derived monthly bill is defensible

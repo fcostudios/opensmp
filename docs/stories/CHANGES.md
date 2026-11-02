@@ -113,7 +113,10 @@
 | **CHG-113** | 🔨 dev_in_progress | Re-baseline R1 to the value-first R1 prime: license-only manual monthly close first (DEC-SMP-065) | US-094, US-095, US-096, US-097 | S1, S2, S4 |
 | **CHG-114** | 📦 delivered | Adopt the IMP-462 core-value contract: PRD contract block, walking-skeleton slice tags, R1 justifications | — | — |
 | **CHG-115** | 📦 delivered | Move Keycloak break-glass to R2 (FEAT-R2-13); US-048 AC1 covers outage recovery by restart or restore (DEC-SMP-067) | — | — |
-| **CHG-116** | 🔷 spec_applied | Relabel sprint exits to the IMP-463 vocabulary (Production exit to Exit criterion) so agents read the real exit | — | — |
+| **CHG-116** | 📦 delivered | Relabel sprint exits to the IMP-463 vocabulary (Production exit to Exit criterion) so agents read the real exit | — | — |
+| **CHG-117** | 📦 delivered | Test harness: worker job close leaves a ledger_app connection; mutation gate fails declaration-only shards with zero mutants | — | — |
+| **CHG-118** | 📦 delivered | S0+S1 demo dress rehearsal: disposable stack, Playwright journey spec, human demo script | — | — |
+| **CHG-119** | 🔷 spec_applied | Register CSV and screen filter for seats active during a month (US-098); runbook names Group Admin as register editor | US-098 | S1 |
 
 ---
 
@@ -1480,7 +1483,7 @@ _No stories linked to this change yet._
 |-------|------|--------|--------|------|
 | **US-094** | Real-data pilot register run (child of US-007) | Sprint 1 | ✅ dev_done | [r1_misc_us_094.md](sprint-1/r1_misc_us_094.md) |
 | **US-095** | Manual register entry | Sprint 1 | ✅ dev_done | [r1_misc_us_095.md](sprint-1/r1_misc_us_095.md) |
-| **US-096** | Statements list and totals | Sprint 2 | ⬜ backlog | [r1_misc_us_096.md](sprint-2/r1_misc_us_096.md) |
+| **US-096** | Statements list and totals | Sprint 2 | ✅ dev_done | [r1_misc_us_096.md](sprint-2/r1_misc_us_096.md) |
 | **US-097** | Member-list CSV reconciliation | Sprint 4 | ⬜ backlog | [r1_misc_us_097.md](sprint-4/r1_misc_us_097.md) |
 
 ### CHG-114: Adopt the IMP-462 core-value contract: PRD contract block, walking-skeleton slice tags, R1 justifications
@@ -1513,7 +1516,7 @@ _No stories linked to this change yet._
 
 ### CHG-116: Relabel sprint exits to the IMP-463 vocabulary (Production exit to Exit criterion) so agents read the real exit
 
-**Status:** 🔷 `spec_applied`
+**Status:** 📦 `delivered`
 **Source:** client_review
 **Requested by:** Francisco
 **Notes:** # CHG-116 — Relabel SMP sprint exits to the IMP-463 vocabulary
@@ -1523,4 +1526,48 @@ Patcher: `Nous/System/patches/fcostudios__smp/CHG-116.py`. Label-only edit of `1
 Why: IMP-463 reads `**Exit criterion:**` and otherwise falls back ...
 
 _No stories linked to this change yet._
+
+### CHG-117: Test harness: worker job close leaves a ledger_app connection; mutation gate fails declaration-only shards with zero mutants
+
+**Status:** 📦 `delivered`
+**Source:** developer_feedback
+**Requested by:** Francisco
+**Notes:** # CHG-117 — Two test-harness defects found by US-041
+
+| Field | Value |
+|---|---|
+| Project | `fcostudios__smp` · technical (tenant test tooling) |
+| Found by | US-041 (2026-11-02). Both block an otherwise-complete story's DoD; neither is in US-041's code. |
+| Rule | The SMP retrospective: a know...
+
+_No stories linked to this change yet._
+
+### CHG-118: S0+S1 demo dress rehearsal: disposable stack, Playwright journey spec, human demo script
+
+**Status:** 📦 `delivered`
+**Source:** client_review
+**Requested by:** Francisco
+**Notes:** # CHG-118 — S0+S1 demo dress rehearsal and demo script
+
+Technical (verification tooling). Requested by Francisco 2026-11-02. Purpose: prove the S0 and S1 production exit journeys work end to end **on a disposable rehearsal stack** before the human demo, and give the operator a step-by-step demo s...
+
+_No stories linked to this change yet._
+
+### CHG-119: Register CSV and screen filter for seats active during a month (US-098); runbook names Group Admin as register editor
+
+**Status:** 🔷 `spec_applied`
+**Source:** client_review
+**Requested by:** Francisco
+**Notes:** # CHG-119 — Register filter for seats active during a month (US-098)
+
+Authority: Francisco, 2026-11-02 ("fix the findings from the rehearsal"). Patcher: `Nous/System/patches/fcostudios__smp/CHG-119.py`.
+
+**Findings from the CHG-118 dress rehearsal:**
+1. The register start/end filters both match t...
+
+**Stories created by this change:**
+
+| Story | Name | Sprint | Status | File |
+|-------|------|--------|--------|------|
+| **US-098** | Register filter: seats active during a month | Sprint 1 | ⬜ backlog | [r1_misc_us_098.md](sprint-1/r1_misc_us_098.md) |
 

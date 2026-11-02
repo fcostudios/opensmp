@@ -7,11 +7,11 @@ export type ScreenRole = "public" | "employee" | "approver" | "company_finance" 
 export const ROLE_SCREEN_IDS = {
   "public": ["SCR-login", "SCR-access-denied"],
   "employee": ["SCR-login", "SCR-my-requests", "SCR-new-request", "SCR-request-detail", "SCR-access-denied"],
-  "approver": ["SCR-login", "SCR-my-requests", "SCR-new-request", "SCR-request-detail", "SCR-approval-queue", "SCR-reclamation-proposals", "SCR-company-detail", "SCR-access-denied"],
+  "approver": ["SCR-login", "SCR-my-requests", "SCR-new-request", "SCR-request-detail", "SCR-approval-queue", "SCR-reclamation-proposals", "SCR-company-detail", "SCR-access-denied", "SCR-statements", "SCR-statement-detail"],
   "company_finance": ["SCR-login", "SCR-statements", "SCR-statement-detail", "SCR-company-detail", "SCR-access-denied"],
   "central_finance": ["SCR-login", "SCR-register", "SCR-statements", "SCR-statement-detail", "SCR-close", "SCR-reconciliation", "SCR-rates", "SCR-access-denied"],
   "group_admin": ["SCR-login", "SCR-my-requests", "SCR-new-request", "SCR-request-detail", "SCR-approval-queue", "SCR-reclamation-proposals", "SCR-admin-dashboard", "SCR-exceptions", "SCR-pools", "SCR-vendor-accounts", "SCR-vendor-account-detail", "SCR-credentials", "SCR-companies", "SCR-company-detail", "SCR-people", "SCR-person-detail", "SCR-register", "SCR-usage", "SCR-alerts", "SCR-audit", "SCR-users-roles", "SCR-statements", "SCR-statement-detail", "SCR-close", "SCR-reconciliation", "SCR-rates", "SCR-settings", "SCR-access-denied"],
-  "viewer": ["SCR-login", "SCR-company-detail", "SCR-access-denied"],
+  "viewer": ["SCR-login", "SCR-company-detail", "SCR-access-denied", "SCR-statements", "SCR-statement-detail"],
 } as const satisfies Record<ScreenRole, readonly string[]>;
 
 export const SCREEN_ROLES = {
@@ -23,8 +23,8 @@ export const SCREEN_ROLES = {
   "SCR-approval-queue": ["approver", "group_admin"],
   "SCR-reclamation-proposals": ["approver", "group_admin"],
   "SCR-company-detail": ["approver", "company_finance", "group_admin", "viewer"],
-  "SCR-statements": ["company_finance", "central_finance", "group_admin"],
-  "SCR-statement-detail": ["company_finance", "central_finance", "group_admin"],
+  "SCR-statements": ["approver", "company_finance", "central_finance", "group_admin", "viewer"],
+  "SCR-statement-detail": ["approver", "company_finance", "central_finance", "group_admin", "viewer"],
   "SCR-register": ["central_finance", "group_admin"],
   "SCR-close": ["central_finance", "group_admin"],
   "SCR-reconciliation": ["central_finance", "group_admin"],
@@ -52,7 +52,7 @@ export const DEFAULT_ROUTE_BY_ROLE = {
   "company_finance": "/estados-de-cuenta",
   "central_finance": "/cierre",
   "group_admin": "/panel",
-  "viewer": "/companias/:companyId",
+  "viewer": "/estados-de-cuenta",
 } as const satisfies Record<ScreenRole, string>;
 
 export const ROUTE_SCREEN_IDS = {
