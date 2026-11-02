@@ -112,7 +112,8 @@
 | **CHG-112** | 📦 delivered | Remove SMP's tenant-built Work Readiness Gate and its approval ceremony (DEC-SMP-065) | — | — |
 | **CHG-113** | 🔨 dev_in_progress | Re-baseline R1 to the value-first R1 prime: license-only manual monthly close first (DEC-SMP-065) | US-094, US-095, US-096, US-097 | S1, S2, S4 |
 | **CHG-114** | 📦 delivered | Adopt the IMP-462 core-value contract: PRD contract block, walking-skeleton slice tags, R1 justifications | — | — |
-| **CHG-115** | 🔷 spec_applied | Move Keycloak break-glass to R2 (FEAT-R2-13); US-048 AC1 covers outage recovery by restart or restore (DEC-SMP-067) | — | — |
+| **CHG-115** | 📦 delivered | Move Keycloak break-glass to R2 (FEAT-R2-13); US-048 AC1 covers outage recovery by restart or restore (DEC-SMP-067) | — | — |
+| **CHG-116** | 🔷 spec_applied | Relabel sprint exits to the IMP-463 vocabulary (Production exit to Exit criterion) so agents read the real exit | — | — |
 
 ---
 
@@ -1499,7 +1500,7 @@ _No stories linked to this change yet._
 
 ### CHG-115: Move Keycloak break-glass to R2 (FEAT-R2-13); US-048 AC1 covers outage recovery by restart or restore (DEC-SMP-067)
 
-**Status:** 🔷 `spec_applied`
+**Status:** 📦 `delivered`
 **Source:** client_review
 **Requested by:** Francisco
 **Notes:** # CHG-115 — Move Keycloak break-glass to R2
@@ -1507,6 +1508,19 @@ _No stories linked to this change yet._
 Authority: DEC-SMP-067 (Francisco, 2026-11-01). Patcher: `Nous/System/patches/fcostudios__smp/CHG-115.py`.
 
 - **US-048 AC1** (08_scope + story file): the break-glass clause is replaced by "Keycloak outage recovery by restarting or restoring Keycloak (b...
+
+_No stories linked to this change yet._
+
+### CHG-116: Relabel sprint exits to the IMP-463 vocabulary (Production exit to Exit criterion) so agents read the real exit
+
+**Status:** 🔷 `spec_applied`
+**Source:** client_review
+**Requested by:** Francisco
+**Notes:** # CHG-116 — Relabel SMP sprint exits to the IMP-463 vocabulary
+
+Patcher: `Nous/System/patches/fcostudios__smp/CHG-116.py`. Label-only edit of `10_plan.md`: `**Production exit:**` → `**Exit criterion:**` (5 lines, text unchanged).
+
+Why: IMP-463 reads `**Exit criterion:**` and otherwise falls back ...
 
 _No stories linked to this change yet._
 

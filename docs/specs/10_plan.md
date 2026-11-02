@@ -22,7 +22,7 @@ One operator/orchestrator; one item per agent session. Slices are the delivery a
 | US-094 | Real-data run, child of US-007; provisional rehearsal until data arrives | 1 | US-007, US-053, US-095 |
 | US-095 | Manual register entry | 1 | US-003, US-005, US-008, US-033 |
 
-**Production exit:** Central Finance completes the register inspection and CSV export journey for month M-1 and five pilot companies on production; Company Finance verifies its company's headcount against its supplied list, and the IT Director completes login and deployment health checks. With manual inputs this exit is explicitly provisional: US-094 remains unverified until the real export is compared. Verifiers use human `story verify` only for the evidence actually accepted. Cumulative **5 SP**. No new money-rule campaign; reuse DB register integrity and auth evidence.
+**Exit criterion:** Central Finance completes the register inspection and CSV export journey for month M-1 and five pilot companies on production; Company Finance verifies its company's headcount against its supplied list, and the IT Director completes login and deployment health checks. With manual inputs this exit is explicitly provisional: US-094 remains unverified until the real export is compared. Verifiers use human `story verify` only for the evidence actually accepted. Cumulative **5 SP**. No new money-rule campaign; reuse DB register integrity and auth evidence.
 
 ### Sprint 2 — S1: First draft chargeback (9 SP)
 
@@ -36,7 +36,7 @@ One operator/orchestrator; one item per agent session. Slices are the delivery a
 | US-096 | Statements list and group totals | 1 | US-034 |
 | US-037 | CSV export half; PDF completes in S3 | 1 | US-034, US-096 |
 
-**Production exit:** Central Finance completes the manual close and CSV handover journey on production for month M-1; Company Finance reads each pilot draft and compares seat-days, dated joiners/leavers and amounts line by line against its manual spreadsheet, recording every difference; the IT Director verifies deployed rerun behavior and that finals remain untouched. Provisional rates are visibly identified. Finance users and IT Director record acceptance with human `story verify` for completed work; US-037 is only partially accepted until its S3 PDF half. Critical mutation campaign once at slice close: **BR-17/18/21**, minimum 80%, survivors annotated. Cumulative **14 SP**.
+**Exit criterion:** Central Finance completes the manual close and CSV handover journey on production for month M-1; Company Finance reads each pilot draft and compares seat-days, dated joiners/leavers and amounts line by line against its manual spreadsheet, recording every difference; the IT Director verifies deployed rerun behavior and that finals remain untouched. Provisional rates are visibly identified. Finance users and IT Director record acceptance with human `story verify` for completed work; US-037 is only partially accepted until its S3 PDF half. Critical mutation campaign once at slice close: **BR-17/18/21**, minimum 80%, survivors annotated. Cumulative **14 SP**.
 
 ### Sprint 3 — S2: A reconciled real month (13 SP)
 
@@ -51,7 +51,7 @@ One operator/orchestrator; one item per agent session. Slices are the delivery a
 | US-038 | Reconciliation and explained variances | 3 | US-035 |
 | US-052 | First parallel close on real data | 3 | US-034, US-038, US-053, US-094 |
 
-**Production exit:** Central Finance completes the invoice-entry, reconciliation, finalization and CSV delivery journey on production for a real completed month with the contracted rate; Company Finance for all five pilots accepts its statement and traces lines to register evidence, and the IT Director verifies final immutability and the deployed evidence. H2 passes only if the real invoice is present and the register-derived statement sum is within **0.5%** of it and accepted by the finance users. An `overridden` reconciliation with every variance explained is a supported operational outcome, but does not count as H2 passing; record the failed/pending hypothesis honestly. Manual register entry and a provisional rate permit rehearsal; **S2/H2 is not passed until the real invoice and contracted rate arrive**. Finance users and IT Director perform human `story verify` on the accepted real run. Critical mutation campaign once: **BR-20**, minimum 80%, survivors annotated. Cumulative **27 SP**.
+**Exit criterion:** Central Finance completes the invoice-entry, reconciliation, finalization and CSV delivery journey on production for a real completed month with the contracted rate; Company Finance for all five pilots accepts its statement and traces lines to register evidence, and the IT Director verifies final immutability and the deployed evidence. H2 passes only if the real invoice is present and the register-derived statement sum is within **0.5%** of it and accepted by the finance users. An `overridden` reconciliation with every variance explained is a supported operational outcome, but does not count as H2 passing; record the failed/pending hypothesis honestly. Manual register entry and a provisional rate permit rehearsal; **S2/H2 is not passed until the real invoice and contracted rate arrive**. Finance users and IT Director perform human `story verify` on the accepted real run. Critical mutation campaign once: **BR-20**, minimum 80%, survivors annotated. Cumulative **27 SP**.
 
 ### Sprint 4 — S3: Company self-service and manual register check (9 SP)
 
@@ -65,7 +65,7 @@ One operator/orchestrator; one item per agent session. Slices are the delivery a
 | US-049 | Statement PDF brand template | 3 | US-003 |
 | PDF half of US-037 | PDF export; CSV already credited in S1 | 1 | US-036, US-049 |
 
-**Production exit:** Central Finance completes the member-list comparison and month-M close journey on production; mismatches are corrected through audited manual entry. Two Company Finance users independently open and export only their own PDF, with language per DEC-SMP-011; the IT Director verifies cross-company access rejection. Finance users and IT Director accept via human `story verify`, including US-037 now complete. If the real export is absent, manually transcribe the list and keep real-CSV acceptance pending; the close remains usable. No DriftEpisode or API dependency. Reuse S1/S2 campaigns; BR-22's single campaign closes in S4. Cumulative **36 SP**.
+**Exit criterion:** Central Finance completes the member-list comparison and month-M close journey on production; mismatches are corrected through audited manual entry. Two Company Finance users independently open and export only their own PDF, with language per DEC-SMP-011; the IT Director verifies cross-company access rejection. Finance users and IT Director accept via human `story verify`, including US-037 now complete. If the real export is absent, manually transcribe the list and keep real-CSV acceptance pending; the close remains usable. No DriftEpisode or API dependency. Reuse S1/S2 campaigns; BR-22's single campaign closes in S4. Cumulative **36 SP**.
 
 ### Sprint 5 — S4: Operate monthly (7 SP)
 
@@ -78,7 +78,7 @@ One operator/orchestrator; one item per agent session. Slices are the delivery a
 | US-048 | Runbooks and encrypted backup/restore drill | 2 | US-002, US-053 |
 | US-047 | Company isolation suite | 3 | US-041, US-034 |
 
-**Production exit:** Central Finance completes the month-M+1 scheduled-close journey in production by business day 3 without a manual trigger; Company Finance verifies receipt and reads its own numbers; the IT Director completes a restore from the previous night's encrypted backup into an isolated recovery environment and verifies the restored register/statement totals against production evidence. Finance users and IT Director sign off with human `story verify`. Critical mutation campaign once: **BR-22**, minimum 80%, survivors annotated. Five pilot companies become the system-of-record scope only after this acceptance; rollout to 30 is configuration. Cumulative **43 SP**.
+**Exit criterion:** Central Finance completes the month-M+1 scheduled-close journey in production by business day 3 without a manual trigger; Company Finance verifies receipt and reads its own numbers; the IT Director completes a restore from the previous night's encrypted backup into an isolated recovery environment and verifies the restored register/statement totals against production evidence. Finance users and IT Director sign off with human `story verify`. Critical mutation campaign once: **BR-22**, minimum 80%, survivors annotated. Five pilot companies become the system-of-record scope only after this acceptance; rollout to 30 is configuration. Cumulative **43 SP**.
 
 ## SEC2 — Deferred R2 and frozen baseline
 

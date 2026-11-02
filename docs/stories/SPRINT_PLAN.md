@@ -1,7 +1,7 @@
 <!-- nous-sprint-stamp
-generated_at: 2026-11-02T01:02:11Z
+generated_at: 2026-11-02T01:10:10Z
 current_sprint: sprint-3
-sprints_hash: de987b148eb7dadd
+sprints_hash: 726889067d40a1ab
 -->
 # SMP — Sprint Execution Plan
 
@@ -23,7 +23,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 ## Sprint 1: S0: Register on production
 
 **Goal:** deploy with Docker Compose and make the five-company register usable through manual entry.  
-**Exit criterion:** S0 production register journey accepted by Central Finance, Company Finance and IT Director.  
+**Exit criterion:** Central Finance completes the register inspection and CSV export journey for month M-1 and five pilot companies on production; Company Finance verifies its company's headcount against its supplied list, and the IT Director completes login and deployment health checks. With manual inputs this exit is explicitly provisional: US-094 remains unverified until the real export is compared. Verifiers use human `story verify` only for the evidence actually accepted. Cumulative **5 SP**. No new money-rule campaign; reuse DB register integrity and auth evidence.  
 **Stories:** 13 | **Points:** 36 SP
 
 ### Execution Order
@@ -61,7 +61,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 ## Sprint 2: S1: First draft chargeback
 
 **Goal:** produce draft statements from register seat-days and typed rates.  
-**Exit criterion:** S1 first usable increment in production; cumulative 14 SP.  
+**Exit criterion:** Central Finance completes the manual close and CSV handover journey on production for month M-1; Company Finance reads each pilot draft and compares seat-days, dated joiners/leavers and amounts line by line against its manual spreadsheet, recording every difference; the IT Director verifies deployed rerun behavior and that finals remain untouched. Provisional rates are visibly identified. Finance users and IT Director record acceptance with human `story verify` for completed work; US-037 is only partially accepted until its S3 PDF half. Critical mutation campaign once at slice close: **BR-17/18/21**, minimum 80%, survivors annotated. Cumulative **14 SP**.  
 **Stories:** 16 | **Points:** 44 SP
 
 ### Execution Order
@@ -96,7 +96,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 ## Sprint 3: S2: A reconciled real month
 
 **Goal:** answer H2 using the real invoice and contracted rate.  
-**Exit criterion:** S2 core value in production; cumulative 27 SP, H2 pending real data.  
+**Exit criterion:** Central Finance completes the invoice-entry, reconciliation, finalization and CSV delivery journey on production for a real completed month with the contracted rate; Company Finance for all five pilots accepts its statement and traces lines to register evidence, and the IT Director verifies final immutability and the deployed evidence. H2 passes only if the real invoice is present and the register-derived statement sum is within **0.5%** of it and accepted by the finance users. An `overridden` reconciliation with every variance explained is a supported operational outcome, but does not count as H2 passing; record the failed/pending hypothesis honestly. Manual register entry and a provisional rate permit rehearsal; **S2/H2 is not passed until the real invoice and contracted rate arrive**. Finance users and IT Director perform human `story verify` on the accepted real run. Critical mutation campaign once: **BR-20**, minimum 80%, survivors annotated. Cumulative **27 SP**.  
 **Stories:** 51 | **Points:** 87 SP
 
 ### Execution Order
@@ -171,7 +171,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 ## Sprint 4: S3: Company self-service and manual register check
 
 **Goal:** keep the register true without API automation and deliver company PDFs.  
-**Exit criterion:** S3 second-month company finance journey accepted in production; cumulative 36 SP.  
+**Exit criterion:** Central Finance completes the member-list comparison and month-M close journey on production; mismatches are corrected through audited manual entry. Two Company Finance users independently open and export only their own PDF, with language per DEC-SMP-011; the IT Director verifies cross-company access rejection. Finance users and IT Director accept via human `story verify`, including US-037 now complete. If the real export is absent, manually transcribe the list and keep real-CSV acceptance pending; the close remains usable. No DriftEpisode or API dependency. Reuse S1/S2 campaigns; BR-22's single campaign closes in S4. Cumulative **36 SP**.  
 **Stories:** 7 | **Points:** 18 SP
 
 ### Execution Order
@@ -197,7 +197,7 @@ See `docs/specs/09_architecture.md` for bounded context details.
 ## Sprint 5: S4: Operate monthly
 
 **Goal:** schedule the monthly close and prove recovery and company isolation.  
-**Exit criterion:** S4 production system-of-record acceptance by finance users and IT Director; cumulative 43 SP.  
+**Exit criterion:** Central Finance completes the month-M+1 scheduled-close journey in production by business day 3 without a manual trigger; Company Finance verifies receipt and reads its own numbers; the IT Director completes a restore from the previous night's encrypted backup into an isolated recovery environment and verifies the restored register/statement totals against production evidence. Finance users and IT Director sign off with human `story verify`. Critical mutation campaign once: **BR-22**, minimum 80%, survivors annotated. Five pilot companies become the system-of-record scope only after this acceptance; rollout to 30 is configuration. Cumulative **43 SP**.  
 **Stories:** 4 | **Points:** 10 SP
 
 ### Execution Order

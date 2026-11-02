@@ -1,13 +1,13 @@
 {
-  "synced_at": "2026-11-02T01:02:11.505798+00:00",
+  "synced_at": "2026-11-02T01:10:10.394275+00:00",
   "project_id": "fcostudios__smp",
   "files": {
     "docs/stories/SPRINT_PLAN.md": {
-      "hash": "a8b058314c834c18",
+      "hash": "fefbdd555f4f434d",
       "source": "generated"
     },
     "docs/stories/CHANGES.md": {
-      "hash": "2811e2cbf0bdf727",
+      "hash": "7a8b2f588e7de609",
       "source": "generated"
     },
     "docs/stories/ASSIGNMENTS.md": {
@@ -19,7 +19,7 @@
       "source": "generated"
     },
     ".nous-project.json": {
-      "hash": "e3c70b355420b9b1",
+      "hash": "b0acf43fc6ed0e9f",
       "source": "generated"
     },
     "docs/stories/INDEX.md": {
@@ -243,7 +243,7 @@
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/09_architecture.md"
     },
     "docs/specs/10_plan.md": {
-      "hash": "65722786a4cf8fa2",
+      "hash": "53073b8ea2777ff7",
       "source": "/Users/fcolomas/Projects/nous/Nous/Specs/fcostudios/smp/v1/10_plan.md"
     },
     "docs/specs/11_estimates.md": {
