@@ -144,7 +144,9 @@
           "roles": [
             "company_finance",
             "central_finance",
-            "group_admin"
+            "group_admin",
+            "approver",
+            "viewer"
           ],
           "section": "FINANZAS"
         },
@@ -545,7 +547,9 @@
       "roles": [
         "company_finance",
         "central_finance",
-        "group_admin"
+        "group_admin",
+        "approver",
+        "viewer"
       ],
       "release": "R1",
       "auth_required": true
@@ -556,7 +560,9 @@
       "roles": [
         "company_finance",
         "central_finance",
-        "group_admin"
+        "group_admin",
+        "approver",
+        "viewer"
       ],
       "release": "R1",
       "auth_required": true,
@@ -1123,7 +1129,8 @@
       "sidebar": [
         "nav-solicitudes",
         "nav-aprobaciones",
-        "nav-reclamaciones"
+        "nav-reclamaciones",
+        "nav-estados-de-cuenta"
       ],
       "screens": [
         "SCR-login",
@@ -1133,7 +1140,9 @@
         "SCR-approval-queue",
         "SCR-reclamation-proposals",
         "SCR-company-detail",
-        "SCR-access-denied"
+        "SCR-access-denied",
+        "SCR-statements",
+        "SCR-statement-detail"
       ]
     },
     "company_finance": {
@@ -1222,13 +1231,17 @@
       ]
     },
     "viewer": {
-      "sidebar": [],
+      "sidebar": [
+        "nav-estados-de-cuenta"
+      ],
       "screens": [
         "SCR-login",
         "SCR-company-detail",
-        "SCR-access-denied"
+        "SCR-access-denied",
+        "SCR-statements",
+        "SCR-statement-detail"
       ],
-      "_note": "Company Viewer (PRD Module H P0): read-only per-company view via SCR-company-detail (admin tabs group_admin-gated); no sidebar entries in R1"
+      "_note": "US-041: R1 read-only scoped statements and inline register evidence. Company CRUD remains R2."
     }
   },
   "user_flows": {

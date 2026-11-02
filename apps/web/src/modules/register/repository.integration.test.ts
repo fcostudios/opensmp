@@ -731,3 +731,17 @@ test("US-036 exact assignment evidence excludes unrelated and foreign register r
   expect(await repository.assignmentsById(authForCompanyA, [])).toEqual([]);
   expect((await repository.assignmentsById(authForGroupAdmin, [assignmentB])).map(row => row.id)).toEqual([assignmentB]);
 });
+
+// US-041: evidence projection stays scoped even when callers bypass the global register screen.
+test.each(["finance", "approver", "viewer"] as const)("%s register evidence and CSV never include another company", async role => {
+ const database = drizzle(appPool, { schema });
+ const repository = createRegisterRepository(database);
+ const scoped = {...authForCompanyA, companyIds:[companyA,companyB], companyGrants:[{companyId:companyA,role}]};
+ const csv = await repository.exportCsv(scoped, {});
+ const ownCsv = await repository.exportCsv(scoped, {companyId:companyA});
+ expect(csv).toBe(ownCsv);
+ expect(csv).toContain("Bruno Import");expect(csv).not.toContain("Bravo Tenant");
+ expect((await repository.listRows(scoped, {})).items.map(row=>row.companyId)).toEqual([companyA,companyA,companyA]);
+ expect((await repository.assignmentsById(scoped,[assignmentA1,assignmentB])).map(row=>row.id)).toEqual([assignmentA1]);
+ expect(await repository.exportCsv(scoped,{companyId:companyB})).toBe(csv.split("\r\n")[0]+"\r\n");
+});

@@ -102,3 +102,12 @@ describe("explicit capability authorization", () => {
     expect(hasCapability(scoped, "request:approve")).toBe(false);
   });
 });
+
+// US-041: deleting a scoped read grant or granting a viewer command must fail.
+test.each(["finance", "approver", "viewer"] as const)("%s reads only its company financial evidence", role => {
+ const auth = context({companyGrants:[{companyId:companyA,role}]});
+ expect(permittedCompanyIds(auth,"finance:read")).toEqual(new Set([companyA]));
+ expect(hasCapability(auth,"finance:read",companyB)).toBe(false);
+ for(const capability of ["finance:close","company:write","admin:manage","audit:read"] as const) expect(hasCapability(auth,capability)).toBe(false);
+ if(role === "viewer") for(const capability of ["request:create","request:approve"] as const) expect(hasCapability(auth,capability)).toBe(false);
+});

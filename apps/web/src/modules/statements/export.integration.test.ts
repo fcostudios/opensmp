@@ -11,7 +11,7 @@ const companyA = id(2), companyB = id(3), statementA = id(10), statementB = id(1
 const authorization: LedgerAuthorization = {
   userId: id(1), userAccountId: id(1), idpSubject: "finance-a", globalRole: null,
   roles: ["company_finance"], companyIds: [companyA, companyB], employeeCompanyId: null,
-  companyGrants: [{ companyId: companyA, role: "finance" }, { companyId: companyB, role: "viewer" }],
+  companyGrants: [{ companyId: companyA, role: "finance" }],
 };
 let fixture: PostgresFixture;
 let pool: pg.Pool;
@@ -108,13 +108,12 @@ test("empty statements retain metadata; quotes, multiline text and formula cells
  }
 });
 
-test("download boundary denies unauthenticated, viewers, employees, malformed, absent and foreign identifiers without an audit", async () => {
+test("download boundary denies unauthenticated, employees, malformed, absent and foreign identifiers without an audit", async () => {
  const owner=await fixture.connectAsOwner();
  try {
  const before=(await owner.query("SELECT count(*) FROM audit_log")).rows[0].count;
  for(const [auth,statementId,status,expectedCode] of [
    [null,statementA,401,"UNAUTHORIZED"],
-   [{...authorization,companyGrants:[{companyId:companyA,role:"viewer"}]},statementA,403,"STATEMENTS_ACCESS_FORBIDDEN"],
    [{...authorization,globalRole:null,companyGrants:[],roles:["employee"]},statementA,403,"STATEMENTS_ACCESS_FORBIDDEN"],
    [authorization,"invalid",400,"INVALID_STATEMENT_ID"],
    [authorization,id(999),404,"STATEMENT_NOT_FOUND"],
@@ -197,4 +196,13 @@ test("negative draft totals remain signed numeric CSV metadata and exact audit v
   await owner.query("UPDATE statement SET total_usd=$1 WHERE id=$2",["17.29",statementA]);
   await owner.end();
  }
+});
+
+test.each(["finance","approver","viewer"] as const)("US-041 %s exports only granted company evidence",async role=>{
+ const scoped={...authorization,companyGrants:[{companyId:companyA,role}]};
+ const own=await createStatementExportResponse(repository,scoped,statementA);
+ expect(own.status).toBe(200);
+ const csv=await own.text();expect(csv).toContain("Alice");expect(csv).not.toContain("Bob secret");expect(csv).not.toContain("Secret line");
+ const foreign=await createStatementExportResponse(repository,scoped,statementB);
+ expect(foreign.status).toBe(404);expect(await foreign.json()).toEqual({error:"STATEMENT_NOT_FOUND"});
 });

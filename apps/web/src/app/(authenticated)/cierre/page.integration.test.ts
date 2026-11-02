@@ -189,6 +189,8 @@ test("US-096 localized loading boundary resolves within the real request",async(
 });
 
 test("signed finalization actions enforce identity/confirmation and refresh immutable status and rate consumers",async()=>{
+  // US-041: a genuine viewer read grant must still reject finalization commands.
+  await data.owner.query(`INSERT INTO company_role_assignment(user_account_id,company_id,role,unique_grant,created_at,created_by) VALUES($1,$2,'viewer','us041-viewer-grant','2026-01-01',$3)`,["34100000-0000-4000-8000-000000000002","34100000-0000-4000-8000-000000000007","34100000-0000-4000-8000-000000000001"]);
   const form=new FormData();form.set("period","2026-01");
   await withSession("close-finance",()=>runClose({status:"idle"},form));
   const row=(await data.owner.query("SELECT id FROM statement")).rows[0];
