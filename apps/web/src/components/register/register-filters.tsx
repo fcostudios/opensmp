@@ -1,5 +1,4 @@
 import type { RegisterFilters as RegisterFilterValues } from "@smp/contracts/register";
-
 import { RegisterActiveMonthFilter } from "./register-active-month-filter";
 
 interface RegisterFilterLabels {

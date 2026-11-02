@@ -1,5 +1,4 @@
 import { z } from "zod";
-
 import { runCloseSchema } from "./close";
 
 export interface RegisterFilters {
