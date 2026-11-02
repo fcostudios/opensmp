@@ -161,7 +161,7 @@ The rehearsal ran `apps/web/e2e/demo-s0-s1.spec.ts` on the disposable stack, as
 described in section 1, option B. The results are recorded in
 `.nous-feedback.jsonl` under CHG-118 and summarised here.
 
-Run on 2026-11-02 at worktree commit `7085df6` (CHG-118). M-1 = **2026-10** (31
+Run on 2026-11-02 with the spec as committed in CHG-118 (branch `feature/tooling/chg-118-demo-rehearsal`). M-1 = **2026-10** (31
 days). The stack was `ledger-demo-rehearsal` on 28080/28443, with images
 `ledger-*:chg118-demo` built from main `3aceb12` application code. The run used
 a fresh database: realm import, then all committed migrations. Production
