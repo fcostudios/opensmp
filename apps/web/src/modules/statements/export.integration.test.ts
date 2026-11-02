@@ -112,16 +112,18 @@ test("download boundary denies unauthenticated, viewers, employees, malformed, a
  const owner=await fixture.connectAsOwner();
  try {
  const before=(await owner.query("SELECT count(*) FROM audit_log")).rows[0].count;
- for(const [auth,statementId,status] of [
-   [null,statementA,401],
-   [{...authorization,companyGrants:[{companyId:companyA,role:"viewer"}]},statementA,403],
-   [{...authorization,globalRole:null,companyGrants:[],roles:["employee"]},statementA,403],
-   [authorization,"invalid",400],[authorization,id(999),404],[authorization,statementB,404],
+ for(const [auth,statementId,status,expectedCode] of [
+   [null,statementA,401,"UNAUTHORIZED"],
+   [{...authorization,companyGrants:[{companyId:companyA,role:"viewer"}]},statementA,403,"STATEMENTS_ACCESS_FORBIDDEN"],
+   [{...authorization,globalRole:null,companyGrants:[],roles:["employee"]},statementA,403,"STATEMENTS_ACCESS_FORBIDDEN"],
+   [authorization,"invalid",400,"INVALID_STATEMENT_ID"],
+   [authorization,id(999),404,"STATEMENT_NOT_FOUND"],
+   [authorization,statementB,404,"STATEMENT_NOT_FOUND"],
  ] as const) {
    const response=await createStatementExportResponse(repository,auth as LedgerAuthorization|null,statementId);
    expect(response.status).toBe(status);
    expect(response.headers.get("cache-control")).toBe("private, no-store");
-   expect(await response.text()).not.toContain("Secret");
+   expect(await response.json()).toEqual({error:expectedCode});
  }
  expect((await owner.query("SELECT count(*) FROM audit_log")).rows[0].count).toBe(before);
  expect(createStatementCsvDownload(authorization,statementA)).toEqual({downloadUrl:`/api/v1/statements/${statementA}/export/csv`});
@@ -142,6 +144,7 @@ test("an audit insert failure prevents any successful download", async () => {
  try {
  await owner.query("CREATE FUNCTION us037_reject_export() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'export audit unavailable'; END $$; CREATE TRIGGER us037_reject_export BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION us037_reject_export()");
  await expect(repository.exportCsv(authorization,statementA)).rejects.toThrow("export audit unavailable");
+ await expect(createStatementExportResponse(repository,authorization,statementA)).rejects.toThrow("export audit unavailable");
  } finally {
  await owner.query("DROP TRIGGER us037_reject_export ON audit_log; DROP FUNCTION us037_reject_export()");await owner.end();
  }
@@ -173,6 +176,25 @@ test("a draft rerun cannot mix CSV header totals, line amounts and audit snapsho
   await owner.query("SELECT pg_advisory_unlock_all()");await reading?.catch(()=>undefined);
   await owner.query(`DROP VIEW company; DROP FUNCTION us037_read_gate(text); ALTER TABLE us037_company RENAME TO company;
    UPDATE statement SET total_usd=17.29 WHERE id='${statementA}'; UPDATE statement_line SET amount_usd=21.29 WHERE id='${id(12)}'`);
+  await owner.end();
+ }
+});
+
+
+test("negative draft totals remain signed numeric CSV metadata and exact audit values", async () => {
+ const owner=await fixture.connectAsOwner();
+ try {
+  await owner.query("UPDATE statement SET total_usd=$1 WHERE id=$2",["-4.00",statementA]);
+  const {csv}=await repository.exportCsv(authorization,statementA);
+  const records=csv.trimEnd().split("\r\n").slice(1);
+  expect(records.map(row=>row.split(",")[4])).toEqual(["-4.00","-4.00"]);
+  expect(csv).not.toContain("Secret");
+  const audit=await owner.query("SELECT company_id,after FROM audit_log WHERE action='statement.export_csv' AND entity_id=$1 AND after->>'totalUsd'=$2",[statementA,"-4.00"]);
+  expect(audit.rows).toHaveLength(1);
+  expect(audit.rows[0].company_id).toBe(companyA);
+  expect(audit.rows[0].after.totalUsd).toBe("-4.00");
+ } finally {
+  await owner.query("UPDATE statement SET total_usd=$1 WHERE id=$2",["17.29",statementA]);
   await owner.end();
  }
 });
