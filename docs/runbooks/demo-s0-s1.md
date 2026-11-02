@@ -81,6 +81,12 @@ the admins' codes from the stored secrets and checks the landing page:
    and sign in with a username and password from `credentials.json`. Admins then
    enter the current code.
 
+   **Known issue:** the Group Admin lands on `/panel`, which currently shows
+   "This page couldn't load" on a production-shaped stack. The production
+   Compose file sets no `DATABASE_URL`, which that page needs (CHG-121 finding
+   in `.nous-feedback.jsonl`). The session itself is fine. Open `/registro`
+   directly.
+
 Running `pnpm demo:up` again on a healthy demo stack reuses it and reprints the
 summary. A half-built stack is refused: run `pnpm demo:down` first. The S0/S1
 journey also needs a fresh database, so a new journey always starts from
