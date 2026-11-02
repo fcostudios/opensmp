@@ -15,9 +15,9 @@ test.describe.configure({ mode: "serial" });
 
 const LANDING = ROLE_LANDING;
 /**
- * A page each role works on in the demo, proving the session is usable.
- * /panel is not used for that: on a production-shaped stack it currently fails
- * server-side (DATABASE_URL is not set there; recorded as a CHG-121 finding).
+ * A page each role works on in the demo, proving the session is usable. The
+ * landing itself must also render: CHG-122 fixed /panel failing server-side on
+ * production-shaped stacks (DATABASE_URL was not set there).
  */
 const WORKING_PAGE: Record<(typeof USERS)[number]["key"], { path: string; testId?: string }> = {
   groupAdmin: { path: "/registro", testId: "manual_register_entry" },
@@ -38,9 +38,8 @@ for (const user of USERS) {
     await signIn(page, user.key, { allowEnrollment: false, file: credentialsFile, totpNotBefore: notBefore });
     await expect(page).toHaveURL(`${demoBaseUrl}${LANDING[user.key]}`);
     await page.waitForLoadState("load");
-    if (await page.locator("#main-content").count() === 0) {
-      test.info().annotations.push({ type: "finding", description: `${LANDING[user.key]} did not render for ${user.username}` });
-    }
+    await expect(page.locator("#main-content"), `${LANDING[user.key]} renders for ${user.username}`).toBeVisible();
+    await expect(page.getByText(/couldn.t load/i)).toHaveCount(0);
     const working = WORKING_PAGE[user.key];
     await page.goto(working.path);
     await expect(page).toHaveURL(`${demoBaseUrl}${working.path}`);
