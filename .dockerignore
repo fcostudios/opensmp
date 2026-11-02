@@ -12,6 +12,7 @@ data/imports/private
 **/*.pem
 .next
 .turbo
+.tmp
 coverage
 dist
 node_modules

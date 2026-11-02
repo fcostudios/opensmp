@@ -4,6 +4,11 @@ DEC-SMP-066 keeps deployment on Docker Compose. This runbook uses the actual
 Next.js app, pg-boss worker, PostgreSQL, Keycloak and SMTP relay plus Caddy.
 There is no separate API server. Azure Container Apps is a later change.
 
+Operations entry point: [operations.md](operations.md), deployed at
+`/auth/operations/operations.md` in the app image. Download the runbooks to the
+private recovery kit before an outage. See [restore drill](restore-drill.md)
+for recovery acceptance and known release blockers.
+
 ## Runtime contract
 
 Use `infra/docker-compose.production.yml` alone, never as an override of the
