@@ -24,6 +24,7 @@ test("statement rows show stamped financial evidence, status and future detail/C
  expect(row.getByRole("link",{name:"statement-a"}).getAttribute("href")).toBe("/estados-de-cuenta/statement-a");
  expect(row.getByRole("link",{name:messages.statements.csv}).getAttribute("href")).toBe("/api/v1/statements/statement-a/export/csv");
  expect(row.getByRole("link",{name:"Download PDF"}).getAttribute("href")).toBe("/api/v1/statements/statement-a/export/pdf");
+ expect(row.getByRole("link",{name:messages.statements.csv}).parentElement?.textContent).toContain(`${messages.statements.csv} · ${messages.statements.pdf}`);
  expect((screen.getByTestId("filter_company") as HTMLSelectElement).value).toBe("company-a");
  expect((screen.getByTestId("filter_status") as HTMLSelectElement).value).toBe("draft");
  cleanup();render(<StatementsView data={data} filters={{period:"2026-01"}} canFilterCompany={false} t={messages.statements}/>);
