@@ -3,6 +3,8 @@ import { loadCurrentLedgerAuthorization } from "../identity-access/server-author
 import { closeDatabase } from "./production";
 import { createRollupService } from "./rollup-transaction";
 
+const service = createRollupService(closeDatabase);
+
 export async function exportRollupCsv(period: string) {
-  return createRollupService(closeDatabase).exportRollupCsv(await loadCurrentLedgerAuthorization(), period);
+  return service.exportRollupCsv(await loadCurrentLedgerAuthorization(), period);
 }

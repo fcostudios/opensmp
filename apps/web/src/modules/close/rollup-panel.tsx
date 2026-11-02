@@ -2,14 +2,10 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { ROUTE_SCR_RECONCILIATION } from "@/lib/routes";
-import type messages from "../../../messages/en-US.json";
+import type { RollupDownload, RollupPanelProps } from "./rollup-panel-types";
 
-type Download = { csv: string; filename: string };
-export function RollupPanel({ period, reconciliationTotalUsd, ties, action, t }: {
-  period: string; reconciliationTotalUsd: string; ties: boolean;
-  action: (period: string) => Promise<Download>; t: typeof messages.rollup;
-}) {
-  const [download, setDownload] = useState<Download | null>(null);
+export function RollupPanel({ period, reconciliationTotalUsd, ties, action, t }: RollupPanelProps) {
+  const [download, setDownload] = useState<RollupDownload | null>(null);
   const [error, setError] = useState(false);
   const [pending, startTransition] = useTransition();
   function exportCsv() {

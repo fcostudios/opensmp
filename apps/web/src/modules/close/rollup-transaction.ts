@@ -5,10 +5,11 @@ import { runCloseSchema } from "@smp/contracts/close";
 import { csvCell } from "@smp/domain/csv";
 import { cents, dollars } from "@smp/domain/close/reconciliation";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { auditLog, statement, statementLine } from "@smp/db/schema";
+import { statement, statementLine } from "@smp/db/schema";
 import type { LedgerAuthorization } from "../identity-access/authorization";
 import { createStatementRepository } from "../statements/repository";
 import { createReconciliationService } from "./reconciliation-transaction";
+import { withAudit } from "../audit/with-audit";
 import messages from "../../../messages/en-US.json";
 
 type Database = NodePgDatabase<typeof schema>;
@@ -41,15 +42,16 @@ export function createRollupService(database: Database, now = () => new Date()) 
   return {
     read,
     async exportRollupCsv(auth: LedgerAuthorization | null, input: unknown) {
-      access(auth);
-      const { statements } = await read(auth, input);
-      const t = messages.statements;
-      const records = statements.rows.map(row => [csvCell(`${row.companyCode} · ${row.companyName}`), csvCell(row.period), csvCell(row.totalUsd, true)].join(","));
-      const csv = [[t.company, t.period, t.total].map(value => csvCell(value)).join(","), ...records].join("\r\n") + "\r\n";
-      await database.insert(auditLog).values({ action: "rollup.export_csv", entityType: "StatementRollup", entityId: randomUUID(),
-        actorUserId: auth.userAccountId, companyId: null, before: null, note: null,
-        after: { period: statements.period, totalUsd: statements.totals.totalUsd, companyIds: statements.companies.map(company => company.id), statementCount: statements.rows.length }, occurredAt: now() });
-      return { csv, filename: `rollup-${statements.period}.csv` };
+      return withAudit(database, async () => {
+        access(auth);
+        const { statements } = await read(auth, input);
+        const t = messages.statements;
+        const records = statements.rows.map(row => [csvCell(`${row.companyCode} · ${row.companyName}`), csvCell(row.period), csvCell(row.totalUsd, true)].join(","));
+        const csv = [[t.company, t.period, t.total].map(value => csvCell(value)).join(","), ...records].join("\r\n") + "\r\n";
+        return { value: { csv, filename: `rollup-${statements.period}.csv` }, audit: { action: "rollup.export_csv", entityType: "StatementRollup", entityId: randomUUID(),
+          actorUserId: auth.userAccountId, companyId: null, before: null, note: null,
+          after: { period: statements.period, totalUsd: statements.totals.totalUsd, companyIds: statements.companies.map(company => company.id), statementCount: statements.rows.length } } };
+      }, { occurredAt: now() });
     },
   };
 }
