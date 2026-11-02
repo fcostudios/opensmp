@@ -119,5 +119,43 @@
     "usuarios": {
       "title": "Usuarios y roles"
     }
+  },
+  "rates": {
+    "title": "Rates and capacity",
+    "subtitle": "Manual effective-dated rates and purchased-capacity history",
+    "proration": "Daily actual/actual proration uses the monthly rate divided by the actual days in the month. Final-consumed rows are locked; corrections require a new non-overlapping effective period.",
+    "provisionalNote": "Provisional rates support rehearsal. Contracted rates and the real invoice are required for final financial acceptance.",
+    "ratesTitle": "Rates by organization and license type",
+    "capacityTitle": "Purchased-capacity history",
+    "account": "Organization",
+    "license": "License type",
+    "amount": "Monthly rate (USD)",
+    "from": "Effective from",
+    "to": "Effective to (inclusive)",
+    "status": "Evidence",
+    "lock": "Final close",
+    "quantity": "Purchased quantity",
+    "note": "Note",
+    "provisional": "Provisional",
+    "contracted": "Contracted",
+    "locked": "Locked",
+    "editable": "Editable",
+    "open": "Open-ended",
+    "add": "Add rate",
+    "edit": "Edit rate",
+    "cancel": "Cancel edit",
+    "save": "Save rate",
+    "saving": "Saving…",
+    "saved": "Rate saved",
+    "provisionalLabel": "Provisional rate",
+    "emptyRates": "No rates yet",
+    "emptyCapacity": "No purchases recorded",
+    "choose": "Choose an option",
+    "error": "Unable to save. Check dates, overlaps and final-close locks, then retry.",
+    "loadError": "Unable to load rates and capacity. Please retry.",
+    "retry": "Retry",
+    "loading": "Loading rates and capacity…",
+    "forbidden": "Central Finance or Group Admin access is required.",
+    "capacityLink": "Manage capacity"
   }
 }

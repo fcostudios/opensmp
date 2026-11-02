@@ -12,7 +12,8 @@
     "./capacity": "./src/capacity.ts",
     "./requests": "./src/requests.ts",
     "./register": "./src/register.ts",
-    "./vendor-catalog": "./src/vendor-catalog.ts"
+    "./vendor-catalog": "./src/vendor-catalog.ts",
+    "./rates": "./src/rates.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",
@@ -29,6 +30,7 @@
   "devDependencies": {
     "typescript": "^5.7.0",
     "vitest": "^4.1.0",
-    "@vitest/coverage-v8": "^4.1.0"
+    "@vitest/coverage-v8": "^4.1.0",
+    "fast-check": "^4.9.0"
   }
 }

@@ -2614,6 +2614,7 @@ const expectedAppendOnlyColumnUpdates = [
       "the btree_gist extension",
       `
         ALTER TABLE license_assignment DROP CONSTRAINT license_assignment_no_overlap;
+        ALTER TABLE rate_card DROP CONSTRAINT rate_card_no_overlap;
         DROP EXTENSION btree_gist;
       `,
       "register extension mismatch",

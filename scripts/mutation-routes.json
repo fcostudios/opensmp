@@ -216,5 +216,27 @@
   "apps/web/src/components/register/manual-register-forms.tsx": [
     "apps/web/src/components/register/manual-register-forms.test.tsx",
     "apps/web/src/components/register/manual-register-forms.integration.test.tsx"
+  ],
+  "apps/web/src/modules/vendor-catalog/actions/manage-rates-operations.ts": [
+    "apps/web/src/modules/vendor-catalog/rate-service.integration.test.ts"
+  ],
+  "apps/web/src/modules/vendor-catalog/actions/manage-rates-server-actions-factory.ts": [
+    "apps/web/src/modules/vendor-catalog/rate-service.integration.test.ts"
+  ],
+  "apps/web/src/modules/vendor-catalog/rate-production.ts": [
+    "apps/web/src/app/(authenticated)/tarifas/page.integration.test.ts"
+  ],
+  "apps/web/src/modules/vendor-catalog/actions/manage-rates.ts": [
+    "apps/web/src/app/(authenticated)/tarifas/page.integration.test.ts"
+  ],
+  "apps/web/src/app/(authenticated)/tarifas/loading.tsx": [
+    "apps/web/src/app/(authenticated)/tarifas/error.test.tsx"
+  ],
+  "packages/contracts/src/rates.ts": [
+    "packages/contracts/src/rates.test.ts"
+  ],
+  "apps/web/src/modules/vendor-catalog/rates-view.tsx": [
+    "apps/web/src/modules/vendor-catalog/rates-view.test.tsx",
+    "apps/web/src/modules/vendor-catalog/rates-view.integration.test.tsx"
   ]
 }

@@ -1244,6 +1244,7 @@ describe("vendor-neutral core source boundary", () => {
       "apps/web/src/modules/org-registry/register-backfill.ts",
       "apps/web/src/modules/register/actions.ts",
       "apps/web/src/modules/register/export-boundary.ts",
+      "apps/web/src/modules/register/manual-entry-transaction.ts",
       "apps/web/src/modules/register/repository.ts",
       "apps/web/src/modules/register/server-actions.ts",
       "apps/web/src/modules/request-workflow/actions/checklist-action-production-dependencies.ts",
