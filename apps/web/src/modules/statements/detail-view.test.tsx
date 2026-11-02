@@ -30,6 +30,8 @@ afterEach(cleanup);
 test("renders license fields, negative USD adjustment and expands US-033 evidence", () => {
  show();
  expect(screen.getByTestId("btn_export_csv").getAttribute("href")).toBe("/api/v1/statements/statement-a/export/csv");
+ expect(screen.getByTestId("btn_export_pdf").getAttribute("href")).toBe("/api/v1/statements/statement-a/export/pdf");
+ expect(screen.getByTestId("btn_export_pdf").textContent).toBe("Download PDF");
  expect(screen.getByRole("heading",{level:1}).textContent).toContain("Alpha");
  expect(screen.getByRole("heading",{level:1}).textContent).toContain("2026-07");
  const table = screen.getByRole("table");

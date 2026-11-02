@@ -4,9 +4,10 @@
 Node/server presentation module. All row types derive from `@smp/db/schema`.
 It accepts an already authorized, company-scoped statement snapshot. It checks
 the company/statement and statement/line relationships as defense in depth;
-this is not an authorization boundary. Future US-037 integration must load the
-snapshot through the authenticated export path. No close, route, screen,
-database query, or schema change is included here.
+this is not an authorization boundary. US-037 loads the snapshot through its
+authenticated export path, using a repeatable-read company-scoped transaction
+and the same stored S1 license/adjustment rows as US-036 detail. Rendering and
+the export audit must both succeed before the download returns.
 
 BR-19 / DEC-SMP-011: only `Company.statementLanguage` selects the labels and
 date/decimal presentation (`en` → en-US; `es` or null → es-EC). User UI language
@@ -28,8 +29,12 @@ Barlow Regular, Barlow Condensed Bold and IBM Plex Mono Regular are bundled in
 `public/fonts/statement`, with upstream OFL licenses. Sources are the matching
 `ofl/barlow`, `ofl/barlowcondensed` and `ofl/ibmplexmono` directories in
 https://github.com/google/fonts. Rendering needs no network. Font assets resolve relative to the module, so direct Node rendering does not
-depend on the working directory. Future export integration must retain these
-assets in the Next.js server output.
+depend on the working directory. The Next.js server webpack rules retain real
+file URLs for this renderer and emit its fonts beside the server chunks;
+standalone output tracing includes those assets. PDFKit remains external so its
+AFM data resolves from its installed package. Do not replace those server file
+URLs with browser asset URLs. Verify a relocated standalone PDF download with
+the source font directory unavailable whenever changing this packaging.
 
 ## Fixture and verification
 
@@ -51,8 +56,12 @@ pdftoppm -png src/modules/statements/pdf/testing/statement-es.pdf /tmp/statement
 pdftoppm -png src/modules/statements/pdf/testing/statement-en.pdf /tmp/statement-en
 ```
 
-AC2's exact parity with SCR-statement-detail is **unverifiable until US-036
-exists**. The fixture proves the schema field contract, not screen parity.
+US-037 integration tests verify the authenticated PDF path, the US-036 stored
+S1 detail facts, company-selected language (including Spanish by default), and
+the per-page period, statement-generated stamp and integrity note. The footer
+uses `Statement.generatedAt`; the audit separately records when the export
+occurs. List and detail expose localized PDF download links.
+
 The Sprint S3 production exit criterion still requires the real finance-user
 and IT Director journey/acceptance across the other stories; this module alone
 cannot attest it.

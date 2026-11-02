@@ -23,6 +23,7 @@ test("statement rows show stamped financial evidence, status and future detail/C
  expect(screen.getByRole("status").textContent).toBe(`${messages.statements.succeeded} · 2026-01 · run-1 · 2026-02-01T12:00:00.000Z`);
  expect(row.getByRole("link",{name:"statement-a"}).getAttribute("href")).toBe("/estados-de-cuenta/statement-a");
  expect(row.getByRole("link",{name:messages.statements.csv}).getAttribute("href")).toBe("/api/v1/statements/statement-a/export/csv");
+ expect(row.getByRole("link",{name:"Download PDF"}).getAttribute("href")).toBe("/api/v1/statements/statement-a/export/pdf");
  expect((screen.getByTestId("filter_company") as HTMLSelectElement).value).toBe("company-a");
  expect((screen.getByTestId("filter_status") as HTMLSelectElement).value).toBe("draft");
  cleanup();render(<StatementsView data={data} filters={{period:"2026-01"}} canFilterCompany={false} t={messages.statements}/>);

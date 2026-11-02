@@ -31,6 +31,21 @@ describe("Next webpack workspace resolution", () => {
     });
   });
 
+  it("packages statement fonts as Node file URLs and keeps PDFKit runtime data", () => {
+    expect(nextConfig.serverExternalPackages).toContain("pdfkit");
+    const config = { context: fileURLToPath(new URL(".", import.meta.url)), resolve: {}, module: { rules: [] as Array<{test: RegExp; parser?: {url: boolean}; generator?: {publicPath: string}}> } };
+    nextConfig.webpack!(config as never, { isServer: true } as never);
+    const renderer = config.module.rules.find(rule => rule.test.test("/app/src/modules/statements/pdf/render.ts"));
+    const font = config.module.rules.find(rule => rule.test.test("/app/public/fonts/statement/Barlow-Regular.ttf"));
+    expect(renderer?.parser?.url).toBe(true);
+    // webpack's Node runtime anchors assets at .next/server/chunks/.
+    expect(new URL(font!.generator!.publicPath + "static/media/Barlow.ttf", "file:///deploy/.next/server/chunks/").pathname).toBe("/deploy/.next/server/chunks/static/media/Barlow.ttf");
+    expect(renderer!.test.test("/app/src/modules/other/render.ts")).toBe(false);
+    const browser = { context: fileURLToPath(new URL(".", import.meta.url)), resolve: {}, module: { rules: [] } };
+    nextConfig.webpack!(browser as never, { isServer: false } as never);
+    expect(browser.module.rules).toEqual([]);
+  });
+
   it("keeps this adjacent contract test in the web test project", () => {
     expect(nextConfig.experimental?.authInterrupts).toBe(true);
     expect(vitestConfig.test?.include).toEqual([
