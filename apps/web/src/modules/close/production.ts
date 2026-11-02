@@ -15,7 +15,3 @@ export async function loadLatestCloseRun(authorization: LedgerAuthorization, per
 export async function loadCloseStatements(authorization: LedgerAuthorization, period: string) {
   return closeService.statements(authorization, period);
 }
-
-export async function loadCloseSummary(authorization: LedgerAuthorization, period: string) {
-  return closeService.summary(authorization, period);
-}

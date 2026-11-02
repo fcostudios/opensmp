@@ -164,10 +164,13 @@ export async function verifyMigratedSchema({
     throw error;
   });
   const declaration = parseSchemaContract(schemaContractBytes, schemaContractPath);
-  const { coreTableNames, normallyUpdateableTableNames, expectedAppendOnlyColumnUpdates } =
+  const { coreTableNames, normallyUpdateableTableNames: baselineUpdateableTableNames, expectedAppendOnlyColumnUpdates } =
     attestSchemaContract(declaration);
+  // US-038 adds guarded CRUD while open; the immutable baseline remains attested.
+  const normallyUpdateableTableNames = [...baselineUpdateableTableNames, "reconciliation_variance_line"];
 
 const expectedRuntimeTableGrants = [
+  { tableName: "reconciliation_variance_line", privilege: "DELETE" },
   ...coreTableNames.flatMap((tableName) => [
     ...(["alert_notification_delivery", "lifecycle_notification_delivery"].includes(tableName)
       ? []

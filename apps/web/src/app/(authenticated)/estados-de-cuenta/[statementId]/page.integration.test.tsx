@@ -13,6 +13,8 @@ let owner: pg.Client;
 let productionPool: pg.Pool;
 let localePool: pg.Pool;
 let Page: typeof import("./page").default;
+let download: typeof import("@/app/api/v1/statements/[statementId]/export/csv/route").GET;
+let exportAction: typeof import("@/modules/statements/server-actions").exportStatementCsv;
 let hooks: ReturnType<typeof registerHooks>;
 const saved = vi.hoisted(() => {
  const original = { AUTH_SECRET:process.env.AUTH_SECRET,AUTH_URL:process.env.AUTH_URL,AUTH_TRUST_HOST:process.env.AUTH_TRUST_HOST,DATABASE_URL:process.env.DATABASE_URL,DB_DRIVER:process.env.DB_DRIVER };
@@ -66,10 +68,15 @@ beforeAll(async () => {
   return nextLoad(url,context);
  }});
  Page=(await import(require.resolve("./page.tsx"))).default;
+ download=(await import("@/app/api/v1/statements/[statementId]/export/csv/route")).GET;
+ exportAction=(await import("@/modules/statements/server-actions")).exportStatementCsv;
  productionPool=((await import(require.resolve("@smp/db"))).db as unknown as {$client:pg.Pool}).$client;
 });
 afterAll(async()=>{if(hooks){localePool=require("@smp/db").db.$client;if(localePool!==productionPool)await localePool.end();}hooks?.deregister();await productionPool?.end();await owner?.end();await fixture?.stop();vi.useRealTimers();for(const [key,value] of Object.entries(saved)) {if(value===undefined)delete process.env[key];else process.env[key]=value;}});
-async function page(subject:string|null,statementId=id(7),uiLanguage="en") {
+function page(subject:string|null,statementId?:string,uiLanguage?:string,operation?:"page"): Promise<Awaited<ReturnType<typeof Page>>>;
+function page(subject:string|null,statementId:string,uiLanguage:string,operation:"csv"): Promise<Response>;
+function page(subject:string|null,statementId:string,uiLanguage:string,operation:"action"): Promise<{downloadUrl:string}>;
+async function page(subject:string|null,statementId=id(7),uiLanguage="en", operation: "page"|"csv"|"action"="page") {
  if(subject) await owner.query("UPDATE user_account SET ui_language=$1 WHERE idp_subject=$2",[uiLanguage,subject]);
  const {encode}=await import(require.resolve("next-auth/jwt"));
  const token=subject?await encode({secret:process.env.AUTH_SECRET!,salt:"authjs.session-token",token:{idpSubject:subject,displayName:"Verified finance",uiLanguage}}):null;
@@ -81,7 +88,7 @@ async function page(subject:string|null,statementId=id(7),uiLanguage="en") {
  const request=new Request(url,{headers:{host:url.host,...(token?{cookie:"authjs.session-token="+token}:{})}});
  const store=createRequestStoreForAPI(request,url,{tags:[],expirationsByCacheKind:new Map()});
  const work=createWorkStore({page:"/estados-de-cuenta/[statementId]/page",renderOpts:{supportsDynamicResponse:true,isDraftMode:false},isPrefetchRequest:false,buildId:"us036",previouslyRevalidatedTags:[]});
- return workAsyncStorage.run(work,()=>workUnitAsyncStorage.run(store,()=>Page({params:Promise.resolve({statementId})})));
+ return workAsyncStorage.run(work,()=>workUnitAsyncStorage.run(store,()=>operation === "csv" ? download(request,{params:Promise.resolve({statementId})}) : operation === "action" ? exportAction(statementId) : Page({params:Promise.resolve({statementId})})));
 }
 test.each([null,"detail-viewer"])("signed %s cannot open statement detail",async subject=>{await expect(page(subject)).rejects.toMatchObject({digest:expect.stringContaining(";/acceso-denegado;")});});
 test("signed company finance sees own company only and foreign/missing IDs return 404",async()=>{
@@ -96,4 +103,29 @@ test("signed locale controls the detail copy and DB failures propagate to recove
  const spanish=renderToStaticMarkup(await page("detail-finance",id(7),"es"));expect(spanish).toContain("Estado de cuenta");expect(spanish).toContain("USD 21,29");
  await owner.query("ALTER TABLE statement RENAME TO unavailable_statement");
  try {await expect(page("detail-finance")).rejects.toMatchObject({code:"42P01"});} finally {await owner.query("ALTER TABLE unavailable_statement RENAME TO statement");}
+});
+
+// Real signed-session seam: adapter auth, fresh DB grants, URL action and actual download.
+test("CSV download and action independently resolve signed finance grants, language and audit", async () => {
+ for (const [subject,statementId,status] of [[null,id(7),401],["detail-viewer",id(7),403],["detail-finance",id(8),404],["detail-finance","bad-id",400]] as const) {
+   const response=await page(subject,statementId,"en","csv");
+   expect(response.status).toBe(status);
+ }
+ for(const subject of ["detail-finance","detail-central","detail-admin"]) {
+   expect(await page(subject,id(7),"en","action")).toEqual({downloadUrl:`/api/v1/statements/${id(7)}/export/csv`});
+   const response=await page(subject,id(7),"en","csv");
+   expect(response.status).toBe(200);
+   expect(response.headers.get("cache-control")).toBe("private, no-store");
+   const csv=await response.text();
+   expect(csv).toContain("Compañía,Período,Estado");
+   expect(csv).toContain("Detail Alice");expect(csv).not.toContain("Foreign detail");
+ }
+ await expect(page(null,id(7),"en","action")).rejects.toThrow("UNAUTHORIZED");
+ await expect(page("detail-viewer",id(7),"en","action")).rejects.toThrow("STATEMENTS_ACCESS_FORBIDDEN");
+ const audits=await owner.query("SELECT entity_id,company_id,actor_user_id FROM audit_log WHERE action='statement.export_csv' ORDER BY actor_user_id");
+ expect(audits.rows).toEqual([1,3,4].map(n=>({entity_id:id(7),company_id:id(5),actor_user_id:id(n)})));
+ // Revoke after issuing a URL: the subsequent download must reauthorize.
+ await owner.query("DELETE FROM company_role_assignment WHERE user_account_id=$1",[id(1)]);
+ try {expect((await page("detail-finance",id(7),"en","csv")).status).toBe(403);}
+ finally {await owner.query(`INSERT INTO company_role_assignment (user_account_id,company_id,role,unique_grant,created_at,created_by) VALUES ('${id(1)}','${id(5)}','finance','finance-a','2026-08-01','${id(3)}')`);}
 });

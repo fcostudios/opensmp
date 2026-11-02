@@ -277,5 +277,49 @@
   "apps/worker/src/jobs/deferred.ts": [
     "apps/worker/src/jobs/deferred.test.ts",
     "apps/worker/src/jobs/close-schedule.integration.test.ts"
+  ],
+  "apps/web/src/modules/close/reconciliation-actions-factory.ts": [
+    "apps/web/src/app/(authenticated)/conciliacion/page.integration.test.ts"
+  ],
+  "apps/web/src/modules/close/reconciliation-operations.ts": [
+    "apps/web/src/app/(authenticated)/conciliacion/page.integration.test.ts"
+  ],
+  "apps/web/src/modules/close/reconciliation-actions.ts": [
+    "apps/web/src/app/(authenticated)/conciliacion/page.integration.test.ts"
+  ],
+  "apps/web/src/modules/close/reconciliation-transaction.ts": [
+    "apps/web/src/modules/close/reconciliation.integration.test.ts",
+    "apps/web/src/app/(authenticated)/conciliacion/page.integration.test.ts"
+  ],
+  "packages/contracts/src/reconciliation.ts": [
+    "packages/contracts/src/reconciliation.test.ts"
+  ],
+  "apps/web/src/app/(authenticated)/estados-de-cuenta/page.tsx": [
+    "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+  ],
+  "apps/web/src/app/(authenticated)/estados-de-cuenta/loading.tsx": [
+    "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+  ],
+  "apps/web/src/app/(authenticated)/estados-de-cuenta/error.tsx": [
+    "apps/web/src/modules/statements/statement-view.test.tsx"
+  ],
+  "apps/web/src/modules/statements/production.ts": [
+    "apps/web/src/app/(authenticated)/cierre/page.integration.test.ts"
+  ],
+  "packages/contracts/src/statements.ts": [
+    "apps/web/src/modules/statements/list-repository.integration.test.ts"
+  ],
+  "apps/web/src/modules/statements/repository.ts": [
+    "apps/web/src/modules/statements/list-repository.integration.test.ts"
+  ],
+  "apps/web/src/app/api/v1/statements/[statementId]/export/csv/route.ts": [
+    "apps/web/src/app/(authenticated)/estados-de-cuenta/[statementId]/page.integration.test.tsx"
+  ],
+  "apps/web/src/modules/statements/server-actions.ts": [
+    "apps/web/src/app/(authenticated)/estados-de-cuenta/[statementId]/page.integration.test.tsx"
+  ],
+  "apps/web/src/modules/statements/export-transaction.ts": [
+    "apps/web/src/modules/statements/export.integration.test.ts",
+    "apps/web/src/app/(authenticated)/estados-de-cuenta/[statementId]/page.integration.test.tsx"
   ]
 }

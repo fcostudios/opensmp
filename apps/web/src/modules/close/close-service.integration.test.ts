@@ -130,17 +130,17 @@ test("manual action authenticates, validates, commits and revalidates the close 
   const actions=createCloseActions({database,now:()=>now,loadAuthorization:async()=>finance,revalidate:path=>{paths.push(path);}});
   const form=new FormData(); form.set("period","2026-02"); form.set("note","Manual close");
   const result=await actions.runClose({status:"idle"},form);
-  expect(result).toMatchObject({status:"succeeded",durationMs:0}); expect(paths).toEqual(["/cierre"]);
+  expect(result).toMatchObject({status:"succeeded",durationMs:0}); expect(paths).toEqual(["/cierre","/estados-de-cuenta"]);
   expect((await service.latestRun(finance,"2026-02"))?.id).toBe("runId" in result ? result.runId : "missing");
   expect((await service.latestRun(finance,"2026-02"))?.note).toBe("Manual close");
   expect(await service.latestRun({...finance,userAccountId:id(99),companyIds:[id(6)]},"2026-02")).toBeNull();
   form.set("period","2026-13");
-  expect(await actions.runClose({status:"idle"},form)).toEqual({status:"error"}); expect(paths).toHaveLength(1);
+  expect(await actions.runClose({status:"idle"},form)).toEqual({status:"error"}); expect(paths).toHaveLength(2);
   for(const loadAuthorization of [async()=>null,async()=>{throw new Error("session unavailable");}]) {
     const denied=createCloseActions({database,loadAuthorization,revalidate:path=>{paths.push(path);}});
     expect(await denied.runClose({status:"idle"},form)).toEqual({status:"error"});
   }
-  expect(paths).toHaveLength(1);
+  expect(paths).toHaveLength(2);
 });
 
 

@@ -1,11 +1,11 @@
 "use client";
-import { useActionState } from "react";
+import { useActionState, type ReactNode } from "react";
 import Link from "next/link";
 import type { CloseRunView, CloseAction, CloseSummary } from "./close-view-types";
 import { ROUTE_SCR_CLOSE } from "@/lib/routes";
 import { useLocale } from "@/lib/i18n/use-locale";
 import type messages from "@/lib/i18n/en-US.json";
-export function CloseView({ period, latest, action, summary }: { period: string; latest: CloseRunView | null; action: CloseAction; summary?: CloseSummary }) {
+export function CloseView({ period, latest, action, summary, tiles }: { period: string; latest: CloseRunView | null; action: CloseAction; summary?: CloseSummary; tiles?: ReactNode }) {
   const { t: dictionary } = useLocale();
   const t = dictionary.close as typeof messages.close;
   // @equivalent: an empty initial state/status also renders no result; the server action ignores previous state.
@@ -21,7 +21,7 @@ export function CloseView({ period, latest, action, summary }: { period: string;
       <label>{t.period}<input aria-label={t.period} name="period" type="month" defaultValue={period} required className="block rounded border border-border p-2" /></label>
       <button type="submit" className="rounded border border-border px-4 py-2">{t.select}</button>
     </form>
-    <section data-testid="close_tiles" className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    {tiles ?? <section data-testid="close_tiles" className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       {[
         ["tile_current_period", t.period, period],
         ["tile_statements_generated", t.generated, summary ? `${summary.generated}/${summary.companies}` : t.unavailable],
@@ -29,7 +29,7 @@ export function CloseView({ period, latest, action, summary }: { period: string;
         ["tile_finals", t.finals, summary?.finals ?? t.unavailable],
         ["tile_group_total", t.total, summary ? `USD ${summary.totalUsd}` : t.unavailable],
       ].map(([id,label,value])=><div key={id} data-testid={id} className="rounded-lg border border-border p-4"><h2>{label}</h2><p className="text-2xl font-semibold">{value}</p></div>)}
-    </section>
+    </section>}
     <section data-testid="latest_close_run" className="space-y-2 rounded-lg border border-border p-4">
       <h2 className="font-semibold">{t.latest}</h2><p>{period}</p>
       {latest ? <><p>{t[latest.status]}</p><p>{latest.id}</p><time dateTime={latest.startedAt.toISOString()}>{latest.startedAt.toLocaleString("en-US", { timeZone: "America/Guayaquil" })}</time>

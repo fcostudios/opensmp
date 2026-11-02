@@ -7,6 +7,7 @@ export function createCloseActions({ database, now, loadAuthorization, revalidat
   loadAuthorization: () => Promise<LedgerAuthorization | null>;
   revalidate: (path: string) => void | Promise<void>;
 }) {
+  const closeReadPaths = [ROUTE_SCR_CLOSE, ROUTE_SCR_STATEMENTS];
   const actions = createCloseOperations({ database, now });
   return {
     async finalizeStatement(previous: FinalizeActionState, form: FormData): Promise<FinalizeActionState> {
@@ -46,7 +47,8 @@ export function createCloseActions({ database, now, loadAuthorization, revalidat
       if (!authorization) return { status: "error" };
       let run: { status: string; id: string; durationMs: number };
       try { run = await actions.runClose(authorization, form); } catch { return { status: "error" }; }
-      await revalidate(ROUTE_SCR_CLOSE);
+      await revalidate(closeReadPaths[0]);
+      await revalidate(closeReadPaths[1]);
       return { status: run.status as "succeeded" | "failed", runId: run.id, durationMs: run.durationMs };
     },
   };
